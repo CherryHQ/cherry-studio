@@ -17,9 +17,12 @@ import { actionsSection } from './actionsSection'
 import { agentDisciplineSection } from './agentDisciplineSection'
 import { assistantPromptSection } from './assistantPromptSection'
 import { codeWorkflowSection } from './codeWorkflowSection'
+import { compactionHintSection } from './compactionHintSection'
+import { compressionHintSection } from './compressionHintSection'
 import { envSection } from './envSection'
 import { identitySection } from './identitySection'
 import { outputStyleSection } from './outputStyleSection'
+import { persistedOutputSection } from './persistedOutputSection'
 import { skillsCatalogSection } from './skillsCatalogSection'
 import { systemRulesSection } from './systemRulesSection'
 import { toneAndOutputSection } from './toneAndOutputSection'
@@ -31,6 +34,11 @@ const CONTRIBUTORS: SectionContributor[] = [
   // Frozen prose first (most stable), then user/toolset-derived prose.
   identitySection,
   systemRulesSection,
+  // Behavior contracts for context-chef. Gated on contextSettings.enabled;
+  // sit next to agentDisciplineSection because they're conceptually peer behavior contracts.
+  persistedOutputSection,
+  compactionHintSection,
+  compressionHintSection,
   agentDisciplineSection,
   actionsSection,
   toneAndOutputSection,
