@@ -2,8 +2,6 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
@@ -29,7 +27,7 @@ import { OpenClawSidebarIcon } from '../Icons/SVGIcon'
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
 import { getSidebarLayout } from '../Sidebar/constants'
-import type { SidebarMenuItem, SidebarMiniApp, SidebarMiniAppTab, SidebarUser } from '../Sidebar/types'
+import type { SidebarMenuItem, SidebarUser } from '../Sidebar/types'
 
 const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />
 const noop = () => {}
@@ -40,7 +38,7 @@ const routePrefixMap: Record<SidebarIconType, string> = {
   store: '/app/assistant',
   paintings: '/app/paintings',
   translate: '/app/translate',
-  minapp: '/app/minapp',
+  mini_app: '/app/mini-app',
   knowledge: '/app/knowledge',
   files: '/app/files',
   code_tools: '/app/code',
@@ -54,7 +52,7 @@ const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
   store: Sparkle,
   paintings: Palette,
   translate: Languages,
-  minapp: LayoutGrid,
+  mini_app: LayoutGrid,
   knowledge: FileSearch,
   files: Folder,
   code_tools: Code,
@@ -80,7 +78,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
-  const [showOpenedInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
   const { activeTab, updateTab, openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
 
@@ -105,35 +102,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [avatar, t, userName]
   )
 
-  // MiniApp tabs — bridge v1 popup system data to v2 sidebar UI
-  const { openedKeepAliveMinapps, currentMinappId, minappShow } = useMinapps()
-  const { openMinappKeepAlive } = useMinappPopup()
-
-  const activeMiniAppTabs = useMemo<SidebarMiniAppTab[]>(() => {
-    if (!showOpenedInSidebar) return []
-    return openedKeepAliveMinapps.map((app) => ({
-      type: 'miniapp',
-      id: app.id,
-      title: app.name,
-      miniApp: {
-        id: app.id,
-        color: app.background,
-        url: app.url,
-        logo: app.logo as SidebarMiniApp['logo']
-      }
-    }))
-  }, [showOpenedInSidebar, openedKeepAliveMinapps])
-
-  const handleMiniAppTabClick = useCallback(
-    (tabId: string) => {
-      const app = openedKeepAliveMinapps.find((a) => a.id === tabId)
-      if (app) {
-        openMinappKeepAlive(app)
-      }
-    },
-    [openedKeepAliveMinapps, openMinappKeepAlive]
-  )
-
   // Floating sidebar (hover reveal when hidden)
   const [hoverVisible, setHoverVisible] = useState(false)
   const layout = getSidebarLayout(sidebarWidth)
@@ -153,12 +121,11 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           {
             id: icon,
             label: getSidebarIconLabel(icon),
-            icon: Icon,
-            ...(icon === 'minapp' ? { miniAppTabs: activeMiniAppTabs } : {})
+            icon: Icon
           }
         ]
       }),
-    [defaultPaintingProvider, visibleSidebarIcons, activeMiniAppTabs]
+    [defaultPaintingProvider, visibleSidebarIcons]
   )
 
   const activeItem = resolveActiveItem(pathname)
@@ -175,7 +142,10 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       }
 
       if (activeTab && activeTab.id !== 'home') {
-        updateTab(activeTab.id, { url: path, title: getDefaultRouteTitle(path) })
+        // Reusing the active tab — clear any per-entity icon (e.g. a mini-app
+        // logo carried over from /app/mini-app/<id>) so the new top-level
+        // route falls back to its default Lucide icon.
+        updateTab(activeTab.id, { url: path, title: getDefaultRouteTitle(path), icon: undefined })
       } else {
         openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
       }
@@ -190,10 +160,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     title: 'Cherry Studio',
     logo: APP_LOGO,
     user: sidebarUser,
-    activeTabId: minappShow ? currentMinappId : undefined,
     dockedTabs: [],
     onItemClick: handleNavigate,
-    onMiniAppTabClick: handleMiniAppTabClick,
     onCloseDockedTab: noop
   }
 

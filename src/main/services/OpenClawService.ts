@@ -740,7 +740,7 @@ export class OpenClawService extends BaseService {
   }
 
   /**
-   * Get OpenClaw Dashboard URL (for opening in minapp).
+   * Get OpenClaw Dashboard URL (for opening in miniapp).
    * The Control UI uses ?token= to auto-authenticate the WebSocket connection.
    */
   public getDashboardUrl(): string {

@@ -3,7 +3,7 @@ import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputb
 
 const quickPhrasesTool = defineTool({
   key: 'quick_phrases',
-  label: (t) => t('settings.quickPhrase.title'),
+  label: (t) => t('settings.prompts.title'),
 
   visibleInScopes: [TopicType.Chat, TopicType.Session, 'quick-assistant'],
 

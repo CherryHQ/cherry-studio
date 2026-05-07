@@ -957,17 +957,6 @@
         "xhigh": "穷究",
         "xhigh_description": "超高强度推理"
       },
-      "regular_phrases": {
-        "add": "添加短语",
-        "contentLabel": "内容",
-        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
-        "delete": "删除短语",
-        "deleteConfirm": "确定要删除这个短语吗？",
-        "edit": "编辑短语",
-        "title": "常用短语",
-        "titleLabel": "标题",
-        "titlePlaceholder": "输入标题"
-      },
       "title": "助手设置",
       "tool_use_mode": {
         "function": "函数",
@@ -2147,7 +2136,7 @@
   },
   "launchpad": {
     "apps": "应用",
-    "minapps": "小程序"
+    "miniApps": "小程序"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2500,15 +2489,20 @@
       "partial_failure": "{{count}} 个搜索结果，部分搜索失败"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "添加到启动台",
     "add_to_sidebar": "添加到侧边栏",
+    "error": {
+      "load_failed": "应用加载失败",
+      "not_found": "应用未找到"
+    },
+    "hide_failed": "隐藏小程序失败",
+    "pin_failed": "固定小程序失败",
     "popup": {
       "close": "关闭小程序",
       "devtools": "开发者工具",
       "goBack": "后退",
       "goForward": "前进",
-      "minimize": "最小化小程序",
       "openExternal": "在浏览器中打开",
       "open_link_external_off": "当前：使用默认窗口打开链接",
       "open_link_external_on": "当前：在浏览器中打开链接",
@@ -2517,6 +2511,13 @@
     },
     "remove_from_launchpad": "从启动台移除",
     "remove_from_sidebar": "从侧边栏移除",
+    "reorder_failed": "小程序排序更新失败",
+    "shortcut": {
+      "failed": "失败：{{message}}",
+      "html_saved": "HTML 已保存至：{{path}}",
+      "pdf_saved": "PDF 已保存至：{{path}}"
+    },
+    "show_failed": "显示小程序失败",
     "sidebar": {
       "close": {
         "title": "关闭"
@@ -2531,9 +2532,11 @@
         "title": "删除自定义应用"
       }
     },
-    "title": "小程序"
+    "title": "小程序",
+    "unpin_failed": "取消固定小程序失败",
+    "update_partial_failure": "{{failed}}/{{total}} 项更新失败"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "蚂蚁百灵",
     "baichuan": "百小应",
     "baidu-ai-search": "百度AI搜索",
@@ -2552,6 +2555,7 @@
     "stepfun": "阶跃AI",
     "tencent-yuanbao": "腾讯元宝",
     "tiangong-ai": "天工AI",
+    "update_partial_failure_generic": "部分小程序更新失败",
     "wanzhi": "万知",
     "wenxin": "文心一言",
     "wps-copilot": "WPS灵犀",
@@ -4646,7 +4650,7 @@
         "knowledge": {
           "icon": "显示知识图标"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "显示小程序图标"
         },
         "painting": {
@@ -5048,7 +5052,7 @@
       "title": "消息设置",
       "use_serif_font": "使用衬线字体"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
       "cache_description": "设置同时保持活跃状态的小程序最大数量",
       "cache_settings": "缓存设置",
@@ -5098,8 +5102,6 @@
         "title": "小程序区域筛选"
       },
       "reset_tooltip": "重置为默认值",
-      "sidebar_description": "设置侧边栏是否显示活跃的小程序",
-      "sidebar_title": "侧边栏活跃小程序显示设置",
       "title": "小程序设置",
       "visible": "显示的小程序"
     },
@@ -5261,6 +5263,24 @@
     "privacy": {
       "enable_privacy_mode": "匿名发送错误报告和数据统计",
       "title": "隐私设置"
+    },
+    "prompts": {
+      "add": "添加提示词",
+      "contentLabel": "内容",
+      "contentPlaceholder": "请输入提示词内容，支持使用 ${变量}，按 Tab 可在变量间快速定位。例如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
+      "delete": "删除提示词",
+      "deleteConfirm": "删除提示词后将无法恢复，是否继续？",
+      "edit": "编辑提示词",
+      "errors": {
+        "createFailed": "创建提示词失败",
+        "deleteFailed": "删除提示词失败",
+        "loadFailed": "加载提示词失败",
+        "reorderFailed": "调整提示词顺序失败",
+        "updateFailed": "更新提示词失败"
+      },
+      "title": "提示词管理",
+      "titleLabel": "标题",
+      "titlePlaceholder": "请输入提示词标题"
     },
     "provider": {
       "add": {
@@ -5554,20 +5574,6 @@
       "page": "翻页",
       "select": "选择",
       "title": "快捷菜单"
-    },
-    "quickPhrase": {
-      "add": "添加短语",
-      "assistant": "助手短语",
-      "contentLabel": "内容",
-      "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
-      "delete": "删除短语",
-      "deleteConfirm": "删除短语后将无法恢复，是否继续？",
-      "edit": "编辑短语",
-      "global": "全局短语",
-      "locationLabel": "添加位置",
-      "title": "快捷短语",
-      "titleLabel": "标题",
-      "titlePlaceholder": "请输入短语标题"
     },
     "scheduledTasks": {
       "description": "管理所有 Agent 的定时任务。任务将按照配置的时间计划自动运行。",

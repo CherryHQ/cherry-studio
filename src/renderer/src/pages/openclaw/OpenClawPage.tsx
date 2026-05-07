@@ -2,7 +2,7 @@ import { Openclaw } from '@cherrystudio/ui/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
 import ModelSelector from '@renderer/components/ModelSelectorLegacy'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { loggerService } from '@renderer/services/LoggerService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -57,7 +57,7 @@ const OpenClawPage: FC = () => {
   const { t, i18n } = useTranslation()
   const dispatch = useAppDispatch()
   const { providers } = useProviders()
-  const { openSmartMinapp } = useMinappPopup()
+  const { openSmartMiniApp } = useMiniAppPopup()
 
   const docsUrl = useMemo(() => {
     const lang = i18n.language?.toLowerCase() ?? ''
@@ -259,14 +259,14 @@ const OpenClawPage: FC = () => {
       // Auto open dashboard first
       const dashboardUrl = await window.api.openclaw.getDashboardUrl()
 
-      openSmartMinapp({
-        id: 'openclaw-dashboard',
+      openSmartMiniApp({
+        appId: 'openclaw-dashboard',
         name: 'OpenClaw',
         url: dashboardUrl,
         logo: 'openclaw'
       })
 
-      // Delay 500ms before updating UI state (wait for minapp animation)
+      // Delay 500ms before updating UI state (wait for miniapp animation)
       setTimeout(() => {
         dispatch(setGatewayStatus('running'))
         setIsStarting(false)
@@ -295,8 +295,8 @@ const OpenClawPage: FC = () => {
 
   const handleOpenDashboard = async () => {
     const dashboardUrl = await window.api.openclaw.getDashboardUrl()
-    openSmartMinapp({
-      id: 'openclaw-dashboard',
+    openSmartMiniApp({
+      appId: 'openclaw-dashboard',
       name: 'OpenClaw',
       url: dashboardUrl,
       logo: 'openclaw'

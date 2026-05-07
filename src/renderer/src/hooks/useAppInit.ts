@@ -13,7 +13,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 
 import useFullScreenNotice from './useFullScreenNotice'
-import { useMinapps } from './useMinapps'
+import { useMiniApps } from './useMiniApps'
 import useNavBackgroundColor from './useNavBackgroundColor'
 import { useNavbarPosition } from './useNavbar'
 
@@ -25,7 +25,7 @@ export function useAppInit() {
   const [enableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
   const { isLeftNavbar } = useNavbarPosition()
-  const { minappShow } = useMinapps()
+  const { miniAppShow } = useMiniApps()
   const { updateAppUpdateState } = useAppUpdateState()
   const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
@@ -96,13 +96,13 @@ export function useAppInit() {
   useEffect(() => {
     const isMacTransparentWindow = windowStyle === 'transparent' && isMac
 
-    if (minappShow && isLeftNavbar) {
+    if (miniAppShow && isLeftNavbar) {
       window.root.style.background = isMacTransparentWindow ? 'var(--color-background)' : navBackgroundColor
       return
     }
 
     window.root.style.background = navBackgroundColor
-  }, [windowStyle, minappShow, theme, isLeftNavbar, navBackgroundColor])
+  }, [windowStyle, miniAppShow, theme, isLeftNavbar, navBackgroundColor])
 
   useEffect(() => {
     // set files path

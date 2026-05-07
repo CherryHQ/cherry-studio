@@ -7,7 +7,7 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMessageStyle } from '@renderer/hooks/useSettings'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getMessageModelId } from '@renderer/services/MessagesService'
@@ -35,13 +35,13 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const avatar = useAvatar()
   const { theme } = useTheme()
   const [userName] = usePreference('app.user.name')
-  const showMinappIcon = useSidebarIconShow('minapp')
+  const showMiniAppIcon = useSidebarIconShow('mini_app')
   const [activeAgentId] = useCache('agent.active_id')
   const { agent } = useAgent(activeAgentId)
   const isAgentView = window.location.hash.startsWith('#/agents')
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
-  const { openMinappById } = useMinappPopup()
+  const { openMiniAppById } = useMiniAppPopup()
 
   const { isMultiSelectMode, selectedMessageIds, handleSelectMessage } = useChatContext(topic)
 
@@ -68,10 +68,10 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
 
   const showMiniApp = useCallback(() => {
-    showMinappIcon && model?.provider && openMinappById(model.provider)
-    // because don't need openMinappById to be a dependency
+    showMiniAppIcon && model?.provider && openMiniAppById(model.provider)
+    // because don't need openMiniAppById to be a dependency
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model?.provider, showMinappIcon])
+  }, [model?.provider, showMiniAppIcon])
 
   const userNameJustifyContent = useMemo(() => {
     if (!isBubbleStyle) return 'flex-start'
@@ -90,7 +90,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           <Avatar
             className="h-[35px] w-[35px] cursor-pointer rounded-[25%]"
             style={{
-              cursor: showMinappIcon ? 'pointer' : 'default',
+              cursor: showMiniAppIcon ? 'pointer' : 'default',
               border: 'none',
               filter: theme === 'dark' ? 'invert(0.05)' : undefined
             }}
