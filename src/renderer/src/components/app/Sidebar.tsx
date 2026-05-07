@@ -196,7 +196,10 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       }
 
       if (activeTab && activeTab.id !== 'home') {
-        updateTab(activeTab.id, { url: path, title: getDefaultRouteTitle(path) })
+        // Reusing the active tab — clear any per-entity icon (e.g. a mini-app
+        // logo carried over from /app/mini-app/<id>) so the new top-level
+        // route falls back to its default Lucide icon.
+        updateTab(activeTab.id, { url: path, title: getDefaultRouteTitle(path), icon: undefined })
       } else {
         openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
       }
