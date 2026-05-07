@@ -26,9 +26,9 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/mini-apps'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
-import { asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, ne } from 'drizzle-orm'
 
-import { applyMoves, insertWithOrderKey } from './utils/orderKey'
+import { applyScopedMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
@@ -139,25 +139,54 @@ export class MiniAppService {
   /**
    * Update an existing miniapp. Currently only `status` is mutable — preset
    * display fields (name/url/logo/...) are owned by {@link MiniAppSeeder} and
-   * have no edit UI; reordering goes through the dedicated `/order` endpoints.
+   * have no edit UI; reordering within a partition goes through the dedicated
+   * `/order` endpoints.
+   *
+   * On status transitions the row also receives a fresh `orderKey` placed at
+   * the tail of the target partition. `orderKey` is scoped to `status`, so
+   * letting a row carry its old key into a new partition risks duplicates and
+   * leaves ordering unstable across enabled / disabled / pinned.
    */
   async update(appId: string, dto: UpdateMiniAppDto): Promise<MiniApp> {
-    const updates: Partial<MiniAppInsert> = {}
-    if (dto.status !== undefined) updates.status = dto.status
-
-    if (Object.keys(updates).length === 0) {
+    if (dto.status === undefined) {
       throw DataApiErrorFactory.validation(
         { _root: [`No updatable fields provided for "${appId}"`] },
         'No applicable fields to update'
       )
     }
 
-    const [row] = await withSqliteErrors(
-      () => this.db.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning(),
+    const targetStatus = dto.status
+
+    const row = await withSqliteErrors(
+      () =>
+        this.db.transaction(async (tx) => {
+          const [existing] = await tx
+            .select({ status: miniAppTable.status })
+            .from(miniAppTable)
+            .where(eq(miniAppTable.appId, appId))
+            .limit(1)
+          if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
+
+          const updates: Partial<MiniAppInsert> = { status: targetStatus }
+
+          if (existing.status !== targetStatus) {
+            // Transitioning partitions: place at tail of the target partition.
+            const [tail] = await tx
+              .select({ orderKey: miniAppTable.orderKey })
+              .from(miniAppTable)
+              .where(and(eq(miniAppTable.status, targetStatus), ne(miniAppTable.appId, appId)))
+              .orderBy(desc(miniAppTable.orderKey))
+              .limit(1)
+            updates.orderKey = generateOrderKeyBetween(tail?.orderKey ?? null, null)
+          }
+
+          const [updated] = await tx.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning()
+          return updated
+        }),
       defaultHandlersFor('MiniApp', appId)
     )
     if (!row) throw DataApiErrorFactory.notFound('MiniApp', appId)
-    logger.info('Updated miniapp', { appId, changes: Object.keys(updates) })
+    logger.info('Updated miniapp', { appId, status: targetStatus })
     return rowToMiniApp(row)
   }
 
@@ -188,42 +217,26 @@ export class MiniAppService {
   }
 
   /**
-   * Reorder miniapps via fractional-indexing. Resolves each move's status
-   * partition and applies moves per partition. Cross-partition batches are
-   * split into one applyMoves call per status.
+   * Reorder miniapps via fractional-indexing. The `mini_app.status` column is
+   * the reorder scope: a single batch must stay inside one status partition
+   * (`enabled` | `disabled` | `pinned`). Cross-partition batches are rejected
+   * with `VALIDATION_ERROR` per the DataApi scoped-reorder contract — moving
+   * a row between partitions goes through PATCH, not POST /order:batch.
    */
   async reorder(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
 
-    const targetIds = moves.map((m) => m.id)
-    const rows = await this.db
-      .select({ appId: miniAppTable.appId, status: miniAppTable.status })
-      .from(miniAppTable)
-      .where(inArray(miniAppTable.appId, targetIds))
-    const statusByAppId = new Map(rows.map((r) => [r.appId, r.status]))
-
-    const movesByStatus = new Map<MiniAppStatus, Array<{ id: string; anchor: OrderRequest }>>()
-    for (const m of moves) {
-      const status = statusByAppId.get(m.id)
-      if (!status) throw DataApiErrorFactory.notFound('MiniApp', m.id)
-      const bucket = movesByStatus.get(status) ?? []
-      bucket.push(m)
-      movesByStatus.set(status, bucket)
-    }
-
     await withSqliteErrors(
       () =>
-        this.db.transaction(async (tx) => {
-          for (const [status, scopedMoves] of movesByStatus) {
-            await applyMoves(tx, miniAppTable, scopedMoves, {
-              pkColumn: miniAppTable.appId,
-              scope: eq(miniAppTable.status, status)
-            })
-          }
-        }),
+        this.db.transaction(async (tx) =>
+          applyScopedMoves(tx, miniAppTable, moves, {
+            pkColumn: miniAppTable.appId,
+            scopeColumn: miniAppTable.status
+          })
+        ),
       defaultHandlersFor('MiniApp', 'multiple')
     )
-    logger.info('Reordered miniapps', { count: moves.length, partitions: movesByStatus.size })
+    logger.info('Reordered miniapps', { count: moves.length })
   }
 }
 

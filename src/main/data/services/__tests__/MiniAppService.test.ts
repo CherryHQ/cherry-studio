@@ -170,6 +170,27 @@ describe('MiniAppService', () => {
         code: ErrorCode.VALIDATION_ERROR
       })
     })
+
+    it('should place the row at the tail of the target partition on status change (#3198809973)', async () => {
+      // Seed two enabled rows, plus the row we'll move from pinned → enabled.
+      await seedCustom({ appId: 'enabled-A', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'enabled-B', status: 'enabled', orderKey: 'a1' })
+      await seedCustom({ appId: 'mover', status: 'pinned', orderKey: 'a0' })
+
+      const result = await miniAppService.update('mover', { status: 'enabled' })
+
+      expect(result.status).toBe('enabled')
+      // Tail of the enabled partition: greater than the previous largest key.
+      expect(result.orderKey > 'a1').toBe(true)
+    })
+
+    it('should keep the existing orderKey when status is unchanged', async () => {
+      await seedCustom({ appId: 'stay', status: 'enabled', orderKey: 'a5' })
+
+      const result = await miniAppService.update('stay', { status: 'enabled' })
+
+      expect(result.orderKey).toBe('a5')
+    })
   })
 
   describe('delete', () => {
@@ -212,6 +233,21 @@ describe('MiniAppService', () => {
       ).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
+    })
+
+    it('should reject cross-status batches with VALIDATION_ERROR (#3198896254)', async () => {
+      // mini_app.status is the reorder scope: a single batch must stay inside
+      // one status partition. Mixing enabled + disabled in a single batch
+      // violates the DataApi scoped-reorder contract.
+      await seedCustom({ appId: 'enabled-1', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'disabled-1', status: 'disabled', orderKey: 'a0' })
+
+      await expect(
+        miniAppService.reorder([
+          { id: 'enabled-1', anchor: { position: 'first' } },
+          { id: 'disabled-1', anchor: { position: 'first' } }
+        ])
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
     })
   })
 })
