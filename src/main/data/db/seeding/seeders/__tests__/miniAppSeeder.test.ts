@@ -78,4 +78,29 @@ describe('MiniAppSeeder', () => {
     expect(row.name).toBe('My Custom')
     expect(row.presetMiniappId).toBeNull()
   })
+
+  it('should not refresh display fields when a custom row collides with a preset id (#3198809691)', async () => {
+    const preset = PRESETS_MINI_APPS[0]
+    // A migrated v1 custom app whose appId happens to match a preset's id.
+    // Custom rows are identified by `presetMiniappId IS NULL`; the seeder must
+    // leave their display fields alone on re-run.
+    await dbh.db.insert(miniAppTable).values({
+      appId: preset.id,
+      presetMiniappId: null,
+      name: 'My Custom Override',
+      url: 'https://custom.example/path',
+      logo: 'custom-logo',
+      status: 'enabled',
+      orderKey: 'a0'
+    })
+
+    const seed = new MiniAppSeeder()
+    await seed.run(dbh.db)
+
+    const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
+    expect(row.presetMiniappId).toBeNull()
+    expect(row.name).toBe('My Custom Override')
+    expect(row.url).toBe('https://custom.example/path')
+    expect(row.logo).toBe('custom-logo')
+  })
 })
