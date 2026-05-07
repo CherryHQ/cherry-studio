@@ -3,7 +3,6 @@ import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { resolveProviderApiKey } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { ApiKeyRequestSearchContext } from '../base/context'
 
@@ -46,7 +45,7 @@ export class TavilyProvider extends BaseWebSearchProvider {
     config: WebSearchExecutionConfig,
     httpOptions?: RequestInit
   ): TavilySearchContext {
-    const apiKey = resolveProviderApiKey(this.provider)
+    const apiKey = this.resolveApiKey()
 
     return {
       apiKey,

@@ -54,7 +54,7 @@ export function resolveProviders(providerOverrides: WebSearchProviderOverrides):
       capabilities: mergeProviderCapabilities(preset.capabilities, override),
       engines: override?.engines || [],
       basicAuthUsername: override?.basicAuthUsername?.trim() || '',
-      basicAuthPassword: override?.basicAuthPassword?.trim() || ''
+      basicAuthPassword: override?.basicAuthPassword || ''
     }
   })
 }
@@ -113,7 +113,7 @@ export async function getProviderById<TProviderId extends ResolvedWebSearchProvi
     capabilities: mergeProviderCapabilities(preset.capabilities, override),
     engines: override?.engines || [],
     basicAuthUsername: override?.basicAuthUsername?.trim() || '',
-    basicAuthPassword: override?.basicAuthPassword?.trim() || ''
+    basicAuthPassword: override?.basicAuthPassword || ''
   } as ResolvedWebSearchProvider & { id: TProviderId }
 }
 

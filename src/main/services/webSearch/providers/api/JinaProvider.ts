@@ -3,7 +3,7 @@ import { defaultAppHeaders, isValidUrl, withoutTrailingSlash } from '@shared/uti
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { resolveProviderApiHost, resolveProviderApiKey } from '../../utils/provider'
+import { resolveProviderApiHost } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { BaseSearchContext } from '../base/context'
 
@@ -85,7 +85,7 @@ export class JinaProvider extends BaseWebSearchProvider {
     const normalizedQuery = query.trim()
 
     return {
-      apiKey: resolveProviderApiKey(this.provider),
+      apiKey: this.resolveApiKey(),
       query: normalizedQuery,
       maxResults: config.maxResults,
       requestUrl: `${withoutTrailingSlash(resolveProviderApiHost(this.provider, 'searchKeywords'))}/${encodeURIComponent(
@@ -107,9 +107,10 @@ export class JinaProvider extends BaseWebSearchProvider {
     }
 
     return {
-      apiKey: resolveProviderApiKey(this.provider),
+      apiKey: this.resolveApiKey(),
       query: url,
       maxResults: config.maxResults,
+      // Jina Reader expects the raw target URL after the host; encoding it changes the API path semantics.
       requestUrl: `${withoutTrailingSlash(resolveProviderApiHost(this.provider, 'fetchUrls'))}/${url}`,
       signal: httpOptions?.signal ?? undefined
     }
@@ -197,7 +198,7 @@ export class JinaProvider extends BaseWebSearchProvider {
           url: data.url || context.query,
           sourceInput: context.query
         }
-      ].slice(0, context.maxResults)
+      ]
     }
   }
 }

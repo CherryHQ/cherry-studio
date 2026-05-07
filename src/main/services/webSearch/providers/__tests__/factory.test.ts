@@ -38,11 +38,7 @@ import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
-import {
-  assertWebSearchProviderSupportsCapability,
-  createWebSearchProvider,
-  webSearchProviderSupportsCapability
-} from '../factory'
+import { createWebSearchProvider } from '../factory'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
 import { WEB_SEARCH_PROVIDER_REGISTRY } from '../registry'
 
@@ -101,25 +97,5 @@ describe('createWebSearchProvider', () => {
         })
       )
     ).toBeInstanceOf(JinaProvider)
-  })
-
-  it('asserts provider capability support from capability definitions', () => {
-    const jina = createProvider({
-      id: 'jina',
-      capabilities: [
-        { feature: 'searchKeywords', apiHost: 'https://s.jina.ai' },
-        { feature: 'fetchUrls', apiHost: 'https://r.jina.ai' }
-      ]
-    })
-    const fetch = createProvider({ id: 'fetch', capabilities: [{ feature: 'fetchUrls', apiHost: '' }] })
-
-    expect(webSearchProviderSupportsCapability(jina, 'searchKeywords')).toBe(true)
-    expect(webSearchProviderSupportsCapability(jina, 'fetchUrls')).toBe(true)
-    expect(webSearchProviderSupportsCapability(fetch, 'searchKeywords')).toBe(false)
-    expect(() => assertWebSearchProviderSupportsCapability(fetch, 'searchKeywords')).toThrow(
-      'Web search provider fetch does not support capability searchKeywords'
-    )
-
-    expect(() => assertWebSearchProviderSupportsCapability(fetch, 'fetchUrls')).not.toThrow()
   })
 })

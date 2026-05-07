@@ -3,7 +3,6 @@ import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { resolveProviderApiKey } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { ApiKeyRequestSearchContext } from '../base/context'
 
@@ -54,7 +53,7 @@ export class BochaProvider extends BaseWebSearchProvider {
     httpOptions?: RequestInit
   ): BochaSearchContext {
     return {
-      apiKey: resolveProviderApiKey(this.provider),
+      apiKey: this.resolveApiKey(),
       query,
       maxResults: config.maxResults,
       requestUrl: this.resolveApiUrl('searchKeywords', '/v1/web-search'),

@@ -194,7 +194,10 @@ describe('WebSearchService', () => {
 
     const result = await webSearchService.searchKeywords({ keywords: [' first ', 'second'] })
 
-    expect(createWebSearchProviderMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'tavily' }))
+    expect(createWebSearchProviderMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'tavily' }),
+      expect.any(Object)
+    )
     expect(searchKeywords).toHaveBeenNthCalledWith(1, 'first', expect.objectContaining({ maxResults: 4 }), undefined)
     expect(searchKeywords).toHaveBeenNthCalledWith(2, 'second', expect.objectContaining({ maxResults: 4 }), undefined)
     expect(result).toEqual({
@@ -207,6 +210,26 @@ describe('WebSearchService', () => {
         { title: 'second', content: 'ok', url: 'https://second.test', sourceInput: 'second' }
       ]
     })
+  })
+
+  it('clears service-owned API key rotation state on stop', async () => {
+    const searchKeywords = vi
+      .fn()
+      .mockResolvedValue(
+        response('tavily', 'searchKeywords', 'hello', [{ title: 'Hello', content: 'ok', url: 'https://hello.test' }])
+      )
+    createWebSearchProviderMock.mockReturnValue({ searchKeywords })
+
+    await webSearchService._doInit()
+    await webSearchService.searchKeywords({ keywords: ['hello'] })
+
+    const rotationState = createWebSearchProviderMock.mock.calls[0]?.[1]
+    expect(rotationState).toBeDefined()
+    const clearSpy = vi.spyOn(rotationState, 'clear')
+
+    await webSearchService._doStop()
+
+    expect(clearSpy).toHaveBeenCalledOnce()
   })
 
   it('uses explicit provider overrides and supports Jina for both capabilities', async () => {
@@ -273,6 +296,8 @@ describe('WebSearchService', () => {
 
   it('throws AbortError without logging service failures', async () => {
     const abortError = new DOMException('The operation was aborted', 'AbortError')
+    const abortController = new AbortController()
+    abortController.abort()
     const searchKeywords = vi
       .fn()
       .mockResolvedValueOnce(
@@ -283,12 +308,64 @@ describe('WebSearchService', () => {
       .mockRejectedValueOnce(abortError)
     createWebSearchProviderMock.mockReturnValue({ searchKeywords })
 
-    await expect(webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first', 'second'] })).rejects.toBe(
-      abortError
-    )
+    await expect(
+      webSearchService.searchKeywords(
+        { providerId: 'tavily', keywords: ['first', 'second'] },
+        {
+          signal: abortController.signal
+        }
+      )
+    ).rejects.toBe(abortError)
 
     expect(loggerWarnMock).not.toHaveBeenCalled()
     expect(loggerErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps partial successes when an input aborts without a caller-aborted signal', async () => {
+    const abortError = new DOMException('The operation was aborted', 'AbortError')
+    const searchKeywords = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response('tavily', 'searchKeywords', 'first', [
+          { title: 'First', content: 'one', url: 'https://example.com/first' }
+        ])
+      )
+      .mockRejectedValueOnce(abortError)
+    createWebSearchProviderMock.mockReturnValue({ searchKeywords })
+
+    const result = await webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first', 'second'] })
+
+    expect(result.results).toEqual([
+      {
+        title: 'First',
+        content: 'one',
+        url: 'https://example.com/first',
+        sourceInput: 'first'
+      }
+    ])
+    expect(loggerWarnMock).toHaveBeenCalledWith('Partial web search input failed', {
+      providerId: 'tavily',
+      capability: 'searchKeywords',
+      input: 'second',
+      error: 'The operation was aborted'
+    })
+    expect(loggerErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('logs service failures for abort errors when the caller did not abort', async () => {
+    const abortError = new DOMException('The operation was aborted', 'AbortError')
+    createWebSearchProviderMock.mockReturnValue({
+      searchKeywords: vi.fn().mockRejectedValue(abortError)
+    })
+
+    await expect(webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first'] })).rejects.toBe(
+      abortError
+    )
+
+    expect(loggerErrorMock).toHaveBeenCalledWith('Web search failed', abortError, {
+      providerId: 'tavily',
+      capability: 'searchKeywords'
+    })
   })
 
   it('throws when every input fails and logs the service failure', async () => {
@@ -355,7 +432,10 @@ describe('WebSearchService', () => {
 
     const result = await webSearchService.fetchUrls({ urls: [' https://example.com/first '] })
 
-    expect(createWebSearchProviderMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'fetch' }))
+    expect(createWebSearchProviderMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'fetch' }),
+      expect.any(Object)
+    )
     expect(fetchUrls).toHaveBeenCalledWith('https://example.com/first', expect.any(Object), undefined)
     expect(result).toEqual({
       query: 'https://example.com/first',
@@ -375,17 +455,58 @@ describe('WebSearchService', () => {
     await expect(webSearchService.fetchUrls({ urls: ['not a url'] })).rejects.toThrow('Invalid URL format: not a url')
   })
 
-  it('throws when a default provider is not configured or does not support the requested capability', async () => {
+  it('logs and throws when a default provider is not configured', async () => {
     setWebSearchPreferences({ defaultSearchKeywordsProvider: null })
 
     await expect(webSearchService.searchKeywords({ keywords: ['hello'] })).rejects.toThrow(
       'Default web search provider is not configured for capability searchKeywords'
     )
 
-    setWebSearchPreferences({ defaultSearchKeywordsProvider: 'fetch' })
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Web search failed',
+      expect.objectContaining({
+        message: 'Default web search provider is not configured for capability searchKeywords'
+      }),
+      {
+        providerId: undefined,
+        capability: 'searchKeywords'
+      }
+    )
+  })
 
-    await expect(webSearchService.searchKeywords({ keywords: ['hello'] })).rejects.toThrow(
-      'Web search provider fetch does not support capability searchKeywords'
+  it('logs and throws when a provider does not implement the requested capability', async () => {
+    await expect(webSearchService.searchKeywords({ providerId: 'fetch', keywords: ['hello'] })).rejects.toThrow(
+      'Web search provider fetch does not implement capability searchKeywords'
+    )
+
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Web search failed',
+      expect.objectContaining({
+        message: 'Web search provider fetch does not implement capability searchKeywords'
+      }),
+      {
+        providerId: 'fetch',
+        capability: 'searchKeywords'
+      }
+    )
+  })
+
+  it('logs and throws when provider metadata supports a missing driver capability', async () => {
+    createWebSearchProviderMock.mockReturnValue({})
+
+    await expect(webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['hello'] })).rejects.toThrow(
+      'Web search provider tavily does not implement capability searchKeywords'
+    )
+
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Web search failed',
+      expect.objectContaining({
+        message: 'Web search provider tavily does not implement capability searchKeywords'
+      }),
+      {
+        providerId: 'tavily',
+        capability: 'searchKeywords'
+      }
     )
   })
 })

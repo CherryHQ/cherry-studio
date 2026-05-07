@@ -13,11 +13,12 @@ import { IpcChannel } from '@shared/IpcChannel'
 
 import { postProcessWebSearchResponse } from './postProcessing'
 import type { WebSearchProviderDriver } from './providers/factory'
-import { assertWebSearchProviderSupportsCapability, createWebSearchProvider } from './providers/factory'
+import { createWebSearchProvider } from './providers/factory'
 import { filterWebSearchResponseWithBlacklist } from './utils/blacklist'
 import { getProviderForCapability, getRuntimeConfig } from './utils/config'
 import { isAbortError } from './utils/errors'
 import { normalizeWebSearchKeywords, normalizeWebSearchUrls } from './utils/input'
+import { ApiKeyRotationState } from './utils/provider'
 
 const logger = loggerService.withContext('MainWebSearchService')
 
@@ -38,7 +39,10 @@ type PreparedWebSearchContext = {
 @Injectable('WebSearchService')
 @ServicePhase(Phase.WhenReady)
 export class WebSearchService extends BaseService {
+  private readonly apiKeyRotationState = new ApiKeyRotationState()
+
   protected onInit(): void {
+    this.registerDisposable(() => this.apiKeyRotationState.clear())
     this.registerIpcHandlers()
   }
 
@@ -56,12 +60,7 @@ export class WebSearchService extends BaseService {
       getRuntimeConfig(preferenceService)
     ])
 
-    assertWebSearchProviderSupportsCapability(provider, request.capability)
-
-    const providerDriver = createWebSearchProvider(provider)
-    if (typeof providerDriver[request.capability] !== 'function') {
-      throw new Error(`Web search provider ${provider.id} does not implement capability ${request.capability}`)
-    }
+    const providerDriver = createWebSearchProvider(provider, this.apiKeyRotationState)
 
     return {
       inputs: request.inputs,
@@ -91,13 +90,14 @@ export class WebSearchService extends BaseService {
 
   private async buildFinalResponse(
     context: PreparedWebSearchContext,
-    searchResults: PromiseSettledResult<WebSearchResponse>[]
+    searchResults: PromiseSettledResult<WebSearchResponse>[],
+    httpOptions?: RequestInit
   ): Promise<WebSearchResponse> {
     const abortedSearch = searchResults.find(
       (item): item is PromiseRejectedResult => item.status === 'rejected' && isAbortError(item.reason)
     )
 
-    if (abortedSearch) {
+    if (abortedSearch && httpOptions?.signal?.aborted) {
       throw abortedSearch.reason
     }
 
@@ -126,12 +126,7 @@ export class WebSearchService extends BaseService {
       providerId: context.provider.id,
       capability: context.capability,
       inputs: context.inputs,
-      results: successfulSearches.flatMap((item, index) =>
-        item.value.results.map((result) => ({
-          ...result,
-          sourceInput: result.sourceInput || item.value.inputs[0] || context.inputs[index] || ''
-        }))
-      )
+      results: successfulSearches.flatMap((item) => item.value.results)
     }
 
     const filteredResponse = filterWebSearchResponseWithBlacklist(mergedResponse, context.runtimeConfig.excludeDomains)
@@ -141,17 +136,18 @@ export class WebSearchService extends BaseService {
   }
 
   private async runCapability(request: RunCapabilityRequest, httpOptions?: RequestInit): Promise<WebSearchResponse> {
-    const context = await this.prepareContext(request)
+    let context: PreparedWebSearchContext | undefined
 
     try {
+      context = await this.prepareContext(request)
       const searchResults = await this.executeCapability(context, httpOptions)
-      return await this.buildFinalResponse(context, searchResults)
+      return await this.buildFinalResponse(context, searchResults, httpOptions)
     } catch (error) {
-      if (!isAbortError(error)) {
+      if (!isAbortError(error) || !httpOptions?.signal?.aborted) {
         const normalizedError = error instanceof Error ? error : new Error(String(error))
         logger.error('Web search failed', normalizedError, {
-          providerId: context.provider.id,
-          capability: context.capability
+          providerId: context?.provider.id ?? request.providerId,
+          capability: context?.capability ?? request.capability
         })
       }
       throw error
