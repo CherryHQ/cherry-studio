@@ -40,7 +40,7 @@ const REDUX_STORE_MODULES = {
   memory: { file: 'memory.ts', interface: 'MemoryState' },
   messageBlock: { file: 'messageBlock.ts', interface: 'MessageBlockState' },
   migrate: { file: 'migrate.ts', interface: 'MigrateState' },
-  minapps: { file: 'miniapps.ts', interface: 'MinAppsState' },
+  minapps: { file: 'minapps.ts', interface: 'MinAppsState' },
   newMessage: { file: 'newMessage.ts', interface: 'NewMessageState' },
   nutstore: { file: 'nutstore.ts', interface: 'NutstoreState' },
   paintings: { file: 'paintings.ts', interface: 'PaintingsState' },
