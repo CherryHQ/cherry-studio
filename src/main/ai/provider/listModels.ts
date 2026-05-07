@@ -20,12 +20,19 @@ import type { Provider } from '@shared/data/types/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import { formatApiHost } from '@shared/utils/api'
 import { withoutTrailingSlash } from '@shared/utils/api/utils'
-import { isAIGatewayProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
+import { isAIGatewayProvider, isGeminiProvider, isOllamaProvider, isVertexProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@types'
 import * as z from 'zod'
 
 import { defaultHeaders, getBaseUrl } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
+import {
+  createVertexModelListRequest,
+  DEFAULT_VERTEX_MODEL_PUBLISHERS,
+  getVertexModelId,
+  getVertexModelPublisher,
+  isSupportedVertexPublisherModel
+} from './listModels/vertex'
 import {
   AIHubMixModelsResponseSchema,
   GeminiModelsResponseSchema,
@@ -35,7 +42,8 @@ import {
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
   TogetherModelsResponseSchema,
-  VercelGatewayModelsResponseSchema
+  VercelGatewayModelsResponseSchema,
+  VertexPublisherModelsResponseSchema
 } from './listModelsSchemas'
 
 const logger = loggerService.withContext('ModelListService')
@@ -163,6 +171,73 @@ const geminiFetcher: ModelFetcher = {
       const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
       return toModel(id, provider, { name: m.displayName || id, description: m.description })
     })
+  }
+}
+
+/** Vertex AI: paginate `publishers/{publisher}/models` for each default publisher
+ *  (google, openai, meta, qwen, deepseek-ai, moonshotai, zai-org), then filter the
+ *  union down to model families we actually run. Misconfigured providers and
+ *  per-publisher request failures degrade to "no models from this publisher" with
+ *  a warn log instead of failing the whole listing. */
+const vertexFetcher: ModelFetcher = {
+  match: (p) => isVertexProvider(p),
+  fetch: async (provider, signal) => {
+    const request = await createVertexModelListRequest(provider)
+    if (!request) return []
+
+    const publisherModelGroups = await Promise.all(
+      DEFAULT_VERTEX_MODEL_PUBLISHERS.map(async (publisher) => {
+        try {
+          const publisherModels: z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] = []
+          let pageToken: string | undefined
+          do {
+            const searchParams = new URLSearchParams({
+              pageSize: '100',
+              listAllVersions: 'true'
+            })
+            if (pageToken) searchParams.set('pageToken', pageToken)
+            const response = await getFromApi({
+              url: `${request.baseUrl}/v1beta1/publishers/${publisher}/models?${searchParams.toString()}`,
+              headers: request.headers,
+              responseSchema: VertexPublisherModelsResponseSchema,
+              abortSignal: signal
+            })
+            publisherModels.push(...response.publisherModels)
+            pageToken = response.nextPageToken
+          } while (pageToken)
+          return publisherModels
+        } catch (error) {
+          logger.warn('Skipping Vertex publisher model listing after request failure', {
+            providerId: provider.id,
+            publisher,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return []
+        }
+      })
+    )
+
+    const listedModels = dedup(publisherModelGroups.flat(), (model) => model.name).map((model) => {
+      const id = getVertexModelId(model.name)
+      const ownedBy = getVertexModelPublisher(model.name)
+      return toModel(id, provider, {
+        name: pickPreferredString([model.displayName, id]) || id,
+        description: model.description,
+        ownedBy
+      })
+    })
+
+    const filteredModels = listedModels.filter((model) => isSupportedVertexPublisherModel(model.id ?? ''))
+
+    if (filteredModels.length !== listedModels.length) {
+      logger.info('Filtered unsupported Vertex publisher models from model list', {
+        providerId: provider.id,
+        filteredCount: listedModels.length - filteredModels.length,
+        returnedCount: filteredModels.length
+      })
+    }
+
+    return filteredModels
   }
 }
 
@@ -389,6 +464,7 @@ const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
   geminiFetcher,
+  vertexFetcher,
   githubFetcher,
   copilotFetcher,
   ovmsFetcher,
