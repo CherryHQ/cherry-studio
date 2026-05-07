@@ -3,7 +3,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingGroup, SettingTitle } from '..'
+import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
 import ComponentLabAgentSelectorSettings from './ComponentLabAgentSelectorSettings'
 import ComponentLabAssistantSelectorSettings from './ComponentLabAssistantSelectorSettings'
 import ComponentLabModelSelectorSettings from './ComponentLabModelSelectorSettings'
@@ -18,7 +18,8 @@ const ComponentLabSettings: FC = () => {
         <SettingTitle>
           <span className="font-semibold text-[15px]">{t('settings.componentLab.title')}</span>
         </SettingTitle>
-        <Tabs defaultValue="assistant-selector" variant="line" className="mt-4 gap-4">
+        <SettingDivider className="mt-3 mb-2" />
+        <Tabs defaultValue="assistant-selector" variant="line" className="gap-4">
           <TabsList>
             <TabsTrigger value="assistant-selector">{t('settings.componentLab.assistantSelector.title')}</TabsTrigger>
             <TabsTrigger value="agent-selector">{t('settings.componentLab.agentSelector.title')}</TabsTrigger>
