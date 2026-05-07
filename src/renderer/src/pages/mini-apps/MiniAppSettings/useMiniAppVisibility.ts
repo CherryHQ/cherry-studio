@@ -19,9 +19,18 @@ export function useMiniAppVisibility() {
   const [visible, setVisible] = useState<MiniApp[]>(miniapps)
   const [hidden, setHidden] = useState<MiniApp[]>(disabled || [])
 
+  // Resync local optimistic state with the upstream cache, but only when the
+  // membership or order actually changed. Reordering goes through
+  // `useReorder`, which writes an optimistic /mini-apps cache update — that
+  // re-renders us with a fresh `miniapps` array reference whose IDs match
+  // what we already have. Replacing local state with that fresh reference
+  // mid-drop forces Sortable to re-layout while dnd-kit's drop animation is
+  // still in flight, producing a visible "snap back to original position"
+  // before the item lands at its target. Comparing by id sequence makes this
+  // a no-op.
   useEffect(() => {
-    setVisible(miniapps)
-    setHidden(disabled || [])
+    setVisible((prev) => (sameAppIdSequence(prev, miniapps) ? prev : miniapps))
+    setHidden((prev) => (sameAppIdSequence(prev, disabled || []) ? prev : disabled || []))
   }, [miniapps, disabled])
 
   const swap = useCallback(() => {
@@ -93,3 +102,11 @@ export function useMiniAppVisibility() {
 }
 
 export type MiniAppVisibility = ReturnType<typeof useMiniAppVisibility>
+
+function sameAppIdSequence(a: MiniApp[], b: MiniApp[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].appId !== b[i].appId) return false
+  }
+  return true
+}
