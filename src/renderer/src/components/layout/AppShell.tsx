@@ -14,9 +14,12 @@ export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, pinTab, unpinTab } = useTabs()
 
-  // Sync internal navigation back to tab state with default title
+  // Sync internal navigation back to tab state. Clear the per-entity icon
+  // override too — it was supplied for a specific URL (e.g. a mini-app's
+  // logo on /app/mini-app/<id>) and no longer applies once the user
+  // navigates elsewhere inside the same tab.
   const handleUrlChange = (tabId: string, url: string) => {
-    updateTab(tabId, { url, title: getDefaultRouteTitle(url) })
+    updateTab(tabId, { url, title: getDefaultRouteTitle(url), icon: undefined })
   }
 
   return (
