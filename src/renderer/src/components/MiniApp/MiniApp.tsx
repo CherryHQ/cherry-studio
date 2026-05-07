@@ -113,7 +113,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
               } catch (error) {
                 if (isDataApiError(error)) {
                   if (error.code === ErrorCode.NOT_FOUND) {
-                    window.toast.warning(t('miniApp.not_found'))
+                    window.toast.warning(t('miniApp.error.not_found'))
                   } else if (!error.isRetryable) {
                     window.toast.error(t('settings.miniApps.custom.remove_error'))
                   } else {
