@@ -495,12 +495,15 @@ export const ReplaceSessionRequestSchema = sessionCreatableSchema
 
 export type ReplaceSessionRequest = z.infer<typeof ReplaceSessionRequestSchema>
 
-const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'max'])
+const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max'])
 
 const AgentThinkingConfigSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('enabled'), budgetTokens: z.number().optional() }),
   z.object({ type: z.literal('disabled') }),
-  z.object({ type: z.literal('adaptive') })
+  z.object({
+    type: z.literal('adaptive'),
+    display: z.enum(['omitted', 'summarized']).optional()
+  })
 ])
 
 export type AgentEffort = z.infer<typeof AgentEffortSchema>
