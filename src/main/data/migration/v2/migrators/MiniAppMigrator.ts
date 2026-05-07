@@ -68,7 +68,10 @@ export class MiniAppMigrator extends BaseMigrator {
       // record — including logo — lives in `customMiniAppsFile` (resolved by
       // MigrationPaths from {userData}/Data/Files/custom-minapps.json) and is
       // reattached at runtime. Re-read it here so logos survive migration.
-      const customLogosByAppId = await loadCustomMiniAppLogos(ctx.paths.customMiniAppsFile)
+      const { logos: customLogosByAppId, warnings: customLogoWarnings } = await loadCustomMiniAppLogos(
+        ctx.paths.customMiniAppsFile
+      )
+      warnings.push(...customLogoWarnings)
 
       // Track seen IDs to detect duplicates across groups
       // A pinned app also appears in enabled — prefer the pinned status (higher priority)
@@ -240,31 +243,61 @@ export class MiniAppMigrator extends BaseMigrator {
   }
 }
 
+interface LoadCustomLogosResult {
+  logos: Map<string, string>
+  warnings: string[]
+}
+
 /**
  * Load the v1 `custom-minapps.json` sidecar at the path supplied by
  * MigrationPaths and return a map from app id to its logo string. Tolerant of
- * missing/malformed files — returns an empty map.
+ * missing/malformed files. When the file is present but unreadable/unparseable
+ * /wrong-shape it is quarantined to `${file}.broken-<ts>.bak` so subsequent
+ * runs don't keep tripping on the same broken file, and a user-visible
+ * warning is surfaced through the returned `warnings`.
  */
-async function loadCustomMiniAppLogos(file: string | undefined): Promise<Map<string, string>> {
-  const result = new Map<string, string>()
-  if (!file) return result
+async function loadCustomMiniAppLogos(file: string | undefined): Promise<LoadCustomLogosResult> {
+  const logos = new Map<string, string>()
+  const warnings: string[] = []
+  if (!file) return { logos, warnings }
+
+  const quarantine = async (reason: string) => {
+    const backup = `${file}.broken-${Date.now()}.bak`
+    try {
+      await fs.rename(file, backup)
+      const msg = `Quarantined unreadable custom-minapps.json (${reason}) to ${backup}; custom app logos will be lost`
+      warnings.push(msg)
+      logger.warn(msg)
+    } catch (renameErr) {
+      // If we can't even rename, just warn — leaving the file in place is
+      // safer than silently swallowing the failure.
+      warnings.push(`Failed to load and quarantine custom-minapps.json (${reason})`)
+      logger.warn('Failed to quarantine custom-minapps.json', renameErr as Error)
+    }
+  }
+
   let raw: string
   try {
     raw = await fs.readFile(file, 'utf-8')
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      logger.warn('Failed to read custom-minapps.json', err instanceof Error ? err : new Error(String(err)))
-    }
-    return result
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { logos, warnings }
+    logger.warn('Failed to read custom-minapps.json', err instanceof Error ? err : new Error(String(err)))
+    await quarantine(`read failed: ${(err as Error).message ?? String(err)}`)
+    return { logos, warnings }
   }
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch (err) {
     logger.warn('Failed to parse custom-minapps.json', err instanceof Error ? err : new Error(String(err)))
-    return result
+    await quarantine('invalid JSON')
+    return { logos, warnings }
   }
-  if (!Array.isArray(parsed)) return result
+  if (!Array.isArray(parsed)) {
+    logger.warn('custom-minapps.json is not a JSON array, ignoring')
+    await quarantine('top-level value is not an array')
+    return { logos, warnings }
+  }
   for (const entry of parsed) {
     if (
       entry &&
@@ -273,8 +306,8 @@ async function loadCustomMiniAppLogos(file: string | undefined): Promise<Map<str
       typeof (entry as Record<string, unknown>).logo === 'string'
     ) {
       const { id, logo } = entry as { id: string; logo: string }
-      if (logo.length > 0) result.set(id, logo)
+      if (logo.length > 0) logos.set(id, logo)
     }
   }
-  return result
+  return { logos, warnings }
 }
