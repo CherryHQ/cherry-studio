@@ -3415,8 +3415,8 @@ const migrateConfig = {
   },
   '207': (state: RootState) => {
     try {
-      if (state.paintings && !state.paintings.vermimt_gateway_paintings) {
-        state.paintings.vermimt_gateway_paintings = []
+      if (state.paintings && !state.paintings.vercel_gateway_paintings) {
+        state.paintings.vercel_gateway_paintings = []
       }
       logger.info('migrate 207 success')
       return state

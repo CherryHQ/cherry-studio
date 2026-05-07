@@ -461,6 +461,8 @@ export interface VercelGatewayPainting {
   background?: string
   n?: number
   moderation?: string
+  metadata?: any
+  usage?: any
 }
 
 export interface OvmsPainting extends PaintingParams {
@@ -527,7 +529,7 @@ export interface PaintingsState {
   ppio_draw: PpioPainting[]
   ppio_edit: PpioPainting[]
   // Vercel Gateway
-  vermimt_gateway_paintings: VercelGatewayPainting[]
+  vercel_gateway_paintings: VercelGatewayPainting[]
 }
 
 export type MinAppType = {

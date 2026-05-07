@@ -48,13 +48,15 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { t } = useTranslation()
   const providers = useAllProviders()
-  const { addPainting, removePainting, updatePainting, vermimt_gateway_paintings } = usePaintings()
-  const paintings = vermimt_gateway_paintings ?? []
-  const [painting, setPainting] = useState<VercelGatewayPainting>({
-    ...DEFAULT_VERCEL_GATEWAY_PAINTING,
-    id: uuid(),
-    providerId: 'gateway'
-  })
+  const { addPainting, removePainting, updatePainting, vercel_gateway_paintings } = usePaintings()
+  const vercelGatewayPaintings = vercel_gateway_paintings ?? []
+  const [painting, setPainting] = useState<VercelGatewayPainting>(
+    vercelGatewayPaintings[0] || {
+      ...DEFAULT_VERCEL_GATEWAY_PAINTING,
+      id: uuid(),
+      providerId: 'gateway'
+    }
+  )
 
   const dispatch = useAppDispatch()
   const { generating } = useRuntime()
@@ -70,6 +72,8 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (MODELS.length > 0) {
       setSelectedModel(MODELS[0])
     }
+    logger.setLogToMainLevel('debug')
+    logger.debug(JSON.stringify(gatewayProvider.models))
   }, [])
 
   const getNewPainting = useCallback(() => {
@@ -86,7 +90,7 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
     (updates: Partial<VercelGatewayPainting>) => {
       setPainting((prevPainting) => {
         const updatedPainting = { ...prevPainting, ...updates }
-        updatePainting('vermimt_gateway_paintings', updatedPainting)
+        updatePainting('vercel_gateway_paintings', updatedPainting)
         return updatedPainting
       })
     },
@@ -144,13 +148,6 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
         model: selectedModel.name,
         prompt
       }
-      // const requestBody = {
-      //   model: selectedModel.name,
-      //   input: {
-      //     prompt,
-      //     ...formData
-      //   }
-      // }
 
       const inputParams = { prompt, ...formData }
       updatePaintingState({
@@ -180,10 +177,10 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
       const urls = data.data.filter((item) => item.url).map((item) => item.url) as string[]
       const base64s = data.data.filter((item) => item.b64_json).map((item) => item.b64_json) as string[]
 
-      if (urls.length > 0) {
+      if (urls?.length > 0) {
         const validFiles = await downloadImages(urls)
         await FileManager.addFiles(validFiles)
-        updatePaintingState({ files: validFiles, urls })
+        updatePaintingState({ files: validFiles, urls, metadata: data.providerMetadata, usage: data.usage })
       }
 
       if (base64s?.length > 0) {
@@ -193,7 +190,7 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
           })
         )
         await FileManager.addFiles(validFiles)
-        updatePaintingState({ files: validFiles, urls: [] })
+        updatePaintingState({ files: validFiles, urls: [], metadata: data.providerMetadata, usage: data.usage })
       }
     } catch (error: unknown) {
       handleError(error)
@@ -247,23 +244,23 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const handleAddPainting = () => {
     const newPainting = getNewPainting()
-    addPainting('vermimt_gateway_paintings', newPainting)
+    addPainting('vercel_gateway_paintings', newPainting)
     setPainting(newPainting as VercelGatewayPainting)
     return newPainting
   }
 
   const onDeletePainting = (paintingToDelete: VercelGatewayPainting) => {
     if (paintingToDelete.id === painting.id) {
-      const currentIndex = paintings.findIndex((p) => p.id === paintingToDelete.id)
+      const currentIndex = vercelGatewayPaintings.findIndex((p) => p.id === paintingToDelete.id)
 
       if (currentIndex > 0) {
-        setPainting(paintings[currentIndex - 1])
-      } else if (paintings.length > 1) {
-        setPainting(paintings[1])
+        setPainting(vercelGatewayPaintings[currentIndex - 1])
+      } else if (vercelGatewayPaintings.length > 1) {
+        setPainting(vercelGatewayPaintings[1])
       }
     }
 
-    void removePainting('vermimt_gateway_paintings', paintingToDelete)
+    void removePainting('vercel_gateway_paintings', paintingToDelete)
   }
 
   const translate = async () => {
@@ -316,6 +313,7 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onSelectPainting = (newPainting: VercelGatewayPainting) => {
     if (generating) return
     setPainting(newPainting)
+    logger.debug(JSON.stringify(newPainting))
     setCurrentImageIndex(0)
 
     if (newPainting.inputParams) {
@@ -336,15 +334,12 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   useEffect(() => {
-    if (paintings.length === 0) {
+    if (vercelGatewayPaintings.length === 0) {
       const newPainting = getNewPainting()
-      addPainting('vermimt_gateway_paintings', newPainting)
+      addPainting('vercel_gateway_paintings', newPainting)
       setPainting(newPainting)
-    } else {
-      const latestPainting = paintings[paintings.length - 1]
-      setPainting(latestPainting)
     }
-  }, [paintings, addPainting, getNewPainting])
+  }, [vercelGatewayPaintings, addPainting, getNewPainting])
 
   useEffect(() => {
     const timer = spaceClickTimer.current
@@ -378,9 +373,7 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
               <ProviderLogo shape="square" src={getProviderLogo('gateway')} size={16} style={{ marginLeft: 5 }} />
             </SettingHelpLink>
           </ProviderTitleContainer>
-
           <ProviderSelect provider={gatewayProvider} options={Options} onChange={handleProviderChange} />
-
           <SectionTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.model')}</SectionTitle>
           <Select
             style={{ width: '100%', marginBottom: 12 }}
@@ -389,15 +382,15 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
             placeholder={t('paintings.select_model')}>
             {models.map((model) => (
               <Select.Option key={model.name} value={model.name}>
-                <Tooltip title={model.name}>
+                <Tooltip title={model.label}>
                   <ModelOptionContainer>
-                    <ModelName>{model.name}</ModelName>
+                    <ModelName>{model.label}</ModelName>
                   </ModelOptionContainer>
                 </Tooltip>
               </Select.Option>
             ))}
           </Select>
-
+          <div style={{ fontSize: 'small', marginTop: -8, marginLeft: 10 }}>{selectedModel?.name}</div>
           {selectedModel && selectedModel.imageSizes && (
             <>
               <SectionTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SectionTitle>
@@ -413,7 +406,6 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
               </Select>
             </>
           )}
-
           {selectedModel && selectedModel.quality && (
             <>
               <SectionTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.quality')}</SectionTitle>
@@ -429,7 +421,6 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
               </Select>
             </>
           )}
-
           {selectedModel && selectedModel.background && (
             <>
               <SectionTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.background')}</SectionTitle>
@@ -483,8 +474,8 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
         </MainContainer>
 
         <PaintingsList
-          namespace="vermimt_gateway_paintings"
-          paintings={paintings}
+          namespace="vercel_gateway_paintings"
+          paintings={vercelGatewayPaintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}

@@ -3,25 +3,136 @@ import { uuid } from '@renderer/utils'
 
 export const SUPPORTED_MODELS = ['xai/grok-imagine-image', 'gptimage-1']
 
+export const MODELS_BASE = {
+  name: 'xai/grok-imagine-image',
+  group: 'Vercel',
+  imageSizes: [
+    { value: 'auto' },
+    { value: '512x512' },
+    { value: '1024x1024' },
+    { value: '1536x1024' },
+    { value: '1024x1536' }
+  ],
+  max_images: 10,
+  quality: [{ value: 'auto' }, { value: 'high' }, { value: 'medium' }, { value: 'low' }],
+  moderation: [{ value: 'auto' }, { value: 'low' }],
+  output_compression_format: [{ value: 'jpeg' }, { value: 'webp' }],
+  output_format: [{ value: 'image/png' }, { value: 'image/jpeg' }, { value: 'image/webp' }],
+  background: [{ value: 'auto' }, { value: 'transparent' }, { value: 'opaque' }]
+}
 export const MODELS = [
   {
-    name: 'xai/grok-imagine-image',
-    group: 'Vercel',
-    imageSizes: [
-      { value: 'auto' },
-      { value: '512x512' },
-      { value: '1024x1024' },
-      { value: '1536x1024' },
-      { value: '1024x1536' }
-    ],
-    max_images: 10,
-    quality: [{ value: 'auto' }, { value: 'high' }, { value: 'medium' }, { value: 'low' }],
-    moderation: [{ value: 'auto' }, { value: 'low' }],
-    output_compression_format: [{ value: 'jpeg' }, { value: 'webp' }],
-    output_format: [{ value: 'image/png' }, { value: 'image/jpeg' }, { value: 'image/webp' }],
-    background: [{ value: 'auto' }, { value: 'transparent' }, { value: 'opaque' }]
+    label: 'FLUX.2 [flex]',
+    name: 'bfl/flux-2-flex'
+  },
+  {
+    label: 'FLUX.2 [klein] 4B',
+    name: 'bfl/flux-2-klein-4b'
+  },
+  {
+    label: 'FLUX.2 [klein] 9B',
+    name: 'bfl/flux-2-klein-9b'
+  },
+  {
+    label: 'FLUX.2 [max]',
+    name: 'bfl/flux-2-max'
+  },
+  {
+    label: 'FLUX.2 [pro]',
+    name: 'bfl/flux-2-pro'
+  },
+  {
+    label: 'FLUX.1 Kontext Max',
+    name: 'bfl/flux-kontext-max'
+  },
+  {
+    label: 'FLUX.1 Kontext Pro',
+    name: 'bfl/flux-kontext-pro'
+  },
+  {
+    label: 'FLUX.1 Fill [pro]',
+    name: 'bfl/flux-pro-1.0-fill'
+  },
+  {
+    label: 'FLUX1.1 [pro]',
+    name: 'bfl/flux-pro-1.1'
+  },
+  {
+    label: 'FLUX1.1 [pro] Ultra',
+    name: 'bfl/flux-pro-1.1-ultra'
+  },
+  {
+    label: 'Seedream 4.0',
+    name: 'bytedance/seedream-4.0'
+  },
+  {
+    label: 'Seedream 4.5',
+    name: 'bytedance/seedream-4.5'
+  },
+  {
+    label: 'Seedream 5.0 Lite',
+    name: 'bytedance/seedream-5.0-lite'
+  },
+  {
+    label: 'Imagen 4 Fast',
+    name: 'google/imagen-4.0-fast-generate-001'
+  },
+  {
+    label: 'Imagen 4',
+    name: 'google/imagen-4.0-generate-001'
+  },
+  {
+    label: 'Imagen 4 Ultra',
+    name: 'google/imagen-4.0-ultra-generate-001'
+  },
+  {
+    label: 'GPT Image 1',
+    name: 'openai/gpt-image-1'
+  },
+  {
+    label: 'GPT Image 1 Mini',
+    name: 'openai/gpt-image-1-mini'
+  },
+  {
+    label: 'GPT Image 1.5',
+    name: 'openai/gpt-image-1.5'
+  },
+  {
+    label: 'GPT Image 2',
+    name: 'openai/gpt-image-2'
+  },
+  {
+    label: 'Flux Schnell',
+    name: 'prodia/flux-fast-schnell'
+  },
+  {
+    label: 'Recraft V2',
+    name: 'recraft/recraft-v2'
+  },
+  {
+    label: 'Recraft V3',
+    name: 'recraft/recraft-v3'
+  },
+  {
+    label: 'Recraft V4',
+    name: 'recraft/recraft-v4'
+  },
+  {
+    label: 'Recraft V4 Pro',
+    name: 'recraft/recraft-v4-pro'
+  },
+  {
+    label: 'Grok Imagine Image',
+    name: 'xai/grok-imagine-image'
+  },
+  {
+    label: 'Grok Imagine Image Pro',
+    name: 'xai/grok-imagine-image-pro'
   }
-]
+].map((m) => ({
+  ...MODELS_BASE,
+  ...m
+}))
 
 export const DEFAULT_VERCEL_GATEWAY_PAINTING: VercelGatewayPainting = {
   id: uuid(),
