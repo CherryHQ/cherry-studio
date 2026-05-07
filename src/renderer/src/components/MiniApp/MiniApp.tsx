@@ -5,7 +5,7 @@ import MarqueeText from '@renderer/components/MarqueeText'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useTabs } from '@renderer/hooks/useTabs'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
+import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
@@ -51,6 +51,17 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     onClick?.()
   }
 
+  const reportFailure = (fallbackKey: string) => (err: unknown) => {
+    const e = toDataApiError(err)
+    if (isDataApiError(e)) {
+      logger.error('mutation failed', { code: e.code, message: e.message })
+      window.toast?.error?.(e.message || t(fallbackKey))
+    } else {
+      logger.error('mutation failed', err as Error)
+      window.toast?.error?.(t(fallbackKey))
+    }
+  }
+
   const menuItems: MenuProps['items'] = [
     {
       key: 'togglePin',
@@ -66,13 +77,9 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
         // 'disabled' (shouldn't normally end up in the grid) fall back to
         // 'enabled' on unpin, matching the previous diff behavior.
         const nextStatus = isPinned ? 'enabled' : 'pinned'
-        void updateAppStatus(app.appId, nextStatus).catch((error: unknown) => {
-          if (isDataApiError(error)) {
-            logger.error('Failed to update pin state', { code: error.code, message: error.message })
-          } else {
-            logger.error('Failed to update pin state', error as Error)
-          }
-        })
+        updateAppStatus(app.appId, nextStatus).catch(
+          reportFailure(isPinned ? 'miniApp.unpin_failed' : 'miniApp.pin_failed')
+        )
       }
     },
     ...(!isPinned
@@ -81,16 +88,14 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
             key: 'hide',
             label: t('miniApp.sidebar.hide.title'),
             onClick: () => {
-              void updateAppStatus(app.appId, 'disabled').catch((error: unknown) => {
-                if (isDataApiError(error)) {
-                  logger.error('Failed to hide mini app', { code: error.code, message: error.message })
-                } else {
-                  logger.error('Failed to hide mini app', error as Error)
-                }
-              })
-              // Drop the app from the keep-alive pool — its tab and webview go
-              // away alongside the status flip.
-              setOpenedKeepAliveMiniApps(openedKeepAliveMiniApps.filter((item) => item.appId !== app.appId))
+              // Wait for the status flip to land before evicting from the
+              // keep-alive pool — otherwise a failed PATCH leaves the user
+              // with a still-disabled tab in the strip and no UI feedback.
+              updateAppStatus(app.appId, 'disabled')
+                .then(() => {
+                  setOpenedKeepAliveMiniApps(openedKeepAliveMiniApps.filter((item) => item.appId !== app.appId))
+                })
+                .catch(reportFailure('miniApp.hide_failed'))
             }
           }
         ]
