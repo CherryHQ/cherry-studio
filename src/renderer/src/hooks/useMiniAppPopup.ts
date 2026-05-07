@@ -270,9 +270,15 @@ export const useMiniAppPopup = () => {
       setCurrentMiniAppId(app.appId)
       setMiniAppShow(true)
 
-      // Skip route navigation when the app is already cached: the user is
-      // already on/near that tab, and re-navigating would rerun route effects.
-      if (!wasCached && NavigationService.navigate) {
+      // Always route to the mini-app even when the keep-alive entry already
+      // exists. `MiniAppTabsPool.shouldShow` keys off the active tab URL, not
+      // pool membership — if the user clicked from a non-mini-app route (the
+      // realistic case for every caller of `openSmartMiniApp`: AboutSettings,
+      // NotionSettings, OpenClawPage, etc.), skipping navigation leaves the
+      // pool hidden and the user sees nothing. Webview re-use stays correct:
+      // when cached we don't recreate the entry or reset `src`, only the
+      // route activates.
+      if (NavigationService.navigate) {
         void NavigationService.navigate({ to: `/app/mini-app/${app.appId}` })
       }
     },

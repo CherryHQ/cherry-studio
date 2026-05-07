@@ -405,7 +405,13 @@ describe('useMiniAppPopup', () => {
       expect(mockNavigate).toHaveBeenCalledWith({ to: '/app/mini-app/top-nav-app' })
     })
 
-    it('should not navigate again if app is already in keep-alive', async () => {
+    it('should still route to the app when the keep-alive entry already exists', async () => {
+      // `MiniAppTabsPool.shouldShow` keys off the active tab URL, not pool
+      // membership. Every caller of `openSmartMiniApp` (AboutSettings, Notion,
+      // OpenClaw, etc.) sits on a non-mini-app route, so skipping `navigate`
+      // when cached would leave the pool hidden and the user looking at a
+      // settings page. Webview re-use stays correct: we don't recreate the
+      // keep-alive entry or reset `src`, only the route activates.
       const existing = createMiniApp('cached-app')
       MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [existing])
       MockUseCacheUtils.setCacheValue('mini_app.show', false)
@@ -423,7 +429,7 @@ describe('useMiniAppPopup', () => {
 
       expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('cached-app')
-      expect(mockNavigate).not.toHaveBeenCalled()
+      expect(mockNavigate).toHaveBeenCalledWith({ to: '/app/mini-app/cached-app' })
     })
   })
 
