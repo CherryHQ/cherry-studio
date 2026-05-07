@@ -1,8 +1,6 @@
 import type { VercelGatewayPainting } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 
-export const SUPPORTED_MODELS = ['xai/grok-imagine-image', 'gptimage-1']
-
 export const MODELS_BASE = {
   group: 'Vercel',
   output_format: [{ value: 'image/png' }, { value: 'image/jpeg' }, { value: 'image/webp' }],

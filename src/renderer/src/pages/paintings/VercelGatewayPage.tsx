@@ -105,8 +105,7 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (MODELS.length > 0) {
       setSelectedModel(MODELS[0])
     }
-    logger.setLogToMainLevel('debug')
-    logger.debug(JSON.stringify(gatewayProvider.models))
+    // logger.setLogToMainLevel('debug')
   }, [])
 
   const getNewPainting = useCallback(() => {
@@ -346,7 +345,7 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onSelectPainting = (newPainting: VercelGatewayPainting) => {
     if (generating) return
     setPainting(newPainting)
-    logger.debug(JSON.stringify(newPainting))
+    // logger.debug(JSON.stringify(newPainting))
     setCurrentImageIndex(0)
 
     if (newPainting.inputParams) {
