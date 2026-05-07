@@ -2,6 +2,7 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
+import { VfsBlobService } from '@data/services/VfsBlobService'
 import { AiService } from '@main/ai/AiService'
 import { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
 import { WindowManager } from '@main/core/window/WindowManager'
@@ -95,7 +96,8 @@ export const services = {
   KnowledgeRuntimeService,
   AgentBootstrapService,
   ApiServerService,
-  AppUpdaterService
+  AppUpdaterService,
+  VfsBlobService
 } as const
 
 /** Auto-derived service name to instance type mapping */

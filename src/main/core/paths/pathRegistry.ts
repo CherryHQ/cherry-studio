@@ -133,6 +133,7 @@ export function buildPathRegistry() {
     // Feature-owned temp dirs (all under app.temp)
     'feature.backup.temp': path.join(appTemp, 'backup'),
     'feature.cli.temp': path.join(appTemp, 'cli'),
+    'feature.context_chef.vfs': path.join(appTemp, 'context-chef-vfs'),
     'feature.dxt.uploads.temp': path.join(appTemp, 'dxt_uploads'),
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
     'feature.lan_transfer.temp': path.join(appTemp, 'lan-transfer'),
