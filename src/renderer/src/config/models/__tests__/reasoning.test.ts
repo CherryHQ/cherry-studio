@@ -918,6 +918,11 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
       expect(getThinkModelType(createModel({ id: 'gemini-3.1-pro-preview' }))).toBe('gemini3_1_pro')
       expect(getThinkModelType(createModel({ id: 'gemini-pro-latest' }))).toBe('gemini3_1_pro')
     })
+
+    it('should return gemma4_hosted for hosted Gemma 4 models on Gemini provider', () => {
+      expect(getThinkModelType(createModel({ id: 'gemma-4-31b-it', provider: 'gemini' }))).toBe('gemma4_hosted')
+      expect(getThinkModelType(createModel({ id: 'google/gemma-4-e2b-it', provider: 'gemini' }))).toBe('gemma4_hosted')
+    })
   })
 
   describe('Qwen models', () => {
@@ -1402,6 +1407,21 @@ describe('Gemini Models', () => {
           group: ''
         })
       ).toBe(false)
+    })
+
+    it('should return true for hosted gemma 4 models on Gemini provider', () => {
+      expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma-4-31b-it', provider: 'gemini' }))).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel(createModel({ id: 'google/gemma-4-e2b-it', provider: 'gemini' }))
+      ).toBe(true)
+    })
+
+    it('should keep non-Gemini Gemma 4 ids out of Gemini thinking token detection', () => {
+      expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma-4-31b-it', provider: 'openrouter' }))).toBe(
+        false
+      )
+      expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma4:31b' }))).toBe(false)
+      expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma4:e2b' }))).toBe(false)
     })
   })
 
@@ -2183,6 +2203,12 @@ describe('getModelSupportedReasoningEffortOptions', () => {
         'low',
         'high'
       ])
+    })
+
+    it('should return minimal/high options for hosted Gemma 4 on Gemini provider', () => {
+      expect(
+        getModelSupportedReasoningEffortOptions(createModel({ id: 'gemma-4-31b-it', provider: 'gemini' }))
+      ).toEqual(['default', 'minimal', 'high'])
     })
   })
 
@@ -3055,6 +3081,19 @@ describe('Gemma 4 Models', () => {
 
     it('still returns correct limits for earlier Gemma reasoning models', () => {
       expect(findTokenLimit('gemma-3-27b')).toBeUndefined()
+    })
+  })
+
+  describe('thinking controls', () => {
+    it('treats hosted Gemma 4 as configurable minimal/high reasoning instead of fixed reasoning', () => {
+      const model = createModel({
+        id: 'gemma-4-31b-it',
+        provider: 'gemini'
+      })
+
+      expect(isFixedReasoningModel(model)).toBe(false)
+      expect(getThinkModelType(model)).toBe('gemma4_hosted')
+      expect(getModelSupportedReasoningEffortOptions(model)).toEqual(['default', 'minimal', 'high'])
     })
   })
 })
