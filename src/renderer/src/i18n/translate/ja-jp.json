@@ -1955,7 +1955,8 @@
     "empty_preview": "表示するコンテンツがありません",
     "generating": "生成中",
     "preview": "プレビュー",
-    "split": "分割"
+    "split": "分割",
+    "view_mode": "表示モード"
   },
   "import": {
     "chatgpt": {

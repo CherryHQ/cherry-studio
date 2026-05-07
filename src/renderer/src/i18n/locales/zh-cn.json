@@ -2049,7 +2049,8 @@
     "empty_preview": "无内容可展示",
     "generating": "生成中",
     "preview": "预览",
-    "split": "分屏"
+    "split": "分屏",
+    "view_mode": "视图模式"
   },
   "import": {
     "chatgpt": {

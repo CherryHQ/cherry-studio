@@ -2049,7 +2049,8 @@
     "empty_preview": "沒有內容可顯示",
     "generating": "產生中",
     "preview": "預覽",
-    "split": "分割畫面"
+    "split": "分割畫面",
+    "view_mode": "檢視模式"
   },
   "import": {
     "chatgpt": {

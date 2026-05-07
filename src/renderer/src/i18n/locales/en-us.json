@@ -2049,7 +2049,8 @@
     "empty_preview": "No content to display",
     "generating": "Generating",
     "preview": "Preview",
-    "split": "Split"
+    "split": "Split",
+    "view_mode": "View mode"
   },
   "import": {
     "chatgpt": {
