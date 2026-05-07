@@ -109,9 +109,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
     <PageSidePanel open={open} onClose={handleClose} header={header} footer={footer} closeLabel={t('common.close')}>
       <div className="flex flex-col items-center gap-1 pb-4">
         <LogoAvatar logo={logo || undefined} size={64} />
-        <span className="text-[11px] text-muted-foreground/60">
-          {name.trim() || t('settings.miniapps.custom.placeholder_name')}
-        </span>
+        <span className="text-[11px] text-muted-foreground/60">{name.trim() || t('common.unnamed')}</span>
       </div>
 
       <Field>
