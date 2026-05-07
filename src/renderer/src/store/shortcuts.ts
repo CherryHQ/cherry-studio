@@ -1,3 +1,19 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import type { Shortcut } from '@renderer/types'
@@ -119,6 +135,13 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
+      key: 'select_model',
+      shortcut: ['CommandOrControl', 'Shift', 'M'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
       key: 'exit_fullscreen',
       shortcut: ['Escape'],
       editable: false,
@@ -144,15 +167,15 @@ const shortcutsSlice = createSlice({
   reducers: {
     updateShortcut: (state, action: PayloadAction<Shortcut>) => {
       state.shortcuts = state.shortcuts.map((s) => (s.key === action.payload.key ? action.payload : s))
-      window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
+      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
     },
     toggleShortcut: (state, action: PayloadAction<string>) => {
       state.shortcuts = state.shortcuts.map((s) => (s.key === action.payload ? { ...s, enabled: !s.enabled } : s))
-      window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
+      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
     },
     resetShortcuts: (state) => {
       state.shortcuts = initialState.shortcuts
-      window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
+      void window.api.shortcuts.update(getSerializableShortcuts(state.shortcuts))
     }
   }
 })

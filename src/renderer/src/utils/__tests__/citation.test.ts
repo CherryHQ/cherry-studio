@@ -1,6 +1,6 @@
 import type { GroundingSupport } from '@google/genai'
 import type { Citation } from '@renderer/types'
-import { WebSearchSource } from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -10,6 +10,7 @@ import {
   normalizeCitationMarks,
   withCitationTags
 } from '../citation'
+import { buildContent, groundingChunks, groundingSupports } from './fixtures/gemini-citation-8880'
 
 // Mock dependencies
 vi.mock('@renderer/utils/formats', () => ({
@@ -33,21 +34,21 @@ describe('citation', () => {
 
   describe('determineCitationSource', () => {
     it('should find the the citation source', () => {
-      const citationReferences = [{ citationBlockId: 'block1', citationBlockSource: WebSearchSource.OPENAI }]
+      const citationReferences = [{ citationBlockId: 'block1', citationBlockSource: WEB_SEARCH_SOURCE.OPENAI }]
 
       const result = determineCitationSource(citationReferences)
-      expect(result).toBe(WebSearchSource.OPENAI)
+      expect(result).toBe(WEB_SEARCH_SOURCE.OPENAI)
     })
 
     it('should find first valid source in citation references', () => {
       const citationReferences = [
         { citationBlockId: 'block1' }, // no source
-        { citationBlockId: 'block2', citationBlockSource: WebSearchSource.GEMINI },
-        { citationBlockId: 'block3', citationBlockSource: WebSearchSource.GEMINI }
+        { citationBlockId: 'block2', citationBlockSource: WEB_SEARCH_SOURCE.GEMINI },
+        { citationBlockId: 'block3', citationBlockSource: WEB_SEARCH_SOURCE.GEMINI }
       ]
 
       const result = determineCitationSource(citationReferences)
-      expect(result).toBe(WebSearchSource.GEMINI)
+      expect(result).toBe(WEB_SEARCH_SOURCE.GEMINI)
     })
 
     it('should return undefined when no sources available', () => {
@@ -99,7 +100,7 @@ describe('citation', () => {
         }
       ]
 
-      const result = withCitationTags(content, citations, WebSearchSource.OPENAI)
+      const result = withCitationTags(content, citations, WEB_SEARCH_SOURCE.OPENAI)
 
       expect(result).toContain('[<sup data-citation=')
       expect(result).toContain('1</sup>](https://example.com)')
@@ -109,7 +110,7 @@ describe('citation', () => {
       const content = 'Test content from Gemini'
       const metadata: GroundingSupport[] = [
         {
-          segment: { text: 'Test content' },
+          segment: { startIndex: 0, endIndex: 12, text: 'Test content' },
           groundingChunkIndices: [0]
         }
       ]
@@ -122,7 +123,7 @@ describe('citation', () => {
         }
       ]
 
-      const result = withCitationTags(content, citations, WebSearchSource.GEMINI)
+      const result = withCitationTags(content, citations, WEB_SEARCH_SOURCE.GEMINI)
 
       expect(result).toContain('Test content[<sup data-citation=')
       expect(result).toContain('1</sup>](https://example.com)')
@@ -239,7 +240,7 @@ Numbered list:
         const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Test' }]
         const citationMap = createCitationMap(citations)
 
-        for (const sourceType of [WebSearchSource.OPENAI, WebSearchSource.OPENAI_RESPONSE]) {
+        for (const sourceType of [WEB_SEARCH_SOURCE.OPENAI, WEB_SEARCH_SOURCE.OPENAI_RESPONSE]) {
           const result = normalizeCitationMarks(content, citationMap, sourceType)
           expect(result).toBe('Text with [cite:1] citation')
         }
@@ -250,7 +251,7 @@ Numbered list:
         const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Test' }]
         const citationMap = createCitationMap(citations)
 
-        for (const sourceType of [WebSearchSource.OPENAI, WebSearchSource.OPENAI_RESPONSE]) {
+        for (const sourceType of [WEB_SEARCH_SOURCE.OPENAI, WEB_SEARCH_SOURCE.OPENAI_RESPONSE]) {
           const result = normalizeCitationMarks(content, citationMap, sourceType)
           expect(result).toBe('Text with [<sup>3</sup>](https://missing.com) citation')
         }
@@ -265,7 +266,7 @@ Numbered list:
         ]
         const citationMap = new Map(citations.map((c) => [c.number, c]))
 
-        const normalized = normalizeCitationMarks(content, citationMap, WebSearchSource.PERPLEXITY)
+        const normalized = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.PERPLEXITY)
         expect(normalized).toBe('Perplexity citations [cite:1]')
       })
 
@@ -275,7 +276,7 @@ Numbered list:
         const citationMap = new Map(citations.map((c) => [c.number, c]))
 
         // 2号引用不存在，应该保持原样
-        const normalized = normalizeCitationMarks(content, citationMap, WebSearchSource.PERPLEXITY)
+        const normalized = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.PERPLEXITY)
         expect(normalized).toBe('Text with [<sup>2</sup>](https://notfound.com) citation')
       })
     })
@@ -285,7 +286,7 @@ Numbered list:
         const content = 'This is test content from Gemini'
         const metadata: GroundingSupport[] = [
           {
-            segment: { text: 'test content' },
+            segment: { startIndex: 8, endIndex: 20, text: 'test content' },
             groundingChunkIndices: [0, 1]
           }
         ]
@@ -295,9 +296,48 @@ Numbered list:
         ]
         const citationMap = createCitationMap(citations)
 
-        const result = normalizeCitationMarks(content, citationMap, WebSearchSource.GEMINI)
+        const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.GEMINI)
 
         expect(result).toBe('This is test content[cite:1][cite:2] from Gemini')
+      })
+
+      it('should not over-match short text segments like ** (issue #8880)', () => {
+        // Gemini API can return groundingSupports with very short text like "**"
+        // which previously caused all "**" in the content to get citation tags
+        const content = '**二氧化硫（$SO_2$）不能燃烧。**\n\n1. **自身不可燃**：说明'
+        const metadata: GroundingSupport[] = [
+          {
+            segment: { startIndex: 0, endIndex: 2, text: '**' },
+            groundingChunkIndices: [0]
+          }
+        ]
+        const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Test', metadata }]
+        const citationMap = createCitationMap(citations)
+
+        const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.GEMINI)
+
+        // Only the position at endIndex=2 should get the citation tag
+        expect(result).toBe('**[cite:1]二氧化硫（$SO_2$）不能燃烧。**\n\n1. **自身不可燃**：说明')
+      })
+
+      it('should correctly convert UTF-8 byte offsets to char offsets for CJK text', () => {
+        // Gemini API endIndex is in UTF-8 bytes, not JS characters
+        // Chinese chars are 3 bytes each in UTF-8 but 1 char in JS
+        // "你好world" = 你(3) + 好(3) + w(1) + o(1) + r(1) + l(1) + d(1) = 11 bytes
+        const content = '你好world end'
+        const metadata: GroundingSupport[] = [
+          {
+            segment: { startIndex: 0, endIndex: 11, text: '你好world' },
+            groundingChunkIndices: [0]
+          }
+        ]
+        const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Test', metadata }]
+        const citationMap = createCitationMap(citations)
+
+        const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.GEMINI)
+
+        // endIndex=11 bytes → char offset 7 ("你好world".length === 7)
+        expect(result).toBe('你好world[cite:1] end')
       })
 
       it('should handle Gemini citations without metadata', () => {
@@ -305,7 +345,7 @@ Numbered list:
         const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Test' }]
         const citationMap = createCitationMap(citations)
 
-        const result = normalizeCitationMarks(content, citationMap, WebSearchSource.GEMINI)
+        const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.GEMINI)
 
         expect(result).toBe('Content without metadata')
       })
@@ -358,7 +398,7 @@ Numbered list:
         ]
         const citationMap = createCitationMap(citations)
 
-        const result = normalizeCitationMarks(content, citationMap, WebSearchSource.OPENAI)
+        const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.OPENAI)
 
         expect(result).toBe('Text with [1] and [cite:2] and other [3] formats')
       })
@@ -511,6 +551,34 @@ Numbered list:
       expect(result).toContain('6</sup>]()')
     })
 
+    it('should escape pipe characters in title to prevent GFM table cell breakage', () => {
+      const citation: Citation = {
+        number: 1,
+        url: 'https://example.com',
+        title: 'Foo | Bar | Baz'
+      }
+
+      const result = generateCitationTag(citation)
+
+      // The | in title must be escaped as &#124; inside data-citation attribute
+      expect(result).not.toContain('Foo | Bar')
+      expect(result).toContain('&#124;')
+    })
+
+    it('should escape pipe characters in URL to prevent GFM table cell breakage', () => {
+      const citation: Citation = {
+        number: 1,
+        url: 'https://example.com/path?a=1|b=2',
+        title: 'Test'
+      }
+
+      const result = generateCitationTag(citation)
+
+      // The | in URL must be percent-encoded as %7C
+      expect(result).toContain('%7C')
+      expect(result).not.toMatch(/\]\(https:\/\/example\.com\/path\?a=1\|/)
+    })
+
     it('should truncate content to 200 characters in data-citation', () => {
       const longContent = 'a'.repeat(300)
       const citation: Citation = {
@@ -558,6 +626,41 @@ Numbered list:
 
       expect(result).toContain('[<sup data-citation=')
       expect(end - start).toBeLessThan(100) // Should complete within 200ms
+    })
+  })
+
+  describe('Gemini citation snapshot (issue #8880)', () => {
+    const content = buildContent()
+    const citations: Citation[] = groundingChunks.map((chunk, index) => ({
+      number: index + 1,
+      url: chunk.web?.uri || '',
+      title: chunk.web?.title,
+      showFavicon: true,
+      metadata: groundingSupports
+    }))
+    const citationMap = new Map(citations.map((c) => [c.number, c]))
+
+    it('normalizeCitationMarks should insert [cite:N] at correct positions', () => {
+      const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.GEMINI)
+
+      // Each segment should get its citation tags exactly once, at the segment end
+      expect(result).toMatchSnapshot()
+
+      // Verify no over-matching: count total [cite:N] occurrences
+      const citeMatches = result.match(/\[cite:\d+\]/g) || []
+      // 6 segments with 3+3+2+2+3+2 = 15 total chunk references
+      expect(citeMatches).toHaveLength(15)
+    })
+
+    it('withCitationTags should produce correct final output', () => {
+      const result = withCitationTags(content, citations, WEB_SEARCH_SOURCE.GEMINI)
+
+      expect(result).toMatchSnapshot()
+
+      // Verify each citation tag appears the expected number of times
+      // Chunk 0 (citation 1) is referenced in 5 of 6 segments
+      const sup1Matches = result.match(/data-citation='[^']*'>1<\/sup>/g) || []
+      expect(sup1Matches).toHaveLength(5)
     })
   })
 })

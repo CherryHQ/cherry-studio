@@ -7,7 +7,7 @@ import type {
   AgentPersistedMessage,
   AgentSessionMessageEntity
 } from '@types'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import type { InsertSessionMessageRow, SessionMessageRow } from './schema'
@@ -83,26 +83,20 @@ class AgentMessageRepository extends BaseService {
     messageId: string
   ): Promise<SessionMessageRow | null> {
     const database = await this.getDatabase()
-    const candidateRows: SessionMessageRow[] = await database
+    // Use SQLite json_extract to query by messageId directly, avoiding loading all messages
+    const rows = await database
       .select()
       .from(sessionMessagesTable)
-      .where(and(eq(sessionMessagesTable.session_id, sessionId), eq(sessionMessagesTable.role, role)))
-      .orderBy(asc(sessionMessagesTable.created_at))
+      .where(
+        and(
+          eq(sessionMessagesTable.session_id, sessionId),
+          eq(sessionMessagesTable.role, role),
+          sql`json_extract(${sessionMessagesTable.content}, '$.message.id') = ${messageId}`
+        )
+      )
+      .limit(1)
 
-    for (const row of candidateRows) {
-      if (!row?.content) continue
-
-      try {
-        const parsed = JSON.parse(row.content) as AgentPersistedMessage | undefined
-        if (parsed?.message?.id === messageId) {
-          return row
-        }
-      } catch (error) {
-        logger.warn('Failed to parse session message content JSON during lookup', error as Error)
-      }
-    }
-
-    return null
+    return rows[0] ?? null
   }
 
   private async upsertMessage(

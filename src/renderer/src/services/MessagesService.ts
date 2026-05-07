@@ -8,7 +8,7 @@ import store from '@renderer/store'
 import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { Assistant, FileMetadata, Model, Topic, Usage } from '@renderer/types'
-import { FileTypes } from '@renderer/types'
+import { FILE_TYPE } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
@@ -55,17 +55,35 @@ export function getContextCount(assistant: Assistant, messages: Message[]) {
   }
 }
 
-export function deleteMessageFiles(message: Message) {
+/** @deprecated Use safeDeleteFiles instead */
+export async function deleteMessageFiles(message: Message) {
   const state = store.getState()
+  const fileDataList: FileMetadata[] = []
+
   message.blocks?.forEach((blockId) => {
     const block = messageBlocksSelectors.selectById(state, blockId)
     if (block && (block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE)) {
       const fileData = (block as any).file as FileMetadata | undefined
       if (fileData) {
-        FileManager.deleteFiles([fileData])
+        fileDataList.push(fileData)
       }
     }
   })
+
+  if (fileDataList.length > 0) {
+    await FileManager.deleteFiles(fileDataList)
+  }
+}
+
+// 删除列表中的文件
+export async function safeDeleteFiles(filesToDelete: FileMetadata[]): Promise<void> {
+  if (!filesToDelete || filesToDelete.length === 0) return
+
+  try {
+    await FileManager.deleteFiles(filesToDelete)
+  } catch (error) {
+    logger.error('Failed to delete files, may produce orphan files:', error as Error)
+  }
 }
 
 export function isGenerating() {
@@ -132,7 +150,7 @@ export function getUserMessage({
   }
   if (files?.length) {
     files.forEach((file) => {
-      if (file.type === FileTypes.IMAGE) {
+      if (file.type === FILE_TYPE.IMAGE) {
         const imgBlock = createImageBlock(messageId, { file, status: MessageBlockStatus.SUCCESS })
         blocks.push(imgBlock)
         blockIds.push(imgBlock.id)
@@ -209,9 +227,9 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
         blocks: message.blocks
       })
 
-      const titlePromise = fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })
+      const titlePromise = fetchMessagesSummary({ messages: [tempMessage] })
       window.toast.loading({ title: t('chat.topics.export.wait_for_title_naming'), promise: titlePromise })
-      const title = await titlePromise
+      const { text: title } = await titlePromise
 
       // store.dispatch(messageBlocksActions.upsertOneBlock(tempTextBlock))
 

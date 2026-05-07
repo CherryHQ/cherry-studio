@@ -53,7 +53,7 @@ const ModelTypeSelector: FC<ModelTypeSelectorProps> = ({
             }
             return t
           })
-          onCapabilitiesChange(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
+          onCapabilitiesChange(uniqueObjectArray(updatedModelCapabilities))
         } else {
           const updatedModelCapabilities = modelCapabilities?.map((t) => {
             if (
@@ -70,7 +70,7 @@ const ModelTypeSelector: FC<ModelTypeSelectorProps> = ({
             return t
           })
           updatedModelCapabilities.push(newCapability as any)
-          onCapabilitiesChange(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
+          onCapabilitiesChange(uniqueObjectArray(updatedModelCapabilities))
         }
       },
       onCancel: () => {},
@@ -107,7 +107,7 @@ const ModelTypeSelector: FC<ModelTypeSelectorProps> = ({
           }
           return t
         })
-        onCapabilitiesChange(uniqueObjectArray(updatedTypes as ModelCapability[]))
+        onCapabilitiesChange(uniqueObjectArray(updatedTypes))
       } else {
         const updatedModelCapabilities = modelCapabilities?.map((t) => {
           if (
@@ -119,7 +119,7 @@ const ModelTypeSelector: FC<ModelTypeSelectorProps> = ({
           return t
         })
         updatedModelCapabilities.push({ type: disabledTypes[0] as ModelType, isUserSelected: false })
-        onCapabilitiesChange(uniqueObjectArray(updatedModelCapabilities as ModelCapability[]))
+        onCapabilitiesChange(uniqueObjectArray(updatedModelCapabilities))
       }
       changedTypesRef.current.length = 0
     }

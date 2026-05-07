@@ -11,6 +11,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
+import { withoutTrailingApiVersion } from '@shared/utils/api'
 import type { Provider } from '@types'
 import type { ModelMessage } from 'ai'
 
@@ -88,15 +89,11 @@ export function getSdkClient(
       }
     })
   }
-  let baseURL =
+  const rawBaseURL =
     provider.type === 'anthropic'
       ? provider.apiHost
       : (provider.anthropicApiHost && provider.anthropicApiHost.trim()) || provider.apiHost
-
-  // Anthropic SDK automatically appends /v1 to all endpoints (like /v1/messages, /v1/models)
-  // We need to strip api version from baseURL to avoid duplication (e.g., /v3/v1/models)
-  // formatProviderApiHost adds /v1 for AI SDK compatibility, but Anthropic SDK needs it removed
-  baseURL = baseURL.replace(/\/v\d+(?:alpha|beta)?(?=\/|$)/i, '')
+  const baseURL = withoutTrailingApiVersion(rawBaseURL)
 
   logger.debug('Anthropic API baseURL', { baseURL, providerId: provider.id })
 

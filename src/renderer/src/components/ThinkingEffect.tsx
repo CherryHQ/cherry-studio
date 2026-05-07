@@ -1,8 +1,7 @@
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
-import { isEqual } from 'lodash'
 import { ChevronRight, Lightbulb } from 'lucide-react'
 import { motion } from 'motion/react'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import styled from 'styled-components'
 
 interface Props {
@@ -13,17 +12,11 @@ interface Props {
 }
 
 const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content, expanded }) => {
-  const [messages, setMessages] = useState<string[]>([])
-
-  useEffect(() => {
+  const messages = useMemo(() => {
     const allLines = (content || '').split('\n')
     const newMessages = isThinking ? allLines.slice(0, -1) : allLines
-    const validMessages = newMessages.filter((line) => line.trim() !== '')
-
-    if (!isEqual(messages, validMessages)) {
-      setMessages(validMessages)
-    }
-  }, [content, isThinking, messages])
+    return newMessages.filter((line) => line.trim() !== '')
+  }, [content, isThinking])
 
   const showThinking = useMemo(() => {
     return isThinking && !expanded

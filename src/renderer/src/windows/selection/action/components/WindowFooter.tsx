@@ -97,7 +97,7 @@ const WindowFooter: FC<FooterProps> = ({
     if (loading && onPause) {
       onPause()
     } else {
-      window.api.selection.closeActionWindow()
+      void window.api.selection.closeActionWindow()
     }
   }
 

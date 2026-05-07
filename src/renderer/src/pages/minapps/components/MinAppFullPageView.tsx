@@ -59,7 +59,7 @@ const MinAppFullPageView: FC<Props> = ({ app }) => {
       logger.debug(`WebView loaded for app: ${appId}`)
       const webviewId = webviewRef.current?.getWebContentsId()
       if (webviewId) {
-        window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
+        void window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
       }
 
       // Mark this WebView as loaded for future use in global state

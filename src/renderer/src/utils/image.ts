@@ -102,9 +102,22 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
         return Promise.reject()
       }
 
+      const filterHiddenElements = (node: Node) => {
+        if (node instanceof HTMLElement) {
+          if (node.style.display === 'none') {
+            return false
+          }
+          if (window.getComputedStyle(node).display === 'none') {
+            return false
+          }
+        }
+        return true
+      }
+
       const canvas = await new Promise<HTMLCanvasElement>((resolve, reject) => {
         htmlToImage
           .toCanvas(el, {
+            filter: filterHiddenElements,
             backgroundColor: getComputedStyle(el).getPropertyValue('--color-background'),
             cacheBust: true,
             pixelRatio: window.devicePixelRatio,

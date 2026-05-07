@@ -130,6 +130,46 @@ export async function fetchWebContent(
   }
 }
 
+/**
+ * Check if a URL is an X/Twitter post URL
+ */
+export function isXPostUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname.replace(/^www\./, '')
+    return (host === 'x.com' || host === 'twitter.com') && /\/status\/\d+/.test(parsed.pathname)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Fetch tweet content via X oEmbed API
+ * @see https://docs.x.com/x-for-websites/oembed-api
+ */
+export async function fetchXOEmbed(url: string): Promise<{ author: string; text: string } | null> {
+  try {
+    const oembedUrl = `https://publish.x.com/oembed?url=${encodeURIComponent(url)}&omit_script=1&dnt=1`
+    const response = await fetch(oembedUrl, { signal: AbortSignal.timeout(10000) })
+    if (!response.ok) return null
+    const data = await response.json()
+    // Extract text from html: <blockquote ...><p ...>text</p>&mdash; author ...</blockquote>
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(data.html || '', 'text/html')
+    const paragraphs = doc.querySelectorAll('blockquote p')
+    const text = Array.from(paragraphs)
+      .map((p) => p.textContent)
+      .join('\n')
+    return {
+      author: data.author_name || '',
+      text: text || ''
+    }
+  } catch (e) {
+    logger.warn('Failed to fetch X oEmbed', e as Error)
+    return null
+  }
+}
+
 export async function fetchRedirectUrl(url: string) {
   try {
     const response = await fetch(url, {

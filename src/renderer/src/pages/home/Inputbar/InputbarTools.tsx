@@ -5,12 +5,12 @@ import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputbarTools } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import type {
   InputbarScope,
   ToolActionKey,
   ToolActionMap,
+  ToolContext,
   ToolDefinition,
   ToolOrderConfig,
   ToolQuickPanelApi,
@@ -21,6 +21,7 @@ import type {
 import { getToolsForScope } from '@renderer/pages/home/Inputbar/types'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectToolOrderForScope, setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
+import type { Assistant, Model } from '@renderer/types'
 import type { InputBarToolType } from '@renderer/types/chat'
 import { classNames } from '@renderer/utils'
 import { Divider, Dropdown } from 'antd'
@@ -33,14 +34,9 @@ import styled from 'styled-components'
 
 export interface InputbarToolsNewProps {
   scope: InputbarScope
-  assistantId: string
-  // Session data for Agent Session scope (optional)
-  session?: {
-    agentId?: string
-    sessionId?: string
-    slashCommands?: Array<{ command: string; description?: string }>
-    tools?: Array<{ id: string; name: string; type: string; description?: string }>
-  }
+  assistant: Assistant
+  model: Model
+  session?: ToolContext['session']
 }
 
 interface ToolConfig {
@@ -54,10 +50,9 @@ const DraggablePortal = ({ children, isDragging }: { children: React.ReactNode; 
   return isDragging ? createPortal(children, document.body) : children
 }
 
-const InputbarTools = ({ scope, assistantId, session }: InputbarToolsNewProps) => {
+const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewProps) => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const { assistant, model } = useAssistant(assistantId)
   const toolsContext = useInputbarTools()
   const quickPanelContext = useQuickPanel()
   const quickPanelApiCacheRef = useRef(new Map<string, ToolQuickPanelApi>())
@@ -261,9 +256,12 @@ const InputbarTools = ({ scope, assistantId, session }: InputbarToolsNewProps) =
     const sourceId = source.droppableId
     const destinationId = destination.droppableId
 
+    const visibleKeys = visibleTools.map((t) => t.key)
+    const hiddenKeys = hiddenTools.map((t) => t.key)
+
     const newToolOrder: ToolOrderConfig = {
-      visible: [...toolOrder.visible],
-      hidden: [...toolOrder.hidden]
+      visible: [...visibleKeys],
+      hidden: [...hiddenKeys]
     }
 
     const sourceArray = sourceId === 'inputbar-tools-visible' ? 'visible' : 'hidden'

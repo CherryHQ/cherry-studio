@@ -1,33 +1,29 @@
-import AiProvider from '@renderer/aiCore'
+import { AiProvider } from '@renderer/aiCore'
+import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
-import { getProviderLogo } from '@renderer/config/providers'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
-import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getProviderLabel } from '@renderer/i18n/label'
-import { getProviderByModel } from '@renderer/services/AssistantService'
+import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import type { EndpointType, Model } from '@renderer/types'
-import { getClaudeSupportedProviders } from '@renderer/utils/provider'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
-import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
-import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space, Tooltip } from 'antd'
-import { ArrowUpRight, Download, FolderOpen, HelpCircle, Terminal, X } from 'lucide-react'
+import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
+import { Alert, Button, Checkbox, Input, Select, Space, Tooltip } from 'antd'
+import { Download, FolderOpen, Terminal, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 import {
-  CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS,
   CLI_TOOL_PROVIDER_MAP,
   CLI_TOOLS,
   generateToolEnvironment,
@@ -40,7 +36,6 @@ const logger = loggerService.withContext('CodeToolsPage')
 const CodeToolsPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const allProviders = useAllProviders()
   const dispatch = useAppDispatch()
   const isBunInstalled = useAppSelector((state) => state.mcp.isBunInstalled)
   const {
@@ -60,6 +55,15 @@ const CodeToolsPage: FC = () => {
     selectFolder
   } = useCodeTools()
   const { setTimeoutTimer } = useTimer()
+
+  // Get default assistant settings for budget tokens calculation
+  const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
+  const { maxTokens, reasoning_effort } = useMemo(() => {
+    if (!defaultAssistant) {
+      return { maxTokens: undefined, reasoning_effort: undefined }
+    }
+    return getAssistantSettings(defaultAssistant)
+  }, [defaultAssistant])
 
   const [isLaunching, setIsLaunching] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
@@ -86,6 +90,11 @@ const CodeToolsPage: FC = () => {
         if (m.provider === 'silicon') {
           return isSiliconAnthropicCompatibleModel(m.id)
         }
+        // Check if model belongs to an anthropic type provider or has anthropicApiHost
+        const modelProvider = providers.find((p) => p.id === m.provider)
+        if (modelProvider?.type === 'anthropic' || modelProvider?.anthropicApiHost) {
+          return true
+        }
         return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
       }
 
@@ -101,6 +110,11 @@ const CodeToolsPage: FC = () => {
           return ['openai', 'openai-response'].some((type) =>
             m.supported_endpoint_types?.includes(type as EndpointType)
           )
+        }
+        // Check if model belongs to an openai-response type provider (including custom providers)
+        const openaiProvider = providers.find((p) => p.id === m.provider)
+        if (openaiProvider?.type === 'openai-response') {
+          return true
         }
         return m.id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.provider)
       }
@@ -118,9 +132,20 @@ const CodeToolsPage: FC = () => {
         return true
       }
 
+      if (selectedCliTool === codeTools.openCode) {
+        if (m.supported_endpoint_types) {
+          return ['openai', 'openai-response', 'anthropic'].some((type) =>
+            m.supported_endpoint_types?.includes(type as EndpointType)
+          )
+        }
+        // Check if model belongs to openai, openai-response, or anthropic type provider
+        const provider = providers.find((p) => p.id === m.provider)
+        return !!['openai', 'openai-response', 'anthropic', 'new-api'].includes(provider?.type ?? '')
+      }
+
       return true
     },
-    [selectedCliTool]
+    [selectedCliTool, providers]
   )
 
   const availableProviders = useMemo(() => {
@@ -215,10 +240,12 @@ const CodeToolsPage: FC = () => {
   }
 
   // 准备启动环境
-  const prepareLaunchEnvironment = async (): Promise<Record<string, string> | null> => {
+  const prepareLaunchEnvironment = async (): Promise<{
+    env: Record<string, string>
+  } | null> => {
     if (selectedCliTool === codeTools.githubCopilotCli) {
       const userEnv = parseEnvironmentVariables(environmentVariables)
-      return userEnv
+      return { env: userEnv }
     }
 
     if (!selectedModel) return null
@@ -229,29 +256,41 @@ const CodeToolsPage: FC = () => {
     const apiKey = aiProvider.getApiKey()
 
     // 生成工具特定的环境变量
-    const toolEnv = generateToolEnvironment({
+    const { env: toolEnv } = generateToolEnvironment({
       tool: selectedCliTool,
       model: selectedModel,
       modelProvider,
       apiKey,
-      baseUrl
+      baseUrl,
+      context: { maxTokens, reasoningEffort: reasoning_effort }
     })
 
     // 合并用户自定义的环境变量
     const userEnv = parseEnvironmentVariables(environmentVariables)
 
-    return { ...toolEnv, ...userEnv }
+    return { env: { ...toolEnv, ...userEnv } }
   }
 
   // 执行启动操作
   const executeLaunch = async (env: Record<string, string>) => {
     const modelId = selectedCliTool === codeTools.githubCopilotCli ? '' : selectedModel?.id!
 
-    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, {
+    const runOptions = {
       autoUpdateToLatest,
       terminal: selectedTerminal
-    })
-    window.toast.success(t('code.launch.success'))
+    }
+
+    try {
+      const result = await window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
+      if (result && result.success) {
+        window.toast.success(t('code.launch.success'))
+      } else {
+        window.toast.error(result?.message || t('code.launch.error'))
+      }
+    } catch (error) {
+      logger.error('codeTools.run failed:', error as Error)
+      window.toast.error(t('code.launch.error'))
+    }
   }
 
   // 设置终端自定义路径
@@ -271,7 +310,7 @@ const CodeToolsPage: FC = () => {
         setTerminalCustomPaths((prev) => ({ ...prev, [terminalId]: path }))
         window.toast.success(t('code.custom_path_set'))
         // Reload terminals to reflect changes
-        loadAvailableTerminals()
+        void loadAvailableTerminals()
       }
     } catch (error) {
       logger.error('Failed to set custom terminal path:', error as Error)
@@ -291,13 +330,13 @@ const CodeToolsPage: FC = () => {
     setIsLaunching(true)
 
     try {
-      const env = await prepareLaunchEnvironment()
-      if (!env) {
+      const result = await prepareLaunchEnvironment()
+      if (!result) {
         window.toast.error(t('code.model_required'))
         return
       }
 
-      await executeLaunch(env)
+      await executeLaunch(result.env)
     } catch (error) {
       logger.error('start code tools failed:', error as Error)
       window.toast.error(t('code.launch.error'))
@@ -308,12 +347,12 @@ const CodeToolsPage: FC = () => {
 
   // 页面加载时检查 bun 安装状态
   useEffect(() => {
-    checkBunInstallation()
+    void checkBunInstallation()
   }, [checkBunInstallation])
 
   // 页面加载时获取可用终端
   useEffect(() => {
-    loadAvailableTerminals()
+    void loadAvailableTerminals()
   }, [loadAvailableTerminals])
 
   return (
@@ -372,48 +411,7 @@ const CodeToolsPage: FC = () => {
               <SettingsItem>
                 <div className="settings-label">
                   {t('code.model')}
-                  {selectedCliTool === 'claude-code' && (
-                    <Popover
-                      content={
-                        <div style={{ width: 200 }}>
-                          <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('code.supported_providers')}</div>
-                          <div
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 8
-                            }}>
-                            {getClaudeSupportedProviders(allProviders).map((provider) => {
-                              return (
-                                <Link
-                                  key={provider.id}
-                                  style={{
-                                    color: 'var(--color-text)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 4
-                                  }}
-                                  to={`/settings/provider?id=${provider.id}`}>
-                                  <ProviderLogo shape="square" src={getProviderLogo(provider.id)} size={20} />
-                                  {getProviderLabel(provider.id)}
-                                  <ArrowUpRight size={14} />
-                                </Link>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      }
-                      trigger="hover"
-                      placement="right">
-                      <HelpCircle
-                        size={14}
-                        style={{
-                          color: 'var(--color-text-3)',
-                          cursor: 'pointer'
-                        }}
-                      />
-                    </Popover>
-                  )}
+                  {selectedCliTool === 'claude-code' && <AnthropicProviderListPopover />}
                 </div>
                 <ModelSelector
                   providers={availableProviders}
@@ -441,35 +439,35 @@ const CodeToolsPage: FC = () => {
                     const label = typeof option?.label === 'string' ? option.label : String(option?.value || '')
                     return label.toLowerCase().includes(input.toLowerCase())
                   }}
-                  options={directories.map((dir) => ({
-                    value: dir,
-                    label: (
-                      <div
+                  options={directories.map((dir) => ({ value: dir, label: dir }))}
+                  optionRender={(option) => (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                      <span
                         style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center'
+                          flex: 1,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          minWidth: 0
                         }}>
-                        <span
-                          style={{
-                            flex: 1,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                          }}>
-                          {dir}
-                        </span>
-                        <X
-                          size={14}
-                          style={{
-                            marginLeft: 8,
-                            cursor: 'pointer',
-                            color: '#999'
-                          }}
-                          onClick={(e) => handleRemoveDirectory(dir, e)}
-                        />
-                      </div>
-                    )
-                  }))}
+                        {option.value}
+                      </span>
+                      <X
+                        size={14}
+                        style={{
+                          marginLeft: 8,
+                          cursor: 'pointer',
+                          color: '#999'
+                        }}
+                        onClick={(e) => handleRemoveDirectory(option.value as string, e)}
+                      />
+                    </div>
+                  )}
                 />
                 <Button onClick={selectFolder} style={{ width: 120 }}>
                   {t('code.select_folder')}
@@ -619,10 +617,6 @@ const SettingsItem = styled.div`
 
 const BunInstallAlert = styled.div`
   margin-bottom: 24px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border-radius: 4px;
 `
 
 export default CodeToolsPage

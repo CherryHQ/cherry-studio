@@ -11,7 +11,7 @@ import { getToastUtilities, initMessageApi } from './toast'
 
 let onPop = () => {}
 let onShow = ({ element, id }: { element: React.FC | React.ReactNode; id: string }) => {
-  element
+  void element
   id
 }
 let onHide = (id: string) => {
@@ -87,7 +87,7 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
       if (!enableQuitFullScreen) return
 
       if (e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        window.api.setFullScreen(false)
+        void window.api.setFullScreen(false)
       }
     }
     window.addEventListener('keydown', handleKeyDown)

@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import MinAppIcon from '@renderer/components/Icons/MinAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
-import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps } from '@renderer/config/minapps'
+import MarqueeText from '@renderer/components/MarqueeText'
+import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateAllMinApps } from '@renderer/config/minapps'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -34,9 +35,14 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const navigate = useNavigate()
   const isPinned = pinned.some((p) => p.id === app.id)
   const isVisible = minapps.some((m) => m.id === app.id)
+  // Pinned apps should always be visible regardless of region/locale filtering
+  const shouldShow = isVisible || isPinned
   const isActive = minappShow && currentMinappId === app.id
   const isOpened = openedKeepAliveMinapps.some((item) => item.id === app.id)
   const { isTopNavbar } = useNavbarPosition()
+
+  // Calculate display name
+  const displayName = isLast ? t('settings.miniapps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
 
   const handleClick = () => {
     if (isTopNavbar) {
@@ -60,7 +66,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           ? t('minapp.add_to_launchpad')
           : t('minapp.add_to_sidebar'),
       onClick: () => {
-        const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...(pinned || []), app]
+        const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...pinned, app]
         updatePinnedMinapps(newPinned)
       }
     },
@@ -72,8 +78,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
         updateMinapps(newMinapps)
         const newDisabled = [...(disabled || []), app]
         updateDisabledMinapps(newDisabled)
-        const newPinned = pinned.filter((item) => item.id !== app.id)
-        updatePinnedMinapps(newPinned)
+        updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
         // 更新 openedKeepAliveMinapps
         const newOpenedKeepAliveMinapps = openedKeepAliveMinapps.filter((item) => item.id !== app.id)
         dispatch(setOpenedKeepAliveMinapps(newOpenedKeepAliveMinapps))
@@ -93,7 +98,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
                 await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(updatedApps, null, 2))
                 window.toast.success(t('settings.miniapps.custom.remove_success'))
                 const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
-                updateDefaultMinApps(reloadedApps)
+                updateAllMinApps(reloadedApps)
                 updateMinapps(minapps.filter((item) => item.id !== app.id))
                 updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
                 updateDisabledMinapps(disabled.filter((item) => item.id !== app.id))
@@ -107,7 +112,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
       : [])
   ]
 
-  if (!isVisible) {
+  if (!shouldShow) {
     return null
   }
 
@@ -122,7 +127,9 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
             </StyledIndicator>
           )}
         </IconContainer>
-        <AppTitle>{isLast ? t('settings.miniapps.custom.title') : app.name}</AppTitle>
+        <AppTitle>
+          <MarqueeText>{displayName}</MarqueeText>
+        </AppTitle>
       </Container>
     </Dropdown>
   )
@@ -160,7 +167,8 @@ const AppTitle = styled.div`
   color: var(--color-text-soft);
   text-align: center;
   user-select: none;
-  white-space: nowrap;
+  width: 100%;
+  max-width: 80px;
 `
 
 export default MinApp

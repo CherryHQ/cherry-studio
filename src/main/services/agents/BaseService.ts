@@ -2,7 +2,9 @@ import { loggerService } from '@logger'
 import { mcpApiService } from '@main/apiServer/services/mcp'
 import type { ModelValidationError } from '@main/apiServer/utils'
 import { validateModelId } from '@main/apiServer/utils'
-import type { AgentType, MCPTool, SlashCommand, Tool } from '@types'
+import { getDataPath } from '@main/utils'
+import { buildFunctionCallToolName } from '@shared/mcp'
+import type { AgentType, MCPTool, SlashCommand, SystemProviderId, Tool } from '@types'
 import { objectKeys } from '@types'
 import fs from 'fs'
 import path from 'path'
@@ -14,6 +16,17 @@ import { builtinSlashCommands } from './services/claudecode/commands'
 import { builtinTools } from './services/claudecode/tools'
 
 const logger = loggerService.withContext('BaseService')
+const MCP_TOOL_ID_PREFIX = 'mcp__'
+const MCP_TOOL_LEGACY_PREFIX = 'mcp_'
+
+const buildMcpToolId = (serverId: string, toolName: string) => `${MCP_TOOL_ID_PREFIX}${serverId}__${toolName}`
+const toLegacyMcpToolId = (toolId: string) => {
+  if (!toolId.startsWith(MCP_TOOL_ID_PREFIX)) {
+    return null
+  }
+  const rawId = toolId.slice(MCP_TOOL_ID_PREFIX.length)
+  return `${MCP_TOOL_LEGACY_PREFIX}${rawId.replace(/__/g, '_')}`
+}
 
 /**
  * Base service class providing shared utilities for all agent-related services.
@@ -35,8 +48,12 @@ export abstract class BaseService {
     'slash_commands'
   ]
 
-  public async listMcpTools(agentType: AgentType, ids?: string[]): Promise<Tool[]> {
+  public async listMcpTools(
+    agentType: AgentType,
+    ids?: string[]
+  ): Promise<{ tools: Tool[]; legacyIdMap: Map<string, string> }> {
     const tools: Tool[] = []
+    const legacyIdMap = new Map<string, string>()
     if (agentType === 'claude-code') {
       tools.push(...builtinTools)
     }
@@ -46,13 +63,21 @@ export abstract class BaseService {
           const server = await mcpApiService.getServerInfo(id)
           if (server) {
             server.tools.forEach((tool: MCPTool) => {
+              const canonicalId = buildFunctionCallToolName(server.name, tool.name)
+              const serverIdBasedId = buildMcpToolId(id, tool.name)
+              const legacyId = toLegacyMcpToolId(serverIdBasedId)
+
               tools.push({
-                id: `mcp_${id}_${tool.name}`,
+                id: canonicalId,
                 name: tool.name,
                 type: 'mcp',
                 description: tool.description || '',
                 requirePermissions: true
               })
+              legacyIdMap.set(serverIdBasedId, canonicalId)
+              if (legacyId) {
+                legacyIdMap.set(legacyId, canonicalId)
+              }
             })
           }
         } catch (error) {
@@ -64,7 +89,53 @@ export abstract class BaseService {
       }
     }
 
-    return tools
+    return { tools, legacyIdMap }
+  }
+
+  /**
+   * Normalize MCP tool IDs in allowed_tools to the current format.
+   *
+   * Legacy formats:
+   * - "mcp__<serverId>__<toolName>" (double underscore separators, server ID based)
+   * - "mcp_<serverId>_<toolName>" (single underscore separators)
+   * Current format: "mcp__<serverName>__<toolName>" (double underscore separators).
+   *
+   * This keeps persisted data compatible without requiring a database migration.
+   */
+  protected normalizeAllowedTools(
+    allowedTools: string[] | undefined,
+    tools: Tool[],
+    legacyIdMap?: Map<string, string>
+  ): string[] | undefined {
+    if (!allowedTools || allowedTools.length === 0) {
+      return allowedTools
+    }
+
+    const resolvedLegacyIdMap = new Map<string, string>()
+
+    if (legacyIdMap) {
+      for (const [legacyId, canonicalId] of legacyIdMap) {
+        resolvedLegacyIdMap.set(legacyId, canonicalId)
+      }
+    }
+
+    for (const tool of tools) {
+      if (tool.type !== 'mcp') {
+        continue
+      }
+      const legacyId = toLegacyMcpToolId(tool.id)
+      if (!legacyId) {
+        continue
+      }
+      resolvedLegacyIdMap.set(legacyId, tool.id)
+    }
+
+    if (resolvedLegacyIdMap.size === 0) {
+      return allowedTools
+    }
+
+    const normalized = allowedTools.map((toolId) => resolvedLegacyIdMap.get(toolId) ?? toolId)
+    return Array.from(new Set(normalized))
   }
 
   public async listSlashCommands(agentType: AgentType): Promise<SlashCommand[]> {
@@ -78,7 +149,7 @@ export abstract class BaseService {
    * Get database instance
    * Automatically waits for initialization to complete
    */
-  protected async getDatabase() {
+  public async getDatabase() {
     const dbManager = await DatabaseManager.getInstance()
     return dbManager.getDatabase()
   }
@@ -111,6 +182,14 @@ export abstract class BaseService {
           logger.warn(`Failed to parse JSON field ${field}:`, error as Error)
         }
       }
+    }
+
+    // Normalize legacy agent type values to the unified type
+    if (deserialized.type === 'cherry-claw') {
+      deserialized.type = 'claude-code'
+    }
+    if (deserialized.agent_type === 'cherry-claw') {
+      deserialized.agent_type = 'claude-code'
     }
 
     // convert null from db to undefined to satisfy type definition
@@ -192,7 +271,24 @@ export abstract class BaseService {
   }
 
   /**
-   * Validate agent model configuration
+   * Resolve accessible paths, assigning a default workspace under `{dataPath}/Agents/{id}`
+   * when the provided paths are empty or undefined, then ensure all directories exist.
+   */
+  protected resolveAccessiblePaths(paths: string[] | undefined, id: string): string[] {
+    if (!paths || paths.length === 0) {
+      const shortId = id.substring(id.length - 9)
+      paths = [path.join(getDataPath(), 'Agents', shortId)]
+    }
+    return this.ensurePathsExist(paths)
+  }
+
+  /**
+   * Validate agent model configuration.
+   *
+   * **Side effect**: For local providers that don't require a real API key
+   * (e.g. ollama, lmstudio), this method sets `provider.apiKey` to the
+   * provider ID as a placeholder so downstream SDK calls don't reject the
+   * request. Callers should be aware that the provider object may be mutated.
    */
   protected async validateAgentModels(
     agentType: AgentType,
@@ -202,6 +298,10 @@ export abstract class BaseService {
     if (entries.length === 0) {
       return
     }
+
+    // Local providers that don't require a real API key (use placeholder).
+    // Note: lmstudio doesn't support Anthropic API format, only ollama does.
+    const localProvidersWithoutApiKey: readonly string[] = ['ollama', 'lmstudio'] satisfies SystemProviderId[]
 
     for (const [field, rawValue] of entries) {
       if (rawValue === undefined || rawValue === null) {
@@ -221,15 +321,22 @@ export abstract class BaseService {
         throw new AgentModelValidationError({ agentType, field, model: modelValue }, detail)
       }
 
+      const requiresApiKey = !localProvidersWithoutApiKey.includes(validation.provider.id)
+
       if (!validation.provider.apiKey) {
-        throw new AgentModelValidationError(
-          { agentType, field, model: modelValue },
-          {
-            type: 'invalid_format',
-            message: `Provider '${validation.provider.id}' is missing an API key`,
-            code: 'provider_api_key_missing'
-          }
-        )
+        if (requiresApiKey) {
+          throw new AgentModelValidationError(
+            { agentType, field, model: modelValue },
+            {
+              type: 'invalid_format',
+              message: `Provider '${validation.provider.id}' is missing an API key`,
+              code: 'provider_api_key_missing'
+            }
+          )
+        } else {
+          // Use provider id as placeholder API key for providers that don't require one
+          validation.provider.apiKey = validation.provider.id
+        }
       }
     }
   }

@@ -6,7 +6,7 @@
 import type { TextStreamPart, ToolSet } from 'ai'
 
 import { definePlugin } from '../../index'
-import type { AiRequestContext } from '../../types'
+import type { AiPlugin, StreamTextParams, StreamTextResult } from '../../types'
 import { StreamEventManager } from './StreamEventManager'
 import { type TagConfig, TagExtractor } from './tagExtraction'
 import { ToolExecutor } from './ToolExecutor'
@@ -21,11 +21,8 @@ const TOOL_USE_TAG_CONFIG: TagConfig = {
   separator: '\n'
 }
 
-/**
- * 默认系统提示符模板（提取自 Cherry Studio）
- */
-const DEFAULT_SYSTEM_PROMPT = `In this environment you have access to a set of tools you can use to answer the user's question. \\
-You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
+export const DEFAULT_SYSTEM_PROMPT = `In this environment you have access to a set of tools you can use to answer the user's question. \
+You can use one or more tools per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
 
 ## Tool Use Formatting
 
@@ -36,11 +33,17 @@ Tool use is formatted using XML-style tags. The tool name is enclosed in opening
   <arguments>{json_arguments}</arguments>
 </tool_use>
 
-The tool name should be the exact name of the tool you are using, and the arguments should be a JSON object containing the parameters required by that tool. For example:
+The tool name should be the exact name of the tool you are using, and the arguments should be a JSON object containing the parameters required by that tool. IMPORTANT: When writing JSON inside the <arguments> tag, any double quotes inside string values must be escaped with a backslash ("). For example:
 <tool_use>
-  <name>python_interpreter</name>
-  <arguments>{"code": "5 + 3 + 1294.678"}</arguments>
+  <name>search</name>
+  <arguments>{ "query": "browser,fetch" }</arguments>
 </tool_use>
+
+<tool_use>
+  <name>exec</name>
+  <arguments>{ "code": "const page = await CherryBrowser_fetch({ url: \\"https://example.com\\" })\nreturn page" }</arguments>
+</tool_use>
+
 
 The user will respond with the result of the tool use, which should be formatted as follows:
 
@@ -59,13 +62,6 @@ For example, if the result of the tool use is an image file, you can use it in t
 
 Always adhere to this format for the tool use to ensure proper parsing and execution.
 
-## Tool Use Examples
-{{ TOOL_USE_EXAMPLES }}
-
-## Tool Use Available Tools
-Above example were using notional tools that might not exist for you. You only have access to these tools:
-{{ AVAILABLE_TOOLS }}
-
 ## Tool Use Rules
 Here are the rules you should always follow to solve your task:
 1. Always use the right arguments for the tools. Never use variable names as the action arguments, use the value instead.
@@ -74,10 +70,15 @@ Here are the rules you should always follow to solve your task:
 4. Never re-do a tool call that you previously did with the exact same parameters.
 5. For tool use, MAKE SURE use XML tag format as shown in the examples above. Do not use any other format.
 
+{{ TOOLS_INFO }}
+
+## Response rules
+
+Respond in the language of the user's query, unless the user instructions specify additional requirements for the language to be used.
+
 # User Instructions
 {{ USER_SYSTEM_PROMPT }}
-
-Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.`
+`
 
 /**
  * 默认工具使用示例（提取自 Cherry Studio）
@@ -151,7 +152,8 @@ User: <tool_use_result>
   <name>search</name>
   <result>26 million (2019)</result>
 </tool_use_result>
-Assistant: The population of Shanghai is 26 million, while Guangzhou has a population of 15 million. Therefore, Shanghai has the highest population.`
+
+A: The population of Shanghai is 26 million, while Guangzhou has a population of 15 million. Therefore, Shanghai has the highest population.`
 
 /**
  * 构建可用工具部分（提取自 Cherry Studio）
@@ -181,13 +183,30 @@ ${result}
 /**
  * 默认的系统提示符构建函数（提取自 Cherry Studio）
  */
-function defaultBuildSystemPrompt(userSystemPrompt: string, tools: ToolSet): string {
+function defaultBuildSystemPrompt(userSystemPrompt: string, tools: ToolSet, mcpMode?: string): string {
   const availableTools = buildAvailableTools(tools)
   if (availableTools === null) return userSystemPrompt
 
-  const fullPrompt = DEFAULT_SYSTEM_PROMPT.replace('{{ TOOL_USE_EXAMPLES }}', DEFAULT_TOOL_USE_EXAMPLES)
+  if (mcpMode == 'auto') {
+    return DEFAULT_SYSTEM_PROMPT.replace('{{ TOOLS_INFO }}', '').replace(
+      '{{ USER_SYSTEM_PROMPT }}',
+      userSystemPrompt || ''
+    )
+  }
+  const toolsInfo = `
+## Tool Use Examples
+{{ TOOL_USE_EXAMPLES }}
+
+## Tool Use Available Tools
+Above example were using notional tools that might not exist for you. You only have access to these tools:
+{{ AVAILABLE_TOOLS }}`
+    .replace('{{ TOOL_USE_EXAMPLES }}', DEFAULT_TOOL_USE_EXAMPLES)
     .replace('{{ AVAILABLE_TOOLS }}', availableTools)
-    .replace('{{ USER_SYSTEM_PROMPT }}', userSystemPrompt || '')
+
+  const fullPrompt = DEFAULT_SYSTEM_PROMPT.replace('{{ TOOLS_INFO }}', toolsInfo).replace(
+    '{{ USER_SYSTEM_PROMPT }}',
+    userSystemPrompt || ''
+  )
 
   return fullPrompt
 }
@@ -220,7 +239,17 @@ function defaultParseToolUse(content: string, tools: ToolSet): { results: ToolUs
   // Find all tool use blocks
   while ((match = toolUsePattern.exec(contentToProcess)) !== null) {
     const fullMatch = match[0]
-    const toolName = match[2].trim()
+    let toolName = match[2].trim()
+    switch (toolName.toLowerCase()) {
+      case 'search':
+        toolName = 'mcp__CherryHub__search'
+        break
+      case 'exec':
+        toolName = 'mcp__CherryHub__exec'
+        break
+      default:
+        break
+    }
     const toolArgs = match[4].trim()
 
     // Try to parse the arguments as JSON
@@ -251,23 +280,30 @@ function defaultParseToolUse(content: string, tools: ToolSet): { results: ToolUs
   return { results, content: contentToProcess }
 }
 
-export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
-  const { enabled = true, buildSystemPrompt = defaultBuildSystemPrompt, parseToolUse = defaultParseToolUse } = config
+export const createPromptToolUsePlugin = (
+  config: PromptToolUseConfig = {}
+): AiPlugin<StreamTextParams, StreamTextResult> => {
+  const {
+    enabled = true,
+    buildSystemPrompt = defaultBuildSystemPrompt,
+    parseToolUse = defaultParseToolUse,
+    mcpMode
+  } = config
 
-  return definePlugin({
+  return definePlugin<StreamTextParams, StreamTextResult>({
     name: 'built-in:prompt-tool-use',
-    transformParams: (params: any, context: AiRequestContext) => {
+    transformParams: (params, context) => {
       if (!enabled || !params.tools || typeof params.tools !== 'object') {
         return params
       }
 
-      // 分离 provider-defined 和其他类型的工具
+      // 分离 provider 和其他类型的工具
       const providerDefinedTools: ToolSet = {}
       const promptTools: ToolSet = {}
 
-      for (const [toolName, tool] of Object.entries(params.tools as ToolSet)) {
-        if (tool.type === 'provider-defined') {
-          // provider-defined 类型的工具保留在 tools 参数中
+      for (const [toolName, tool] of Object.entries(params.tools)) {
+        if (tool.type === 'provider') {
+          // provider 类型的工具保留在 tools 参数中
           providerDefinedTools[toolName] = tool
         } else {
           // 其他工具转换为 prompt 模式
@@ -275,30 +311,35 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
         }
       }
 
-      // 只有当有非 provider-defined 工具时才保存到 context
+      // 只有当有非 provider 工具时才保存到 context
       if (Object.keys(promptTools).length > 0) {
         context.mcpTools = promptTools
       }
 
-      // 构建系统提示符（只包含非 provider-defined 工具）
-      const userSystemPrompt = typeof params.system === 'string' ? params.system : ''
-      const systemPrompt = buildSystemPrompt(userSystemPrompt, promptTools)
-      let systemMessage: string | null = systemPrompt
-      if (config.createSystemMessage) {
-        // 🎯 如果用户提供了自定义处理函数，使用它
-        systemMessage = config.createSystemMessage(systemPrompt, params, context)
+      // 递归调用时，不重新构建 system prompt，避免重复追加工具定义
+      if (context.isRecursiveCall) {
+        const transformedParams = {
+          ...params,
+          tools: Object.keys(providerDefinedTools).length > 0 ? providerDefinedTools : undefined
+        }
+        context.originalParams = transformedParams
+        return transformedParams
       }
 
-      // 保留 provider-defined tools，移除其他 tools
+      // 构建系统提示符（只包含非 provider 工具）
+      const userSystemPrompt = typeof params.system === 'string' ? params.system : ''
+      const systemPrompt = buildSystemPrompt(userSystemPrompt, promptTools, mcpMode)
+
+      // 保留 provide tools，移除其他 tools
       const transformedParams = {
         ...params,
-        ...(systemMessage ? { system: systemMessage } : {}),
+        ...(systemPrompt ? { system: systemPrompt } : {}),
         tools: Object.keys(providerDefinedTools).length > 0 ? providerDefinedTools : undefined
       }
       context.originalParams = transformedParams
       return transformedParams
     },
-    transformStream: (_: any, context: AiRequestContext) => () => {
+    transformStream: (_, context) => () => {
       let textBuffer = ''
       // let stepId = ''
 
@@ -307,7 +348,7 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
         return new TransformStream()
       }
 
-      // 从 context 中获取或初始化 usage 累加器
+      // 初始化 usage 累加器和工具执行状态
       if (!context.accumulatedUsage) {
         context.accumulatedUsage = {
           inputTokens: 0,
@@ -317,16 +358,14 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
           cachedInputTokens: 0
         }
       }
+      if (context.hasExecutedToolsInCurrentStep === undefined) {
+        context.hasExecutedToolsInCurrentStep = false
+      }
 
       // 创建工具执行器、流事件管理器和标签提取器
       const toolExecutor = new ToolExecutor()
       const streamEventManager = new StreamEventManager()
       const tagExtractor = new TagExtractor(TOOL_USE_TAG_CONFIG)
-
-      // 在context中初始化工具执行状态，避免递归调用时状态丢失
-      if (!context.hasExecutedToolsInCurrentStep) {
-        context.hasExecutedToolsInCurrentStep = false
-      }
 
       // 用于hold text-start事件，直到确认有非工具标签内容
       let pendingTextStart: TextStreamPart<TOOLS> | null = null
@@ -411,7 +450,10 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
               }
             }
 
-            // 如果没有执行工具调用，直接传递原始finish-step事件
+            // 如果没有执行工具调用，累加 usage 后透传 finish-step 事件
+            if (chunk.usage && context.accumulatedUsage) {
+              streamEventManager.accumulateUsage(context.accumulatedUsage, chunk.usage)
+            }
             controller.enqueue(chunk)
 
             // 清理状态

@@ -12,11 +12,10 @@ import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { Popover } from 'antd'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, WheelEvent as ReactWheelEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
-import { useChatMaxWidth } from '../Chat'
 import MessageItem from './Message'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
@@ -34,7 +33,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
   const { isMultiSelectMode } = useChatContext(topic)
-  const maxWidth = useChatMaxWidth()
   const { setTimeoutTimer } = useTimer()
 
   const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
@@ -65,9 +63,9 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const setSelectedMessage = useCallback(
     (message: Message) => {
       // 前一个
-      editMessage(selectedMessageId, { foldSelected: false })
+      void editMessage(selectedMessageId, { foldSelected: false })
       // 当前选中的消息
-      editMessage(message.id, { foldSelected: true })
+      void editMessage(message.id, { foldSelected: true })
 
       setTimeoutTimer(
         'setSelectedMessage',
@@ -167,16 +165,16 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         return
       }
       if (message.useful) {
-        editMessage(msgId, { useful: undefined })
+        void editMessage(msgId, { useful: undefined })
         return
       } else {
         const toResetUsefulMsgs = messages.filter((msg) => msg.id !== msgId && msg.useful)
         toResetUsefulMsgs.forEach(async (msg) => {
-          editMessage(msg.id, {
+          void editMessage(msg.id, {
             useful: undefined
           })
         })
-        editMessage(msgId, { useful: true })
+        void editMessage(msgId, { useful: true })
       }
     },
     [editMessage, messages]
@@ -196,11 +194,39 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     }
   }, [messages])
 
+  const handleHorizontalGroupWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null
+    if (target?.closest('.message-content-container')) {
+      return
+    }
+
+    const groupContainer = event.currentTarget
+    const contentContainers = Array.from(groupContainer.querySelectorAll<HTMLElement>('.message-content-container'))
+    const hasInnerVerticalScroll = contentContainers.some(
+      (contentContainer) => contentContainer.scrollHeight > contentContainer.clientHeight + 1
+    )
+    const hasHorizontalScroll = groupContainer.scrollWidth > groupContainer.clientWidth + 1
+    const horizontalDelta = Math.abs(event.deltaX) > 0 ? event.deltaX : event.shiftKey ? event.deltaY : 0
+
+    if (horizontalDelta !== 0 && hasHorizontalScroll) {
+      event.preventDefault()
+      event.stopPropagation()
+      groupContainer.scrollLeft += horizontalDelta
+      return
+    }
+
+    if (hasInnerVerticalScroll) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }, [])
+
   const renderMessage = useCallback(
     (message: Message & { index: number }) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
       const messageProps = {
         isGrouped,
+        isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
         message,
         topic,
         index: message.index
@@ -270,12 +296,12 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     <MessageEditingProvider>
       <GroupContainer
         id={messages[0].askId ? `message-group-${messages[0].askId}` : undefined}
-        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
-        style={{ maxWidth }}>
+        className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
         <GridContainer
           $count={messageLength}
           $gridColumns={gridColumns}
-          className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
+          className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
+          onWheelCapture={multiModelMessageStyle === 'horizontal' ? handleHorizontalGroupWheel : undefined}>
           {messages.map(renderMessage)}
         </GridContainer>
         {isGrouped && (
@@ -284,7 +310,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
             setMultiModelMessageStyle={(style) => {
               setMultiModelMessageStyle(style)
               messages.forEach((message) => {
-                editMessage(message.id, { multiModelMessageStyle: style })
+                void editMessage(message.id, { multiModelMessageStyle: style })
               })
             }}
             messages={messages}
@@ -299,9 +325,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 }
 
 const GroupContainer = styled.div`
-  [navbar-position='left'] & {
-    max-width: calc(100vw - var(--sidebar-width) - var(--assistants-width) - 20px);
-  }
   &.horizontal,
   &.grid {
     padding: 4px 10px;
@@ -325,6 +348,7 @@ const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }
     padding-bottom: 4px;
     grid-template-columns: repeat(${({ $count }) => $count}, minmax(420px, 1fr));
     overflow-x: auto;
+    overflow-y: hidden;
   }
   &.fold,
   &.vertical {
@@ -367,7 +391,7 @@ interface MessageWrapperProps {
 const MessageWrapper = styled.div<MessageWrapperProps>`
   &.horizontal {
     padding: 1px;
-    overflow-y: auto;
+    overflow-y: visible;
     .message {
       height: 100%;
       border: 0.5px solid var(--color-border);

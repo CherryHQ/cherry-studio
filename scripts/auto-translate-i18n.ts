@@ -50,7 +50,7 @@ Usage Instructions:
    - pt-pt (Portuguese)
 
 Run Command:
-yarn auto:i18n
+pnpm i18n:translate
 
 Performance Optimization Recommendations:
 - For stable API services: MAX_CONCURRENT_TRANSLATIONS=8, TRANSLATION_DELAY_MS=50
@@ -125,7 +125,7 @@ class ConcurrencyController {
       }
 
       if (this.running < this.maxConcurrent) {
-        execute()
+        void execute()
       } else {
         this.queue.push(execute)
       }
@@ -135,7 +135,7 @@ class ConcurrencyController {
   private processQueue() {
     if (this.queue.length > 0 && this.running < this.maxConcurrent) {
       const next = this.queue.shift()
-      if (next) next()
+      if (next) void next()
     }
   }
 }
@@ -152,7 +152,9 @@ const languageMap = {
   'es-es': 'Spanish',
   'fr-fr': 'French',
   'pt-pt': 'Portuguese',
-  'de-de': 'German'
+  'de-de': 'German',
+  'ro-ro': 'Romanian',
+  'vi-vn': 'Vietnamese'
 }
 
 const PROMPT = `
@@ -353,4 +355,4 @@ const main = async () => {
   console.log(`📈 Average time per file: ${avgDuration}s`)
 }
 
-main()
+void main()

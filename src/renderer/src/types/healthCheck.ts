@@ -1,9 +1,11 @@
 import type { Model, Provider } from '@types'
 
+import type { SerializedError } from './error'
+
 /**
  * 健康检查的通用状态枚举
- * - SUCCESS: 用于表达“所有都成功”
- * - FAILED: 用于表达“至少一个失败”
+ * - SUCCESS: 用于表达"所有都成功"
+ * - FAILED: 用于表达"至少一个失败"
  */
 export enum HealthStatus {
   SUCCESS = 'success',
@@ -17,7 +19,7 @@ export enum HealthStatus {
 export interface ApiKeyConnectivity {
   status: HealthStatus
   checking?: boolean
-  error?: string
+  error?: SerializedError
   model?: Model
   latency?: number
 }

@@ -85,7 +85,7 @@ const NutstoreSettings: FC = () => {
         }
       }
     }
-    decryptTokenEffect()
+    void decryptTokenEffect()
   }, [nutstoreToken, dispatch, nutstorePath])
 
   const handleLayout = useCallback(async () => {
@@ -133,7 +133,7 @@ const NutstoreSettings: FC = () => {
       stopNutstoreAutoSync()
     } else {
       dispatch(setNutstoreAutoSync(true))
-      startNutstoreAutoSync()
+      void startNutstoreAutoSync()
     }
   }
 

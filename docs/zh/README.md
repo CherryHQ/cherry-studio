@@ -34,7 +34,7 @@
   </a>
 </h1>
 <p align="center">
-  <a href="https://github.com/CherryHQ/cherry-studio">English</a> | 中文 | <a href="https://cherry-ai.com">官方网站</a> | <a href="https://docs.cherry-ai.com/cherry-studio-wen-dang/zh-cn">文档</a> | <a href="./guides/development.md">开发</a> | <a href="https://github.com/CherryHQ/cherry-studio/issues">反馈</a><br>
+  <a href="https://github.com/CherryHQ/cherry-studio">English</a> | 中文 | <a href="https://cherry-ai.com">官方网站</a> | <a href="https://docs.cherry-ai.com">文档</a> | <a href="./guides/development.md">开发</a> | <a href="https://github.com/CherryHQ/cherry-studio/issues">反馈</a><br>
 </p>
 
 <!-- 题头徽章组合 -->
@@ -248,7 +248,7 @@ https://docs.cherry-ai.com
 >
 > 企业版目前处于早期公开测试阶段，我们正在积极迭代和优化其功能。我们知道它可能还不够完全稳定。如果您在试用过程中遇到任何问题或有宝贵建议，我们非常感谢您能通过邮件联系我们提供反馈。
 
-**🔗 [Cherry Studio 企业版](https://www.cherry-ai.com/enterprise)**
+**🔗 [Cherry Studio 企业版](https://enterprise.cherry-ai.com)**
 
 ## 版本对比
 
@@ -281,7 +281,7 @@ https://docs.cherry-ai.com
 
 # 📊 GitHub 统计
 
-![Stats](https://repobeats.axiom.co/api/embed/a693f2e5f773eed620f70031e974552156c7f397.svg 'Repobeats analytics image')
+![Stats](https://repobeats.axiom.co/api/embed/a693f2e5f773eed620f70031e974552156c7f397.svg "Repobeats analytics image")
 
 # ⭐️ Star 记录
 

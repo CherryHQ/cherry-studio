@@ -1,10 +1,14 @@
 import { loggerService } from '@logger'
+import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import Scrollbar from '@renderer/components/Scrollbar'
+import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { TopView } from '@renderer/components/TopView'
 import { permissionModeCards } from '@renderer/config/agent'
+import { isWin } from '@renderer/config/constant'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import SelectAgentBaseModelButton from '@renderer/pages/home/components/SelectAgentBaseModelButton'
+import SelectAgentBaseModelButton from '@renderer/pages/agents/components/SelectAgentBaseModelButton'
 import type {
   AddAgentForm,
   AgentEntity,
@@ -15,8 +19,11 @@ import type {
   UpdateAgentForm
 } from '@renderer/types'
 import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
-import { Alert, Button, Input, Modal, Select } from 'antd'
-import { AlertTriangleIcon } from 'lucide-react'
+import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
+import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
+import type { GitBashPathInfo } from '@shared/config/constant'
+import { Button, Input, Modal, Select, Switch, Tooltip } from 'antd'
+import { Info } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -58,7 +65,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   const isEditing = (agent?: AgentWithTools) => agent !== undefined
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
-  const [hasGitBash, setHasGitBash] = useState<boolean>(true)
+  const [gitBashPathInfo, setGitBashPathInfo] = useState<GitBashPathInfo>({ path: null, source: null })
 
   useEffect(() => {
     if (open) {
@@ -66,31 +73,75 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     }
   }, [agent, open])
 
-  const checkGitBash = useCallback(
-    async (showToast = false) => {
-      try {
-        const gitBashInstalled = await window.api.system.checkGitBash()
-        setHasGitBash(gitBashInstalled)
-        if (showToast) {
-          if (gitBashInstalled) {
-            window.toast.success(t('agent.gitBash.success', 'Git Bash detected successfully!'))
-          } else {
-            window.toast.error(t('agent.gitBash.notFound', 'Git Bash not found. Please install it first.'))
-          }
-        }
-      } catch (error) {
-        logger.error('Failed to check Git Bash:', error as Error)
-        setHasGitBash(true) // Default to true on error to avoid false warnings
-      }
-    },
-    [t]
-  )
+  const checkGitBash = useCallback(async () => {
+    if (!isWin) return
+    try {
+      const pathInfo = await window.api.system.getGitBashPathInfo()
+      setGitBashPathInfo(pathInfo)
+    } catch (error) {
+      logger.error('Failed to check Git Bash:', error as Error)
+    }
+  }, [])
 
   useEffect(() => {
-    checkGitBash()
+    void checkGitBash()
   }, [checkGitBash])
 
   const selectedPermissionMode = form.configuration?.permission_mode ?? 'default'
+
+  const handlePickGitBash = useCallback(async () => {
+    try {
+      const selected = await window.api.file.select({
+        title: t('agent.gitBash.pick.title', 'Select Git Bash executable'),
+        filters: [{ name: 'Executable', extensions: ['exe'] }],
+        properties: ['openFile']
+      })
+
+      if (!selected || selected.length === 0) {
+        return
+      }
+
+      const pickedPath = selected[0].path
+      const ok = await window.api.system.setGitBashPath(pickedPath)
+      if (!ok) {
+        window.toast.error(
+          t('agent.gitBash.pick.invalidPath', 'Selected file is not a valid Git Bash executable (bash.exe).')
+        )
+        return
+      }
+
+      await checkGitBash()
+    } catch (error) {
+      logger.error('Failed to pick Git Bash path', error as Error)
+      window.toast.error(t('agent.gitBash.pick.failed', 'Failed to set Git Bash path'))
+    }
+  }, [checkGitBash, t])
+
+  const handleResetGitBash = useCallback(async () => {
+    try {
+      // Clear manual setting and re-run auto-discovery
+      await window.api.system.setGitBashPath(null)
+      await checkGitBash()
+    } catch (error) {
+      logger.error('Failed to reset Git Bash path', error as Error)
+    }
+  }, [checkGitBash])
+
+  const soulEnabled = form.configuration?.soul_enabled === true
+
+  const onSoulModeChange = useCallback((checked: boolean) => {
+    setForm((prev) => {
+      const prevConfig = AgentConfigurationSchema.parse(prev.configuration ?? {})
+      return {
+        ...prev,
+        configuration: {
+          ...prevConfig,
+          soul_enabled: checked,
+          permission_mode: checked ? 'bypassPermissions' : prevConfig.permission_mode
+        }
+      }
+    })
+  }, [])
 
   const onPermissionModeChange = useCallback((value: PermissionMode) => {
     setForm((prev) => {
@@ -105,12 +156,19 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         return prev
       }
 
+      const nextConfig = {
+        ...parsedConfiguration,
+        permission_mode: value
+      }
+
+      // Disable soul mode when switching away from bypassPermissions
+      if (value !== 'bypassPermissions' && parsedConfiguration.soul_enabled === true) {
+        nextConfig.soul_enabled = false
+      }
+
       return {
         ...prev,
-        configuration: {
-          ...parsedConfiguration,
-          permission_mode: value
-        }
+        configuration: nextConfig
       }
     })
   }, [])
@@ -133,6 +191,27 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     setForm((prev) => ({
       ...prev,
       instructions: e.target.value
+    }))
+  }, [])
+
+  const [envVarsText, setEnvVarsText] = useState(() => serializeKeyValueString(form.configuration?.env_vars ?? {}))
+
+  useEffect(() => {
+    if (open) {
+      setEnvVarsText(serializeKeyValueString(buildAgentForm(agent).configuration?.env_vars ?? {}))
+    }
+  }, [agent, open])
+
+  const onEnvVarsChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value
+    setEnvVarsText(text)
+    const parsed = parseKeyValueString(text)
+    setForm((prev) => ({
+      ...prev,
+      configuration: {
+        ...AgentConfigurationSchema.parse(prev.configuration ?? {}),
+        env_vars: parsed
+      }
     }))
   }, [])
 
@@ -216,8 +295,8 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         return
       }
 
-      if (form.accessible_paths.length === 0) {
-        window.toast.error(t('agent.session.accessible_paths.error.at_least_one'))
+      if (isWin && !gitBashPathInfo.path) {
+        window.toast.error(t('agent.gitBash.error.required', 'Git Bash path is required on Windows'))
         loadingRef.current = false
         return
       }
@@ -281,7 +360,8 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
       t,
       updateAgent,
       afterSubmit,
-      addAgent
+      addAgent,
+      gitBashPathInfo.path
     ]
   )
 
@@ -300,36 +380,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         footer={null}>
         <StyledForm onSubmit={onSubmit}>
           <FormContent>
-            {!hasGitBash && (
-              <Alert
-                message={t('agent.gitBash.error.title', 'Git Bash Required')}
-                description={
-                  <div>
-                    <div style={{ marginBottom: 8 }}>
-                      {t(
-                        'agent.gitBash.error.description',
-                        'Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from'
-                      )}{' '}
-                      <a
-                        href="https://git-scm.com/download/win"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          window.api.openWebsite('https://git-scm.com/download/win')
-                        }}
-                        style={{ textDecoration: 'underline' }}>
-                        git-scm.com
-                      </a>
-                    </div>
-                    <Button size="small" onClick={() => checkGitBash(true)}>
-                      {t('agent.gitBash.error.recheck', 'Recheck Git Bash Installation')}
-                    </Button>
-                  </div>
-                }
-                type="error"
-                showIcon
-                style={{ marginBottom: 16 }}
-              />
-            )}
             <FormRow>
               <FormItem style={{ flex: 1 }}>
                 <Label>
@@ -340,9 +390,19 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
             </FormRow>
 
             <FormItem>
-              <Label>
-                {t('common.model')} <RequiredMark>*</RequiredMark>
-              </Label>
+              <div className="flex items-center gap-2">
+                <Label>
+                  {t('common.model')} <RequiredMark>*</RequiredMark>
+                </Label>
+                <AnthropicProviderListPopover
+                  useWindowNavigate
+                  filterProviders={getAnthropicSupportedProviders}
+                  onProviderClick={() => {
+                    setOpen(false)
+                    resolve(undefined)
+                  }}
+                />
+              </div>
               <SelectAgentBaseModelButton
                 agentBase={tempAgentBase}
                 onSelect={handleModelSelect}
@@ -360,45 +420,81 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
               />
             </FormItem>
 
+            {isWin && (
+              <FormItem>
+                <div className="flex items-center gap-2">
+                  <Label>
+                    Git Bash <RequiredMark>*</RequiredMark>
+                  </Label>
+                  <HelpTooltip
+                    title={t(
+                      'agent.gitBash.tooltip',
+                      'Git Bash is required to run agents on Windows. Install from git-scm.com if not available.'
+                    )}
+                  />
+                </div>
+                <GitBashInputWrapper>
+                  <Input
+                    value={gitBashPathInfo.path ?? ''}
+                    readOnly
+                    placeholder={t('agent.gitBash.placeholder', 'Select bash.exe path')}
+                  />
+                  <Button size="small" onClick={handlePickGitBash}>
+                    {t('common.select', 'Select')}
+                  </Button>
+                  {gitBashPathInfo.source === 'manual' && (
+                    <Button size="small" onClick={handleResetGitBash}>
+                      {t('common.reset', 'Reset')}
+                    </Button>
+                  )}
+                </GitBashInputWrapper>
+                {gitBashPathInfo.path && gitBashPathInfo.source === 'auto' && (
+                  <SourceHint>{t('agent.gitBash.autoDiscoveredHint', 'Auto-discovered')}</SourceHint>
+                )}
+              </FormItem>
+            )}
+
             <FormItem>
-              <Label>
-                {t('agent.settings.tooling.permissionMode.title', 'Permission mode')} <RequiredMark>*</RequiredMark>
-              </Label>
-              <Select
-                value={selectedPermissionMode}
-                onChange={onPermissionModeChange}
-                style={{ width: '100%' }}
-                placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
-                optionLabelProp="label">
-                {permissionModeCards.map((item) => (
-                  <Select.Option key={item.mode} value={item.mode} label={t(item.titleKey, item.titleFallback)}>
-                    <PermissionOptionWrapper>
-                      <div className="title">{t(item.titleKey, item.titleFallback)}</div>
-                      <div className="description">{t(item.descriptionKey, item.descriptionFallback)}</div>
-                      <div className="behavior">{t(item.behaviorKey, item.behaviorFallback)}</div>
-                      {item.caution && (
-                        <div className="caution">
-                          <AlertTriangleIcon size={12} />
-                          {t(
-                            'agent.settings.tooling.permissionMode.bypassPermissions.warning',
-                            'Use with caution — all tools will run without asking for approval.'
-                          )}
-                        </div>
-                      )}
-                    </PermissionOptionWrapper>
-                  </Select.Option>
-                ))}
-              </Select>
-              <HelpText>
-                {t('agent.settings.tooling.permissionMode.helper', 'Choose how the agent handles tool approvals.')}
-              </HelpText>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Label>{t('agent.settings.soulMode.title')}</Label>
+                  <Tooltip title={t('agent.settings.soulMode.description')} placement="right">
+                    <Info size={16} className="text-foreground-400" />
+                  </Tooltip>
+                </div>
+                <Switch checked={soulEnabled} size="small" onChange={onSoulModeChange} />
+              </div>
             </FormItem>
+
+            {!soulEnabled && (
+              <FormItem>
+                <Label>
+                  {t('agent.settings.tooling.permissionMode.title', 'Permission mode')} <RequiredMark>*</RequiredMark>
+                </Label>
+                <Select
+                  value={selectedPermissionMode}
+                  onChange={onPermissionModeChange}
+                  style={{ width: '100%' }}
+                  placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
+                  optionLabelProp="label">
+                  {permissionModeCards.map((item) => (
+                    <Select.Option key={item.mode} value={item.mode} label={t(item.titleKey, item.titleFallback)}>
+                      <PermissionOptionWrapper>
+                        <div className="title">{t(item.titleKey, item.titleFallback)}</div>
+                        <div className="description">{t(item.descriptionKey, item.descriptionFallback)}</div>
+                      </PermissionOptionWrapper>
+                    </Select.Option>
+                  ))}
+                </Select>
+                <HelpText>
+                  {t('agent.settings.tooling.permissionMode.helper', 'Choose how the agent handles tool approvals.')}
+                </HelpText>
+              </FormItem>
+            )}
 
             <FormItem>
               <LabelWithButton>
-                <Label>
-                  {t('agent.session.accessible_paths.label')} <RequiredMark>*</RequiredMark>
-                </Label>
+                <Label>{t('agent.session.accessible_paths.label')}</Label>
                 <Button size="small" onClick={addAccessiblePath}>
                   {t('agent.session.accessible_paths.add')}
                 </Button>
@@ -415,13 +511,29 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                   ))}
                 </PathList>
               ) : (
-                <EmptyText>{t('agent.session.accessible_paths.empty')}</EmptyText>
+                <HelpText>
+                  {t(
+                    'agent.session.accessible_paths.default_hint',
+                    'A default workspace will be created automatically if not specified.'
+                  )}
+                </HelpText>
               )}
             </FormItem>
 
             <FormItem>
               <Label>{t('common.prompt')}</Label>
               <TextArea rows={3} value={form.instructions ?? ''} onChange={onInstChange} />
+            </FormItem>
+
+            <FormItem>
+              <Label>{t('agent.settings.advance.envVars.label')}</Label>
+              <TextArea
+                rows={3}
+                value={envVarsText}
+                onChange={onEnvVarsChange}
+                placeholder={'API_KEY=xxx\nDEBUG=true'}
+              />
+              <HelpText>{t('agent.settings.advance.envVars.helper')}</HelpText>
             </FormItem>
 
             {/* <FormItem>
@@ -432,7 +544,11 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
           <FormFooter>
             <Button onClick={onCancel}>{t('common.close')}</Button>
-            <Button type="primary" htmlType="submit" loading={loadingRef.current} disabled={!hasGitBash}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={loadingRef.current}
+              disabled={isWin && !gitBashPathInfo.path}>
               {isEditing(agent) ? t('common.confirm') : t('common.add')}
             </Button>
           </FormFooter>
@@ -474,22 +590,12 @@ const StyledForm = styled.form`
   gap: 16px;
 `
 
-const FormContent = styled.div`
+const FormContent = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   gap: 16px;
   max-height: 60vh;
-  overflow-y: auto;
   padding-right: 8px;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: var(--color-border);
-    border-radius: 3px;
-  }
 `
 
 const FormRow = styled.div`
@@ -501,6 +607,21 @@ const FormItem = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+`
+
+const GitBashInputWrapper = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  input {
+    flex: 1;
+  }
+`
+
+const SourceHint = styled.span`
+  font-size: 12px;
+  color: var(--color-text-3);
 `
 
 const Label = styled.label`
@@ -549,12 +670,6 @@ const PathText = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-`
-
-const EmptyText = styled.p`
-  font-size: 13px;
-  color: var(--color-text-3);
-  margin: 0;
 `
 
 const FormFooter = styled.div`

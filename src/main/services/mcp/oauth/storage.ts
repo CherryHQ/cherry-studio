@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import type {
   OAuthClientInformation,
-  OAuthClientInformationFull,
+  OAuthClientInformationMixed,
   OAuthTokens
 } from '@modelcontextprotocol/sdk/shared/auth.js'
 import fs from 'fs/promises'
@@ -72,7 +72,7 @@ export class JsonFileStorage implements IOAuthStorage {
     return data.clientInfo
   }
 
-  async saveClientInformation(info: OAuthClientInformationFull): Promise<void> {
+  async saveClientInformation(info: OAuthClientInformationMixed | undefined): Promise<void> {
     const data = await this.readStorage()
     await this.writeStorage({
       ...data,
@@ -85,7 +85,7 @@ export class JsonFileStorage implements IOAuthStorage {
     return data.tokens
   }
 
-  async saveTokens(tokens: OAuthTokens): Promise<void> {
+  async saveTokens(tokens: OAuthTokens | undefined): Promise<void> {
     const data = await this.readStorage()
     await this.writeStorage({
       ...data,

@@ -6,7 +6,13 @@
  * 2. transformParams: 根据意图分析结果动态添加对应的工具
  * 3. onRequestEnd: 自动记忆存储
  */
-import { type AiRequestContext, definePlugin } from '@cherrystudio/ai-core'
+import {
+  type AiPlugin,
+  type AiRequestContext,
+  definePlugin,
+  type StreamTextParams,
+  type StreamTextResult
+} from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 // import { generateObject } from '@cherrystudio/ai-core'
 import {
@@ -14,24 +20,24 @@ import {
   SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
   SEARCH_SUMMARY_PROMPT_WEB_ONLY
 } from '@renderer/config/prompts'
+import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel, getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import type { Assistant } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { extractInfoFromXML } from '@renderer/utils/extract'
-import type { LanguageModel, ModelMessage } from 'ai'
-import { generateText } from 'ai'
+import type { ModelMessage } from 'ai'
 import { isEmpty } from 'lodash'
 
 import { MemoryProcessor } from '../../services/MemoryProcessor'
 import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
 import { memorySearchTool } from '../tools/MemorySearchTool'
-import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
+import { BUILTIN_WEB_SEARCH_TOOL_NAME, webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
 
 const logger = loggerService.withContext('SearchOrchestrationPlugin')
 
-const getMessageContent = (message: ModelMessage) => {
+export const getMessageContent = (message: ModelMessage) => {
   if (typeof message.content === 'string') return message.content
   return message.content.reduce((acc, part) => {
     if (part.type === 'text') {
@@ -131,9 +137,10 @@ async function analyzeSearchIntent(
       hasKnowledgeSearch: needKnowledgeExtract
     })
 
-    const { text: result } = await generateText({
-      model: context.model as LanguageModel,
-      prompt: formattedPrompt
+    const result = await fetchGenerate({
+      model,
+      prompt: formattedPrompt,
+      content: ''
     }).finally(() => {
       logger.info('Intent analysis generateText call completed', {
         modelId: model.id,
@@ -141,6 +148,14 @@ async function analyzeSearchIntent(
         requestId: context.requestId
       })
     })
+
+    // fetchGenerate swallows errors and returns '' — treat that as a failure so
+    // search still runs against the original user question via the fallback.
+    if (!result.trim()) {
+      logger.warn('Intent analysis returned empty result, using fallback')
+      return getFallbackResult()
+    }
+
     const parsedResult = extractInfoFromXML(result)
     logger.debug('Intent analysis result', { parsedResult })
 
@@ -236,18 +251,21 @@ async function storeConversationMemory(
 /**
  * 🎯 搜索编排插件
  */
-export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string) => {
+export const searchOrchestrationPlugin = (
+  assistant: Assistant,
+  topicId: string
+): AiPlugin<StreamTextParams, StreamTextResult> => {
   // 存储意图分析结果
   const intentAnalysisResults: { [requestId: string]: ExtractResults } = {}
   const userMessages: { [requestId: string]: ModelMessage } = {}
 
-  return definePlugin({
+  return definePlugin<StreamTextParams, StreamTextResult>({
     name: 'search-orchestration',
     enforce: 'pre', // 确保在其他插件之前执行
     /**
      * 🔍 Step 1: 意图识别阶段
      */
-    onRequestStart: async (context: AiRequestContext) => {
+    onRequestStart: async (context) => {
       // 没开启任何搜索则不进行意图分析
       if (!(assistant.webSearchProviderId || assistant.knowledge_bases?.length || assistant.enableMemory)) return
 
@@ -266,14 +284,14 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 判断是否需要各种搜索
         const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
         const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-        const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+        const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
         const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
         const shouldWebSearch = !!assistant.webSearchProviderId
         const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
         const shouldMemorySearch = globalMemoryEnabled && assistant.enableMemory
 
         // 执行意图分析
-        if (shouldWebSearch || hasKnowledgeBase) {
+        if (shouldWebSearch || shouldKnowledgeSearch) {
           const analysisResult = await analyzeSearchIntent(lastUserMessage, assistant, {
             shouldWebSearch,
             shouldKnowledgeSearch,
@@ -297,7 +315,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
     /**
      * 🔧 Step 2: 工具配置阶段
      */
-    transformParams: async (params: any, context: AiRequestContext) => {
+    transformParams: async (params, context) => {
       // logger.info('🔧 Configuring tools based on intent...', context.requestId)
 
       try {
@@ -319,52 +337,54 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
           if (needsSearch) {
             // onChunk({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
             // logger.info('🌐 Adding web search tool with pre-extracted keywords')
-            params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
+            params.tools[BUILTIN_WEB_SEARCH_TOOL_NAME] = webSearchToolWithPreExtractedKeywords(
               assistant.webSearchProviderId,
               analysisResult.websearch,
               context.requestId
             )
+
+            const prepareStep = params.prepareStep
+            params.prepareStep = async (options) => {
+              const stepConfig = await prepareStep?.(options)
+              const hasWebSearchCall = options.steps.some((step) =>
+                step.toolCalls.some((toolCall) => toolCall.toolName === BUILTIN_WEB_SEARCH_TOOL_NAME)
+              )
+
+              if (!hasWebSearchCall) return stepConfig
+              const filteredTools = (stepConfig?.activeTools ?? Object.keys(params.tools!)).filter(
+                (toolName) => toolName !== BUILTIN_WEB_SEARCH_TOOL_NAME
+              )
+              // When web search is the only tool, don't set activeTools to [] — Anthropic
+              // rejects empty tools arrays. The tool's internal cache (cachedSearchResultsPromise)
+              // already prevents actual re-searching.
+              if (filteredTools.length === 0) return stepConfig
+              return { ...stepConfig, activeTools: filteredTools }
+            }
           }
         }
 
         // 📚 知识库搜索工具配置
         const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
         const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-        const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+        const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
+        const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
 
-        if (hasKnowledgeBase) {
-          if (knowledgeRecognition === 'off') {
-            // off 模式：直接添加知识库搜索工具，使用用户消息作为搜索关键词
+        if (shouldKnowledgeSearch) {
+          // on 模式：根据意图识别结果决定是否添加工具
+          const needsKnowledgeSearch =
+            analysisResult?.knowledge &&
+            analysisResult.knowledge.question &&
+            analysisResult.knowledge.question[0] !== 'not_needed'
+
+          if (needsKnowledgeSearch && analysisResult.knowledge) {
+            // logger.info('📚 Adding knowledge search tool (intent-based)')
             const userMessage = userMessages[context.requestId]
-            const fallbackKeywords = {
-              question: [getMessageContent(userMessage) || 'search'],
-              rewrite: getMessageContent(userMessage) || 'search'
-            }
-            // logger.info('📚 Adding knowledge search tool (force mode)')
             params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
               assistant,
-              fallbackKeywords,
-              getMessageContent(userMessage),
-              topicId
+              analysisResult.knowledge,
+              topicId,
+              getMessageContent(userMessage)
             )
-            // params.toolChoice = { type: 'tool', toolName: 'builtin_knowledge_search' }
-          } else {
-            // on 模式：根据意图识别结果决定是否添加工具
-            const needsKnowledgeSearch =
-              analysisResult?.knowledge &&
-              analysisResult.knowledge.question &&
-              analysisResult.knowledge.question[0] !== 'not_needed'
-
-            if (needsKnowledgeSearch && analysisResult.knowledge) {
-              // logger.info('📚 Adding knowledge search tool (intent-based)')
-              const userMessage = userMessages[context.requestId]
-              params.tools['builtin_knowledge_search'] = knowledgeSearchTool(
-                assistant,
-                analysisResult.knowledge,
-                getMessageContent(userMessage),
-                topicId
-              )
-            }
           }
         }
 
@@ -372,7 +392,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
         if (globalMemoryEnabled && assistant.enableMemory) {
           // logger.info('🧠 Adding memory search tool')
-          params.tools['builtin_memory_search'] = memorySearchTool()
+          params.tools['builtin_memory_search'] = memorySearchTool(assistant.id)
         }
 
         // logger.info('🔧 Tools configured:', Object.keys(params.tools))
@@ -387,11 +407,12 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
      * 💾 Step 3: 记忆存储阶段
      */
 
-    onRequestEnd: async (context: AiRequestContext) => {
+    onRequestEnd: async (context) => {
       // context.isAnalyzing = false
       // logger.info('context.isAnalyzing', context, result)
       // logger.info('💾 Starting memory storage...', context.requestId)
       try {
+        // ✅ 类型安全访问：context.originalParams 已通过泛型正确类型化
         const messages = context.originalParams.messages
 
         if (messages && assistant) {

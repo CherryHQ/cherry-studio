@@ -1,6 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit'
 import type { Model } from '@renderer/types'
-import { WebSearchSource } from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { MainTextMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { render, screen } from '@testing-library/react'
@@ -307,7 +307,7 @@ describe('MainTextBlock', () => {
     it('should integrate with citation processing when all conditions are met', () => {
       const block = createMainTextBlock({
         content: 'Content with citation [1]',
-        citationReferences: [{ citationBlockSource: WebSearchSource.OPENAI }]
+        citationReferences: [{ citationBlockSource: WEB_SEARCH_SOURCE.OPENAI }]
       })
 
       const mockCitations = [
@@ -342,7 +342,7 @@ describe('MainTextBlock', () => {
       expect(mockWithCitationTags).toHaveBeenCalledWith(
         'Content with citation [1]',
         mockCitations,
-        WebSearchSource.OPENAI
+        WEB_SEARCH_SOURCE.OPENAI
       )
 
       // Verify the processed content is rendered

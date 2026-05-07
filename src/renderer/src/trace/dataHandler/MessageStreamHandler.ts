@@ -28,7 +28,7 @@ export class MessageStreamHandler {
   }
 
   async finish() {
-    window.api.trace.tokenUsage(this.span.spanContext().spanId, this.tokenUsage)
+    void window.api.trace.tokenUsage(this.span.spanContext().spanId, this.tokenUsage)
     endSpan({ topicId: this.topicId, span: this.span, modelName: this.modelName })
   }
 
@@ -55,14 +55,14 @@ export class MessageStreamHandler {
         }
       })
       .join()
-    window.api.trace.addStreamMessage(this.span.spanContext().spanId, this.modelName || '', context, message)
+    void window.api.trace.addStreamMessage(this.span.spanContext().spanId, this.modelName || '', context, message)
   }
 
   static handleStream(stream: MessageStream, span?: Span, topicId?: string, modelName?: string) {
     if (!span || !topicId) {
       return stream
     }
-    const handler = new MessageStreamHandler(stream, span!, topicId, modelName)
+    const handler = new MessageStreamHandler(stream, span, topicId, modelName)
     return handler.stream
   }
 }

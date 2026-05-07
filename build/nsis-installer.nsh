@@ -9,11 +9,17 @@
 
 !include LogicLib.nsh
 !include x64.nsh
+!include FileFunc.nsh
 
 ; https://github.com/electron-userland/electron-builder/issues/1122
 !ifndef BUILD_UNINSTALLER
+  ; Check VC++ Redistributable based on architecture stored in $1
   Function checkVCRedist
-    ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+    ${If} $1 == "arm64"
+      ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\ARM64" "Installed"
+    ${Else}
+      ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+    ${EndIf}
   FunctionEnd
 
   Function checkArchitectureCompatibility
@@ -75,6 +81,26 @@
 !endif
 
 !macro customInit
+  ; If a per-machine (all users) installation exists, ensure we have admin privileges.
+  ; Without elevation, the installer cannot close the running app or manage the
+  ; per-machine installation, causing "cannot close app" errors during both
+  ; silent updates and manual reinstalls.
+  ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_APP_KEY}" "QuietUninstallString"
+  ${If} $R0 != ""
+    UserInfo::GetAccountType
+    Pop $R1
+    ${If} $R1 != "admin"
+      ${GetParameters} $R2
+      ExecShell "runas" "$EXEPATH" "$R2"
+      ${If} ${Errors}
+        SetErrorLevel 1
+      ${Else}
+        SetErrorLevel 0
+      ${EndIf}
+      Quit
+    ${EndIf}
+  ${EndIf}
+
   Push $0
   Push $1
   Push $2
@@ -97,29 +123,47 @@
 
   Call checkVCRedist
   ${If} $0 != "1"
-    MessageBox MB_YESNO "\
-      NOTE: ${PRODUCT_NAME} requires $\r$\n\
-      'Microsoft Visual C++ Redistributable'$\r$\n\
-      to function properly.$\r$\n$\r$\n\
-      Download and install now?" /SD IDYES IDYES InstallVCRedist IDNO DontInstall
-    InstallVCRedist:
-      inetc::get /CAPTION " " /BANNER "Downloading Microsoft Visual C++ Redistributable..." "https://aka.ms/vs/17/release/vc_redist.x64.exe" "$TEMP\vc_redist.x64.exe"
-      ExecWait "$TEMP\vc_redist.x64.exe /install /norestart"
-      ;IfErrors InstallError ContinueInstall ; vc_redist exit code is unreliable :(
-      Call checkVCRedist
-      ${If} $0 == "1"
-        Goto ContinueInstall
-      ${EndIf}
+    ; VC++ is required - install automatically since declining would abort anyway
+    ; Select download URL based on system architecture (stored in $1)
+    ${If} $1 == "arm64"
+      StrCpy $2 "https://aka.ms/vs/17/release/vc_redist.arm64.exe"
+      StrCpy $3 "$TEMP\vc_redist.arm64.exe"
+    ${Else}
+      StrCpy $2 "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+      StrCpy $3 "$TEMP\vc_redist.x64.exe"
+    ${EndIf}
 
-    ;InstallError:
-      MessageBox MB_ICONSTOP "\
-        There was an unexpected error installing$\r$\n\
-        Microsoft Visual C++ Redistributable.$\r$\n\
-        The installation of ${PRODUCT_NAME} cannot continue."
-    DontInstall:
+    inetc::get /CAPTION " " /BANNER "Downloading Microsoft Visual C++ Redistributable..." \
+      $2 $3 /END
+    Pop $0  ; Get download status from inetc::get
+    ${If} $0 != "OK"
+      MessageBox MB_ICONSTOP|MB_YESNO "\
+        Failed to download Microsoft Visual C++ Redistributable.$\r$\n$\r$\n\
+        Error: $0$\r$\n$\r$\n\
+        Would you like to open the download page in your browser?$\r$\n\
+        $2" IDYES openDownloadUrl IDNO skipDownloadUrl
+      openDownloadUrl:
+        ExecShell "open" $2
+      skipDownloadUrl:
       Abort
+    ${EndIf}
+
+    ExecWait "$3 /install /quiet /norestart"
+    ; Note: vc_redist exit code is unreliable, verify via registry check instead
+
+    Call checkVCRedist
+    ${If} $0 != "1"
+      MessageBox MB_ICONSTOP|MB_YESNO "\
+        Microsoft Visual C++ Redistributable installation failed.$\r$\n$\r$\n\
+        Would you like to open the download page in your browser?$\r$\n\
+        $2$\r$\n$\r$\n\
+        The installation of ${PRODUCT_NAME} cannot continue." IDYES openInstallUrl IDNO skipInstallUrl
+      openInstallUrl:
+        ExecShell "open" $2
+      skipInstallUrl:
+      Abort
+    ${EndIf}
   ${EndIf}
-  ContinueInstall:
     Pop $4
     Pop $3
     Pop $2

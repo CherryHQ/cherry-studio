@@ -1,4 +1,4 @@
-export type Tab = 'assistants' | 'topic' | 'settings'
+export type Tab = 'assistants' | 'topic'
 
 export type InputBarToolType =
   | 'new_topic'
@@ -18,3 +18,4 @@ export type InputBarToolType =
   | 'create_session'
   | 'slash_commands'
   | 'activity_directory'
+  | 'permission_mode'

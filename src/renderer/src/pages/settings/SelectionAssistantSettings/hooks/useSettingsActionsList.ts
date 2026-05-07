@@ -9,8 +9,8 @@ import { DEFAULT_SEARCH_ENGINES } from '../components/SelectionActionSearchModal
 
 const logger = loggerService.withContext('useSettingsActionsList')
 
-const MAX_CUSTOM_ITEMS = 8
-const MAX_ENABLED_ITEMS = 6
+const MAX_CUSTOM_ITEMS = 10
+const MAX_ENABLED_ITEMS = 8
 
 export const useActionItems = (
   initialItems: ActionItem[] | undefined,

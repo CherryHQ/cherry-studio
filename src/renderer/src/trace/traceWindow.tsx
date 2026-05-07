@@ -23,10 +23,10 @@ const App = () => {
     }
 
     const setLangHandler = (_, data) => {
-      i18n.changeLanguage(data.lang)
+      void i18n.changeLanguage(data.lang)
       const newTitle = i18n.t('trace.traceWindow')
       if (newTitle !== title) {
-        window.api.trace.setTraceWindowTitle(i18n.t('trace.traceWindow'))
+        void window.api.trace.setTraceWindowTitle(i18n.t('trace.traceWindow'))
         setTitle(newTitle)
       }
     }
@@ -41,7 +41,7 @@ const App = () => {
   }, [title, reload, modelName, traceId, topicId])
 
   const handleFooterClick = () => {
-    window.api.shell.openExternal('https://www.aliyun.com/product/edas')
+    void window.api.shell.openExternal('https://www.aliyun.com/product/edas')
   }
 
   return (

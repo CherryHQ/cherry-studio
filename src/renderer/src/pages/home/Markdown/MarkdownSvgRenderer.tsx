@@ -41,7 +41,7 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
 
   const onPreview = useCallback(() => {
     if (!svgRef.current) return
-    ImagePreviewService.show(svgRef.current, { format: 'svg' })
+    void ImagePreviewService.show(svgRef.current, { format: 'svg' })
   }, [])
 
   const contextMenuItems = useMemo(

@@ -20,12 +20,9 @@ export default class EmbeddingsFactory {
     }
     if (provider === 'ollama') {
       return new OllamaEmbeddings({
-        model: model,
+        model,
         baseUrl: baseURL.replace(/\/api$/, ''),
-        requestOptions: {
-          // @ts-ignore expected
-          'encoding-format': 'float'
-        }
+        dimensions
       })
     }
     // NOTE: Azure OpenAI 也走 OpenAIEmbeddings, baseURL是https://xxxx.openai.azure.com/openai/v1

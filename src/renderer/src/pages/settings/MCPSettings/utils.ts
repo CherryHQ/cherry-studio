@@ -4,6 +4,24 @@ import type { MCPServer } from '@renderer/types'
 const logger = loggerService.withContext('MCPSettings/utils')
 
 /**
+ * Whitelist of trusted MCP server URLs that auto-approve without user confirmation
+ */
+const TRUSTED_SERVER_WHITELIST: readonly string[] = [
+  'http://127.0.0.1:18930/mcp' // WPS Notes
+]
+
+/**
+ * Check if a server URL is in the trusted whitelist
+ */
+function isServerInWhitelist(server: MCPServer): boolean {
+  const isUrlBasedServer = server.type === 'sse' || server.type === 'streamableHttp'
+  if (!isUrlBasedServer || !server.baseUrl) {
+    return false
+  }
+  return TRUSTED_SERVER_WHITELIST.includes(server.baseUrl)
+}
+
+/**
  * Get command preview string from MCP server configuration
  * @param server - The MCP server to extract command from
  * @returns Formatted command string with arguments
@@ -39,6 +57,25 @@ export async function ensureServerTrusted(
     return currentServer
   }
 
+  // Auto-trust whitelisted servers (e.g., WPS Notes)
+  if (isServerInWhitelist(currentServer)) {
+    logger.info('Auto-trusting whitelisted server', {
+      serverId: currentServer.id,
+      baseUrl: currentServer.baseUrl
+    })
+
+    const trustedServer = {
+      ...currentServer,
+      installSource: 'protocol' as const,
+      isTrusted: true,
+      trustedAt: Date.now()
+    }
+
+    updateServer(trustedServer)
+
+    return trustedServer
+  }
+
   // Request user confirmation via callback
   const confirmed = await requestConfirm(currentServer)
 
@@ -53,6 +90,8 @@ export async function ensureServerTrusted(
     isTrusted: true,
     trustedAt: Date.now()
   }
+
   updateServer(trustedServer)
+
   return trustedServer
 }

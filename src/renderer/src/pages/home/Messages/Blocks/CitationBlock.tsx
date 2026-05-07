@@ -2,7 +2,7 @@ import type { GroundingMetadata } from '@google/genai'
 import Spinner from '@renderer/components/Spinner'
 import type { RootState } from '@renderer/store'
 import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
-import { WebSearchSource } from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import { type CitationMessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,7 +18,7 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
   const message = useSelector((state: RootState) => state.messages.entities[block.messageId])
   const userMessageId = message?.askId || block.messageId // 如果没有 askId 则回退到 messageId
 
-  const hasGeminiBlock = block.response?.source === WebSearchSource.GEMINI
+  const hasGeminiBlock = block.response?.source === WEB_SEARCH_SOURCE.GEMINI
   const hasCitations = useMemo(() => {
     return (
       (formattedCitations && formattedCitations.length > 0) ||

@@ -11,7 +11,7 @@ const logger = loggerService.withContext('Utils')
  * @param {() => void} fn 要执行的函数
  * @returns {Promise<void>} 执行结果
  */
-export const runAsyncFunction = async (fn: () => void): Promise<void> => {
+export const runAsyncFunction = async (fn: () => Promise<void>): Promise<void> => {
   await fn()
 }
 
@@ -222,3 +222,4 @@ export * from './match'
 export * from './naming'
 export * from './sort'
 export * from './style'
+export * from './url'

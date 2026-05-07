@@ -10,7 +10,6 @@ export const MODELS = [
     imageSizes: [{ value: 'auto' }, { value: '1024x1024' }, { value: '1536x1024' }, { value: '1024x1536' }],
     max_images: 10,
     quality: [{ value: 'auto' }, { value: 'high' }, { value: 'medium' }, { value: 'low' }],
-    response_format: [{ value: 'b64_json' }],
     moderation: [{ value: 'auto' }, { value: 'low' }],
     output_compression_format: [{ value: 'jpeg' }, { value: 'webp' }],
     output_format: [{ value: 'image/png' }, { value: 'image/jpeg' }, { value: 'image/webp' }],

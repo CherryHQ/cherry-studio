@@ -1,5 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
-import AiProvider from '@renderer/aiCore'
+import { AiProvider } from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -119,7 +119,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (painting.imageSize === 'custom') {
         if (!customWidth || !customHeight) {
           window.modal.error({
-            content: '请设置自定义尺寸的宽度和高度',
+            content: t('paintings.zhipu.custom_size_required'),
             centered: true
           })
           return
@@ -127,7 +127,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         // 验证自定义尺寸是否符合智谱AI的要求
         if (customWidth < 512 || customWidth > 2048 || customHeight < 512 || customHeight > 2048) {
           window.modal.error({
-            content: '自定义尺寸必须在512px-2048px之间',
+            content: t('paintings.zhipu.custom_size_range'),
             centered: true
           })
           return
@@ -135,7 +135,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         if (customWidth % 16 !== 0 || customHeight % 16 !== 0) {
           window.modal.error({
-            content: '自定义尺寸必须能被16整除',
+            content: t('paintings.zhipu.custom_size_divisible'),
             centered: true
           })
           return
@@ -145,7 +145,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         if (totalPixels > 2097152) {
           // 2^21 = 2097152
           window.modal.error({
-            content: '自定义尺寸的总像素数不能超过2,097,152',
+            content: t('paintings.zhipu.custom_size_pixels'),
             centered: true
           })
           return
@@ -164,19 +164,15 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         signal: controller.signal
       }
 
-      // 调用智谱AI绘图API
-      const imageUrls = await aiProvider.generateImage(request)
+      // NOTE: ai sdk内部已经处理成了base64
+      const images = await aiProvider.generateImage(request)
 
       // 下载图片到本地文件
-      if (imageUrls.length > 0) {
+      if (images.length > 0) {
         const downloadedFiles = await Promise.all(
-          imageUrls.map(async (url) => {
+          images.map(async (image) => {
             try {
-              if (!url || url.trim() === '') {
-                window.toast.warning(t('message.empty_url'))
-                return null
-              }
-              return await window.api.file.download(url)
+              return await window.api.file.saveBase64Image(image)
             } catch (error) {
               if (
                 error instanceof Error &&
@@ -196,7 +192,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         // 处理响应结果
         const newPainting = {
           ...painting,
-          urls: imageUrls,
           files: validFiles
         }
 
@@ -375,7 +370,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               <Radio.Group value={painting.quality} onChange={(e) => onSelectQuality(e.target.value)}>
                 {QUALITY_OPTIONS.map((option) => (
                   <Radio key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.label)}
                   </Radio>
                 ))}
               </Radio.Group>
@@ -389,7 +384,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
             style={{ width: '100%' }}>
             {IMAGE_SIZES.map((size) => (
               <Select.Option key={size.value} value={size.value}>
-                {size.label}
+                {t(size.label)}
               </Select.Option>
             ))}
             <Select.Option value="custom" key="custom">
@@ -423,7 +418,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
                 <span style={{ color: 'var(--color-text-2)', fontSize: '12px' }}>px</span>
               </HStack>
               <div style={{ marginTop: 5, fontSize: '12px', color: 'var(--color-text-3)' }}>
-                长宽均需满足512px-2048px之间, 需被16整除, 并保证最大像素数不超过2^21px
+                {t('paintings.zhipu.custom_size_hint')}
               </div>
             </div>
           )}

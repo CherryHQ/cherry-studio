@@ -1,7 +1,20 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { getAgentTypeLabel } from '@renderer/i18n/label'
-import type { AgentEntity, AgentSessionEntity } from '@renderer/types'
+import type { ScrollbarProps } from '@renderer/components/Scrollbar'
+import Scrollbar from '@renderer/components/Scrollbar'
+import type {
+  AgentConfiguration,
+  AgentEntity,
+  AgentSessionEntity,
+  GetAgentResponse,
+  GetAgentSessionResponse,
+  PermissionMode,
+  Tool,
+  UpdateAgentFunction,
+  UpdateAgentSessionFunction
+} from '@renderer/types'
+import { AgentConfigurationSchema } from '@renderer/types'
 import { cn } from '@renderer/utils'
+import type { ModalProps } from 'antd'
 import { Menu, Modal } from 'antd'
 import type { ReactNode } from 'react'
 import React from 'react'
@@ -9,15 +22,59 @@ import styled from 'styled-components'
 
 import { SettingDivider } from '..'
 
-export interface SettingsTitleProps extends React.ComponentPropsWithRef<'div'> {
-  actions?: ReactNode
+// Shared types and constants for agent settings
+export type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
+export const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
+
+/**
+ * Unified props type for settings components that work with both Agent and Session
+ */
+export type AgentOrSessionSettingsProps =
+  | {
+      agentBase: GetAgentResponse | undefined | null
+      update: UpdateAgentFunction
+    }
+  | {
+      agentBase: GetAgentSessionResponse | undefined | null
+      update: UpdateAgentSessionFunction
+    }
+
+/**
+ * Computes the list of tool IDs that should be automatically approved for a given permission mode.
+ */
+export const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string[] => {
+  const defaultToolIds = tools.filter((tool) => !tool.requirePermissions).map((tool) => tool.id)
+  switch (mode) {
+    case 'acceptEdits':
+      return [
+        ...defaultToolIds,
+        'Edit',
+        'MultiEdit',
+        'NotebookEdit',
+        'Write',
+        'Bash(mkdir:*)',
+        'Bash(touch:*)',
+        'Bash(rm:*)',
+        'Bash(mv:*)',
+        'Bash(cp:*)'
+      ]
+    case 'bypassPermissions':
+      return tools.map((tool) => tool.id)
+    case 'default':
+    case 'plan':
+      return defaultToolIds
+  }
 }
 
-export const SettingsTitle: React.FC<SettingsTitleProps> = ({ children, actions }) => {
+export interface SettingsTitleProps extends React.ComponentPropsWithRef<'div'> {
+  contentAfter?: ReactNode
+}
+
+export const SettingsTitle: React.FC<SettingsTitleProps> = ({ children, contentAfter }) => {
   return (
-    <div className={cn(actions ? 'justify-between' : undefined, 'mb-1 flex items-center gap-2')}>
+    <div className="mb-1 flex items-center gap-2">
       <span className="flex items-center gap-1 font-bold">{children}</span>
-      {actions !== undefined && actions}
+      {contentAfter !== undefined && contentAfter}
     </div>
   )
 }
@@ -29,17 +86,21 @@ export type AgentLabelProps = {
     avatar?: string
     name?: string
   }
+  hideIcon?: boolean
 }
 
-export const AgentLabel: React.FC<AgentLabelProps> = ({ agent, classNames }) => {
-  const emoji = agent?.configuration?.avatar
+export const SOUL_MODE_EMOJI = '🦞'
+
+export const isSoulModeEnabled = (configuration: AgentConfiguration | undefined | null): boolean =>
+  configuration?.soul_enabled === true
+
+export const AgentLabel = ({ agent, classNames, hideIcon }: AgentLabelProps) => {
+  const emoji = agent?.configuration?.avatar || '⭐️'
 
   return (
     <div className={cn('flex w-full items-center gap-2 truncate', classNames?.container)}>
-      <EmojiIcon emoji={emoji || '⭐️'} className={classNames?.avatar} />
-      <span className={cn('truncate', 'text-[var(--color-text)]', classNames?.name)}>
-        {agent?.name ?? (agent?.type ? getAgentTypeLabel(agent.type) : '')}
-      </span>
+      {!hideIcon && <EmojiIcon emoji={emoji} className={classNames?.avatar} size={24} />}
+      <span className={cn('truncate', 'text-(--color-text)', classNames?.name)}>{agent?.name ?? ''}</span>
     </div>
   )
 }
@@ -49,11 +110,11 @@ export type SessionLabelProps = {
   className?: string
 }
 
-export const SessionLabel: React.FC<SessionLabelProps> = ({ session, className }) => {
+export const SessionLabel = ({ session, className }: SessionLabelProps) => {
   const displayName = session?.name ?? session?.id
   return (
     <>
-      <span className={cn('truncate text-[var(--color-text)] text-sm', className)}>{displayName}</span>
+      <span className={cn('truncate text-(--color-text) text-sm', className)}>{displayName}</span>
     </>
   )
 }
@@ -84,11 +145,15 @@ export const SettingsItem: React.FC<SettingsItemProps> = ({
   )
 }
 
-export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'>> = ({ children, className, ...props }) => {
+export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'> & ScrollbarProps> = ({
+  children,
+  className,
+  ...props
+}) => {
   return (
-    <div className={cn('flex flex-1 flex-col overflow-y-auto overflow-x-hidden pr-2', className)} {...props}>
+    <Scrollbar className={cn('p-4', className)} {...props}>
       {children}
-    </div>
+    </Scrollbar>
   )
 }
 
@@ -101,7 +166,8 @@ export const Settings = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1;
-  padding: 16px 16px;
+  min-height: 0;
+  overflow: hidden;
 `
 
 export const StyledModal = styled(Modal)`
@@ -146,3 +212,28 @@ export const StyledMenu = styled(Menu)`
     margin-bottom: 7px;
   }
 `
+
+/**
+ * Shared modal styles configuration for settings popups
+ */
+export const settingsModalStyles: ModalProps['styles'] = {
+  content: {
+    padding: 0,
+    overflow: 'hidden',
+    height: '80vh',
+    display: 'flex',
+    flexDirection: 'column'
+  },
+  header: {
+    padding: '10px 15px',
+    paddingRight: '32px',
+    borderBottom: '0.5px solid var(--color-border)',
+    margin: 0,
+    borderRadius: 0
+  },
+  body: {
+    padding: 0,
+    display: 'flex',
+    flex: 1
+  }
+}

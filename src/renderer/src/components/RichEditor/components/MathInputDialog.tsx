@@ -67,7 +67,7 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
 
   useEffect(() => {
     if (visible && containerRef.current) {
-      const textarea = containerRef.current.querySelector('textarea') as HTMLTextAreaElement | null
+      const textarea = containerRef.current.querySelector('textarea')
       if (textarea) {
         textarea.focus()
         // Position cursor at the end of the text

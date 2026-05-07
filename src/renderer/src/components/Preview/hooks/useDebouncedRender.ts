@@ -95,7 +95,7 @@ export const useDebouncedRender = (
   const debouncedRender = useMemo(() => {
     const debouncedFn = debounce((content: string) => {
       React.startTransition(() => {
-        wrappedRenderFunction(content)
+        void wrappedRenderFunction(content)
       })
     }, debounceDelay)
 

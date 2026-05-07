@@ -1,15 +1,8 @@
 import type { Model, SystemProviderId } from '@renderer/types'
 
-export const glm45FlashModel: Model = {
-  id: 'glm-4.5-flash',
-  name: 'GLM-4.5-Flash',
-  provider: 'cherryai',
-  group: 'GLM-4.5'
-}
-
-export const qwen38bModel: Model = {
-  id: 'Qwen/Qwen3-8B',
-  name: 'Qwen3-8B',
+export const qwenModel: Model = {
+  id: 'qwen',
+  name: 'Qwen',
   provider: 'cherryai',
   group: 'Qwen'
 }
@@ -17,13 +10,13 @@ export const qwen38bModel: Model = {
 export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> = {
   defaultModel: [
     // Default assistant model
-    glm45FlashModel,
+    qwenModel,
     // Default topic naming model
-    qwen38bModel,
+    qwenModel,
     // Default translation model
-    glm45FlashModel,
+    qwenModel,
     // Default quick assistant model
-    glm45FlashModel
+    qwenModel
   ],
   cherryin: [],
   vertexai: [],
@@ -244,49 +237,36 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'llama'
     }
   ],
-
   burncloud: [
-    { id: 'claude-3-7-sonnet-20250219-thinking', provider: 'burncloud', name: 'Claude 3.7 thinking', group: 'Claude' },
-    { id: 'claude-3-7-sonnet-20250219', provider: 'burncloud', name: 'Claude 3.7 Sonnet', group: 'Claude 3.7' },
-    { id: 'claude-3-5-sonnet-20241022', provider: 'burncloud', name: 'Claude 3.5 Sonnet', group: 'Claude 3.5' },
-    { id: 'claude-3-5-haiku-20241022', provider: 'burncloud', name: 'Claude 3.5 Haiku', group: 'Claude 3.5' },
+    { id: 'claude-opus-4-5-20251101', provider: 'burncloud', name: 'Claude 4.5 Opus', group: 'Claude 4.5' },
+    { id: 'claude-sonnet-4-5-20250929', provider: 'burncloud', name: 'Claude 4.5 Sonnet', group: 'Claude 4.5' },
+    { id: 'claude-haiku-4-5-20251001', provider: 'burncloud', name: 'Claude 4.5 Haiku', group: 'Claude 4.5' },
 
-    { id: 'gpt-4.5-preview', provider: 'burncloud', name: 'gpt-4.5-preview', group: 'gpt-4.5' },
-    { id: 'gpt-4o', provider: 'burncloud', name: 'GPT-4o', group: 'GPT 4o' },
-    { id: 'gpt-4o-mini', provider: 'burncloud', name: 'GPT-4o-mini', group: 'GPT 4o' },
-    { id: 'o3', provider: 'burncloud', name: 'GPT-o1-mini', group: 'o1' },
-    { id: 'o3-mini', provider: 'burncloud', name: 'GPT-o1-preview', group: 'o1' },
-    { id: 'o1-mini', provider: 'burncloud', name: 'GPT-o1-mini', group: 'o1' },
+    { id: 'gpt-5', provider: 'burncloud', name: 'GPT 5', group: 'GPT 5' },
+    { id: 'gpt-5.1', provider: 'burncloud', name: 'GPT 5.1', group: 'GPT 5.1' },
 
-    { id: 'gemini-2.5-pro-preview-03-25', provider: 'burncloud', name: 'Gemini 2.5 Preview', group: 'Geminit 2.5' },
-    { id: 'gemini-2.5-pro-exp-03-25', provider: 'burncloud', name: 'Gemini 2.5 Pro Exp', group: 'Geminit 2.5' },
-    { id: 'gemini-2.0-flash-lite', provider: 'burncloud', name: 'Gemini 2.0 Flash Lite', group: 'Geminit 2.0' },
-    { id: 'gemini-2.0-flash-exp', provider: 'burncloud', name: 'Gemini 2.0 Flash Exp', group: 'Geminit 2.0' },
-    { id: 'gemini-2.0-flash', provider: 'burncloud', name: 'Gemini 2.0 Flash', group: 'Geminit 2.0' },
+    { id: 'gemini-2.5-flash', provider: 'burncloud', name: 'Gemini 2.5 Flash', group: 'Gemini 2.5' },
+    { id: 'gemini-2.5-flash-image', provider: 'burncloud', name: 'Gemini 2.5 Flash Image', group: 'Gemini 2.5' },
+    { id: 'gemini-2.5-pro', provider: 'burncloud', name: 'Gemini 2.5 Pro', group: 'Gemini 2.5' },
+    { id: 'gemini-3-pro-preview', provider: 'burncloud', name: 'Gemini 3 Pro Preview', group: 'Gemini 3' },
 
-    { id: 'deepseek-r1', name: 'DeepSeek-R1', provider: 'burncloud', group: 'deepseek-ai' },
-    { id: 'deepseek-v3', name: 'DeepSeek-V3', provider: 'burncloud', group: 'deepseek-ai' }
+    { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', provider: 'burncloud', group: 'deepseek-ai' },
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', provider: 'burncloud', group: 'deepseek-ai' }
   ],
   ovms: [],
   ollama: [],
   lmstudio: [],
   silicon: [
     {
-      id: 'deepseek-ai/DeepSeek-R1',
-      name: 'deepseek-ai/DeepSeek-R1',
+      id: 'deepseek-ai/DeepSeek-V3.2',
+      name: 'deepseek-ai/DeepSeek-V3.2',
       provider: 'silicon',
       group: 'deepseek-ai'
     },
     {
-      id: 'deepseek-ai/DeepSeek-V3',
-      name: 'deepseek-ai/DeepSeek-V3',
+      id: 'Qwen/Qwen3-8B',
+      name: 'Qwen/Qwen3-8B',
       provider: 'silicon',
-      group: 'deepseek-ai'
-    },
-    {
-      id: 'Qwen/Qwen2.5-7B-Instruct',
-      provider: 'silicon',
-      name: 'Qwen2.5-7B-Instruct',
       group: 'Qwen'
     },
     {
@@ -294,79 +274,31 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'BAAI/bge-m3',
       provider: 'silicon',
       group: 'BAAI'
-    },
-    {
-      id: 'Qwen/Qwen3-8B',
-      name: 'Qwen/Qwen3-8B',
-      provider: 'silicon',
-      group: 'Qwen'
     }
   ],
   ppio: [
     {
-      id: 'deepseek/deepseek-r1-0528',
+      id: 'deepseek/deepseek-v3.2',
       provider: 'ppio',
-      name: 'DeepSeek R1-0528',
+      name: 'DeepSeek V3.2',
       group: 'deepseek'
     },
     {
-      id: 'deepseek/deepseek-v3-0324',
+      id: 'minimax/minimax-m2',
       provider: 'ppio',
-      name: 'DeepSeek V3-0324',
-      group: 'deepseek'
-    },
-    {
-      id: 'deepseek/deepseek-r1-turbo',
-      provider: 'ppio',
-      name: 'DeepSeek R1 Turbo',
-      group: 'deepseek'
-    },
-    {
-      id: 'deepseek/deepseek-v3-turbo',
-      provider: 'ppio',
-      name: 'DeepSeek V3 Turbo',
-      group: 'deepseek'
-    },
-    {
-      id: 'deepseek/deepseek-r1/community',
-      name: 'DeepSeek: DeepSeek R1 (Community)',
-      provider: 'ppio',
-      group: 'deepseek'
-    },
-    {
-      id: 'deepseek/deepseek-v3/community',
-      name: 'DeepSeek: DeepSeek V3 (Community)',
-      provider: 'ppio',
-      group: 'deepseek'
-    },
-    {
-      id: 'minimaxai/minimax-m1-80k',
-      provider: 'ppio',
-      name: 'MiniMax M1-80K',
+      name: 'MiniMax M2',
       group: 'minimaxai'
     },
     {
-      id: 'qwen/qwen3-235b-a22b-fp8',
+      id: 'qwen/qwen3-235b-a22b-instruct-2507',
       provider: 'ppio',
-      name: 'Qwen3 235B',
+      name: 'Qwen3-235b-a22b-instruct-2507',
       group: 'qwen'
     },
     {
-      id: 'qwen/qwen3-32b-fp8',
+      id: 'qwen/qwen3-vl-235b-a22b-instruct',
       provider: 'ppio',
-      name: 'Qwen3 32B',
-      group: 'qwen'
-    },
-    {
-      id: 'qwen/qwen3-30b-a3b-fp8',
-      provider: 'ppio',
-      name: 'Qwen3 30B',
-      group: 'qwen'
-    },
-    {
-      id: 'qwen/qwen2.5-vl-72b-instruct',
-      provider: 'ppio',
-      name: 'Qwen2.5 VL 72B',
+      name: 'Qwen3-vl-235b-a22b-instruct',
       group: 'qwen'
     },
     {
@@ -384,11 +316,15 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   alayanew: [],
   openai: [
-    { id: 'gpt-4.5-preview', provider: 'openai', name: ' gpt-4.5-preview', group: 'gpt-4.5' },
-    { id: 'gpt-4o', provider: 'openai', name: ' GPT-4o', group: 'GPT 4o' },
-    { id: 'gpt-4o-mini', provider: 'openai', name: ' GPT-4o-mini', group: 'GPT 4o' },
-    { id: 'o1-mini', provider: 'openai', name: ' o1-mini', group: 'o1' },
-    { id: 'o1-preview', provider: 'openai', name: ' o1-preview', group: 'o1' }
+    { id: 'gpt-5.4', provider: 'openai', name: ' GPT 5.4', group: 'gpt-5.4' },
+    { id: 'gpt-5.4-pro', provider: 'openai', name: ' GPT 5.4 Pro', group: 'gpt-5.4' },
+    { id: 'gpt-5.2', provider: 'openai', name: ' GPT 5.2', group: 'gpt-5.2' },
+    { id: 'gpt-5.2-pro', provider: 'openai', name: ' GPT 5.2 Pro', group: 'gpt-5.2' },
+    { id: 'gpt-5.1', provider: 'openai', name: ' GPT 5.1', group: 'gpt-5.1' },
+    { id: 'gpt-5', provider: 'openai', name: ' GPT 5', group: 'gpt-5' },
+    { id: 'gpt-5-pro', provider: 'openai', name: ' GPT 5 Pro', group: 'gpt-5' },
+    { id: 'gpt-5-chat', provider: 'openai', name: ' GPT 5 Chat', group: 'gpt-5' },
+    { id: 'gpt-image-1', provider: 'openai', name: ' GPT Image 1', group: 'gpt-image' }
   ],
   'azure-openai': [
     {
@@ -406,96 +342,72 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   gemini: [
     {
-      id: 'gemini-1.5-flash',
+      id: 'gemini-2.5-flash',
       provider: 'gemini',
-      name: 'Gemini 1.5 Flash',
-      group: 'Gemini 1.5'
+      name: 'Gemini 2.5 Flash',
+      group: 'Gemini 2.5'
     },
     {
-      id: 'gemini-1.5-flash-8b',
+      id: 'gemini-2.5-pro',
       provider: 'gemini',
-      name: 'Gemini 1.5 Flash (8B)',
-      group: 'Gemini 1.5'
-    },
-    {
-      id: 'gemini-1.5-pro',
-      name: 'Gemini 1.5 Pro',
-      provider: 'gemini',
-      group: 'Gemini 1.5'
-    },
-    {
-      id: 'gemini-2.0-flash',
-      provider: 'gemini',
-      name: 'Gemini 2.0 Flash',
-      group: 'Gemini 2.0'
+      name: 'Gemini 2.5 Pro',
+      group: 'Gemini 2.5'
     },
     {
       id: 'gemini-2.5-flash-image-preview',
       provider: 'gemini',
       name: 'Gemini 2.5 Flash Image',
       group: 'Gemini 2.5'
+    },
+    {
+      id: 'gemini-3-pro-image-preview',
+      provider: 'gemini',
+      name: 'Gemini 3 Pro Image Preview',
+      group: 'Gemini 3'
+    },
+    {
+      id: 'gemini-3-pro-preview',
+      provider: 'gemini',
+      name: 'Gemini 3 Pro Preview',
+      group: 'Gemini 3'
+    },
+    {
+      id: 'gemini-3.1-pro-preview',
+      provider: 'gemini',
+      name: 'Gemini 3.1 Pro Preview',
+      group: 'Gemini 3'
     }
   ],
   anthropic: [
     {
-      id: 'claude-haiku-4-5-20251001',
+      id: 'claude-opus-4-6',
       provider: 'anthropic',
-      name: 'Claude Haiku 4.5',
-      group: 'Claude 4.5'
+      name: 'Claude Opus 4.6',
+      group: 'Claude 4.6'
     },
     {
-      id: 'claude-sonnet-4-5-20250929',
+      id: 'claude-sonnet-4-6',
+      provider: 'anthropic',
+      name: 'Claude Sonnet 4.6',
+      group: 'Claude 4.6'
+    },
+    {
+      id: 'claude-sonnet-4-5',
       provider: 'anthropic',
       name: 'Claude Sonnet 4.5',
       group: 'Claude 4.5'
     },
     {
-      id: 'claude-sonnet-4-20250514',
+      id: 'claude-haiku-4-5',
       provider: 'anthropic',
-      name: 'Claude Sonnet 4',
-      group: 'Claude 4'
+      name: 'Claude Haiku 4.5',
+      group: 'Claude 4.5'
     },
     {
-      id: 'claude-opus-4-20250514',
+      id: 'claude-opus-4-5',
       provider: 'anthropic',
-      name: 'Claude Opus 4',
-      group: 'Claude 4'
-    },
-    {
-      id: 'claude-3-7-sonnet-20250219',
-      provider: 'anthropic',
-      name: 'Claude 3.7 Sonnet',
-      group: 'Claude 3.7'
-    },
-    {
-      id: 'claude-3-5-sonnet-20241022',
-      provider: 'anthropic',
-      name: 'Claude 3.5 Sonnet',
-      group: 'Claude 3.5'
-    },
-    {
-      id: 'claude-3-5-haiku-20241022',
-      provider: 'anthropic',
-      name: 'Claude 3.5 Haiku',
-      group: 'Claude 3.5'
-    },
-    {
-      id: 'claude-3-5-sonnet-20240620',
-      provider: 'anthropic',
-      name: 'Claude 3.5 Sonnet (Legacy)',
-      group: 'Claude 3.5'
-    },
-    {
-      id: 'claude-3-opus-20240229',
-      provider: 'anthropic',
-      name: 'Claude 3 Opus',
-      group: 'Claude 3'
-    },
-    {
-      id: 'claude-3-haiku-20240307',
-      provider: 'anthropic',
-      name: 'Claude 3 Haiku',
-      group: 'Claude 3'
+      name: 'Claude Opus 4.5',
+      group: 'Claude 4.5'
     }
   ],
   deepseek: [
@@ -700,10 +612,10 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   copilot: [
     {
-      id: 'gpt-4o-mini',
+      id: 'gpt-5-mini',
       provider: 'copilot',
-      name: 'OpenAI GPT-4o-mini',
-      group: 'OpenAI'
+      name: 'gpt-5-mini',
+      group: 'copilot'
     }
   ],
   yi: [
@@ -711,6 +623,18 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     { id: 'yi-vision-v2', name: 'Yi Vision v2', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
   ],
   zhipu: [
+    {
+      id: 'glm-5',
+      provider: 'zhipu',
+      name: 'GLM-5',
+      group: 'GLM-5'
+    },
+    {
+      id: 'glm-4.7',
+      provider: 'zhipu',
+      name: 'GLM-4.7',
+      group: 'GLM-4.7'
+    },
     {
       id: 'glm-4.5-flash',
       provider: 'zhipu',
@@ -722,6 +646,30 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'zhipu',
       name: 'GLM-4.6',
       group: 'GLM-4.6'
+    },
+    {
+      id: 'glm-4.6v',
+      provider: 'zhipu',
+      name: 'GLM-4.6V',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.6v-flash',
+      provider: 'zhipu',
+      name: 'GLM-4.6V-Flash',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.6v-flashx',
+      provider: 'zhipu',
+      name: 'GLM-4.6V-FlashX',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.7',
+      provider: 'zhipu',
+      name: 'GLM-4.7',
+      group: 'GLM-4.7'
     },
     {
       id: 'glm-4.5',
@@ -752,6 +700,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'zhipu',
       name: 'Embedding-3',
       group: 'Embedding'
+    },
+    {
+      id: 'cogView-4-250304',
+      provider: 'zhipu',
+      name: 'cogView-4',
+      group: 'cogView'
     }
   ],
   moonshot: [
@@ -775,6 +729,54 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
         output_per_million_tokens: 2.5,
         currencySymbol: 'USD'
       }
+    },
+    {
+      id: 'kimi-k2.5',
+      provider: 'moonshot',
+      name: 'Kimi K2.5',
+      group: 'Kimi K2.5',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2.6',
+      provider: 'moonshot',
+      name: 'Kimi K2.6',
+      group: 'Kimi K2.6',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2-0905-Preview',
+      provider: 'moonshot',
+      name: 'Kimi K2 0905 Preview',
+      group: 'Kimi K2',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2-turbo-preview',
+      provider: 'moonshot',
+      name: 'Kimi K2 Turbo Preview',
+      group: 'Kimi K2',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2-thinking',
+      provider: 'moonshot',
+      name: 'Kimi K2 Thinking',
+      group: 'Kimi K2 Thinking',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2-thinking-turbo',
+      provider: 'moonshot',
+      name: 'Kimi K2 Thinking Turbo',
+      group: 'Kimi K2 Thinking',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'function_calling' }]
     }
   ],
   baichuan: [
@@ -795,6 +797,42 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'baichuan',
       name: 'Baichuan3 Turbo 128k',
       group: 'Baichuan3'
+    },
+    {
+      id: 'Baichuan4-Turbo',
+      provider: 'baichuan',
+      name: 'Baichuan4 Turbo',
+      group: 'Baichuan4'
+    },
+    {
+      id: 'Baichuan4-Air',
+      provider: 'baichuan',
+      name: 'Baichuan4 Air',
+      group: 'Baichuan4'
+    },
+    {
+      id: 'Baichuan-M2',
+      provider: 'baichuan',
+      name: 'Baichuan M2',
+      group: 'Baichuan-M2'
+    },
+    {
+      id: 'Baichuan-M2-Plus',
+      provider: 'baichuan',
+      name: 'Baichuan M2 Plus',
+      group: 'Baichuan-M2'
+    },
+    {
+      id: 'Baichuan-M3',
+      provider: 'baichuan',
+      name: 'Baichuan M3',
+      group: 'Baichuan-M3'
+    },
+    {
+      id: 'Baichuan-M3-Plus',
+      provider: 'baichuan',
+      name: 'Baichuan M3 Plus',
+      group: 'Baichuan-M3'
     }
   ],
   modelscope: [
@@ -830,12 +868,13 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   dashscope: [
-    { id: 'qwen-vl-plus', name: 'qwen-vl-plus', provider: 'dashscope', group: 'qwen-vl', owned_by: 'system' },
-    { id: 'qwen-coder-plus', name: 'qwen-coder-plus', provider: 'dashscope', group: 'qwen-coder', owned_by: 'system' },
-    { id: 'qwen-flash', name: 'qwen-flash', provider: 'dashscope', group: 'qwen-flash', owned_by: 'system' },
-    { id: 'qwen-plus', name: 'qwen-plus', provider: 'dashscope', group: 'qwen-plus', owned_by: 'system' },
-    { id: 'qwen-max', name: 'qwen-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' },
-    { id: 'qwen3-max', name: 'qwen3-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' }
+    { id: 'qwen3.5-plus', name: 'Qwen3.5-Plus', provider: 'dashscope', group: 'Qwen' },
+    { id: 'qwen3.5-flash', name: 'Qwen3.5-Flash', provider: 'dashscope', group: 'Qwen' },
+    { id: 'qwen3-max', name: 'Qwen3-Max', provider: 'dashscope', group: 'Qwen' },
+    { id: 'kimi-k2.5', name: 'Kimi K2.5', provider: 'dashscope', group: 'Kimi' },
+    { id: 'glm-5', name: 'GLM-5', provider: 'dashscope', group: 'GLM' },
+    { id: 'MiniMax/MiniMax-M2.5', name: 'MiniMax M2.5', provider: 'dashscope', group: 'MiniMax' },
+    { id: 'deepseek-v3.2', name: 'DeepSeek V3.2', provider: 'dashscope', group: 'DeepSeek' }
   ],
   stepfun: [
     {
@@ -852,6 +891,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   doubao: [
+    {
+      id: 'doubao-seed-1-8-251228',
+      provider: 'doubao',
+      name: 'Doubao-Seed-1.8',
+      group: 'Doubao-Seed-1.8'
+    },
     {
       id: 'doubao-1-5-vision-pro-32k-250115',
       provider: 'doubao',
@@ -977,50 +1022,142 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'doubao',
       name: 'Doubao-vision-lite-32k',
       group: 'Doubao-vision-lite-32k'
+    },
+    {
+      id: 'doubao-seed-2-0-pro-260215',
+      provider: 'doubao',
+      name: 'Doubao-Seed-2.0-Pro',
+      group: 'Doubao-Seed-2.0'
+    },
+    {
+      id: 'doubao-seed-2-0-lite-260215',
+      provider: 'doubao',
+      name: 'Doubao-Seed-2.0-Lite',
+      group: 'Doubao-Seed-2.0'
+    },
+    {
+      id: 'doubao-seed-2-0-code-preview-260215',
+      provider: 'doubao',
+      name: 'Doubao-Seed-2.0-Code-Preview',
+      group: 'Doubao-Seed-2.0'
+    },
+    {
+      id: 'doubao-seed-2-0-mini-260215',
+      provider: 'doubao',
+      name: 'Doubao-Seed-2.0-Mini',
+      group: 'Doubao-Seed-2.0'
     }
   ],
   minimax: [
     {
-      id: 'abab6.5s-chat',
+      id: 'MiniMax-M2.7',
       provider: 'minimax',
-      name: 'abab6.5s',
-      group: 'abab6'
+      name: 'MiniMax-M2.7',
+      group: 'M2.7'
     },
     {
-      id: 'abab6.5g-chat',
+      id: 'MiniMax-M2.7-highspeed',
       provider: 'minimax',
-      name: 'abab6.5g',
-      group: 'abab6'
+      name: 'MiniMax-M2.7-highspeed',
+      group: 'M2.7'
     },
     {
-      id: 'abab6.5t-chat',
+      id: 'MiniMax-M2.5',
       provider: 'minimax',
-      name: 'abab6.5t',
-      group: 'abab6'
+      name: 'MiniMax-M2.5',
+      group: 'M2.5'
     },
     {
-      id: 'abab5.5s-chat',
+      id: 'MiniMax-M2.5-highspeed',
       provider: 'minimax',
-      name: 'abab5.5s',
-      group: 'abab5'
+      name: 'MiniMax-M2.5-highspeed',
+      group: 'M2.5'
     },
     {
-      id: 'minimax-text-01',
+      id: 'MiniMax-M2.5-lightning',
       provider: 'minimax',
-      name: 'minimax-01',
-      group: 'minimax-01'
+      name: 'MiniMax-M2.5-lightning',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.1',
+      provider: 'minimax',
+      name: 'MiniMax-M2.1',
+      group: 'M2.1'
+    },
+    {
+      id: 'MiniMax-M2.1-lightning',
+      provider: 'minimax',
+      name: 'MiniMax-M2.1-lightning',
+      group: 'M2.1'
     },
     {
       id: 'MiniMax-M2',
       provider: 'minimax',
-      name: 'MiniMax M2',
-      group: 'minimax-m2'
+      name: 'MiniMax-M2',
+      group: 'M2'
     },
     {
-      id: 'MiniMax-M2-Stable',
+      id: 'M2-her',
       provider: 'minimax',
-      name: 'MiniMax M2 Stable',
-      group: 'minimax-m2'
+      name: 'M2-her',
+      group: 'M2'
+    }
+  ],
+  'minimax-global': [
+    {
+      id: 'MiniMax-M2.7',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.7',
+      group: 'M2.7'
+    },
+    {
+      id: 'MiniMax-M2.7-highspeed',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.7-highspeed',
+      group: 'M2.7'
+    },
+    {
+      id: 'MiniMax-M2.5',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.5',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.5-highspeed',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.5-highspeed',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.5-lightning',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.5-lightning',
+      group: 'M2.5'
+    },
+    {
+      id: 'MiniMax-M2.1',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.1',
+      group: 'M2.1'
+    },
+    {
+      id: 'MiniMax-M2.1-lightning',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2.1-lightning',
+      group: 'M2.1'
+    },
+    {
+      id: 'MiniMax-M2',
+      provider: 'minimax-global',
+      name: 'MiniMax-M2',
+      group: 'M2'
+    },
+    {
+      id: 'M2-her',
+      provider: 'minimax-global',
+      name: 'M2-her',
+      group: 'M2'
     }
   ],
   hyperbolic: [
@@ -1078,18 +1215,6 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       id: 'grok-3-mini-fast',
       provider: 'grok',
       name: 'Grok 3 Mini Fast',
-      group: 'Grok'
-    },
-    {
-      id: 'grok-2-vision-1212',
-      provider: 'grok',
-      name: 'Grok 2 Vision 1212',
-      group: 'Grok'
-    },
-    {
-      id: 'grok-2-1212',
-      provider: 'grok',
-      name: 'Grok 2 1212',
       group: 'Grok'
     }
   ],
@@ -1805,43 +1930,80 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   'new-api': [],
   'aws-bedrock': [],
   poe: [
-    {
-      id: 'gpt-4o',
-      name: 'GPT-4o',
-      provider: 'poe',
-      group: 'poe'
-    }
+    { id: 'Claude-Opus-4.6', name: 'Claude Opus 4.6', provider: 'poe', group: 'Anthropic' },
+    { id: 'Claude-Sonnet-4.6', name: 'Claude Sonnet 4.6', provider: 'poe', group: 'Anthropic' },
+    { id: 'Claude-Haiku-4.5', name: 'Claude Haiku 4.5', provider: 'poe', group: 'Anthropic' },
+    { id: 'GPT-5.4', name: 'GPT 5.4', provider: 'poe', group: 'OpenAI' },
+    { id: 'GPT-5.3-Codex', name: 'GPT 5.3 Codex', provider: 'poe', group: 'OpenAI' },
+    { id: 'GPT-5.2', name: 'GPT 5.2', provider: 'poe', group: 'OpenAI' },
+    { id: 'GPT-5.2-Codex', name: 'GPT 5.2 Codex', provider: 'poe', group: 'OpenAI' },
+    { id: 'GPT-5.1', name: 'GPT 5.1', provider: 'poe', group: 'OpenAI' },
+    { id: 'Gemini-3.1-Pro', name: 'Gemini 3.1 Pro', provider: 'poe', group: 'Google' },
+    { id: 'Grok-4', name: 'Grok 4', provider: 'poe', group: 'xAI' },
+    { id: 'DeepSeek-R1', name: 'DeepSeek R1', provider: 'poe', group: 'DeepSeek' },
+    { id: 'Kimi-K2.5', name: 'Kimi K2.5', provider: 'poe', group: 'Kimi' },
+    { id: 'Kimi-K2-Thinking', name: 'Kimi K2 Thinking', provider: 'poe', group: 'Kimi' }
   ],
   aionly: [
     {
-      id: 'claude-opus-4.1',
-      name: 'claude-opus-4.1',
+      id: 'claude-opus-4-6',
+      name: 'Claude Opus 4.6',
       provider: 'aionly',
-      group: 'claude'
+      group: 'Anthropic'
     },
     {
-      id: 'claude-sonnet4',
-      name: 'claude-sonnet4',
+      id: 'claude-haiku-4-5-20251001',
+      name: 'Claude Haiku 4.5',
       provider: 'aionly',
-      group: 'claude'
+      group: 'Anthropic'
     },
     {
-      id: 'claude-3.5-sonnet-v2',
-      name: 'claude-3.5-sonnet-v2',
+      id: 'claude-sonnet-4-6',
+      name: 'Claude Sonnet 4.6',
       provider: 'aionly',
-      group: 'claude'
+      group: 'Anthropic'
     },
     {
-      id: 'gpt-4.1',
-      name: 'gpt-4.1',
+      id: 'gpt-5.4',
+      name: 'GPT-5.4',
       provider: 'aionly',
-      group: 'gpt'
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-5.4-mini',
+      name: 'GPT-5.4-MiNi',
+      provider: 'aionly',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-5.4-nano',
+      name: 'GPT-5.4-NaNo',
+      provider: 'aionly',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gemini-3.1-flash-lite-preview',
+      name: 'Gemini 3.1 Flash-Lite',
+      provider: 'aionly',
+      group: 'Google'
+    },
+    {
+      id: 'gemini-3.1-pro-preview',
+      name: 'Gemini 3.1 Pro Preview',
+      provider: 'aionly',
+      group: 'Google'
+    },
+    {
+      id: 'gemini-2.5-pro',
+      name: 'Gemini 2.5 Pro',
+      provider: 'aionly',
+      group: 'Google'
     },
     {
       id: 'gemini-2.5-flash',
-      name: 'gemini-2.5-flash',
+      name: 'Gemini 2.5 Flash',
       provider: 'aionly',
-      group: 'gemini'
+      group: 'Google'
     }
   ],
   longcat: [
@@ -1878,6 +2040,88 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'Qwen 3 235B A22B Instruct',
       provider: 'cerebras',
       group: 'qwen'
+    }
+  ],
+  mimo: [
+    {
+      id: 'mimo-v2.5',
+      name: 'Mimo V2.5',
+      provider: 'mimo',
+      group: 'mimo'
+    },
+    {
+      id: 'mimo-v2.5-pro',
+      name: 'Mimo V2.5 Pro',
+      provider: 'mimo',
+      group: 'mimo'
+    },
+    {
+      id: 'mimo-v2-flash',
+      name: 'Mimo V2 Flash',
+      provider: 'mimo',
+      group: 'mimo'
+    },
+    {
+      id: 'mimo-v2-omni',
+      name: 'Mimo V2 Omni',
+      provider: 'mimo',
+      group: 'mimo'
+    }
+  ],
+  zai: [
+    {
+      id: 'glm-5',
+      provider: 'zai',
+      name: 'GLM-5',
+      group: 'GLM-5'
+    },
+    {
+      id: 'glm-4.7',
+      provider: 'zai',
+      name: 'GLM-4.7',
+      group: 'GLM-4.7'
+    },
+    {
+      id: 'glm-4.5-flash',
+      provider: 'zai',
+      name: 'GLM-4.5-Flash',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.6',
+      provider: 'zai',
+      name: 'GLM-4.6',
+      group: 'GLM-4.6'
+    },
+    {
+      id: 'glm-4.6v',
+      provider: 'zai',
+      name: 'GLM-4.6V',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.6v-flash',
+      provider: 'zai',
+      name: 'GLM-4.6V-Flash',
+      group: 'GLM-4.6V'
+    },
+    {
+      id: 'glm-4.5',
+      provider: 'zai',
+      name: 'GLM-4.5',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5-air',
+      provider: 'zai',
+      name: 'GLM-4.5-Air',
+      group: 'GLM-4.5'
+    },
+    {
+      id: 'glm-4.5v',
+      provider: 'zai',
+      name: 'GLM-4.5V',
+      group: 'GLM-4.5V'
     }
   ]
 }

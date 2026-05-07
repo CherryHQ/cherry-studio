@@ -94,7 +94,7 @@ export class BlockManager {
         this._activeBlockInfo = { id: blockId, type: blockType } // 更新活跃块信息
       }
       this.deps.dispatch(updateOneBlock({ id: blockId, changes }))
-      this.deps.saveUpdatedBlockToDB(blockId, this.deps.assistantMsgId, this.deps.topicId, this.deps.getState)
+      void this.deps.saveUpdatedBlockToDB(blockId, this.deps.assistantMsgId, this.deps.topicId, this.deps.getState)
       this._lastBlockType = blockType
     } else {
       this._activeBlockInfo = { id: blockId, type: blockType } // 更新活跃块信息

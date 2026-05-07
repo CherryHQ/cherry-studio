@@ -1,5 +1,5 @@
 import type { NotesSettings } from '@renderer/store/note'
-import { Copy, MonitorSpeaker, Type } from 'lucide-react'
+import { Copy, FileText, MonitorSpeaker, Settings, Type } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 export interface MenuItem {
@@ -12,6 +12,8 @@ export interface MenuItem {
   isActive?: (settings: NotesSettings) => boolean
   component?: (settings: NotesSettings, updateSettings: (newSettings: Partial<NotesSettings>) => void) => ReactNode
   copyAction?: boolean
+  exportToWordAction?: boolean
+  showSettingsPopup?: boolean
 }
 
 export const menuItems: MenuItem[] = [
@@ -20,6 +22,12 @@ export const menuItems: MenuItem[] = [
     labelKey: 'notes.copyContent',
     icon: Copy,
     copyAction: true
+  },
+  {
+    key: 'export-to-word',
+    labelKey: 'notes.exportToWord',
+    icon: FileText,
+    exportToWordAction: true
   },
   {
     key: 'divider0',
@@ -86,5 +94,16 @@ export const menuItems: MenuItem[] = [
         isActive: (settings) => settings.fontSize === 20
       }
     ]
+  },
+  {
+    key: 'divider-settings',
+    type: 'divider',
+    labelKey: ''
+  },
+  {
+    key: 'more-settings',
+    labelKey: 'settings.moresetting.label',
+    icon: Settings,
+    showSettingsPopup: true
   }
 ]

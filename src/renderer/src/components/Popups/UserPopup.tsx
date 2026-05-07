@@ -112,7 +112,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           style={{ width: '100%', textAlign: 'center' }}
           onClick={(e) => {
             e.stopPropagation()
-            handleReset()
+            void handleReset()
           }}>
           {t('settings.general.avatar.reset')}
         </div>

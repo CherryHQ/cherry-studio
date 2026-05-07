@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   isOpenFenceBlock: vi.fn(),
   selectById: vi.fn(),
   useSettings: vi.fn().mockReturnValue({ codeFancyBlock: true }),
+  isWin: false,
   CodeBlockView: vi.fn(({ onSave, children }) => (
     <div>
       <code>{children}</code>
@@ -63,6 +64,17 @@ vi.mock('@renderer/components/CodeBlockView', () => ({
   HtmlArtifactsCard: mocks.HtmlArtifactsCard
 }))
 
+vi.mock('@renderer/config/constant', () => ({
+  get isWin() {
+    return mocks.isWin
+  }
+}))
+
+// Mock ClickableFilePath
+vi.mock('@renderer/pages/home/Messages/Tools/MessageAgentTools/ClickableFilePath', () => ({
+  ClickableFilePath: ({ path }: { path: string }) => <span data-testid="clickable-file-path">{path}</span>
+}))
+
 describe('CodeBlock', () => {
   const defaultProps = {
     blockId: 'test-msg-block-id',
@@ -79,6 +91,7 @@ describe('CodeBlock', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.isWin = false
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
     mocks.isOpenFenceBlock.mockReturnValue(false)
@@ -106,6 +119,43 @@ describe('CodeBlock', () => {
       expect(codeElement.tagName).toBe('CODE')
       expect(mocks.CodeBlockView).not.toHaveBeenCalled()
     })
+
+    it('should render ClickableFilePath for absolute file paths', () => {
+      const pathProps = {
+        ...defaultProps,
+        className: undefined,
+        children: '/Users/foo/bar.tsx'
+      }
+      render(<CodeBlock {...pathProps} />)
+
+      expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
+      expect(screen.getByText('/Users/foo/bar.tsx')).toBeInTheDocument()
+    })
+
+    it.each(['/home/user/project/src/index.ts', '/tmp/test.log', '/var/log/app.log', '/etc/nginx/nginx.conf'])(
+      'should detect %s as a file path',
+      (path) => {
+        render(<CodeBlock {...defaultProps} className={undefined} children={path} />)
+        expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
+      }
+    )
+
+    it.each(['inline code', '/single-segment', '//comment style', 'not/absolute/path', '/path with spaces/file.ts'])(
+      'should NOT detect %s as a file path',
+      (text) => {
+        render(<CodeBlock {...defaultProps} className={undefined} children={text} />)
+        expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
+      }
+    )
+
+    it.each(['/home/user/project/src/index.ts', '/tmp/test.log', '/var/log/app.log', '/etc/nginx/nginx.conf'])(
+      'should NOT detect %s as a file path on Windows',
+      (path) => {
+        mocks.isWin = true
+        render(<CodeBlock {...defaultProps} className={undefined} children={path} />)
+        expect(screen.queryByTestId('clickable-file-path')).not.toBeInTheDocument()
+      }
+    )
   })
 
   describe('save', () => {

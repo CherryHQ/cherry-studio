@@ -4,12 +4,13 @@
  */
 
 import { loggerService } from '@logger'
-import type { AISDKWebSearchResult, MCPTool, WebSearchResults } from '@renderer/types'
-import { WebSearchSource } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
+import type { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
+import { WEB_SEARCH_SOURCE } from '@renderer/types'
+import type { Chunk, ProviderMetadata } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
+import type { IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
 import { AISDKError, type TextStreamPart, type ToolSet } from 'ai'
@@ -32,6 +33,8 @@ export class AiSdkToChunkAdapter {
   private firstTokenTimestamp: number | null = null
   private hasTextContent = false
   private getSessionWasCleared?: () => boolean
+  private providerId?: string
+  private idleTimeout?: IdleTimeoutHandle
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
@@ -39,13 +42,17 @@ export class AiSdkToChunkAdapter {
     accumulate?: boolean,
     enableWebSearch?: boolean,
     onSessionUpdate?: (sessionId: string) => void,
-    getSessionWasCleared?: () => boolean
+    getSessionWasCleared?: () => boolean,
+    providerId?: string,
+    idleTimeout?: IdleTimeoutHandle
   ) {
     this.toolCallHandler = new ToolCallChunkHandler(onChunk, mcpTools)
     this.accumulate = accumulate
     this.enableWebSearch = enableWebSearch || false
     this.onSessionUpdate = onSessionUpdate
     this.getSessionWasCleared = getSessionWasCleared
+    this.providerId = providerId
+    this.idleTimeout = idleTimeout
   }
 
   private markFirstTokenIfNeeded() {
@@ -65,13 +72,24 @@ export class AiSdkToChunkAdapter {
    * @returns 最终的文本内容
    */
   async processStream(aiSdkResult: any): Promise<string> {
-    // 如果是流式且有 fullStream
+    // The stream is the single source of truth for abort handling.
+    // Both AI SDK (resilient stream) and the agent pipeline (withAbortStreamPart)
+    // guarantee: abort → enqueue { type: 'abort' } → close gracefully.
+    // convertAndEmitChunk processes the abort part and emits ChunkType.ERROR → onError.
     if (aiSdkResult.fullStream) {
       await this.readFullStream(aiSdkResult.fullStream)
     }
 
-    // 使用 streamResult.text 获取最终结果
-    return await aiSdkResult.text
+    try {
+      return await aiSdkResult.text
+    } catch (error: any) {
+      // The text promise rejects when no steps completed (e.g. abort during thinking).
+      // The abort was already handled via the 'abort' stream part above.
+      if (isAbortError(error)) {
+        return ''
+      }
+      throw error
+    }
   }
 
   /**
@@ -84,7 +102,8 @@ export class AiSdkToChunkAdapter {
       text: '',
       reasoningContent: '',
       webSearchResults: [],
-      reasoningId: ''
+      reasoningId: '',
+      providerMetadata: undefined as ProviderMetadata | undefined
     }
     this.resetTimingState()
     this.responseStartTimestamp = Date.now()
@@ -95,6 +114,9 @@ export class AiSdkToChunkAdapter {
     try {
       while (true) {
         const { done, value } = await reader.read()
+
+        // Reset idle timeout on every chunk received from the stream
+        this.idleTimeout?.reset()
 
         if (done) {
           // Flush any remaining content from link converter buffer if web search is enabled
@@ -117,6 +139,23 @@ export class AiSdkToChunkAdapter {
     } finally {
       reader.releaseLock()
       this.resetTimingState()
+      // Clean up the idle timeout timer when the stream ends
+      this.idleTimeout?.cleanup()
+    }
+  }
+
+  /**
+   * 如果有累积的思考内容，发送 THINKING_COMPLETE chunk 并清空
+   * @param final 包含 reasoningContent 的状态对象
+   * @returns 是否发送了 THINKING_COMPLETE chunk
+   */
+  private emitThinkingCompleteIfNeeded(final: { reasoningContent: string; [key: string]: any }) {
+    if (final.reasoningContent) {
+      this.onChunk({
+        type: ChunkType.THINKING_COMPLETE,
+        text: final.reasoningContent
+      })
+      final.reasoningContent = ''
     }
   }
 
@@ -126,7 +165,13 @@ export class AiSdkToChunkAdapter {
    */
   private convertAndEmitChunk(
     chunk: TextStreamPart<any>,
-    final: { text: string; reasoningContent: string; webSearchResults: AISDKWebSearchResult[]; reasoningId: string }
+    final: {
+      text: string
+      reasoningContent: string
+      webSearchResults: AISDKWebSearchResult[]
+      reasoningId: string
+      providerMetadata: ProviderMetadata | undefined
+    }
   ) {
     logger.silly(`AI SDK chunk type: ${chunk.type}`, chunk)
     switch (chunk.type) {
@@ -145,6 +190,9 @@ export class AiSdkToChunkAdapter {
       }
       // === 文本相关事件 ===
       case 'text-start':
+        // 如果有未完成的思考内容，先生成 THINKING_COMPLETE
+        // 这处理了某些提供商不发送 reasoning-end 事件的情况
+        this.emitThinkingCompleteIfNeeded(final)
         this.onChunk({
           type: ChunkType.TEXT_START
         })
@@ -179,12 +227,25 @@ export class AiSdkToChunkAdapter {
           final.text = finalText
         }
 
+        // Extract thoughtSignature from providerMetadata.google and preserve it
+        const newSignature = chunk.providerMetadata?.google?.thoughtSignature as string | undefined
+        if (newSignature) {
+          final.providerMetadata = {
+            ...final.providerMetadata,
+            google: {
+              ...final.providerMetadata?.google,
+              thoughtSignature: newSignature
+            }
+          }
+        }
+
         // Only emit chunk if there's text to send
         if (finalText) {
           this.markFirstTokenIfNeeded()
           this.onChunk({
             type: ChunkType.TEXT_DELTA,
-            text: this.accumulate ? final.text : finalText
+            text: this.accumulate ? final.text : finalText,
+            providerMetadata: final.providerMetadata
           })
         }
         break
@@ -192,9 +253,12 @@ export class AiSdkToChunkAdapter {
       case 'text-end':
         this.onChunk({
           type: ChunkType.TEXT_COMPLETE,
-          text: (chunk.providerMetadata?.text?.value as string) ?? final.text ?? ''
+          text: (chunk.providerMetadata?.text?.value as string) ?? final.text ?? '',
+          providerMetadata: final.providerMetadata
         })
         final.text = ''
+        // Clear providerMetadata for next text block
+        final.providerMetadata = undefined
         break
       case 'reasoning-start':
         // if (final.reasoningId !== chunk.id) {
@@ -215,24 +279,21 @@ export class AiSdkToChunkAdapter {
         })
         break
       case 'reasoning-end':
-        this.onChunk({
-          type: ChunkType.THINKING_COMPLETE,
-          text: final.reasoningContent || ''
-        })
-        final.reasoningContent = ''
+        this.emitThinkingCompleteIfNeeded(final)
         break
 
       // === 工具调用相关事件（原始 AI SDK 事件，如果没有被中间件处理） ===
 
-      // case 'tool-input-start':
-      // case 'tool-input-delta':
-      // case 'tool-input-end':
-      //   this.toolCallHandler.handleToolCallCreated(chunk)
-      //   break
+      case 'tool-input-start':
+        this.toolCallHandler.handleToolInputStart(chunk)
+        break
+      case 'tool-input-delta':
+        this.toolCallHandler.handleToolInputDelta(chunk)
+        break
+      case 'tool-input-end':
+        this.toolCallHandler.handleToolInputEnd(chunk)
+        break
 
-      // case 'tool-input-delta':
-      //   this.toolCallHandler.handleToolCallCreated(chunk)
-      //   break
       case 'tool-call':
         this.toolCallHandler.handleToolCall(chunk)
         break
@@ -245,25 +306,6 @@ export class AiSdkToChunkAdapter {
         this.toolCallHandler.handleToolResult(chunk)
         break
 
-      // === 步骤相关事件 ===
-      // case 'start':
-      //   this.onChunk({
-      //     type: ChunkType.LLM_RESPONSE_CREATED
-      //   })
-      //   break
-      // case 'start-step':
-      //   this.onChunk({
-      //     type: ChunkType.BLOCK_CREATED
-      //   })
-      //   break
-      // case 'step-finish':
-      //   this.onChunk({
-      //     type: ChunkType.TEXT_COMPLETE,
-      //     text: final.text || '' // TEXT_COMPLETE 需要 text 字段
-      //   })
-      //   final.text = ''
-      //   break
-
       case 'finish-step': {
         const { providerMetadata, finishReason } = chunk
         // googel web search
@@ -272,24 +314,25 @@ export class AiSdkToChunkAdapter {
             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
             llm_web_search: {
               results: providerMetadata.google?.groundingMetadata as WebSearchResults,
-              source: WebSearchSource.GEMINI
+              source: WEB_SEARCH_SOURCE.GEMINI
             }
           })
         } else if (final.webSearchResults.length) {
-          const providerName = Object.keys(providerMetadata || {})[0]
+          const providerName: string | undefined = Object.keys(providerMetadata || {})[0] || this.providerId
           const sourceMap: Record<string, WebSearchSource> = {
-            [WebSearchSource.OPENAI]: WebSearchSource.OPENAI_RESPONSE,
-            [WebSearchSource.ANTHROPIC]: WebSearchSource.ANTHROPIC,
-            [WebSearchSource.OPENROUTER]: WebSearchSource.OPENROUTER,
-            [WebSearchSource.GEMINI]: WebSearchSource.GEMINI,
+            [WEB_SEARCH_SOURCE.OPENAI]: WEB_SEARCH_SOURCE.OPENAI_RESPONSE,
+            [WEB_SEARCH_SOURCE.ANTHROPIC]: WEB_SEARCH_SOURCE.ANTHROPIC,
+            [WEB_SEARCH_SOURCE.OPENROUTER]: WEB_SEARCH_SOURCE.OPENROUTER,
+            [WEB_SEARCH_SOURCE.GEMINI]: WEB_SEARCH_SOURCE.GEMINI,
             // [WebSearchSource.PERPLEXITY]: WebSearchSource.PERPLEXITY,
-            [WebSearchSource.QWEN]: WebSearchSource.QWEN,
-            [WebSearchSource.HUNYUAN]: WebSearchSource.HUNYUAN,
-            [WebSearchSource.ZHIPU]: WebSearchSource.ZHIPU,
-            [WebSearchSource.GROK]: WebSearchSource.GROK,
-            [WebSearchSource.WEBSEARCH]: WebSearchSource.WEBSEARCH
+            [WEB_SEARCH_SOURCE.QWEN]: WEB_SEARCH_SOURCE.QWEN,
+            [WEB_SEARCH_SOURCE.HUNYUAN]: WEB_SEARCH_SOURCE.HUNYUAN,
+            [WEB_SEARCH_SOURCE.ZHIPU]: WEB_SEARCH_SOURCE.ZHIPU,
+            [WEB_SEARCH_SOURCE.GROK]: WEB_SEARCH_SOURCE.GROK,
+            xai: WEB_SEARCH_SOURCE.GROK,
+            [WEB_SEARCH_SOURCE.WEBSEARCH]: WEB_SEARCH_SOURCE.WEBSEARCH
           }
-          const source = sourceMap[providerName] || WebSearchSource.AISDK
+          const source = (providerName && sourceMap[providerName]) || WEB_SEARCH_SOURCE.AISDK
 
           this.onChunk({
             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,

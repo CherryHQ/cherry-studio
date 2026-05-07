@@ -1,7 +1,9 @@
 import type { Client } from '@libsql/client'
 import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
+import { DATA_PATH } from '@main/config'
 import Embeddings from '@main/knowledge/embedjs/embeddings/Embeddings'
+import { makeSureDirExists } from '@main/utils'
 import type {
   AddMemoryOptions,
   AssistantMessage,
@@ -13,6 +15,7 @@ import type {
 } from '@types'
 import crypto from 'crypto'
 import { app } from 'electron'
+import fs from 'fs'
 import path from 'path'
 
 import { MemoryQueries } from './queries'
@@ -65,10 +68,25 @@ export class MemoryService {
 
   public static reload(): MemoryService {
     if (MemoryService.instance) {
-      MemoryService.instance.close()
+      void MemoryService.instance.close()
     }
     MemoryService.instance = new MemoryService()
     return MemoryService.instance
+  }
+
+  /**
+   * Migrate the memory database from the old path to the new path
+   * If the old memory database exists, rename it to the new path
+   */
+  public migrateMemoryDb(): void {
+    const oldMemoryDbPath = path.join(app.getPath('userData'), 'memories.db')
+    const memoryDbPath = path.join(DATA_PATH, 'Memory', 'memories.db')
+
+    makeSureDirExists(path.dirname(memoryDbPath))
+
+    if (fs.existsSync(oldMemoryDbPath)) {
+      fs.renameSync(oldMemoryDbPath, memoryDbPath)
+    }
   }
 
   /**
@@ -80,11 +98,12 @@ export class MemoryService {
     }
 
     try {
-      const userDataPath = app.getPath('userData')
-      const dbPath = path.join(userDataPath, 'memories.db')
+      const memoryDbPath = path.join(DATA_PATH, 'Memory', 'memories.db')
+
+      makeSureDirExists(path.dirname(memoryDbPath))
 
       this.db = createClient({
-        url: `file:${dbPath}`,
+        url: `file:${memoryDbPath}`,
         intMode: 'number'
       })
 
@@ -168,12 +187,13 @@ export class MemoryService {
 
             // Generate embedding if model is configured
             let embedding: number[] | null = null
-            const embedderApiClient = this.config?.embedderApiClient
-            if (embedderApiClient) {
+            const embeddingModel = this.config?.embeddingModel
+
+            if (embeddingModel) {
               try {
                 embedding = await this.generateEmbedding(trimmedMemory)
                 logger.debug(
-                  `Generated embedding for restored memory with dimension: ${embedding.length} (target: ${this.config?.embedderDimensions || MemoryService.UNIFIED_DIMENSION})`
+                  `Generated embedding for restored memory with dimension: ${embedding.length} (target: ${this.config?.embeddingDimensions || MemoryService.UNIFIED_DIMENSION})`
                 )
               } catch (error) {
                 logger.error('Failed to generate embedding for restored memory:', error as Error)
@@ -211,11 +231,11 @@ export class MemoryService {
 
         // Generate embedding if model is configured
         let embedding: number[] | null = null
-        if (this.config?.embedderApiClient) {
+        if (this.config?.embeddingModel) {
           try {
             embedding = await this.generateEmbedding(trimmedMemory)
             logger.debug(
-              `Generated embedding with dimension: ${embedding.length} (target: ${this.config?.embedderDimensions || MemoryService.UNIFIED_DIMENSION})`
+              `Generated embedding with dimension: ${embedding.length} (target: ${this.config?.embeddingDimensions || MemoryService.UNIFIED_DIMENSION})`
             )
 
             // Check for similar memories using vector similarity
@@ -300,10 +320,15 @@ export class MemoryService {
 
     try {
       // If we have an embedder model configured, use vector search
-      if (this.config?.embedderApiClient) {
+      if (this.config?.embeddingModel) {
         try {
           const queryEmbedding = await this.generateEmbedding(query)
-          return await this.hybridSearch(query, queryEmbedding, { limit, userId, agentId, filters })
+          const vectorResult = await this.hybridSearch(query, queryEmbedding, { limit, userId, agentId })
+          // Only return vector results if they exist; otherwise fall through to text search
+          if (vectorResult.memories.length > 0) {
+            return vectorResult
+          }
+          logger.info('Vector search returned no results, falling back to text search')
         } catch (error) {
           logger.error('Vector search failed, falling back to text search:', error as Error)
         }
@@ -323,7 +348,7 @@ export class MemoryService {
       }
 
       if (agentId) {
-        conditions.push('m.agent_id = ?')
+        conditions.push('(m.agent_id = ? OR m.agent_id IS NULL)')
         params.push(agentId)
       }
 
@@ -388,7 +413,7 @@ export class MemoryService {
       }
 
       if (agentId) {
-        conditions.push('m.agent_id = ?')
+        conditions.push('(m.agent_id = ? OR m.agent_id IS NULL)')
         params.push(agentId)
       }
 
@@ -497,11 +522,11 @@ export class MemoryService {
 
       // Generate new embedding if model is configured
       let embedding: number[] | null = null
-      if (this.config?.embedderApiClient) {
+      if (this.config?.embeddingModel) {
         try {
           embedding = await this.generateEmbedding(memory)
           logger.debug(
-            `Updated embedding with dimension: ${embedding.length} (target: ${this.config?.embedderDimensions || MemoryService.UNIFIED_DIMENSION})`
+            `Updated embedding with dimension: ${embedding.length} (target: ${this.config?.embeddingDimensions || MemoryService.UNIFIED_DIMENSION})`
           )
         } catch (error) {
           logger.error('Failed to generate embedding for update:', error as Error)
@@ -681,7 +706,7 @@ export class MemoryService {
    */
   public async close(): Promise<void> {
     if (this.db) {
-      await this.db.close()
+      this.db.close()
       this.db = null
       this.isInitialized = false
     }
@@ -710,21 +735,22 @@ export class MemoryService {
    * Generate embedding for text
    */
   private async generateEmbedding(text: string): Promise<number[]> {
-    if (!this.config?.embedderApiClient) {
+    if (!this.config?.embeddingModel) {
       throw new Error('Embedder model not configured')
     }
 
     try {
       // Initialize embeddings instance if needed
       if (!this.embeddings) {
-        if (!this.config.embedderApiClient) {
+        if (!this.config.embeddingApiClient) {
           throw new Error('Embedder provider not configured')
         }
 
         this.embeddings = new Embeddings({
-          embedApiClient: this.config.embedderApiClient,
-          dimensions: this.config.embedderDimensions
+          embedApiClient: this.config.embeddingApiClient,
+          dimensions: this.config.embeddingDimensions
         })
+
         await this.embeddings.init()
       }
 
@@ -757,7 +783,7 @@ export class MemoryService {
   ): Promise<SearchResult> {
     if (!this.db) throw new Error('Database not initialized')
 
-    const { limit = 10, threshold = 0.5, userId } = options
+    const { limit = 10, threshold = 0.5, userId, agentId } = options
 
     try {
       const queryVector = this.embeddingToVector(queryEmbedding)
@@ -771,6 +797,11 @@ export class MemoryService {
       if (userId) {
         conditions.push('m.user_id = ?')
         params.push(userId)
+      }
+
+      if (agentId) {
+        conditions.push('(m.agent_id = ? OR m.agent_id IS NULL)')
+        params.push(agentId)
       }
 
       const whereClause = conditions.join(' AND ')

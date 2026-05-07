@@ -20,8 +20,12 @@ const UpdateAppButton: FC = () => {
     return null
   }
 
+  if (update.ignore) {
+    return null
+  }
+
   const handleOpenUpdateDialog = () => {
-    UpdateDialogPopup.show({ releaseInfo: update.info || null })
+    void UpdateDialogPopup.show({ releaseInfo: update.info || null })
   }
 
   return (
@@ -30,7 +34,7 @@ const UpdateAppButton: FC = () => {
         className="nodrag"
         onClick={handleOpenUpdateDialog}
         icon={<SyncOutlined />}
-        color="orange"
+        color="primary"
         variant="outlined"
         size="small">
         {t('button.update_available')}
@@ -44,9 +48,6 @@ const Container = styled.div``
 const UpdateButton = styled(Button)`
   border-radius: 24px;
   font-size: 12px;
-  @media (max-width: 1000px) {
-    display: none;
-  }
 `
 
 export default UpdateAppButton

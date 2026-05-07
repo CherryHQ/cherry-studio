@@ -88,8 +88,8 @@ export const onWebviewStateChange = (appId: string, listener: WebviewStateListen
   }
   listeners.add(listener)
   return () => {
-    listeners!.delete(listener)
-    if (listeners!.size === 0) appListeners.delete(appId)
+    listeners.delete(listener)
+    if (listeners.size === 0) appListeners.delete(appId)
   }
 }
 

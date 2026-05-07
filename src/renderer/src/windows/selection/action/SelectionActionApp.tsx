@@ -59,10 +59,10 @@ const SelectionActionApp: FC = () => {
 
   useEffect(() => {
     if (isAutoPin) {
-      window.api.selection.pinActionWindow(true)
+      void window.api.selection.pinActionWindow(true)
       setIsPinned(true)
     } else if (!isActionLoaded.current) {
-      window.api.selection.pinActionWindow(false)
+      void window.api.selection.pinActionWindow(false)
       setIsPinned(false)
     }
   }, [isAutoPin])
@@ -72,7 +72,7 @@ const SelectionActionApp: FC = () => {
   }, [isAutoClose, isPinned])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || defaultLanguage)
+    void i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
 
   useEffect(() => {
@@ -119,11 +119,11 @@ const SelectionActionApp: FC = () => {
   }, [actionWindowOpacity])
 
   const handleMinimize = () => {
-    window.api.selection.minimizeActionWindow()
+    void window.api.selection.minimizeActionWindow()
   }
 
   const handleClose = () => {
-    window.api.selection.closeActionWindow()
+    void window.api.selection.closeActionWindow()
   }
 
   /**
@@ -131,7 +131,7 @@ const SelectionActionApp: FC = () => {
    */
   const togglePin = () => {
     setIsPinned(!isPinned)
-    window.api.selection.pinActionWindow(!isPinned)
+    void window.api.selection.pinActionWindow(!isPinned)
   }
 
   const handleWindowFocus = () => {

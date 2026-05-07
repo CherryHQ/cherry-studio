@@ -4,6 +4,7 @@ export interface StreamAbortController {
   abortController: AbortController
   registerAbortHandler: (handler: StreamAbortHandler) => void
   clearAbortTimeout: () => void
+  dispose: () => void
 }
 
 export const STREAM_TIMEOUT_REASON = 'stream timeout'
@@ -40,6 +41,15 @@ export const createStreamAbortController = (options: CreateStreamAbortController
 
   signal.addEventListener('abort', handleAbort, { once: true })
 
+  let disposed = false
+
+  const dispose = () => {
+    if (disposed) return
+    disposed = true
+    clearAbortTimeout()
+    signal.removeEventListener('abort', handleAbort)
+  }
+
   const registerAbortHandler = (handler: StreamAbortHandler) => {
     abortHandler = handler
 
@@ -59,6 +69,7 @@ export const createStreamAbortController = (options: CreateStreamAbortController
   return {
     abortController,
     registerAbortHandler,
-    clearAbortTimeout
+    clearAbortTimeout,
+    dispose
   }
 }

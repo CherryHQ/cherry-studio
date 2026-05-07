@@ -67,9 +67,13 @@ export class ChatCompletionService {
 
     const modelId = modelValidation.modelId!
 
+    // If multiple API keys are configured (comma-separated), use the first one.
+    // Matches the main-process convention in OpenClawService.
+    const apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
+
     const client = new OpenAI({
       baseURL: provider.apiHost,
-      apiKey: provider.apiKey
+      apiKey
     })
 
     return {
@@ -89,7 +93,7 @@ export class ChatCompletionService {
       }
     }
 
-    const providerContext = await this.resolveProviderContext(request.model!)
+    const providerContext = await this.resolveProviderContext(request.model)
     if (!providerContext.ok) {
       return {
         status: 'model_error',
@@ -128,26 +132,15 @@ export class ChatCompletionService {
   validateRequest(request: ChatCompletionCreateParams): ValidationResult {
     const errors: string[] = []
 
-    // Validate messages
+    // Only validate minimal structure required for routing.
+    // Detailed message validation is delegated to the upstream provider.
     if (!request.messages) {
       errors.push('Messages array is required')
     } else if (!Array.isArray(request.messages)) {
       errors.push('Messages must be an array')
     } else if (request.messages.length === 0) {
       errors.push('Messages array cannot be empty')
-    } else {
-      // Validate each message
-      request.messages.forEach((message, index) => {
-        if (!message.role) {
-          errors.push(`Message ${index}: role is required`)
-        }
-        if (!message.content) {
-          errors.push(`Message ${index}: content is required`)
-        }
-      })
     }
-
-    // Validate optional parameters
 
     return {
       isValid: errors.length === 0,

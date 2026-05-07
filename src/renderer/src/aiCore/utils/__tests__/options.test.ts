@@ -45,7 +45,8 @@ vi.mock('@cherrystudio/ai-core/provider', async (importOriginal) => {
           'gateway',
           'aihubmix',
           'newapi',
-          'ollama'
+          'ollama',
+          'poe'
         ]
         if (customProviders.includes(id)) {
           return { success: true, data: id }
@@ -60,10 +61,8 @@ vi.mock('@cherrystudio/ai-core/provider', async (importOriginal) => {
 
 vi.mock('@renderer/config/models', async (importOriginal) => ({
   ...(await importOriginal()),
-  isOpenAIModel: vi.fn((model) => model.id.includes('gpt') || model.id.includes('o1')),
   isQwenMTModel: vi.fn(() => false),
   isSupportFlexServiceTierModel: vi.fn(() => true),
-  isOpenAILLMModel: vi.fn(() => true),
   SYSTEM_MODELS: {
     defaultModel: [
       { id: 'default-1', name: 'Default 1' },
@@ -433,6 +432,53 @@ describe('options utils', () => {
       })
     })
 
+    describe('Poe provider', () => {
+      const poeProvider: Provider = {
+        id: SystemProviderIds.poe,
+        name: 'Poe',
+        type: 'openai',
+        apiKey: 'test-key',
+        apiHost: 'https://api.poe.com/v1',
+        isSystem: true
+      } as Provider
+
+      const poeModel: Model = {
+        id: 'openai/gpt-4',
+        name: 'GPT-4',
+        provider: SystemProviderIds.poe
+      } as Model
+
+      it('should deep merge Poe extra_body reasoning and web search parameters', async () => {
+        const { getReasoningEffort } = await import('../reasoning')
+        const { getWebSearchParams } = await import('../websearch')
+
+        vi.mocked(getReasoningEffort).mockReturnValue({
+          extra_body: {
+            reasoning_effort: 'medium'
+          }
+        })
+        vi.mocked(getWebSearchParams).mockReturnValue({
+          extra_body: {
+            web_search: true
+          }
+        })
+
+        const result = buildProviderOptions(mockAssistant, poeModel, poeProvider, {
+          enableReasoning: true,
+          enableWebSearch: true,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions).toHaveProperty('poe')
+        expect(result.providerOptions.poe).toMatchObject({
+          extra_body: {
+            reasoning_effort: 'medium',
+            web_search: true
+          }
+        })
+      })
+    })
+
     describe('Custom parameters', () => {
       it('should merge custom provider-specific parameters', async () => {
         const { getCustomParameters } = await import('../reasoning')
@@ -464,7 +510,8 @@ describe('options utils', () => {
             custom_param: 'custom_value',
             another_param: 123,
             serviceTier: undefined,
-            textVerbosity: undefined
+            textVerbosity: undefined,
+            store: false
           }
         })
       })
@@ -1076,13 +1123,132 @@ describe('options utils', () => {
         })
       })
 
+      it.each([
+        { providerId: 'newapi', providerName: 'NewAPI' },
+        { providerId: 'aihubmix', providerName: 'AiHubMix' },
+        { providerId: 'cherryin', providerName: 'CherryIN' }
+      ])(
+        'should route Gemini models to google providerOptions through $providerName',
+        async ({ providerId, providerName }) => {
+          const { getCustomParameters } = await import('../reasoning')
+          vi.mocked(getCustomParameters).mockReturnValue({
+            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+            imageConfig: { aspectRatio: '3:4', imageSize: '4K' }
+          })
+
+          const provider: Provider = {
+            id: providerId,
+            name: providerName,
+            type: 'openai',
+            models: [] as Model[]
+          } as Provider
+
+          const geminiModel: Model = {
+            id: 'gemini-3.1-flash-image-preview',
+            name: 'Gemini 3.1 Flash Image Preview',
+            provider: providerId
+          } as Model
+
+          const result = buildProviderOptions(mockAssistant, geminiModel, provider, {
+            enableReasoning: false,
+            enableWebSearch: false,
+            enableGenerateImage: true
+          })
+
+          expect(result.providerOptions).toHaveProperty('google')
+          expect(result.providerOptions).not.toHaveProperty(providerId)
+          expect(result.providerOptions.google).toMatchObject({
+            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+            imageConfig: { aspectRatio: '3:4', imageSize: '4K' }
+          })
+        }
+      )
+
       // Note: For proxy providers like aihubmix/newapi, users should write AI SDK provider ID (google/anthropic)
       // instead of the Cherry Studio provider ID for custom parameters to work correctly
+
+      // model.endpoint_type takes priority over the short-name heuristic so the providerOptions key
+      // stays aligned with the SDK language-model class each proxy builds. Covers CherryIN's
+      // mixed-routing models (e.g. `minimax/minimax-m2.7` using the Anthropic endpoint) and
+      // NewAPI's endpoint_type-driven routing.
+      it.each([
+        {
+          providerId: 'cherryin',
+          modelId: 'minimax/minimax-m2.7',
+          endpointType: 'anthropic' as const,
+          expectedKey: 'anthropic'
+        },
+        {
+          providerId: 'cherryin',
+          modelId: 'custom-id',
+          endpointType: 'gemini' as const,
+          expectedKey: 'google'
+        },
+        {
+          providerId: 'cherryin',
+          modelId: 'gpt-5',
+          endpointType: 'openai-response' as const,
+          expectedKey: 'openai'
+        },
+        {
+          providerId: 'cherryin',
+          modelId: 'qwen-max',
+          endpointType: 'openai' as const,
+          expectedKey: 'openai-compatible'
+        },
+        {
+          providerId: 'newapi',
+          modelId: 'proxy/model',
+          endpointType: 'anthropic' as const,
+          expectedKey: 'anthropic'
+        },
+        {
+          providerId: 'newapi',
+          modelId: 'proxy/model',
+          endpointType: 'openai' as const,
+          expectedKey: 'openai-compatible'
+        }
+      ])(
+        'should honor model.endpoint_type=$endpointType for $providerId and produce providerOptions.$expectedKey',
+        async ({ providerId, modelId, endpointType, expectedKey }) => {
+          const { getCustomParameters } = await import('../reasoning')
+          vi.mocked(getCustomParameters).mockReturnValue({
+            customEndpointParam: 'custom_value'
+          })
+
+          const provider: Provider = {
+            id: providerId,
+            name: providerId,
+            type: 'openai',
+            models: [] as Model[]
+          } as Provider
+
+          const model: Model = {
+            id: modelId,
+            name: modelId,
+            provider: providerId,
+            endpoint_type: endpointType
+          } as Model
+
+          const result = buildProviderOptions(mockAssistant, model, provider, {
+            enableReasoning: false,
+            enableWebSearch: false,
+            enableGenerateImage: false
+          })
+
+          expect(result.providerOptions).toHaveProperty(expectedKey)
+          expect(result.providerOptions).not.toHaveProperty(providerId)
+          expect(result.providerOptions[expectedKey]).toMatchObject({
+            customEndpointParam: 'custom_value'
+          })
+        }
+      )
 
       it('should handle cherryin fallback to openai-compatible with custom parameters', async () => {
         const { getCustomParameters } = await import('../reasoning')
 
-        // Mock cherryin provider that falls back to openai-compatible (default case)
+        // Mock cherryin provider with a non-Gemini/Claude/GPT/Grok model that falls back
+        // to openai-compatible via buildAIGatewayOptions
         const cherryinProvider = {
           id: 'cherryin',
           name: 'Cherry In',
@@ -1109,12 +1275,113 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        // When cherryin falls back to default case, it should use rawProviderId (cherryin)
-        // User's cherryin params should merge with the provider options
-        expect(result.providerOptions).toHaveProperty('cherryin')
-        expect(result.providerOptions.cherryin).toMatchObject({
+        // Non-Gemini/Claude/GPT/Grok models fall back to openai-compatible via buildAIGatewayOptions.
+        // User's custom params (not matching any AI SDK provider ID) merge into the primary bucket.
+        expect(result.providerOptions).toHaveProperty('openai-compatible')
+        expect(result.providerOptions).not.toHaveProperty('cherryin')
+        expect(result.providerOptions['openai-compatible']).toMatchObject({
           customCherryinOption: 'cherryin_value'
         })
+      })
+
+      it('should auto-convert reasoning_effort to reasoningEffort for openai-compatible provider (issue #11987)', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        // Simulate Volcano Engine (Doubao) or similar OpenAI-compatible provider
+        const volcengineProvider = {
+          id: 'openai-compatible',
+          name: 'Volcano Engine',
+          type: 'openai',
+          apiKey: 'test-key',
+          apiHost: 'https://ark.cn-beijing.volces.com/api/v3',
+          models: [] as Model[]
+        } as Provider
+
+        const doubaoModel: Model = {
+          id: 'doubao-seed-1.8-thinking',
+          name: 'Doubao Seed 1.8 Thinking',
+          provider: 'openai-compatible'
+        } as Model
+
+        // User configures reasoning_effort (snake_case) following API docs
+        vi.mocked(getCustomParameters).mockReturnValue({
+          reasoning_effort: 'high'
+        })
+
+        const result = buildProviderOptions(mockAssistant, doubaoModel, volcengineProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        // buildProviderOptions converts reasoning_effort → reasoningEffort for openai-compatible
+        expect(result.providerOptions['openai-compatible']).toHaveProperty('reasoningEffort')
+        expect(result.providerOptions['openai-compatible'].reasoningEffort).toBe('high')
+        expect(result.providerOptions['openai-compatible']).not.toHaveProperty('reasoning_effort')
+      })
+
+      it('should NOT convert reasoning_effort for non-openai-compatible providers', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        const openaiProvider: Provider = {
+          id: SystemProviderIds.openai,
+          name: 'OpenAI',
+          type: 'openai-response',
+          apiKey: 'test-key',
+          apiHost: 'https://api.openai.com/v1',
+          isSystem: true
+        } as Provider
+
+        // User configures reasoning_effort for native OpenAI provider
+        vi.mocked(getCustomParameters).mockReturnValue({
+          reasoning_effort: 'high'
+        })
+
+        const result = buildProviderOptions(mockAssistant, mockModel, openaiProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        // Native OpenAI provider should keep reasoning_effort as-is
+        expect(result.providerOptions.openai).toHaveProperty('reasoning_effort')
+        expect(result.providerOptions.openai.reasoning_effort).toBe('high')
+        expect(result.providerOptions.openai).not.toHaveProperty('reasoningEffort')
+      })
+
+      it('should not overwrite existing reasoningEffort when converting for openai-compatible', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        const volcengineProvider = {
+          id: 'openai-compatible',
+          name: 'Volcano Engine',
+          type: 'openai',
+          apiKey: 'test-key',
+          apiHost: 'https://ark.cn-beijing.volces.com/api/v3',
+          models: [] as Model[]
+        } as Provider
+
+        const doubaoModel: Model = {
+          id: 'doubao-seed-1.8-thinking',
+          name: 'Doubao Seed 1.8 Thinking',
+          provider: 'openai-compatible'
+        } as Model
+
+        // User configures both forms
+        vi.mocked(getCustomParameters).mockReturnValue({
+          reasoningEffort: 'low',
+          reasoning_effort: 'high'
+        })
+
+        const result = buildProviderOptions(mockAssistant, doubaoModel, volcengineProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        // Explicit reasoningEffort should be preserved, reasoning_effort removed
+        expect(result.providerOptions['openai-compatible'].reasoningEffort).toBe('low')
+        expect(result.providerOptions['openai-compatible']).not.toHaveProperty('reasoning_effort')
       })
 
       it('should handle cross-provider configurations', async () => {

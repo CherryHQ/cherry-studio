@@ -5,13 +5,14 @@
 
 <!--
 
-⚠️ Important: Redux/IndexedDB Data-Changing Feature PRs Temporarily On Hold ⚠️
+🚨 Branch Strategy Change (Effective April 3, 2026) 🚨
 
-Please note: For our current development cycle, we are not accepting feature Pull Requests that introduce changes to Redux data models or IndexedDB schemas.
+The `main` branch is now under CODE FREEZE.
 
-While we value your contributions, PRs of this nature will be blocked without merge. We welcome all other contributions (bug fixes, perf enhancements, docs, etc.). Thank you!
+- main branch: Only accepts critical bug fixes via `hotfix/*` branches. Fix PRs must be minimal in scope and must not include any refactoring code.
+- v2 branch: All new features, refactoring, and optimizations should be submitted to the `v2` branch.
 
-Once version 2.0.0 is released, we will resume reviewing feature PRs.
+If you are submitting a bug fix to main, please ensure your PR is from a `hotfix/*` branch.
 
 -->
 
@@ -52,13 +53,15 @@ Approvers are expected to review this list.
 - [ ] Code: [Write code that humans can understand](https://en.wikiquote.org/wiki/Martin_Fowler#code-for-humans) and [Keep it simple](https://en.wikipedia.org/wiki/KISS_principle)
 - [ ] Refactor: You have [left the code cleaner than you found it (Boy Scout Rule)](https://learning.oreilly.com/library/view/97-things-every/9780596809515/ch08.html)
 - [ ] Upgrade: Impact of this change on upgrade flows was considered and addressed if required
-- [ ] Documentation: A [user-guide update](https://docs.cherry-ai.com) was considered and is present (link) or not required. You want a user-guide update if it's a user facing feature.
+- [ ] Documentation: A [user-guide update](https://docs.cherry-ai.com) was considered and is present (link) or not required. Check this only when the PR introduces or changes a user-facing feature or behavior.
+- [ ] Self-review: I have reviewed my own code (e.g., via [`/gh-pr-review`](/.claude/skills/gh-pr-review/SKILL.md), `gh pr diff`, or GitHub UI) before requesting review from others
 
 ### Release note
 
 <!--  Write your release note:
 1. Enter your extended release note in the below block. If the PR requires additional action from users switching to the new release, include the string "action required".
 2. If no release note is required, just write "NONE".
+3. Only include user-facing changes (new features, bug fixes visible to users, UI changes, behavior changes). For CI, maintenance, internal refactoring, build tooling, or other non-user-facing work, write "NONE".
 -->
 
 ```release-note

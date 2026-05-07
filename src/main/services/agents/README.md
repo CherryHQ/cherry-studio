@@ -39,22 +39,22 @@ const agent = await agentService.createAgent({
 
 ```bash
 # Apply schema changes
-yarn agents:generate
+pnpm agents:generate
 
 # Quick development sync
-yarn agents:push
+pnpm agents:push
 
 # Database tools
-yarn agents:studio    # Open Drizzle Studio
-yarn agents:health    # Health check
-yarn agents:drop      # Reset database
+pnpm agents:studio    # Open Drizzle Studio
+pnpm agents:health    # Health check
+pnpm agents:drop      # Reset database
 ```
 
 ## Workflow
 
 1. **Edit schema** in `/database/schema/`
-2. **Generate migration** with `yarn agents:generate`
-3. **Test changes** with `yarn agents:health`
+2. **Generate migration** with `pnpm agents:generate`
+3. **Test changes** with `pnpm agents:health`
 4. **Deploy** - migrations apply automatically
 
 ## Services
@@ -69,13 +69,13 @@ yarn agents:drop      # Reset database
 
 ```bash
 # Check status
-yarn agents:health
+pnpm agents:health
 
 # Apply migrations
-yarn agents:migrate
+pnpm agents:migrate
 
 # Reset completely
-yarn agents:reset --yes
+pnpm agents:reset --yes
 ```
 
 The simplified migration system reduced complexity from 463 to ~30 lines while maintaining all functionality through Drizzle's native migration system.

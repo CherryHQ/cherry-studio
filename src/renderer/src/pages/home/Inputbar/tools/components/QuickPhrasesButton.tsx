@@ -50,7 +50,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
   )
 
   useEffect(() => {
-    loadQuickListPhrases()
+    void loadQuickListPhrases()
   }, [loadQuickListPhrases])
 
   const handlePhraseSelect = useCallback(
@@ -139,7 +139,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
     ]
     if (formData.location === 'assistant') {
       // 添加到助手的 regularPhrases
-      await updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
+      updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
     } else {
       // 添加到全局 Quick Phrases
       await QuickPhraseService.add(formData)

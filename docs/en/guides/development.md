@@ -2,53 +2,79 @@
 
 ## IDE Setup
 
+### VSCode like
+
 - Editor: [Cursor](https://www.cursor.com/), etc. Any VS Code compatible editor.
-- Linter: [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
-- Formatter: [Biome](https://marketplace.visualstudio.com/items?itemName=biomejs.biome)
+- Recommended extensions are listed in [`.vscode/extensions.json`](/.vscode/extensions.json).
+
+### Zed
+
+1. Install extensions: [Biome](https://github.com/biomejs/biome-zed), [oxc](https://github.com/oxc-project/zed-oxc)
+2. Copy the example settings file to your local Zed config:
+   ```bash
+   cp .zed/settings.json.example .zed/settings.json
+   ```
+3. Customize `.zed/settings.json` as needed (it is git-ignored).
+
+## Windows: Enable Symlinks
+
+This project uses symlinks to synchronize files such as AGENTS.md and skills. Windows developers must enable symlink support before cloning:
+
+1. **Enable Developer Mode** (Settings → Update & Security → For developers), or grant `SeCreateSymbolicLinkPrivilege` via `secpol.msc`.
+2. **Configure Git**:
+   ```bash
+   git config --global core.symlinks true
+   ```
+3. Clone (or re-clone) the repository after enabling symlink support.
 
 ## Project Setup
 
 ### Install
 
 ```bash
-yarn
+pnpm install
 ```
 
 ### Development
 
 ### Setup Node.js
 
-Download and install [Node.js v22.x.x](https://nodejs.org/en/download)
+The required Node.js version is defined in `.node-version`. Use a version manager like [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm) to install it automatically:
 
-### Setup Yarn
+```bash
+nvm install
+```
+
+### Setup pnpm
+
+The pnpm version is locked in the `packageManager` field of `package.json`. Just enable corepack and it will use the correct version automatically:
 
 ```bash
 corepack enable
-corepack prepare yarn@4.9.1 --activate
 ```
 
 ### Install Dependencies
 
 ```bash
-yarn install
+pnpm install
 ```
 
 ### ENV
 
 ```bash
-copy .env.example .env
+cp .env.example .env
 ```
 
 ### Start
 
 ```bash
-yarn dev
+pnpm dev
 ```
 
 ### Debug
 
 ```bash
-yarn debug
+pnpm debug
 ```
 
 Then input chrome://inspect in browser
@@ -56,18 +82,18 @@ Then input chrome://inspect in browser
 ### Test
 
 ```bash
-yarn test
+pnpm test
 ```
 
 ### Build
 
 ```bash
 # For windows
-$ yarn build:win
+$ pnpm build:win
 
 # For macOS
-$ yarn build:mac
+$ pnpm build:mac
 
 # For Linux
-$ yarn build:linux
+$ pnpm build:linux
 ```

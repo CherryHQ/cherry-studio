@@ -18,7 +18,7 @@ if (!['patch', 'minor', 'major'].includes(versionType)) {
 }
 
 // 更新版本
-exec(`yarn version ${versionType} --immediate`)
+exec(`pnpm version ${versionType}`)
 
 // 读取更新后的 package.json 获取新版本号
 const updatedPackageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'))
