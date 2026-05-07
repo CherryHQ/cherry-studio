@@ -843,6 +843,9 @@ export function getGeminiReasoningParams(
   const includeThoughts = reasoningEffort !== 'none'
 
   if (isHostedGemma4ThinkingModel(model)) {
+    // Hosted Gemma 4 does not expose a distinct hard-off mode on the Gemini API.
+    // We only surface minimal/high in the UI and collapse legacy or unexpected
+    // `none` inputs to `minimal` for compatibility.
     const isHighThinking = reasoningEffort === 'high' || reasoningEffort === 'xhigh'
     thinkingLevel = isHighThinking ? 'high' : 'minimal'
 

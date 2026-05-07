@@ -69,6 +69,9 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   gemini3_flash: ['minimal', 'low', 'medium', 'high'] as const,
   gemini3_pro: ['low', 'high'] as const,
   gemini3_1_pro: ['low', 'medium', 'high'] as const,
+  // Google-hosted Gemma 4 documents `minimal` as the closest supported near-off
+  // setting for most requests, but does not guarantee thinking is fully disabled.
+  // Keep the formal UI options aligned with the API guarantee and omit `none`.
   gemma4_hosted: ['minimal', 'high'] as const,
   qwen: ['low', 'medium', 'high'] as const,
   qwen_thinking: ['low', 'medium', 'high'] as const,
