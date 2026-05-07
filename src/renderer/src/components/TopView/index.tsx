@@ -1,7 +1,6 @@
 // import { loggerService } from '@logger'
 import { Box } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import TopViewMiniAppContainer from '@renderer/components/MiniApp/TopViewMiniAppContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { message, Modal } from 'antd'
 import type { PropsWithChildren } from 'react'
@@ -101,7 +100,6 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
       {children}
       {messageContextHolder}
       {modalContextHolder}
-      <TopViewMiniAppContainer />
       {elements.map(({ element: Element, id }) => (
         <FullScreenContainer key={`TOPVIEW_${id}`}>
           {typeof Element === 'function' ? <Element /> : Element}

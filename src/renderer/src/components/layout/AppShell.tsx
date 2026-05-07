@@ -3,22 +3,12 @@ import '@renderer/databases'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import { Activity } from 'react'
 
 import { useTabs } from '../../hooks/useTabs'
 import Sidebar from '../app/Sidebar'
+import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
-
-// Mock Webview component (TODO: Replace with actual MiniApp/Webview)
-const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean }) => (
-  <Activity mode={isActive ? 'visible' : 'hidden'}>
-    <div className="flex h-full w-full flex-col items-center justify-center bg-background">
-      <div className="mb-2 font-bold text-lg">Webview App</div>
-      <code className="rounded bg-muted p-2">{url}</code>
-    </div>
-  </Activity>
-)
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
@@ -67,12 +57,8 @@ export const AppShell = () => {
                 />
               ))}
 
-            {/* Webview Tabs: Only render non-dormant tabs */}
-            {tabs
-              .filter((t) => t.type === 'webview' && !t.isDormant)
-              .map((tab) => (
-                <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
-              ))}
+            {/* MiniApp keep-alive WebView pool — global, shared across modes */}
+            <MiniAppTabsPool />
           </main>
         </div>
       </div>

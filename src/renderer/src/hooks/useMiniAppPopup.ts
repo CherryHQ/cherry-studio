@@ -7,8 +7,6 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { useCallback, useEffect, useRef } from 'react'
 
-import { useNavbarPosition } from './useNavbar'
-
 const logger = loggerService.withContext('useMiniAppPopup')
 
 const DEFAULT_MAX_KEEP_ALIVE = 10
@@ -72,7 +70,6 @@ export const useMiniAppPopup = () => {
     setMiniAppShow
   } = useMiniApps()
   const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
-  const { isTopNavbar } = useNavbarPosition()
 
   const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE
 
@@ -189,38 +186,35 @@ export const useMiniAppPopup = () => {
     setMiniAppShow(false)
   }, [miniAppShow, openedOneOffMiniApp, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow])
 
-  /** Smart open miniapp that adapts to navbar position */
+  /**
+   * Open a miniapp from a transient config (e.g., a shared link). Adds to the
+   * keep-alive list and navigates to the detail route — the global pool then
+   * renders the webview. Same path for sidebar and top-navbar layouts.
+   */
   const openSmartMiniApp = useCallback(
-    (config: MiniAppInput, keepAlive: boolean = false) => {
+    (config: MiniAppInput) => {
       const app = toMiniApp(config)
-      if (isTopNavbar) {
-        const list = keepAliveRef.current
-        const wasCached = list.some((item: MiniApp) => item.appId === app.appId)
-        if (!wasCached) {
-          // Add temporary app to the keep-alive list so MiniAppPage can find it.
-          // Eviction-on-overflow mirrors openMiniApp(app, true).
-          const next = [...list, app]
-          while (next.length > cap) {
-            const evicted = next.shift()
-            if (evicted) evictMiniApp(evicted.appId)
-          }
-          setOpenedKeepAliveMiniApps(next)
+      const list = keepAliveRef.current
+      const wasCached = list.some((item: MiniApp) => item.appId === app.appId)
+      if (!wasCached) {
+        const next = [...list, app]
+        while (next.length > cap) {
+          const evicted = next.shift()
+          if (evicted) evictMiniApp(evicted.appId)
         }
+        setOpenedKeepAliveMiniApps(next)
+      }
 
-        setCurrentMiniAppId(app.appId)
-        setMiniAppShow(true)
+      setCurrentMiniAppId(app.appId)
+      setMiniAppShow(true)
 
-        // Skip route navigation when the app is already cached: the user is
-        // already on/near that tab, and re-navigating would rerun route effects.
-        if (!wasCached && NavigationService.navigate) {
-          void NavigationService.navigate({ to: `/app/mini-app/${app.appId}` })
-        }
-      } else {
-        // For side navbar, use the traditional popup system
-        openMiniApp(app, keepAlive)
+      // Skip route navigation when the app is already cached: the user is
+      // already on/near that tab, and re-navigating would rerun route effects.
+      if (!wasCached && NavigationService.navigate) {
+        void NavigationService.navigate({ to: `/app/mini-app/${app.appId}` })
       }
     },
-    [isTopNavbar, cap, openMiniApp, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow]
+    [cap, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow]
   )
 
   return {

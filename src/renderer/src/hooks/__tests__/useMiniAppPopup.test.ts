@@ -329,29 +329,7 @@ describe('useMiniAppPopup', () => {
   // === openSmartMiniApp ===
 
   describe('openSmartMiniApp', () => {
-    it('should use traditional popup system for side navbar mode', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('ui.navbar.position', 'left')
-      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', null)
-      MockUseCacheUtils.setCacheValue('mini_app.show', false)
-      const { result } = renderHook(() => useTestMiniAppPopup())
-
-      await act(async () => {
-        result.current.openSmartMiniApp({
-          appId: 'smart-app',
-          name: 'Smart App',
-          url: 'https://smart.app',
-          logo: 'icon'
-        })
-      })
-
-      const oneOffMiniApp = MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')
-      expect(oneOffMiniApp).not.toBeNull()
-      expect(oneOffMiniApp?.appId).toBe('smart-app')
-      expect(mockNavigate).not.toHaveBeenCalled()
-    })
-
-    it('should add to keep-alive + navigate for top navbar mode (new app)', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('ui.navbar.position', 'top')
+    it('should add to keep-alive + navigate for a new app', async () => {
       MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
       MockUseCacheUtils.setCacheValue('mini_app.show', false)
       mockNavigate!.mockResolvedValue(undefined)
@@ -372,8 +350,7 @@ describe('useMiniAppPopup', () => {
       expect(mockNavigate).toHaveBeenCalledWith({ to: '/app/mini-app/top-nav-app' })
     })
 
-    it('should not navigate again if app is already in keep-alive (top navbar)', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('ui.navbar.position', 'top')
+    it('should not navigate again if app is already in keep-alive', async () => {
       const existing = createMiniApp('cached-app')
       MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [existing])
       MockUseCacheUtils.setCacheValue('mini_app.show', false)
@@ -392,18 +369,6 @@ describe('useMiniAppPopup', () => {
       expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('cached-app')
       expect(mockNavigate).not.toHaveBeenCalled()
-    })
-
-    it('should respect keepAlive in side navbar mode', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('ui.navbar.position', 'left')
-      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
-      const { result } = renderHook(() => useTestMiniAppPopup())
-
-      await act(async () => {
-        result.current.openSmartMiniApp({ appId: 'ka-app', name: 'KA App', url: 'https://ka.app', logo: 'icon' }, true)
-      })
-
-      expect(isInKeepAlive('ka-app')).toBe(true)
     })
   })
 
