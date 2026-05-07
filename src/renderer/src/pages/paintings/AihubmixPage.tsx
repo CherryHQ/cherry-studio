@@ -362,14 +362,14 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           }
         } else {
           let requestData: any = {}
-          if (painting.model === 'gpt-image-1') {
+          if (painting.model === 'gpt-image-1' || painting.model === 'gpt-image-2') {
             requestData = {
               prompt,
               model: painting.model,
               size: painting.size === 'auto' ? undefined : painting.size,
               n: painting.n,
               quality: painting.quality,
-              moderation: painting.moderation
+              ...(painting.model === 'gpt-image-1' ? { moderation: painting.moderation } : {})
             }
             url = aihubmixProvider.apiHost + `/v1/images/generations`
             headers = {
