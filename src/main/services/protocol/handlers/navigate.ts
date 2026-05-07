@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac } from '@main/constant'
+import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
 
 const logger = loggerService.withContext('ProtocolService:navigate')
 
@@ -45,31 +46,36 @@ export function handleNavigateProtocolUrl(url: URL) {
   logger.debug('handleNavigateProtocolUrl', { path: fullPath })
 
   if (fullPath.startsWith('/settings/')) {
-    application.get('SettingsWindowService').open(fullPath)
+    application.get('SettingsWindowService').openUsingPreference(normalizeSettingsPath(fullPath))
     return
   }
 
-  const mainWindow = application.get('MainWindowService').getMainWindow()
+  const navigateMainWindow = async () => {
+    const mainWindow = application.get('MainWindowService').getMainWindow()
 
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents
-      .executeJavaScript(`typeof window.navigate === 'function'`)
-      .then((hasNavigate) => {
-        if (hasNavigate) {
-          void mainWindow.webContents.executeJavaScript(`window.navigate('${fullPath}')`)
-          if (isMac) {
-            application.get('MainWindowService').showMainWindow()
-          }
-        } else {
-          logger.warn('window.navigate not available yet, retrying in 1s')
-          setTimeout(() => handleNavigateProtocolUrl(url), 1000)
-        }
-      })
-      .catch((error) => {
-        logger.error('Failed to navigate:', error as Error)
-      })
-  } else {
-    logger.warn('Main window not available, retrying in 1s')
-    setTimeout(() => handleNavigateProtocolUrl(url), 1000)
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      logger.warn('Main window not available, retrying in 1s')
+      setTimeout(() => handleNavigateProtocolUrl(url), 1000)
+      return
+    }
+
+    try {
+      const hasNavigate = await mainWindow.webContents.executeJavaScript(`typeof window.navigate === 'function'`)
+
+      if (!hasNavigate) {
+        logger.warn('window.navigate not available yet, retrying in 1s')
+        setTimeout(() => handleNavigateProtocolUrl(url), 1000)
+        return
+      }
+
+      void mainWindow.webContents.executeJavaScript(`window.navigate('${fullPath}')`)
+      if (isMac) {
+        application.get('MainWindowService').showMainWindow()
+      }
+    } catch (error) {
+      logger.error('Failed to navigate:', error as Error)
+    }
   }
+
+  void navigateMainWindow()
 }

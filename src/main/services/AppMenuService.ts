@@ -65,7 +65,7 @@ export class AppMenuService extends BaseService {
           {
             label: appMenu.about + ' ' + app.name,
             click: () => {
-              application.get('SettingsWindowService').open('/settings/about')
+              application.get('SettingsWindowService').openUsingPreference('/settings/about')
             }
           },
           { type: 'separator' },

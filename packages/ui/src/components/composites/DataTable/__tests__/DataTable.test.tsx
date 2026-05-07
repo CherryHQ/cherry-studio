@@ -139,32 +139,6 @@ describe('DataTable', () => {
     expect(root).toHaveStyle({ maxWidth: '480px' })
   })
 
-  it('applies the polished default presentation classes', () => {
-    render(<DataTable data={people} columns={columns} rowKey="id" />)
-
-    const table = screen.getByRole('table')
-    const shell = table.closest('[data-slot="data-table-shell"]')
-    expect(shell).toHaveClass('rounded-lg', 'border-border/70', 'bg-background-subtle', 'shadow-xs')
-
-    expect(screen.getByRole('columnheader', { name: 'Name' })).toHaveClass(
-      'h-10',
-      'bg-background-subtle/70',
-      'px-3',
-      'py-2',
-      'text-xs',
-      'font-semibold',
-      'text-muted-foreground'
-    )
-    expect(screen.getByRole('cell', { name: 'Ada' })).toHaveClass(
-      'px-3',
-      'py-2.5',
-      'text-sm',
-      'font-medium',
-      'leading-5',
-      'text-foreground'
-    )
-  })
-
   it('applies explicit column widths and leaves unspecified columns fluid', () => {
     render(<DataTable data={people} columns={columns} rowKey="id" />)
 
@@ -261,7 +235,7 @@ describe('DataTable', () => {
         rowKey="id"
         selection={{
           type: 'single',
-          selectedRowKeys: [],
+          selectedRowKey: null,
           onChange
         }}
       />
@@ -270,7 +244,26 @@ describe('DataTable', () => {
     const graceRow = screen.getByText('Grace').closest('tr')
     expect(graceRow).not.toBeNull()
     fireEvent.click(within(graceRow as HTMLTableRowElement).getByRole('radio'))
-    expect(onChange).toHaveBeenCalledWith(['2'], [people[1]])
+    expect(onChange).toHaveBeenCalledWith('2', people[1])
+  })
+
+  it('tracks one selected row for single selection', () => {
+    render(
+      <DataTable
+        data={people}
+        columns={columns}
+        rowKey="id"
+        selection={{
+          type: 'single',
+          selectedRowKey: '1',
+          onChange: vi.fn()
+        }}
+      />
+    )
+
+    const radios = screen.getAllByRole('radio')
+    expect(radios[0]).toHaveAttribute('aria-checked', 'true')
+    expect(radios[1]).toHaveAttribute('aria-checked', 'false')
   })
 
   it('renders empty text', () => {

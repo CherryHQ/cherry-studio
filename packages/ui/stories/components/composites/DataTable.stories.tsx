@@ -147,7 +147,7 @@ export const MultipleSelection: Story = {
 
 export const SingleSelection: Story = {
   render: function SingleSelectionExample() {
-    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
+    const [selectedRowKey, setSelectedRowKey] = useState<Key | null>(null)
 
     return (
       <DataTable
@@ -157,8 +157,8 @@ export const SingleSelection: Story = {
         rowKey="id"
         selection={{
           type: 'single',
-          selectedRowKeys,
-          onChange: setSelectedRowKeys
+          selectedRowKey,
+          onChange: setSelectedRowKey
         }}
       />
     )

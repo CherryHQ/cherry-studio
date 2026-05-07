@@ -29,6 +29,70 @@ interface SidebarIconsManagerProps {
   setInvisibleIcons: (icons: SidebarIcon[]) => void
 }
 
+type SidebarIconListId = 'visible' | 'disabled'
+type SidebarIconLists = {
+  visibleIcons: SidebarIcon[]
+  invisibleIcons: SidebarIcon[]
+}
+
+export function isAssistantSidebarIconMoveBlocked(icon: SidebarIcon | undefined, destination: SidebarIconListId) {
+  return icon === 'assistants' && destination === 'disabled'
+}
+
+export function moveSidebarIcon(
+  icon: SidebarIcon,
+  fromList: SidebarIconListId,
+  { visibleIcons, invisibleIcons }: SidebarIconLists
+): SidebarIconLists | null {
+  if (isAssistantSidebarIconMoveBlocked(icon, fromList === 'visible' ? 'disabled' : 'visible')) {
+    return null
+  }
+
+  if (fromList === 'visible') {
+    return {
+      visibleIcons: visibleIcons.filter((i) => i !== icon),
+      invisibleIcons: invisibleIcons.some((i) => i === icon) ? invisibleIcons : [...invisibleIcons, icon]
+    }
+  }
+
+  return {
+    invisibleIcons: invisibleIcons.filter((i) => i !== icon),
+    visibleIcons: visibleIcons.some((i) => i === icon) ? visibleIcons : [...visibleIcons, icon]
+  }
+}
+
+export function dragSidebarIcon(
+  source: { droppableId: SidebarIconListId; index: number },
+  destination: { droppableId: SidebarIconListId; index: number },
+  { visibleIcons, invisibleIcons }: SidebarIconLists
+): SidebarIconLists | null {
+  const draggedItem = source.droppableId === 'visible' ? visibleIcons[source.index] : invisibleIcons[source.index]
+  if (isAssistantSidebarIconMoveBlocked(draggedItem, destination.droppableId)) {
+    return null
+  }
+
+  if (source.droppableId === destination.droppableId) {
+    const list = source.droppableId === 'visible' ? [...visibleIcons] : [...invisibleIcons]
+    const [removed] = list.splice(source.index, 1)
+    list.splice(destination.index, 0, removed)
+
+    return source.droppableId === 'visible'
+      ? { visibleIcons: list, invisibleIcons }
+      : { visibleIcons, invisibleIcons: list }
+  }
+
+  const sourceList = source.droppableId === 'visible' ? [...visibleIcons] : [...invisibleIcons]
+  const destList = destination.droppableId === 'visible' ? [...visibleIcons] : [...invisibleIcons]
+  const [removed] = sourceList.splice(source.index, 1)
+  const targetList = destList.filter((icon) => icon !== removed)
+  targetList.splice(destination.index, 0, removed)
+
+  return {
+    visibleIcons: destination.droppableId === 'visible' ? targetList : sourceList,
+    invisibleIcons: destination.droppableId === 'disabled' ? targetList : sourceList
+  }
+}
+
 const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
   visibleIcons,
   invisibleIcons,
@@ -43,68 +107,41 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
 
       const { source, destination } = result
 
-      // 如果是chat图标且目标是disabled区域,则不允许移动并提示
       const draggedItem = source.droppableId === 'visible' ? visibleIcons[source.index] : invisibleIcons[source.index]
-      if (draggedItem === 'assistants' && destination.droppableId === 'disabled') {
+      if (isAssistantSidebarIconMoveBlocked(draggedItem, destination.droppableId as SidebarIconListId)) {
         window.toast.warning(t('settings.display.sidebar.chat.hiddenMessage'))
         return
       }
 
-      if (source.droppableId === destination.droppableId) {
-        const list = source.droppableId === 'visible' ? [...visibleIcons] : [...invisibleIcons]
-        const [removed] = list.splice(source.index, 1)
-        list.splice(destination.index, 0, removed)
+      const next = dragSidebarIcon(
+        { droppableId: source.droppableId as SidebarIconListId, index: source.index },
+        { droppableId: destination.droppableId as SidebarIconListId, index: destination.index },
+        { visibleIcons, invisibleIcons }
+      )
+      if (!next) return
 
-        if (source.droppableId === 'visible') {
-          setVisibleIcons(list)
-        } else {
-          setInvisibleIcons(list)
-        }
-        return
-      }
-
-      const sourceList = source.droppableId === 'visible' ? [...visibleIcons] : [...invisibleIcons]
-      const destList = destination.droppableId === 'visible' ? [...visibleIcons] : [...invisibleIcons]
-
-      const [removed] = sourceList.splice(source.index, 1)
-      const targetList = destList.filter((icon) => icon !== removed)
-      targetList.splice(destination.index, 0, removed)
-
-      const newVisibleIcons = destination.droppableId === 'visible' ? targetList : sourceList
-      const newInvisibleIcons = destination.droppableId === 'disabled' ? targetList : sourceList
-
-      setVisibleIcons(newVisibleIcons)
-      setInvisibleIcons(newInvisibleIcons)
+      setVisibleIcons(next.visibleIcons)
+      setInvisibleIcons(next.invisibleIcons)
     },
     [visibleIcons, invisibleIcons, setVisibleIcons, setInvisibleIcons, t]
   )
 
   const onMoveIcon = useCallback(
     (icon: SidebarIcon, fromList: 'visible' | 'disabled') => {
-      // 如果是chat图标且要移动到disabled列表,则不允许并提示
-      if (icon === 'assistants' && fromList === 'visible') {
+      if (isAssistantSidebarIconMoveBlocked(icon, fromList === 'visible' ? 'disabled' : 'visible')) {
         window.toast.warning(t('settings.display.sidebar.chat.hiddenMessage'))
         return
       }
 
-      if (fromList === 'visible') {
-        const newVisibleIcons = visibleIcons.filter((i) => i !== icon)
-        const newInvisibleIcons = invisibleIcons.some((i) => i === icon) ? invisibleIcons : [...invisibleIcons, icon]
+      const next = moveSidebarIcon(icon, fromList, { visibleIcons, invisibleIcons })
+      if (!next) return
 
-        setVisibleIcons(newVisibleIcons)
-        setInvisibleIcons(newInvisibleIcons)
-      } else {
-        const newInvisibleIcons = invisibleIcons.filter((i) => i !== icon)
-        const newVisibleIcons = visibleIcons.some((i) => i === icon) ? visibleIcons : [...visibleIcons, icon]
-
-        setInvisibleIcons(newInvisibleIcons)
-        setVisibleIcons(newVisibleIcons)
-      }
+      setVisibleIcons(next.visibleIcons)
+      setInvisibleIcons(next.invisibleIcons)
     },
     [t, visibleIcons, invisibleIcons, setVisibleIcons, setInvisibleIcons]
   )
 
-  // 使用useMemo缓存图标映射
   const iconMap = useMemo(
     () =>
       ({

@@ -15,13 +15,31 @@ export type DateTimePickerLabels = {
   second?: string
 }
 
-export type DateTimePickerProps = {
-  value?: Date | null
-  defaultValue?: Date | null
-  onChange?: (date: Date | undefined) => void
-  open?: boolean
-  defaultOpen?: boolean
-  onOpenChange?: (open: boolean) => void
+type DateTimePickerValueProps =
+  | {
+      value: Date | null | undefined
+      onChange: (date: Date | undefined) => void
+      defaultValue?: never
+    }
+  | {
+      value?: never
+      defaultValue?: Date | null
+      onChange?: (date: Date | undefined) => void
+    }
+
+type DateTimePickerOpenProps =
+  | {
+      open: boolean | undefined
+      onOpenChange: (open: boolean) => void
+      defaultOpen?: never
+    }
+  | {
+      open?: never
+      defaultOpen?: boolean
+      onOpenChange?: (open: boolean) => void
+    }
+
+type DateTimePickerBaseProps = {
   granularity?: DateTimeGranularity
   format?: string
   placeholder?: React.ReactNode
@@ -32,6 +50,8 @@ export type DateTimePickerProps = {
   calendarProps?: Omit<CalendarProps, 'mode' | 'selected' | 'onSelect' | 'month' | 'onMonthChange'>
   labels?: DateTimePickerLabels
 }
+
+export type DateTimePickerProps = DateTimePickerBaseProps & DateTimePickerValueProps & DateTimePickerOpenProps
 
 const defaultLabels = {
   hour: 'Hour',

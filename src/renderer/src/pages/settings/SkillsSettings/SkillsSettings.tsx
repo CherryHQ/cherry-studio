@@ -835,8 +835,6 @@ const SkillsSettings: FC = () => {
   )
 }
 
-// ─── Tailwind Components ────────────────────────────────────
-
 type DivProps = React.ComponentPropsWithoutRef<'div'>
 type SpanProps = React.ComponentPropsWithoutRef<'span'>
 

@@ -1,12 +1,22 @@
 import { Button, InfoTooltip, Input, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { formatErrorMessage } from '@renderer/utils/error'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+
+const logger = loggerService.withContext('YuqueSettings')
+
+const isYuqueRepoResponse = (value: unknown): value is { data: { id: string | number } } => {
+  if (!value || typeof value !== 'object') return false
+  const data = (value as { data?: unknown }).data
+  return Boolean(data && typeof data === 'object' && 'id' in data)
+}
 
 const YuqueSettings: FC = () => {
   const { t } = useTranslation()
@@ -35,29 +45,39 @@ const YuqueSettings: FC = () => {
       return
     }
 
-    const response = await fetch('https://www.yuque.com/api/v2/hello', {
-      headers: {
-        'X-Auth-Token': yuqueToken
-      }
-    })
+    try {
+      const response = await fetch('https://www.yuque.com/api/v2/hello', {
+        headers: {
+          'X-Auth-Token': yuqueToken
+        }
+      })
 
-    if (!response.ok) {
-      window.toast.error(t('settings.data.yuque.check.fail'))
-      return
-    }
-    const yuqueSlug = yuqueUrl.replace('https://www.yuque.com/', '')
-    const repoIDResponse = await fetch(`https://www.yuque.com/api/v2/repos/${yuqueSlug}`, {
-      headers: {
-        'X-Auth-Token': yuqueToken
+      if (!response.ok) {
+        window.toast.error(t('settings.data.yuque.check.fail'))
+        return
       }
-    })
-    if (!repoIDResponse.ok) {
-      window.toast.error(t('settings.data.yuque.check.fail'))
-      return
+      const yuqueSlug = yuqueUrl.replace('https://www.yuque.com/', '')
+      const repoIDResponse = await fetch(`https://www.yuque.com/api/v2/repos/${yuqueSlug}`, {
+        headers: {
+          'X-Auth-Token': yuqueToken
+        }
+      })
+      if (!repoIDResponse.ok) {
+        window.toast.error(t('settings.data.yuque.check.fail'))
+        return
+      }
+      const data = (await repoIDResponse.json()) as unknown
+      if (!isYuqueRepoResponse(data)) {
+        logger.error('Invalid Yuque repo response')
+        window.toast.error(t('settings.data.yuque.check.fail'))
+        return
+      }
+      void setYuqueRepoId(String(data.data.id))
+      window.toast.success(t('settings.data.yuque.check.success'))
+    } catch (error) {
+      logger.error('Failed to check Yuque connection', error as Error)
+      window.toast.error(formatErrorMessage(error) || t('settings.data.yuque.check.fail'))
     }
-    const data = await repoIDResponse.json()
-    void setYuqueRepoId(data.data.id)
-    window.toast.success(t('settings.data.yuque.check.success'))
   }
 
   const handleYuqueHelpClick = () => {

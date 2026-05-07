@@ -181,7 +181,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
                           const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
                           setLogo(savedLogo)
                         } else {
-                          // 临时保存在内存中，等创建 provider 后会在调用方保存
+                          // Keep it in memory; caller persists it after the provider is created.
                           const tempUrl = await new Promise<string>((resolve) => {
                             const reader = new FileReader()
                             reader.onload = () => resolve(reader.result as string)

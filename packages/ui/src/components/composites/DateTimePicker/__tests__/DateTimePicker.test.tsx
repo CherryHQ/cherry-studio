@@ -23,7 +23,11 @@ afterEach(() => {
 describe('DateTimePicker', () => {
   it('formats the selected value in the trigger', () => {
     render(
-      <DateTimePicker value={new Date(2026, 3, 29, 14, 5, 9)} format="yyyy-MM-dd HH:mm:ss" placeholder="Pick date" />
+      <DateTimePicker
+        defaultValue={new Date(2026, 3, 29, 14, 5, 9)}
+        format="yyyy-MM-dd HH:mm:ss"
+        placeholder="Pick date"
+      />
     )
 
     expect(screen.getByRole('button')).toHaveTextContent('2026-04-29 14:05:09')
@@ -61,7 +65,7 @@ describe('DateTimePicker', () => {
   })
 
   it('hides time controls when granularity is day', () => {
-    render(<DateTimePicker value={new Date(2026, 3, 29)} granularity="day" open onOpenChange={() => {}} />)
+    render(<DateTimePicker defaultValue={new Date(2026, 3, 29)} granularity="day" open onOpenChange={() => {}} />)
 
     expect(screen.queryByLabelText('Hour')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Minute')).not.toBeInTheDocument()

@@ -1,14 +1,25 @@
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { titleBarOverlayDark, titleBarOverlayLight } from '@main/config'
 import { isMac } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { type WindowOptions, WindowType } from '@main/core/window/types'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import type { SettingsPath } from '@shared/data/types/settingsPath'
+import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { BrowserWindow } from 'electron'
 import { nativeTheme } from 'electron'
 
-const DEFAULT_SETTINGS_PATH = '/settings/provider'
+const logger = loggerService.withContext('SettingsWindowService')
+
+export function createSettingsWindowOptions(isMacPlatform: boolean, dark: boolean): Partial<WindowOptions> {
+  return {
+    darkTheme: dark,
+    ...(isMacPlatform && { titleBarOverlay: dark ? titleBarOverlayDark : titleBarOverlayLight }),
+    ...(!isMacPlatform && { backgroundColor: dark ? '#181818' : '#FFFFFF' })
+  }
+}
 
 @Injectable('SettingsWindowService')
 @ServicePhase(Phase.WhenReady)
@@ -41,12 +52,16 @@ export class SettingsWindowService extends BaseService {
       this.pendingSettingsTabsByWindowId.clear()
     })
 
+    this.registerIpcHandlers()
+  }
+
+  private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.SettingsWindow_Open, (_event, path?: unknown) => {
-      return this.open(path)
+      return this.open(this.normalizePath(path))
     })
 
     this.ipcHandle(IpcChannel.SettingsWindow_OpenInApp, (event, path?: unknown) => {
-      return this.openInApp(path, event.sender)
+      return this.openInApp(this.normalizePath(path), event.sender)
     })
 
     this.ipcHandle(IpcChannel.Tab_AttachReady, (event) => {
@@ -54,7 +69,7 @@ export class SettingsWindowService extends BaseService {
     })
   }
 
-  public open(path?: unknown): string {
+  public open(path?: SettingsPath): string {
     const wm = application.get('WindowManager')
     return wm.open(WindowType.Settings, {
       initData: this.normalizePath(path),
@@ -62,23 +77,37 @@ export class SettingsWindowService extends BaseService {
     })
   }
 
-  public openInApp(path?: unknown, sender?: Electron.WebContents): boolean {
-    const normalizedPath = this.normalizePath(path)
-    const wm = application.get('WindowManager')
-
-    application.get('MainWindowService').showMainWindow()
-    this.attachSettingsTabToMain(normalizedPath)
-
-    const senderId = sender ? wm.getWindowIdByWebContents(sender) : null
-    const isSettingsWindow = senderId
-      ? wm.getWindowsByType(WindowType.Settings).some((windowInfo) => windowInfo.id === senderId)
-      : false
-
-    if (senderId && isSettingsWindow) {
-      wm.close(senderId)
+  public openUsingPreference(path?: SettingsPath): string | boolean {
+    const target = application.get('PreferenceService').get('app.settings.open_target')
+    if (target === 'app') {
+      return this.openInApp(path)
     }
 
-    return true
+    return this.open(path)
+  }
+
+  public openInApp(path?: SettingsPath, sender?: Electron.WebContents): boolean {
+    try {
+      const normalizedPath = this.normalizePath(path)
+      const wm = application.get('WindowManager')
+
+      application.get('MainWindowService').showMainWindow()
+      this.attachSettingsTabToMain(normalizedPath)
+
+      const senderId = sender ? wm.getWindowIdByWebContents(sender) : null
+      const isSettingsWindow = senderId
+        ? wm.getWindowsByType(WindowType.Settings).some((windowInfo) => windowInfo.id === senderId)
+        : false
+
+      if (senderId && isSettingsWindow) {
+        wm.close(senderId)
+      }
+
+      return true
+    } catch (error) {
+      logger.error('Failed to open settings in app', error as Error)
+      throw error
+    }
   }
 
   private setupSettingsWindow(windowId: string, window: BrowserWindow): void {
@@ -106,23 +135,14 @@ export class SettingsWindowService extends BaseService {
   }
 
   private getWindowOptions(): Partial<WindowOptions> {
-    const dark = nativeTheme.shouldUseDarkColors
-
-    return {
-      darkTheme: dark,
-      ...(isMac && { titleBarOverlay: dark ? titleBarOverlayDark : titleBarOverlayLight }),
-      ...(!isMac && { backgroundColor: dark ? '#181818' : '#FFFFFF' })
-    }
+    return createSettingsWindowOptions(isMac, nativeTheme.shouldUseDarkColors)
   }
 
-  private normalizePath(path: unknown): string {
-    if (typeof path === 'string' && path.startsWith('/settings')) {
-      return path
-    }
-    return DEFAULT_SETTINGS_PATH
+  private normalizePath(path: unknown): SettingsPath {
+    return normalizeSettingsPath(path)
   }
 
-  private attachSettingsTabToMain(path: string): void {
+  private attachSettingsTabToMain(path: SettingsPath): void {
     const wm = application.get('WindowManager')
     const tab = this.createSettingsTab(path)
 
@@ -166,7 +186,7 @@ export class SettingsWindowService extends BaseService {
     window.webContents.send(IpcChannel.Tab_Attach, tab)
   }
 
-  private createSettingsTab(path: string): Tab {
+  private createSettingsTab(path: SettingsPath): Tab {
     return {
       id: `settings:${path}`,
       type: 'route',

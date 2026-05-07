@@ -8,35 +8,33 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import { AlertCircle, CheckCircle2, Info, Loader2, TriangleAlert, XCircle } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 
 type ModalType = 'confirm' | 'error' | 'info' | 'success' | 'warning'
+type ModalAction = () => unknown | Promise<unknown>
+type ModalButtonProps = {
+  danger?: boolean
+  disabled?: boolean
+  style?: React.CSSProperties
+  className?: string
+}
+
+const logger = loggerService.withContext('AppModal')
 
 export interface AppModalFuncProps {
   title?: React.ReactNode
   content?: React.ReactNode
   okText?: React.ReactNode
   cancelText?: React.ReactNode
-  onOk?: (...args: unknown[]) => unknown
-  onCancel?: (...args: unknown[]) => unknown
+  onOk?: ModalAction
+  onCancel?: ModalAction
   afterClose?: () => void
-  okButtonProps?: {
-    danger?: boolean
-    disabled?: boolean
-    style?: React.CSSProperties
-    className?: string
-    type?: string
-    [key: string]: unknown
-  }
-  cancelButtonProps?: {
-    disabled?: boolean
-    style?: React.CSSProperties
-    className?: string
-    type?: string
-    [key: string]: unknown
-  }
+  okButtonProps?: ModalButtonProps
+  cancelButtonProps?: Omit<ModalButtonProps, 'danger'>
   centered?: boolean
   width?: string | number
   icon?: React.ReactNode
@@ -49,6 +47,8 @@ export interface AppModalFuncProps {
 }
 
 export interface AppModalReturn extends PromiseLike<boolean> {
+  catch: Promise<boolean>['catch']
+  finally: Promise<boolean>['finally']
   destroy: () => void
   update: (config: AppModalFuncProps) => void
 }
@@ -70,7 +70,6 @@ interface ModalItem {
   open: boolean
   loading: boolean
   resolve: (confirmed: boolean) => void
-  promise: Promise<boolean>
 }
 
 interface Props {
@@ -80,9 +79,7 @@ interface Props {
 const CLOSE_ANIMATION_MS = 200
 
 function createId() {
-  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `app-modal-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return uuidv4()
 }
 
 function getIcon(type: ModalType, icon: React.ReactNode) {
@@ -147,7 +144,7 @@ function AppModalItem({
   updateLoading
 }: {
   item: ModalItem
-  close: (id: string, confirmed: boolean, callback?: () => unknown) => void
+  close: (id: string, confirmed: boolean, callback?: ModalAction) => void
   updateLoading: (id: string, loading: boolean) => void
 }) {
   const { props, type } = item
@@ -164,7 +161,8 @@ function AppModalItem({
     try {
       await props.onOk?.()
       close(item.id, true)
-    } finally {
+    } catch (error) {
+      logger.error('Modal onOk failed', error as Error)
       updateLoading(item.id, false)
     }
   }, [close, item.id, props, updateLoading])
@@ -282,11 +280,13 @@ export default function AppModalProvider({ onReady }: Props) {
   )
 
   const closeItem = useCallback(
-    (id: string, confirmed: boolean, callback?: () => unknown) => {
+    (id: string, confirmed: boolean, callback?: ModalAction) => {
       const item = itemsRef.current.find((current) => current.id === id)
       if (!item || !item.open) return
 
-      void callback?.()
+      void Promise.resolve(callback?.()).catch((error) => {
+        logger.error('Modal onCancel failed', error as Error)
+      })
       item.resolve(confirmed)
 
       setItems((current) => {
@@ -300,7 +300,7 @@ export default function AppModalProvider({ onReady }: Props) {
   )
 
   const close = useCallback(
-    (id: string, confirmed: boolean, callback?: () => unknown) => {
+    (id: string, confirmed: boolean, callback?: ModalAction) => {
       closeItem(id, confirmed, callback)
     },
     [closeItem]
@@ -336,8 +336,7 @@ export default function AppModalProvider({ onReady }: Props) {
         props,
         open: true,
         loading: false,
-        resolve: resolvePromise,
-        promise
+        resolve: resolvePromise
       }
 
       setItems((current) => {
@@ -346,11 +345,10 @@ export default function AppModalProvider({ onReady }: Props) {
         return nextItems
       })
 
-      return {
+      return Object.assign(promise, {
         destroy: () => closeItem(id, false),
-        update: (config) => update(id, config),
-        then: promise.then.bind(promise)
-      }
+        update: (config: AppModalFuncProps) => update(id, config)
+      })
     },
     [closeItem, update]
   )

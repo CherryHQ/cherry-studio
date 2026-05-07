@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/
 const SHORT_HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{3}$/
 
-const normalizeHexColor = (value: string) => {
+export const normalizeHexColor = (value: string) => {
   let normalized = value.trim()
 
   if (!normalized) {

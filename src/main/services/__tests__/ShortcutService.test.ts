@@ -38,7 +38,7 @@ const {
     processSelectTextByShortcut: vi.fn()
   },
   settingsWindowServiceMock: {
-    open: vi.fn()
+    openUsingPreference: vi.fn()
   },
   quickAssistantServiceMock: {
     toggleQuickAssistant: vi.fn()
@@ -179,7 +179,7 @@ describe('ShortcutService', () => {
     expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+numadd', expect.any(Function))
   })
 
-  it('opens the settings window through SettingsWindowService', async () => {
+  it('opens the settings window through SettingsWindowService preference target', async () => {
     await (service as any).onInit()
 
     const registration = globalShortcutMock.register.mock.calls.find(
@@ -188,7 +188,12 @@ describe('ShortcutService', () => {
     const handler = registration?.[1] as (() => void) | undefined
     handler?.()
 
-    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith('/settings/provider')
+    expect(settingsWindowServiceMock.openUsingPreference).toHaveBeenCalledWith('/settings/provider')
+    expect(windowServiceMock.showMainWindow).not.toHaveBeenCalled()
+    expect(windowManagerMock.broadcastToType).not.toHaveBeenCalledWith(
+      WindowType.Main,
+      IpcChannel.MainWindow_NavigateToSettings
+    )
   })
 
   it('re-registers only the changed accelerator when shortcut binding changes', async () => {

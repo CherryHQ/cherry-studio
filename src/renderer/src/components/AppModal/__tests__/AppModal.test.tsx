@@ -3,6 +3,14 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      error: vi.fn()
+    })
+  }
+}))
+
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
 
@@ -56,10 +64,40 @@ describe('AppModalProvider', () => {
       expect(screen.getByText('Delete item')).toBeInTheDocument()
     })
     expect(screen.getByText('This cannot be undone.')).toBeInTheDocument()
+    expect(typeof confirmed!.catch).toBe('function')
+    expect(typeof confirmed!.finally).toBe('function')
 
     await user.click(screen.getByRole('button', { name: 'Delete' }))
 
     await expect(confirmed!).resolves.toBe(true)
+  })
+
+  it('keeps the modal open when onOk rejects so it can still be cancelled', async () => {
+    const user = userEvent.setup()
+    const modal = await renderModalProvider()
+    const onOk = vi.fn().mockRejectedValue(new Error('failed'))
+
+    let confirmed: ReturnType<AppModalApi['confirm']>
+    act(() => {
+      confirmed = modal.confirm({
+        title: 'Retry action',
+        content: 'The first attempt fails.',
+        okText: 'Run',
+        cancelText: 'Cancel',
+        onOk
+      })
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'Run' }))
+
+    await waitFor(() => {
+      expect(onOk).toHaveBeenCalledOnce()
+    })
+    expect(screen.getByText('Retry action')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    await expect(confirmed!).resolves.toBe(false)
   })
 
   it('resolves confirm as false when cancelled', async () => {
@@ -155,6 +193,29 @@ describe('AppModalProvider', () => {
     await waitFor(() => {
       expect(screen.queryByText('Almost done.')).not.toBeInTheDocument()
     })
+  })
+
+  it('destroyAll resolves every open modal as cancelled', async () => {
+    const modal = await renderModalProvider()
+
+    let first: ReturnType<AppModalApi['info']>
+    let second: ReturnType<AppModalApi['confirm']>
+    act(() => {
+      first = modal.info({ title: 'First modal' })
+      second = modal.confirm({ title: 'Second modal' })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('First modal')).toBeInTheDocument()
+      expect(screen.getByText('Second modal')).toBeInTheDocument()
+    })
+
+    act(() => {
+      modal.destroyAll()
+    })
+
+    await expect(first!).resolves.toBe(false)
+    await expect(second!).resolves.toBe(false)
   })
 
   it('keeps the modal mounted until the close animation finishes', async () => {

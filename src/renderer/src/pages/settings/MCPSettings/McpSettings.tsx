@@ -213,7 +213,6 @@ const McpSettings: React.FC = () => {
       }
     }
 
-    // Initialize all fields
     form.reset({
       name: server.name,
       description: server.description ?? '',
@@ -404,7 +403,11 @@ const McpSettings: React.FC = () => {
           window.toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          await updateMCPServer({ body: { ...mcpServer, isActive: false } }).catch(() => {})
+          try {
+            await updateMCPServer({ body: { ...mcpServer, isActive: false } })
+          } catch (rollbackError) {
+            logger.error('Failed to rollback MCP server active state after restart failure:', rollbackError as Error)
+          }
           window.modal.error({
             title: t('settings.mcp.updateError'),
             content: error.message,
@@ -538,7 +541,9 @@ const McpSettings: React.FC = () => {
         content: formatMcpError(error as McpError),
         centered: true
       })
-      void updateMCPServer({ body: { isActive: oldActiveState } })
+      void updateMCPServer({ body: { isActive: oldActiveState } }).catch((rollbackError) => {
+        logger.error('Failed to rollback MCP server active state after toggle failure:', rollbackError as Error)
+      })
     } finally {
       setLoadingServer(null)
     }

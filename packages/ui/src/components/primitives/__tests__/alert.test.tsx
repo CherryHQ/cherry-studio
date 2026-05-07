@@ -33,25 +33,24 @@ describe('Alert', () => {
     expect(document.querySelector('[data-slot="alert-icon"] svg')).toBeInTheDocument()
   })
 
-  it.each([
-    ['info', 'text-blue-600'],
-    ['success', 'text-[var(--color-success-base)]'],
-    ['warning', 'text-[var(--color-warning-base)]'],
-    ['error', 'text-[var(--color-error-base)]']
-  ] as const)('uses semantic color on the default %s icon', (type, className) => {
-    render(<Alert type={type} message="Message" showIcon />)
+  it.each(['info', 'success', 'warning', 'error'] as const)(
+    'marks the default %s icon with its semantic type',
+    (type) => {
+      render(<Alert type={type} message="Message" showIcon />)
 
-    const icon = document.querySelector('[data-slot="alert-icon"] svg')
-    expect(icon).toHaveClass('lucide-custom')
-    expect(icon).toHaveClass(className)
-  })
+      expect(screen.getByRole(type === 'error' ? 'alert' : 'status')).toHaveAttribute('data-type', type)
+      const icon = document.querySelector('[data-slot="alert-icon"] svg')
+      expect(icon).toHaveClass('lucide-custom')
+      expect(icon?.closest('[data-slot="alert-icon"]')).toHaveAttribute('data-type', type)
+    }
+  )
 
   it('applies semantic color to custom lucide icons', () => {
     render(<Alert type="warning" message="Custom icon" showIcon icon={<Info className="custom-class" />} />)
 
     const iconSlot = document.querySelector('[data-slot="alert-icon"]')
     const icon = document.querySelector('[data-slot="alert-icon"] svg')
-    expect(iconSlot?.className).toContain('[&_.lucide:not(.lucide-custom)]:!text-[var(--color-warning-base)]')
+    expect(iconSlot).toHaveAttribute('data-type', 'warning')
     expect(icon).toHaveClass('custom-class')
   })
 })

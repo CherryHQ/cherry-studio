@@ -101,10 +101,14 @@ export const CustomYearRange: Story = {
 }
 
 export const Disabled: Story = {
-  args: {
-    value: new Date(2026, 3, 29, 14, 30),
-    granularity: 'minute',
-    format: 'yyyy-MM-dd HH:mm',
-    disabled: true
+  render: function DisabledExample() {
+    return (
+      <DateTimePicker
+        defaultValue={new Date(2026, 3, 29, 14, 30)}
+        granularity="minute"
+        format="yyyy-MM-dd HH:mm"
+        disabled
+      />
+    )
   }
 }

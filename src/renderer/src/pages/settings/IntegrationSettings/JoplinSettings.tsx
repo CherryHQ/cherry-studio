@@ -1,14 +1,16 @@
-import { InfoTooltip, Input, RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { formatErrorMessage } from '@renderer/utils/error'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+
+const logger = loggerService.withContext('JoplinSettings')
 
 const JoplinSettings: FC = () => {
   const [joplinToken, setJoplinToken] = usePreference('data.integration.joplin.token')
@@ -30,7 +32,6 @@ const JoplinSettings: FC = () => {
 
   const handleJoplinUrlBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     let url = e.target.value
-    // 确保URL以/结尾，但只在失去焦点时执行
     if (url && !url.endsWith('/')) {
       url = `${url}/`
       void setJoplinUrl(url)
@@ -58,8 +59,9 @@ const JoplinSettings: FC = () => {
       }
 
       window.toast.success(t('settings.data.joplin.check.success'))
-    } catch (e) {
-      window.toast.error(t('settings.data.joplin.check.fail'))
+    } catch (error) {
+      logger.error('Failed to check Joplin connection', error as Error)
+      window.toast.error(`${t('settings.data.joplin.check.fail')}: ${formatErrorMessage(error)}`)
     }
   }
 

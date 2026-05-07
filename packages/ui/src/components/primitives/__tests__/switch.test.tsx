@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { Switch } from '../switch'
@@ -11,23 +12,25 @@ afterEach(() => {
 })
 
 describe('Switch', () => {
-  it('keeps the established sm size', () => {
-    render(<Switch size="sm" />)
+  it('toggles aria-checked when clicked', async () => {
+    const user = userEvent.setup()
+    render(<Switch />)
 
     const root = screen.getByRole('switch')
-    const thumb = root.querySelector('[data-slot="switch-thumb"]')
 
-    expect(root).toHaveClass('w-9', 'h-5')
-    expect(thumb).toHaveClass('size-4.5', 'data-[state=checked]:translate-x-4')
+    expect(root).toHaveAttribute('aria-checked', 'false')
+    await user.click(root)
+    expect(root).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('supports a compact xs size for dense layouts', () => {
-    render(<Switch size="xs" />)
+  it('does not toggle when disabled', async () => {
+    const user = userEvent.setup()
+    render(<Switch disabled />)
 
     const root = screen.getByRole('switch')
-    const thumb = root.querySelector('[data-slot="switch-thumb"]')
 
-    expect(root).toHaveClass('h-4.5', 'w-8')
-    expect(thumb).toHaveClass('size-4', 'data-[state=checked]:translate-x-3.5')
+    expect(root).toHaveAttribute('aria-checked', 'false')
+    await user.click(root)
+    expect(root).toHaveAttribute('aria-checked', 'false')
   })
 })

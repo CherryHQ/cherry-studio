@@ -304,7 +304,10 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
               )}
             </ThemeButton>
           </Tooltip>
-          <SettingsButton onClick={handleSettingsClick} $active={activeTabId === 'settings'}>
+          <SettingsButton
+            onClick={handleSettingsClick}
+            $active={activeTabId === 'settings'}
+            aria-label={t('settings.title')}>
             <Settings size={16} />
           </SettingsButton>
         </RightButtonsContainer>

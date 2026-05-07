@@ -27,7 +27,6 @@ const ObsidianSettings: FC = () => {
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
 
-  // 组件加载时获取Vault列表
   useEffect(() => {
     const fetchVaults = async () => {
       try {
@@ -43,12 +42,11 @@ const ObsidianSettings: FC = () => {
 
         setVaults(vaultsData)
 
-        // 如果没有设置默认vault，则选择第一个
         if (!defaultObsidianVault && vaultsData.length > 0) {
           void setDefaultObsidianVault(vaultsData[0].name)
         }
       } catch (error) {
-        logger.error('获取Obsidian Vault失败:', error as Error)
+        logger.error('Failed to fetch Obsidian vaults', error as Error)
         setError(t('settings.data.obsidian.default_vault_fetch_error'))
       } finally {
         setLoading(false)

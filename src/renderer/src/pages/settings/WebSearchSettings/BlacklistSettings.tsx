@@ -5,6 +5,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useBlacklist } from '@renderer/hooks/useWebSearchProviders'
 import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blacklistMatchPattern'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { t } from 'i18next'
 import { Check, Info, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -195,10 +196,11 @@ const BlacklistSettings: FC = () => {
         timeout: 2000
       })
       setTimeoutTimer('handleAddSubscribe', () => setSubscribeValid(false), 3000)
-    } catch {
+    } catch (error) {
+      logger.error('Error adding subscribe source:', error as Error)
       setSubscribeValid(false)
       window.toast.error({
-        title: t('settings.tool.websearch.subscribe_add_failed'),
+        title: `${t('settings.tool.websearch.subscribe_add_failed')}: ${formatErrorMessage(error)}`,
         timeout: 2000
       })
     } finally {

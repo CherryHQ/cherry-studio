@@ -15,6 +15,7 @@ import {
 } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { ResetIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
@@ -32,6 +33,7 @@ import { cn } from '@renderer/utils/style'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious, SettingsOpenTarget } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { isSettingsPath, normalizeSettingsPath } from '@shared/data/types/settingsPath'
 import type { SubWindowInitData } from '@shared/types/subWindow'
 import { useLocation } from '@tanstack/react-router'
 import { Code, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
@@ -59,9 +61,7 @@ type SpellCheckOption = { readonly value: string; readonly label: string; readon
 type CommonSettingsSection = 'display-language' | 'system-startup' | 'privacy-advanced' | 'custom-css'
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
-
-const isSettingsPath = (value: unknown): value is `/settings${string}` =>
-  typeof value === 'string' && value.startsWith('/settings')
+const logger = loggerService.withContext('CommonSettings')
 
 const isDetachedSettingsWindowInitData = (value: unknown): value is SubWindowInitData => {
   if (!value || typeof value !== 'object') return false
@@ -220,23 +220,40 @@ const CommonSettings: FC = () => {
   )
 
   useEffect(() => {
-    void window.api.windowManager.getInitData<unknown>().then((initData) => {
-      setIsSettingsWindow(isSettingsPath(initData))
-      setIsDetachedSettingsWindow(isDetachedSettingsWindowInitData(initData))
-    })
+    const loadInitData = async () => {
+      try {
+        const initData = await window.api.windowManager.getInitData<unknown>()
+        setIsSettingsWindow(isSettingsPath(initData))
+        setIsDetachedSettingsWindow(isDetachedSettingsWindowInitData(initData))
+      } catch (error) {
+        logger.error('Failed to get settings window init data', error as Error)
+      }
+    }
 
-    void window.api.getSystemFonts().then((fonts: string[]) => {
-      setFontList(fonts)
-    })
+    const loadSystemFonts = async () => {
+      try {
+        const fonts = await window.api.getSystemFonts()
+        setFontList(fonts)
+      } catch (error) {
+        logger.error('Failed to get system fonts', error as Error)
+      }
+    }
 
-    void window.api.handleZoomFactor(0).then((factor) => {
-      setCurrentZoom(factor)
-    })
+    const updateCurrentZoom = async () => {
+      try {
+        const factor = await window.api.handleZoomFactor(0)
+        setCurrentZoom(factor)
+      } catch (error) {
+        logger.error('Failed to get current zoom factor', error as Error)
+      }
+    }
+
+    void loadInitData()
+    void loadSystemFonts()
+    void updateCurrentZoom()
 
     const handleResize = () => {
-      void window.api.handleZoomFactor(0).then((factor) => {
-        setCurrentZoom(factor)
-      })
+      void updateCurrentZoom()
     }
 
     window.addEventListener('resize', handleResize)
@@ -247,26 +264,36 @@ const CommonSettings: FC = () => {
   }, [])
 
   const getCurrentSettingsPath = useCallback(() => {
-    return location.href.startsWith('/settings') ? location.href : '/settings/provider'
+    return normalizeSettingsPath(location.href)
   }, [location.href])
 
   const handleSettingsOpenTargetChange = useCallback(
-    (value: SettingsOpenTarget) => {
-      void setSettingsOpenTarget(value)
+    async (value: SettingsOpenTarget) => {
+      const previousTarget = settingsOpenTarget
 
-      if (value === 'app') {
-        void window.api.windowManager.openSettingsInApp(getCurrentSettingsPath())
-        return
-      }
+      try {
+        await setSettingsOpenTarget(value)
 
-      if (!isSettingsWindow) {
-        void window.api.windowManager.openSettings(getCurrentSettingsPath())
-        if (tabsContext?.activeTab?.url.startsWith('/settings')) {
-          tabsContext.closeTab(tabsContext.activeTab.id)
+        if (value === 'app') {
+          await window.api.windowManager.openSettingsInApp(getCurrentSettingsPath())
+          return
         }
+
+        if (!isSettingsWindow) {
+          await window.api.windowManager.openSettings(getCurrentSettingsPath())
+          if (isSettingsPath(tabsContext?.activeTab?.url)) {
+            tabsContext.closeTab(tabsContext.activeTab.id)
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to change settings open target', error as Error)
+        window.toast.error(formatErrorMessage(error))
+        void setSettingsOpenTarget(previousTarget).catch((rollbackError) => {
+          logger.error('Failed to rollback settings open target', rollbackError as Error)
+        })
       }
     },
-    [getCurrentSettingsPath, isSettingsWindow, setSettingsOpenTarget, tabsContext]
+    [getCurrentSettingsPath, isSettingsWindow, setSettingsOpenTarget, settingsOpenTarget, tabsContext]
   )
 
   const onSelectLanguage = (value: LanguageVarious) => {
@@ -321,12 +348,12 @@ const CommonSettings: FC = () => {
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
       centered: true,
-      onOk() {
+      async onOk() {
         try {
-          void setDisableHardwareAcceleration(checked)
+          await setDisableHardwareAcceleration(checked)
         } catch (error) {
           window.toast.error(formatErrorMessage(error))
-          return
+          throw error
         }
 
         setTimeoutTimer(

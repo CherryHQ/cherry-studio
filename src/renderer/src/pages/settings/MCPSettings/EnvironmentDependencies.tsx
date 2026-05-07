@@ -1,6 +1,8 @@
 import { Badge, Button } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { cn } from '@renderer/utils'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { useNavigate } from '@tanstack/react-router'
 import { Download, FolderOpen, PackageCheck, TriangleAlert } from 'lucide-react'
 import type { FC } from 'react'
@@ -22,6 +24,8 @@ interface EnvironmentDependencyItemProps {
   onOpenPath: () => void
   t: (key: string) => string
 }
+
+const logger = loggerService.withContext('EnvironmentDependencies')
 
 const EnvironmentDependencyItem: FC<EnvironmentDependencyItemProps> = ({
   actionLabel,
@@ -103,7 +107,6 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const navigate = useNavigate()
   const checkBinariesTimerRef = useRef<NodeJS.Timeout>(undefined)
 
-  // 清理定时器
   useEffect(() => {
     return () => {
       clearTimeout(checkBinariesTimerRef.current)
@@ -121,10 +124,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       setUvPath(uvPath)
       setBunPath(bunPath)
       setBinariesDir(dir)
-    } catch {
-      // IPC failure — leave previous values unchanged
+    } catch (error) {
+      logger.error('Failed to check MCP environment dependencies', error as Error)
+      window.toast.error(`${t('settings.mcp.installError')}: ${formatErrorMessage(error)}`)
     }
-  }, [setIsUvInstalled, setIsBunInstalled])
+  }, [setIsUvInstalled, setIsBunInstalled, t])
 
   const installUV = async () => {
     try {
@@ -132,8 +136,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       await window.api.installUVBinary()
       setIsInstallingUv(false)
       setIsUvInstalled(true)
-    } catch (error: any) {
-      window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
+    } catch (error) {
+      logger.error('Failed to install UV binary', error as Error)
+      window.toast.error(`${t('settings.mcp.installError')}: ${formatErrorMessage(error)}`)
       setIsInstallingUv(false)
     }
     clearTimeout(checkBinariesTimerRef.current)
@@ -146,8 +151,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       await window.api.installBunBinary()
       setIsInstallingBun(false)
       setIsBunInstalled(true)
-    } catch (error: any) {
-      window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
+    } catch (error) {
+      logger.error('Failed to install Bun binary', error as Error)
+      window.toast.error(`${t('settings.mcp.installError')}: ${formatErrorMessage(error)}`)
       setIsInstallingBun(false)
     }
     clearTimeout(checkBinariesTimerRef.current)

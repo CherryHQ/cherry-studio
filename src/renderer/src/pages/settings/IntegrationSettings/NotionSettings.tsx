@@ -1,13 +1,17 @@
 import { Button, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { Client } from '@notionhq/client'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { formatErrorMessage } from '@renderer/utils/error'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+
+const logger = loggerService.withContext('NotionSettings')
 
 const NotionSettings: FC = () => {
   const [notionApiKey, setNotionApiKey] = usePreference('data.integration.notion.api_key')
@@ -31,30 +35,31 @@ const NotionSettings: FC = () => {
     void setNotionPageNameKey(e.target.value)
   }
 
-  const handleNotionConnectionCheck = () => {
-    if (notionApiKey === null) {
+  const handleNotionConnectionCheck = async () => {
+    if (!notionApiKey?.trim()) {
       window.toast.error(t('settings.data.notion.check.empty_api_key'))
       return
     }
-    if (notionDatabaseID === null) {
+    if (!notionDatabaseID?.trim()) {
       window.toast.error(t('settings.data.notion.check.empty_database_id'))
       return
     }
-    const notion = new Client({ auth: notionApiKey })
-    notion.databases
-      .retrieve({
+
+    try {
+      const notion = new Client({ auth: notionApiKey })
+      const result = await notion.databases.retrieve({
         database_id: notionDatabaseID
       })
-      .then((result) => {
-        if (result) {
-          window.toast.success(t('settings.data.notion.check.success'))
-        } else {
-          window.toast.error(t('settings.data.notion.check.fail'))
-        }
-      })
-      .catch(() => {
-        window.toast.error(t('settings.data.notion.check.error'))
-      })
+
+      if (result) {
+        window.toast.success(t('settings.data.notion.check.success'))
+      } else {
+        window.toast.error(t('settings.data.notion.check.fail'))
+      }
+    } catch (error) {
+      logger.error('Failed to check Notion connection', error as Error)
+      window.toast.error(formatErrorMessage(error) || t('settings.data.notion.check.error'))
+    }
   }
 
   const handleNotionExportReasoningChange = (checked: boolean) => {

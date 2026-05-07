@@ -31,10 +31,7 @@ export type DataTableColumnMeta = {
   align?: 'left' | 'center' | 'right'
 }
 
-export type DataTableSelection<TData> = {
-  type: 'single' | 'multiple'
-  selectedRowKeys: DataTableKey[]
-  onChange: (selectedRowKeys: DataTableKey[], selectedRows: TData[]) => void
+type DataTableSelectionBase<TData> = {
   getCheckboxProps?: (record: TData) => {
     disabled?: boolean
     ariaLabel?: string
@@ -42,9 +39,21 @@ export type DataTableSelection<TData> = {
   columnWidth?: number | string
 }
 
+export type DataTableSelection<TData> =
+  | (DataTableSelectionBase<TData> & {
+      type: 'single'
+      selectedRowKey: DataTableKey | null
+      onChange: (selectedRowKey: DataTableKey | null, selectedRow: TData | null) => void
+    })
+  | (DataTableSelectionBase<TData> & {
+      type: 'multiple'
+      selectedRowKeys: DataTableKey[]
+      onChange: (selectedRowKeys: DataTableKey[], selectedRows: TData[]) => void
+    })
+
 export type DataTableProps<TData> = {
   data: TData[]
-  columns: ColumnDef<TData, any>[]
+  columns: ColumnDef<TData, unknown>[]
   rowKey: keyof TData | ((record: TData) => DataTableKey)
   selection?: DataTableSelection<TData>
   headerLeft?: React.ReactNode
@@ -150,7 +159,14 @@ function DataTable<TData>({
       return {}
     }
 
-    return selection.selectedRowKeys.reduce<RowSelectionState>((acc, key) => {
+    const selectedRowKeys =
+      selection.type === 'single'
+        ? selection.selectedRowKey === null
+          ? []
+          : [selection.selectedRowKey]
+        : selection.selectedRowKeys
+
+    return selectedRowKeys.reduce<RowSelectionState>((acc, key) => {
       acc[normalizeKey(key)] = true
       return acc
     }, {})
@@ -167,9 +183,17 @@ function DataTable<TData>({
         .map((id) => rowById.get(id))
         .filter((entry): entry is { key: DataTableKey; record: TData } => Boolean(entry))
 
+      const normalizedSelected = selection.type === 'single' ? selected.slice(-1) : selected
+
+      if (selection.type === 'single') {
+        const selectedEntry = normalizedSelected[0]
+        selection.onChange(selectedEntry?.key ?? null, selectedEntry?.record ?? null)
+        return
+      }
+
       selection.onChange(
-        selected.map((entry) => entry.key),
-        selected.map((entry) => entry.record)
+        normalizedSelected.map((entry) => entry.key),
+        normalizedSelected.map((entry) => entry.record)
       )
     },
     [rowById, selection]
@@ -439,10 +463,10 @@ function DataTable<TData>({
       )}
       {selection?.type === 'single' ? (
         <RadioGroup
-          value={selection.selectedRowKeys[0] === undefined ? '' : normalizeKey(selection.selectedRowKeys[0])}
+          value={selection.selectedRowKey === null ? '' : normalizeKey(selection.selectedRowKey)}
           onValueChange={(value) => {
             const selected = rowById.get(value)
-            selection.onChange(selected ? [selected.key] : [], selected ? [selected.record] : [])
+            selection.onChange(selected?.key ?? null, selected?.record ?? null)
           }}
           className="block">
           {tableElement}

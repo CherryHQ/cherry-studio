@@ -135,7 +135,6 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
   const didResolveRef = useRef(false)
   const { t } = useTranslation()
 
-  // Get the currently selected provider config
   const selectedProvider = providers.find((p) => p.key === selectedProviderKey) || providers[0]
 
   const form = useForm<FieldType>({

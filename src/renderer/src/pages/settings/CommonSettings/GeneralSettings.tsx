@@ -159,15 +159,14 @@ const GeneralSettings: FC = () => {
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
       centered: true,
-      onOk() {
+      async onOk() {
         try {
-          void setDisableHardwareAcceleration(checked)
+          await setDisableHardwareAcceleration(checked)
         } catch (error) {
           window.toast.error(formatErrorMessage(error))
-          return
+          throw error
         }
 
-        // 重启应用
         setTimeoutTimer(
           'handleHardwareAccelerationChange',
           () => {

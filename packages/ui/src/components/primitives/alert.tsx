@@ -84,9 +84,15 @@ function Alert({
   const alertRole = role ?? (type === 'error' ? 'alert' : 'status')
 
   return (
-    <div ref={ref} role={alertRole} data-slot="alert" className={cn(alertVariants({ type }), className)} {...props}>
+    <div
+      ref={ref}
+      role={alertRole}
+      data-slot="alert"
+      data-type={type}
+      className={cn(alertVariants({ type }), className)}
+      {...props}>
       {showIcon && (
-        <span data-slot="alert-icon" className={alertIconContainerVariants({ type })}>
+        <span data-slot="alert-icon" data-type={type} className={alertIconContainerVariants({ type })}>
           {icon ?? <Icon size={16} className={cn('lucide-custom', alertIconVariants({ type }))} />}
         </span>
       )}

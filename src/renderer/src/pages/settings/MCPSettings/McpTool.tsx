@@ -97,7 +97,6 @@ const MCPToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
     )
   }
 
-  // Render a set of schema properties as a read-only detail list
   const renderSchemaProperties = (properties: Record<string, any>, required?: string[], depth: number = 0) => {
     return (
       <McpDetailList className="mt-1 select-text">
@@ -121,7 +120,6 @@ const MCPToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
     )
   }
 
-  // Render tool properties from the input schema
   const renderToolProperties = (tool: MCPTool) => {
     if (!tool.inputSchema?.properties) return null
     return renderSchemaProperties(tool.inputSchema.properties, tool.inputSchema.required)

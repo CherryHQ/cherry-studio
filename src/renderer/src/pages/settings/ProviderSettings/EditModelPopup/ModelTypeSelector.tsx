@@ -37,7 +37,6 @@ const ModelTypeSelector: FC<ModelTypeSelectorProps> = ({
       okText: t('settings.moresetting.check.confirm'),
       cancelText: t('common.cancel'),
       okButtonProps: { danger: true },
-      cancelButtonProps: { type: 'primary' },
       onOk: () => {
         if (onUpdateType) {
           const updatedModelCapabilities = modelCapabilities?.map((t) => {

@@ -3,6 +3,7 @@ import '@renderer/assets/styles/tailwind.css'
 import '@ant-design/v5-patch-for-react-19'
 import '@renderer/databases'
 
+import { Alert, Button } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import TopViewContainer from '@renderer/components/TopView'
@@ -14,11 +15,14 @@ import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import { useWindowInitData } from '@renderer/core/hooks/useWindowInitData'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import i18n from '@renderer/i18n'
 import { routeTree } from '@renderer/routeTree.gen'
 import NavigationService from '@renderer/services/NavigationService'
 import store, { persistor } from '@renderer/store'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import { DEFAULT_SETTINGS_PATH, normalizeSettingsPath } from '@shared/data/types/settingsPath'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { type CSSProperties, useEffect, useMemo } from 'react'
@@ -40,7 +44,26 @@ const SETTINGS_SHELL_PREFERENCE_KEYS: UnifiedPreferenceKeyType[] = [
   'chat.code.viewer.theme_dark'
 ]
 
-void preferenceService.preload(SETTINGS_SHELL_PREFERENCE_KEYS)
+const logger = loggerService.withContext('SettingsWindowEntry')
+
+async function preloadSettingsPreferences() {
+  try {
+    await preferenceService.preload(SETTINGS_SHELL_PREFERENCE_KEYS)
+    return null
+  } catch (error) {
+    logger.error('Failed to preload settings preferences', error as Error)
+    return error
+  }
+}
+
+async function getInitialSettingsPath() {
+  try {
+    return normalizeSettingsPath(await window.api.windowManager.getInitData<unknown>())
+  } catch (error) {
+    logger.error('Failed to get settings window init data', error as Error)
+    return DEFAULT_SETTINGS_PATH
+  }
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,18 +74,30 @@ const queryClient = new QueryClient({
   }
 })
 
-const normalizeSettingsPath = (path: unknown): '/settings/provider' | `/settings${string}` => {
-  if (typeof path === 'string' && path.startsWith('/settings')) {
-    return path as `/settings${string}`
-  }
-  return '/settings/provider'
+function SettingsWindowFatalError({ error }: { error: unknown }) {
+  return (
+    <div className="flex h-screen w-screen items-center justify-center bg-background p-4 text-foreground">
+      <Alert
+        type="error"
+        showIcon
+        message={i18n.t('error.boundary.default.message')}
+        description={formatErrorMessage(error)}
+        action={
+          <Button size="sm" onClick={() => void window.api.reload()}>
+            {i18n.t('error.boundary.default.reload')}
+          </Button>
+        }
+        className="max-w-xl"
+      />
+    </div>
+  )
 }
 
-function SettingsWindowRouter() {
+function SettingsWindowRouter({ initialPath }: { initialPath: string }) {
   const router = useMemo(() => {
-    const history = createMemoryHistory({ initialEntries: ['/settings/provider'] })
+    const history = createMemoryHistory({ initialEntries: [normalizeSettingsPath(initialPath)] })
     return createRouter({ routeTree, history })
-  }, [])
+  }, [initialPath])
   const targetPath = useWindowInitData<string>()
 
   useEffect(() => {
@@ -77,7 +112,7 @@ function SettingsWindowRouter() {
   return <RouterProvider router={router} />
 }
 
-function SettingsWindowApp(): React.ReactElement {
+function SettingsWindowApp({ initialPath }: { initialPath: string }): React.ReactElement {
   const shellStyle = {
     '--navbar-height': '0px',
     '--settings-window-sidebar-top-padding': isMac ? '32px' : '0px',
@@ -101,7 +136,7 @@ function SettingsWindowApp(): React.ReactElement {
                           isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
                         )}
                         style={shellStyle}>
-                        <SettingsWindowRouter />
+                        <SettingsWindowRouter initialPath={initialPath} />
                       </div>
                     </TopViewContainer>
                   </PersistGate>
@@ -116,4 +151,13 @@ function SettingsWindowApp(): React.ReactElement {
 }
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
-root.render(<SettingsWindowApp />)
+const preloadError = await preloadSettingsPreferences()
+const initialSettingsPath = preloadError ? DEFAULT_SETTINGS_PATH : await getInitialSettingsPath()
+
+root.render(
+  preloadError ? (
+    <SettingsWindowFatalError error={preloadError} />
+  ) : (
+    <SettingsWindowApp initialPath={initialSettingsPath} />
+  )
+)

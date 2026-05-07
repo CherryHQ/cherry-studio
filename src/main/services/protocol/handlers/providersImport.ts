@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('ProtocolService:providersImport')
 
-function ParseData(data: string) {
+export function parseProvidersImportData(data: string) {
   try {
     const result = JSON.parse(
       Buffer.from(data, 'base64').toString('utf-8').replaceAll("'", '"').replaceAll('(', '').replaceAll(')', '')
@@ -11,7 +11,7 @@ function ParseData(data: string) {
 
     return JSON.stringify(result)
   } catch (error) {
-    logger.error('ParseData error:', error as Error)
+    logger.error('parseProvidersImportData error:', error as Error)
     return null
   }
 }
@@ -32,7 +32,7 @@ export async function handleProvidersProtocolUrl(url: URL) {
       // replace + and / to _ and - because + and / are processed by URLSearchParams
       const processedSearch = url.search.replaceAll('+', '_').replaceAll('/', '-')
       const params = new URLSearchParams(processedSearch)
-      const data = ParseData(params.get('data')?.replaceAll('_', '+').replaceAll('-', '/') || '')
+      const data = parseProvidersImportData(params.get('data')?.replaceAll('_', '+').replaceAll('-', '/') || '')
 
       if (!data) {
         logger.error('handleProvidersProtocolUrl data is null or invalid')
@@ -45,7 +45,9 @@ export async function handleProvidersProtocolUrl(url: URL) {
         logger.debug('handleProvidersProtocolUrl', { data, version })
       }
 
-      application.get('SettingsWindowService').open(`/settings/provider?addProviderData=${encodeURIComponent(data)}`)
+      application
+        .get('SettingsWindowService')
+        .openUsingPreference(`/settings/provider?addProviderData=${encodeURIComponent(data)}`)
       break
     }
     default:
