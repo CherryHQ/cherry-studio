@@ -303,6 +303,66 @@ vi.mock('@cherrystudio/ui', () => {
         { ...props, 'data-testid': 'circular-progress', 'data-value': value },
         showLabel ? (renderLabel ? renderLabel(value) : value) : null
       ),
+    CustomTag: ({
+      children,
+      icon,
+      color,
+      size = 12,
+      style,
+      tooltip,
+      closable,
+      onClose,
+      onClick,
+      onContextMenu,
+      disabled,
+      inactive,
+      className,
+      ...props
+    }) => {
+      const actualColor = inactive ? '#aaaaaa' : color
+      const tag = React.createElement(
+        'div',
+        {
+          ...props,
+          className,
+          style: {
+            padding: `${size / 3}px ${closable ? size * 1.8 : size * 0.8}px ${size / 3}px ${size * 0.8}px`,
+            color: actualColor,
+            backgroundColor: actualColor + '20',
+            fontSize: `${size}px`,
+            lineHeight: 1,
+            cursor: disabled ? 'not-allowed' : onClick ? 'pointer' : 'auto',
+            ...style
+          },
+          onClick: disabled ? undefined : onClick,
+          onContextMenu: disabled ? undefined : onContextMenu
+        },
+        icon,
+        children,
+        closable
+          ? React.createElement(
+              'button',
+              {
+                type: 'button',
+                onClick: (event) => {
+                  event.stopPropagation()
+                  onClose?.()
+                }
+              },
+              'x'
+            )
+          : null
+      )
+
+      return tooltip
+        ? React.createElement(
+            'div',
+            { 'data-testid': 'tooltip', 'data-title': tooltip },
+            tag,
+            React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltip)
+          )
+        : tag
+    },
     Spinner: ({ text, ...props }) => React.createElement('div', { ...props, 'data-testid': 'spinner' }, text),
     CodeEditor: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'code-editor' }, children),

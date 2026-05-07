@@ -1,4 +1,3 @@
-import { CodeOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -90,7 +89,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
               </TerminalPreview>
               <ButtonContainer>
                 <Button onClick={() => setIsPopupOpen(true)}>
-                  <CodeOutlined />
+                  <Code size={14} />
                   {t('chat.artifacts.button.preview')}
                 </Button>
               </ButtonContainer>
@@ -98,7 +97,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
           ) : (
             <ButtonContainer>
               <Button onClick={() => setIsPopupOpen(true)} variant="ghost" disabled={!hasContent}>
-                <CodeOutlined />
+                <Code size={14} />
                 {t('chat.artifacts.button.preview')}
               </Button>
               <Button onClick={handleOpenExternal} variant="ghost" disabled={!hasContent}>

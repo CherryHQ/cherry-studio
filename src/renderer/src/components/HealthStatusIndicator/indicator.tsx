@@ -1,8 +1,7 @@
-import { CheckCircleFilled, CloseCircleFilled, ExclamationCircleFilled, LoadingOutlined } from '@ant-design/icons'
 import { Flex, Tooltip } from '@cherrystudio/ui'
 import { HealthStatus } from '@renderer/types/healthCheck'
+import { CircleAlert, CircleCheck, CircleX, LoaderCircle } from 'lucide-react'
 import React, { memo, useCallback } from 'react'
-import styled from 'styled-components'
 
 import type { HealthResult } from './types'
 import { useHealthStatus } from './useHealthStatus'
@@ -13,6 +12,13 @@ interface HealthStatusIndicatorProps {
   showLatency?: boolean
   onErrorClick?: (result: HealthResult) => void
 }
+
+const STATUS_COLOR = {
+  success: 'var(--color-status-success)',
+  error: 'var(--color-status-error)',
+  partial: 'var(--color-status-warning)',
+  checking: 'var(--color-text)'
+} as const
 
 const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
   results,
@@ -35,9 +41,9 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
 
   if (loading) {
     return (
-      <IndicatorWrapper $type="checking">
-        <LoadingOutlined spin />
-      </IndicatorWrapper>
+      <div className="flex items-center justify-center text-sm" style={{ color: STATUS_COLOR.checking }}>
+        <LoaderCircle size={14} className="animate-spin" />
+      </div>
     )
   }
 
@@ -48,12 +54,13 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
   let icon: React.ReactNode = null
   switch (overallStatus) {
     case 'success':
-      icon = <CheckCircleFilled />
+      icon = <CircleCheck size={14} />
       break
     case 'error':
+      icon = <CircleX size={14} />
+      break
     case 'partial': {
-      const IconComponent = overallStatus === 'error' ? CloseCircleFilled : ExclamationCircleFilled
-      icon = <IconComponent />
+      icon = <CircleAlert size={14} />
       break
     }
     default:
@@ -62,44 +69,20 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
 
   return (
     <Flex className="items-center gap-1.5">
-      {latencyText && <LatencyText>{latencyText}</LatencyText>}
+      {latencyText && <span className="ml-2.5 text-[12px] text-[var(--color-text-secondary)]">{latencyText}</span>}
       <Tooltip content={tooltip} className="select-text">
-        <IndicatorWrapper
-          $type={overallStatus}
-          $clickable={isClickable}
+        <div
+          className="flex items-center justify-center text-sm"
+          style={{
+            color: STATUS_COLOR[overallStatus],
+            cursor: isClickable ? 'pointer' : 'auto'
+          }}
           onClick={isClickable ? handleClick : undefined}>
           {icon}
-        </IndicatorWrapper>
+        </div>
       </Tooltip>
     </Flex>
   )
 }
-
-const IndicatorWrapper = styled.div<{ $type: string; $clickable?: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  cursor: ${({ $clickable }) => ($clickable ? 'pointer' : 'auto')};
-  color: ${({ $type }) => {
-    switch ($type) {
-      case 'success':
-        return 'var(--color-status-success)'
-      case 'error':
-        return 'var(--color-status-error)'
-      case 'partial':
-        return 'var(--color-status-warning)'
-      case 'checking':
-      default:
-        return 'var(--color-text)'
-    }
-  }};
-`
-
-const LatencyText = styled.span`
-  margin-left: 10px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-`
 
 export default memo(HealthStatusIndicator)
