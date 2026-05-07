@@ -561,14 +561,10 @@ class BackupManager {
   }
 
   /**
-   * Restore from direct backup format (version 6+)
-   * Writes restored IndexedDB / Local Storage / Data to `*.restore` staging directories
-   * on every platform. The atomic swap into place happens at the next startup via
-   * `handleStartupRestore`, before any window or database connection is opened.
-   *
-   * Why the staging step on macOS/Linux too: previously the live directories were
-   * overwritten in place while Chromium and libsql still held them open, which
-   * silently corrupted the freshly restored data on relaunch (see issue #14774).
+   * Restore from direct backup format (version 6+).
+   * Writes to `*.restore` directories; `handleStartupRestore` performs the atomic
+   * swap on next launch, before any DB connection or window opens. Avoids
+   * overwriting live IndexedDB / libsql files (issue #14774).
    */
   private async restoreDirect(): Promise<void> {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
@@ -605,8 +601,6 @@ class BackupManager {
 
       logger.debug('[restoreDirect] Staging database directories...')
 
-      // Always remove the staging directory first to drop any leftovers from a previous
-      // aborted attempt, then copy fresh data in.
       if (await fs.pathExists(indexedDBSource)) {
         await fs.remove(indexedDBDest).catch(() => {})
         await fs.copy(indexedDBSource, indexedDBDest)
@@ -647,14 +641,10 @@ class BackupManager {
 
       logger.info('[restoreDirect] Restore staged successfully, relaunching app to apply...')
 
-      // Relaunch app: handleStartupRestore will swap *.restore directories into place
-      // before any DB connection or renderer window is created.
       app.relaunch()
       app.exit(0)
     } catch (error) {
       logger.error('[restoreDirect] Restore failed:', error as Error)
-      // Drop any half-written staging directories so the next startup does not
-      // swap a partial restore into place.
       await Promise.all([
         fs.remove(this.tempDir).catch(() => {}),
         fs.remove(indexedDBDest).catch(() => {}),
@@ -684,8 +674,6 @@ class BackupManager {
 
       logger.debug('[restoreLegacy] restore Data directory')
 
-      // Stage Data directory under .restore — handleStartupRestore swaps it into place
-      // on the next launch, after the renderer reload triggered by the legacy restore flow.
       const userDataPath = app.getPath('userData')
       const dataSourcePath = path.join(this.tempDir, 'Data')
       const dataDestPath = path.join(userDataPath, 'Data.restore')
@@ -916,11 +904,9 @@ class BackupManager {
   }
 
   /**
-   * Stage an empty Data directory; handleStartupRestore swaps it into place at the
-   * next launch, before any DB connection or window is created. Staging on every
-   * platform avoids the window between `fs.remove(Data)` and `app.relaunchApp()`
-   * during which libsql / MemoryService / KnowledgeService could checkpoint or
-   * recreate files under `Data/`.
+   * Stage an empty Data directory; handleStartupRestore swaps it in on next launch.
+   * Avoids races with libsql / MemoryService / KnowledgeService recreating files
+   * before relaunch.
    */
   public async resetData() {
     const dataRestorePath = getDataPath() + '.restore'
