@@ -8,6 +8,7 @@ import type { S3Config, WebDavConfig } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
 
+import { syncWithS3, syncWithWebdav } from './DataSyncService'
 import { NotificationService } from './NotificationService'
 
 const logger = loggerService.withContext('BackupService')
@@ -85,6 +86,80 @@ export async function backupToLanTransfer() {
   await window.api.backup.createLanTransferBackup(backupData, savePath)
 
   window.toast.success(i18n.t('settings.data.export_to_phone.file.export_success'))
+}
+
+export async function syncDataToWebdav() {
+  const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
+
+  store.dispatch(setWebDAVSyncState({ syncing: true, lastSyncError: null }))
+
+  try {
+    const result = await syncWithWebdav({
+      webdavHost,
+      webdavUser,
+      webdavPass,
+      webdavPath
+    })
+
+    store.dispatch(
+      setWebDAVSyncState({
+        syncing: false,
+        lastSyncError: null,
+        lastSyncTime: Date.now()
+      })
+    )
+
+    return result
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    store.dispatch(
+      setWebDAVSyncState({
+        syncing: false,
+        lastSyncError: message
+      })
+    )
+    throw error
+  }
+}
+
+export async function syncDataToS3() {
+  const settings = store.getState().settings
+
+  store.dispatch(setS3SyncState({ syncing: true, lastSyncError: null }))
+
+  try {
+    const result = await syncWithS3({
+      endpoint: settings.s3.endpoint,
+      region: settings.s3.region,
+      bucket: settings.s3.bucket,
+      accessKeyId: settings.s3.accessKeyId,
+      secretAccessKey: settings.s3.secretAccessKey,
+      root: settings.s3.root,
+      skipBackupFile: settings.s3.skipBackupFile,
+      autoSync: settings.s3.autoSync,
+      syncInterval: settings.s3.syncInterval,
+      maxBackups: settings.s3.maxBackups
+    })
+
+    store.dispatch(
+      setS3SyncState({
+        syncing: false,
+        lastSyncError: null,
+        lastSyncTime: Date.now()
+      })
+    )
+
+    return result
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    store.dispatch(
+      setS3SyncState({
+        syncing: false,
+        lastSyncError: message
+      })
+    )
+    throw error
+  }
 }
 
 export async function restore() {

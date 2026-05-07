@@ -1255,6 +1255,50 @@ class BackupManager {
       throw new Error(error.message || 'Failed to delete backup file')
     }
   }
+
+  async writeWebdavText(_: Electron.IpcMainInvokeEvent, fileName: string, content: string, webdavConfig: WebDavConfig) {
+    try {
+      const webdavClient = this.getWebDavInstance(webdavConfig)
+      await webdavClient.putFileContents(fileName, content, { overwrite: true })
+      return true
+    } catch (error: any) {
+      logger.error('Failed to write WebDAV text file:', error)
+      throw new Error(error.message || 'Failed to write WebDAV file')
+    }
+  }
+
+  async readWebdavText(_: Electron.IpcMainInvokeEvent, fileName: string, webdavConfig: WebDavConfig): Promise<string> {
+    try {
+      const webdavClient = this.getWebDavInstance(webdavConfig)
+      const content = await webdavClient.getFileContents(fileName, { format: 'text' })
+      return String(content)
+    } catch (error: any) {
+      logger.error('Failed to read WebDAV text file:', error)
+      throw new Error(error.message || 'Failed to read WebDAV file')
+    }
+  }
+
+  async writeS3Text(_: Electron.IpcMainInvokeEvent, fileName: string, content: string, s3Config: S3Config) {
+    try {
+      const s3Client = this.getS3Storage(s3Config)
+      await s3Client.putFileContents(fileName, content)
+      return true
+    } catch (error: any) {
+      logger.error('Failed to write S3 text file:', error)
+      throw new Error(error.message || 'Failed to write S3 file')
+    }
+  }
+
+  async readS3Text(_: Electron.IpcMainInvokeEvent, fileName: string, s3Config: S3Config): Promise<string> {
+    try {
+      const s3Client = this.getS3Storage(s3Config)
+      const content = await s3Client.getFileContents(fileName)
+      return content.toString('utf-8')
+    } catch (error: any) {
+      logger.error('Failed to read S3 text file:', error)
+      throw new Error(error.message || 'Failed to read S3 file')
+    }
+  }
 }
 
 export { BackupManager }

@@ -200,6 +200,14 @@ const api = {
     deleteS3File: (fileName: string, s3Config: S3Config) =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteS3File, fileName, s3Config),
     checkS3Connection: (s3Config: S3Config) => ipcRenderer.invoke(IpcChannel.Backup_CheckS3Connection, s3Config),
+    writeWebdavText: (fileName: string, content: string, webdavConfig: WebDavConfig) =>
+      ipcRenderer.invoke(IpcChannel.Backup_WriteWebdavText, fileName, content, webdavConfig),
+    readWebdavText: (fileName: string, webdavConfig: WebDavConfig): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.Backup_ReadWebdavText, fileName, webdavConfig),
+    writeS3Text: (fileName: string, content: string, s3Config: S3Config) =>
+      ipcRenderer.invoke(IpcChannel.Backup_WriteS3Text, fileName, content, s3Config),
+    readS3Text: (fileName: string, s3Config: S3Config): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.Backup_ReadS3Text, fileName, s3Config),
     createLanTransferBackup: (data: string, destinationPath?: string): Promise<string> =>
       ipcRenderer.invoke(IpcChannel.Backup_CreateLanTransferBackup, data, destinationPath),
     deleteLanTransferBackup: (filePath: string): Promise<boolean> =>

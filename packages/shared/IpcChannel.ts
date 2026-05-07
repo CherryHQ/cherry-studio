@@ -270,6 +270,10 @@ export enum IpcChannel {
   Backup_CheckS3Connection = 'backup:checkS3Connection',
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
   Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
+  Backup_WriteWebdavText = 'backup:writeWebdavText',
+  Backup_ReadWebdavText = 'backup:readWebdavText',
+  Backup_WriteS3Text = 'backup:writeS3Text',
+  Backup_ReadS3Text = 'backup:readS3Text',
 
   // zip
   Zip_Compress = 'zip:compress',
