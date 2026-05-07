@@ -2867,7 +2867,7 @@
           "defaultValue": true,
           "status": "classified",
           "category": "preferences",
-          "targetKey": null
+          "targetKey": "chat.web_search.search_with_time"
         },
         {
           "originalKey": "maxResults",
@@ -2891,7 +2891,7 @@
           "defaultValue": [],
           "status": "classified",
           "category": "preferences",
-          "targetKey": null
+          "targetKey": "chat.web_search.subscribe_sources"
         },
         {
           "originalKey": "overwrite",

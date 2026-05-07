@@ -2497,9 +2497,7 @@
     "websearch": {
       "cutoff": "Обрезка содержимого поиска...",
       "fetch_complete": "{{count}} результатов поиска",
-      "rag": "Выполнение RAG...",
-      "rag_complete": "Сохранено {{countAfter}} из {{countBefore}} результатов...",
-      "rag_failed": "RAG не удалось, возвращается пустой результат..."
+      "partial_failure": "{{count}} результатов поиска, некоторые поиски завершились ошибкой"
     }
   },
   "minapp": {
@@ -5504,7 +5502,8 @@
         "documentation": "Смотрите официальную документацию для получения более подробной информации о конфигурации:",
         "learn_more": "Узнать больше",
         "location": "Местоположение",
-        "location_help": "Местоположение службы Vertex AI, например, us-central1",
+        "location_help": "Местоположение службы Vertex AI, например, us-central1. Это поле не считывается из JSON Service Account и должно быть заполнено вручную.",
+        "location_placeholder": "Выберите местоположение Vertex AI",
         "project_id": "ID проекта",
         "project_id_help": "Ваш ID проекта Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5515,6 +5514,11 @@
           "client_email_placeholder": "Введите email клиента Service Account",
           "description": "Используйте Service Account для аутентификации, подходит для сред, где ADC недоступен",
           "incomplete_config": "Пожалуйста, сначала завершите конфигурацию Service Account",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Вставьте полное содержимое JSON-ключа. После разбора сохраняются только project_id, client_email и private_key, а исходный JSON очищается.",
+          "json_input_placeholder": "Вставьте полное содержимое JSON-ключа Service Account",
+          "json_parse_error": "Не удалось разобрать Service Account JSON. Пожалуйста, проверьте правильность формата.",
+          "json_parse_success": "Service Account JSON разобран",
           "private_key": "Приватный ключ",
           "private_key_help": "Поле private_key из файла ключа JSON, загруженного из Google Cloud Console",
           "private_key_placeholder": "Введите приватный ключ Service Account",
@@ -5734,23 +5738,10 @@
               "token": "Токены"
             }
           },
-          "error": {
-            "rag_failed": "RAG не удалось"
-          },
-          "info": {
-            "dimensions_auto_success": "Размерности успешно получены, размерности: {{dimensions}}"
-          },
           "method": {
             "cutoff": "Обрезка",
             "label": "Метод сжатия",
-            "none": "Не сжимать",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Количество фрагментов документов",
-              "tooltip": "Ожидаемое количество фрагментов документов, которые будут извлечены из каждого результата поиска. Фактическое количество извлеченных фрагментов документов равно этому значению, умноженному на количество результатов поиска."
-            }
+            "none": "Не сжимать"
           },
           "title": "Сжатие результатов поиска"
         },

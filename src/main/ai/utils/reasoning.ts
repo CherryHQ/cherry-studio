@@ -153,7 +153,10 @@ export function getReasoningEffort(
       (provider.id === SystemProviderIds.dashscope &&
         (isDeepSeekHybridInferenceModel(model) ||
           isSupportedThinkingTokenZhipuModel(model) ||
-          isSupportedThinkingTokenKimiModel(model)))
+          isSupportedThinkingTokenKimiModel(model))) ||
+      // SiliconFlow uses enable_thinking for DeepSeek and Zhipu models, same as positive path
+      (provider.id === SystemProviderIds.silicon &&
+        (isDeepSeekHybridInferenceModel(model) || isSupportedThinkingTokenZhipuModel(model)))
     ) {
       return { enable_thinking: false }
     }

@@ -2497,9 +2497,7 @@
     "websearch": {
       "cutoff": "Troncature du contenu de recherche en cours...",
       "fetch_complete": "{{count}} résultats de recherche",
-      "rag": "Exécution de la RAG en cours...",
-      "rag_complete": "Conserver {{countAfter}} résultats sur {{countBefore}}...",
-      "rag_failed": "Échec de la RAG, retour d'un résultat vide..."
+      "partial_failure": "{{count}} résultats de recherche, certaines recherches ont échoué"
     }
   },
   "minapp": {
@@ -5504,7 +5502,8 @@
         "documentation": "Consultez la documentation officielle pour plus de détails sur la configuration :",
         "learn_more": "En savoir plus",
         "location": "Région",
-        "location_help": "La région du service Vertex AI, par exemple us-central1",
+        "location_help": "La région du service Vertex AI, par exemple us-central1. Ce champ n'est pas lu depuis le JSON du compte de service et doit être saisi manuellement.",
+        "location_placeholder": "Sélectionner une région Vertex AI",
         "project_id": "ID du projet",
         "project_id_help": "Votre identifiant de projet Google Cloud",
         "project_id_placeholder": "votre-id-projet-google-cloud",
@@ -5515,6 +5514,11 @@
           "client_email_placeholder": "Veuillez saisir l'e-mail du compte de service",
           "description": "Authentification via un compte de service, adaptée aux environnements où ADC n'est pas utilisable",
           "incomplete_config": "Veuillez d'abord compléter la configuration des informations du compte de service",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Collez le contenu complet de la clé JSON. Après analyse, seuls project_id, client_email et private_key sont enregistrés, et le JSON brut est effacé.",
+          "json_input_placeholder": "Collez le contenu complet de la clé JSON du compte de service",
+          "json_parse_error": "Impossible d'analyser le Service Account JSON. Veuillez vérifier que le format est correct.",
+          "json_parse_success": "Service Account JSON analysé",
           "private_key": "Clé privée",
           "private_key_help": "Champ private_key provenant du fichier de clé JSON téléchargé depuis Google Cloud Console",
           "private_key_placeholder": "Veuillez saisir la clé privée du compte de service",
@@ -5734,23 +5738,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "Échec du RAG"
-          },
-          "info": {
-            "dimensions_auto_success": "L'obtention automatique des dimensions a réussi, les dimensions sont {{dimensions}}"
-          },
           "method": {
             "cutoff": "Troncature",
             "label": "Méthode de compression",
-            "none": "Pas de compression",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Nombre de fragments de document",
-              "tooltip": "Nombre prévu de fragments de document à extraire d'un seul résultat de recherche. Le nombre total réellement extrait est ce nombre multiplié par le nombre de résultats de recherche."
-            }
+            "none": "Pas de compression"
           },
           "title": "Compression des résultats de recherche"
         },

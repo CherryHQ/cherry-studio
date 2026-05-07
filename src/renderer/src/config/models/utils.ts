@@ -5,6 +5,7 @@ import {
   GEMINI_FLASH_MODEL_REGEX as SHARED_GEMINI_FLASH_MODEL_REGEX,
   isAnthropicModel as sharedIsAnthropicModel,
   isClaude46SeriesModel as sharedIsClaude46SeriesModel,
+  isDeepSeekModel as sharedIsDeepSeekModel,
   isGemini3FlashModel as sharedIsGemini3FlashModel,
   isGemini3Model as sharedIsGemini3Model,
   isGemini3ProModel as sharedIsGemini3ProModel,
@@ -65,6 +66,9 @@ export const isKimi25OrNewerModel = (model: Model | undefined | null): boolean =
 
 export const isAnthropicModel = (model?: Model): boolean =>
   model ? sharedIsAnthropicModel(toSharedCompatModel(model)) : false
+
+export const isDeepSeekModel = (model?: Model): boolean =>
+  model ? sharedIsDeepSeekModel(toSharedCompatModel(model)) : false
 
 export const isGeminiModel = (model: Model): boolean => sharedIsGeminiModel(toSharedCompatModel(model))
 

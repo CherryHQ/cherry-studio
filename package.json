@@ -514,7 +514,7 @@
       "@ai-sdk/google@3.0.64": "patches/@ai-sdk__google@3.0.64.patch",
       "@libsql/client@0.15.15": "patches/@libsql__client@0.15.15.patch",
       "@ai-sdk/anthropic": "patches/@ai-sdk__anthropic.patch",
-      "@ai-sdk/deepseek@2.0.29": "patches/@ai-sdk__deepseek@2.0.29.patch"
+      "@ai-sdk/deepseek@2.0.30": "patches/@ai-sdk__deepseek@2.0.30.patch"
     },
     "onlyBuiltDependencies": [
       "@j178/prek",

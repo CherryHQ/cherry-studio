@@ -42,6 +42,7 @@ interface Props {
   onSetMessages?: Dispatch<SetStateAction<Message[]>>
   onUpdateUseful?: (msgId: string) => void
   isGroupContextMessage?: boolean
+  isHorizontalMultiModelLayout?: boolean
 }
 
 const logger = loggerService.withContext('MessageItem')
@@ -64,7 +65,8 @@ const MessageItem: FC<Props> = ({
   hideMenuBar = false,
   isGrouped,
   onUpdateUseful,
-  isGroupContextMessage
+  isGroupContextMessage,
+  isHorizontalMultiModelLayout = false
 }) => {
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
@@ -230,7 +232,7 @@ const MessageItem: FC<Props> = ({
               style={{
                 fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
                 fontSize,
-                overflowY: 'visible'
+                overflowY: isHorizontalMultiModelLayout ? 'auto' : 'visible'
               }}>
               <MessageErrorBoundary>
                 <MessageContent message={message} />

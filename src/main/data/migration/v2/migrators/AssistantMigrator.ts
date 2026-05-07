@@ -1,17 +1,6 @@
 /**
- * Assistant migrator - migrates assistants from Redux to SQLite
- *
- * Data sources:
- * - Redux assistants slice (state.assistants.assistants) -> assistant table
- * - Redux assistants slice (state.assistants.presets) -> assistant table (merged)
- *
- * Dropped fields: type, messages, topics, content, targetLanguage,
- *   enableGenerateImage, enableUrlContext, knowledgeRecognition,
- *   webSearchProviderId, regularPhrases
- *
- * Transformed fields:
- * - model/defaultModel -> assistant.modelId (composite format)
- * - tags[] -> tag + entity_tag tables
+ * Migrates v1 Redux assistants/presets/defaultAssistant into the assistant table.
+ * See README-AssistantMigrator.md for sources, merge contract, and dropped fields.
  */
 
 import { assistantTable } from '@data/db/schemas/assistant'
@@ -21,6 +10,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -36,22 +26,21 @@ interface AssistantState {
 }
 
 /**
- * Merge two same-id v1 assistant rows. `primary` wins on every field that has
- * a defined, non-empty value; `secondary` only fills the gaps. Used to
- * reconcile the two id='default' copies the v1 slice always holds (one in
- * `assistants[]`, one in `state.defaultAssistant`) without losing fields that
- * only one of them edited.
- *
- * Settings is shallow-merged the same way (per-key first-non-empty wins) so
- * a user who only ever touched `defaultAssistant.settings.temperature` and
- * left `assistants[0].settings.temperature` at the seed value still gets
- * their value preserved when the seed-default key is undefined.
+ * Merge two same-id v1 assistant rows: primary wins on present fields,
+ * secondary fills gaps. See README-AssistantMigrator.md for the contract.
  */
-function mergeOldAssistants(primary: OldAssistant, secondary: OldAssistant): OldAssistant {
+export function mergeOldAssistants(primary: OldAssistant, secondary: OldAssistant): OldAssistant {
+  const isPresent = (v: unknown): boolean => {
+    if (v === undefined || v === null || v === '') return false
+    if (Array.isArray(v) && v.length === 0) return false
+    // Restrict to plain {} so Date/Map/class instances aren't misclassified.
+    if (typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype && Object.keys(v).length === 0) {
+      return false
+    }
+    return true
+  }
   const pickPrimaryThen = <K extends keyof OldAssistant>(key: K): OldAssistant[K] => {
-    const p = primary[key]
-    if (p !== undefined && p !== null && p !== '') return p
-    return secondary[key]
+    return isPresent(primary[key]) ? primary[key] : secondary[key]
   }
   const mergedSettings: OldAssistant['settings'] = (() => {
     const a = primary.settings
@@ -60,12 +49,15 @@ function mergeOldAssistants(primary: OldAssistant, secondary: OldAssistant): Old
     if (!b) return a
     const merged: Record<string, unknown> = { ...b }
     for (const [k, v] of Object.entries(a)) {
-      if (v !== undefined && v !== null && v !== '') merged[k] = v
+      if (isPresent(v)) merged[k] = v
     }
     return merged as OldAssistant['settings']
   })()
 
+  // Spread baseline preserves fields not in OldAssistant; explicit overrides apply isPresent rules.
   return {
+    ...secondary,
+    ...primary,
     id: primary.id,
     name: pickPrimaryThen('name'),
     prompt: pickPrimaryThen('prompt'),
@@ -78,10 +70,31 @@ function mergeOldAssistants(primary: OldAssistant, secondary: OldAssistant): Old
     mcpMode: pickPrimaryThen('mcpMode'),
     mcpServers: pickPrimaryThen('mcpServers'),
     knowledge_bases: pickPrimaryThen('knowledge_bases'),
-    enableWebSearch: primary.enableWebSearch ?? secondary.enableWebSearch,
+    enableWebSearch: pickPrimaryThen('enableWebSearch'),
     tags: pickPrimaryThen('tags')
   }
 }
+
+// Compile-time exhaustiveness guard: adding a new field to OldAssistant fails
+// here until its merge rule is declared, preventing silent fall-through to the
+// `...secondary, ...primary` spread (which skips isPresent-based protection).
+const _MERGE_RULES_COVERED = {
+  id: 'identity',
+  name: 'pickPrimary',
+  prompt: 'pickPrimary',
+  emoji: 'pickPrimary',
+  description: 'pickPrimary',
+  type: 'pickPrimary',
+  model: 'pickPrimary',
+  defaultModel: 'pickPrimary',
+  settings: 'shallowMerge',
+  mcpMode: 'pickPrimary',
+  mcpServers: 'pickPrimary',
+  knowledge_bases: 'pickPrimary',
+  enableWebSearch: 'pickPrimary',
+  tags: 'pickPrimary'
+} as const satisfies Record<keyof OldAssistant, 'identity' | 'pickPrimary' | 'shallowMerge'>
+void _MERGE_RULES_COVERED
 
 export class AssistantMigrator extends BaseMigrator {
   readonly id = 'assistant'
@@ -92,16 +105,23 @@ export class AssistantMigrator extends BaseMigrator {
   private preparedResults: AssistantTransformResult[] = []
   private skippedCount = 0
   private validAssistantIds = new Set<string>()
+  // v1 → v2 id remap. Currently only used for the legacy 'default' sentinel,
+  // which v2 doesn't preserve as an id — the row is migrated as a normal user
+  // assistant under a generated UUID. ChatMigrator reads this map to remap
+  // any topic.assistantId === 'default' to the new UUID.
+  private legacyAssistantIdRemap = new Map<string, string>()
 
   override reset(): void {
     this.preparedResults = []
     this.skippedCount = 0
     this.validAssistantIds.clear()
+    this.legacyAssistantIdRemap.clear()
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     this.preparedResults = []
     this.skippedCount = 0
+    this.legacyAssistantIdRemap.clear()
 
     try {
       const warnings: string[] = []
@@ -112,36 +132,35 @@ export class AssistantMigrator extends BaseMigrator {
         return { success: true, itemCount: 0, warnings: ['No assistants data found'] }
       }
 
-      // Collect from all three v1 slots:
-      //   - state.assistants[]: user-created + v1 initial-state copy of default (id='default')
-      //   - state.presets[]:    saved presets
-      //   - state.defaultAssistant: standalone slot, id=DEFAULT_ASSISTANT_ID='default'
-      //
-      // The v1 slice's initial state seeded *both* `defaultAssistant` and
-      // `assistants[0]` from `getDefaultAssistant()` (id='default'); they then
-      // drifted independently because `updateDefaultAssistant` writes only to
-      // the slot, while `updateAssistant`/`updateAssistantSettings`/`addTopic`
-      // write only to `assistants[]`. So real users typically have *both*
-      // slots populated with overlapping but non-equivalent data on id='default'.
-      //
-      // Strategy: merge same-id sources field-by-field (first non-empty wins).
-      // Push order: assistants[] → presets → defaultAssistant — `assistants[0]`
-      // gets the live edits in v1 (settings page writes there), so it wins
-      // for fields it has; `defaultAssistant` only fills in fields the live
-      // copy left empty (less common, but happens when only the slot was
-      // touched via `updateDefaultAssistant`).
+      // Push order matters: assistants[0] (live edits) wins over defaultAssistant
+      // on same-id collision. See README-AssistantMigrator.md.
       const sourceById = new Map<string, OldAssistant>()
+      let totalRawSources = 0
       const recordSource = (source: OldAssistant): void => {
-        const { id } = source
-        if (!id || typeof id !== 'string') {
+        totalRawSources++
+        const rawId = source.id
+        if (!rawId || typeof rawId !== 'string') {
           this.skippedCount++
           warnings.push(`Skipped assistant without valid id: ${source.name ?? 'unknown'}`)
           return
         }
+        // v1 'default' is a sentinel, not an entity id — remap to a UUID so it
+        // migrates as a normal user assistant.
+        let id = rawId
+        if (rawId === 'default') {
+          let mapped = this.legacyAssistantIdRemap.get(rawId)
+          if (!mapped) {
+            mapped = uuidv4()
+            this.legacyAssistantIdRemap.set(rawId, mapped)
+          }
+          id = mapped
+          source = { ...source, id }
+        }
         const existing = sourceById.get(id)
         if (existing) {
+          // Silent: legacy 'default' duplicate fires on every real-user migration.
           sourceById.set(id, mergeOldAssistants(existing, source))
-          logger.info(`Merged duplicate assistant id ${id} from secondary slot`)
+          logger.info('Merged duplicate assistant id from secondary slot', { id })
         } else {
           sourceById.set(id, source)
         }
@@ -167,8 +186,8 @@ export class AssistantMigrator extends BaseMigrator {
         }
       }
 
-      // Fail if all items were skipped but source had data (indicates systemic issue)
-      if (this.skippedCount > 0 && this.preparedResults.length === 0 && sourceById.size === 0) {
+      // Raw input but no output → systemic bug (id-invalid for all, or transform threw on all).
+      if (this.skippedCount > 0 && this.preparedResults.length === 0 && totalRawSources > 0) {
         logger.error('All assistants were skipped during preparation', { skipped: this.skippedCount })
         return { success: false, itemCount: 0, warnings }
       }
@@ -194,10 +213,6 @@ export class AssistantMigrator extends BaseMigrator {
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
-    if (this.preparedResults.length === 0) {
-      return { success: true, processedCount: 0 }
-    }
-
     try {
       let processed = 0
 
@@ -222,7 +237,6 @@ export class AssistantMigrator extends BaseMigrator {
       })
 
       await ctx.db.transaction(async (tx) => {
-        // Insert assistant rows
         for (let i = 0; i < sanitizedAssistantRows.length; i += BATCH_SIZE) {
           const batch = sanitizedAssistantRows.slice(i, i + BATCH_SIZE)
           await tx.insert(assistantTable).values(batch)
@@ -323,11 +337,12 @@ export class AssistantMigrator extends BaseMigrator {
         }
       })
 
-      // Track valid IDs for FK validation by downstream migrators.
-      // Precondition: transaction above has committed, so these IDs are in the DB.
-      // ChatMigrator.execute() reads this set to validate topic.assistantId references.
+      // FK whitelist for ChatMigrator. v2 has no system-reserved 'default' row,
+      // so the set contains only the migrated user assistants (including the
+      // legacy 'default' under its remapped UUID).
       this.validAssistantIds = new Set(this.preparedResults.map((r) => r.assistant.id as string))
       ctx.sharedData.set('assistantIds', this.validAssistantIds)
+      ctx.sharedData.set('legacyAssistantIdRemap', this.legacyAssistantIdRemap)
 
       this.reportProgress(100, `Migrated ${processed} assistants`, {
         key: 'migration.progress.migrated_assistants',

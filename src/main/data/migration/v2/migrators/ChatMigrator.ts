@@ -57,7 +57,6 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -136,6 +135,8 @@ export class ChatMigrator extends BaseMigrator {
   private orphanedAssistantTopics = 0
   // Valid assistant IDs from AssistantMigrator (for FK validation)
   private validAssistantIds: Set<string> | null = null
+  // v1 → v2 id remap (e.g. legacy 'default' → UUID) from AssistantMigrator
+  private legacyAssistantIdRemap: Map<string, string> = new Map()
   // Valid model IDs from ProviderModelMigrator/SQLite for FK validation
   private validModelIds: Set<string> | null = null
   // Block statistics for diagnostics
@@ -159,6 +160,7 @@ export class ChatMigrator extends BaseMigrator {
     this.blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
     this.promotedToRootCount = 0
     this.validAssistantIds = null
+    this.legacyAssistantIdRemap = new Map()
     this.validModelIds = null
     this.stagedTopics = []
   }
@@ -234,18 +236,29 @@ export class ChatMigrator extends BaseMigrator {
       if (assistantState?.assistants) allAssistants.push(...assistantState.assistants)
       if (assistantState?.defaultAssistant) allAssistants.push(assistantState.defaultAssistant)
 
+      // AssistantMigrator remapped legacy 'default' to a UUID; replay the same
+      // remap on every reference we read out of v1 so topicAssistantLookup
+      // points at the new id (else the FK whitelist check below would orphan
+      // every default-assistant topic).
+      this.legacyAssistantIdRemap = (ctx.sharedData.get('legacyAssistantIdRemap') as Map<string, string>) ?? new Map()
+      const remapAssistantId = (raw: string): string => this.legacyAssistantIdRemap.get(raw) ?? raw
+
       if (allAssistants.length > 0) {
         for (const assistant of allAssistants) {
-          this.assistantLookup.set(assistant.id, assistant)
+          const remappedId = remapAssistantId(assistant.id)
+          this.assistantLookup.set(remappedId, assistant)
 
           // Extract topic metadata from this assistant's topics array
           // Redux stores topic metadata (name, pinned, etc.) but with messages: []
           // Also track topic → assistantId mapping (Dexie doesn't store assistantId)
+          // First-write-wins so primary slot (assistants[0]) keeps its meta when
+          // the same topic.id appears under defaultAssistant — mirrors AssistantMigrator's
+          // primary-wins merge contract.
           if (assistant.topics && Array.isArray(assistant.topics)) {
             for (const topic of assistant.topics) {
-              if (topic.id) {
+              if (topic.id && !this.topicMetaLookup.has(topic.id)) {
                 this.topicMetaLookup.set(topic.id, topic)
-                this.topicAssistantLookup.set(topic.id, assistant.id)
+                this.topicAssistantLookup.set(topic.id, remappedId)
               }
             }
           }
@@ -330,15 +343,14 @@ export class ChatMigrator extends BaseMigrator {
     try {
       const topicReader = ctx.sources.dexieExport.createStreamReader('topics')
 
-      // Load valid assistant IDs for FK validation (set by AssistantMigrator).
-      // Always include DEFAULT_ASSISTANT_ID — the seeder guarantees that row
-      // exists post-migration, so it's a safe FK target for orphan-fallback.
       const sharedAssistantIds = (ctx.sharedData.get('assistantIds') as Set<string>) ?? null
       if (!sharedAssistantIds) {
         throw new Error('validAssistantIds not set in sharedData. AssistantMigrator must run before ChatMigrator.')
       }
+      // Defensive clone — v2 has no system-reserved 'default' row, so the set
+      // is exactly the migrated user assistants (legacy 'default' appears here
+      // under its remapped UUID, not under the literal 'default').
       this.validAssistantIds = new Set(sharedAssistantIds)
-      this.validAssistantIds.add(DEFAULT_ASSISTANT_ID)
       this.validModelIds = ctx.db?.select
         ? new Set((await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id))
         : null
@@ -528,6 +540,15 @@ export class ChatMigrator extends BaseMigrator {
         })
       }
 
+      // Strong signal that AssistantMigrator dropped most of its rows or that
+      // source data has shifted underfoot — surfaces before user notices every
+      // topic stranded with NULL assistantId.
+      if (this.topicCount > 0 && this.orphanedAssistantTopics / this.topicCount > 0.5) {
+        logger.warn(
+          `High orphan-assistant ratio: ${this.orphanedAssistantTopics}/${this.topicCount} topics had no resolvable assistant (assistantId=NULL)`
+        )
+      }
+
       const diagnostics = {
         skippedMessages: this.skippedMessages,
         orphanedAssistantTopics: this.orphanedAssistantTopics,
@@ -567,18 +588,9 @@ export class ChatMigrator extends BaseMigrator {
   }
 
   /**
-   * Prepare a single topic and its messages for migration
-   *
-   * @param oldTopic - Source topic from Dexie (has messages, may lack metadata)
-   * @returns Prepared data or null if topic should be skipped
-   *
-   * ## Data Merging
-   *
-   * Topic data comes from two sources:
-   * - Dexie `topics` table: Has `id`, `messages[]`, `assistantId`
-   * - Redux `assistants[].topics[]`: Has metadata (`name`, `pinned`, `prompt`, etc.)
-   *
-   * We merge Redux metadata into the Dexie topic before transformation.
+   * Prepare a single topic and its messages. See README-ChatMigrator.md for the
+   * source layout (Dexie topic rows + Redux topic metadata + defaultAssistant slot)
+   * and the merge contract.
    */
   private prepareTopicData(oldTopic: OldTopic): PreparedTopicData | null {
     // Validate required fields
@@ -590,45 +602,44 @@ export class ChatMigrator extends BaseMigrator {
       return null
     }
 
-    if ((oldTopic.messages?.length ?? 0) === 0 && !this.topicMetaLookup.has(oldTopic.id)) {
-      logger.info(`Skipping orphan empty topic ${oldTopic.id}`)
-      return null
-    }
-
-    // Merge topic metadata from Redux (name, pinned, etc.)
-    // Dexie topics may have stale or missing metadata; Redux is authoritative for these fields
+    // Merge Redux meta first so the empty-topic skip below can see user-intent flags.
     const topicMeta = this.topicMetaLookup.get(oldTopic.id)
     if (topicMeta) {
-      // Merge Redux metadata into Dexie topic
-      // Note: Redux topic.name can also be empty from ancient version migrations (see store/migrate.ts:303-305)
+      // Redux topic.name can be empty from ancient migrations (see store/migrate.ts:303-305).
       oldTopic.name = topicMeta.name || oldTopic.name
       oldTopic.pinned = topicMeta.pinned ?? oldTopic.pinned
       oldTopic.prompt = topicMeta.prompt ?? oldTopic.prompt
       oldTopic.isNameManuallyEdited = topicMeta.isNameManuallyEdited ?? oldTopic.isNameManuallyEdited
-      // Use Redux timestamps if available and Dexie lacks them
-      if (topicMeta.createdAt && !oldTopic.createdAt) {
-        oldTopic.createdAt = topicMeta.createdAt
-      }
-      if (topicMeta.updatedAt && !oldTopic.updatedAt) {
-        oldTopic.updatedAt = topicMeta.updatedAt
-      }
+      if (topicMeta.createdAt && !oldTopic.createdAt) oldTopic.createdAt = topicMeta.createdAt
+      if (topicMeta.updatedAt && !oldTopic.updatedAt) oldTopic.updatedAt = topicMeta.updatedAt
     }
 
-    // Fallback: If name is still empty after merge, use a default name
-    // This handles cases where both Dexie and Redux have empty names (ancient version bug)
+    // Drop empty topics (abandoned "new topic" clicks). `name` is not a signal — v1 auto-names on creation.
+    const hasMessages = Array.isArray(oldTopic.messages) && oldTopic.messages.length > 0
+    const hasUserIntent = Boolean(
+      oldTopic.pinned || oldTopic.isNameManuallyEdited || (oldTopic.prompt && oldTopic.prompt.trim())
+    )
+    if (!hasMessages && !hasUserIntent) {
+      logger.info('Skipping empty topic (no messages, no user-intent metadata)', { topicId: oldTopic.id })
+      return null
+    }
+
     if (!oldTopic.name) {
       // TODO: i18n
-      oldTopic.name = 'Unnamed Topic' // Default fallback for topics with no name
+      oldTopic.name = 'Unnamed Topic'
     }
 
-    // Derive topic timestamps from messages when neither Dexie nor Redux supplied
-    // them. parseTimestamp() falls back to Date.now() on missing input, which
-    // would stamp every "no source timestamp" topic with the migration moment
-    // and flood the top of the topic list. Topic.updatedAt should be at least
-    // its latest message's createdAt, so use that.
+    // Without this, parseTimestamp() falls back to Date.now() and stamps every
+    // missing-timestamp topic with the migration moment.
     if (!oldTopic.createdAt || !oldTopic.updatedAt) {
+      // Older v1 versions stored createdAt as numeric epoch-ms; Date.parse returns NaN on those.
+      const toMillis = (createdAt: unknown): number => {
+        if (typeof createdAt === 'number' && Number.isFinite(createdAt)) return createdAt
+        if (typeof createdAt === 'string' && createdAt.length > 0) return Date.parse(createdAt)
+        return NaN
+      }
       const messageMillis = (oldTopic.messages ?? [])
-        .map((m) => (m.createdAt ? Date.parse(m.createdAt) : NaN))
+        .map((m) => toMillis(m.createdAt))
         .filter((t) => Number.isFinite(t))
       if (messageMillis.length > 0) {
         if (!oldTopic.createdAt) {
@@ -637,33 +648,38 @@ export class ChatMigrator extends BaseMigrator {
         if (!oldTopic.updatedAt) {
           oldTopic.updatedAt = new Date(Math.max(...messageMillis)).toISOString()
         }
+      } else {
+        logger.warn('Topic has no derivable timestamp source, falling back to Date.now()', {
+          topicId: oldTopic.id,
+          messageCount: oldTopic.messages?.length ?? 0
+        })
       }
     }
 
-    // Get assistantId from Redux mapping (Dexie topics don't store assistantId);
-    // fall back to the seeded default so renderer hooks like
-    // `useAssistant(topic.assistantId)` always have a valid id to PATCH against
-    // (a `null` / `''` here used to drive `PATCH /assistants/` infinite loops
-    // from `useReasoningEffortSync` on freshly migrated branches).
-    let resolvedAssistantId = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId || DEFAULT_ASSISTANT_ID
-
-    // Validate assistantId FK — fall back to default if orphaned. validAssistantIds
-    // always includes DEFAULT_ASSISTANT_ID (added in execute()), so this branch
-    // never strands a topic without an FK target.
-    if (
-      resolvedAssistantId !== DEFAULT_ASSISTANT_ID &&
-      this.validAssistantIds &&
-      !this.validAssistantIds.has(resolvedAssistantId)
-    ) {
-      logger.warn(
-        `Topic ${oldTopic.id}: assistant ${resolvedAssistantId} not in assistant table, falling back to default`
-      )
-      resolvedAssistantId = DEFAULT_ASSISTANT_ID
+    // Resolve topic.assistantId. v2 has no system-reserved 'default' row;
+    // any unresolved reference becomes NULL and the renderer composes a
+    // runtime default from Preference. Both orphan branches (no source id /
+    // dangling FK) bump the counter so the >50% diagnostic catches users with
+    // mass-orphaned topics. Legacy 'default' from Dexie is replayed through
+    // the AssistantMigrator id remap before the FK whitelist check, so a
+    // migrated v1 default still resolves under its new UUID.
+    const lookupHit = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId
+    const sourceAssistantId = lookupHit ? (this.legacyAssistantIdRemap.get(lookupHit) ?? lookupHit) : lookupHit
+    let resolvedAssistantId: string | null
+    if (!sourceAssistantId) {
+      resolvedAssistantId = null
       this.orphanedAssistantTopics++
+    } else if (this.validAssistantIds && !this.validAssistantIds.has(sourceAssistantId)) {
+      logger.warn(`Topic ${oldTopic.id}: assistant ${sourceAssistantId} not in assistant table, setting NULL`)
+      resolvedAssistantId = null
+      this.orphanedAssistantTopics++
+    } else {
+      resolvedAssistantId = sourceAssistantId
     }
 
-    // Write resolved value back for transformTopic consumption (avoids mutating original beyond this point)
-    oldTopic.assistantId = resolvedAssistantId
+    // Write resolved value back for transformTopic consumption. transformTopic
+    // converts falsy to NULL, so empty string here yields the desired NULL FK.
+    oldTopic.assistantId = resolvedAssistantId ?? ''
 
     // Get messages array (may be empty or undefined)
     const oldMessages = oldTopic.messages || []

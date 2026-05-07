@@ -2497,9 +2497,7 @@
     "websearch": {
       "cutoff": "正在截斷搜尋內容...",
       "fetch_complete": "{{count}} 個搜尋結果",
-      "rag": "正在執行 RAG...",
-      "rag_complete": "保留 {{countBefore}} 個結果中的 {{countAfter}} 個...",
-      "rag_failed": "RAG 失敗，回傳空結果..."
+      "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
   },
   "minapp": {
@@ -5504,7 +5502,8 @@
         "documentation": "檢視官方文件以取得更多設定詳細資訊：",
         "learn_more": "瞭解更多",
         "location": "地區",
-        "location_help": "Vertex AI 服務地區，例如：us-central1",
+        "location_help": "Vertex AI 服務地區，例如：us-central1。此欄位不會從 Service Account JSON 自動帶入，需手動填寫。",
+        "location_placeholder": "選擇 Vertex AI 地區",
         "project_id": "專案 ID",
         "project_id_help": "您的 Google Cloud 專案 ID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5514,7 +5513,12 @@
           "client_email_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 client_email 欄位",
           "client_email_placeholder": "輸入服務帳戶 client email",
           "description": "使用服務帳戶進行身份驗證，適用於 ADC 無法使用的環境",
-          "incomplete_config": "請先完成服務帳戶設定",
+          "incomplete_config": "請先完整填寫所有必需的 Vertex AI 設定",
+          "json_input": "Service Account JSON",
+          "json_input_help": "貼上完整 JSON 金鑰內容。解析後只會儲存 project_id、client_email 和 private_key，並清空原始 JSON。",
+          "json_input_placeholder": "貼上完整的 Service Account JSON 金鑰內容",
+          "json_parse_error": "解析 Service Account JSON 失敗，請確認格式正確",
+          "json_parse_success": "Service Account JSON 已解析",
           "private_key": "私密金鑰",
           "private_key_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 private_key 欄位",
           "private_key_placeholder": "輸入服務帳戶私密金鑰",
@@ -5734,23 +5738,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG 失敗"
-          },
-          "info": {
-            "dimensions_auto_success": "維度自動取得成功，維度為 {{dimensions}}"
-          },
           "method": {
             "cutoff": "截斷",
             "label": "壓縮方法",
-            "none": "不壓縮",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "文件片段數量",
-              "tooltip": "預期從單個搜尋結果中提取的文件片段數量，實際提取的總數量是這個值乘以搜尋結果數量。"
-            }
+            "none": "不壓縮"
           },
           "title": "搜尋結果壓縮"
         },

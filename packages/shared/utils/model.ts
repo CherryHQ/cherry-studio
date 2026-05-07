@@ -187,8 +187,12 @@ export const isKimiModel = (model: Model): boolean =>
   VENDOR_PATTERNS.kimi.test(getLowerBaseModelName(getRawModelId(model), '/')) || model.providerId === 'moonshot'
 
 /** Check if model is a DeepSeek model. */
-export const isDeepSeekModel = (model: Model): boolean =>
-  VENDOR_PATTERNS.deepseek.test(getLowerBaseModelName(getRawModelId(model), '/')) || model.providerId === 'deepseek'
+export const isDeepSeekModel = (model?: Model): boolean => {
+  if (!model) return false
+  if (VENDOR_PATTERNS.deepseek.test(getLowerBaseModelName(getRawModelId(model), '/'))) return true
+  if (model.providerId === 'deepseek') return true
+  return model.name ? VENDOR_PATTERNS.deepseek.test(model.name.toLowerCase()) : false
+}
 
 /** Check if model is a Perplexity (sonar family) model. */
 export const isPerplexityModel = (model: Model): boolean =>

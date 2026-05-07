@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn()
-    }))
+    withContext: vi.fn(() => mockLogger)
   }
 }))
 
@@ -259,6 +258,54 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(result?.topic.updatedAt).toBe(new Date('2025-03-15T10:05:00.000Z').getTime())
   })
 
+  it('accepts numeric epoch-ms timestamps when deriving from messages', () => {
+    // Older v1 versions stored message.createdAt as a number, not an ISO
+    // string. Date.parse(number) returns NaN, so without the typeof number
+    // branch these would be silently filtered and the topic would fall
+    // through to Date.now().
+    const b1 = block('b1', 'u1')
+    const numericTs = new Date('2025-03-15T10:00:00.000Z').getTime()
+    const oldTopic: OldTopic = {
+      id: 't-numeric-ts',
+      assistantId: 'ast-1',
+      name: 'Numeric Timestamps',
+      createdAt: '',
+      updatedAt: '',
+      // @ts-expect-error - exercising legacy numeric timestamp path
+      messages: [msg('u1', 'user', ['b1'], { createdAt: numericTs })]
+    }
+    const result = prepareTopic(oldTopic, [b1])
+    expect(result).not.toBeNull()
+    expect(result?.topic.createdAt).toBe(numericTs)
+    expect(result?.topic.updatedAt).toBe(numericTs)
+  })
+
+  it('falls through to parseTimestamp when no message has a parseable createdAt', () => {
+    // Edge case: topic has messages but none carry a parseable createdAt.
+    // messageMillis is empty, so we cannot derive timestamps; downstream
+    // parseTimestamp() will fall back to Date.now(). The path is logged as
+    // a warning so it's diagnosable in real-user data dumps. We still
+    // produce a valid topic row (we can't drop it — the messages exist).
+    const b1 = block('b1', 'u1')
+    const oldTopic: OldTopic = {
+      id: 't-no-derivable-ts',
+      assistantId: 'ast-1',
+      name: 'No Derivable TS',
+      createdAt: '',
+      updatedAt: '',
+      messages: [msg('u1', 'user', ['b1'], { createdAt: 'not-a-date' })]
+    }
+    const before = Date.now()
+    const result = prepareTopic(oldTopic, [b1])
+    const after = Date.now()
+    expect(result).not.toBeNull()
+    // Both timestamps fell through to Date.now() bracketed by the test window
+    expect(result?.topic.createdAt).toBeGreaterThanOrEqual(before)
+    expect(result?.topic.createdAt).toBeLessThanOrEqual(after)
+    expect(result?.topic.updatedAt).toBeGreaterThanOrEqual(before)
+    expect(result?.topic.updatedAt).toBeLessThanOrEqual(after)
+  })
+
   it('skips topics with no messages (empty conversations are noise)', () => {
     // v1 created an empty topic on first launch and on every abandoned "new
     // topic" click — migrating those just clutters the post-migration list.
@@ -275,11 +322,73 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(prepareTopic(oldTopic, [])).toBeNull()
   })
 
-  it('falls back to DEFAULT_ASSISTANT_ID when topic.assistantId is empty', () => {
-    // Without this fallback, a topic with no assistantId becomes
-    // `assistantId: null`, and the renderer's `useAssistant('')` then
-    // dispatches `PATCH /assistants/` (empty id) on every reasoning-effort
-    // sync — server 400s, SWR retries, infinite loop.
+  it('keeps empty topic when user pinned it (user-intent signal)', () => {
+    // A pinned empty topic is "user touched this" — the user explicitly
+    // pinned a placeholder. Dropping it would lose intentional state.
+    // The pin flag lives on PreparedTopicData (not topic) since v2 stores
+    // pin state in a polymorphic pin table, not as a topic column.
+    const oldTopic: OldTopic = {
+      id: 't-pinned-empty',
+      assistantId: 'ast-1',
+      name: 'Pinned Empty',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [],
+      pinned: true
+    }
+    const result = prepareTopic(oldTopic, [])
+    expect(result).not.toBeNull()
+    expect(result?.pinned).toBe(true)
+  })
+
+  it('keeps empty topic when user manually renamed it', () => {
+    // isNameManuallyEdited is set by the rename UI — also a clear
+    // user-intent signal that should survive the empty-topic skip.
+    const oldTopic: OldTopic = {
+      id: 't-renamed-empty',
+      assistantId: 'ast-1',
+      name: 'My Renamed Topic',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [],
+      isNameManuallyEdited: true
+    }
+    expect(prepareTopic(oldTopic, [])).not.toBeNull()
+  })
+
+  it('keeps empty topic when user wrote a topic-level prompt', () => {
+    // A user-written topic prompt before the first message is a clear
+    // intent signal — losing it would discard the system prompt the user typed.
+    const oldTopic: OldTopic = {
+      id: 't-prompt-empty',
+      assistantId: 'ast-1',
+      name: 'Prompt Empty',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [],
+      prompt: 'You are a haiku coach.'
+    }
+    expect(prepareTopic(oldTopic, [])).not.toBeNull()
+  })
+
+  it('still drops empty topic when prompt is whitespace only', () => {
+    // Whitespace prompt is not a real user signal — auto-init or stray edit.
+    const oldTopic: OldTopic = {
+      id: 't-blank-prompt-empty',
+      assistantId: 'ast-1',
+      name: 'Blank Prompt',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [],
+      prompt: '   '
+    }
+    expect(prepareTopic(oldTopic, [])).toBeNull()
+  })
+
+  it('sets assistantId to NULL when topic.assistantId is empty', () => {
+    // v2 has no system-reserved 'default' row; the renderer composes a runtime
+    // default from Preference. Empty assistantId becomes NULL on insert
+    // (FK is nullable; transformTopic converts falsy → null).
     const b1 = block('b1', 'u1')
     const oldTopic: OldTopic = {
       id: 't1',
@@ -292,13 +401,12 @@ describe('ChatMigrator.prepareTopicData', () => {
 
     const result = prepareTopic(oldTopic, [b1])
     expect(result).not.toBeNull()
-    expect(result?.topic.assistantId).toBe('default')
+    expect(result?.topic.assistantId).toBeNull()
   })
 
-  it('falls back to DEFAULT_ASSISTANT_ID when topic.assistantId points to missing FK', () => {
-    // validAssistantIds set up to *not* include 'orphaned-id', so the FK check
-    // fires and falls the topic back onto DEFAULT_ASSISTANT_ID instead of
-    // leaving it dangling.
+  it('sets assistantId to NULL when topic.assistantId points to missing FK', () => {
+    // validAssistantIds set up to NOT include 'orphaned-id', so the FK check
+    // fires and the topic gets NULL instead of a dangling reference.
     const oldTopic: OldTopic = {
       id: 't1',
       assistantId: 'orphaned-id',
@@ -318,12 +426,46 @@ describe('ChatMigrator.prepareTopicData', () => {
     m['orphanedAssistantTopics'] = 0
     m['seenMessageIds'] = new Set()
     m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
-    // FK validation set: only 'default' valid, orphan must fall back
-    m['validAssistantIds'] = new Set(['default'])
+    // FK validation set with at least one valid id — proves the orphan branch
+    // (not "no validAssistantIds at all") is what falls 'orphaned-id' to NULL.
+    m['validAssistantIds'] = new Set(['some-valid-uuid'])
+    m['legacyAssistantIdRemap'] = new Map()
 
     const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
     const result = fn.call(migrator, oldTopic)
-    expect(result?.topic.assistantId).toBe('default')
+    expect(result?.topic.assistantId).toBeNull()
+  })
+
+  it('remaps legacy "default" assistantId to the migrated UUID via sharedData', () => {
+    // AssistantMigrator inserts the v1 default row under a fresh UUID and
+    // exposes the remap; ChatMigrator must rewrite topic.assistantId='default'
+    // to the new UUID instead of orphaning the topic.
+    const remappedDefaultId = '22222222-2222-4222-8222-222222222222'
+    const oldTopic: OldTopic = {
+      id: 't1',
+      assistantId: 'default',
+      name: 'Legacy Default Topic',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [msg('u1', 'user', ['b1'])]
+    }
+
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['blockLookup'] = new Map([['b1', block('b1', 'u1')]])
+    m['assistantLookup'] = new Map()
+    m['topicMetaLookup'] = new Map()
+    m['topicAssistantLookup'] = new Map()
+    m['skippedMessages'] = 0
+    m['orphanedAssistantTopics'] = 0
+    m['seenMessageIds'] = new Set()
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+    m['validAssistantIds'] = new Set([remappedDefaultId])
+    m['legacyAssistantIdRemap'] = new Map([['default', remappedDefaultId]])
+
+    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
+    const result = fn.call(migrator, oldTopic)
+    expect(result?.topic.assistantId).toBe(remappedDefaultId)
   })
 })
 
@@ -332,11 +474,15 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
     vi.clearAllMocks()
   })
 
-  it('extracts topic metadata from state.defaultAssistant.topics[]', async () => {
+  it('extracts topic metadata from state.defaultAssistant.topics[] and applies legacy id remap', async () => {
     // Topics under state.defaultAssistant.topics[] (a slot separate from
     // state.assistants[].topics[]) used to be silently dropped — they showed
-    // up as "Unnamed Topic" with no timestamps post-migration.
+    // up as "Unnamed Topic" with no timestamps post-migration. With v2's
+    // runtime-default architecture, AssistantMigrator remaps legacy 'default'
+    // to a UUID; ChatMigrator must replay that remap so the topic →
+    // assistantId lookup points at the new UUID, not the dead literal.
     const migrator = new ChatMigrator()
+    const remappedDefaultId = '11111111-1111-4111-8111-111111111111'
     const ctx = {
       sources: {
         dexieExport: {
@@ -357,7 +503,8 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
             }
           })
         }
-      }
+      },
+      sharedData: new Map([['legacyAssistantIdRemap', new Map([['default', remappedDefaultId]])]])
     }
     await migrator.prepare(ctx as any)
 
@@ -370,79 +517,81 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
     expect(internal.topicMetaLookup.has('topic-X')).toBe(true)
     expect(internal.topicMetaLookup.get('topic-X')?.name).toBe('X')
     expect(internal.topicMetaLookup.get('topic-X')?.pinned).toBe(true)
-    // defaultAssistant's topic maps to the default-assistant id
-    expect(internal.topicAssistantLookup.get('topic-X')).toBe('default')
+    // defaultAssistant's topic resolves through the remap, not the dead 'default' literal.
+    expect(internal.topicAssistantLookup.get('topic-X')).toBe(remappedDefaultId)
     expect(internal.topicAssistantLookup.get('topic-A')).toBe('ast-1')
   })
 })
 
-describe('ChatMigrator pin migration', () => {
+describe('ChatMigrator validate orphan-ratio diagnostic', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('captures pinned flag from Redux topic metadata onto PreparedTopicData', () => {
-    // Dexie topic row has no `pinned` column; the v1 source stores pin state
-    // on the Redux side under assistant.topics[].pinned. The migrator must
-    // merge that flag into PreparedTopicData so insertStagedTopics can later
-    // emit a `pin` row — without this flag the legacy pinned topic silently
-    // becomes unpinned post-migration.
-    const b1 = block('b1', 'u1')
-    const messages = [msg('u1', 'user', ['b1'])]
-    const oldTopic = topic('t1', messages)
+  function makeStubDb(targetTopicCount: number) {
+    // All count queries → constant; all sample queries → []. Tracks call order
+    // so the first count query (topicTable) returns the desired target topic count.
+    const select = vi.fn()
+    let firstCountReturned = false
+    select.mockImplementation((arg) => {
+      if (arg) {
+        const get = vi.fn().mockImplementation(() => {
+          if (!firstCountReturned) {
+            firstCountReturned = true
+            return Promise.resolve({ count: targetTopicCount })
+          }
+          return Promise.resolve({ count: 0 })
+        })
+        return {
+          from: vi.fn().mockReturnValue({
+            get,
+            where: vi.fn().mockReturnValue({ get })
+          })
+        }
+      }
+      return {
+        from: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({ all: vi.fn().mockResolvedValue([]) })
+        })
+      }
+    })
+    return { select }
+  }
 
+  it('warns when orphanedAssistantTopics / topicCount > 0.5', async () => {
     const migrator = new ChatMigrator()
     const m = migrator as unknown as Record<string, unknown>
-    m['blockLookup'] = new Map([['b1', b1]])
-    m['assistantLookup'] = new Map()
-    // Redux meta says it's pinned even though Dexie source doesn't carry the flag.
-    m['topicMetaLookup'] = new Map([['t1', { pinned: true }]])
-    m['topicAssistantLookup'] = new Map()
+    m['topicCount'] = 100
+    m['skippedTopics'] = 100 // expectedTopics = 0 → no count_low error
+    m['orphanedAssistantTopics'] = 60 // 60/100 = 0.6 > 0.5
     m['skippedMessages'] = 0
-    m['seenMessageIds'] = new Set()
     m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+    m['promotedToRootCount'] = 0
 
-    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
-    const result = fn.call(migrator, oldTopic) as (PreparedTopicData & { pinned: boolean }) | null
+    const ctx = { db: makeStubDb(0) }
+    await migrator.validate(ctx as any)
 
-    expect(result).not.toBeNull()
-    expect(result?.pinned).toBe(true)
+    const warned = mockLogger.warn.mock.calls.some((call) =>
+      String(call[0]).includes('High orphan-assistant ratio: 60/100')
+    )
+    expect(warned).toBe(true)
   })
 
-  it('defaults pinned to false when source has no pinned flag', () => {
-    const b1 = block('b1', 'u1')
-    const result = prepareTopic(topic('t1', [msg('u1', 'user', ['b1'])]), [b1])
-    expect(result).not.toBeNull()
-    expect((result as PreparedTopicData & { pinned: boolean }).pinned).toBe(false)
-  })
-
-  it('lets Redux pinned=false override Dexie pinned=true (Redux is authoritative)', () => {
-    // The merge order is `topicMeta.pinned ?? oldTopic.pinned`, so an explicit
-    // false in Redux wins over a stale true on the Dexie side.
-    const b1 = block('b1', 'u1')
-    const oldTopic: OldTopic = {
-      id: 't1',
-      assistantId: 'ast-1',
-      name: 'X',
-      createdAt: '2025-01-01T00:00:00.000Z',
-      updatedAt: '2025-01-01T00:00:00.000Z',
-      messages: [msg('u1', 'user', ['b1'])],
-      pinned: true
-    }
-
+  it('does not warn when orphan ratio is at or below 0.5', async () => {
     const migrator = new ChatMigrator()
     const m = migrator as unknown as Record<string, unknown>
-    m['blockLookup'] = new Map([['b1', b1]])
-    m['assistantLookup'] = new Map()
-    m['topicMetaLookup'] = new Map([['t1', { pinned: false }]])
-    m['topicAssistantLookup'] = new Map()
+    m['topicCount'] = 100
+    m['skippedTopics'] = 100
+    m['orphanedAssistantTopics'] = 50 // exactly 0.5, not > 0.5
     m['skippedMessages'] = 0
-    m['seenMessageIds'] = new Set()
     m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+    m['promotedToRootCount'] = 0
 
-    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
-    const result = fn.call(migrator, oldTopic) as (PreparedTopicData & { pinned: boolean }) | null
-    expect(result?.pinned).toBe(false)
+    const ctx = { db: makeStubDb(0) }
+    await migrator.validate(ctx as any)
+
+    const warned = mockLogger.warn.mock.calls.some((call) => String(call[0]).includes('High orphan-assistant ratio'))
+    expect(warned).toBe(false)
   })
 })
 
