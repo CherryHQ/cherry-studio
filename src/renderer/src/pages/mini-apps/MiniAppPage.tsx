@@ -5,7 +5,7 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useParams } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -24,7 +24,6 @@ const MiniAppPage: FC = () => {
   const { appId } = useParams({ strict: false })
   const { openMiniAppKeepAlive } = useMiniAppPopup()
   const { allApps, openedKeepAliveMiniApps, isLoading, error } = useMiniApps()
-  const navigate = useNavigate()
 
   // Find the app from all available apps (including transient ones in the keep-alive list)
   const app = useMemo((): MiniApp | null => {
@@ -37,22 +36,15 @@ const MiniAppPage: FC = () => {
 
   useEffect(() => {
     if (isLoading) return
-
     if (error) {
       logger.error('Failed to load mini apps', error instanceof DataApiError ? error : undefined)
-      void navigate({ to: '/app/mini-app' })
       return
     }
-
-    if (!app) {
-      void navigate({ to: '/app/mini-app' })
-      return
-    }
-
+    if (!app) return
     // Ensure the keep-alive pool picks up this app and currentMiniAppId stays
     // in sync with the route-changed appId.
     openMiniAppKeepAlive(app)
-  }, [app, navigate, openMiniAppKeepAlive, isLoading, error])
+  }, [app, openMiniAppKeepAlive, isLoading, error])
 
   // -------------- Tab Shell logic --------------
   // Hooks must be called before any return, so define them early with null-checks inside
@@ -150,9 +142,16 @@ const MiniAppPage: FC = () => {
     )
   }
 
-  // Early return if no app (all hooks already called)
+  // appId in the URL doesn't match any known app — render a not-found state
+  // instead of redirecting away, so the user sees what happened.
   if (!app) {
-    return null
+    return (
+      <ShellContainer>
+        <LoadingMask>
+          <ErrorText>{t('miniApp.error.not_found')}</ErrorText>
+        </LoadingMask>
+      </ShellContainer>
+    )
   }
 
   const handleReload = () => {
