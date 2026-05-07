@@ -395,6 +395,7 @@ describe('useMiniApps', () => {
       const { result } = renderHook(() => useMiniApps())
       // The actual ordering logic is tested in useReorder; here we just verify wiring.
       expect(typeof result.current.reorderMiniApps).toBe('function')
+      expect(typeof result.current.reorderMiniAppsByStatus).toBe('function')
     })
   })
 

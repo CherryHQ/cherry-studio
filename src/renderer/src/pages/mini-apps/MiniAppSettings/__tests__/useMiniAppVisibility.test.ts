@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   disabled: [] as MiniApp[],
   updateMiniApps: vi.fn(),
   updateDisabledMiniApps: vi.fn(),
-  reorderMiniApps: vi.fn()
+  reorderMiniAppsByStatus: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
@@ -27,7 +27,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
     disabled: mocks.disabled,
     updateMiniApps: mocks.updateMiniApps,
     updateDisabledMiniApps: mocks.updateDisabledMiniApps,
-    reorderMiniApps: mocks.reorderMiniApps
+    reorderMiniAppsByStatus: mocks.reorderMiniAppsByStatus
   })
 }))
 
@@ -37,7 +37,7 @@ describe('useMiniAppVisibility', () => {
     mocks.disabled = [stubApp('c')]
     mocks.updateMiniApps.mockClear()
     mocks.updateDisabledMiniApps.mockClear()
-    mocks.reorderMiniApps.mockClear()
+    mocks.reorderMiniAppsByStatus.mockClear()
   })
 
   it('initializes from useMiniApps', () => {
@@ -82,16 +82,17 @@ describe('useMiniAppVisibility', () => {
     expect(mocks.updateDisabledMiniApps).toHaveBeenCalledTimes(1)
   })
 
-  it('reorderVisible reorders within the visible list and calls reorderMiniApps', () => {
+  it('reorderVisible reorders within the visible list and calls reorderMiniAppsByStatus with the moved row partition', () => {
     const { result } = renderHook(() => useMiniAppVisibility())
     act(() => result.current.reorderVisible(0, 1))
     expect(result.current.visible.map((a) => a.appId)).toEqual(['b', 'a'])
-    expect(mocks.reorderMiniApps).toHaveBeenCalledWith(result.current.visible)
+    // Both seeded rows are status='enabled', so the partition matches the visible list.
+    expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('enabled', result.current.visible)
   })
 
   it('reorderVisible is a no-op when oldIndex === newIndex', () => {
     const { result } = renderHook(() => useMiniAppVisibility())
     act(() => result.current.reorderVisible(0, 0))
-    expect(mocks.reorderMiniApps).not.toHaveBeenCalled()
+    expect(mocks.reorderMiniAppsByStatus).not.toHaveBeenCalled()
   })
 })

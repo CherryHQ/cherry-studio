@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from 'react'
  * `updateMiniApps` / `updateDisabledMiniApps` / `reorderMiniApps`.
  */
 export function useMiniAppVisibility() {
-  const { miniapps, disabled, updateMiniApps, updateDisabledMiniApps, reorderMiniApps } = useMiniApps()
+  const { miniapps, disabled, updateMiniApps, updateDisabledMiniApps, reorderMiniAppsByStatus } = useMiniApps()
 
   const [visible, setVisible] = useState<MiniApp[]>(miniapps)
   const [hidden, setHidden] = useState<MiniApp[]>(disabled || [])
@@ -67,9 +67,10 @@ export function useMiniAppVisibility() {
       const [moved] = next.splice(oldIndex, 1)
       next.splice(newIndex, 0, moved)
       setVisible(next)
-      void reorderMiniApps(next)
+      const partition = next.filter((a) => a.status === moved.status)
+      void reorderMiniAppsByStatus(moved.status, partition)
     },
-    [visible, reorderMiniApps]
+    [visible, reorderMiniAppsByStatus]
   )
 
   const reorderHidden = useCallback(
@@ -79,9 +80,9 @@ export function useMiniAppVisibility() {
       const [moved] = next.splice(oldIndex, 1)
       next.splice(newIndex, 0, moved)
       setHidden(next)
-      void reorderMiniApps(next)
+      void reorderMiniAppsByStatus('disabled', next)
     },
-    [hidden, reorderMiniApps]
+    [hidden, reorderMiniAppsByStatus]
   )
 
   return { visible, hidden, swap, reset, hide, show, reorderVisible, reorderHidden }

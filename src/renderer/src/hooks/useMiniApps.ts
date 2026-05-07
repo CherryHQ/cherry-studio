@@ -7,8 +7,7 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
-import type { MiniApp } from '@shared/data/types/miniApp'
-import type { MiniAppRegion } from '@shared/data/types/miniApp'
+import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
 import { useCallback, useEffect, useMemo } from 'react'
 
 /**
@@ -343,6 +342,33 @@ export const useMiniApps = () => {
     [applyMiniAppOrder]
   )
 
+  /**
+   * Reorder miniapps inside a single status partition.
+   *
+   * `useReorder('/mini-apps')` diffs the new list against the full `/mini-apps`
+   * cache and `computeMinimalMoves` requires a permutation of the cache rows.
+   * Settings UI hands us only one column (e.g. enabled rows). We splice the
+   * subset back into the cache shape so the diff is well-formed and the
+   * resulting moves all stay within one partition — the server enforces single
+   * scope (see MiniAppService.reorder + applyScopedMoves).
+   */
+  const reorderMiniAppsByStatus = useCallback(
+    async (status: MiniAppStatus, orderedPartition: MiniApp[]) => {
+      let cursor = 0
+      const merged = allApps.map((a) => {
+        if (a.status !== status) return a
+        return orderedPartition[cursor++] ?? a
+      })
+      try {
+        await applyMiniAppOrder(merged)
+      } catch (error) {
+        logger.error('Failed to reorder mini apps within status', { status, error: toDataApiError(error) })
+        throw toDataApiError(error)
+      }
+    },
+    [allApps, applyMiniAppOrder]
+  )
+
   return {
     allApps,
     miniapps,
@@ -365,7 +391,8 @@ export const useMiniApps = () => {
     updateAppStatus,
     createCustomMiniApp,
     removeCustomMiniApp,
-    reorderMiniApps
+    reorderMiniApps,
+    reorderMiniAppsByStatus
   }
 }
 
