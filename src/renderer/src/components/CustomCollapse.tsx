@@ -1,4 +1,4 @@
-import { Collapse } from 'antd'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import { merge } from 'lodash'
 import { ChevronRight } from 'lucide-react'
 import type { FC } from 'react'
@@ -32,7 +32,10 @@ const CustomCollapse: FC<CustomCollapseProps> = ({
   style,
   styles
 }) => {
-  const [activeKeys, setActiveKeys] = useState(activeKey || defaultActiveKey)
+  const getAccordionValue = (keys?: string[]) => (keys?.includes('1') ? '1' : '')
+  const [internalValue, setInternalValue] = useState(getAccordionValue(defaultActiveKey))
+  const value = activeKey ? getAccordionValue(activeKey) : internalValue
+  const activeKeys = value ? ['1'] : []
 
   const defaultCollapseStyle = {
     width: '100%',
@@ -73,36 +76,49 @@ const CustomCollapse: FC<CustomCollapseProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeKeys])
 
+  const handleValueChange = (nextValue: string) => {
+    const nextKeys = nextValue ? [nextValue] : []
+
+    if (!activeKey) {
+      setInternalValue(nextValue)
+    }
+
+    onChange?.(nextKeys)
+  }
+
   return (
-    <Collapse
-      bordered={false}
+    <Accordion
+      type="single"
+      collapsible
+      value={value}
+      onValueChange={handleValueChange}
       style={collapseStyle}
-      defaultActiveKey={defaultActiveKey}
-      activeKey={activeKey}
-      destroyOnHidden={destroyInactivePanel}
-      collapsible={collapsible}
-      onChange={(keys) => {
-        setActiveKeys(keys)
-        onChange?.(keys)
-      }}
-      expandIcon={({ isActive }) => (
-        <ChevronRight
-          size={16}
-          color="var(--color-text-3)"
-          strokeWidth={1.5}
-          style={{ transform: isActive ? 'rotate(90deg)' : 'rotate(0deg)' }}
-        />
-      )}
-      items={[
-        {
-          styles: collapseItemStyles,
-          key: '1',
-          label,
-          extra,
-          children
-        }
-      ]}
-    />
+      className="overflow-hidden rounded-lg">
+      <AccordionItem value="1" className="border-0">
+        <div className="flex items-center" style={collapseItemStyles.header}>
+          <div className="min-w-0 flex-1">
+            <AccordionTrigger
+              disabled={collapsible === 'disabled'}
+              className="min-w-0 flex-1 justify-start gap-2 rounded-none p-0 font-normal hover:no-underline [&>svg:last-child]:hidden">
+              <ChevronRight
+                size={16}
+                color="var(--color-text-3)"
+                strokeWidth={1.5}
+                className="shrink-0 transition-transform"
+                style={{ transform: activeKeys.length > 0 ? 'rotate(90deg)' : 'rotate(0deg)' }}
+              />
+              <div className="min-w-0 flex-1 text-left">{label}</div>
+            </AccordionTrigger>
+          </div>
+          {extra ? <div className="shrink-0">{extra}</div> : null}
+        </div>
+        {!destroyInactivePanel || activeKeys.length > 0 ? (
+          <AccordionContent className="p-0" style={collapseItemStyles.body}>
+            {children}
+          </AccordionContent>
+        ) : null}
+      </AccordionItem>
+    </Accordion>
   )
 }
 

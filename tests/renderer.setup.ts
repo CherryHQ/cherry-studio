@@ -172,15 +172,44 @@ vi.mock('@cherrystudio/ui', () => {
           .join(' ')
       }),
     Textarea: {
-      Input: ({ hasError, 'aria-invalid': ariaInvalid, className, ...props }) =>
+      Input: ({ hasError, 'aria-invalid': ariaInvalid, className, onValueChange, onChange, ...props }) =>
         React.createElement('textarea', {
           ...props,
           'aria-invalid': ariaInvalid,
           className: [className, hasError || ariaInvalid ? 'ant-input-status-error' : undefined]
             .filter(Boolean)
-            .join(' ')
+            .join(' '),
+          onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+            onChange?.(event)
+            onValueChange?.(event.target.value)
+          }
         })
     },
+    Accordion: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'accordion' }, children),
+    AccordionItem: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'accordion-item' }, children),
+    AccordionTrigger: ({ children, disabled, ...props }) =>
+      React.createElement(
+        'button',
+        { ...props, type: 'button', disabled, 'data-testid': 'accordion-trigger' },
+        children
+      ),
+    AccordionContent: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'accordion-content' }, children),
+    ContextMenu: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'context-menu' }, children),
+    ContextMenuTrigger: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'context-menu-trigger' }, children),
+    ContextMenuContent: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'context-menu-content' }, children),
+    ContextMenuItem: ({ children, onSelect, ...props }) =>
+      React.createElement(
+        'button',
+        { ...props, type: 'button', onClick: onSelect, 'data-testid': 'context-menu-item' },
+        children
+      ),
+    ContextMenuSeparator: (props) => React.createElement('div', { ...props, 'data-testid': 'context-menu-separator' }),
     Tooltip: ({ children, title, content, mouseEnterDelay, ...props }) => {
       // Support both old (title) and new (content) API
       const tooltipText = content || title
