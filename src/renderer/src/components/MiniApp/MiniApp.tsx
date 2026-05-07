@@ -2,12 +2,11 @@ import { loggerService } from '@logger'
 import MiniAppIcon from '@renderer/components/Icons/MiniAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
-import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { useTabs } from '@renderer/hooks/useTabs'
 import { ErrorCode, isDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { useNavigate } from '@tanstack/react-router'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
 import type { FC } from 'react'
@@ -24,7 +23,6 @@ interface Props {
 const logger = loggerService.withContext('App')
 
 const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
-  const { openMiniAppKeepAlive } = useMiniAppPopup()
   const { t } = useTranslation()
   const {
     miniapps,
@@ -39,7 +37,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     updatePinnedMiniApps,
     removeCustomMiniApp
   } = useMiniApps()
-  const navigate = useNavigate()
+  const { openTab } = useTabs()
   const isPinned = pinned.some((p) => p.appId === app.appId)
   const isVisible = miniapps.some((m) => m.appId === app.appId)
   // Pinned apps should always be visible regardless of region/locale filtering
@@ -52,13 +50,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const displayName = isLast ? t('settings.miniapps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
 
   const handleClick = () => {
-    if (isTopNavbar) {
-      // Top navbar: navigate to the miniapp page
-      void navigate({ to: '/app/mini-app/$appId', params: { appId: app.appId } })
-    } else {
-      // Side navbar: keep the original popup behavior
-      openMiniAppKeepAlive(app)
-    }
+    openTab(`/app/mini-app/${app.appId}`, { title: displayName })
     onClick?.()
   }
 

@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -23,14 +22,9 @@ const logger = loggerService.withContext('MiniAppPage')
 const MiniAppPage: FC = () => {
   const { t } = useTranslation()
   const { appId } = useParams({ strict: false })
-  const { isTopNavbar } = useNavbarPosition()
   const { openMiniAppKeepAlive } = useMiniAppPopup()
   const { allApps, openedKeepAliveMiniApps, isLoading, error } = useMiniApps()
   const navigate = useNavigate()
-
-  // Remember the initial navbar position when component mounts
-  const initialIsTopNavbar = useRef<boolean>(isTopNavbar)
-  const hasRedirected = useRef<boolean>(false)
 
   // Find the app from all available apps (including transient ones in the keep-alive list)
   const app = useMemo((): MiniApp | null => {
@@ -42,40 +36,23 @@ const MiniAppPage: FC = () => {
   }, [appId, allApps, openedKeepAliveMiniApps])
 
   useEffect(() => {
-    // While data is still loading, don't redirect — app is null because allApps is empty
     if (isLoading) return
 
-    // If DataApi returned an error, log and redirect
     if (error) {
       logger.error('Failed to load mini apps', error instanceof DataApiError ? error : undefined)
       void navigate({ to: '/app/mini-app' })
       return
     }
 
-    // If app not found after loading completes, redirect to apps list
     if (!app) {
       void navigate({ to: '/app/mini-app' })
       return
     }
 
-    // For sidebar navigation, redirect to apps list and open popup
-    // Only check once and only if we haven't already redirected
-    if (!initialIsTopNavbar.current && !hasRedirected.current) {
-      hasRedirected.current = true
-      void navigate({ to: '/app/mini-app' })
-      // Open popup after navigation
-      setTimeout(() => {
-        openMiniAppKeepAlive(app)
-      }, 100)
-      return
-    }
-
-    // For top navbar mode, integrate with cache system
-    if (initialIsTopNavbar.current) {
-      // Always call to ensure currentMiniAppId stays in sync with the route-changed appId
-      openMiniAppKeepAlive(app)
-    }
-  }, [app, navigate, openMiniAppKeepAlive, initialIsTopNavbar, isLoading, error])
+    // Ensure the keep-alive pool picks up this app and currentMiniAppId stays
+    // in sync with the route-changed appId.
+    openMiniAppKeepAlive(app)
+  }, [app, navigate, openMiniAppKeepAlive, isLoading, error])
 
   // -------------- Tab Shell logic --------------
   // Hooks must be called before any return, so define them early with null-checks inside
@@ -168,8 +145,8 @@ const MiniAppPage: FC = () => {
     )
   }
 
-  // Early return if no app or not in top navbar mode (all hooks already called)
-  if (!app || !initialIsTopNavbar.current) {
+  // Early return if no app (all hooks already called)
+  if (!app) {
     return null
   }
 
