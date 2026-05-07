@@ -150,9 +150,11 @@ export const useMiniAppPopup = () => {
         const list = keepAliveRef.current
         const exists = list.some((item) => item.appId === app.appId)
         if (exists) {
-          // "Touch": move to tail so it's the most recently used.
-          const reordered = [...list.filter((item) => item.appId !== app.appId), app]
-          setOpenedKeepAliveMiniApps(reordered)
+          const tail = list[list.length - 1]
+          if (tail?.appId !== app.appId) {
+            const reordered = [...list.filter((item) => item.appId !== app.appId), app]
+            setOpenedKeepAliveMiniApps(reordered)
+          }
           setCurrentMiniAppId(app.appId)
           setMiniAppShow(true)
           return

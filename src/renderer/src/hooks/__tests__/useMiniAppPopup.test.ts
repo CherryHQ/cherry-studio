@@ -142,6 +142,49 @@ describe('useMiniAppPopup', () => {
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('existing-app')
     })
 
+    it('should not write a new keep-alive array when the app is already at the tail (#kangfenmao keepalive regression)', async () => {
+      // MiniAppPage's useEffect re-fires openMiniAppKeepAlive on every entry
+      // to the route — e.g. when the AppShell tab system wakes the page.
+      // If the app is already in keep-alive AND already at the tail, the
+      // touch is a no-op semantically but used to write a fresh array
+      // reference, which cascaded into MiniAppTabsPool re-rendering and
+      // consumers reported as a webview reload. Skip the cache write in
+      // that case.
+      const other = createMiniApp('other')
+      const app = createMiniApp('tail-app')
+      const seeded = [other, app]
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, seeded)
+
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniApp(app, true)
+      })
+
+      // Same items, same order: the hook must preserve the original array
+      // reference so downstream `useCache` subscribers don't see a change.
+      const after = MockUseCacheUtils.getCacheValue(KEEP_ALIVE_KEY)
+      expect(after).toBe(seeded)
+    })
+
+    it('should reorder when the existing app is not at the tail (LRU touch still works for genuine switches)', async () => {
+      // Sanity counterpart to the above: clicking back to a mini-app that's
+      // currently mid-list should still promote it to the tail so it is the
+      // last to be evicted under cap pressure.
+      const app = createMiniApp('mid-app')
+      const newer = createMiniApp('newer')
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [app, newer])
+
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniApp(app, true)
+      })
+
+      const list = getKeepAlive()
+      expect(list.map((a) => a.appId)).toEqual(['newer', 'mid-app'])
+    })
+
     it('should clear one-off miniapp when opening a keep-alive app', async () => {
       const oneOffApp = createMiniApp('one-off')
       const keepAliveApp = createMiniApp('keep-alive')
