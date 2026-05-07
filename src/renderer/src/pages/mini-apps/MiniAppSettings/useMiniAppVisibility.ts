@@ -1,6 +1,6 @@
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 /**
  * Owns the visible/hidden list state for the mini-app display settings panel.
@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from 'react'
  * `updateMiniApps` / `updateDisabledMiniApps` / `reorderMiniApps`.
  */
 export function useMiniAppVisibility() {
-  const { miniapps, disabled, updateMiniApps, updateDisabledMiniApps, reorderMiniAppsByStatus } = useMiniApps()
+  const { miniapps, disabled, allApps, updateMiniApps, updateDisabledMiniApps, reorderMiniAppsByStatus } = useMiniApps()
 
   const [visible, setVisible] = useState<MiniApp[]>(miniapps)
   const [hidden, setHidden] = useState<MiniApp[]>(disabled || [])
@@ -20,21 +20,51 @@ export function useMiniAppVisibility() {
     setHidden(disabled || [])
   }, [miniapps, disabled])
 
+  // The settings panel only shows apps that pass the region filter. The full
+  // enabled/disabled sets in DataApi may include rows hidden by region — those
+  // rows must be re-merged before persisting, otherwise updateMiniApps' diff
+  // ("everything in `enabled` not in the input → disable") would silently
+  // disable every region-hidden enabled row each time the user edits the
+  // visible list. After switching the region back, those rows would resurface
+  // as disabled.
+  const { regionHiddenEnabled, regionHiddenDisabled } = useMemo(() => {
+    const displayedIds = new Set<string>()
+    for (const a of miniapps) displayedIds.add(a.appId)
+    for (const a of disabled || []) displayedIds.add(a.appId)
+    const enabledTail: MiniApp[] = []
+    const disabledTail: MiniApp[] = []
+    for (const a of allApps) {
+      if (displayedIds.has(a.appId)) continue
+      if (a.status === 'enabled') enabledTail.push(a)
+      else if (a.status === 'disabled') disabledTail.push(a)
+    }
+    return { regionHiddenEnabled: enabledTail, regionHiddenDisabled: disabledTail }
+  }, [allApps, miniapps, disabled])
+
+  const persistVisible = useCallback(
+    (next: MiniApp[]) => updateMiniApps([...next, ...regionHiddenEnabled]),
+    [updateMiniApps, regionHiddenEnabled]
+  )
+  const persistHidden = useCallback(
+    (next: MiniApp[]) => updateDisabledMiniApps([...next, ...regionHiddenDisabled]),
+    [updateDisabledMiniApps, regionHiddenDisabled]
+  )
+
   const swap = useCallback(() => {
     const newVisible = hidden
     const newHidden = visible
     setVisible(newVisible)
     setHidden(newHidden)
-    void updateMiniApps(newVisible)
-    void updateDisabledMiniApps(newHidden)
-  }, [hidden, visible, updateMiniApps, updateDisabledMiniApps])
+    void persistVisible(newVisible)
+    void persistHidden(newHidden)
+  }, [hidden, visible, persistVisible, persistHidden])
 
   const reset = useCallback(() => {
     setVisible(miniapps)
     setHidden([])
-    void updateMiniApps(miniapps)
-    void updateDisabledMiniApps([])
-  }, [miniapps, updateMiniApps, updateDisabledMiniApps])
+    void persistVisible(miniapps)
+    void persistHidden([])
+  }, [miniapps, persistVisible, persistHidden])
 
   const hide = useCallback(
     (app: MiniApp) => {
@@ -42,10 +72,10 @@ export function useMiniAppVisibility() {
       const newHidden = [...hidden, app]
       setVisible(newVisible)
       setHidden(newHidden)
-      void updateMiniApps(newVisible)
-      void updateDisabledMiniApps(newHidden)
+      void persistVisible(newVisible)
+      void persistHidden(newHidden)
     },
-    [visible, hidden, updateMiniApps, updateDisabledMiniApps]
+    [visible, hidden, persistVisible, persistHidden]
   )
 
   const show = useCallback(
@@ -54,10 +84,10 @@ export function useMiniAppVisibility() {
       const newVisible = [...visible, app]
       setVisible(newVisible)
       setHidden(newHidden)
-      void updateMiniApps(newVisible)
-      void updateDisabledMiniApps(newHidden)
+      void persistVisible(newVisible)
+      void persistHidden(newHidden)
     },
-    [hidden, visible, updateMiniApps, updateDisabledMiniApps]
+    [hidden, visible, persistVisible, persistHidden]
   )
 
   const reorderVisible = useCallback(

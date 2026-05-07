@@ -16,6 +16,7 @@ const stubApp = (id: string): MiniApp => ({
 const mocks = vi.hoisted(() => ({
   miniapps: [] as MiniApp[],
   disabled: [] as MiniApp[],
+  allApps: [] as MiniApp[],
   updateMiniApps: vi.fn(),
   updateDisabledMiniApps: vi.fn(),
   reorderMiniAppsByStatus: vi.fn()
@@ -25,6 +26,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
     miniapps: mocks.miniapps,
     disabled: mocks.disabled,
+    allApps: mocks.allApps,
     updateMiniApps: mocks.updateMiniApps,
     updateDisabledMiniApps: mocks.updateDisabledMiniApps,
     reorderMiniAppsByStatus: mocks.reorderMiniAppsByStatus
@@ -35,6 +37,11 @@ describe('useMiniAppVisibility', () => {
   beforeEach(() => {
     mocks.miniapps = [stubApp('a'), stubApp('b')]
     mocks.disabled = [stubApp('c')]
+    mocks.allApps = [
+      { ...stubApp('a'), status: 'enabled' },
+      { ...stubApp('b'), status: 'enabled' },
+      { ...stubApp('c'), status: 'disabled' }
+    ]
     mocks.updateMiniApps.mockClear()
     mocks.updateDisabledMiniApps.mockClear()
     mocks.reorderMiniAppsByStatus.mockClear()
@@ -88,6 +95,28 @@ describe('useMiniAppVisibility', () => {
     expect(result.current.visible.map((a) => a.appId)).toEqual(['b', 'a'])
     // Both seeded rows are status='enabled', so the partition matches the visible list.
     expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('enabled', result.current.visible)
+  })
+
+  it('hide preserves region-hidden enabled apps when persisting (regression)', () => {
+    // Simulates Global mode: `miniapps` and `disabled` only contain region-visible
+    // rows, but `allApps` carries CN-only enabled rows that the panel doesn't show.
+    // Hiding a visible app must not sweep those hidden enabled rows into disabled.
+    const cnOnlyEnabled = { ...stubApp('cn1'), status: 'enabled' as const }
+    mocks.allApps = [
+      { ...stubApp('a'), status: 'enabled' },
+      { ...stubApp('b'), status: 'enabled' },
+      cnOnlyEnabled,
+      { ...stubApp('c'), status: 'disabled' }
+    ]
+
+    const { result } = renderHook(() => useMiniAppVisibility())
+    act(() => result.current.hide(mocks.miniapps[0]))
+
+    // updateMiniApps receives the user-visible list plus the region-hidden tail,
+    // so the diff treats the CN-only row as already-enabled and never disables it.
+    expect(mocks.updateMiniApps).toHaveBeenCalledTimes(1)
+    const persistedVisible = mocks.updateMiniApps.mock.calls[0][0] as MiniApp[]
+    expect(persistedVisible.some((a) => a.appId === 'cn1')).toBe(true)
   })
 
   it('reorderVisible is a no-op when oldIndex === newIndex', () => {

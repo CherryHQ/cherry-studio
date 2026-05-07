@@ -25,18 +25,23 @@ import { useCallback, useEffect, useMemo } from 'react'
  * Check if app should be visible for the given region.
  *
  * Region-based visibility rules:
- * 1. CN users see everything
- * 2. Global users: only show apps with supportedRegions including 'Global'
- *    (apps without supportedRegions field are treated as CN-only)
+ * 1. CN users see everything.
+ * 2. Global users:
+ *    - Preset apps with supportedRegions including 'Global' → visible.
+ *    - Preset apps without supportedRegions → CN-only (preserves the existing
+ *      curated catalog semantics: presets that omit the field are intentionally
+ *      gated to CN by the catalog author).
+ *    - Custom apps (`presetMiniappId === null`) without supportedRegions →
+ *      visible. Custom apps come from migrated v1 data (which had no region
+ *      concept) or from the user's own form, neither of which has a curated
+ *      region intent. Defaulting them to CN-only would silently hide a user's
+ *      own app under Global.
  */
 const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
-  // CN users see everything
   if (region === 'CN') return true
 
-  // Global users: check if app supports international
-  // If no supportedRegions field, treat as CN-only (hidden from Global users)
   if (!app.supportedRegions || app.supportedRegions.length === 0) {
-    return false
+    return app.presetMiniappId === null
   }
   return app.supportedRegions.includes('Global')
 }
