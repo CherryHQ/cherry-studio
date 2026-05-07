@@ -25,7 +25,13 @@ function toMiniApp(input: MiniAppInput): MiniApp {
   return {
     ...input,
     appId: brandId(input.appId),
-    presetMiniAppId: input.appId,
+    // Transient apps opened from raw config (URL bar / openMiniApp(rawApp)) are
+    // not preset rows and not custom rows persisted via DataApi — they live
+    // only in the keep-alive cache. Use `null` to mark "no preset linkage",
+    // matching the same convention used for custom apps in the schema. Setting
+    // it to `input.appId` falsely claims this transient app shadows a preset
+    // with that id, which bleeds into preset-vs-custom checks downstream.
+    presetMiniAppId: null,
     status: 'enabled',
     orderKey: ''
   }
