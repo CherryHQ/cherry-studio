@@ -357,7 +357,7 @@ const ToolbarButton = styled.button<{
   height: 28px;
   border: none;
   border-radius: 4px;
-  background: ${({ $active }) => ($active ? 'var(--color-primary-bg)' : 'transparent')};
+  background: transparent;
   color: ${({ $disabled, $active }) =>
     $disabled ? 'var(--color-text-3)' : $active ? 'var(--color-primary)' : 'var(--color-text-2)'};
   cursor: ${({ $disabled }) => ($disabled ? 'default' : 'pointer')};
@@ -365,8 +365,7 @@ const ToolbarButton = styled.button<{
   font-size: 12px;
 
   &:hover {
-    background: ${({ $disabled, $active }) =>
-      $disabled ? 'transparent' : $active ? 'var(--color-primary-bg)' : 'var(--color-background-soft)'};
+    background: ${({ $disabled }) => ($disabled ? 'transparent' : 'var(--color-background-soft)')};
     color: ${({ $disabled, $active }) =>
       $disabled ? 'var(--color-text-3)' : $active ? 'var(--color-primary)' : 'var(--color-text-1)'};
   }
