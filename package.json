@@ -88,6 +88,8 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.81",
+    "@context-chef/ai-sdk-middleware": "^1.2.0",
+    "@context-chef/core": "^3.3.0",
     "@expo/sudo-prompt": "^9.3.2",
     "@ff-labs/fff-node": "^0.6.4",
     "@larksuiteoapi/node-sdk": "^1.59.0",

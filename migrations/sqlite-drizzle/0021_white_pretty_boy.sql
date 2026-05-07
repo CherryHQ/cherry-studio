@@ -1,0 +1,1 @@
+ALTER TABLE `topic` ADD `context_settings` text;

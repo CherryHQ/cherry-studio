@@ -7,6 +7,8 @@
 
 import * as z from 'zod'
 
+import { ContextSettingsOverrideSchema } from './contextSettings'
+
 export const TopicIdSchema = z.uuidv4()
 export const TopicNameSchema = z.string().min(1).max(255)
 /** Entity-side name validator: DB DEFAULT '' means a stored row may have an empty name. */
@@ -37,6 +39,12 @@ export const TopicSchema = z.strictObject({
   groupId: z.string().nullable().optional(),
   /** Fractional-indexing order key, partitioned by groupId. */
   orderKey: z.string(),
+  /**
+   * Per-topic override for context settings (chef).
+   * Each field optional — undefined = inherit from assistant (then global).
+   * Whole object optional — null/missing = inherit fully.
+   */
+  contextSettings: ContextSettingsOverrideSchema.nullable().optional(),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */

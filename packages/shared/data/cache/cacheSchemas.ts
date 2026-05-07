@@ -183,6 +183,15 @@ export type UseCacheSchema = {
    * "already animated" flag.
    */
   'topic.stream.seen.${topicId}': boolean
+
+  /**
+   * Cached body of a VFS blob fetched via `Vfs_Read`. Keyed by the bare
+   * filename (no `context://vfs/` prefix). `null` means "not loaded yet";
+   * once fetched, the value is the original payload. Stored in the local
+   * memory cache so multiple "View full" expansions of the same blob in a
+   * window don't re-cross the IPC boundary.
+   */
+  'vfs.blob.${filename}': string | null
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -247,7 +256,8 @@ export const DefaultUseCache: UseCacheSchema = {
   'message.streaming.siblings_counter.${topicId}': 0,
   'message.streaming.chat_session.${topicId}': null,
   'message.ui.${messageId}': {},
-  'topic.stream.seen.${topicId}': false
+  'topic.stream.seen.${topicId}': false,
+  'vfs.blob.${filename}': null
 }
 
 /**
