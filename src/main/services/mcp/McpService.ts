@@ -104,6 +104,32 @@ function redactSensitive(input: any): any {
   return redact(input)
 }
 
+function sanitizeForMcp(val: any): any {
+  // Convert Maps/Sets and non-plain JS values into JSON-friendly plain objects/arrays.
+  if (val == null) return val
+  const t = typeof val
+  if (t === 'string' || t === 'number' || t === 'boolean') return val
+  if (t === 'bigint') return val.toString()
+  if (Array.isArray(val)) return val.map(sanitizeForMcp)
+  if (val instanceof Map) {
+    const out: Record<string, any> = {}
+    for (const [k, v] of val) {
+      out[String(k)] = sanitizeForMcp(v)
+    }
+    return out
+  }
+  if (val instanceof Set) return Array.from(val).map(sanitizeForMcp)
+  if (t === 'object') {
+    const out: Record<string, any> = {}
+    for (const [k, v] of Object.entries(val)) {
+      if (typeof v === 'function') continue
+      out[k] = sanitizeForMcp(v)
+    }
+    return out
+  }
+  return val
+}
+
 // Create a context-aware logger for a server
 function getServerLogger(server: MCPServer, extra?: Record<string, any>) {
   const base = {
@@ -948,6 +974,15 @@ export class McpService extends BaseService {
           if (args === '') {
             args = {}
           }
+        }
+        // Sanitize arguments to ensure they are plain JSON-friendly objects (Map/Set -> plain objects/arrays)
+        try {
+          args = sanitizeForMcp(args)
+        } catch (e) {
+          getServerLogger(server, { tool: name, callId: toolCallId }).warn(
+            'Failed to sanitize args, sending raw',
+            e as Error
+          )
         }
         const client = await this.initClient(server)
         const result = await client.callTool({ name, arguments: args }, undefined, {
