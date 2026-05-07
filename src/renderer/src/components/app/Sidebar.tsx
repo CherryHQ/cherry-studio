@@ -1,6 +1,7 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
+import { getMiniAppsLogo } from '@renderer/config/miniapps'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
@@ -112,17 +113,24 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const activeMiniAppTabs = useMemo<SidebarMiniAppTab[]>(() => {
     if (!showOpenedInSidebar) return []
-    return openedKeepAliveMiniApps.map((app) => ({
-      type: 'miniapp',
-      id: app.appId,
-      title: app.name,
-      miniApp: {
+    return openedKeepAliveMiniApps.map((app) => {
+      // app.logo is a logo ID (e.g. 'Moonshot'); resolve to the CompoundIcon
+      // when one exists, otherwise fall through to the raw string (URL for
+      // custom mini-apps).
+      const compound = getMiniAppsLogo(app.logo)
+      const logo: SidebarMiniApp['logo'] = compound ?? app.logo
+      return {
+        type: 'miniapp',
         id: app.appId,
-        color: app.background,
-        url: app.url,
-        logo: app.logo as SidebarMiniApp['logo']
+        title: app.name,
+        miniApp: {
+          id: app.appId,
+          color: app.background,
+          url: app.url,
+          logo
+        }
       }
-    }))
+    })
   }, [showOpenedInSidebar, openedKeepAliveMiniApps])
 
   const handleMiniAppTabClick = useCallback(

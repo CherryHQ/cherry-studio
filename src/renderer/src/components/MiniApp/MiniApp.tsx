@@ -50,7 +50,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const displayName = isLast ? t('settings.miniapps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
 
   const handleClick = () => {
-    openTab(`/app/mini-app/${app.appId}`, { title: displayName })
+    openTab(`/app/mini-app/${app.appId}`, { title: displayName, icon: app.logo })
     onClick?.()
   }
 

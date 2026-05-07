@@ -77,3 +77,12 @@ export function getRouteTitleKey(url: string): string | undefined {
 
   return routeTitleKeys[getBasePath(sanitizedUrl)]
 }
+
+/**
+ * True when the URL maps exactly to a known top-level route (no extra path
+ * segments). Used to decide whether a tab title should be auto-localized.
+ */
+export function isTopLevelRoute(url: string): boolean {
+  const pathname = new URL(url, BASE_URL).pathname
+  return routeTitleKeys[pathname] !== undefined
+}
