@@ -16,9 +16,9 @@ const stubApp = (id: string): MiniApp => ({
 const mocks = vi.hoisted(() => ({
   miniApps: [] as MiniApp[],
   disabled: [] as MiniApp[],
-  updateAppStatus: vi.fn(),
-  setAppStatusBulk: vi.fn(),
-  reorderMiniAppsByStatus: vi.fn()
+  updateAppStatus: vi.fn().mockResolvedValue(undefined),
+  setAppStatusBulk: vi.fn().mockResolvedValue(undefined),
+  reorderMiniAppsByStatus: vi.fn().mockResolvedValue(undefined)
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({

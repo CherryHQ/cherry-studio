@@ -2507,6 +2507,7 @@
       "load_failed": "应用加载失败",
       "not_found": "应用未找到"
     },
+    "hide_failed": "隐藏小程序失败",
     "popup": {
       "close": "关闭小程序",
       "devtools": "开发者工具",
@@ -2520,6 +2521,8 @@
     },
     "remove_from_launchpad": "从启动台移除",
     "remove_from_sidebar": "从侧边栏移除",
+    "reorder_failed": "小程序排序更新失败",
+    "show_failed": "显示小程序失败",
     "sidebar": {
       "close": {
         "title": "关闭"
@@ -2556,6 +2559,7 @@
     "stepfun": "阶跃AI",
     "tencent-yuanbao": "腾讯元宝",
     "tiangong-ai": "天工AI",
+    "update_partial_failure_generic": "部分小程序更新失败",
     "wanzhi": "万知",
     "wenxin": "文心一言",
     "wps-copilot": "WPS灵犀",

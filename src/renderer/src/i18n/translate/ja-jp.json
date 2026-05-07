@@ -2503,6 +2503,11 @@
   "miniApp": {
     "add_to_launchpad": "スタート画面に追加",
     "add_to_sidebar": "サイドバーに追加",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
     "popup": {
       "close": "ミニアプリを閉じる",
       "devtools": "開発者ツール",
@@ -2516,6 +2521,8 @@
     },
     "remove_from_launchpad": "スタート画面から削除",
     "remove_from_sidebar": "サイドバーから削除",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "閉じる"
@@ -2552,6 +2559,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "騰訊元宝",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "万知",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",

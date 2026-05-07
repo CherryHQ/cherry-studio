@@ -1,6 +1,32 @@
+import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { isDataApiError, toDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useMiniAppVisibility')
+
+/**
+ * Surface partial-failure errors from `setAppStatusBulk` /
+ * `updateAppStatus` / `reorderMiniAppsByStatus` to the user. Without this,
+ * upstream's `settleAndInvalidate` (which throws + invalidates the cache)
+ * would be swallowed by the `void`-fired call sites — the optimistic UI
+ * snaps back to the cache value with no toast, leaving the user wondering
+ * what happened.
+ */
+function reportFailure(t: (key: string) => string, fallbackKey: string) {
+  return (err: unknown) => {
+    const e = toDataApiError(err)
+    if (isDataApiError(e)) {
+      logger.error('mutation failed', { code: e.code, message: e.message })
+      window.toast?.error?.(e.message || t(fallbackKey))
+    } else {
+      logger.error('mutation failed', err as Error)
+      window.toast?.error?.(t(fallbackKey))
+    }
+  }
+}
 
 /**
  * Owns the visible / hidden list state for the mini-app display settings panel.
@@ -14,6 +40,7 @@ import { useCallback, useEffect, useState } from 'react'
  * `disabled` whenever the user touched the Global view.
  */
 export function useMiniAppVisibility() {
+  const { t } = useTranslation()
   const { miniApps, disabled, updateAppStatus, setAppStatusBulk, reorderMiniAppsByStatus } = useMiniApps()
 
   const [visible, setVisible] = useState<MiniApp[]>(miniApps)
@@ -40,11 +67,11 @@ export function useMiniAppVisibility() {
     setHidden(newHidden)
     // Pinned rows are visible-by-design but should not be flipped to disabled
     // on swap; only the rows that were status='enabled' move into disabled.
-    void setAppStatusBulk([
+    setAppStatusBulk([
       ...visible.filter((a) => a.status === 'enabled').map((a) => ({ appId: a.appId, status: 'disabled' as const })),
       ...hidden.map((a) => ({ appId: a.appId, status: 'enabled' as const }))
-    ])
-  }, [hidden, visible, setAppStatusBulk])
+    ]).catch(reportFailure(t, 'miniApps.update_partial_failure_generic'))
+  }, [hidden, visible, setAppStatusBulk, t])
 
   const reset = useCallback(() => {
     const newVisible = [...visible, ...hidden]
@@ -52,25 +79,27 @@ export function useMiniAppVisibility() {
     setHidden([])
     // Promote everything currently hidden back to enabled — visible rows are
     // already enabled / pinned and are not touched.
-    void setAppStatusBulk(hidden.map((a) => ({ appId: a.appId, status: 'enabled' as const })))
-  }, [visible, hidden, setAppStatusBulk])
+    setAppStatusBulk(hidden.map((a) => ({ appId: a.appId, status: 'enabled' as const }))).catch(
+      reportFailure(t, 'miniApps.update_partial_failure_generic')
+    )
+  }, [visible, hidden, setAppStatusBulk, t])
 
   const hide = useCallback(
     (app: MiniApp) => {
       setVisible((v) => v.filter((a) => a.appId !== app.appId))
       setHidden((h) => [...h, app])
-      void updateAppStatus(app.appId, 'disabled')
+      updateAppStatus(app.appId, 'disabled').catch(reportFailure(t, 'miniApp.hide_failed'))
     },
-    [updateAppStatus]
+    [updateAppStatus, t]
   )
 
   const show = useCallback(
     (app: MiniApp) => {
       setHidden((h) => h.filter((a) => a.appId !== app.appId))
       setVisible((v) => [...v, app])
-      void updateAppStatus(app.appId, 'enabled')
+      updateAppStatus(app.appId, 'enabled').catch(reportFailure(t, 'miniApp.show_failed'))
     },
-    [updateAppStatus]
+    [updateAppStatus, t]
   )
 
   const reorderVisible = useCallback(
@@ -81,9 +110,9 @@ export function useMiniAppVisibility() {
       next.splice(newIndex, 0, moved)
       setVisible(next)
       const partition = next.filter((a) => a.status === moved.status)
-      void reorderMiniAppsByStatus(moved.status, partition)
+      reorderMiniAppsByStatus(moved.status, partition).catch(reportFailure(t, 'miniApp.reorder_failed'))
     },
-    [visible, reorderMiniAppsByStatus]
+    [visible, reorderMiniAppsByStatus, t]
   )
 
   const reorderHidden = useCallback(
@@ -93,9 +122,9 @@ export function useMiniAppVisibility() {
       const [moved] = next.splice(oldIndex, 1)
       next.splice(newIndex, 0, moved)
       setHidden(next)
-      void reorderMiniAppsByStatus('disabled', next)
+      reorderMiniAppsByStatus('disabled', next).catch(reportFailure(t, 'miniApp.reorder_failed'))
     },
-    [hidden, reorderMiniAppsByStatus]
+    [hidden, reorderMiniAppsByStatus, t]
   )
 
   return { visible, hidden, swap, reset, hide, show, reorderVisible, reorderHidden }

@@ -2507,6 +2507,7 @@
       "load_failed": "Failed to load app",
       "not_found": "App not found"
     },
+    "hide_failed": "Failed to hide mini-app",
     "popup": {
       "close": "Close MiniApp",
       "devtools": "Developer Tools",
@@ -2520,6 +2521,8 @@
     },
     "remove_from_launchpad": "Remove from Launchpad",
     "remove_from_sidebar": "Remove from Sidebar",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Close"
@@ -2556,6 +2559,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",

@@ -2503,6 +2503,11 @@
   "miniApp": {
     "add_to_launchpad": "Zu Launchpad hinzufügen",
     "add_to_sidebar": "Zur Seitenleiste hinzufügen",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
     "popup": {
       "close": "Mini-App schließen",
       "devtools": "Entwicklertools",
@@ -2516,6 +2521,8 @@
     },
     "remove_from_launchpad": "Aus Launchpad entfernen",
     "remove_from_sidebar": "Aus Seitenleiste entfernen",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Schließen"
@@ -2552,6 +2559,7 @@
     "stepfun": "StepFun AI",
     "tencent-yuanbao": "Tencent Yuanbao",
     "tiangong-ai": "Tiangong AI",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "Wenxin Yiyan",
     "wps-copilot": "WPS Lingxi",

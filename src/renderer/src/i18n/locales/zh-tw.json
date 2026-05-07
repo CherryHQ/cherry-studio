@@ -2507,6 +2507,7 @@
       "load_failed": "應用載入失敗",
       "not_found": "應用未找到"
     },
+    "hide_failed": "隱藏小程式失敗",
     "popup": {
       "close": "關閉小工具",
       "devtools": "開發者工具",
@@ -2520,6 +2521,8 @@
     },
     "remove_from_launchpad": "從啟動台移除",
     "remove_from_sidebar": "從側邊欄移除",
+    "reorder_failed": "小程式排序更新失敗",
+    "show_failed": "顯示小程式失敗",
     "sidebar": {
       "close": {
         "title": "關閉"
@@ -2556,6 +2559,7 @@
     "stepfun": "階躍 AI",
     "tencent-yuanbao": "騰訊元寶",
     "tiangong-ai": "天工 AI",
+    "update_partial_failure_generic": "部分小程式更新失敗",
     "wanzhi": "萬知",
     "wenxin": "文心一言",
     "wps-copilot": "WPS 靈犀",
