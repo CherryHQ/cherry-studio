@@ -1,6 +1,5 @@
-import { Button } from '@cherrystudio/ui'
+import { Alert, Button } from '@cherrystudio/ui'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Alert, Space } from 'antd'
 import type { ComponentType, ReactNode } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { ErrorBoundary } from 'react-error-boundary'
@@ -23,14 +22,14 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
         description={formatErrorMessage(error)}
         type="error"
         action={
-          <Space>
+          <div className="flex items-center gap-2">
             <Button size="sm" onClick={debug}>
               {t('error.boundary.default.devtools')}
             </Button>
             <Button size="sm" onClick={reload}>
               {t('error.boundary.default.reload')}
             </Button>
-          </Space>
+          </div>
         }
       />
     </ErrorContainer>

@@ -1,6 +1,5 @@
 import { useImageTools } from '@renderer/components/ActionTools/hooks/useImageTools'
 import { LoadingIcon } from '@renderer/components/Icons'
-import { Spin } from 'antd'
 import { memo, useImperativeHandle } from 'react'
 
 import ImageToolbar from './ImageToolbar'
@@ -47,13 +46,16 @@ const ImagePreviewLayout = ({
   })
 
   return (
-    <Spin spinning={loading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
-      <PreviewContainer className={`image-preview-layout flex-col ${className ?? ''}`}>
-        {error && <PreviewError>{error}</PreviewError>}
-        {children}
-        {!error && enableToolbar && <ImageToolbar pan={pan} zoom={zoom} dialog={dialog} />}
-      </PreviewContainer>
-    </Spin>
+    <PreviewContainer className={`image-preview-layout flex-col ${className ?? ''}`}>
+      {loading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--color-background-opacity)]">
+          <LoadingIcon color="var(--color-text-2)" />
+        </div>
+      )}
+      {error && <PreviewError>{error}</PreviewError>}
+      {children}
+      {!error && enableToolbar && <ImageToolbar pan={pan} zoom={zoom} dialog={dialog} />}
+    </PreviewContainer>
   )
 }
 

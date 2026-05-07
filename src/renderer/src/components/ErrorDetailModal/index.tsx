@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import CodeViewer from '@renderer/components/CodeViewer'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -30,7 +31,6 @@ import {
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import { parseDataUrl } from '@shared/utils'
-import { Button } from 'antd'
 import { CheckCircle, Copy, Loader2, Stethoscope } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -601,22 +601,18 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
         )}
       </ErrorDetailContainer>
       <div className="my-2 mt-4 flex justify-end gap-2">
-        <Button color="default" icon={<Copy size={14} />} onClick={copyErrorDetails}>
+        <Button variant="outline" onClick={copyErrorDetails}>
+          <Copy size={14} />
           {t('common.copy')}
         </Button>
-        <Button
-          type="primary"
-          disabled={diagStatus === 'loading'}
-          icon={
-            diagStatus === 'loading' ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : diagStatus === 'done' ? (
-              <CheckCircle size={14} />
-            ) : (
-              <Stethoscope size={14} />
-            )
-          }
-          onClick={handleDiagnose}>
+        <Button disabled={diagStatus === 'loading'} onClick={handleDiagnose}>
+          {diagStatus === 'loading' ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : diagStatus === 'done' ? (
+            <CheckCircle size={14} />
+          ) : (
+            <Stethoscope size={14} />
+          )}
           {getDiagButtonText()}
         </Button>
       </div>

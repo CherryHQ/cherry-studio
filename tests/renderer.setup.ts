@@ -219,6 +219,17 @@ vi.mock('@cherrystudio/ui', () => {
         description,
         children
       ),
+    EditableNumber: ({ value, onChange, disabled, ...props }) =>
+      React.createElement('input', {
+        ...props,
+        type: 'number',
+        value: value ?? '',
+        disabled,
+        'data-testid': 'editable-number',
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
+          onChange?.(event.target.value === '' ? null : event.target.valueAsNumber)
+      }),
+    Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
     HelpTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'help-tooltip' }, children),
     InfoTooltip: ({ children, ...props }) =>

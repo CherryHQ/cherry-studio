@@ -3,13 +3,10 @@ import './CommandListPopover.css'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { SuggestionProps } from '@tiptap/suggestion'
-import { Typography } from 'antd'
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { Command } from './command'
-
-const { Text } = Typography
 
 export interface CommandListPopoverProps extends SuggestionProps<Command> {
   ref?: React.RefObject<CommandListPopoverRef | null>
@@ -178,12 +175,18 @@ const CommandListPopover = ({
               <item.icon size={16} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <Text strong style={{ fontSize: '14px', display: 'block', lineHeight: '20px' }}>
+              <span style={{ display: 'block', fontSize: '14px', fontWeight: 600, lineHeight: '20px' }}>
                 {getTranslatedCommand(item, 'title')}
-              </Text>
-              <Text type="secondary" style={{ fontSize: '12px', lineHeight: '16px' }}>
+              </span>
+              <span
+                style={{
+                  color: 'var(--color-text-secondary)',
+                  display: 'block',
+                  fontSize: '12px',
+                  lineHeight: '16px'
+                }}>
                 {getTranslatedCommand(item, 'description')}
-              </Text>
+              </span>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { Typography } from 'antd'
+import { Tooltip } from '@cherrystudio/ui'
 import type { ReactNode } from 'react'
 import styled from 'styled-components'
 
@@ -19,9 +19,9 @@ const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick, rightCon
       <ListItemContent>
         {icon && <IconWrapper>{icon}</IconWrapper>}
         <TextContainer>
-          <Typography.Text style={titleStyle} ellipsis={{ expanded: false, tooltip: title }}>
-            {title}
-          </Typography.Text>
+          <Tooltip content={title} classNames={{ placeholder: 'block min-w-0' }}>
+            <TitleText style={titleStyle}>{title}</TitleText>
+          </Tooltip>
           {subtitle && <SubtitleText>{subtitle}</SubtitleText>}
         </TextContainer>
         {rightContent && <RightContentWrapper>{rightContent}</RightContentWrapper>}
@@ -71,6 +71,14 @@ const TextContainer = styled.div`
   display: flex;
   flex-direction: column;
   overflow: hidden;
+`
+
+const TitleText = styled.span`
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `
 
 const SubtitleText = styled.div`
