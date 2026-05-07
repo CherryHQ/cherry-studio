@@ -1,10 +1,18 @@
+import {
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { getBackupProgressLabel } from '@renderer/i18n/label'
 import { backup, backupToLanTransfer } from '@renderer/services/BackupService'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Modal, Progress } from 'antd'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
@@ -27,6 +35,7 @@ interface ProgressData {
 const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => {
   const [open, setOpen] = useState(true)
   const [progressData, setProgressData] = useState<ProgressData>()
+  const resolvedRef = useRef(false)
   const { t } = useTranslation()
   const [skipBackupFile] = usePreference('data.backup.general.skip_backup_file')
 
@@ -39,6 +48,13 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
       removeListener()
     }
   }, [])
+
+  useEffect(() => {
+    if (open || resolvedRef.current) return
+
+    resolvedRef.current = true
+    resolve({})
+  }, [open, resolve])
 
   const onOk = async () => {
     logger.debug(`skipBackupFile: ${skipBackupFile}, backupType: ${backupType}`)
@@ -53,10 +69,6 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
 
   const onCancel = () => {
     setOpen(false)
-  }
-
-  const onClose = () => {
-    resolve({})
   }
 
   const getProgressText = () => {
@@ -80,26 +92,34 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
   const content = isLanTransferMode ? t('settings.data.export_to_phone.file.content') : t('backup.content')
 
   return (
-    <Modal
-      title={title}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      okButtonProps={{ disabled: isDisabled }}
-      cancelButtonProps={{ disabled: isDisabled }}
-      okText={okText}
-      maskClosable={false}
-      transitionName="animation-move-down"
-      centered>
-      {!progressData && <div>{content}</div>}
-      {progressData && (
-        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <Progress percent={Math.floor(progressData.progress)} strokeColor="var(--color-primary)" />
-          <div style={{ marginTop: 16 }}>{getProgressText()}</div>
-        </div>
-      )}
-    </Modal>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
+      <DialogContent className="sm:max-w-[520px]" onPointerDownOutside={(event) => event.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        {!progressData && <div>{content}</div>}
+        {progressData && (
+          <div className="flex flex-col items-center gap-4 py-5 text-center">
+            <CircularProgress
+              value={Math.floor(progressData.progress)}
+              size={72}
+              strokeWidth={6}
+              showLabel
+              renderLabel={(progress) => `${progress}%`}
+            />
+            <div>{getProgressText()}</div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" disabled={isDisabled} onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button disabled={isDisabled} onClick={onOk}>
+            {okText}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

@@ -211,6 +211,16 @@ vi.mock('@cherrystudio/ui', () => {
         children
       ),
     ContextMenuSeparator: (props) => React.createElement('div', { ...props, 'data-testid': 'context-menu-separator' }),
+    Dialog: ({ children, open = true, ...props }) =>
+      open ? React.createElement('div', { ...props, 'data-testid': 'dialog' }, children) : null,
+    DialogContent: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'dialog-content' }, children),
+    DialogHeader: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),
+    DialogTitle: ({ children, ...props }) =>
+      React.createElement('h2', { ...props, 'data-testid': 'dialog-title' }, children),
+    DialogFooter: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'dialog-footer' }, children),
     Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
     PopoverTrigger: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children),
@@ -253,6 +263,25 @@ vi.mock('@cherrystudio/ui', () => {
         children
       )
     },
+    Combobox: ({ options = [], value, onChange, placeholder, disabled, ...props }) =>
+      React.createElement(
+        'select',
+        {
+          ...props,
+          disabled,
+          value: value ?? '',
+          'data-testid': 'combobox',
+          onChange: (event: React.ChangeEvent<HTMLSelectElement>) => onChange?.(event.target.value)
+        },
+        React.createElement('option', { value: '' }, placeholder),
+        options.map((option) =>
+          React.createElement(
+            'option',
+            { key: option.value, value: option.value, disabled: option.disabled },
+            option.label
+          )
+        )
+      ),
     Tooltip: ({ children, title, content, mouseEnterDelay, ...props }) => {
       // Support both old (title) and new (content) API
       const tooltipText = content || title
@@ -268,6 +297,13 @@ vi.mock('@cherrystudio/ui', () => {
         tooltipText ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText) : null
       )
     },
+    CircularProgress: ({ value, renderLabel, showLabel, ...props }) =>
+      React.createElement(
+        'div',
+        { ...props, 'data-testid': 'circular-progress', 'data-value': value },
+        showLabel ? (renderLabel ? renderLabel(value) : value) : null
+      ),
+    Spinner: ({ text, ...props }) => React.createElement('div', { ...props, 'data-testid': 'spinner' }, text),
     CodeEditor: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'code-editor' }, children),
     Flex: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'flex' }, children),
