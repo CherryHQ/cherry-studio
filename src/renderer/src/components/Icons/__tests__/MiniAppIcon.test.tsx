@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import MiniAppIcon from '../MiniAppIcon'
 
-vi.mock('@renderer/config/miniapps', () => ({
+vi.mock('@renderer/config/miniApps', () => ({
   allMiniApps: [
     {
       id: 'test-app-1',

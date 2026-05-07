@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest'
 // --- Mocks Setup ---
 
 // Add this before the test suites
-vi.mock('@renderer/config/miniapps', () => {
+vi.mock('@renderer/config/miniApps', () => {
   return {
     PRESETS_MINI_APPS: [],
     allMiniApps: []

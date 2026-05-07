@@ -16,7 +16,7 @@ import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/s
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
-import { miniAppTable } from '@data/db/schemas/miniapp'
+import { miniAppTable } from '@data/db/schemas/miniApp'
 import { pinTable } from '@data/db/schemas/pin'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'

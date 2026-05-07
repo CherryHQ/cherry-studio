@@ -18,7 +18,7 @@ import {
   type MiniAppSelect,
   type MiniAppStatus,
   miniAppTable
-} from '@data/db/schemas/miniapp'
+} from '@data/db/schemas/miniApp'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'

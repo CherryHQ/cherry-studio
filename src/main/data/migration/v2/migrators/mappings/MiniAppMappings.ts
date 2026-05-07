@@ -6,7 +6,7 @@
  * full data. The discriminator is preset membership, not a stored kind column.
  */
 
-import type { MiniAppInsert, MiniAppRegion, MiniAppStatus } from '@data/db/schemas/miniapp'
+import type { MiniAppInsert, MiniAppRegion, MiniAppStatus } from '@data/db/schemas/miniApp'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/mini-apps'
 
 const presetMap = new Map(PRESETS_MINI_APPS.map((p) => [p.id, p]))

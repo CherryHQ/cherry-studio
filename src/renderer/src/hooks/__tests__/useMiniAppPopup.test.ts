@@ -37,7 +37,7 @@ const mockNavigate = vi.mocked(NavigationService.navigate)
 // Import hooks AFTER mocks
 import { useMiniAppPopup } from '../useMiniAppPopup'
 import { useMiniApps } from '../useMiniApps'
-import { createMiniApp } from './fixtures/miniapp'
+import { createMiniApp } from './fixtures/miniApp'
 
 const KEEP_ALIVE_KEY = 'mini_app.opened_keep_alive'
 

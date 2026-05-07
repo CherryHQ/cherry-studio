@@ -4,8 +4,8 @@
 
 import fs from 'node:fs/promises'
 
-import type { MiniAppInsert, MiniAppStatus } from '@data/db/schemas/miniapp'
-import { miniAppTable } from '@data/db/schemas/miniapp'
+import type { MiniAppInsert, MiniAppStatus } from '@data/db/schemas/miniApp'
+import { miniAppTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'

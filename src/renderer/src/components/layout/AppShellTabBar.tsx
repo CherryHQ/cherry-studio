@@ -1,6 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { isMac } from '@renderer/config/constant'
-import { getMiniAppsLogo } from '@renderer/config/miniapps'
+import { getMiniAppsLogo } from '@renderer/config/miniApps'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn, uuid } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'

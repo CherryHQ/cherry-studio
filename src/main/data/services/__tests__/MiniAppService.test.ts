@@ -1,4 +1,4 @@
-import { miniAppTable } from '@data/db/schemas/miniapp'
+import { miniAppTable } from '@data/db/schemas/miniApp'
 import { miniAppService } from '@data/services/MiniAppService'
 import { ErrorCode } from '@shared/data/api'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'

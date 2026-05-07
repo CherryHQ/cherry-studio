@@ -1,4 +1,4 @@
-import { type MiniAppInsert, miniAppTable } from '@data/db/schemas/miniapp'
+import { type MiniAppInsert, miniAppTable } from '@data/db/schemas/miniApp'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/mini-apps'
 import { isNotNull } from 'drizzle-orm'

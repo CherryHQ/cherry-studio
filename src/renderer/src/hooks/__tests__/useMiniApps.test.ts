@@ -8,7 +8,7 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { __resetRegionDetectionForTesting, useMiniApps } from '../useMiniApps'
-import { appFixtures, createCnOnlyApp, createGlobalApp, createMiniApp } from './fixtures/miniapp'
+import { appFixtures, createCnOnlyApp, createGlobalApp, createMiniApp } from './fixtures/miniApp'
 
 /** Helper: return the array directly since list() now returns a bare MiniApp[] */
 const paginated = (items: MiniApp[]) => items
