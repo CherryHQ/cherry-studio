@@ -76,6 +76,10 @@ export const AssistantSettingsSchema = z.object({
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
+/** Renderer-side sentinel for "default assistant" routing. v2 dropped the
+ *  matching DB row + seeder (default assistant is a runtime concept, not an
+ *  entity); the string ID stays as a routing key for legacy renderer paths
+ *  until those are migrated to `Preference.defaultModelId`. */
 export const DEFAULT_ASSISTANT_ID = 'default' as const
 
 /** Pre-computed default settings object — avoids runtime parse() on every row conversion */
