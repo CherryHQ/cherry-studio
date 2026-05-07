@@ -957,17 +957,6 @@
         "xhigh": "Εξαιρετικά Υψηλή",
         "xhigh_description": "Εξαιρετικά υψηλού επιπέδου συλλογισμός"
       },
-      "regular_phrases": {
-        "add": "Προσθήκη φράσης",
-        "contentLabel": "Περιεχόμενο",
-        "contentPlaceholder": "Παρακαλώ εισάγετε το περιεχόμενο της φράσης. Υποστηρίζονται μεταβλητές, και στη συνέχεια πατήστε Tab για να μεταβείτε γρήγορα στη μεταβλητή και να την επεξεργαστείτε. Για παράδειγμα: \\nΒοήθησέ με να σχεδιάσω μια διαδρομή από το ${from} στο ${to}, και στη συνέχεια στείλε την στο ${email}.",
-        "delete": "Διαγραφή φράσης",
-        "deleteConfirm": "Είστε βέβαιος ότι θέλετε να διαγράψετε αυτήν τη φράση;",
-        "edit": "Επεξεργασία φράσης",
-        "title": "Δημοφιλείς φράσεις",
-        "titleLabel": "Τίτλος",
-        "titlePlaceholder": "Εισαγάγετε τίτλο"
-      },
       "title": "Ρυθμίσεις Βοηθού",
       "tool_use_mode": {
         "function": "Συνάρτηση",
@@ -5275,6 +5264,24 @@
       "enable_privacy_mode": "Αποστολή ανώνυμων αναφορών σφαλμάτων και στατιστικών δεδομένων",
       "title": "Ρυθμίσεις Απορρήτου"
     },
+    "prompts": {
+      "add": "Προσθήκη Prompt",
+      "contentLabel": "Περιεχόμενο",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Διαγραφή Prompt",
+      "deleteConfirm": "Το prompt θα διαγραφεί οριστικά. Συνέχεια;",
+      "edit": "Επεξεργασία Prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Διαχείριση Prompts",
+      "titleLabel": "Τίτλος",
+      "titlePlaceholder": "Εισαγάγετε τίτλο prompt"
+    },
     "provider": {
       "add": {
         "name": {
@@ -5567,20 +5574,6 @@
       "page": "Σελίδα",
       "select": "Επιλογή",
       "title": "Γρήγορη Πρόσβαση"
-    },
-    "quickPhrase": {
-      "add": "Προσθήκη Φράσης",
-      "assistant": "Φράσεις Βοηθού",
-      "contentLabel": "Περιεχόμενο",
-      "contentPlaceholder": "Παρακαλώ εισάγετε περιεχόμενο φράσης. Υποστηρίζεται η χρήση μεταβλητών, και στη συνέχεια πατήστε Tab για να μεταβείτε γρήγορα στη μεταβλητή και να την τροποποιήσετε. Για παράδειγμα: \\\\n Βοήθησέ με να σχεδιάσω μια διαδρομή από το ${from} στο ${to}, και στη συνέχεια να τη στείλεις στο ${email}.",
-      "delete": "Διαγραφή Φράσης",
-      "deleteConfirm": "Η διαγραφή της φράσης δεν μπορεί να αναιρεθεί. Θέλετε να συνεχίσετε;",
-      "edit": "Επεξεργασία Φράσης",
-      "global": "Κοινές Φράσεις",
-      "locationLabel": "Προσθήκη Τοποθεσίας",
-      "title": "Γρήγορες Φράσεις",
-      "titleLabel": "Τίτλος",
-      "titlePlaceholder": "Παρακαλώ εισάγετε τίτλο φράσης"
     },
     "scheduledTasks": {
       "description": "Διαχειριστείτε προγραμματισμένες εργασίες σε όλους τους πράκτορες. Οι εργασίες εκτελούνται αυτόματα σύμφωνα με το διαμορφωμένο πρόγραμμα.",

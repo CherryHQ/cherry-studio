@@ -957,17 +957,6 @@
         "xhigh": "極力思考",
         "xhigh_description": "超高階推理"
       },
-      "regular_phrases": {
-        "add": "新增短語",
-        "contentLabel": "內容",
-        "contentPlaceholder": "請輸入短語內容，支援使用變數，然後按 Tab 鍵可以快速定位到變數進行修改。例如：\n幫我規劃從 ${from} 到 ${to} 的行程，然後傳送到 ${email}",
-        "delete": "刪除短語",
-        "deleteConfirm": "確定要刪除這個短語嗎？",
-        "edit": "編輯短語",
-        "title": "常用短語",
-        "titleLabel": "標題",
-        "titlePlaceholder": "輸入標題"
-      },
       "title": "助手設定",
       "tool_use_mode": {
         "function": "函式",
@@ -5275,6 +5264,24 @@
       "enable_privacy_mode": "匿名傳送錯誤報告和資料統計",
       "title": "隱私設定"
     },
+    "prompts": {
+      "add": "新增提示詞",
+      "contentLabel": "內容",
+      "contentPlaceholder": "請輸入提示詞內容，支援使用 ${變數}，按 Tab 可在變數間快速定位。例如：\n幫我規劃從 ${from} 到 ${to} 的路線，然後傳送到 ${email}",
+      "delete": "刪除提示詞",
+      "deleteConfirm": "刪除提示詞後將無法復原，是否繼續？",
+      "edit": "編輯提示詞",
+      "errors": {
+        "createFailed": "建立提示詞失敗",
+        "deleteFailed": "刪除提示詞失敗",
+        "loadFailed": "載入提示詞失敗",
+        "reorderFailed": "調整提示詞順序失敗",
+        "updateFailed": "更新提示詞失敗"
+      },
+      "title": "提示詞管理",
+      "titleLabel": "標題",
+      "titlePlaceholder": "請輸入提示詞標題"
+    },
     "provider": {
       "add": {
         "name": {
@@ -5567,20 +5574,6 @@
       "page": "翻頁",
       "select": "選擇",
       "title": "快捷選單"
-    },
-    "quickPhrase": {
-      "add": "新增短語",
-      "assistant": "助手提示詞",
-      "contentLabel": "內容",
-      "contentPlaceholder": "請輸入短語內容，支援使用變數，然後按 Tab 鍵可以快速定位到變數進行修改。例如：\n幫我規劃從 ${from} 到 ${to} 的行程，然後傳送到 ${email}",
-      "delete": "刪除短語",
-      "deleteConfirm": "刪除後無法復原，是否繼續？",
-      "edit": "編輯短語",
-      "global": "全域快速短語",
-      "locationLabel": "新增位置",
-      "title": "快捷短語",
-      "titleLabel": "標題",
-      "titlePlaceholder": "請輸入短語標題"
     },
     "scheduledTasks": {
       "description": "管理所有代理的排程任務。任務將依設定好的排程自動執行。",

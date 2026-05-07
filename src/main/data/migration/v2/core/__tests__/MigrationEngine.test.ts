@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { mockMainLoggerService } from '../../../../../../../tests/__mocks__/MainLoggerService'
 import { MigrationEngine } from '../MigrationEngine'
 import type { MigrationPaths } from '../MigrationPaths'
 
@@ -97,5 +98,50 @@ describe('MigrationEngine', () => {
       'chat:execute',
       'chat:validate'
     ])
+  })
+
+  it('logs failed runs with an Error object so stack/cause are preserved', async () => {
+    const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
+    const events: string[] = []
+    const failing = createTestMigrator('failing', 1, events)
+    failing.execute.mockResolvedValueOnce({ success: false, processedCount: 0, error: 'execute exploded' } as any)
+
+    engine.registerMigrators([failing as any])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.success).toBe(false)
+    expect(errorSpy).toHaveBeenCalledWith('Migration failed', expect.any(Error))
+    const lastCall = errorSpy.mock.calls.at(-1)
+    expect(lastCall).toBeDefined()
+    expect((lastCall![1] as Error).message).toContain('execute exploded')
+
+    errorSpy.mockRestore()
+  })
+
+  it('clears new architecture tables inside one transaction', async () => {
+    const deleteFn = vi.fn().mockResolvedValue(undefined)
+    const transactionFn = vi.fn(async (fn: (tx: unknown) => Promise<void>) => {
+      await fn({ delete: deleteFn })
+    })
+    const db = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          get: vi.fn().mockResolvedValue({ count: 0 })
+        }))
+      })),
+      transaction: transactionFn
+    }
+    ;(engine as any).migrationDb = {
+      getDb: vi.fn(() => db),
+      close: vi.fn()
+    }
+    vi.mocked((engine as any).verifyAndClearNewTables).mockRestore()
+
+    await (engine as any).verifyAndClearNewTables()
+
+    expect(transactionFn).toHaveBeenCalledTimes(1)
+    expect(deleteFn).toHaveBeenCalledTimes(25)
+    expect(db).not.toHaveProperty('delete')
   })
 })

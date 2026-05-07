@@ -31,7 +31,7 @@ const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   '/settings/websearch': { icon: '🔍', label: 'Web Search' },
   '/settings/api-server': { icon: '🌐', label: 'API Server' },
   '/settings/docprocess': { icon: '📄', label: 'Doc Processing' },
-  '/settings/quickphrase': { icon: '⚡', label: 'Quick Phrases' },
+  '/settings/prompts': { icon: '⚡', label: 'Prompt Management' },
   '/settings/shortcut': { icon: '⌨️', label: 'Shortcuts' },
   '/settings/quickAssistant': { icon: '🪟', label: 'Quick Assistant' },
   '/settings/selectionAssistant': { icon: '✂️', label: 'Selection Assistant' },

@@ -144,8 +144,15 @@
     {
       "idx": 20,
       "version": "6",
-      "when": 1778064169083,
-      "tag": "0020_even_hulk",
+      "when": 1778063182815,
+      "tag": "0020_known_captain_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1778156840137,
+      "tag": "0021_vengeful_green_goblin",
       "breakpoints": true
     }
   ],
