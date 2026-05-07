@@ -2523,6 +2523,11 @@
     "remove_from_launchpad": "從啟動台移除",
     "remove_from_sidebar": "從側邊欄移除",
     "reorder_failed": "小程式排序更新失敗",
+    "shortcut": {
+      "failed": "失敗：{{message}}",
+      "html_saved": "HTML 已儲存至：{{path}}",
+      "pdf_saved": "PDF 已儲存至：{{path}}"
+    },
     "show_failed": "顯示小程式失敗",
     "sidebar": {
       "close": {

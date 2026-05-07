@@ -2523,6 +2523,11 @@
     "remove_from_launchpad": "Remove from Launchpad",
     "remove_from_sidebar": "Remove from Sidebar",
     "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "Failed: {{message}}",
+      "html_saved": "HTML saved to: {{path}}",
+      "pdf_saved": "PDF saved to: {{path}}"
+    },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {

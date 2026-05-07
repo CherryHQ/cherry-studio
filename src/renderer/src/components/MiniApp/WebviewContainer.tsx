@@ -2,6 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { DidNavigateInPageEvent, WebviewTag } from 'electron'
 import { memo, useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WebviewContainer')
 
@@ -25,6 +26,7 @@ const WebviewContainer = memo(
     onNavigateCallback: (appid: string, url: string) => void
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
+    const { t } = useTranslation()
     const [enableSpellCheck] = usePreference('app.spell_check.enabled')
     const [openLinkExternal] = usePreference('feature.mini_app.open_link_external')
     const handleRef = useCallback(
@@ -127,7 +129,7 @@ const WebviewContainer = memo(
             logger.info(`Printing webview ${appid} to PDF`)
             const filePath = await window.api.webview.printToPDF(webviewId)
             if (filePath) {
-              window.toast?.success?.(`PDF saved to: ${filePath}`)
+              window.toast?.success?.(t('miniApp.shortcut.pdf_saved', { path: filePath }))
               logger.info(`PDF saved to: ${filePath}`)
             }
           } else if (key === 's') {
@@ -135,20 +137,20 @@ const WebviewContainer = memo(
             logger.info(`Saving webview ${appid} as HTML`)
             const filePath = await window.api.webview.saveAsHTML(webviewId)
             if (filePath) {
-              window.toast?.success?.(`HTML saved to: ${filePath}`)
+              window.toast?.success?.(t('miniApp.shortcut.html_saved', { path: filePath }))
               logger.info(`HTML saved to: ${filePath}`)
             }
           }
         } catch (error) {
           logger.error(`Failed to handle shortcut for webview ${appid}:`, error as Error)
-          window.toast?.error?.(`Failed: ${(error as Error).message}`)
+          window.toast?.error?.(t('miniApp.shortcut.failed', { message: (error as Error).message }))
         }
       })
 
       return () => {
         unsubscribe?.()
       }
-    }, [appid])
+    }, [appid, t])
 
     // Update webview settings when they change
     useEffect(() => {

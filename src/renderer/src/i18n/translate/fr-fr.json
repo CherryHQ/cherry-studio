@@ -2523,6 +2523,11 @@
     "remove_from_launchpad": "Supprimer du tableau de bord",
     "remove_from_sidebar": "Supprimer de la barre latérale",
     "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {

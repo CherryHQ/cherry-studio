@@ -2523,6 +2523,11 @@
     "remove_from_launchpad": "スタート画面から削除",
     "remove_from_sidebar": "サイドバーから削除",
     "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
