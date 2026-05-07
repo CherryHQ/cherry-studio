@@ -57,7 +57,12 @@ const MiniAppPage: FC = () => {
   // -------------- Tab Shell logic --------------
   // Hooks must be called before any return, so define them early with null-checks inside
   const webviewRef = useRef<WebviewTag | null>(null)
-  const [isReady, setIsReady] = useState<boolean>(() => (app ? getWebviewLoaded(app.appId) : false))
+  // Seed isReady from `appId` (synchronously available via useParams), not
+  // from `app` (which goes through async DataApi/useMemo and is null on the
+  // first render after a tab wakes from LRU hibernation). Otherwise the
+  // loading mask flashes over a still-alive webview every time the user
+  // switches back to the mini-app, looking like a reload.
+  const [isReady, setIsReady] = useState<boolean>(() => (appId ? getWebviewLoaded(appId) : false))
   const [currentUrl, setCurrentUrl] = useState<string | null>(app?.url ?? null)
 
   // Get the webview element from the pool (avoid re-running on openedKeepAliveMiniApps.length changes)
