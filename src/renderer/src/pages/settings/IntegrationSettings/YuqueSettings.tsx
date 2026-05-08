@@ -1,9 +1,7 @@
 import { Button, InfoTooltip, Input, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +19,6 @@ const isYuqueRepoResponse = (value: unknown): value is { data: { id: string | nu
 const YuqueSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { openSmartMiniApp } = useMiniAppPopup()
 
   const [yuqueToken, setYuqueToken] = usePreference('data.integration.yuque.token')
   const [yuqueUrl, setYuqueUrl] = usePreference('data.integration.yuque.url')
@@ -81,12 +78,7 @@ const YuqueSettings: FC = () => {
   }
 
   const handleYuqueHelpClick = () => {
-    openSmartMiniApp({
-      appId: 'yuque-help',
-      name: 'Yuque Help',
-      url: 'https://www.yuque.com/settings/tokens',
-      logo: AppLogo
-    })
+    void window.api.openWebsite('https://www.yuque.com/settings/tokens')
   }
 
   return (

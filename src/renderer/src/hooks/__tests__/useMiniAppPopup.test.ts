@@ -10,29 +10,27 @@ vi.mock('@renderer/utils/webviewStateManager', () => ({
   clearWebviewState: vi.fn()
 }))
 
-vi.mock('@renderer/services/NavigationService', () => ({
-  default: {
-    navigate: vi.fn()
-  }
+const mockWindowApi = vi.hoisted(() => ({
+  openWebsite: vi.fn(),
+  openPath: vi.fn()
 }))
 
-// useTabs is consumed by useMiniAppPopup to find AppShell tabs that pin a
-// miniapp route — pinned tabs are exempt from keep-alive eviction. The test
-// surface here doesn't exercise the AppShell tab system, so default to "no
-// pinned tabs"; the pinned-exemption test below overrides this per-test.
+// TabsContext is consumed by useMiniAppPopup to open AppShell tabs and to find
+// pinned miniapp route tabs that are exempt from keep-alive eviction. The test
+// surface here defaults to "no pinned tabs"; individual tests override this.
 const mockTabs = vi.hoisted(() => ({
-  tabs: [] as Array<{ id: string; url: string; isPinned?: boolean; type: 'route' }>
+  tabs: [] as Array<{ id: string; url: string; isPinned?: boolean; type: 'route' }>,
+  hasContext: true,
+  openTab: vi.fn()
 }))
-vi.mock('@renderer/hooks/useTabs', () => ({
-  useTabs: () => ({ tabs: mockTabs.tabs })
+vi.mock('@renderer/context/TabsContext', () => ({
+  useOptionalTabsContext: () => (mockTabs.hasContext ? { tabs: mockTabs.tabs, openTab: mockTabs.openTab } : null)
 }))
 
 // Import mocked modules
-import NavigationService from '@renderer/services/NavigationService'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 
 const mockClearWebviewState = vi.mocked(clearWebviewState)
-const mockNavigate = vi.mocked(NavigationService.navigate)
 
 // Import hooks AFTER mocks
 import { useMiniAppPopup } from '../useMiniAppPopup'
@@ -71,8 +69,21 @@ describe('useMiniAppPopup', () => {
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList([]))
     mockClearWebviewState.mockClear()
-    mockNavigate!.mockClear()
     mockTabs.tabs = []
+    mockTabs.hasContext = true
+    mockTabs.openTab.mockClear()
+    mockWindowApi.openWebsite.mockReset()
+    mockWindowApi.openPath.mockReset()
+    mockWindowApi.openWebsite.mockResolvedValue(undefined)
+    mockWindowApi.openPath.mockResolvedValue(undefined)
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        ...(window.api ?? {}),
+        openWebsite: mockWindowApi.openWebsite,
+        openPath: mockWindowApi.openPath
+      }
+    })
   })
 
   // === Basic Return Values ===
@@ -86,6 +97,13 @@ describe('useMiniAppPopup', () => {
       expect(typeof result.current.closeMiniApp).toBe('function')
       expect(typeof result.current.hideMiniAppPopup).toBe('function')
       expect(typeof result.current.closeAllMiniApps).toBe('function')
+      expect(typeof result.current.openSmartMiniApp).toBe('function')
+    })
+
+    it('should work without TabsProvider', () => {
+      mockTabs.hasContext = false
+      const { result } = renderHook(() => useMiniAppPopup())
+
       expect(typeof result.current.openSmartMiniApp).toBe('function')
     })
   })
@@ -384,10 +402,9 @@ describe('useMiniAppPopup', () => {
   // === openSmartMiniApp ===
 
   describe('openSmartMiniApp', () => {
-    it('should add to keep-alive + navigate for a new app', async () => {
+    it('should add to keep-alive + open a tab for a new app', async () => {
       MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
       MockUseCacheUtils.setCacheValue('mini_app.show', false)
-      mockNavigate!.mockResolvedValue(undefined)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -402,12 +419,15 @@ describe('useMiniAppPopup', () => {
       expect(isInKeepAlive('top-nav-app')).toBe(true)
       expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('top-nav-app')
-      expect(mockNavigate).toHaveBeenCalledWith({ to: '/app/mini-app/top-nav-app' })
+      expect(mockTabs.openTab).toHaveBeenCalledWith('/app/mini-app/top-nav-app', {
+        title: 'Top Nav App',
+        icon: 'icon'
+      })
     })
 
-    it('should still route to the app when the keep-alive entry already exists', async () => {
+    it('should still activate the app tab when the keep-alive entry already exists', async () => {
       // `MiniAppTabsPool.shouldShow` keys off the active tab URL, not pool
-      // membership. Every caller of `openSmartMiniApp` (AboutSettings, Notion,
+      // membership. Every caller of `openSmartMiniApp` (AboutSettings, S3,
       // OpenClaw, etc.) sits on a non-mini-app route, so skipping `navigate`
       // when cached would leave the pool hidden and the user looking at a
       // settings page. Webview re-use stays correct: we don't recreate the
@@ -415,7 +435,6 @@ describe('useMiniAppPopup', () => {
       const existing = createMiniApp('cached-app')
       MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [existing])
       MockUseCacheUtils.setCacheValue('mini_app.show', false)
-      mockNavigate!.mockResolvedValue(undefined)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -429,7 +448,50 @@ describe('useMiniAppPopup', () => {
 
       expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('cached-app')
-      expect(mockNavigate).toHaveBeenCalledWith({ to: '/app/mini-app/cached-app' })
+      expect(mockTabs.openTab).toHaveBeenCalledWith('/app/mini-app/cached-app', {
+        title: 'Cached App',
+        icon: 'icon'
+      })
+    })
+
+    it('should open http URLs externally without TabsProvider', async () => {
+      mockTabs.hasContext = false
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openSmartMiniApp({
+          appId: 'external-help',
+          name: 'External Help',
+          url: 'https://example.com/help',
+          logo: 'icon'
+        })
+      })
+
+      expect(mockWindowApi.openWebsite).toHaveBeenCalledWith('https://example.com/help')
+      expect(mockWindowApi.openPath).not.toHaveBeenCalled()
+      expect(mockTabs.openTab).not.toHaveBeenCalled()
+      expect(getKeepAlive()).toEqual([])
+    })
+
+    it('should open file URLs externally with openPath without TabsProvider', async () => {
+      mockTabs.hasContext = false
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openSmartMiniApp({
+          appId: 'releases',
+          name: 'Releases',
+          url: 'file:///Applications/Cherry%20Studio/resources/releases.html?theme=dark',
+          logo: 'icon'
+        })
+      })
+
+      expect(mockWindowApi.openPath).toHaveBeenCalledWith('/Applications/Cherry Studio/resources/releases.html')
+      expect(mockWindowApi.openWebsite).not.toHaveBeenCalled()
+      expect(mockTabs.openTab).not.toHaveBeenCalled()
+      expect(getKeepAlive()).toEqual([])
     })
   })
 
@@ -464,6 +526,20 @@ describe('useMiniAppPopup', () => {
       const list = getKeepAlive()
       expect(list).toHaveLength(1)
       expect(list[0].appId).toBe('state-sync-app')
+    })
+
+    it('should not evict keep-alive apps without TabsProvider', async () => {
+      mockTabs.hasContext = false
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 1)
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [createMiniApp('existing')])
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniApp(createMiniApp('newcomer'), true)
+      })
+
+      expect(getKeepAlive().map((app) => app.appId)).toEqual(['existing', 'newcomer'])
+      expect(mockClearWebviewState).not.toHaveBeenCalledWith('existing')
     })
 
     it('should trim the keep-alive list when max keep alive is decreased', async () => {

@@ -2,9 +2,7 @@ import { Button, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { Client } from '@notionhq/client'
-import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +19,6 @@ const NotionSettings: FC = () => {
 
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { openSmartMiniApp } = useMiniAppPopup()
 
   const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     void setNotionApiKey(e.target.value)
@@ -67,12 +64,7 @@ const NotionSettings: FC = () => {
   }
 
   const handleNotionTitleClick = () => {
-    openSmartMiniApp({
-      appId: 'notion-help',
-      name: 'Notion Help',
-      url: 'https://docs.cherry-ai.com/advanced-basic/notion',
-      logo: AppLogo
-    })
+    void window.api.openWebsite('https://docs.cherry-ai.com/advanced-basic/notion')
   }
 
   return (

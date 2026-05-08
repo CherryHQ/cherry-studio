@@ -1,9 +1,7 @@
 import { Button, InfoTooltip, Input, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,7 +15,6 @@ const SiyuanSettings: FC = () => {
   const [siyuanBoxId, setSiyuanBoxId] = usePreference('data.integration.siyuan.box_id')
   const [siyuanRootPath, setSiyuanRootPath] = usePreference('data.integration.siyuan.root_path')
 
-  const { openSmartMiniApp } = useMiniAppPopup()
   const { t } = useTranslation()
   const { theme } = useTheme()
 
@@ -38,12 +35,7 @@ const SiyuanSettings: FC = () => {
   }
 
   const handleSiyuanHelpClick = () => {
-    openSmartMiniApp({
-      appId: 'siyuan-help',
-      name: 'Siyuan Help',
-      url: 'https://docs.cherry-ai.com/advanced-basic/siyuan',
-      logo: AppLogo
-    })
+    void window.api.openWebsite('https://docs.cherry-ai.com/advanced-basic/siyuan')
   }
 
   const handleCheckConnection = async () => {

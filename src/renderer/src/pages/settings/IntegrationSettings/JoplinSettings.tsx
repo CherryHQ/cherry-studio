@@ -1,9 +1,7 @@
 import { Button, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,8 +21,6 @@ const JoplinSettings: FC = () => {
   const handleJoplinTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     void setJoplinToken(e.target.value)
   }
-
-  const { openSmartMiniApp } = useMiniAppPopup()
 
   const handleJoplinUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     void setJoplinUrl(e.target.value)
@@ -70,12 +66,7 @@ const JoplinSettings: FC = () => {
   }
 
   const handleJoplinHelpClick = () => {
-    openSmartMiniApp({
-      appId: 'joplin-help',
-      name: 'Joplin Help',
-      url: 'https://joplinapp.org/help/apps/clipper',
-      logo: AppLogo
-    })
+    void window.api.openWebsite('https://joplinapp.org/help/apps/clipper')
   }
 
   return (
