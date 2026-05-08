@@ -70,6 +70,10 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   gemini3_flash: ['minimal', 'low', 'medium', 'high'] as const,
   gemini3_pro: ['low', 'high'] as const,
   gemini3_1_pro: ['low', 'medium', 'high'] as const,
+  // Google-hosted Gemma 4 documents `minimal` as the closest supported near-off
+  // setting for most requests, but does not guarantee thinking is fully disabled.
+  // Keep the formal UI options aligned with the API guarantee and omit `none`.
+  gemma4_hosted: ['minimal', 'high'] as const,
   qwen: ['low', 'medium', 'high'] as const,
   qwen_thinking: ['low', 'medium', 'high'] as const,
   doubao: ['auto', 'high'] as const,
@@ -111,6 +115,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gemini3_flash: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_flash] as const,
   gemini3_pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_pro] as const,
   gemini3_1_pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_1_pro] as const,
+  gemma4_hosted: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemma4_hosted] as const,
   qwen: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
   qwen_thinking: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking] as const,
   doubao: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
@@ -177,7 +182,9 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isGrok4FastReasoningModel(model)) {
     thinkingModelType = 'grok4_fast'
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
-    if (isGemini3FlashModel(model) || isGemini31FlashLiteModel(model)) {
+    if (isHostedGemma4ThinkingModel(model)) {
+      thinkingModelType = 'gemma4_hosted'
+    } else if (isGemini3FlashModel(model) || isGemini31FlashLiteModel(model)) {
       thinkingModelType = 'gemini3_flash'
     } else if (isGemini3ProModel(model)) {
       thinkingModelType = 'gemini3_pro'
@@ -415,8 +422,21 @@ export function isGeminiReasoningModel(model?: Model): boolean {
 export const GEMINI_THINKING_MODEL_REGEX =
   /gemini-(?:2\.5.*(?:-latest)?|3(?:\.\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$/i
 
+export const isHostedGemma4ThinkingModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return model.provider?.toLowerCase() === 'gemini' && modelId.startsWith('gemma-4-')
+}
+
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
+  if (isHostedGemma4ThinkingModel(model)) {
+    return true
+  }
+
   if (GEMINI_THINKING_MODEL_REGEX.test(modelId)) {
     // ref: https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-pro-image
     if (modelId.includes('gemini-3-pro-image')) {
