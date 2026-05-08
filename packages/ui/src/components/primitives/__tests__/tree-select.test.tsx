@@ -51,11 +51,19 @@ describe('TreeSelect', () => {
 
   it('expands nested nodes and selects an item', async () => {
     const onChange = vi.fn()
-    render(<TreeSelect treeData={treeData} onChange={onChange} placeholder="Pick path" />)
+    render(
+      <TreeSelect
+        treeData={treeData}
+        onChange={onChange}
+        placeholder="Pick path"
+        expandLabel="Open branch"
+        collapseLabel="Close branch"
+      />
+    )
 
     fireEvent.click(screen.getByRole('combobox'))
-    fireEvent.click(screen.getByLabelText('Expand'))
-    fireEvent.click(screen.getByLabelText('Expand'))
+    fireEvent.click(screen.getByLabelText('Open branch'))
+    fireEvent.click(screen.getByLabelText('Open branch'))
     fireEvent.click(screen.getByText('guide.md'))
 
     expect(onChange).toHaveBeenCalledWith('docs/guide.md', expect.objectContaining({ title: 'guide.md' }))

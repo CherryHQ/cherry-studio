@@ -70,6 +70,8 @@ export interface TreeSelectProps extends Omit<VariantProps<typeof treeSelectTrig
   defaultExpandedValues?: string[]
   expandedValues?: string[]
   onExpandedValuesChange?: (values: string[]) => void
+  expandLabel?: string
+  collapseLabel?: string
   placeholder?: string
   disabled?: boolean
   error?: boolean
@@ -171,6 +173,8 @@ export function TreeSelect({
   defaultExpandedValues,
   expandedValues: controlledExpandedValues,
   onExpandedValuesChange,
+  expandLabel = 'Expand',
+  collapseLabel = 'Collapse',
   placeholder = 'Please Select',
   disabled = false,
   error = false,
@@ -307,7 +311,7 @@ export function TreeSelect({
             {hasChildren ? (
               <button
                 type="button"
-                aria-label={expanded ? 'Collapse' : 'Expand'}
+                aria-label={expanded ? collapseLabel : expandLabel}
                 aria-expanded={expanded}
                 onClick={() => toggleExpanded(option.value)}
                 className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">

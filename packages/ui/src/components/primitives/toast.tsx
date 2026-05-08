@@ -29,9 +29,24 @@ export interface ToastRecord extends ToastConfig {
   type: ToastType
 }
 
+export interface ToastLabels {
+  close: string
+  error: React.ReactNode
+  errorDescription: React.ReactNode
+  loading: React.ReactNode
+  success: React.ReactNode
+}
+
 export type ToastUtilities = ReturnType<typeof getToastUtilities>
 
 const DEFAULT_TIMEOUT = 3000
+const DEFAULT_TOAST_LABELS: ToastLabels = {
+  close: 'Close',
+  error: 'Error',
+  errorDescription: 'An error occurred',
+  loading: 'Loading...',
+  success: 'Success'
+}
 
 let toastQueue: ToastRecord[] = []
 const listeners = new Set<() => void>()
@@ -83,6 +98,8 @@ const subscribe = (listener: () => void) => {
 const getToastSnapshot = () => toastQueue
 
 const getToastKey = (key?: string | number) => String(key ?? `toast-${Date.now()}-${Math.random()}`)
+
+const getToastLabels = (labels?: Partial<ToastLabels>): ToastLabels => ({ ...DEFAULT_TOAST_LABELS, ...labels })
 
 const clearTimer = (key: string) => {
   const timer = timers.get(key)
@@ -166,45 +183,50 @@ export const success = createToast('success')
 export const warning = createToast('warning')
 export const info = createToast('default')
 
-export const loading = (args: LoadingToastConfig): string => {
-  const { title, description, icon, promise, timeout, ...restConfig } = args
-  const key = getToastKey(args.key)
+const createLoadingToast =
+  (labels?: Partial<ToastLabels>) =>
+  (args: LoadingToastConfig): string => {
+    const toastLabels = getToastLabels(labels)
+    const { title, description, icon, promise, timeout, ...restConfig } = args
+    const key = getToastKey(args.key)
 
-  upsertToast({
-    ...restConfig,
-    description,
-    icon,
-    key,
-    title: title || 'Loading...',
-    timeout: 0,
-    type: 'loading'
-  })
-
-  promise
-    .then((result) => {
-      upsertToast({
-        ...restConfig,
-        description,
-        key,
-        title: title || 'Success',
-        timeout: timeout ?? 2000,
-        type: 'success'
-      })
-      return result
-    })
-    .catch((err) => {
-      upsertToast({
-        ...restConfig,
-        description: err?.message || description || 'An error occurred',
-        key,
-        title: title || 'Error',
-        timeout: timeout ?? DEFAULT_TIMEOUT,
-        type: 'error'
-      })
+    upsertToast({
+      ...restConfig,
+      description,
+      icon,
+      key,
+      title: title || toastLabels.loading,
+      timeout: 0,
+      type: 'loading'
     })
 
-  return key
-}
+    promise
+      .then((result) => {
+        upsertToast({
+          ...restConfig,
+          description,
+          key,
+          title: title || toastLabels.success,
+          timeout: timeout ?? 2000,
+          type: 'success'
+        })
+        return result
+      })
+      .catch((err) => {
+        upsertToast({
+          ...restConfig,
+          description: err?.message || description || toastLabels.errorDescription,
+          key,
+          title: title || toastLabels.error,
+          timeout: timeout ?? DEFAULT_TIMEOUT,
+          type: 'error'
+        })
+      })
+
+    return key
+  }
+
+export const loading = createLoadingToast()
 
 export const addToast = (config: ToastConfig) => info(config)
 
@@ -225,7 +247,7 @@ export const getToastQueue = (): { toasts: ToastRecord[] } => ({ toasts: toastQu
 
 export const isToastClosing = (): boolean => false
 
-export const getToastUtilities = () =>
+export const getToastUtilities = (labels?: Partial<ToastLabels>) =>
   ({
     addToast,
     closeAll,
@@ -234,7 +256,7 @@ export const getToastUtilities = () =>
     getToastQueue,
     info,
     isToastClosing,
-    loading,
+    loading: createLoadingToast(labels),
     success,
     warning
   }) as const
@@ -247,7 +269,7 @@ const typeIconMap: Record<ToastType, React.ReactNode> = {
   loading: <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
 }
 
-const ToastItem = ({ toast }: { toast: ToastRecord }) => {
+const ToastItem = ({ labels, toast }: { labels: ToastLabels; toast: ToastRecord }) => {
   const icon = toast.icon ?? typeIconMap[toast.type]
 
   return (
@@ -268,7 +290,7 @@ const ToastItem = ({ toast }: { toast: ToastRecord }) => {
       </div>
       <button
         type="button"
-        aria-label="Close"
+        aria-label={labels.close}
         className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         onClick={(event) => {
           event.stopPropagation()
@@ -280,8 +302,15 @@ const ToastItem = ({ toast }: { toast: ToastRecord }) => {
   )
 }
 
-export const ToastViewport = ({ standalone = false }: { standalone?: boolean }) => {
+export const ToastViewport = ({
+  labels,
+  standalone = false
+}: {
+  labels?: Partial<ToastLabels>
+  standalone?: boolean
+}) => {
   const [toasts, setToasts] = useState(getToastSnapshot)
+  const toastLabels = getToastLabels(labels)
 
   useEffect(() => {
     mountedViewports += 1
@@ -313,7 +342,7 @@ export const ToastViewport = ({ standalone = false }: { standalone?: boolean }) 
   return (
     <div className="-translate-x-1/2 pointer-events-none fixed top-5 left-1/2 z-[10000] flex flex-col items-center gap-2">
       {toasts.map((toast) => (
-        <ToastItem key={toast.key} toast={toast} />
+        <ToastItem key={toast.key} labels={toastLabels} toast={toast} />
       ))}
     </div>
   )
