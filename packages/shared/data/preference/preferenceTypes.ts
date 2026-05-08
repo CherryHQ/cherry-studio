@@ -83,7 +83,7 @@ export type SidebarIcon =
   | 'store'
   | 'paintings'
   | 'translate'
-  | 'minapp'
+  | 'mini_app'
   | 'knowledge'
   | 'files'
   | 'code_tools'
@@ -289,3 +289,8 @@ export type FileProcessorOverride = {
 }
 
 export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcessorOverride>>
+
+/** Region types for miniApps visibility */
+export type MiniAppRegion = 'CN' | 'Global'
+
+export type MiniAppRegionFilter = 'auto' | MiniAppRegion

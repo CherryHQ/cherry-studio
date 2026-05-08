@@ -957,17 +957,6 @@
         "xhigh": "Extra Alta",
         "xhigh_description": "Raciocínio de altíssimo nível"
       },
-      "regular_phrases": {
-        "add": "Adicionar Frase",
-        "contentLabel": "Conteúdo",
-        "contentPlaceholder": "Por favor, insira o conteúdo da frase. Há suporte para o uso de variáveis, e em seguida você pode pressionar a tecla Tab para localizar rapidamente a variável e editá-la. Por exemplo:\\n Planeie uma rota de ${from} para ${to} e depois envie para ${email}.",
-        "delete": "Excluir Frase",
-        "deleteConfirm": "Tem certeza de que deseja excluir esta frase?",
-        "edit": "Editar Frase",
-        "title": "Frases Comuns",
-        "titleLabel": "Título",
-        "titlePlaceholder": "Digite o título"
-      },
       "title": "Configurações do Assistente",
       "tool_use_mode": {
         "function": "Função",
@@ -2147,7 +2136,7 @@
   },
   "launchpad": {
     "apps": "Aplicativos",
-    "minapps": "Miniaplicativos"
+    "miniApps": "Miniaplicativos"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2500,15 +2489,20 @@
       "partial_failure": "{{count}} resultados da pesquisa, algumas pesquisas falharam"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Adicionar ao Painel de Inicialização",
     "add_to_sidebar": "Adicionar à Barra Lateral",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Fechar aplicativo",
       "devtools": "Ferramentas de Desenvolvedor",
       "goBack": "Voltar",
       "goForward": "Avançar",
-      "minimize": "Minimizar aplicativo",
       "openExternal": "Abrir no navegador",
       "open_link_external_off": "Atual: Abrir links em janela padrão",
       "open_link_external_on": "Atual: Abrir links no navegador",
@@ -2517,6 +2511,13 @@
     },
     "remove_from_launchpad": "Remover do Painel de Inicialização",
     "remove_from_sidebar": "Remover da Barra Lateral",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Fechar"
@@ -2531,9 +2532,11 @@
         "title": "Excluir aplicativo personalizado"
       }
     },
-    "title": "Pequeno aplicativo"
+    "title": "Pequeno aplicativo",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -2552,6 +2555,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -4646,7 +4650,7 @@
         "knowledge": {
           "icon": "Mostrar ícone de conhecimento"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "Mostrar ícone de aplicativo"
         },
         "painting": {
@@ -5048,7 +5052,7 @@
       "title": "Configurações de mensagem",
       "use_serif_font": "Usar fonte serif"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "As alterações entrarão em vigor após a abertura ou remoção dos mini aplicativos até atingir o número definido",
       "cache_description": "Defina o número máximo de mini aplicativos que permanecerão ativos simultaneamente",
       "cache_settings": "Configurações de Cache",
@@ -5098,8 +5102,6 @@
         "title": "Filtro de área do mini programa"
       },
       "reset_tooltip": "Redefinir para os valores padrão",
-      "sidebar_description": "Defina se os mini aplicativos ativos serão exibidos na barra lateral",
-      "sidebar_title": "Exibição de Mini Aplicativos Ativos na Barra Lateral",
       "title": "Configurações do Mini Aplicativo",
       "visible": "Mini Aplicativos Visíveis"
     },
@@ -5261,6 +5263,24 @@
     "privacy": {
       "enable_privacy_mode": "Enviar relatórios de erro e estatísticas de forma anônima",
       "title": "Configurações de Privacidade"
+    },
+    "prompts": {
+      "add": "Adicionar Prompt",
+      "contentLabel": "Conteúdo",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Eliminar Prompt",
+      "deleteConfirm": "O prompt será eliminado permanentemente. Continuar?",
+      "edit": "Editar Prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Gestão de Prompts",
+      "titleLabel": "Título",
+      "titlePlaceholder": "Introduza o título do prompt"
     },
     "provider": {
       "add": {
@@ -5554,20 +5574,6 @@
       "page": "Página",
       "select": "Selecionar",
       "title": "Menu de Atalho"
-    },
-    "quickPhrase": {
-      "add": "Adicionar Frase",
-      "assistant": "Frase do Assistente",
-      "contentLabel": "Conteúdo",
-      "contentPlaceholder": "Por favor, insira o conteúdo da frase. É permitido usar variáveis, e em seguida pressionar a tecla Tab para localizar rapidamente as variáveis e editá-las. Por exemplo:\\nPlaneje uma rota de ${from} para ${to} e envie para ${email}.",
-      "delete": "Excluir Frase",
-      "deleteConfirm": "A frase excluída não poderá ser recuperada. Deseja continuar?",
-      "edit": "Editar Frase",
-      "global": "Frase Global",
-      "locationLabel": "Adicionar Localização",
-      "title": "Frases Rápidas",
-      "titleLabel": "Título",
-      "titlePlaceholder": "Por favor, insira o título da frase"
     },
     "scheduledTasks": {
       "description": "Gerencie tarefas agendadas em todos os agentes. As tarefas são executadas automaticamente conforme o agendamento configurado.",

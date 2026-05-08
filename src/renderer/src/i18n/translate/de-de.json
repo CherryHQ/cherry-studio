@@ -957,17 +957,6 @@
         "xhigh": "Extra hoch",
         "xhigh_description": "Extra hohes Denkvermögen"
       },
-      "regular_phrases": {
-        "add": "Phrase hinzufügen",
-        "contentLabel": "Inhalt",
-        "contentPlaceholder": "Bitte geben Sie den Phraseninhalt ein. Sie können Variablen verwenden und dann die Tab-Taste drücken, um schnell zu Variablen zu navigieren und sie zu ändern. Zum Beispiel:\nPlanen Sie mir eine Route von ${from} nach ${to} und senden Sie sie an ${email}",
-        "delete": "Phrase löschen",
-        "deleteConfirm": "Möchten Sie diese Phrase wirklich löschen?",
-        "edit": "Phrase bearbeiten",
-        "title": "Häufig verwendete Phrasen",
-        "titleLabel": "Titel",
-        "titlePlaceholder": "Titel eingeben"
-      },
       "title": "Assistenteneinstellungen",
       "tool_use_mode": {
         "function": "Funktion",
@@ -2147,7 +2136,7 @@
   },
   "launchpad": {
     "apps": "Apps",
-    "minapps": "Mini-Apps"
+    "miniApps": "Mini-Apps"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2500,15 +2489,20 @@
       "partial_failure": "{{count}} Suchergebnisse, einige Suchvorgänge sind fehlgeschlagen"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Zu Launchpad hinzufügen",
     "add_to_sidebar": "Zur Seitenleiste hinzufügen",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Mini-App schließen",
       "devtools": "Entwicklertools",
       "goBack": "Zurück",
       "goForward": "Vorwärts",
-      "minimize": "Mini-App minimieren",
       "openExternal": "In Browser öffnen",
       "open_link_external_off": "Aktuell: Links im Standardfenster öffnen",
       "open_link_external_on": "Aktuell: Links im Browser öffnen",
@@ -2517,6 +2511,13 @@
     },
     "remove_from_launchpad": "Aus Launchpad entfernen",
     "remove_from_sidebar": "Aus Seitenleiste entfernen",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Schließen"
@@ -2531,9 +2532,11 @@
         "title": "Benutzerdefinierte App entfernen"
       }
     },
-    "title": "Mini-Apps"
+    "title": "Mini-Apps",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baixiaoying",
     "baidu-ai-search": "Baidu AI Suche",
@@ -2552,6 +2555,7 @@
     "stepfun": "StepFun AI",
     "tencent-yuanbao": "Tencent Yuanbao",
     "tiangong-ai": "Tiangong AI",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "Wenxin Yiyan",
     "wps-copilot": "WPS Lingxi",
@@ -4646,7 +4650,7 @@
         "knowledge": {
           "icon": "Wissens-Symbol anzeigen"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "Mini-App-Symbol anzeigen"
         },
         "painting": {
@@ -5048,7 +5052,7 @@
       "title": "Nachrichteneinstellungen",
       "use_serif_font": "Serifenschrift verwenden"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Änderung wird wirksam wenn Anzahl geöffneter Mini-Apps auf festgelegten Wert angepasst wird",
       "cache_description": "Maximale Anzahl gleichzeitig aktiver Mini-Apps festlegen",
       "cache_settings": "Cache-Einstellungen",
@@ -5098,8 +5102,6 @@
         "title": "Bereichsfilterung für Mini-Programme"
       },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
-      "sidebar_description": "Festlegen ob Seitenleiste aktive Mini-Apps anzeigt",
-      "sidebar_title": "Einstellungen für aktive Mini-Apps in Seitenleiste",
       "title": "Mini-App-Einstellungen",
       "visible": "Angezeigte Mini-Apps"
     },
@@ -5261,6 +5263,24 @@
     "privacy": {
       "enable_privacy_mode": "Fehlerberichte und Statistiken anonym senden",
       "title": "Datenschutzeinstellungen"
+    },
+    "prompts": {
+      "add": "Prompt hinzufügen",
+      "contentLabel": "Inhalt",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Prompt löschen",
+      "deleteConfirm": "Der Prompt wird dauerhaft gelöscht. Fortfahren?",
+      "edit": "Prompt bearbeiten",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Prompt-Verwaltung",
+      "titleLabel": "Titel",
+      "titlePlaceholder": "Geben Sie einen Titel für den Prompt ein"
     },
     "provider": {
       "add": {
@@ -5554,20 +5574,6 @@
       "page": "Seite umblättern",
       "select": "Auswählen",
       "title": "Schnellmenü"
-    },
-    "quickPhrase": {
-      "add": "Phrase hinzufügen",
-      "assistant": "Assistenten-Phrasen",
-      "contentLabel": "Inhalt",
-      "contentPlaceholder": "Bitte Phrase-Inhalt eingeben, unterstützt Variablenverwendung, dann Tab-Taste zum schnellen Navigieren zu Variablen für Bearbeitung. Z.B.:\nPlanen Sie eine Route von ${from} nach ${to} und senden Sie sie an ${email}",
-      "delete": "Phrase löschen",
-      "deleteConfirm": "Gelöschte Phrase kann nicht wiederhergestellt werden. Fortfahren?",
-      "edit": "Phrase bearbeiten",
-      "global": "Globale Phrasen",
-      "locationLabel": "Position hinzufügen",
-      "title": "Schnellphrasen",
-      "titleLabel": "Titel",
-      "titlePlaceholder": "Bitte Phrasentitel eingeben"
     },
     "scheduledTasks": {
       "description": "Verwalten Sie geplante Aufgaben über alle Agents hinweg. Aufgaben werden automatisch nach dem konfigurierten Zeitplan ausgeführt.",

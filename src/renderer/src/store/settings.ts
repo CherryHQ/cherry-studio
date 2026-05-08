@@ -21,7 +21,6 @@ import type {
   ApiServerConfig,
   CodeStyleVarious,
   MathEngine,
-  MinAppRegionFilter,
   OpenAIServiceTier,
   PaintingProvider,
   S3Config,
@@ -44,6 +43,7 @@ import type {
   SidebarIcon
 } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 import { v4 as uuid } from 'uuid'
 
 import type { RemoteSyncState } from './backup'
@@ -193,12 +193,12 @@ export interface SettingsState {
   siyuanRootPath: string | null
   // 订阅的助手地址
   agentssubscribeUrl: string | null
-  // MinApps
+  // MiniApps
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
   minappsOpenLinkExternal: boolean
   /** Mini app region filter: 'auto' (detect from IP), 'CN', or 'Global' */
-  minAppRegion: MinAppRegionFilter
+  minAppRegion: MiniAppRegionFilter
   // 隐私设置
   enableDataCollection: boolean
   enableSpellCheck: boolean
@@ -380,7 +380,7 @@ export const initialState: SettingsState = {
   siyuanBoxId: null,
   siyuanRootPath: null,
   agentssubscribeUrl: '',
-  // MinApps
+  // MiniApps
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
   minappsOpenLinkExternal: false,
@@ -807,7 +807,7 @@ const settingsSlice = createSlice({
     // setMinappsOpenLinkExternal: (state, action: PayloadAction<boolean>) => {
     //   state.minappsOpenLinkExternal = action.payload
     // },
-    setMinAppRegion: (state, action: PayloadAction<MinAppRegionFilter>) => {
+    setMinAppRegion: (state, action: PayloadAction<MiniAppRegionFilter>) => {
       state.minAppRegion = action.payload
     },
     // setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
