@@ -79,7 +79,7 @@ describe('useMiniAppPopup', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        ...(window.api ?? {}),
+        ...window.api,
         openWebsite: mockWindowApi.openWebsite,
         openPath: mockWindowApi.openPath
       }
