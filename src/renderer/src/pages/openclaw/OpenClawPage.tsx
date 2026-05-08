@@ -383,7 +383,7 @@ const OpenClawPage: FC = () => {
           </p>
           <div className="mt-6 flex items-center justify-center gap-2">
             <Button disabled={isInstalling} onClick={handleInstall} loading={isInstalling}>
-              <Download size={16} />
+              {!isInstalling && <Download size={16} />}
               {t(needsMigration ? 'openclaw.migration.install_button' : 'openclaw.not_installed.install_button')}
             </Button>
             <Button variant="outline" disabled={isInstalling} onClick={() => window.open(docsUrl, '_blank')}>
@@ -480,7 +480,7 @@ const OpenClawPage: FC = () => {
               loading={isStopping}
               disabled={isStopping}
               className="text-destructive hover:text-destructive">
-              <Square size={14} />
+              {!isStopping && <Square size={14} />}
               {t('openclaw.gateway.stop')}
             </Button>
           </div>
@@ -572,7 +572,7 @@ const OpenClawPage: FC = () => {
             }
             size="lg"
             className="w-full">
-            <Play size={16} />
+            {!isStarting && gatewayStatus !== 'starting' && <Play size={16} />}
             {t('openclaw.gateway.start')}
           </Button>
         )}
