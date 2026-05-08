@@ -266,8 +266,8 @@ export const ResourceGrid: FC<Props> = ({
           />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {resources.map((resource, index) => (
-              <ResourceCard key={resource.id} resource={resource} index={index} onEdit={onEdit} onOpenMenu={openMenu} />
+            {resources.map((resource) => (
+              <ResourceCard key={resource.id} resource={resource} onEdit={onEdit} onOpenMenu={openMenu} />
             ))}
           </div>
         )}

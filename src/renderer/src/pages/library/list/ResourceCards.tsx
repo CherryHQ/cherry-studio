@@ -1,6 +1,5 @@
 import { Badge, Button, EmptyState } from '@cherrystudio/ui'
 import { MoreHorizontal } from 'lucide-react'
-import { motion } from 'motion/react'
 import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -52,7 +51,6 @@ export function AssistantCatalogPresetContent({
           <AssistantPresetGridCard
             key={`${presetKey}-${index}`}
             preset={preset}
-            index={index}
             adding={addingPresetKeys.has(presetKey)}
             onAdd={onAddPreset}
             onPreview={onPreviewPreset}
@@ -65,23 +63,19 @@ export function AssistantCatalogPresetContent({
 
 interface AssistantPresetCardProps {
   preset: AssistantCatalogPreset
-  index: number
   adding: boolean
   onAdd: (preset: AssistantCatalogPreset) => void
   onPreview: (preset: AssistantCatalogPreset) => void
 }
 
-function AssistantPresetGridCard({ preset, index, adding, onAdd, onPreview }: AssistantPresetCardProps) {
+function AssistantPresetGridCard({ preset, adding, onAdd, onPreview }: AssistantPresetCardProps) {
   const { t } = useTranslation()
   const summary = getPresetSummary(preset)
   const groups = (preset.group || []).slice(0, 3)
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, delay: index * 0.02 }}
-      className="group flex min-h-[178px] flex-col rounded-lg border border-border/40 bg-card p-4 transition-all duration-200 hover:border-border/60 hover:shadow-black/[0.035] hover:shadow-lg"
+    <div
+      className="group flex min-h-[178px] flex-col rounded-lg border border-border/40 bg-card p-4 hover:border-border/60 hover:shadow-black/[0.035] hover:shadow-lg"
       onClick={() => onPreview(preset)}>
       <div className="mb-3 flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xs bg-accent/55 text-base">
@@ -114,30 +108,25 @@ function AssistantPresetGridCard({ preset, index, adding, onAdd, onPreview }: As
           {t('library.assistant_catalog.add')}
         </Button>
       </div>
-    </motion.div>
+    </div>
   )
 }
 
 interface ResourceCardProps {
   resource: ResourceItem
-  index: number
   onEdit: (resource: ResourceItem) => void
   onOpenMenu: (id: string, event: MouseEvent) => void
 }
 
-export function ResourceCard({ resource: r, index, onEdit, onOpenMenu }: ResourceCardProps) {
+export function ResourceCard({ resource: r, onEdit, onOpenMenu }: ResourceCardProps) {
   const cfg = RESOURCE_TYPE_META[r.type]
   // Skills get the type-specific tinted background to match the menu icon;
   // assistants / agents fall back to the neutral accent block.
   const useTypedAvatarBg = r.type === 'skill'
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, delay: index * 0.02 }}
-      whileHover={{ y: -2 }}
-      className="group relative cursor-pointer rounded-lg border border-border/40 bg-card transition-all duration-200 hover:border-border/60 hover:shadow-black/[0.04] hover:shadow-lg"
+    <div
+      className="group relative cursor-pointer rounded-lg border border-border/40 bg-card hover:border-border/60 hover:shadow-black/[0.04] hover:shadow-lg"
       onClick={() => onEdit(r)}>
       <div className="p-4">
         <div className="mb-3 flex items-start gap-3">
@@ -184,6 +173,6 @@ export function ResourceCard({ resource: r, index, onEdit, onOpenMenu }: Resourc
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   )
 }
