@@ -1,5 +1,6 @@
 import {
   CreateSessionRequestSchema,
+  ReorderSessionsRequestSchema,
   ReplaceSessionRequestSchema,
   SessionIdParamSchema,
   UpdateSessionRequestSchema
@@ -21,4 +22,8 @@ export const validateSessionUpdate = createZodValidator({
 
 export const validateSessionId = createZodValidator({
   params: SessionIdParamSchema
+})
+
+export const validateReorderSessions = createZodValidator({
+  body: ReorderSessionsRequestSchema
 })
