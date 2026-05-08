@@ -3,9 +3,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { openTabMock, refetchPinsMock, togglePinMock, usePinsMock, useQueryMock } = vi.hoisted(() => ({
+const { openTabMock, refetchPinsMock, tabsContextMock, togglePinMock, usePinsMock, useQueryMock } = vi.hoisted(() => ({
   openTabMock: vi.fn(),
   refetchPinsMock: vi.fn(),
+  tabsContextMock: vi.fn(),
   togglePinMock: vi.fn(),
   usePinsMock: vi.fn(),
   useQueryMock: vi.fn()
@@ -24,10 +25,8 @@ vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
 
-vi.mock('@renderer/hooks/useTabs', () => ({
-  useTabs: () => ({
-    openTab: openTabMock
-  })
+vi.mock('@renderer/context/TabsContext', () => ({
+  useOptionalTabsContext: tabsContextMock
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -120,6 +119,9 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  tabsContextMock.mockReturnValue({
+    openTab: openTabMock
+  })
   useQueryMock.mockReturnValue({
     data: ASSISTANTS_RESPONSE,
     isLoading: false,
@@ -162,6 +164,17 @@ describe('AssistantSelector library navigation', () => {
 
     expect(screen.getByRole('option', { name: /Alpha Assistant/ })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Beta Assistant/ })).not.toBeInTheDocument()
+  })
+
+  it('renders without tab context and hides library navigation actions', () => {
+    tabsContextMock.mockReturnValue(null)
+
+    renderSelector()
+    openPopover()
+
+    expect(screen.getByRole('option', { name: /Alpha Assistant/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create assistant' })).not.toBeInTheDocument()
   })
 
   it('navigates to the resource library assistant editor from the row edit action', async () => {

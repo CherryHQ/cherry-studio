@@ -86,10 +86,10 @@ type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
   /** Disable pin toggles while a pin read/write is in flight (prevents over-fire from rapid clicks). */
   isPinActionDisabled?: boolean
 
-  onEditItem: (id: string) => void
+  onEditItem?: (id: string) => void
   /** Optional trailing action button slot for row-level configuration/edit affordances. */
   renderItemAction?: (props: ResourceSelectorShellItemActionSlotProps<T>) => ReactNode
-  onCreateNew: () => void
+  onCreateNew?: () => void
 
   labels: ResourceSelectorShellLabels
 
@@ -354,19 +354,21 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       const isPinned = pinnedSet.has(item.id)
       const actionButtonProps: ResourceSelectorShellItemActionSlotProps<T>['buttonProps'] = {
         type: 'button',
-        onClick: (event: MouseEvent<HTMLButtonElement>) => {
-          event.stopPropagation()
-          closeBeforeAction(() => onEditItem(item.id))
-        },
+        ...(onEditItem && {
+          onClick: (event: MouseEvent<HTMLButtonElement>) => {
+            event.stopPropagation()
+            closeBeforeAction(() => onEditItem(item.id))
+          }
+        }),
         className: ITEM_ACTION_BUTTON_CLASS,
         'aria-label': labels.edit,
         title: labels.edit
       }
       const itemAction = renderItemAction ? (
         renderItemAction({ item, buttonProps: actionButtonProps })
-      ) : (
+      ) : onEditItem ? (
         <button {...actionButtonProps}>{DEFAULT_ITEM_ACTION_ICON}</button>
-      )
+      ) : null
 
       // Row root is a div, not a button, because it hosts real child buttons (Checkbox, pin
       // toggle, edit) — nested <button> is invalid HTML and trips React's validateDOMNesting.
@@ -514,7 +516,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     [isMulti, isItemType, items, props.onChange, valueIds]
   )
 
-  const footer = (
+  const footer = onCreateNew ? (
     <>
       <Separator className="bg-border/20" />
       <div className="px-1.5 py-1">
@@ -530,7 +532,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         </button>
       </div>
     </>
-  )
+  ) : undefined
 
   return (
     <EntitySelector
@@ -561,16 +563,18 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       }
       renderItemContextMenu={(item, { close }) => (
         <div className="min-w-0 rounded-2xs border border-border bg-popover p-0.5 shadow-md">
-          <button
-            type="button"
-            onClick={() => {
-              close()
-              closeBeforeAction(() => onEditItem(item.id))
-            }}
-            className="flex w-full cursor-pointer items-center gap-1.5 rounded-3xs px-2 py-[3px] text-left text-foreground text-xs transition-colors hover:bg-accent/15">
-            <Pencil size={10} />
-            <span>{labels.edit}</span>
-          </button>
+          {onEditItem && (
+            <button
+              type="button"
+              onClick={() => {
+                close()
+                closeBeforeAction(() => onEditItem(item.id))
+              }}
+              className="flex w-full cursor-pointer items-center gap-1.5 rounded-3xs px-2 py-[3px] text-left text-foreground text-xs transition-colors hover:bg-accent/15">
+              <Pencil size={10} />
+              <span>{labels.edit}</span>
+            </button>
+          )}
           <button
             type="button"
             disabled={isPinActionDisabled}
