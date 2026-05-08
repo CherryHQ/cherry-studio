@@ -204,18 +204,25 @@ export class AgentsMigrator extends BaseMigrator {
 
     try {
       for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
-        const targetResult = await ctx.db.get<{ count: number }>(
+        // Mirror the execute-side guard in buildAgentsImportStatements: legacy DBs
+        // from older app versions may lack tables added later (e.g. agent_skills).
+        if (!this.sourceSchemaInfo[spec.sourceTable].exists) {
+          continue
+        }
+
+        // .get() with sql.raw() crashes on zero rows in drizzle-orm/libsql; use .all() instead.
+        const targetRows = await ctx.db.all<{ count: number }>(
           sql.raw(`SELECT COUNT(*) AS count FROM ${spec.targetTable}`)
         )
-        const tableTargetCount = Number(targetResult?.count ?? 0)
+        const tableTargetCount = Number(targetRows[0]?.count ?? 0)
         const tableSourceCount = this.sourceCounts[spec.sourceTable]
         const validateWhere = spec.validateWhereClause ?? spec.whereClause
-        const expectedResult = await ctx.db.get<{ count: number }>(
+        const expectedRows = await ctx.db.all<{ count: number }>(
           sql.raw(
             `SELECT COUNT(*) AS count FROM agents_legacy.${spec.sourceTable}${validateWhere ? ` WHERE ${validateWhere}` : ''}`
           )
         )
-        const tableExpectedCount = Number(expectedResult?.count ?? 0)
+        const tableExpectedCount = Number(expectedRows[0]?.count ?? 0)
         targetCount += tableTargetCount
 
         const hasWhereClause = !!spec.whereClause

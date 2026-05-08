@@ -1,8 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useTabs } from '@renderer/hooks/useTabs'
-import NavigationService from '@renderer/services/NavigationService'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
@@ -60,10 +59,10 @@ function evictMiniApp(appId: string) {
 function evictWithPinExemption(
   list: MiniApp[],
   cap: number,
-  pinnedAppIds: ReadonlySet<string>
+  pinnedAppIds: ReadonlySet<string> | null
 ): { keep: MiniApp[]; evicted: MiniApp[] } {
   let toDrop = list.length - cap
-  if (toDrop <= 0) return { keep: list, evicted: [] }
+  if (toDrop <= 0 || pinnedAppIds === null) return { keep: list, evicted: [] }
   const keep: MiniApp[] = []
   const evicted: MiniApp[] = []
   for (const app of list) {
@@ -84,6 +83,27 @@ function miniAppIdFromTabUrl(url: string): string | null {
   if (!url.startsWith(MINI_APP_ROUTE_PREFIX)) return null
   const id = url.slice(MINI_APP_ROUTE_PREFIX.length).split('/')[0]
   return id ? id : null
+}
+
+function fileUrlToPath(url: URL): string {
+  const pathname = decodeURIComponent(url.pathname)
+  if (url.hostname) return `//${url.hostname}${pathname}`
+  if (/^\/[A-Za-z]:\//.test(pathname)) return pathname.slice(1)
+  return pathname
+}
+
+function openExternalMiniAppUrl(url: string) {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'file:') {
+      void window.api.openPath(fileUrlToPath(parsed))
+      return
+    }
+  } catch {
+    // Fall through to openWebsite so the existing main-process URL guard handles it.
+  }
+
+  void window.api.openWebsite(url)
 }
 
 /**
@@ -124,8 +144,13 @@ export const useMiniAppPopup = () => {
   // Pinned AppShell tabs are exempt from keep-alive eviction. The user pins a
   // tab to say "keep this state alive across switches"; honoring that here
   // prevents the cap from quietly throwing away webviews behind a pinned tab.
-  const { tabs } = useTabs()
+  // Detached settings windows can open mini-app content without AppShell tabs;
+  // in that case skip eviction because pin state is not observable there.
+  const tabsContext = useOptionalTabsContext()
+  const tabs = tabsContext?.tabs ?? []
+  const openTab = tabsContext?.openTab
   const pinnedMiniAppIds = useMemo(() => {
+    if (!tabsContext) return null
     const ids = new Set<string>()
     for (const tab of tabs) {
       if (!tab.isPinned) continue
@@ -133,7 +158,7 @@ export const useMiniAppPopup = () => {
       if (id) ids.add(id)
     }
     return ids
-  }, [tabs])
+  }, [tabs, tabsContext])
   const pinnedMiniAppIdsRef = useRef(pinnedMiniAppIds)
   pinnedMiniAppIdsRef.current = pinnedMiniAppIds
 
@@ -251,11 +276,16 @@ export const useMiniAppPopup = () => {
 
   /**
    * Open a miniapp from a transient config (e.g., a shared link). Adds to the
-   * keep-alive list and navigates to the detail route — the global pool then
+   * keep-alive list and opens the detail route in a tab — the global pool then
    * renders the webview. Same path for sidebar and top-navbar layouts.
    */
   const openSmartMiniApp = useCallback(
     (config: MiniAppInput) => {
+      if (!openTab) {
+        openExternalMiniAppUrl(config.url)
+        return
+      }
+
       const app = toMiniApp(config)
       const list = keepAliveRef.current
       const wasCached = list.some((item: MiniApp) => item.appId === app.appId)
@@ -270,19 +300,13 @@ export const useMiniAppPopup = () => {
       setCurrentMiniAppId(app.appId)
       setMiniAppShow(true)
 
-      // Always route to the mini-app even when the keep-alive entry already
-      // exists. `MiniAppTabsPool.shouldShow` keys off the active tab URL, not
-      // pool membership — if the user clicked from a non-mini-app route (the
-      // realistic case for every caller of `openSmartMiniApp`: AboutSettings,
-      // NotionSettings, OpenClawPage, etc.), skipping navigation leaves the
-      // pool hidden and the user sees nothing. Webview re-use stays correct:
-      // when cached we don't recreate the entry or reset `src`, only the
-      // route activates.
-      if (NavigationService.navigate) {
-        void NavigationService.navigate({ to: `/app/mini-app/${app.appId}` })
-      }
+      // Always activate the mini-app tab even when the keep-alive entry
+      // already exists. `MiniAppTabsPool.shouldShow` keys off the active tab
+      // URL, not pool membership. Webview re-use stays correct: when cached we
+      // don't recreate the entry or reset `src`, only the tab route activates.
+      openTab(`/app/mini-app/${app.appId}`, { title: app.name, icon: app.logo })
     },
-    [cap, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow]
+    [cap, openTab, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow]
   )
 
   return {

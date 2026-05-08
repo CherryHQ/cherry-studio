@@ -265,6 +265,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     align = 'start',
     sideOffset = 4,
     contentClassName,
+    listVisibleCount = PAGE_SIZE,
     multiSelectMode: multiSelectModeProp,
     defaultMultiSelectMode = false,
     onMultiSelectModeChange
@@ -376,7 +377,10 @@ export function ModelSelector(props: ModelSelectorProps) {
   listItemsRef.current = listItems
   modelItemsRef.current = modelItems
 
-  const listHeight = useMemo(() => Math.min(PAGE_SIZE, listItems.length || 1) * ITEM_HEIGHT, [listItems.length])
+  const listHeight = useMemo(
+    () => Math.min(listVisibleCount, listItems.length || 1) * ITEM_HEIGHT,
+    [listItems.length, listVisibleCount]
+  )
   const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags])
 
   const emitSelection = useCallback(
@@ -495,7 +499,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     onClose: handleClose,
     onFocusItem: focusItem,
     onSelectItem: handleSelectItem,
-    pageSize: PAGE_SIZE
+    pageSize: listVisibleCount
   })
 
   useEffect(() => {

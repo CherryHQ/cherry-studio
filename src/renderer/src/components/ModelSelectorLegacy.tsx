@@ -63,9 +63,9 @@ const ModelSelector = ({
         .filter((model) => predicate?.(model) ?? true)
         .map((m) => ({
           label: (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
               {showAvatar && <ModelAvatar model={m} size={18} />}
-              <span>
+              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {m.name}
                 {suffix}
               </span>
@@ -107,13 +107,15 @@ const ModelSelector = ({
         return label
       } else {
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             {showAvatar && (
               <Avatar className="h-[18px] w-[18px]">
                 <AvatarFallback />
               </Avatar>
             )}
-            <span>{t('knowledge.error.model_invalid')}</span>
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {t('knowledge.error.model_invalid')}
+            </span>
           </div>
         )
       }

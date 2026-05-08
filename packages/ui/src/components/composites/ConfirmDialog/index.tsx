@@ -1,6 +1,4 @@
-import * as React from 'react'
-
-import { Button } from '../../primitives/button'
+import { Button } from '@cherrystudio/ui/components/primitives/button'
 import {
   Dialog,
   DialogClose,
@@ -9,7 +7,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '../../primitives/dialog'
+} from '@cherrystudio/ui/components/primitives/dialog'
+import * as React from 'react'
 
 interface ConfirmDialogProps {
   /** Controls the open state of the dialog */

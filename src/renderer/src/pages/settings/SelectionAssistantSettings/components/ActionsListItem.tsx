@@ -1,11 +1,12 @@
 import { Button } from '@cherrystudio/ui'
 import type { DraggableProvided } from '@hello-pangea/dnd'
+import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { Pencil, Settings2, Trash } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
+import type React from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface ActionItemProps {
   item: SelectionActionItem
@@ -81,83 +82,65 @@ const ActionOperations = memo(({ item, onEdit, onDelete }: ActionOperationsProps
   return null
 })
 
-const Item = styled.div<{ disabled: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  margin-bottom: 8px;
-  background-color: var(--color-bg-1);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  cursor: move;
-  opacity: ${(props) => (props.disabled ? 0.8 : 1)};
-  transition: background-color 0.2s ease;
+const Item = ({
+  ref,
+  className,
+  disabled,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { disabled: boolean; ref?: React.Ref<HTMLElement> }) => (
+  <div
+    ref={ref as React.Ref<HTMLDivElement>}
+    className={cn(
+      'group/action-item mb-2 flex min-h-11 cursor-move items-center justify-between rounded-md border border-border/60 bg-transparent px-4 py-2 transition-colors last:mb-0 hover:border-border hover:bg-muted/50',
+      disabled && 'opacity-70 hover:bg-muted/30',
+      className === 'non-draggable' && 'relative cursor-default border-border/80 bg-muted/50 hover:bg-muted/50',
+      className
+    )}
+    {...props}
+  />
+)
 
-  &:last-child {
-    margin-bottom: 0;
-  }
+const ItemLeft = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex min-w-0 flex-1 items-center', className)} {...props} />
+)
 
-  &:hover {
-    background-color: var(--color-bg-2);
-  }
+const ItemName = ({
+  className,
+  disabled,
+  ...props
+}: React.ComponentPropsWithoutRef<'span'> & { disabled: boolean }) => (
+  <span className={cn('ml-2 truncate', disabled ? 'text-foreground-muted' : 'text-foreground', className)} {...props} />
+)
 
-  &.non-draggable {
-    cursor: default;
-    background-color: var(--color-bg-2);
-    position: relative;
-  }
-`
+const ItemIcon = ({ className, disabled, ...props }: React.ComponentPropsWithoutRef<'div'> & { disabled: boolean }) => (
+  <div
+    className={cn(
+      'mx-2 flex items-center justify-center',
+      disabled ? 'text-muted-foreground/70' : 'text-muted-foreground group-hover/action-item:text-foreground',
+      className
+    )}
+    {...props}
+  />
+)
 
-const ItemLeft = styled.div`
-  display: flex;
-  align-items: center;
-  flex: 1;
-`
+const ItemDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'ml-4 flex h-5 shrink-0 items-center gap-1 rounded-sm bg-muted/50 px-1.5 text-muted-foreground text-xs leading-none',
+      className
+    )}
+    {...props}
+  />
+)
 
-const ItemName = styled.span<{ disabled: boolean }>`
-  margin-left: 8px;
-  color: ${(props) => (props.disabled ? 'var(--color-text-3)' : 'var(--color-text-1)')};
-`
-
-const ItemIcon = styled.div<{ disabled: boolean }>`
-  margin: 0 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: ${(props) => (props.disabled ? 'var(--color-text-3)' : 'var(--color-primary)')};
-`
-
-const ItemDescription = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 16px;
-  font-size: 12px;
-  color: var(--color-text-2);
-  opacity: 0.8;
-`
-
-const UserActionOpSection = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-
-  .btn-icon-edit {
-    color: var(--color-text-3);
-
-    &:hover {
-      color: var(--color-primary);
-    }
-  }
-  .btn-icon-delete {
-    color: var(--color-text-3);
-
-    &:hover {
-      color: var(--color-error);
-    }
-  }
-`
+const UserActionOpSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'flex flex-row items-center gap-2 [&_.btn-icon-delete:hover]:text-destructive [&_.btn-icon-delete]:text-muted-foreground [&_.btn-icon-edit:hover]:text-foreground [&_.btn-icon-edit]:text-muted-foreground',
+      className
+    )}
+    {...props}
+  />
+)
 
 export default ActionsListItem

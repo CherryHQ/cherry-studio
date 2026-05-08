@@ -1,12 +1,33 @@
-import { Button } from '@cherrystudio/ui'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { TopView } from '@renderer/components/TopView'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { cn } from '@renderer/utils/style'
 import type { MCPServer } from '@shared/data/types/mcpServer'
-import { Form, Input, Modal, Select } from 'antd'
-import { useCallback, useEffect, useState } from 'react'
+import type React from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import * as z from 'zod'
 
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './providers/302ai'
 import { getBailianToken, saveBailianToken, syncBailianServers } from './providers/bailian'
@@ -101,307 +122,247 @@ interface Props {
   existingServers: MCPServer[]
 }
 
+const schema = z.object({
+  token: z.string().min(1)
+})
+type FieldType = z.infer<typeof schema>
+
 const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
   const { addMCPServer, refetch } = useMCPServers()
   const [open, setOpen] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
   const [selectedProviderKey, setSelectedProviderKey] = useState(providers[0].key)
-  const [tokens, setTokens] = useState<Record<string, string>>({})
+  const didResolveRef = useRef(false)
   const { t } = useTranslation()
-  const [form] = Form.useForm()
 
-  // Get the currently selected provider config
   const selectedProvider = providers.find((p) => p.key === selectedProviderKey) || providers[0]
 
+  const form = useForm<FieldType>({
+    resolver: zodResolver(schema),
+    defaultValues: { token: selectedProvider.getToken() ?? '' }
+  })
+
   useEffect(() => {
-    // Initialize tokens for all providers
-    const initialTokens: Record<string, string> = {}
+    form.reset({ token: selectedProvider.getToken() ?? '' })
+  }, [selectedProvider, form])
 
-    providers.forEach((provider) => {
-      const token = provider.getToken()
-      if (token) {
-        initialTokens[provider.tokenFieldName] = token
-        form.setFieldsValue({ [provider.tokenFieldName]: token })
-      }
-    })
-
-    setTokens(initialTokens)
-  }, [form])
-
-  const handleSync = useCallback(async () => {
-    try {
-      await form.validateFields()
-    } catch (error) {
+  const closeAndResolve = useCallback(() => {
+    if (didResolveRef.current) {
       return
     }
+    didResolveRef.current = true
+    setOpen(false)
+    resolve({})
+  }, [resolve])
 
-    setIsSyncing(true)
-
-    try {
-      const token = form.getFieldValue(selectedProvider.tokenFieldName)
-
-      // Save token if present
-      if (token) {
-        selectedProvider.saveToken(token)
-        setTokens((prev) => ({
-          ...prev,
-          [selectedProvider.tokenFieldName]: token
-        }))
-      }
-
-      // Sync servers
-      const result = await selectedProvider.syncServers(token, existingServers)
-
-      if (result.success && (result.addedServers?.length > 0 || result.updatedServers?.length > 0)) {
-        // Add new servers to the store
-        for (const server of result.addedServers) {
-          await addMCPServer(server)
+  const handleSync = useCallback(
+    async (values: FieldType) => {
+      setIsSyncing(true)
+      try {
+        const token = values.token.trim()
+        if (token) {
+          selectedProvider.saveToken(token)
         }
-        // Update existing servers with latest info
-        const updatedServers = result.updatedServers
-        if (updatedServers?.length > 0) {
-          for (const server of updatedServers) {
-            const { id, ...updates } = server
-            await dataApiService.patch(`/mcp-servers/${id}`, { body: updates })
+
+        const result = await selectedProvider.syncServers(token, existingServers)
+
+        if (result.success && (result.addedServers?.length > 0 || result.updatedServers?.length > 0)) {
+          for (const server of result.addedServers) {
+            await addMCPServer(server)
           }
-          await refetch()
-        }
-        window.toast.success(result.message)
-        setOpen(false)
-      } else {
-        // Show message but keep dialog open
-        if (result.success) {
+          const updatedServers = result.updatedServers
+          if (updatedServers?.length > 0) {
+            for (const server of updatedServers) {
+              const { id, ...updates } = server
+              await dataApiService.patch(`/mcp-servers/${id}`, { body: updates })
+            }
+            await refetch()
+          }
+          window.toast.success(result.message)
+          closeAndResolve()
+        } else if (result.success) {
           window.toast.info(result.message)
         } else {
           window.toast.error(result.message)
         }
+      } catch (error: any) {
+        window.toast.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
+      } finally {
+        setIsSyncing(false)
       }
-    } catch (error: any) {
-      window.toast.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
-    } finally {
-      setIsSyncing(false)
-    }
-  }, [addMCPServer, refetch, existingServers, form, selectedProvider, t])
+    },
+    [addMCPServer, refetch, existingServers, selectedProvider, t, closeAndResolve]
+  )
 
-  const onCancel = () => {
-    setOpen(false)
-  }
+  SyncServersPopup.hide = closeAndResolve
 
-  const onClose = () => {
-    resolve({})
-  }
-
-  SyncServersPopup.hide = onCancel
-
-  // Check if sync button should be disabled
-  const isSyncDisabled = () => {
-    const token = tokens[selectedProvider.tokenFieldName]
-    return !token
-  }
+  const tokenValue = form.watch('token')
+  const isSyncDisabled = !tokenValue?.trim()
 
   return (
-    <Modal
-      title={t('settings.mcp.sync.title', 'Sync Servers')}
+    <Dialog
       open={open}
-      onCancel={onCancel}
-      afterClose={onClose}
-      width={550}
-      footer={null}
-      transitionName="animation-move-down"
-      centered>
-      <ContentContainer>
-        {/* Only show provider selector if there are multiple providers */}
+      onOpenChange={(next) => {
+        if (!next) closeAndResolve()
+      }}>
+      <DialogContent className="sm:max-w-[550px]">
+        <DialogHeader>
+          <DialogTitle>{t('settings.mcp.sync.title', 'Sync Servers')}</DialogTitle>
+        </DialogHeader>
+        <ContentContainer>
+          <ProviderSelector>
+            <Label>{t('settings.mcp.sync.selectProvider', 'Select Provider:')}</Label>
+            <Select value={selectedProviderKey} onValueChange={setSelectedProviderKey}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {providers.map((provider) => (
+                  <SelectItem key={provider.key} value={provider.key}>
+                    {getProviderDisplayName(provider, t)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </ProviderSelector>
 
-        <ProviderSelector>
-          <SelectorLabel>{t('settings.mcp.sync.selectProvider', 'Select Provider:')}</SelectorLabel>
-          <Select
-            value={selectedProviderKey}
-            onChange={setSelectedProviderKey}
-            style={{ width: 200 }}
-            options={providers.map((provider) => ({
-              value: provider.key,
-              label: getProviderDisplayName(provider, t)
-            }))}
-          />
-        </ProviderSelector>
+          <ProviderContent>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleSync)} className="w-full">
+                <StepSection>
+                  <StepNumber>1</StepNumber>
+                  <StepContent>
+                    <StepTitle>{t('settings.mcp.sync.discoverMcpServers', 'Discover MCP Servers')}</StepTitle>
+                    <StepDescription>
+                      {t(
+                        'settings.mcp.sync.discoverMcpServersDescription',
+                        'Visit the platform to discover available MCP servers'
+                      )}
+                    </StepDescription>
+                    <LinkContainer>
+                      <ExternalLink href={selectedProvider.discoverUrl} target="_blank">
+                        <LinkIcon>🌐</LinkIcon>
+                        <span>{t('settings.mcp.sync.discoverMcpServers', 'Discover MCP Servers')}</span>
+                      </ExternalLink>
+                    </LinkContainer>
+                  </StepContent>
+                </StepSection>
 
-        <ProviderContent>
-          <Form form={form} layout="vertical" style={{ width: '100%' }}>
-            <StepSection>
-              <StepNumber>1</StepNumber>
-              <StepContent>
-                <StepTitle>{t('settings.mcp.sync.discoverMcpServers', 'Discover MCP Servers')}</StepTitle>
-                <StepDescription>
-                  {t(
-                    'settings.mcp.sync.discoverMcpServersDescription',
-                    'Visit the platform to discover available MCP servers'
-                  )}
-                </StepDescription>
-                <LinkContainer>
-                  <ExternalLink href={selectedProvider.discoverUrl} target="_blank">
-                    <LinkIcon>🌐</LinkIcon>
-                    <span>{t('settings.mcp.sync.discoverMcpServers', 'Discover MCP Servers')}</span>
-                  </ExternalLink>
-                </LinkContainer>
-              </StepContent>
-            </StepSection>
+                <StepSection>
+                  <StepNumber>2</StepNumber>
+                  <StepContent>
+                    <StepTitle>{t('settings.mcp.sync.getToken', 'Get API Token')}</StepTitle>
+                    <StepDescription>
+                      {t('settings.mcp.sync.getTokenDescription', 'Retrieve your personal API token from your account')}
+                    </StepDescription>
+                    <LinkContainer>
+                      <ExternalLink href={selectedProvider.apiKeyUrl} target="_blank">
+                        <LinkIcon>🔑</LinkIcon>
+                        <span>{t('settings.mcp.sync.getToken', 'Get API Token')}</span>
+                      </ExternalLink>
+                    </LinkContainer>
+                  </StepContent>
+                </StepSection>
 
-            <StepSection>
-              <StepNumber>2</StepNumber>
-              <StepContent>
-                <StepTitle>{t('settings.mcp.sync.getToken', 'Get API Token')}</StepTitle>
-                <StepDescription>
-                  {t('settings.mcp.sync.getTokenDescription', 'Retrieve your personal API token from your account')}
-                </StepDescription>
-                <LinkContainer>
-                  <ExternalLink href={selectedProvider.apiKeyUrl} target="_blank">
-                    <LinkIcon>🔑</LinkIcon>
-                    <span>{t('settings.mcp.sync.getToken', 'Get API Token')}</span>
-                  </ExternalLink>
-                </LinkContainer>
-              </StepContent>
-            </StepSection>
+                <StepSection>
+                  <StepNumber>3</StepNumber>
+                  <StepContent>
+                    <StepTitle>{t('settings.mcp.sync.setToken', 'Enter Your Token')}</StepTitle>
+                    <FormField
+                      control={form.control}
+                      name="token"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder={t('settings.mcp.sync.tokenPlaceholder', 'Enter API token here')}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </StepContent>
+                </StepSection>
 
-            <StepSection>
-              <StepNumber>3</StepNumber>
-              <StepContent>
-                <StepTitle>{t('settings.mcp.sync.setToken', 'Enter Your Token')}</StepTitle>
-                <Form.Item
-                  name={selectedProvider.tokenFieldName}
-                  rules={[
-                    {
-                      required: true,
-                      message: t('settings.mcp.sync.tokenRequired', 'API Token is required')
-                    }
-                  ]}>
-                  <Input.Password
-                    placeholder={t('settings.mcp.sync.tokenPlaceholder', 'Enter API token here')}
-                    onChange={(e) => {
-                      setTokens((prev) => ({
-                        ...prev,
-                        [selectedProvider.tokenFieldName]: e.target.value
-                      }))
-                    }}
-                  />
-                </Form.Item>
-              </StepContent>
-            </StepSection>
-          </Form>
-        </ProviderContent>
-
-        <ButtonContainer>
-          <Button variant="default" onClick={onCancel}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="default" onClick={handleSync} disabled={isSyncing || isSyncDisabled()}>
-            {t('settings.mcp.sync.button', 'Sync')}
-          </Button>
-        </ButtonContainer>
-      </ContentContainer>
-    </Modal>
+                <ButtonContainer>
+                  <Button type="button" variant="outline" onClick={closeAndResolve}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button type="submit" disabled={isSyncing || isSyncDisabled}>
+                    {t('settings.mcp.sync.button', 'Sync')}
+                  </Button>
+                </ButtonContainer>
+              </form>
+            </Form>
+          </ProviderContent>
+        </ContentContainer>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-const ContentContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-`
+const ContentContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col gap-2.5', className)} {...props} />
+)
 
-const ProviderSelector = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 15px;
-`
+const ProviderSelector = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-3.75 flex items-center gap-3', className)} {...props} />
+)
 
-const SelectorLabel = styled.div`
-  font-weight: 500;
-  white-space: nowrap;
-`
+const ProviderContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('border-border border-t pt-5', className)} {...props} />
+)
 
-const ProviderContent = styled.div`
-  border-top: 1px solid var(--color-border);
-  padding-top: 20px;
+const StepSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-5 flex items-start gap-3.75', className)} {...props} />
+)
 
-  &.no-border {
-    border-top: none;
-    padding-top: 0;
-  }
-`
+const StepNumber = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary font-semibold text-sm text-white',
+      className
+    )}
+    {...props}
+  />
+)
 
-const StepSection = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 15px;
-  margin-bottom: 20px;
-`
+const StepContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex grow flex-col', className)} {...props} />
+)
 
-const StepNumber = styled.div`
-  background-color: var(--color-primary);
-  color: white;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 14px;
-  flex-shrink: 0;
-  margin-top: 2px;
-`
+const StepTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-1 font-semibold text-[15px]', className)} {...props} />
+)
 
-const StepContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1;
-`
+const StepDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-2 text-[13px] text-foreground-secondary', className)} {...props} />
+)
 
-const StepTitle = styled.div`
-  font-weight: 600;
-  font-size: 15px;
-  margin-bottom: 4px;
-`
+const LinkContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-1', className)} {...props} />
+)
 
-const StepDescription = styled.div`
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  margin-bottom: 8px;
-`
+const ExternalLink = ({ className, ...props }: React.ComponentPropsWithoutRef<'a'>) => (
+  <a
+    className={cn(
+      'flex items-center gap-2 rounded-md bg-background-subtle px-2.5 py-2 text-primary text-sm transition-all hover:bg-muted hover:no-underline',
+      className
+    )}
+    {...props}
+  />
+)
 
-const LinkContainer = styled.div`
-  margin-top: 4px;
-`
+const LinkIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('text-base', className)} {...props} />
+)
 
-const ExternalLink = styled.a`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background-color: var(--color-background-2);
-  font-size: 14px;
-  color: var(--color-primary);
-  transition: all 0.2s ease;
-
-  &:hover {
-    background-color: var(--color-background-3);
-    text-decoration: none;
-  }
-`
-
-const LinkIcon = styled.span`
-  font-size: 16px;
-`
-
-const ButtonContainer = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 15px;
-  border-top: 1px solid var(--color-border);
-`
+const ButtonContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex justify-end gap-2 border-border border-t pt-3.75', className)} {...props} />
+)
 
 const TopViewKey = 'SyncServersPopup'
 

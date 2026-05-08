@@ -91,11 +91,11 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
   // WebSearch default provider normalization
   {
     id: 'websearch_default_provider_migrate',
-    description: 'Normalize legacy websearch default provider into the curated preset-backed preference key',
+    description: 'Normalize legacy websearch default provider into the v2 keyword-search default provider key',
     sources: {
       defaultProvider: { source: 'redux', category: 'websearch', key: 'defaultProvider' }
     },
-    targetKeys: ['chat.web_search.default_provider'],
+    targetKeys: ['chat.web_search.default_search_keywords_provider'],
     transform: normalizeWebSearchDefaultProvider
   },
 

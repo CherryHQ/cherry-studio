@@ -94,7 +94,7 @@ const tabsTriggerVariants = cva(
           'font-normal text-muted-foreground hover:text-foreground',
           'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           'data-[state=active]:text-primary',
-          'after:absolute after:bg-primary/10 after:rounded-full',
+          'after:absolute after:rounded-full after:bg-transparent',
           'data-[state=active]:after:bg-primary'
         ]
       },

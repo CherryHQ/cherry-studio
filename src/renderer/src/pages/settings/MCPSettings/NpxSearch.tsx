@@ -1,16 +1,12 @@
-import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
-import { Center, RowFlex } from '@cherrystudio/ui'
-import { Flex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Badge, Button, Center, Flex, Input, RowFlex, Spinner } from '@cherrystudio/ui'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
-import { Card, Input, Space, Spin, Tag, Typography } from 'antd'
+import { Check, Plus } from 'lucide-react'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface SearchResult {
   name: string
@@ -29,7 +25,6 @@ let _searchResults: SearchResult[] = []
 
 const NpxSearch: FC = () => {
   const { t } = useTranslation()
-  const { Text, Link } = Typography
 
   // Add new state variables for npm scope search
   const [npmScope, setNpmScope] = useState('@modelcontextprotocol')
@@ -101,65 +96,58 @@ const NpxSearch: FC = () => {
   }, [])
 
   return (
-    <Container>
+    <div className="flex min-w-0 flex-1 flex-col gap-2 pt-5">
       <Center>
-        <Space direction="vertical" style={{ marginBottom: 25, width: 500 }}>
+        <div className="mb-[25px] flex w-full max-w-[500px] flex-col px-4">
           <Center className="mb-3.75">
             <img src={logo} alt="npm" width={120} />
           </Center>
-          <Space.Compact style={{ width: '100%' }}>
+          <div className="w-full">
             <Input
               placeholder={t('settings.mcp.npx_list.scope_placeholder')}
               value={npmScope}
               onChange={(e) => setNpmScope(e.target.value)}
-              onPressEnter={() => handleNpmSearch(npmScope)}
-              size="large"
-              styles={{ input: { borderRadius: 100 } }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  void handleNpmSearch(npmScope)
+                }
+              }}
+              className="h-10 rounded-full"
             />
-          </Space.Compact>
+          </div>
           <RowFlex className="items-center justify-center">
             {npmScopes.map((scope) => (
-              <Tag
+              <Badge
                 key={scope}
                 onClick={() => {
                   setNpmScope(scope)
                   void handleNpmSearch(scope)
                 }}
-                style={{
-                  cursor: searchLoading ? 'not-allowed' : 'pointer',
-                  borderRadius: 100,
-                  backgroundColor: 'var(--color-background-mute)'
-                }}>
+                className="cursor-pointer border-border bg-background-subtle text-foreground hover:bg-accent data-[disabled=true]:cursor-not-allowed"
+                data-disabled={searchLoading}>
                 {scope}
-              </Tag>
+              </Badge>
             ))}
           </RowFlex>
-        </Space>
+        </div>
       </Center>
       {searchLoading && (
         <Center>
-          <Spin />
+          <Spinner text={t('common.loading')} />
         </Center>
       )}
       {!searchLoading && (
-        <ResultList>
+        <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col gap-2 overflow-y-auto pr-1">
           {searchResults?.map((record) => {
             const isInstalled = mcpServers.some((server) => server.name === record.name)
             return (
-              <Card
-                size="small"
+              <div
                 key={record.name}
-                style={{ borderRadius: 'var(--cs-radius-2xs)' }}
-                title={
-                  <Typography.Title level={5} style={{ margin: 0 }} className="selectable">
-                    {record.name}
-                  </Typography.Title>
-                }
-                extra={
-                  <Flex>
-                    <Tag color="success" style={{ borderRadius: 100 }}>
-                      v{record.version}
-                    </Tag>
+                className="rounded-lg border border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-accent">
+                <div className="mb-1.5 flex items-start justify-between gap-3">
+                  <h3 className="selectable m-0 min-w-0 truncate font-semibold text-sm leading-6">{record.name}</h3>
+                  <Flex className="shrink-0 items-center gap-1">
+                    <Badge className="border-success/30 bg-success/10 text-success">v{record.version}</Badge>
                     <Button
                       variant="ghost"
                       size="icon-sm"
@@ -187,46 +175,30 @@ const NpxSearch: FC = () => {
                         }
                       }}
                       disabled={isInstalled}>
-                      {isInstalled ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <PlusOutlined />}
+                      {isInstalled ? <Check size={14} className="text-primary" /> : <Plus size={14} />}
                     </Button>
                   </Flex>
-                }>
-                <Space direction="vertical" size="small">
-                  <Text className="selectable">{record.description}</Text>
-                  <Text type="secondary" className="selectable">
+                </div>
+                <div className="flex flex-col gap-1">
+                  <p className="selectable m-0 text-sm">{record.description}</p>
+                  <p className="selectable m-0 text-muted-foreground text-sm">
                     {t('settings.mcp.npx_list.usage')}: {record.usage}
-                  </Text>
-                  <Link href={record.npmLink} target="_blank" rel="noopener noreferrer">
+                  </p>
+                  <a
+                    href={record.npmLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="selectable text-link text-sm hover:text-link-hover">
                     {record.npmLink}
-                  </Link>
-                </Space>
-              </Card>
+                  </a>
+                </div>
+              </div>
             )
           })}
-        </ResultList>
+        </div>
       )}
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 20px;
-`
-
-const ResultList = styled.div`
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  width: 100%;
-  padding-right: 4px;
-  overflow-y: auto;
-  max-width: 1200px;
-  margin: 0 auto;
-`
 
 export default NpxSearch

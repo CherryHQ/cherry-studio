@@ -1,16 +1,33 @@
-import { Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  RadioGroup,
+  RadioGroupItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Textarea,
+  Tooltip
+} from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CopyButton from '@renderer/components/CopyButton'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { getDefaultModel } from '@renderer/services/AssistantService'
+import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { Col, Input, Modal, Radio, Row, Select, Space } from 'antd'
 import { CircleHelp, Dices, OctagonX } from 'lucide-react'
 import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
+import type React from 'react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface SelectionActionUserModalProps {
   isModalOpen: boolean
@@ -90,250 +107,235 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
   }
 
   return (
-    <Modal
-      title={
-        editingAction ? t('selection.settings.user_modal.title.edit') : t('selection.settings.user_modal.title.add')
-      }
-      open={isModalOpen}
-      onOk={handleOk}
-      onCancel={onCancel}
-      width={520}>
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
-        <ModalSection>
-          <div style={{ display: 'flex', flexDirection: 'row' }}>
-            <Col flex="auto" style={{ paddingRight: '16px', width: '70%' }}>
-              <ModalSectionTitle>
-                <ModalSectionTitleLabel>{t('selection.settings.user_modal.name.label')}</ModalSectionTitleLabel>
-              </ModalSectionTitle>
-              <Input
-                placeholder={t('selection.settings.user_modal.name.hint')}
-                value={formData.name || ''}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                maxLength={16}
-                status={errors.name ? 'error' : ''}
-              />
-              {errors.name && <ErrorText>{errors.name}</ErrorText>}
-            </Col>
-            <Col>
-              <ModalSectionTitle>
-                <ModalSectionTitleLabel>{t('selection.settings.user_modal.icon.label')}</ModalSectionTitleLabel>
-                <Tooltip content={t('selection.settings.user_modal.icon.tooltip')}>
-                  <QuestionIcon size={14} />
-                </Tooltip>
-                <Spacer />
-                <a
-                  href="https://lucide.dev/icons/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontSize: '12px', color: 'var(--color-primary)' }}>
-                  {t('selection.settings.user_modal.icon.view_all')}
-                </a>
-                <Tooltip content={t('selection.settings.user_modal.icon.random')}>
-                  <DiceButton
-                    onClick={() => {
-                      const randomIcon = iconNames[Math.floor(Math.random() * iconNames.length)]
-                      handleInputChange('icon', randomIcon)
-                    }}>
-                    <Dices size={14} className="btn-icon" />
-                  </DiceButton>
-                </Tooltip>
-              </ModalSectionTitle>
-              <Space>
+    <Dialog open={isModalOpen} onOpenChange={(next) => !next && onCancel()}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>
+            {editingAction
+              ? t('selection.settings.user_modal.title.edit')
+              : t('selection.settings.user_modal.title.add')}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex w-full flex-col gap-4">
+          <ModalSection>
+            <div className="flex flex-row">
+              <div className="w-[70%] flex-auto pr-4">
+                <ModalSectionTitle>
+                  <ModalSectionTitleLabel>{t('selection.settings.user_modal.name.label')}</ModalSectionTitleLabel>
+                </ModalSectionTitle>
                 <Input
-                  placeholder={t('selection.settings.user_modal.icon.placeholder')}
-                  value={formData.icon || ''}
-                  onChange={(e) => handleInputChange('icon', e.target.value)}
-                  style={{ width: '100%' }}
-                  status={errors.icon ? 'error' : ''}
+                  placeholder={t('selection.settings.user_modal.name.hint')}
+                  value={formData.name || ''}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  maxLength={16}
+                  aria-invalid={!!errors.name}
                 />
-                <IconPreview>
-                  {formData.icon &&
-                    (iconNames.includes(formData.icon as any) ? (
-                      <DynamicIcon name={formData.icon as any} size={18} />
-                    ) : (
-                      <OctagonX size={18} color="var(--color-error)" />
-                    ))}
-                </IconPreview>
-              </Space>
-              {errors.icon && <ErrorText>{errors.icon}</ErrorText>}
-            </Col>
-          </div>
-        </ModalSection>
-        <ModalSection>
-          <Row>
-            <Col flex="auto" style={{ paddingRight: '16px' }}>
-              <ModalSectionTitle>
-                <ModalSectionTitleLabel>{t('selection.settings.user_modal.model.label')}</ModalSectionTitleLabel>
-                <Tooltip content={t('selection.settings.user_modal.model.tooltip')}>
-                  <QuestionIcon size={14} />
-                </Tooltip>
-              </ModalSectionTitle>
-            </Col>
-            <Radio.Group
-              value={formData.assistantId ? 'assistant' : 'default'}
-              onChange={(e) =>
-                handleInputChange('assistantId', e.target.value === 'default' ? '' : defaultAssistant.id)
-              }
-              buttonStyle="solid">
-              <Radio.Button value="default">{t('selection.settings.user_modal.model.default')}</Radio.Button>
-              <Radio.Button value="assistant">{t('selection.settings.user_modal.model.assistant')}</Radio.Button>
-            </Radio.Group>
-          </Row>
-        </ModalSection>
+                {errors.name && <ErrorText>{errors.name}</ErrorText>}
+              </div>
+              <div>
+                <ModalSectionTitle>
+                  <ModalSectionTitleLabel>{t('selection.settings.user_modal.icon.label')}</ModalSectionTitleLabel>
+                  <Tooltip content={t('selection.settings.user_modal.icon.tooltip')}>
+                    <QuestionIcon size={14} />
+                  </Tooltip>
+                  <Spacer />
+                  <a
+                    href="https://lucide.dev/icons/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[var(--color-primary)] text-xs">
+                    {t('selection.settings.user_modal.icon.view_all')}
+                  </a>
+                  <Tooltip content={t('selection.settings.user_modal.icon.random')}>
+                    <DiceButton
+                      onClick={() => {
+                        const randomIcon = iconNames[Math.floor(Math.random() * iconNames.length)]
+                        handleInputChange('icon', randomIcon)
+                      }}>
+                      <Dices size={14} className="btn-icon" />
+                    </DiceButton>
+                  </Tooltip>
+                </ModalSectionTitle>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder={t('selection.settings.user_modal.icon.placeholder')}
+                    value={formData.icon || ''}
+                    onChange={(e) => handleInputChange('icon', e.target.value)}
+                    className="w-full"
+                    aria-invalid={!!errors.icon}
+                  />
+                  <IconPreview>
+                    {formData.icon &&
+                      (iconNames.includes(formData.icon as any) ? (
+                        <DynamicIcon name={formData.icon as any} size={18} />
+                      ) : (
+                        <OctagonX size={18} color="var(--color-error-base)" />
+                      ))}
+                  </IconPreview>
+                </div>
+                {errors.icon && <ErrorText>{errors.icon}</ErrorText>}
+              </div>
+            </div>
+          </ModalSection>
+          <ModalSection>
+            <div className="flex">
+              <div className="flex-auto pr-4">
+                <ModalSectionTitle>
+                  <ModalSectionTitleLabel>{t('selection.settings.user_modal.model.label')}</ModalSectionTitleLabel>
+                  <Tooltip content={t('selection.settings.user_modal.model.tooltip')}>
+                    <QuestionIcon size={14} />
+                  </Tooltip>
+                </ModalSectionTitle>
+              </div>
+              <RadioGroup
+                value={formData.assistantId ? 'assistant' : 'default'}
+                onValueChange={(value) =>
+                  handleInputChange('assistantId', value === 'default' ? '' : defaultAssistant.id)
+                }
+                className="flex flex-row gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <RadioGroupItem value="default" />
+                  {t('selection.settings.user_modal.model.default')}
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <RadioGroupItem value="assistant" />
+                  {t('selection.settings.user_modal.model.assistant')}
+                </label>
+              </RadioGroup>
+            </div>
+          </ModalSection>
 
-        {formData.assistantId && (
+          {formData.assistantId && (
+            <ModalSection>
+              <ModalSectionTitle>
+                <ModalSectionTitleLabel>{t('selection.settings.user_modal.assistant.label')}</ModalSectionTitleLabel>
+              </ModalSectionTitle>
+              <Select
+                value={formData.assistantId || defaultAssistant.id}
+                onValueChange={(value) => handleInputChange('assistantId', value)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem key={defaultAssistant.id} value={defaultAssistant.id}>
+                    <AssistantItem>
+                      <ModelAvatar model={defaultAssistant.model || getDefaultModel()} size={18} />
+                      <AssistantName>{defaultAssistant.name}</AssistantName>
+                      <Spacer />
+                      <CurrentTag isCurrent={true}>{t('selection.settings.user_modal.assistant.default')}</CurrentTag>
+                    </AssistantItem>
+                  </SelectItem>
+                  {userPredefinedAssistants
+                    .filter((a) => a.id !== defaultAssistant.id)
+                    .map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        <AssistantItem>
+                          <ModelAvatar model={a.model || getDefaultModel()} size={18} />
+                          <AssistantName>{a.name}</AssistantName>
+                          <Spacer />
+                        </AssistantItem>
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </ModalSection>
+          )}
           <ModalSection>
             <ModalSectionTitle>
-              <ModalSectionTitleLabel>{t('selection.settings.user_modal.assistant.label')}</ModalSectionTitleLabel>
+              <ModalSectionTitleLabel>{t('selection.settings.user_modal.prompt.label')}</ModalSectionTitleLabel>
+              <Tooltip content={t('selection.settings.user_modal.prompt.tooltip')}>
+                <QuestionIcon size={14} />
+              </Tooltip>
+              <Spacer />
+              <div className="flex select-text items-center gap-1 text-[var(--color-foreground-secondary)] text-xs">
+                {t('selection.settings.user_modal.prompt.placeholder_text')} {'{{text}}'}
+                <CopyButton
+                  tooltip={t('selection.settings.user_modal.prompt.copy_placeholder')}
+                  textToCopy="{{text}}"
+                />
+              </div>
             </ModalSectionTitle>
-            <Select
-              value={formData.assistantId || defaultAssistant.id}
-              onChange={(value) => handleInputChange('assistantId', value)}
-              style={{ width: '100%' }}
-              dropdownRender={(menu) => menu}>
-              <Select.Option key={defaultAssistant.id} value={defaultAssistant.id}>
-                <AssistantItem>
-                  <ModelAvatar model={defaultAssistant.model || getDefaultModel()} size={18} />
-                  <AssistantName>{defaultAssistant.name}</AssistantName>
-                  <Spacer />
-                  <CurrentTag isCurrent={true}>{t('selection.settings.user_modal.assistant.default')}</CurrentTag>
-                </AssistantItem>
-              </Select.Option>
-              {userPredefinedAssistants
-                .filter((a) => a.id !== defaultAssistant.id)
-                .map((a) => (
-                  <Select.Option key={a.id} value={a.id}>
-                    <AssistantItem>
-                      <ModelAvatar model={a.model || getDefaultModel()} size={18} />
-                      <AssistantName>{a.name}</AssistantName>
-                      <Spacer />
-                    </AssistantItem>
-                  </Select.Option>
-                ))}
-            </Select>
+            <Textarea.Input
+              placeholder={t('selection.settings.user_modal.prompt.placeholder')}
+              value={formData.prompt || ''}
+              onChange={(e) => handleInputChange('prompt', e.target.value)}
+              rows={4}
+              className="resize-none"
+            />
           </ModalSection>
-        )}
-        <ModalSection>
-          <ModalSectionTitle>
-            <ModalSectionTitleLabel>{t('selection.settings.user_modal.prompt.label')}</ModalSectionTitleLabel>
-            <Tooltip content={t('selection.settings.user_modal.prompt.tooltip')}>
-              <QuestionIcon size={14} />
-            </Tooltip>
-            <Spacer />
-            <div
-              style={{
-                fontSize: '12px',
-                userSelect: 'text',
-                color: 'var(--color-text-2)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}>
-              {t('selection.settings.user_modal.prompt.placeholder_text')} {'{{text}}'}
-              <CopyButton tooltip={t('selection.settings.user_modal.prompt.copy_placeholder')} textToCopy="{{text}}" />
-            </div>
-          </ModalSectionTitle>
-          <Input.TextArea
-            placeholder={t('selection.settings.user_modal.prompt.placeholder')}
-            value={formData.prompt || ''}
-            onChange={(e) => handleInputChange('prompt', e.target.value)}
-            rows={4}
-            style={{ resize: 'none' }}
-          />
-        </ModalSection>
-      </Space>
-    </Modal>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={handleOk}>{t('common.confirm')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-const ModalSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  margin-top: 16px;
-`
+const ModalSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-4 flex flex-col', className)} {...props} />
+)
 
-const ModalSectionTitle = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-weight: 500;
-  margin-bottom: 8px;
-`
+const ModalSectionTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-2 flex items-center gap-1 font-medium', className)} {...props} />
+)
 
-const ModalSectionTitleLabel = styled.div`
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text);
-`
+const ModalSectionTitleLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('font-medium text-foreground text-sm', className)} {...props} />
+)
 
-const QuestionIcon = styled(CircleHelp)`
-  cursor: pointer;
-  color: var(--color-text-3);
-`
+const QuestionIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof CircleHelp>) => (
+  <CircleHelp className={cn('cursor-pointer text-foreground-muted', className)} {...props} />
+)
 
-const ErrorText = styled.div`
-  color: var(--color-error);
-  font-size: 12px;
-`
+const ErrorText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('text-destructive text-xs', className)} {...props} />
+)
 
-const Spacer = styled.div`
-  flex: 1;
-`
+const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex-1', className)} {...props} />
+)
 
-const IconPreview = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: var(--color-bg-2);
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-`
+const IconPreview = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'flex h-8 w-8 items-center justify-center rounded border border-border bg-background-subtle',
+      className
+    )}
+    {...props}
+  />
+)
 
-const AssistantItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  height: 28px;
-`
+const AssistantItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex h-7 flex-row items-center gap-2', className)} {...props} />
+)
 
-const AssistantName = styled.span`
-  max-width: calc(100% - 60px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
+const AssistantName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('max-w-[calc(100%-60px)] truncate', className)} {...props} />
+)
 
-const CurrentTag = styled.span<{ isCurrent: boolean }>`
-  color: ${(props) => (props.isCurrent ? 'var(--color-primary)' : 'var(--color-text-3)')};
-  font-size: 12px;
-  padding: 2px 4px;
-  border-radius: 4px;
-`
+const CurrentTag = ({
+  isCurrent,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'span'> & { isCurrent: boolean }) => (
+  <span
+    className={cn('rounded px-1 py-0.5 text-xs', isCurrent ? 'text-primary' : 'text-foreground-muted', className)}
+    {...props}
+  />
+)
 
-const DiceButton = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-left: 4px;
-
-  .btn-icon {
-    color: var(--color-text-2);
-  }
-
-  &:hover {
-    .btn-icon {
-      color: var(--color-primary);
-    }
-  }
-
-  &:active {
-    transform: rotate(720deg);
-  }
-`
+const DiceButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'ml-1 flex cursor-pointer items-center justify-center transition-all active:rotate-[720deg] [&_.btn-icon]:text-foreground-secondary hover:[&_.btn-icon]:text-primary',
+      className
+    )}
+    {...props}
+  />
+)
 
 export default SelectionActionUserModal

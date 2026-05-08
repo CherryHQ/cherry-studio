@@ -25,11 +25,13 @@ import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { SearchService } from '@main/services/SearchService'
 import { SelectionService } from '@main/services/selection/SelectionService'
+import { SettingsWindowService } from '@main/services/SettingsWindowService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
 import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
+import { WebSearchService } from '@main/services/webSearch'
 import { WebviewService } from '@main/services/WebviewService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
@@ -70,6 +72,7 @@ export const services = {
   LanTransferService,
   PowerMonitorService,
   SelectionService,
+  SettingsWindowService,
   ShortcutService,
   ThemeService,
   SpanCacheService,
@@ -80,6 +83,7 @@ export const services = {
   ProxyManager,
   PythonService,
   TrayService,
+  WebSearchService,
   WebviewService,
   MainWindowService,
   QuickAssistantService,

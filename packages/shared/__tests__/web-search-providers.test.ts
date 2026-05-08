@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { WEB_SEARCH_PROVIDER_IDS } from '../data/preference/preferenceTypes'
 import {
+  findWebSearchCapability,
   PRESETS_WEB_SEARCH_PROVIDERS,
   WebSearchProviderIdSchema,
   WebSearchProviderOverrideSchema,
@@ -27,17 +28,32 @@ describe('web search provider schemas', () => {
       id: 'custom',
       name: 'Custom',
       type: 'custom',
-      defaultApiHost: 'https://example.com'
+      capabilities: [{ feature: 'searchKeywords', apiHost: 'https://example.com' }]
     })
 
     expect(result.success).toBe(false)
+  })
+
+  it('models Jina as one provider with keyword search and URL fetch capabilities', () => {
+    expect(WEB_SEARCH_PROVIDER_IDS).toContain('jina')
+    expect(WEB_SEARCH_PROVIDER_IDS).not.toContain('jina-reader')
+
+    const jina = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'jina')
+
+    expect(jina).toBeDefined()
+    expect(findWebSearchCapability(jina!, 'searchKeywords')?.apiHost).toBe('https://s.jina.ai')
+    expect(findWebSearchCapability(jina!, 'fetchUrls')?.apiHost).toBe('https://r.jina.ai')
   })
 
   it('accepts valid provider overrides', () => {
     const result = WebSearchProviderOverridesSchema.safeParse({
       tavily: {
         apiKeys: ['key1', 'key2'],
-        apiHost: 'https://api.tavily.com',
+        capabilities: {
+          searchKeywords: {
+            apiHost: 'https://api.tavily.com'
+          }
+        },
         engines: ['news'],
         basicAuthUsername: 'user',
         basicAuthPassword: 'pass'

@@ -47,7 +47,7 @@ const ListItemContainer = styled.div`
 
   &.active {
     background-color: var(--color-background-soft);
-    border: 1px solid var(--color-border-soft);
+    border-color: transparent;
   }
 `
 

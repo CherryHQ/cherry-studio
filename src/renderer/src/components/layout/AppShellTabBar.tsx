@@ -291,7 +291,7 @@ export const AppShellTabBar = ({
       isMacTransparentWindow
         ? {
             activeClass:
-              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-white/14 dark:bg-white/16 dark:text-sidebar-foreground',
+              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/6 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]',
             hoverClass:
               'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
           }
@@ -478,8 +478,8 @@ export const AppShellTabBar = ({
               type="button"
               onClick={handleAddTab}
               className={cn(
-                'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors [-webkit-app-region:no-drag] hover:bg-sidebar-accent hover:text-sidebar-foreground',
-                isMacTransparentWindow ? 'bg-white/60 backdrop-blur-sm dark:bg-black/40' : 'bg-sidebar'
+                'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
+                isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
               )}
               title={t('tab.new')}>
               <Plus size={14} />

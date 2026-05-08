@@ -93,7 +93,7 @@ function PageSidePanel({
             transition={{ type: 'spring', damping: 30, stiffness: 350 }}
             data-slot="page-side-panel"
             className={cn(
-              'absolute top-2 bottom-2 z-50 flex min-w-0 w-[min(25rem,100%)] max-w-full flex-col overflow-hidden rounded-xs border border-border/30 bg-card text-card-foreground shadow-2xl outline-none',
+              'absolute top-2 bottom-2 z-50 flex w-100 flex-col overflow-hidden rounded-md border border-border/30 bg-card text-card-foreground shadow-2xl outline-none',
               side === 'right' ? 'right-2' : 'left-2',
               contentClassName
             )}>
