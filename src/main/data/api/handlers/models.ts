@@ -13,6 +13,7 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
+  BulkUpdateModelsSchema,
   CreateModelsSchema,
   ListModelsQuerySchema,
   type ModelSchemas,
@@ -77,6 +78,18 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       const parsed = CreateModelsSchema.parse(body)
       const items = await enrichCreateItems(parsed)
       return await modelService.create(items)
+    },
+
+    PATCH: async ({ body }) => {
+      // Transport is array-only, matching POST /models. Each item's
+      // uniqueModelId is validated up-front so a malformed entry surfaces as a
+      // 422 instead of bubbling up from the service as a 500.
+      const parsed = BulkUpdateModelsSchema.parse(body)
+      const items = parsed.map((item) => ({
+        ...parseOrValidationError(item.uniqueModelId),
+        patch: item.patch
+      }))
+      return await modelService.bulkUpdate(items)
     }
   },
 

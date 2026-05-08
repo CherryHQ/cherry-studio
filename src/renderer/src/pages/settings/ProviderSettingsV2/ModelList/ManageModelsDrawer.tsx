@@ -46,8 +46,8 @@ interface ManageModelsDrawerProps {
 
 export default function ManageModelsDrawer({ open, providerId, onClose }: ManageModelsDrawerProps) {
   const { provider } = useProvider(providerId)
-  const { models: existingModels, refetch: refetchExistingModels } = useModels({ providerId })
-  const { createModel, deleteModel, updateModel } = useModelMutations()
+  const { models: existingModels } = useModels({ providerId })
+  const { createModel, deleteModel, updateModel, updateModels } = useModelMutations()
 
   const {
     loadingModels,
@@ -149,7 +149,10 @@ export default function ManageModelsDrawer({ open, providerId, onClose }: Manage
         }
       }
 
-      void refetchExistingModels()
+      // `createModel` already invalidates the `/models` SWR cache via its
+      // `refresh: ['/models']` option, so an explicit refetch here would be a
+      // duplicate revalidation. `loadModels` is independent — it refreshes the
+      // remote browse list, not the local existing-models query.
       await loadModels(provider)
       setCustomAddExpanded(false)
       setCustomAddModelId('')
@@ -158,17 +161,7 @@ export default function ManageModelsDrawer({ open, providerId, onClose }: Manage
     } finally {
       setCustomAddSubmitting(false)
     }
-  }, [
-    createModel,
-    customAddModelId,
-    customAddSubmitting,
-    existingModels,
-    loadModels,
-    provider,
-    providerId,
-    refetchExistingModels,
-    t
-  ])
+  }, [createModel, customAddModelId, customAddSubmitting, existingModels, loadModels, provider, providerId, t])
 
   const onAddModel = useCallback(
     async (model: Model) => {
@@ -208,42 +201,34 @@ export default function ManageModelsDrawer({ open, providerId, onClose }: Manage
       return
     }
     try {
-      await Promise.all(
-        existingModels.map((m) => {
-          const { modelId } = parseUniqueModelId(m.id)
-          return updateModel(providerId, modelId, { isEnabled: true })
-        })
-      )
-      void refetchExistingModels()
+      // Atomic batch via PATCH /models — `useModelMutations` already refreshes
+      // the `/models` SWR cache on success, so an explicit refetch would be a
+      // duplicate revalidation here.
+      await updateModels(existingModels.map((m) => ({ uniqueModelId: m.id, patch: { isEnabled: true } })))
     } catch (error) {
       logger.error('Failed to enable all models for provider', { providerId, error })
     }
-  }, [existingModels, providerId, refetchExistingModels, updateModel])
+  }, [existingModels, providerId, updateModels])
 
   const onDisableAllInProvider = useCallback(async () => {
     if (existingModels.length === 0) {
       return
     }
     try {
-      await Promise.all(
-        existingModels.map((m) => {
-          const { modelId } = parseUniqueModelId(m.id)
-          return updateModel(providerId, modelId, { isEnabled: false })
-        })
-      )
-      void refetchExistingModels()
+      await updateModels(existingModels.map((m) => ({ uniqueModelId: m.id, patch: { isEnabled: false } })))
     } catch (error) {
       logger.error('Failed to disable all models for provider', { providerId, error })
     }
-  }, [existingModels, providerId, refetchExistingModels, updateModel])
+  }, [existingModels, providerId, updateModels])
 
   const onToggleModelEnabled = useCallback(
     async (model: Model, enabled: boolean) => {
       const { modelId } = parseUniqueModelId(model.id)
+      // `updateModel` already invalidates the `/models` SWR cache via its
+      // `refresh: ['/models']` option, so no explicit refetch is needed.
       await updateModel(providerId, modelId, { isEnabled: enabled })
-      void refetchExistingModels()
     },
-    [providerId, refetchExistingModels, updateModel]
+    [providerId, updateModel]
   )
 
   const enabledInProviderCount = useMemo(() => existingModels.filter((m) => m.isEnabled).length, [existingModels])

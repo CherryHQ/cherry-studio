@@ -95,6 +95,28 @@ export const UpdateModelSchema = CreateModelSchema.omit({
   })
 export type UpdateModelDto = z.infer<typeof UpdateModelSchema>
 
+/**
+ * `PATCH /models` body item: a single (uniqueModelId, patch) pair.
+ *
+ * Mirrors the row-level `PATCH /models/:uniqueModelId*` contract so callers can
+ * lift one-off updates into a batch without changing field semantics.
+ */
+export const BulkUpdateModelItemSchema = z.object({
+  uniqueModelId: z.string().min(1),
+  patch: UpdateModelSchema
+})
+export type BulkUpdateModelItem = z.infer<typeof BulkUpdateModelItemSchema>
+
+/**
+ * `PATCH /models` accepts arrays only, applied atomically in one transaction.
+ *
+ * Matches the `POST /models` array-only convention: callers always send an
+ * array and always receive `Model[]`, while single-item convenience stays at
+ * the row-level `PATCH /models/:uniqueModelId*` endpoint.
+ */
+export const BulkUpdateModelsSchema = z.array(BulkUpdateModelItemSchema).min(1).max(MODELS_BATCH_MAX_ITEMS)
+export type BulkUpdateModelsDto = z.infer<typeof BulkUpdateModelsSchema>
+
 /** DTO for resolving raw model IDs against registry presets */
 export const EnrichModelsSchema = z.object({
   /** Raw model IDs from SDK listModels() */
@@ -129,6 +151,17 @@ export type ModelSchemas = {
     /** Create one or more models in a single request */
     POST: {
       body: CreateModelsDto
+      response: Model[]
+    }
+    /**
+     * Update one or more models in a single transaction.
+     *
+     * Each item carries its own `uniqueModelId` + `patch`, with the same
+     * per-field semantics as `PATCH /models/:uniqueModelId*`. The whole batch
+     * is atomic: a single not-found rolls everything back.
+     */
+    PATCH: {
+      body: BulkUpdateModelsDto
       response: Model[]
     }
   }

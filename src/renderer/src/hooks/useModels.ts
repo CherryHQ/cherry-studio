@@ -1,6 +1,12 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import type { CreateModelDto, CreateModelsDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
+import type {
+  BulkUpdateModelsDto,
+  CreateModelDto,
+  CreateModelsDto,
+  ListModelsQuery,
+  UpdateModelDto
+} from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { isUndefined, omitBy } from 'lodash'
@@ -61,6 +67,12 @@ export function useModelMutations() {
     error: updateError
   } = useMutation('PATCH', '/models/:uniqueModelId*', { refresh: ['/models'] })
 
+  const {
+    trigger: bulkUpdateTrigger,
+    isLoading: isBulkUpdating,
+    error: bulkUpdateError
+  } = useMutation('PATCH', '/models', { refresh: ['/models'] })
+
   const createModel = useCallback(
     async (dto: CreateModelDto) => {
       try {
@@ -114,6 +126,27 @@ export function useModelMutations() {
     [updateTrigger]
   )
 
+  /**
+   * Atomic batch update via `PATCH /models`.
+   *
+   * One IPC + one DB transaction + one `/models` revalidation. Per-item field
+   * semantics match `updateModel` (only fields present in `patch` are written;
+   * other columns and `userOverrides` tracking are preserved). On any failure
+   * the whole batch rolls back — there is no partial-success state for
+   * callers to reason about.
+   */
+  const updateModels = useCallback(
+    async (items: BulkUpdateModelsDto) => {
+      try {
+        return await bulkUpdateTrigger({ body: items })
+      } catch (error) {
+        logger.error('Failed to bulk update models', { count: items.length, error })
+        throw error
+      }
+    },
+    [bulkUpdateTrigger]
+  )
+
   return {
     createModel,
     createModels,
@@ -124,6 +157,9 @@ export function useModelMutations() {
     deleteError,
     updateModel,
     isUpdating,
-    updateError
+    updateError,
+    updateModels,
+    isBulkUpdating,
+    bulkUpdateError
   }
 }

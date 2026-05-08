@@ -361,6 +361,78 @@ class ModelService {
   }
 
   /**
+   * Update many models atomically in a single transaction.
+   *
+   * Per-item semantics — field mapping via {@link UPDATE_MODEL_FIELD_MAP},
+   * `userOverrides` tracking, and the empty-patch short-circuit — exactly
+   * mirror the row-level {@link ModelService.update} path; only the I/O shape
+   * differs. Any not-found rolls the whole batch back so callers don't have
+   * to reason about partial failure.
+   *
+   * @param items handler-parsed (providerId, modelId, patch) tuples
+   */
+  async bulkUpdate(items: Array<{ providerId: string; modelId: string; patch: UpdateModelDto }>): Promise<Model[]> {
+    if (items.length === 0) return []
+
+    const db = application.get('DbService').getDb()
+
+    const dtoToDbKey = (key: string): string => {
+      const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
+      return mapping && Array.isArray(mapping) ? mapping[1] : key
+    }
+
+    return await db.transaction(async (tx) => {
+      const results: Model[] = []
+
+      for (const { providerId, modelId, patch } of items) {
+        const [existing] = await tx
+          .select()
+          .from(userModelTable)
+          .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+          .limit(1)
+
+        if (!existing) {
+          throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
+        }
+
+        const updates: Partial<NewUserModel> = {}
+        for (const entry of UPDATE_MODEL_FIELD_MAP) {
+          const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof NewUserModel]
+          if (patch[dtoKey] !== undefined) {
+            ;(updates as Record<string, unknown>)[dbKey] = patch[dtoKey]
+          }
+        }
+
+        const changedEnrichableFields = Object.keys(patch).map(dtoToDbKey).filter(isRegistryEnrichableField)
+        if (changedEnrichableFields.length > 0) {
+          const existingOverrides = existing.userOverrides ?? []
+          updates.userOverrides = [...new Set([...existingOverrides, ...changedEnrichableFields])]
+        }
+
+        if (Object.keys(updates).length === 0) {
+          results.push(rowToRuntimeModel(existing))
+          continue
+        }
+
+        const [row] = await tx
+          .update(userModelTable)
+          .set(updates)
+          .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+          .returning()
+
+        results.push(rowToRuntimeModel(row))
+      }
+
+      logger.info('Bulk updated models', {
+        count: results.length,
+        providers: [...new Set(items.map((item) => item.providerId))]
+      })
+
+      return results
+    })
+  }
+
+  /**
    * Delete a model
    */
   async delete(providerId: string, modelId: string): Promise<void> {

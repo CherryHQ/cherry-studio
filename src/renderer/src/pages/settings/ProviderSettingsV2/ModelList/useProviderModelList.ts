@@ -134,7 +134,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     { providerId },
     { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS }
   )
-  const { updateModel } = useModelMutations()
+  const { updateModel, updateModels } = useModelMutations()
   const [searchText, setSearchTextState] = useState('')
   const [selectedCapabilityFilter, setSelectedCapabilityFilterState] = useState<ModelListCapabilityFilter>('all')
   const [editingModel, setEditingModel] = useState<Model | null>(null)
@@ -332,46 +332,41 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       setIsBulkUpdating(true)
 
       try {
-        const results = await Promise.allSettled(
-          targetStates.map(({ model }) => {
-            const { modelId } = parseUniqueModelId(model.id)
-            return updateModel(model.providerId, modelId, { isEnabled: enabled })
-          })
+        // `PATCH /models` is atomic: either every row commits or the whole
+        // transaction rolls back, so there is no partial-failure branch.
+        await updateModels(
+          targetStates.map(({ model }) => ({
+            uniqueModelId: model.id,
+            patch: { isEnabled: enabled }
+          }))
         )
+      } catch (error) {
+        setOptimisticEnabledByModelId((current) => {
+          const next = { ...current }
 
-        const failedStates = targetStates.filter((_, index) => results[index]?.status === 'rejected')
-
-        if (failedStates.length > 0) {
-          setOptimisticEnabledByModelId((current) => {
-            const next = { ...current }
-
-            for (const { model, previousEnabled } of failedStates) {
-              if (previousEnabled === model.isEnabled) {
-                delete next[model.id]
-              } else {
-                next[model.id] = previousEnabled
-              }
+          for (const { model, previousEnabled } of targetStates) {
+            if (previousEnabled === model.isEnabled) {
+              delete next[model.id]
+            } else {
+              next[model.id] = previousEnabled
             }
-
-            return next
-          })
-          setSessionPlacementByModelId((current) => {
-            const next = { ...current }
-
-            for (const { model, previousPlacement, shouldKeepDisabledModelInPlace } of failedStates) {
-              if (shouldKeepDisabledModelInPlace && previousPlacement === undefined) {
-                delete next[model.id]
-              }
-            }
-
-            return next
-          })
-
-          const firstFailure = results.find((result) => result.status === 'rejected')
-          if (firstFailure?.status === 'rejected') {
-            throw firstFailure.reason
           }
-        }
+
+          return next
+        })
+        setSessionPlacementByModelId((current) => {
+          const next = { ...current }
+
+          for (const { model, previousPlacement, shouldKeepDisabledModelInPlace } of targetStates) {
+            if (shouldKeepDisabledModelInPlace && previousPlacement === undefined) {
+              delete next[model.id]
+            }
+          }
+
+          return next
+        })
+
+        throw error
       } finally {
         setPendingModelIdMap((current) => {
           const next = { ...current }
@@ -385,7 +380,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         setIsBulkUpdating(false)
       }
     },
-    [derivedState.filteredModels, optimisticEnabledByModelId, sessionPlacementByModelId, updateModel]
+    [derivedState.filteredModels, optimisticEnabledByModelId, sessionPlacementByModelId, updateModels]
   )
 
   const enabledSections = useMemo(() => toGroupSections(displayState.sections.enabled), [displayState.sections.enabled])
