@@ -36,6 +36,7 @@ import type {
   KnowledgeSearchResult as KnowledgeVectorSearchResult,
   RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
+import type { SettingsPath } from '@shared/data/types/settingsPath'
 import type {
   WebSearchFetchUrlsRequest,
   WebSearchResponse,
@@ -563,6 +564,9 @@ const api = {
     }
   },
   windowManager: {
+    openSettings: (path: SettingsPath = '/settings/provider'): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.SettingsWindow_Open, path),
+
     // Retrieve init data that the main process stored for this window via
     // wm.setInitData() or wm.open({ initData }). Returns null when no data was set or when
     // the sender window is not managed by WindowManager (e.g., detached devtools).

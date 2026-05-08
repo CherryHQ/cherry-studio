@@ -834,7 +834,7 @@
       "running": "執行中",
       "stopped": "已停止"
     },
-    "title": "API 伺服器"
+    "title": "API 閘道"
   },
   "appMenu": {
     "about": "關於",
@@ -4780,6 +4780,15 @@
         "button": "備份",
         "title": "資料備份與復原"
       },
+      "common": {
+        "sections": {
+          "custom_css": "自訂 CSS",
+          "display_language": "顯示與語言",
+          "privacy_advanced": "隱私與進階",
+          "system_startup": "系統與啟動"
+        },
+        "title": "通用設定"
+      },
       "display": {
         "title": "顯示設定"
       },
@@ -4840,6 +4849,12 @@
         "label": "目標語言",
         "russian": "俄文"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "筆記"
+      },
+      "title": "集成"
     },
     "launch": {
       "onboot": "開機自動啟動",
@@ -5110,6 +5125,13 @@
       "url": "URL",
       "user": "使用者"
     },
+    "menuGroups": {
+      "appSettings": "應用設定",
+      "integrations": "模型",
+      "productivity": "效率",
+      "services": "插件",
+      "system": "系統"
+    },
     "messages": {
       "divider": {
         "label": "訊息間顯示分隔線",
@@ -5261,7 +5283,7 @@
         "use_all_keys": "使用金鑰"
       },
       "default_assistant_model": "預設助手模型",
-      "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
+      "default_assistant_model_description": "助手未指定模型時使用",
       "empty": "找不到模型",
       "manage": {
         "add_listed": {
@@ -5354,6 +5376,14 @@
         "tip": "控制模型輸出的詳細程度",
         "title": "詳細程度"
       }
+    },
+    "plugins": {
+      "bunDescription": "用於 MCP 服務和相關工具鏈的 JavaScript 執行階段。",
+      "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
+      "installing": "安裝中...",
+      "notInstalled": "未安裝",
+      "title": "環境依賴",
+      "uvDescription": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
     },
     "privacy": {
       "enable_privacy_mode": "匿名傳送錯誤報告和資料統計",
@@ -5681,12 +5711,22 @@
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
+      "all_disable": "全部停用",
+      "all_enable": "全部啟用",
       "bind_first_to_enable": "請先綁定快捷鍵，再調整啟用狀態",
+      "categories": {
+        "assistant": "AI 助手工具",
+        "chat": "訊息互動",
+        "general": "全域與視窗",
+        "title": "快捷鍵分組",
+        "topic": "會話與話題"
+      },
       "clear_shortcut": "清除快捷鍵",
       "clear_topic": "清除所有訊息",
       "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "複製上一則訊息",
       "edit_last_user_message": "編輯最後一則使用者訊息",
+      "empty": "目前分組下沒有可顯示的快捷鍵",
       "enabled": "啟用",
       "exit_fullscreen": "離開全螢幕",
       "label": "按鍵",
@@ -5695,6 +5735,7 @@
       "press_shortcut": "按下快捷鍵",
       "quick_assistant": "快捷助手",
       "rename_topic": "重新命名話題",
+      "reset": "重設",
       "reset_defaults": "重設預設快捷鍵",
       "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
       "reset_defaults_failed": "重設快捷鍵失敗",
@@ -5775,6 +5816,14 @@
         "error": {
           "not_system": "系統 OCR 僅支援 Windows 與 MacOS"
         },
+        "features": {
+          "paddleocr": "更適合中文文字，並更適用於收據、掃描檔案以及版面較複雜的圖片。",
+          "system": {
+            "macos": "使用內建 macOS OCR 引擎，無需設定，適合截圖與輕量文字擷取。",
+            "windows": "使用原生 Windows OCR 引擎，具備強大的作業系統整合能力，適用於基本的本機辨識工作。"
+          },
+          "tesseract": "一款經典的本地 OCR 選項，具備可自訂的語言套件，非常適合離線與多語言工作流程。"
+        },
         "image": {
           "error": {
             "provider_not_found": "該供應商不存在"
@@ -5801,6 +5850,13 @@
         "title": "OCR 服務"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "非常適合將 PDF 轉換為更乾淨的 Markdown 或可編輯文字，以便後續檢索與編輯。",
+          "mineru": "針對更高保真度的版面復原進行最佳化，特別適用於學術 PDF、表格與公式。",
+          "mistral": "強大的雲端文件理解能力，適用於結構化擷取、多頁檔案及複雜版面。",
+          "open_mineru": "一個開放的部署選項，適合希望自行託管或對處理流程有更高控制權的團隊。",
+          "paddleocr": "更輕量的整合選擇，非常適合中文文件、掃描檔及常見收據格式的內容。"
+        },
         "paddleocr": {
           "aistudio_access_token": "星河社區訪問令牌",
           "api_url": "API 網址",

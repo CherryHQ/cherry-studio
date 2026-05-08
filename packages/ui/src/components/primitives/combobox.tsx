@@ -9,7 +9,8 @@ import {
   CommandItem,
   CommandList
 } from '@cherrystudio/ui/components/primitives/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
+import { Input } from '@cherrystudio/ui/components/primitives/input'
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown, X } from 'lucide-react'
@@ -19,7 +20,7 @@ import * as React from 'react'
 
 const comboboxTriggerVariants = cva(
   cn(
-    'inline-flex items-center justify-between rounded-2xs border-1 text-sm transition-colors outline-none font-normal',
+    'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
     'bg-zinc-50 dark:bg-zinc-900',
     'text-foreground'
   ),
@@ -44,7 +45,7 @@ const comboboxTriggerVariants = cva(
 )
 
 const comboboxItemVariants = cva(
-  'relative flex items-center gap-2 px-2 py-1.5 text-sm rounded-2xs cursor-pointer transition-colors outline-none select-none',
+  'relative flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer transition-colors outline-none select-none',
   {
     variants: {
       state: {
@@ -59,20 +60,28 @@ const comboboxItemVariants = cva(
   }
 )
 
+const comboboxInputSizeClasses = {
+  sm: 'h-8 px-2 text-xs',
+  default: 'h-9 px-3 text-sm',
+  lg: 'h-10 px-4 text-sm'
+}
+
 // ==================== Types ====================
 
-export interface ComboboxOption {
+export type ComboboxOption<TExtra extends object = Record<never, never>> = {
   value: string
   label: string
   disabled?: boolean
   icon?: React.ReactNode
   description?: string
-  [key: string]: any
-}
+} & TExtra
 
-export interface ComboboxProps extends Omit<VariantProps<typeof comboboxTriggerVariants>, 'state'> {
+export type ComboboxSearchPlacement = 'content' | 'trigger'
+
+export interface ComboboxProps<TExtra extends object = Record<never, never>>
+  extends Omit<VariantProps<typeof comboboxTriggerVariants>, 'state'> {
   // Data source
-  options: ComboboxOption[]
+  options: ComboboxOption<TExtra>[]
   value?: string | string[]
   defaultValue?: string | string[]
   onChange?: (value: string | string[]) => void
@@ -81,14 +90,16 @@ export interface ComboboxProps extends Omit<VariantProps<typeof comboboxTriggerV
   multiple?: boolean
 
   // Custom rendering
-  renderOption?: (option: ComboboxOption) => React.ReactNode
-  renderValue?: (value: string | string[], options: ComboboxOption[]) => React.ReactNode
+  renderOption?: (option: ComboboxOption<TExtra>) => React.ReactNode
+  renderValue?: (value: string | string[], options: ComboboxOption<TExtra>[]) => React.ReactNode
 
   // Search
   searchable?: boolean
+  searchPlacement?: ComboboxSearchPlacement
   searchPlaceholder?: string
   emptyText?: string
   onSearch?: (search: string) => void
+  filterOption?: (option: ComboboxOption<TExtra>, search: string) => boolean
 
   // State
   error?: boolean
@@ -100,6 +111,7 @@ export interface ComboboxProps extends Omit<VariantProps<typeof comboboxTriggerV
   placeholder?: string
   className?: string
   popoverClassName?: string
+  triggerStyle?: React.CSSProperties
   width?: string | number
 
   // Other
@@ -108,7 +120,7 @@ export interface ComboboxProps extends Omit<VariantProps<typeof comboboxTriggerV
 
 // ==================== Component ====================
 
-export function Combobox({
+export function Combobox<TExtra extends object = Record<never, never>>({
   options,
   value: controlledValue,
   defaultValue,
@@ -117,9 +129,11 @@ export function Combobox({
   renderOption,
   renderValue,
   searchable = true,
+  searchPlacement = 'content',
   searchPlaceholder = 'Search...',
   emptyText = 'No results found.',
   onSearch,
+  filterOption,
   error = false,
   disabled = false,
   open: controlledOpen,
@@ -127,16 +141,29 @@ export function Combobox({
   placeholder = 'Please Select',
   className,
   popoverClassName,
+  triggerStyle,
   width,
   size,
   name
-}: ComboboxProps) {
+}: ComboboxProps<TExtra>) {
   // ==================== State ====================
   const [internalOpen, setInternalOpen] = React.useState(false)
   const [internalValue, setInternalValue] = React.useState<string | string[]>(defaultValue ?? (multiple ? [] : ''))
+  const [triggerSearch, setTriggerSearch] = React.useState('')
+  const [contentSearch, setContentSearch] = React.useState('')
+  const triggerInputRef = React.useRef<HTMLInputElement>(null)
 
   const open = controlledOpen ?? internalOpen
-  const setOpen = onOpenChange ?? setInternalOpen
+  const setOpen = React.useCallback(
+    (nextOpen: boolean) => {
+      if (onOpenChange) {
+        onOpenChange(nextOpen)
+      } else {
+        setInternalOpen(nextOpen)
+      }
+    },
+    [onOpenChange]
+  )
 
   const value = controlledValue ?? internalValue
   const setValue = (newValue: string | string[]) => {
@@ -146,7 +173,44 @@ export function Combobox({
     onChange?.(newValue)
   }
 
+  const selectedOption = !multiple ? options.find((opt) => opt.value === value) : undefined
+  const triggerSearchEnabled = searchable && searchPlacement === 'trigger' && !multiple
+  const contentSearchEnabled = searchable && !triggerSearchEnabled
+  const manualFilterEnabled = triggerSearchEnabled || (contentSearchEnabled && Boolean(filterOption))
+  const activeSearch = triggerSearchEnabled ? triggerSearch : contentSearch
+  const normalizedSearch = activeSearch.trim().toLowerCase()
+  const visibleOptions = React.useMemo(() => {
+    if (!manualFilterEnabled || !normalizedSearch) {
+      return options
+    }
+
+    return options.filter((option) => {
+      if (filterOption) {
+        return filterOption(option, activeSearch)
+      }
+
+      return [option.label, option.value, option.description]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedSearch)
+    })
+  }, [activeSearch, filterOption, manualFilterEnabled, normalizedSearch, options])
+
   // ==================== Handlers ====================
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen)
+    if (!nextOpen) {
+      setTriggerSearch('')
+      setContentSearch('')
+      return
+    }
+
+    if (triggerSearchEnabled) {
+      setTriggerSearch('')
+    }
+  }
 
   const handleSelect = (selectedValue: string) => {
     if (multiple) {
@@ -156,8 +220,10 @@ export function Combobox({
         : [...currentValues, selectedValue]
       setValue(newValues)
     } else {
-      setValue(selectedValue === value ? '' : selectedValue)
-      setOpen(false)
+      if (selectedValue !== value) {
+        setValue(selectedValue)
+      }
+      handleOpenChange(false)
     }
   }
 
@@ -174,6 +240,84 @@ export function Combobox({
       return ((value as string[]) || []).includes(optionValue)
     }
     return value === optionValue
+  }
+
+  const handleTriggerInputFocus = (event: React.FocusEvent<HTMLInputElement>) => {
+    if (!triggerSearchEnabled) {
+      return
+    }
+
+    if (!open) {
+      handleOpenChange(true)
+    }
+    event.currentTarget.select()
+  }
+
+  const handleTriggerInputMouseDown = () => {
+    if (!triggerSearchEnabled || open) {
+      return
+    }
+
+    handleOpenChange(true)
+  }
+
+  const handleTriggerInputClick = (event: React.MouseEvent<HTMLInputElement>) => {
+    if (!triggerSearchEnabled) {
+      return
+    }
+
+    event.preventDefault()
+    event.currentTarget.focus()
+    if (!open) {
+      handleOpenChange(true)
+    }
+  }
+
+  const handleTriggerInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextSearch = event.target.value
+    setTriggerSearch(nextSearch)
+    onSearch?.(nextSearch)
+    if (!open) {
+      setOpen(true)
+    }
+  }
+
+  const handleTriggerInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!triggerSearchEnabled) {
+      return
+    }
+
+    if (event.key === 'Escape') {
+      handleOpenChange(false)
+      return
+    }
+
+    if (event.key === 'Enter') {
+      if (!normalizedSearch) {
+        event.preventDefault()
+        handleOpenChange(false)
+        return
+      }
+
+      const firstEnabledOption = visibleOptions.find((option) => !option.disabled)
+      if (firstEnabledOption) {
+        event.preventDefault()
+        handleSelect(firstEnabledOption.value)
+      }
+      return
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (!open) {
+        handleOpenChange(true)
+      }
+    }
+  }
+
+  const handleContentSearchChange = (nextSearch: string) => {
+    setContentSearch(nextSearch)
+    onSearch?.(nextSearch)
   }
 
   // ==================== Render Helpers ====================
@@ -226,7 +370,54 @@ export function Combobox({
     return <span className="text-muted-foreground">{placeholder}</span>
   }
 
-  const renderOptionContent = (option: ComboboxOption) => {
+  const renderTriggerInput = () => {
+    const triggerInputValue = open ? triggerSearch : (selectedOption?.label ?? '')
+    const triggerInputPlaceholder = open ? (selectedOption?.label ?? placeholder) : placeholder
+    const inputSize = size ?? 'default'
+
+    return (
+      <PopoverAnchor asChild>
+        <div className="relative" style={{ width: triggerWidth }}>
+          <PopoverTrigger asChild>
+            <Input
+              ref={triggerInputRef}
+              type="text"
+              value={triggerInputValue}
+              placeholder={triggerInputPlaceholder}
+              disabled={disabled}
+              aria-expanded={open}
+              aria-invalid={error}
+              role="combobox"
+              autoComplete="off"
+              spellCheck={false}
+              onFocus={handleTriggerInputFocus}
+              onMouseDown={handleTriggerInputMouseDown}
+              onClick={handleTriggerInputClick}
+              onChange={handleTriggerInputChange}
+              onKeyDown={handleTriggerInputKeyDown}
+              style={triggerStyle}
+              className={cn(
+                'w-full rounded-md border-1 bg-zinc-50 pr-8 shadow-none transition-colors dark:bg-zinc-900',
+                'focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20',
+                error && 'border-destructive! focus-visible:ring-red-600/20',
+                disabled && 'cursor-not-allowed opacity-50',
+                comboboxInputSizeClasses[inputSize],
+                className
+              )}
+            />
+          </PopoverTrigger>
+          <ChevronDown
+            className={cn(
+              'pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 shrink-0 opacity-50 transition-transform',
+              open && 'rotate-180'
+            )}
+          />
+        </div>
+      </PopoverAnchor>
+    )
+  }
+
+  const renderOptionContent = (option: ComboboxOption<TExtra>) => {
     if (renderOption) {
       return renderOption(option)
     }
@@ -249,39 +440,78 @@ export function Combobox({
   const triggerWidth = width ? (typeof width === 'number' ? `${width}px` : width) : undefined
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size={size}
-          disabled={disabled}
-          style={{ width: triggerWidth }}
-          className={cn(comboboxTriggerVariants({ state, size }), className)}
-          aria-expanded={open}
-          aria-invalid={error}>
-          {renderTriggerContent()}
-          <ChevronDown className="size-4 opacity-50 shrink-0" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className={cn('p-0 rounded-2xs', popoverClassName)} style={{ width: triggerWidth }}>
-        <Command>
-          {searchable && (
-            <CommandInput placeholder={searchPlaceholder} className="h-9 rounded-none" onValueChange={onSearch} />
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      {triggerSearchEnabled ? (
+        renderTriggerInput()
+      ) : (
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size={size}
+            disabled={disabled}
+            style={{ width: triggerWidth, ...triggerStyle }}
+            className={cn(comboboxTriggerVariants({ state, size }), className)}
+            aria-expanded={open}
+            aria-invalid={error}>
+            {renderTriggerContent()}
+            <ChevronDown className="size-4 opacity-50 shrink-0" />
+          </Button>
+        </PopoverTrigger>
+      )}
+      <PopoverContent
+        className={cn('p-0 rounded-md', popoverClassName)}
+        style={{ width: triggerWidth }}
+        onOpenAutoFocus={(event) => {
+          if (!triggerSearchEnabled) {
+            return
+          }
+
+          event.preventDefault()
+          triggerInputRef.current?.focus()
+        }}>
+        <Command shouldFilter={!manualFilterEnabled}>
+          {contentSearchEnabled && (
+            <CommandInput
+              placeholder={searchPlaceholder}
+              className="h-9 rounded-none"
+              onValueChange={handleContentSearchChange}
+            />
           )}
           <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.value}
-                  disabled={option.disabled}
-                  onSelect={() => handleSelect(option.value)}
-                  className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
-                  {renderOptionContent(option)}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {manualFilterEnabled ? (
+              visibleOptions.length === 0 ? (
+                <div className="py-6 text-center text-muted-foreground text-sm">{emptyText}</div>
+              ) : (
+                <CommandGroup>
+                  {visibleOptions.map((option) => (
+                    <CommandItem
+                      key={option.value}
+                      value={option.value || option.label}
+                      disabled={option.disabled}
+                      onSelect={() => handleSelect(option.value)}
+                      className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
+                      {renderOptionContent(option)}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )
+            ) : (
+              <>
+                <CommandEmpty>{emptyText}</CommandEmpty>
+                <CommandGroup>
+                  {options.map((option) => (
+                    <CommandItem
+                      key={option.value}
+                      value={option.value}
+                      disabled={option.disabled}
+                      onSelect={() => handleSelect(option.value)}
+                      className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
+                      {renderOptionContent(option)}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

@@ -834,7 +834,7 @@
       "running": "Running",
       "stopped": "Stopped"
     },
-    "title": "API Server"
+    "title": "API Gateway"
   },
   "appMenu": {
     "about": "About",
@@ -3745,7 +3745,7 @@
         "r_regenerate": "R: Regenerate"
       }
     },
-    "name": "Selection Assistant",
+    "name": "Selection",
     "settings": {
       "actions": {
         "add_tooltip": {
@@ -4780,6 +4780,15 @@
         "button": "Backup",
         "title": "Data Backup and Recovery"
       },
+      "common": {
+        "sections": {
+          "custom_css": "Custom CSS",
+          "display_language": "Display & Language",
+          "privacy_advanced": "Privacy & Advanced",
+          "system_startup": "System & Startup"
+        },
+        "title": "General"
+      },
       "display": {
         "title": "Display Settings"
       },
@@ -4840,6 +4849,12 @@
         "label": "Target language",
         "russian": "Russian"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "Notes"
+      },
+      "title": "Integrations"
     },
     "launch": {
       "onboot": "Start Automatically on Boot",
@@ -5110,6 +5125,13 @@
       "url": "URL",
       "user": "User"
     },
+    "menuGroups": {
+      "appSettings": "App Settings",
+      "integrations": "Models",
+      "productivity": "Productivity",
+      "services": "Plugins",
+      "system": "System"
+    },
     "messages": {
       "divider": {
         "label": "Show divider between messages",
@@ -5261,7 +5283,7 @@
         "use_all_keys": "Key(s)"
       },
       "default_assistant_model": "Default Assistant Model",
-      "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
+      "default_assistant_model_description": "Used when an assistant has no model",
       "empty": "No models found",
       "manage": {
         "add_listed": {
@@ -5354,6 +5376,14 @@
         "tip": "Control the level of detail in the model's output",
         "title": "Verbosity"
       }
+    },
+    "plugins": {
+      "bunDescription": "JavaScript runtime used by MCP services and related toolchains.",
+      "description": "Manage binary tools and runtime dependencies required by the app.",
+      "installing": "Installing...",
+      "notInstalled": "Not installed",
+      "title": "Dependencies",
+      "uvDescription": "Python package manager for MCP services and dependency installation."
     },
     "privacy": {
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",
@@ -5681,12 +5711,22 @@
     "shortcuts": {
       "action": "Action",
       "actions": "operation",
+      "all_disable": "Disable All",
+      "all_enable": "Enable All",
       "bind_first_to_enable": "Bind a shortcut first to change its enabled state",
+      "categories": {
+        "assistant": "AI Assistant Tools",
+        "chat": "Message Interaction",
+        "general": "Global and Window",
+        "title": "Shortcut Groups",
+        "topic": "Conversation and Topics"
+      },
       "clear_shortcut": "Clear Shortcut",
       "clear_topic": "Clear Messages",
       "conflict_with": "Already used by \"{{name}}\"",
       "copy_last_message": "Copy Last Message",
       "edit_last_user_message": "Edit Last User Message",
+      "empty": "No shortcuts are available in this group",
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
       "label": "Key",
@@ -5695,6 +5735,7 @@
       "press_shortcut": "Press Shortcut",
       "quick_assistant": "Quick Assistant",
       "rename_topic": "Rename Topic",
+      "reset": "Reset",
       "reset_defaults": "Reset Defaults",
       "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
       "reset_defaults_failed": "Failed to reset shortcuts to defaults",
@@ -5709,7 +5750,7 @@
       "selection_assistant_toggle": "Toggle Selection Assistant",
       "show_app": "Show/Hide App",
       "show_settings": "Open Settings",
-      "title": "Keyboard Shortcuts",
+      "title": "Shortcuts",
       "toggle_new_context": "Clear Context",
       "toggle_show_topics": "Toggle Topics",
       "toggle_sidebar": "Toggle Sidebar",
@@ -5775,6 +5816,14 @@
         "error": {
           "not_system": "System OCR only supports Windows and MacOS"
         },
+        "features": {
+          "paddleocr": "Stronger for Chinese text and better suited for receipts, scans, and images with more complex layouts.",
+          "system": {
+            "macos": "Uses the built-in macOS OCR engine with zero setup, ideal for screenshots and lightweight text extraction.",
+            "windows": "Uses the native Windows OCR engine with strong OS integration for basic local recognition tasks."
+          },
+          "tesseract": "A classic local OCR option with customizable language packs, well suited for offline and multilingual workflows."
+        },
         "image": {
           "error": {
             "provider_not_found": "The provider does not exist"
@@ -5801,15 +5850,22 @@
         "title": "OCR service"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "Well suited for converting PDFs into cleaner Markdown or editable text for downstream retrieval and editing.",
+          "mineru": "Optimized for higher-fidelity layout recovery, especially useful for academic PDFs, tables, and formulas.",
+          "mistral": "Strong cloud-based document understanding, suitable for structured extraction, multi-page files, and complex layouts.",
+          "open_mineru": "An open deployment option that fits teams wanting self-hosting or tighter control over the processing pipeline.",
+          "paddleocr": "A lighter integration choice that works well for Chinese documents, scans, and common receipt-style content."
+        },
         "paddleocr": {
           "aistudio_access_token": "Access token of AI Studio Community",
           "api_url": "API URL",
           "api_url_label": "Obtain Access Token and API URL",
           "paddleocr_url_label": "PaddleOCR Official Website"
         },
-        "provider": "Document Processing Provider",
-        "provider_placeholder": "Choose a document processing provider",
-        "title": "Document Processing",
+        "provider": "Doc Provider",
+        "provider_placeholder": "Choose a doc provider",
+        "title": "Doc Process",
         "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
       },
       "title": "Other Settings",

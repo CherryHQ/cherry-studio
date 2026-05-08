@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
+import type { AppModalFuncProps } from '@renderer/components/AppModal'
 import type { Model, ModelType } from '@renderer/types'
-import type { ModalFuncProps } from 'antd'
 import { isEqual } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -137,7 +137,7 @@ export function loadScript(url: string) {
 /**
  * 检查 URL 是否包含路径部分。
  * @param {string} url 输入 URL 字符串
- * @returns {boolean} 如果 URL 包含路径则返回 true，否则返回 false
+ * @returns {boolean} true when the URL contains a path.
  */
 export function hasPath(url: string): boolean {
   try {
@@ -150,11 +150,11 @@ export function hasPath(url: string): boolean {
 }
 
 /**
- * 显示确认模态框。
- * @param {ModalFuncProps} params 模态框参数
- * @returns {Promise<boolean>} 用户确认返回 true，取消返回 false
+ * Shows a confirmation modal.
+ * @param {AppModalFuncProps} params Modal options.
+ * @returns {Promise<boolean>} true when confirmed, false when cancelled.
  */
-export function modalConfirm(params: ModalFuncProps): Promise<boolean> {
+export function modalConfirm(params: AppModalFuncProps): Promise<boolean> {
   return new Promise((resolve) => {
     window.modal.confirm({
       centered: true,

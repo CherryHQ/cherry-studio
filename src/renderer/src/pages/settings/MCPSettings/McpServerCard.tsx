@@ -1,31 +1,30 @@
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Alert, Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServerMutations } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
-import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { cn } from '@renderer/utils/style'
 import type { MCPServer } from '@shared/data/types/mcpServer'
-import { Alert, Space, Tag, Typography } from 'antd'
-import { CircleXIcon, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { CircleXIcon, SquareArrowOutUpRight } from 'lucide-react'
+import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('McpServerCard')
 
 interface McpServerCardProps {
   server: MCPServer
+  isEditing?: boolean
   onEdit: () => void
 }
 
-const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
+const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEdit }) => {
   const { updateMCPServer, deleteMCPServer } = useMCPServerMutations(server.id)
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
@@ -106,11 +105,46 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
     }
   }, [server, deleteMCPServer, t])
 
-  const handleOpenUrl = () => {
-    if (server.providerUrl) {
-      window.open(server.providerUrl, '_blank')
+  const handleOpenUrl = useCallback(
+    (event: React.MouseEvent) => {
+      event.stopPropagation()
+
+      if (server.providerUrl) {
+        window.open(server.providerUrl, '_blank')
+      }
+    },
+    [server.providerUrl]
+  )
+
+  const sourceLabel = server.provider || (server.installSource === 'builtin' ? t('settings.mcp.builtinServers') : '')
+  const typeLabel = (server.type ?? 'stdio').toUpperCase()
+
+  const getTypeBadgeClass = () => {
+    switch (server.type) {
+      case 'sse':
+        return 'bg-success/10 text-success'
+      case 'streamableHttp':
+        return 'bg-info/10 text-info'
+      default:
+        return 'bg-muted text-muted-foreground'
     }
   }
+
+  const handleRowClick = useCallback(() => {
+    onEdit()
+  }, [onEdit])
+
+  const handleToolbarClick = useCallback((event: React.MouseEvent) => {
+    event.stopPropagation()
+  }, [])
+
+  const handleDeleteClick = useCallback(
+    (event: React.MouseEvent) => {
+      event.stopPropagation()
+      handleDelete()
+    },
+    [handleDelete]
+  )
 
   const isLoading = loading
 
@@ -119,212 +153,170 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       const { error } = props
       const errorDetails = formatErrorMessage(error)
 
-      const ErrorDetails = () => {
-        return (
-          <div
-            style={{
-              padding: 8,
-              textWrap: 'pretty',
-              fontFamily: 'monospace',
-              userSelect: 'text',
-              marginRight: 20,
-              color: 'var(--color-status-error)'
-            }}>
-            {errorDetails}
-          </div>
-        )
+      const onClickDetails = () => {
+        void GeneralPopup.show({
+          content: (
+            <div
+              style={{
+                padding: 8,
+                textWrap: 'pretty',
+                fontFamily: 'monospace',
+                userSelect: 'text',
+                marginRight: 20,
+                color: 'var(--color-error-base)'
+              }}>
+              {errorDetails}
+            </div>
+          )
+        })
       }
 
-      const onClickDetails = () => {
-        void GeneralPopup.show({ content: <ErrorDetails /> })
-      }
       return (
         <Alert
           message={t('error.boundary.mcp.invalid')}
           showIcon
           type="error"
-          style={{ height: 125, alignItems: 'flex-start', padding: 12 }}
+          style={{ height: 125, alignItems: 'flex-start', padding: 12, borderRadius: 'var(--radius-lg)' }}
           description={
-            <Typography.Paragraph style={{ color: 'var(--color-status-error)' }} ellipsis={{ rows: 3 }}>
-              {errorDetails}
-            </Typography.Paragraph>
+            <div className="line-clamp-3 text-[var(--color-error-base)] text-xs leading-5">{errorDetails}</div>
           }
           onClick={onClickDetails}
           action={
-            <Space.Compact>
+            <div className="flex items-center gap-1">
               <Button variant="destructive" size="sm" onClick={onClickDetails}>
                 <Tooltip content={t('error.boundary.details')}>
                   <CircleXIcon size={16} />
                 </Tooltip>
               </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  handleDelete()
-                }}>
+              <Button variant="destructive" size="sm" onClick={handleDeleteClick}>
                 <Tooltip content={t('common.delete')}>
                   <DeleteIcon size={16} />
                 </Tooltip>
               </Button>
-            </Space.Compact>
+            </div>
           }
         />
       )
     },
-    [handleDelete, t]
+    [handleDeleteClick, t]
   )
 
   return (
     <ErrorBoundary fallbackComponent={Fallback}>
-      <CardContainer $isActive={server.isActive} onClick={onEdit}>
-        <ServerHeader>
-          <ServerNameWrapper>
-            {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
-            <ServerNameText ellipsis={{ tooltip: true }}>{server.name}</ServerNameText>
-            {server.providerUrl && (
-              <Button variant="ghost" size="sm" className="rounded-full" onClick={handleOpenUrl} data-no-dnd>
-                <SquareArrowOutUpRight size={14} />
-              </Button>
-            )}
-          </ServerNameWrapper>
-          <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
-            <Switch
-              checked={server.isActive}
-              key={server.id}
-              disabled={isLoading}
-              onCheckedChange={handleToggleActive}
-              data-no-dnd
-            />
-            <Button size="sm" variant="destructive" className="rounded-full" onClick={handleDelete}>
+      <CardContainer onClick={handleRowClick} data-slot="mcp-server-row">
+        <ServerNameCell>
+          <ActiveDot $active={server.isActive} />
+          {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
+          <ServerNameText title={server.name} className={server.isActive ? 'text-foreground' : 'text-muted-foreground'}>
+            {server.name}
+          </ServerNameText>
+        </ServerNameCell>
+
+        <MutedCell>{version || '—'}</MutedCell>
+
+        <div className="min-w-0 shrink-0">
+          <MetaBadge className={getTypeBadgeClass()}>{typeLabel}</MetaBadge>
+        </div>
+
+        <SourceCell>
+          {sourceLabel ? (
+            <MetaBadge className={server.provider ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
+              {sourceLabel}
+            </MetaBadge>
+          ) : (
+            <span className="text-muted-foreground/70">—</span>
+          )}
+          {server.providerUrl && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-7 rounded-md text-muted-foreground shadow-none hover:text-foreground"
+              onClick={handleOpenUrl}
+              data-no-dnd>
+              <SquareArrowOutUpRight size={13} />
+            </Button>
+          )}
+        </SourceCell>
+
+        <ToolbarWrapper onClick={handleToolbarClick}>
+          {isEditing && (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              className="size-7 rounded-md text-muted-foreground shadow-none hover:text-destructive"
+              onClick={handleDeleteClick}>
               <DeleteIcon size={14} className="lucide-custom" />
             </Button>
-            <Button size="sm" variant="ghost" className="rounded-full" onClick={onEdit} data-no-dnd>
-              <Settings2 size={14} />
-            </Button>
-          </ToolbarWrapper>
-        </ServerHeader>
-        <ServerDescription>{server.description}</ServerDescription>
-        <ServerFooter>
-          {version && (
-            <VersionBadge color="#108ee9">
-              <VersionText ellipsis={{ tooltip: true }}>{version}</VersionText>
-            </VersionBadge>
           )}
-          <ServerTag color="processing">{getMcpTypeLabel(server.type ?? 'stdio')}</ServerTag>
-          {server.provider && <ServerTag color="success">{server.provider}</ServerTag>}
-          {server.tags
-            ?.filter((tag): tag is string => typeof tag === 'string') // Avoid existing non-string tags crash the UI
-            .map((tag) => (
-              <ServerTag key={tag} color="default">
-                {tag}
-              </ServerTag>
-            ))}
-        </ServerFooter>
+          <Switch
+            checked={server.isActive}
+            key={server.id}
+            disabled={isLoading}
+            size="xs"
+            className="shadow-none data-[state=checked]:bg-success/85"
+            onCheckedChange={handleToggleActive}
+            data-no-dnd
+          />
+        </ToolbarWrapper>
       </CardContainer>
     </ErrorBoundary>
   )
 }
 
-// Styled components
-const CardContainer = styled.div<{ $isActive: boolean }>`
-  display: flex;
-  flex-direction: column;
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--cs-radius-2xs);
-  padding: 10px 10px 10px 16px;
-  transition: all 0.2s ease;
-  background-color: var(--color-background);
-  margin-bottom: 5px;
-  height: 125px;
-  opacity: ${(props) => (props.$isActive ? 1 : 0.6)};
-  width: 100%;
+const CardContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border/60 border-b px-3 py-1.5 text-sm transition-colors hover:bg-muted/35',
+      className
+    )}
+    {...props}
+  />
+)
 
-  &:hover {
-    opacity: 1;
-    border-color: var(--color-primary);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-`
+const ServerNameCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex min-w-0 flex-1 items-center gap-2.5', className)} {...props} />
+)
 
-const ServerHeader = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 5px;
-`
+const ServerNameText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('min-w-0 truncate font-bold text-[14px] leading-5', className)} {...props} />
+)
 
-const ServerNameWrapper = styled.div`
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
+const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (
+  <img className={cn('size-5 shrink-0 rounded object-cover', className)} {...props} />
+)
 
-const ServerNameText = styled(Typography.Text)`
-  font-size: 15px;
-  font-weight: 500;
-`
+const MutedCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn('hidden w-14 shrink-0 truncate text-muted-foreground text-sm min-[1180px]:block', className)}
+    {...props}
+  />
+)
 
-const ServerLogo = styled.img`
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  object-fit: cover;
-  margin-right: 8px;
-`
+const SourceCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('hidden min-w-0 shrink-0 items-center gap-1.5 min-[1320px]:flex', className)} {...props} />
+)
 
-const ToolbarWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  margin-left: 8px;
+const ToolbarWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('ml-auto flex shrink-0 items-center justify-end gap-2', className)} {...props} />
+)
 
-  > :first-child {
-    margin-right: 4px;
-  }
-`
+const ActiveDot = ({ $active, className, ...props }: React.ComponentPropsWithoutRef<'div'> & { $active: boolean }) => (
+  <div
+    className={cn(
+      'size-2 shrink-0 rounded-full',
+      $active ? 'bg-success/85 ring-2 ring-success/15' : 'bg-muted-foreground/30',
+      className
+    )}
+    {...props}
+  />
+)
 
-const ServerDescription = styled.div`
-  font-size: 12px;
-  color: var(--color-text-2);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  width: 100%;
-  word-break: break-word;
-  height: 50px;
-`
-
-const ServerFooter = styled(Scrollbar)`
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  flex-direction: row;
-  overflow-x: auto;
-  min-height: 22px;
-  gap: 4px;
-  margin-top: 10px;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`
-
-const ServerTag = styled(Tag)`
-  border-radius: 20px;
-  margin: 0;
-`
-
-const VersionBadge = styled(ServerTag)`
-  font-weight: 500;
-  max-width: 6rem !important;
-`
-
-const VersionText = styled(Typography.Text)`
-  font-size: inherit;
-  color: white;
-`
+const MetaBadge = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Badge>) => (
+  <Badge
+    variant="secondary"
+    className={cn('h-5 max-w-full rounded-md border-transparent px-2 font-medium text-[11px] leading-none', className)}
+    {...props}
+  />
+)
 
 export default McpServerCard

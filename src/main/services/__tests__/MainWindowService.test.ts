@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // Hoisted state lets individual tests mutate platform flags / preferences without
 // re-mocking modules. The mock factories below read these via getters, preserving
 // live-binding semantics so each test sees the current value.
-const { platformState, prefValues, applicationMock, windowManagerMock } = vi.hoisted(() => {
+const { platformState, prefValues, applicationMock, windowManagerMock, loggerMock } = vi.hoisted(() => {
   const platformState = { isMac: false, isWin: false, isLinux: false, isDev: false }
   const prefValues: Record<string, unknown> = {
     'app.tray.enabled': false,
@@ -26,6 +26,11 @@ const { platformState, prefValues, applicationMock, windowManagerMock } = vi.hoi
     onWindowDestroyedByType: vi.fn(() => vi.fn()),
     open: vi.fn(() => 'mock-window-id')
   }
+  const loggerMock = {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn()
+  }
   const applicationMock = {
     isQuitting: false,
     quit: vi.fn(),
@@ -41,7 +46,7 @@ const { platformState, prefValues, applicationMock, windowManagerMock } = vi.hoi
     }),
     getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
-  return { platformState, prefValues, applicationMock, windowManagerMock }
+  return { platformState, prefValues, applicationMock, windowManagerMock, loggerMock }
 })
 
 vi.mock('@main/constant', () => ({
@@ -61,7 +66,7 @@ vi.mock('@main/constant', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })
+    withContext: () => loggerMock
   }
 }))
 
@@ -107,19 +112,36 @@ vi.mock('@main/core/lifecycle', async () => {
   return { ...actual, BaseService: StubBase }
 })
 
-// Import after mocks
 import { MainWindowService } from '../MainWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
+  isDestroyed: ReturnType<typeof vi.fn>
   isFullScreen: ReturnType<typeof vi.fn>
+  isMinimized: ReturnType<typeof vi.fn>
+  isVisible: ReturnType<typeof vi.fn>
+  isFocused: ReturnType<typeof vi.fn>
   hide: ReturnType<typeof vi.fn>
+  show: ReturnType<typeof vi.fn>
+  focus: ReturnType<typeof vi.fn>
+  restore: ReturnType<typeof vi.fn>
+  setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
+  setFullScreen: ReturnType<typeof vi.fn>
   webContents: { reload: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn> }
 }
 
 function createMockWindow(): MockBrowserWindow {
   const win = new EventEmitter() as MockBrowserWindow
+  win.isDestroyed = vi.fn(() => false)
   win.isFullScreen = vi.fn(() => false)
+  win.isMinimized = vi.fn(() => false)
+  win.isVisible = vi.fn(() => true)
+  win.isFocused = vi.fn(() => true)
   win.hide = vi.fn()
+  win.show = vi.fn()
+  win.focus = vi.fn()
+  win.restore = vi.fn()
+  win.setVisibleOnAllWorkspaces = vi.fn()
+  win.setFullScreen = vi.fn()
   win.webContents = {
     reload: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
@@ -164,6 +186,7 @@ describe('MainWindowService', () => {
     applicationMock.quit.mockReset()
     applicationMock.forceExit.mockReset()
     windowManagerMock.behavior.setMacShowInDockByType.mockReset()
+    loggerMock.error.mockReset()
 
     svc = new MainWindowService()
     win = createMockWindow()
@@ -171,6 +194,28 @@ describe('MainWindowService', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('replays the existing main window to late subscribers', () => {
+    ;(svc as any).mainWindow = win
+    const listener = vi.fn()
+
+    svc.onMainWindowCreated(listener)
+
+    expect(listener).toHaveBeenCalledWith(win)
+  })
+
+  it('logs late subscriber replay failures without throwing', () => {
+    ;(svc as any).mainWindow = win
+    const error = new Error('listener failed')
+    const listener = vi.fn(() => {
+      throw error
+    })
+
+    expect(() => svc.onMainWindowCreated(listener)).not.toThrow()
+
+    expect(listener).toHaveBeenCalledWith(win)
+    expect(loggerMock.error).toHaveBeenCalledWith('Failed to replay main window listener', error)
   })
 
   describe('close handler', () => {
@@ -286,6 +331,39 @@ describe('MainWindowService', () => {
       win.emit('close', event)
 
       expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('toggleMainWindow', () => {
+    it('hides a focused visible main window even when tray-close is disabled', () => {
+      ;(svc as any).mainWindow = win
+      prefValues['app.tray.on_close'] = false
+
+      svc.toggleMainWindow()
+
+      expect(win.hide).toHaveBeenCalledTimes(1)
+      expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
+    })
+
+    it('focuses a visible unfocused main window instead of hiding it', () => {
+      ;(svc as any).mainWindow = win
+      win.isFocused.mockReturnValue(false)
+
+      svc.toggleMainWindow()
+
+      expect(win.focus).toHaveBeenCalledTimes(1)
+      expect(win.hide).not.toHaveBeenCalled()
+    })
+
+    it('keeps Dock suppression when hiding on macOS with tray-close enabled', () => {
+      platformState.isMac = true
+      prefValues['app.tray.on_close'] = true
+      ;(svc as any).mainWindow = win
+
+      svc.toggleMainWindow()
+
+      expect(windowManagerMock.behavior.setMacShowInDockByType).toHaveBeenCalledWith('main', false)
+      expect(win.hide).toHaveBeenCalledTimes(1)
     })
   })
 
