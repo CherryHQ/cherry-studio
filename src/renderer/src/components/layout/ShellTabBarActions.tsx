@@ -79,15 +79,13 @@ export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolea
                 <ThemeIcon size={16} strokeWidth={1.8} />
               </button>
             </Tooltip>
-            <Tooltip placement="bottom" content={t('settings.title')} delay={800}>
-              <button
-                type="button"
-                aria-label={t('settings.title')}
-                onClick={handleSettingsClick}
-                className="flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
-                <Settings size={16} strokeWidth={1.8} />
-              </button>
-            </Tooltip>
+            <button
+              type="button"
+              aria-label={t('settings.title')}
+              onClick={handleSettingsClick}
+              className="flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
+              <Settings size={16} strokeWidth={1.8} />
+            </button>
           </div>
         </div>
       )}

@@ -21,10 +21,10 @@ const DEFAULT_TAB: Tab = {
 
 function withLocalizedRouteTitle(tab: Tab): Tab {
   if (tab.type !== 'route') return tab
-  // Only auto-localize titles for top-level routes. Parameterized routes
-  // (e.g. /app/mini-app/<id>) preserve the title supplied at openTab time so
-  // callers can pass per-entity names like a mini-app's display name.
-  if (!isTopLevelRoute(tab.url)) return tab
+  // Only auto-localize titles for top-level and settings routes. Parameterized
+  // routes (e.g. /app/mini-app/<id>) preserve the title supplied at openTab
+  // time so callers can pass per-entity names like a mini-app's display name.
+  if (!isTopLevelRoute(tab.url) && !isSettingsRouteTab(tab)) return tab
   return { ...tab, title: getDefaultRouteTitle(tab.url) }
 }
 

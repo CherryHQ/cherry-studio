@@ -189,7 +189,7 @@ export class SettingsWindowService extends BaseService {
       id: `settings:${path}`,
       type: 'route',
       url: path,
-      title: 'Settings',
+      title: '',
       lastAccessTime: Date.now(),
       isDormant: false
     }
