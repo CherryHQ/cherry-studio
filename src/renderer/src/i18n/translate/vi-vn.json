@@ -4707,11 +4707,6 @@
       "restore": {
         "button": "Khôi phục"
       },
-      "settings_open_target": {
-        "app": "Trong ứng dụng",
-        "title": "Cài đặt Mở Mục tiêu",
-        "window": "Cửa sổ riêng biệt"
-      },
       "spell_check": {
         "label": "Kiểm tra chính tả",
         "languages": "Sử dụng kiểm tra chính tả cho"

@@ -47,7 +47,7 @@ export function handleNavigateProtocolUrl(url: URL) {
   logger.debug('handleNavigateProtocolUrl', { path: fullPath })
 
   if (fullPath.startsWith('/settings/')) {
-    application.get('SettingsWindowService').openUsingPreference(normalizeSettingsPath(fullPath))
+    application.get('SettingsWindowService').open(normalizeSettingsPath(fullPath))
     return
   }
 

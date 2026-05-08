@@ -4707,11 +4707,6 @@
       "restore": {
         "button": "Restore"
       },
-      "settings_open_target": {
-        "app": "In App",
-        "title": "Settings Open Target",
-        "window": "Separate Window"
-      },
       "spell_check": {
         "label": "Spell Check",
         "languages": "Use spell check for"

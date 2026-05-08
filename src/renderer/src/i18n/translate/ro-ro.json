@@ -4707,11 +4707,6 @@
       "restore": {
         "button": "Restaurează"
       },
-      "settings_open_target": {
-        "app": "În aplicație",
-        "title": "Setări Deschide Țintă",
-        "window": "Fereastră separată"
-      },
       "spell_check": {
         "label": "Verificare ortografică",
         "languages": "Folosește verificarea ortografică pentru"

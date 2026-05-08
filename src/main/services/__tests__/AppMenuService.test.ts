@@ -8,7 +8,7 @@ const { applicationMock, menuMock, shellMock, appMock, preferenceServiceMock, se
       subscribeChange: vi.fn(() => ({ dispose: vi.fn() }))
     }
     const settingsWindowServiceMock = {
-      openUsingPreference: vi.fn()
+      open: vi.fn()
     }
 
     return {
@@ -100,7 +100,7 @@ describe('AppMenuService', () => {
 
     settingsItem?.click?.(undefined as never, undefined as never, undefined as never)
 
-    expect(settingsWindowServiceMock.openUsingPreference).toHaveBeenCalledWith('/settings/provider')
+    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith('/settings/provider')
   })
 
   it('opens the About settings route from the native app menu', async () => {
@@ -111,7 +111,7 @@ describe('AppMenuService', () => {
 
     aboutItem?.click?.(undefined as never, undefined as never, undefined as never)
 
-    expect(settingsWindowServiceMock.openUsingPreference).toHaveBeenCalledWith('/settings/about')
+    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith('/settings/about')
   })
 
   it('uses default zoom accelerators and wires them to zoom handling', async () => {

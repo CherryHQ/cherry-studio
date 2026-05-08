@@ -45,9 +45,7 @@ export async function handleProvidersProtocolUrl(url: URL) {
         logger.debug('handleProvidersProtocolUrl', { data, version })
       }
 
-      application
-        .get('SettingsWindowService')
-        .openUsingPreference(`/settings/provider?addProviderData=${encodeURIComponent(data)}`)
+      application.get('SettingsWindowService').open(`/settings/provider?addProviderData=${encodeURIComponent(data)}`)
       break
     }
     default:

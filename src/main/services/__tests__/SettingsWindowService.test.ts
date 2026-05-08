@@ -1,47 +1,26 @@
 import { EventEmitter } from 'events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { applicationMock, loggerMock, mainWindowServiceMock, preferenceServiceMock, windowManagerMock } = vi.hoisted(
-  () => {
-    const windowManagerMock = {
-      open: vi.fn<(type: string, args?: { initData?: unknown; options?: unknown }) => string>(
-        () => 'settings-window-id'
-      ),
-      getWindow: vi.fn<(id: string) => unknown>(() => undefined),
-      getWindowsByType: vi.fn<(type: string) => unknown[]>(() => []),
-      getWindowIdByWebContents: vi.fn<(sender: unknown) => string | null>(() => null),
-      close: vi.fn<(id: string) => void>(),
-      onWindowCreatedByType: vi.fn(() => ({ dispose: vi.fn() })),
-      onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
-    }
-    const mainWindowServiceMock = {
-      showMainWindow: vi.fn()
-    }
-    const preferenceServiceMock = {
-      get: vi.fn(() => 'window')
-    }
-    const loggerMock = {
-      error: vi.fn()
-    }
-    const applicationMock = {
-      get: vi.fn((name: string) => {
-        if (name === 'WindowManager') return windowManagerMock
-        if (name === 'MainWindowService') return mainWindowServiceMock
-        if (name === 'PreferenceService') return preferenceServiceMock
-        throw new Error(`unexpected service: ${name}`)
-      })
-    }
-    return { applicationMock, loggerMock, mainWindowServiceMock, preferenceServiceMock, windowManagerMock }
+const { applicationMock, windowManagerMock } = vi.hoisted(() => {
+  const windowManagerMock = {
+    open: vi.fn<(type: string, args?: { initData?: unknown; options?: unknown }) => string>(() => 'settings-window-id'),
+    getWindow: vi.fn<(id: string) => unknown>(() => undefined),
+    getWindowsByType: vi.fn<(type: string) => unknown[]>(() => []),
+    getWindowIdByWebContents: vi.fn<(sender: unknown) => string | null>(() => null),
+    close: vi.fn<(id: string) => void>(),
+    onWindowCreatedByType: vi.fn(() => ({ dispose: vi.fn() })),
+    onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
   }
-)
+  const applicationMock = {
+    get: vi.fn((name: string) => {
+      if (name === 'WindowManager') return windowManagerMock
+      throw new Error(`unexpected service: ${name}`)
+    })
+  }
+  return { applicationMock, windowManagerMock }
+})
 
 vi.mock('@application', () => ({ application: applicationMock }))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => loggerMock
-  }
-}))
 
 vi.mock('electron', () => ({
   nativeTheme: {
@@ -104,12 +83,6 @@ function getCreatedListener() {
   return (call as unknown as [WindowType, (managed: { id: string; window: MockBrowserWindow }) => void])[1]
 }
 
-function getDestroyedListener() {
-  const call = windowManagerMock.onWindowDestroyedByType.mock.calls.at(-1)
-  if (!call) throw new Error('onWindowDestroyedByType was not registered')
-  return (call as unknown as [WindowType, (managed: { id: string; window: MockBrowserWindow }) => void])[1]
-}
-
 function getIpcHandleHandler(service: SettingsWindowService, channel: string) {
   const call = (service as any).ipcHandle.mock.calls.find(
     ([registeredChannel]: [string]) => registeredChannel === channel
@@ -135,16 +108,6 @@ function mockManagedWindows({
     if (id === 'settings-window-id') return settingsWindow
     return undefined
   })
-  windowManagerMock.getWindowIdByWebContents.mockImplementation((sender: unknown) => {
-    if (sender === mainWindow.webContents) return 'main-window-id'
-    if (settingsWindow && sender === settingsWindow.webContents) return 'settings-window-id'
-    return null
-  })
-}
-
-function markMainWindowReady(service: SettingsWindowService, mainWindow: MockBrowserWindow) {
-  const readyHandler = getIpcHandleHandler(service, IpcChannel.Tab_AttachReady)
-  return readyHandler({ sender: mainWindow.webContents })
 }
 
 describe('SettingsWindowService', () => {
@@ -161,9 +124,6 @@ describe('SettingsWindowService', () => {
     windowManagerMock.close.mockReset()
     windowManagerMock.onWindowCreatedByType.mockReset().mockReturnValue({ dispose: vi.fn() })
     windowManagerMock.onWindowDestroyedByType.mockReset().mockReturnValue({ dispose: vi.fn() })
-    mainWindowServiceMock.showMainWindow.mockReset()
-    preferenceServiceMock.get.mockReset().mockReturnValue('window')
-    loggerMock.error.mockReset()
 
     service = new SettingsWindowService()
     await (service as any).onInit()
@@ -184,9 +144,6 @@ describe('SettingsWindowService', () => {
     expect((service as any).registerDisposable).toHaveBeenCalledWith(
       windowManagerMock.onWindowCreatedByType.mock.results[0].value
     )
-    expect((service as any).registerDisposable).toHaveBeenCalledWith(
-      windowManagerMock.onWindowDestroyedByType.mock.results[0].value
-    )
     expect((service as any).registerDisposable).toHaveBeenCalledWith(expect.any(Function))
   })
 
@@ -197,17 +154,6 @@ describe('SettingsWindowService', () => {
     expect(windowManagerMock.open).toHaveBeenCalledWith(
       WindowType.Settings,
       expect.objectContaining({ initData: '/settings/provider' })
-    )
-  })
-
-  it('opens settings according to the configured window target', () => {
-    preferenceServiceMock.get.mockReturnValue('window')
-
-    service.openUsingPreference('/settings/about')
-
-    expect(windowManagerMock.open).toHaveBeenCalledWith(
-      WindowType.Settings,
-      expect.objectContaining({ initData: '/settings/about' })
     )
   })
 
@@ -231,24 +177,6 @@ describe('SettingsWindowService', () => {
       })
     )
     expect(settingsWindow.setBounds).toHaveBeenCalledWith({ x: 20, y: 40, width: 1440, height: 900 })
-  })
-
-  it('opens settings in the main app according to the configured app target', () => {
-    const mainWindow = createMockWindow()
-    mockManagedWindows({ mainWindow })
-    markMainWindowReady(service, mainWindow)
-    preferenceServiceMock.get.mockReturnValue('app')
-
-    service.openUsingPreference('/settings/about')
-
-    expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledOnce()
-    expect(mainWindow.webContents.send).toHaveBeenCalledWith(
-      IpcChannel.Tab_Attach,
-      expect.objectContaining({
-        id: 'settings:/settings/about',
-        url: '/settings/about'
-      })
-    )
   })
 
   it('keeps the native title empty even when the page title changes', () => {
@@ -293,56 +221,6 @@ describe('SettingsWindowService', () => {
     expect(window.setTitle).toHaveBeenCalledOnce()
   })
 
-  it('queues in-app settings tabs until the main window registers its tab attach listener', () => {
-    const mainWindow = createMockWindow()
-    mockManagedWindows({ mainWindow })
-
-    const openInAppHandler = getIpcHandleHandler(service, IpcChannel.SettingsWindow_OpenInApp)
-    openInAppHandler({ sender: createMockWindow().webContents }, '/settings/about')
-
-    expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledOnce()
-    expect(mainWindow.webContents.send).not.toHaveBeenCalled()
-
-    expect(markMainWindowReady(service, mainWindow)).toBe(true)
-
-    expect(mainWindow.webContents.send).toHaveBeenCalledWith(
-      IpcChannel.Tab_Attach,
-      expect.objectContaining({
-        id: 'settings:/settings/about',
-        url: '/settings/about'
-      })
-    )
-  })
-
-  it('sends in-app settings tabs immediately after the main window is ready', () => {
-    const mainWindow = createMockWindow()
-    mockManagedWindows({ mainWindow })
-    markMainWindowReady(service, mainWindow)
-
-    const openInAppHandler = getIpcHandleHandler(service, IpcChannel.SettingsWindow_OpenInApp)
-    openInAppHandler({ sender: createMockWindow().webContents }, '/settings/general')
-
-    expect(mainWindow.webContents.send).toHaveBeenCalledWith(
-      IpcChannel.Tab_Attach,
-      expect.objectContaining({
-        id: 'settings:/settings/general',
-        url: '/settings/general'
-      })
-    )
-  })
-
-  it('closes the settings sender after opening settings in the main app', () => {
-    const mainWindow = createMockWindow()
-    const settingsWindow = createMockWindow()
-    mockManagedWindows({ mainWindow, settingsWindow })
-    markMainWindowReady(service, mainWindow)
-
-    const openInAppHandler = getIpcHandleHandler(service, IpcChannel.SettingsWindow_OpenInApp)
-    openInAppHandler({ sender: settingsWindow.webContents }, '/settings/provider')
-
-    expect(windowManagerMock.close).toHaveBeenCalledWith('settings-window-id')
-  })
-
   it('uses platform-specific settings window options', () => {
     expect(createSettingsWindowOptions(true, true)).toEqual({ darkTheme: true })
     expect(createSettingsWindowOptions(true, false)).toEqual({ darkTheme: false })
@@ -354,18 +232,5 @@ describe('SettingsWindowService', () => {
       darkTheme: false,
       backgroundColor: '#FFFFFF'
     })
-  })
-
-  it('drops pending settings tabs when the main window is destroyed before it is ready', () => {
-    const mainWindow = createMockWindow()
-    mockManagedWindows({ mainWindow })
-
-    const openInAppHandler = getIpcHandleHandler(service, IpcChannel.SettingsWindow_OpenInApp)
-    openInAppHandler({ sender: createMockWindow().webContents }, '/settings/about')
-    getDestroyedListener()({ id: 'main-window-id', window: mainWindow })
-
-    markMainWindowReady(service, mainWindow)
-
-    expect(mainWindow.webContents.send).not.toHaveBeenCalled()
   })
 })

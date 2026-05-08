@@ -67,14 +67,14 @@ export class AppMenuService extends BaseService {
           {
             label: appMenu.about + ' ' + app.name,
             click: () => {
-              application.get('SettingsWindowService').openUsingPreference('/settings/about')
+              application.get('SettingsWindowService').open('/settings/about')
             }
           },
           {
             label: locale.translation.settings.title,
             accelerator: settingsAccelerator,
             click: () => {
-              application.get('SettingsWindowService').openUsingPreference('/settings/provider')
+              application.get('SettingsWindowService').open('/settings/provider')
             }
           },
           { type: 'separator' },

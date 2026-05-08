@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { applicationMock, loggerMock, settingsWindowServiceMock } = vi.hoisted(() => {
   const settingsWindowServiceMock = {
-    openUsingPreference: vi.fn()
+    open: vi.fn()
   }
   const loggerMock = {
     debug: vi.fn(),
@@ -47,7 +47,7 @@ describe('providersImport protocol handler', () => {
 
     await handleProvidersProtocolUrl(new URL(`cherrystudio://providers/api-keys?v=1&data=${data}`))
 
-    expect(settingsWindowServiceMock.openUsingPreference).toHaveBeenCalledWith(
+    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith(
       `/settings/provider?addProviderData=${encodeURIComponent(JSON.stringify(config))}`
     )
   })
@@ -55,7 +55,7 @@ describe('providersImport protocol handler', () => {
   it('does not open settings when provider import data is invalid', async () => {
     await handleProvidersProtocolUrl(new URL('cherrystudio://providers/api-keys?v=1&data=not-json'))
 
-    expect(settingsWindowServiceMock.openUsingPreference).not.toHaveBeenCalled()
+    expect(settingsWindowServiceMock.open).not.toHaveBeenCalled()
     expect(loggerMock.error).toHaveBeenCalled()
   })
 
@@ -68,7 +68,7 @@ describe('providersImport protocol handler', () => {
 
     await handleProvidersProtocolUrl(new URL(`cherrystudio://providers/api-keys?v=1&data=${data}`))
 
-    expect(settingsWindowServiceMock.openUsingPreference).toHaveBeenCalledWith(
+    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith(
       `/settings/provider?addProviderData=${encodeURIComponent(JSON.stringify(config))}`
     )
   })

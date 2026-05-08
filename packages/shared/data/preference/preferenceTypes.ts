@@ -73,8 +73,6 @@ export type LanguageVarious =
 
 export type WindowStyle = 'transparent' | 'opaque'
 
-export type SettingsOpenTarget = 'window' | 'app'
-
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
 
 export type AssistantTabSortType = 'tags' | 'list'

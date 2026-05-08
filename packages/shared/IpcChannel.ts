@@ -180,7 +180,6 @@ export enum IpcChannel {
 
   // Tab
   Tab_Attach = 'tab:attach',
-  Tab_AttachReady = 'tab:attach-ready',
   Tab_Detach = 'tab:detach',
   Tab_MoveWindow = 'tab:move-window',
   Tab_TryAttach = 'tab:try-attach',
@@ -466,7 +465,6 @@ export enum IpcChannel {
 
   // WindowManager
   SettingsWindow_Open = 'settings-window:open',
-  SettingsWindow_OpenInApp = 'settings-window:open-in-app',
   WindowManager_Open = 'window-manager:open',
   WindowManager_Close = 'window-manager:close',
   WindowManager_Minimize = 'window-manager:minimize',

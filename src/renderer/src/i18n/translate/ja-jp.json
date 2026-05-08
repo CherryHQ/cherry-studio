@@ -4707,11 +4707,6 @@
       "restore": {
         "button": "復元"
       },
-      "settings_open_target": {
-        "app": "アプリ内",
-        "title": "設定 開く ターゲット",
-        "window": "別ウィンドウ"
-      },
       "spell_check": {
         "label": "スペルチェック",
         "languages": "スペルチェック言語"

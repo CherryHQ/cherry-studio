@@ -21,7 +21,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
 import { isLinux, isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
@@ -31,11 +30,8 @@ import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
-import type { LanguageVarious, SettingsOpenTarget } from '@shared/data/preference/preferenceTypes'
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { isSettingsPath, normalizeSettingsPath } from '@shared/data/types/settingsPath'
-import type { SubWindowInitData } from '@shared/types/subWindow'
-import { useLocation } from '@tanstack/react-router'
 import { Code, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -63,13 +59,6 @@ type CommonSettingsSection = 'display-language' | 'system-startup' | 'privacy-ad
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 const logger = loggerService.withContext('CommonSettings')
 
-const isDetachedSettingsWindowInitData = (value: unknown): value is SubWindowInitData => {
-  if (!value || typeof value !== 'object') return false
-
-  const url = (value as { url?: unknown }).url
-  return isSettingsPath(url)
-}
-
 const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
   { value: 'es', label: 'Español', flag: '🇪🇸' },
@@ -90,12 +79,8 @@ const CommonSettings: FC = () => {
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
   const { activeCmTheme } = useCodeStyle()
-  const tabsContext = useOptionalTabsContext()
-  const location = useLocation()
 
   const [activeSection, setActiveSection] = useState<CommonSettingsSection>('display-language')
-  const [isSettingsWindow, setIsSettingsWindow] = useState(false)
-  const [isDetachedSettingsWindow, setIsDetachedSettingsWindow] = useState(false)
   const [language, setLanguage] = usePreference('app.language')
   const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePreference(
     'BootConfig.app.disable_hardware_acceleration'
@@ -112,7 +97,6 @@ const CommonSettings: FC = () => {
   const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
-  const [settingsOpenTarget, setSettingsOpenTarget] = usePreference('app.settings.open_target')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
   const [topicPosition, setTopicPosition] = usePreference('topic.position')
   const [clickAssistantToShowTopic, setClickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
@@ -211,25 +195,7 @@ const CommonSettings: FC = () => {
     [t]
   )
 
-  const settingsOpenTargetOptions = useMemo(
-    () => [
-      { value: 'window' as const, label: t('settings.general.settings_open_target.window') },
-      { value: 'app' as const, label: t('settings.general.settings_open_target.app') }
-    ],
-    [t]
-  )
-
   useEffect(() => {
-    const loadInitData = async () => {
-      try {
-        const initData = await window.api.windowManager.getInitData<unknown>()
-        setIsSettingsWindow(isSettingsPath(initData))
-        setIsDetachedSettingsWindow(isDetachedSettingsWindowInitData(initData))
-      } catch (error) {
-        logger.error('Failed to get settings window init data', error as Error)
-      }
-    }
-
     const loadSystemFonts = async () => {
       try {
         const fonts = await window.api.getSystemFonts()
@@ -248,7 +214,6 @@ const CommonSettings: FC = () => {
       }
     }
 
-    void loadInitData()
     void loadSystemFonts()
     void updateCurrentZoom()
 
@@ -262,39 +227,6 @@ const CommonSettings: FC = () => {
       window.removeEventListener('resize', handleResize)
     }
   }, [])
-
-  const getCurrentSettingsPath = useCallback(() => {
-    return normalizeSettingsPath(location.href)
-  }, [location.href])
-
-  const handleSettingsOpenTargetChange = useCallback(
-    async (value: SettingsOpenTarget) => {
-      const previousTarget = settingsOpenTarget
-
-      try {
-        await setSettingsOpenTarget(value)
-
-        if (value === 'app') {
-          await window.api.windowManager.openSettingsInApp(getCurrentSettingsPath())
-          return
-        }
-
-        if (!isSettingsWindow) {
-          await window.api.windowManager.openSettings(getCurrentSettingsPath())
-          if (isSettingsPath(tabsContext?.activeTab?.url)) {
-            tabsContext.closeTab(tabsContext.activeTab.id)
-          }
-        }
-      } catch (error) {
-        logger.error('Failed to change settings open target', error as Error)
-        window.toast.error(formatErrorMessage(error))
-        void setSettingsOpenTarget(previousTarget).catch((rollbackError) => {
-          logger.error('Failed to rollback settings open target', rollbackError as Error)
-        })
-      }
-    },
-    [getCurrentSettingsPath, isSettingsWindow, setSettingsOpenTarget, settingsOpenTarget, tabsContext]
-  )
 
   const onSelectLanguage = (value: LanguageVarious) => {
     void i18n.changeLanguage(value)
@@ -322,7 +254,7 @@ const CommonSettings: FC = () => {
   )
 
   const handleUseSystemTitleBarChange = (checked: boolean) => {
-    window.modal.confirm({
+    void window.modal.confirm({
       title: t('settings.use_system_title_bar.confirm.title'),
       content: t('settings.use_system_title_bar.confirm.content'),
       okText: t('common.confirm'),
@@ -348,7 +280,7 @@ const CommonSettings: FC = () => {
   }
 
   const handleHardwareAccelerationChange = (checked: boolean) => {
-    window.modal.confirm({
+    void window.modal.confirm({
       title: t('settings.hardware_acceleration.confirm.title'),
       content: t('settings.hardware_acceleration.confirm.content'),
       okText: t('common.confirm'),
@@ -538,20 +470,6 @@ const CommonSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.use_system_title_bar.title')}</SettingRowTitle>
               <Switch checked={useSystemTitleBar} onCheckedChange={handleUseSystemTitleBarChange} />
-            </SettingRow>
-          </>
-        )}
-        {!isDetachedSettingsWindow && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.general.settings_open_target.title')}</SettingRowTitle>
-              <SegmentedControl<SettingsOpenTarget>
-                value={settingsOpenTarget}
-                onValueChange={handleSettingsOpenTargetChange}
-                options={settingsOpenTargetOptions}
-                size="sm"
-              />
             </SettingRow>
           </>
         )}

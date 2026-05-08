@@ -4707,11 +4707,6 @@
       "restore": {
         "button": "Restaurer"
       },
-      "settings_open_target": {
-        "app": "Dans l’application",
-        "title": "Paramètres Ouvrir la cible",
-        "window": "Fenêtre séparée"
-      },
       "spell_check": {
         "label": "Vérification orthographique",
         "languages": "Langues de vérification orthographique"

@@ -8,12 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     openSettingsWindow: vi.fn(),
-    openTab: vi.fn(),
-    updateTab: vi.fn(),
-    toastError: vi.fn(),
-    tabs: [{ id: 'home' }],
-    activeTabId: 'home',
-    settingsOpenTarget: 'window'
+    toastError: vi.fn()
   }
 }))
 
@@ -31,7 +26,6 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
-    if (key === 'app.settings.open_target') return [mocks.settingsOpenTarget]
     if (key === 'app.use_system_title_bar') return [false]
     return [undefined]
   }
@@ -39,15 +33,6 @@ vi.mock('@data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/context/ThemeProvider', () => ({
   useTheme: () => ({ settedTheme: 'light', toggleTheme: vi.fn() })
-}))
-
-vi.mock('@renderer/hooks/useTabs', () => ({
-  useTabs: () => ({
-    tabs: mocks.tabs,
-    activeTabId: mocks.activeTabId,
-    openTab: mocks.openTab,
-    updateTab: mocks.updateTab
-  })
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
@@ -60,10 +45,6 @@ vi.mock('@renderer/services/SettingsWindowService', () => ({
 
 vi.mock('@renderer/utils/error', () => ({
   formatErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
-}))
-
-vi.mock('@renderer/utils/routeTitle', () => ({
-  getDefaultRouteTitle: () => 'Settings'
 }))
 
 vi.mock('react-i18next', () => ({
@@ -79,9 +60,6 @@ import { ShellTabBarActions } from '../ShellTabBarActions'
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  mocks.settingsOpenTarget = 'window'
-  mocks.tabs = [{ id: 'home' }]
-  mocks.activeTabId = 'home'
 })
 
 describe('ShellTabBarActions', () => {
@@ -92,39 +70,7 @@ describe('ShellTabBarActions', () => {
     })
   })
 
-  it('opens settings in a new tab when app target is selected and only home exists', async () => {
-    const user = userEvent.setup()
-    mocks.settingsOpenTarget = 'app'
-
-    render(<ShellTabBarActions />)
-
-    await user.click(screen.getByRole('button', { name: /settings/i }))
-
-    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { forceNew: true, title: 'Settings' })
-    expect(mocks.updateTab).not.toHaveBeenCalled()
-    expect(mocks.openSettingsWindow).not.toHaveBeenCalled()
-  })
-
-  it('reuses the active tab when app target is selected and user tabs exist', async () => {
-    const user = userEvent.setup()
-    mocks.settingsOpenTarget = 'app'
-    mocks.tabs = [{ id: 'home' }, { id: 'tab-1' }]
-    mocks.activeTabId = 'tab-1'
-
-    render(<ShellTabBarActions />)
-
-    await user.click(screen.getByRole('button', { name: /settings/i }))
-
-    expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', {
-      url: '/settings/provider',
-      title: 'Settings',
-      icon: undefined
-    })
-    expect(mocks.openTab).not.toHaveBeenCalled()
-    expect(mocks.openSettingsWindow).not.toHaveBeenCalled()
-  })
-
-  it('opens the settings window when window target is selected', async () => {
+  it('opens the standalone settings window', async () => {
     const user = userEvent.setup()
 
     render(<ShellTabBarActions />)
@@ -132,8 +78,6 @@ describe('ShellTabBarActions', () => {
     await user.click(screen.getByRole('button', { name: /settings/i }))
 
     expect(mocks.openSettingsWindow).toHaveBeenCalledWith('/settings/provider')
-    expect(mocks.openTab).not.toHaveBeenCalled()
-    expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 
   it('shows a toast when opening the settings window fails', async () => {

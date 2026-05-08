@@ -55,7 +55,7 @@ export class ShortcutService extends BaseService {
     })
 
     this.handlers.set('shortcut.general.show_settings', () => {
-      application.get('SettingsWindowService').openUsingPreference('/settings/provider')
+      application.get('SettingsWindowService').open('/settings/provider')
     })
 
     this.handlers.set('shortcut.feature.quick_assistant.toggle_window', () => {

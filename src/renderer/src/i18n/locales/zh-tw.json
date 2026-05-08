@@ -4707,11 +4707,6 @@
       "restore": {
         "button": "復原"
       },
-      "settings_open_target": {
-        "app": "應用程式內",
-        "title": "設定頁面開啟方式",
-        "window": "獨立視窗"
-      },
       "spell_check": {
         "label": "拼寫檢查",
         "languages": "拼寫檢查語言"

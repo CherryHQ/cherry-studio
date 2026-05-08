@@ -38,7 +38,7 @@ const {
     processSelectTextByShortcut: vi.fn()
   },
   settingsWindowServiceMock: {
-    openUsingPreference: vi.fn()
+    open: vi.fn()
   },
   quickAssistantServiceMock: {
     toggleQuickAssistant: vi.fn()
@@ -205,13 +205,13 @@ describe('ShortcutService', () => {
     expect(windowServiceMock.toggleMainWindow).toHaveBeenCalledTimes(1)
   })
 
-  it('opens the settings window through SettingsWindowService preference target', async () => {
+  it('opens the settings window through SettingsWindowService', async () => {
     await (service as any).onInit()
 
     const handler = (service as any).handlers.get('shortcut.general.show_settings') as (() => void) | undefined
     handler?.()
 
-    expect(settingsWindowServiceMock.openUsingPreference).toHaveBeenCalledWith('/settings/provider')
+    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith('/settings/provider')
     expect(windowServiceMock.showMainWindow).not.toHaveBeenCalled()
     expect(windowManagerMock.broadcastToType).not.toHaveBeenCalledWith(
       WindowType.Main,

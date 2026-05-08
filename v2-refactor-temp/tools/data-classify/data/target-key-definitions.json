@@ -41,13 +41,6 @@
       "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
     },
     {
-      "targetKey": "app.settings.open_target",
-      "type": "PreferenceTypes.SettingsOpenTarget",
-      "defaultValue": "app",
-      "status": "classified",
-      "description": "Settings page open target (v2 added, non-migration)"
-    },
-    {
       "targetKey": "chat.web_search.default_provider",
       "type": "PreferenceTypes.WebSearchProviderId",
       "defaultValue": null,

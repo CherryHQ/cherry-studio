@@ -4707,11 +4707,6 @@
       "restore": {
         "button": "Wiederherstellen"
       },
-      "settings_open_target": {
-        "app": "In der App",
-        "title": "Einstellungen Ziel öffnen",
-        "window": "Separates Fenster"
-      },
       "spell_check": {
         "label": "Rechtschreibprüfung",
         "languages": "Rechtschreibprüfungssprache"

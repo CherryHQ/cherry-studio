@@ -109,7 +109,6 @@ export function TabsProvider({ children }: { children: ReactNode }) {
 
   // Active tab ID - in-memory storage
   const [activeTabId, setActiveTabIdState] = useState<string>(DEFAULT_TAB.id)
-  const didNotifyAttachReady = useRef(false)
 
   // LRU manager (singleton)
   const lruManagerRef = useRef<TabLRUManager | null>(null)
@@ -402,22 +401,6 @@ export function TabsProvider({ children }: { children: ReactNode }) {
    */
   const attachTab = useCallback(
     (tabData: Tab) => {
-      if (isSettingsRouteTab(tabData)) {
-        const existingSettingsTab = tabs.find(isSettingsRouteTab)
-
-        if (existingSettingsTab) {
-          updateTab(existingSettingsTab.id, {
-            url: tabData.url,
-            title: getDefaultRouteTitle(tabData.url),
-            isDormant: false,
-            savedState: undefined
-          })
-          setActiveTab(existingSettingsTab.id)
-          logger.info('Settings tab already exists, activating', { tabId: existingSettingsTab.id, url: tabData.url })
-          return
-        }
-      }
-
       // Check if tab already exists
       const exists = tabs.find((t) => t.id === tabData.id)
       if (exists) {
@@ -443,7 +426,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       setActiveTabIdState(restoredTab.id)
       logger.info('Tab attached from detached window', { tabId: tabData.id, url: tabData.url })
     },
-    [tabs, setActiveTab, setPinnedTabs, updateTab]
+    [tabs, setActiveTab, setPinnedTabs]
   )
 
   // Listen for tab attach requests (from Main Process)
@@ -455,13 +438,6 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     }
 
     const removeAttachRequest = window.electron.ipcRenderer.on(IpcChannel.Tab_Attach, handleAttachRequest)
-    if (!didNotifyAttachReady.current) {
-      didNotifyAttachReady.current = true
-      void window.electron.ipcRenderer.invoke(IpcChannel.Tab_AttachReady).catch((error) => {
-        didNotifyAttachReady.current = false
-        logger.warn('Failed to notify tab attach readiness', error as Error)
-      })
-    }
 
     return removeAttachRequest
   }, [attachTab])

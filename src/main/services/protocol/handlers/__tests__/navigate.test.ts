@@ -6,7 +6,7 @@ const { applicationMock, loggerMock, mainWindowServiceMock, settingsWindowServic
     showMainWindow: vi.fn()
   }
   const settingsWindowServiceMock = {
-    openUsingPreference: vi.fn()
+    open: vi.fn()
   }
   const loggerMock = {
     debug: vi.fn(),
@@ -53,7 +53,7 @@ describe('navigate protocol handler', () => {
   it('opens settings routes through SettingsWindowService', () => {
     handleNavigateProtocolUrl(new URL('cherrystudio://navigate/settings/provider?id=openai'))
 
-    expect(settingsWindowServiceMock.openUsingPreference).toHaveBeenCalledWith('/settings/provider?id=openai')
+    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith('/settings/provider?id=openai')
     expect(mainWindowServiceMock.getMainWindow).not.toHaveBeenCalled()
   })
 
