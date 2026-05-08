@@ -1,5 +1,5 @@
 import { Badge, Button, EmptyState } from '@cherrystudio/ui'
-import { Eye, MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal } from 'lucide-react'
 import { motion } from 'motion/react'
 import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -103,16 +103,6 @@ function AssistantPresetGridCard({ preset, index, adding, onAdd, onPreview }: As
       </div>
       <p className="line-clamp-3 min-h-[4.5em] flex-1 text-muted-foreground/70 text-xs leading-relaxed">{summary}</p>
       <div className="mt-4 flex items-center justify-end gap-1.5">
-        <Button
-          variant="ghost"
-          onClick={(e) => {
-            e.stopPropagation()
-            onPreview(preset)
-          }}
-          className="flex h-7 min-h-0 items-center gap-1 rounded-lg px-2.5 font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:bg-accent/55 hover:text-foreground focus-visible:ring-0">
-          <Eye size={12} />
-          {t('library.assistant_catalog.preview')}
-        </Button>
         <Button
           variant="default"
           disabled={adding}

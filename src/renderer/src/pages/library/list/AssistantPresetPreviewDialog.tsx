@@ -86,14 +86,14 @@ export function AssistantPresetPreviewDialog({ preset, open, adding = false, onO
             variant="outline"
             disabled={adding}
             onClick={() => onOpenChange(false)}
-            className="h-8 min-h-0 rounded-2xs px-4 font-normal text-sm shadow-none focus-visible:ring-0">
+            className="h-8 min-h-0 rounded-lg px-4 font-normal text-sm shadow-none focus-visible:ring-0">
             {t('common.cancel')}
           </Button>
           <Button
             variant="default"
             loading={adding}
             onClick={() => void onAdd()}
-            className="h-8 min-h-0 rounded-2xs px-4 font-normal text-sm shadow-none focus-visible:ring-0">
+            className="h-8 min-h-0 rounded-lg px-4 font-normal text-sm shadow-none focus-visible:ring-0">
             {t('library.assistant_catalog.add')}
           </Button>
         </DialogFooter>
