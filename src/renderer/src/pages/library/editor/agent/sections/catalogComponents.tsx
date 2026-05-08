@@ -7,7 +7,8 @@ import {
   PopoverContent,
   PopoverTrigger,
   Scrollbar,
-  Switch
+  Switch,
+  Tooltip
 } from '@cherrystudio/ui'
 import { Plus, Search } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
@@ -32,6 +33,12 @@ export interface CatalogItem {
   /** When false, this item is excluded from the add popover even when not
    * bound. Used by MCP to hide inactive servers from the picker. */
   pickable?: boolean
+  /** Optional secondary badge, e.g. "Added by mode" for auto-approved tools. */
+  statusBadge?: ReactNode
+  statusBadgeClassName?: string
+  /** Lock the enabled switch while keeping the row visible and checked. */
+  disableToggle?: boolean
+  disabledReason?: ReactNode
 }
 
 /**
@@ -53,20 +60,31 @@ export function BoundRow({ item, onDisable }: { item: CatalogItem; onDisable: ()
               {item.inactiveBadge}
             </span>
           ) : null}
+          {item.statusBadge ? (
+            <span
+              className={`shrink-0 rounded-3xs px-1 py-px text-xs ${
+                item.statusBadgeClassName ?? 'bg-muted text-muted-foreground'
+              }`}>
+              {item.statusBadge}
+            </span>
+          ) : null}
         </div>
         {item.description ? (
           <div className="mt-0.5 truncate text-muted-foreground/55 text-xs">{item.description}</div>
         ) : null}
       </div>
-      <Switch
-        size="sm"
-        checked
-        onCheckedChange={onDisable}
-        classNames={{
-          root: 'h-3.5 w-6 shrink-0 shadow-none',
-          thumb: 'size-2.5 ml-0.5 data-[state=checked]:translate-x-3'
-        }}
-      />
+      <Tooltip content={item.disabledReason} isDisabled={!item.disabledReason}>
+        <Switch
+          size="sm"
+          checked
+          disabled={item.disableToggle}
+          onCheckedChange={item.disableToggle ? undefined : onDisable}
+          classNames={{
+            root: 'h-3.5 w-6 shrink-0 shadow-none',
+            thumb: 'size-2.5 ml-0.5 data-[state=checked]:translate-x-3'
+          }}
+        />
+      </Tooltip>
     </div>
   )
 }

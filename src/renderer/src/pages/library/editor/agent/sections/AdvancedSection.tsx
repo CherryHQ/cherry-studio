@@ -1,8 +1,9 @@
-import { EditableNumber, FieldLabel, Textarea } from '@cherrystudio/ui'
+import { EditableNumber, Textarea } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { AgentFormState } from '../descriptor'
+import { FieldHeader } from './FieldHeader'
 
 interface Props {
   form: AgentFormState
@@ -25,12 +26,10 @@ const AdvancedSection: FC<Props> = ({ form, onChange }) => {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between">
-          <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-            {t('library.config.agent.field.max_turns.label')}
-          </FieldLabel>
-          <span className="font-mono text-foreground/70 text-xs">{form.maxTurns || 0}</span>
-        </div>
+        <FieldHeader
+          label={t('library.config.agent.field.max_turns.label')}
+          hint={t('library.config.agent.field.max_turns.help')}
+        />
         <EditableNumber
           block
           min={0}
@@ -44,20 +43,19 @@ const AdvancedSection: FC<Props> = ({ form, onChange }) => {
           placeholder="0"
           className="rounded-xs border-border/20 bg-accent/15 text-xs focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
         />
-        <span className="text-muted-foreground/55 text-xs">{t('library.config.agent.field.max_turns.help')}</span>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-          {t('library.config.agent.field.env_vars.label')}
-        </FieldLabel>
+        <FieldHeader
+          label={t('library.config.agent.field.env_vars.label')}
+          hint={t('library.config.agent.field.env_vars.help')}
+        />
         <Textarea.Input
           value={form.envVarsText}
           onChange={(e) => onChange({ envVarsText: e.target.value })}
           placeholder={'KEY=value\nANOTHER_KEY=another_value'}
           className="min-h-30 rounded-xs border-border/20 bg-accent/15 px-3 py-2 font-mono text-xs focus:border-border/40 focus:bg-accent/20"
         />
-        <span className="text-muted-foreground/55 text-xs">{t('library.config.agent.field.env_vars.help')}</span>
       </div>
     </div>
   )

@@ -60,8 +60,26 @@ vi.mock('../sections/catalogComponents', () => ({
       {triggerLabel}
     </button>
   ),
-  BoundCatalogList: ({ items, emptyLabel }: { items: Array<{ id: string; name: string }>; emptyLabel: ReactNode }) => (
-    <div>{items.length === 0 ? emptyLabel : items.map((item) => item.name).join(', ')}</div>
+  BoundCatalogList: ({
+    items,
+    emptyLabel
+  }: {
+    items: Array<{ id: string; name: string; disableToggle?: boolean; statusBadge?: ReactNode }>
+    emptyLabel: ReactNode
+  }) => (
+    <div>
+      {items.length === 0
+        ? emptyLabel
+        : items.map((item) => (
+            <div key={item.id}>
+              <span>{item.name}</span>
+              {item.statusBadge ? <span>{item.statusBadge}</span> : null}
+              <button type="button" disabled={item.disableToggle}>
+                toggle {item.name}
+              </button>
+            </div>
+          ))}
+    </div>
   )
 }))
 
@@ -113,7 +131,31 @@ describe('ToolsSection', () => {
       />
     )
 
-    expect(screen.getByText('Read, Glob')).toBeInTheDocument()
+    expect(screen.getByText('Read')).toBeInTheDocument()
+    expect(screen.getByText('Glob')).toBeInTheDocument()
+  })
+
+  it('locks permission-mode default tool switches', () => {
+    render(
+      <ToolsSection
+        agent={{
+          id: 'agent-1',
+          type: 'claude-code',
+          name: 'Agent',
+          accessiblePaths: [],
+          model: 'claude-sonnet-4-5',
+          modelName: null,
+          createdAt: '',
+          updatedAt: ''
+        }}
+        tools={tools}
+        form={createForm({ permissionMode: 'default', allowedTools: [] })}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'toggle Read' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'toggle Glob' })).toBeDisabled()
   })
 
   it('adds a built-in tool while preserving auto-approved defaults', async () => {

@@ -120,6 +120,16 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
     },
     [setForm, tools]
   )
+  const visibleSections = useMemo(
+    () => AGENT_CONFIG_SECTIONS.filter((section) => !form.soulEnabled || section.id !== 'permission'),
+    [form.soulEnabled]
+  )
+
+  useEffect(() => {
+    if (form.soulEnabled && activeSection === 'permission') {
+      setActiveSection('basic')
+    }
+  }, [activeSection, form.soulEnabled])
 
   const title = isCreate
     ? form.name.trim() || t('library.config.agent.create_title')
@@ -130,7 +140,7 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
   return (
     <ConfigEditorShell<AgentConfigSection>
       title={title}
-      sections={AGENT_CONFIG_SECTIONS}
+      sections={visibleSections}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
       canSave={canSave}
@@ -149,7 +159,7 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
         />
       )}
       {activeSection === 'prompt' && <PromptSection form={form} onChange={onChange} />}
-      {activeSection === 'permission' && <PermissionSection form={form} onChange={onChange} />}
+      {activeSection === 'permission' && !form.soulEnabled && <PermissionSection form={form} onChange={onChange} />}
       {activeSection === 'tools' && (
         <ToolsSection agent={editAgent ?? EMPTY_AGENT_FOR_CREATE} tools={tools} form={form} onChange={onChange} />
       )}

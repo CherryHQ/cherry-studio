@@ -1,8 +1,9 @@
-import { Field, FieldContent, FieldLabel, Textarea } from '@cherrystudio/ui'
+import { Field, FieldContent, Textarea } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { AgentFormState } from '../descriptor'
+import { FieldHeader } from './FieldHeader'
 
 interface Props {
   form: AgentFormState
@@ -24,9 +25,10 @@ const PromptSection: FC<Props> = ({ form, onChange }) => {
       </div>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-          {t('library.config.agent.field.instructions.label')}
-        </FieldLabel>
+        <FieldHeader
+          label={t('library.config.agent.field.instructions.label')}
+          hint={t('library.config.agent.field.instructions.hint')}
+        />
         <FieldContent>
           <Textarea.Input
             value={form.instructions}

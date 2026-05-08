@@ -2271,6 +2271,7 @@
           "accessible_paths": {
             "add": "Add directory",
             "empty": "Not set (defaults to the workspace root)",
+            "hint": "Limits directories the agent can access",
             "label": "Accessible directories"
           },
           "allowed_tools": {
@@ -2278,7 +2279,11 @@
             "empty": "Leave empty to use the permission mode default",
             "label": "Allowed tools"
           },
+          "avatar": {
+            "hint": "Used to identify it in the library and sessions"
+          },
           "description": {
+            "hint": "Helps identify what this agent is for",
             "label": "Description",
             "placeholder": "What this agent is for…"
           },
@@ -2293,6 +2298,7 @@
             "label": "Heartbeat interval (minutes)"
           },
           "instructions": {
+            "hint": "Defines the agent's role and behavior boundaries",
             "label": "System prompt",
             "placeholder": "Tell the agent who it is and what it can do…"
           },
@@ -2311,6 +2317,7 @@
             "label": "Primary model (required)"
           },
           "name": {
+            "hint": "Shown in the library and session lists",
             "label": "Agent name",
             "placeholder": "Give the agent a name"
           },

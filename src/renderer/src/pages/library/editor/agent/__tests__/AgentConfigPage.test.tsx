@@ -38,19 +38,20 @@ vi.mock('../../ConfigEditorShell', () => ({
   ConfigEditorShell: ({
     children,
     onSave,
-    onSectionChange
+    onSectionChange,
+    sections
   }: {
     children: ReactNode
     onSave: () => Promise<void>
-    onSectionChange: (section: 'advanced' | 'tools') => void
+    onSectionChange: (section: 'basic' | 'prompt' | 'advanced' | 'tools' | 'permission') => void
+    sections: Array<{ id: 'basic' | 'prompt' | 'advanced' | 'tools' | 'permission' }>
   }) => (
     <div>
-      <button type="button" onClick={() => onSectionChange('advanced')}>
-        advanced
-      </button>
-      <button type="button" onClick={() => onSectionChange('tools')}>
-        tools
-      </button>
+      {sections.map((section) => (
+        <button key={section.id} type="button" onClick={() => onSectionChange(section.id)}>
+          {section.id}
+        </button>
+      ))}
       <button type="button" onClick={() => void onSave()}>
         save
       </button>
@@ -73,10 +74,17 @@ vi.mock('../sections/AdvancedSection', () => ({
 }))
 
 vi.mock('../sections/BasicSection', () => ({
-  default: ({ onChange }: { onChange: (patch: Partial<{ name: string; model: string }>) => void }) => (
+  default: ({
+    onChange
+  }: {
+    onChange: (patch: Partial<{ name: string; model: string; soulEnabled: boolean }>) => void
+  }) => (
     <div>
       <button type="button" onClick={() => onChange({ name: 'Created Agent', model: 'anthropic::claude-sonnet-4-5' })}>
         set basic
+      </button>
+      <button type="button" onClick={() => onChange({ soulEnabled: true })}>
+        enable autonomous
       </button>
     </div>
   )
@@ -195,5 +203,17 @@ describe('AgentConfigPage', () => {
         mcps: ['mcp-1']
       })
     )
+  })
+
+  it('hides the permission section when autonomous mode is enabled', async () => {
+    const user = userEvent.setup()
+
+    render(<AgentConfigPage agent={createAgent()} onBack={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: 'permission' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'enable autonomous' }))
+
+    expect(screen.queryByRole('button', { name: 'permission' })).not.toBeInTheDocument()
   })
 })

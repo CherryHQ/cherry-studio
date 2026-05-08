@@ -2271,6 +2271,7 @@
           "accessible_paths": {
             "add": "添加目录",
             "empty": "未设置（将使用默认工作区）",
+            "hint": "限制 Agent 可访问的目录",
             "label": "可访问目录"
           },
           "allowed_tools": {
@@ -2278,7 +2279,11 @@
             "empty": "留空则使用权限模式默认值",
             "label": "允许使用的工具"
           },
+          "avatar": {
+            "hint": "用于资源库和会话识别"
+          },
           "description": {
+            "hint": "帮助你快速识别用途",
             "label": "描述",
             "placeholder": "这个 Agent 的用途…"
           },
@@ -2293,6 +2298,7 @@
             "label": "心跳间隔 (分钟)"
           },
           "instructions": {
+            "hint": "定义 Agent 的角色和行为边界",
             "label": "系统提示词",
             "placeholder": "告诉 Agent 它是谁、它能做什么…"
           },
@@ -2311,6 +2317,7 @@
             "label": "主模型 (必填)"
           },
           "name": {
+            "hint": "展示在资源库和会话列表中",
             "label": "Agent 名称",
             "placeholder": "给 Agent 起个名字"
           },

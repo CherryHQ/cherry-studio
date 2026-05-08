@@ -1,8 +1,9 @@
-import { FieldLabel, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { AgentFormState } from '../descriptor'
+import { FieldHeader } from './FieldHeader'
 
 interface Props {
   form: AgentFormState
@@ -26,9 +27,10 @@ const PermissionSection: FC<Props> = ({ form, onChange }) => {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-          {t('library.config.agent.field.permission_mode.label')}
-        </FieldLabel>
+        <FieldHeader
+          label={t('library.config.agent.field.permission_mode.label')}
+          hint={t('library.config.agent.field.permission_mode.help')}
+        />
         <Select value={form.permissionMode || 'default'} onValueChange={(value) => onChange({ permissionMode: value })}>
           <SelectTrigger className="rounded-xs border-border/20 bg-accent/15 text-xs hover:border-border/40">
             <SelectValue />
@@ -41,7 +43,6 @@ const PermissionSection: FC<Props> = ({ form, onChange }) => {
             ))}
           </SelectContent>
         </Select>
-        <span className="text-muted-foreground/55 text-xs">{t('library.config.agent.field.permission_mode.help')}</span>
       </div>
     </div>
   )

@@ -1,5 +1,6 @@
 import { Input } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
+import { permissionModeCards } from '@renderer/config/agent'
 import {
   computeModeDefaults,
   mergeAutoApprovedTools,
@@ -52,20 +53,36 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
   const canManageSkills = Boolean(agent.id)
 
   // --- 内置工具 ----------------------------------------------------------------
+  const permissionMode = normalizePermissionMode(form.permissionMode)
+  const selectedModeCard = useMemo(
+    () => permissionModeCards.find((card) => card.mode === permissionMode),
+    [permissionMode]
+  )
+  const autoToolIds = useMemo(() => computeModeDefaults(permissionMode, tools), [permissionMode, tools])
   const builtinCatalog = useMemo<CatalogItem[]>(
     () =>
       tools
         .filter((tool) => tool.type !== 'mcp')
-        .map((tool) => ({
-          id: tool.id,
-          name: tool.name,
-          description: tool.description,
-          icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />
-        })),
-    [tools]
+        .map((tool) => {
+          const isAuto = autoToolIds.includes(tool.id)
+          const modeName = selectedModeCard
+            ? t(selectedModeCard.titleKey, selectedModeCard.titleFallback)
+            : permissionMode
+          return {
+            id: tool.id,
+            name: tool.name,
+            description: tool.description,
+            icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />,
+            statusBadge: isAuto ? t('agent.settings.tooling.preapproved.autoBadge', 'Added by mode') : undefined,
+            statusBadgeClassName: isAuto ? 'bg-success/10 text-success' : undefined,
+            disableToggle: isAuto,
+            disabledReason: isAuto
+              ? t('agent.settings.tooling.preapproved.autoDisabledTooltip', { mode: modeName })
+              : undefined
+          }
+        }),
+    [autoToolIds, permissionMode, selectedModeCard, t, tools]
   )
-  const permissionMode = normalizePermissionMode(form.permissionMode)
-  const autoToolIds = useMemo(() => computeModeDefaults(permissionMode, tools), [permissionMode, tools])
   const approvedToolIds = useMemo(
     () => mergeAutoApprovedTools(form.allowedTools, permissionMode, tools),
     [form.allowedTools, permissionMode, tools]
@@ -74,6 +91,7 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
   const boundBuiltin = useMemo(() => builtinCatalog.filter((it) => allowedIds.has(it.id)), [builtinCatalog, allowedIds])
   const enableBuiltin = (id: string) => onChange({ allowedTools: uniq([...approvedToolIds, id]) })
   const disableBuiltin = (id: string) => {
+    if (autoToolIds.includes(id)) return
     onChange({ allowedTools: uniq(approvedToolIds.filter((x) => x !== id).concat(autoToolIds)) })
   }
 

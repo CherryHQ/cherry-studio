@@ -1,19 +1,18 @@
 import {
   Button,
-  DescriptionSwitch,
   EditableNumber,
   EmojiAvatar,
   Field,
   FieldContent,
   FieldDescription,
   FieldError,
-  FieldLabel,
   FieldSeparator,
   FieldSet,
   Input,
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Switch,
   Textarea,
   Tooltip
 } from '@cherrystudio/ui'
@@ -34,6 +33,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { AgentFormState } from '../descriptor'
+import { FieldHeader } from './FieldHeader'
 
 const logger = loggerService.withContext('AgentConfig:BasicSection')
 
@@ -117,7 +117,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
       </div>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">{t('common.avatar')}</FieldLabel>
+        <FieldHeader label={t('common.avatar')} hint={t('library.config.agent.field.avatar.hint')} />
         <FieldContent>
           <div className="flex items-center gap-2">
             <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
@@ -163,9 +163,10 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
       </Field>
 
       <Field data-invalid={Boolean(nameError) || undefined} className="gap-1.5">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-          {t('library.config.agent.field.name.label')}
-        </FieldLabel>
+        <FieldHeader
+          label={t('library.config.agent.field.name.label')}
+          hint={t('library.config.agent.field.name.hint')}
+        />
         <FieldContent>
           <Input
             value={form.name}
@@ -206,9 +207,10 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
       </ModelSubsection>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-          {t('library.config.agent.field.accessible_paths.label')}
-        </FieldLabel>
+        <FieldHeader
+          label={t('library.config.agent.field.accessible_paths.label')}
+          hint={t('library.config.agent.field.accessible_paths.hint')}
+        />
         <FieldContent>
           <div className="flex flex-col gap-1.5">
             {form.accessiblePaths.length === 0 ? (
@@ -247,22 +249,24 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
 
       <SwitchRow
         label={t('library.config.agent.field.soul_enabled.label')}
-        help={t('library.config.agent.field.soul_enabled.help')}
+        hint={t('library.config.agent.field.soul_enabled.help')}
         checked={form.soulEnabled}
         onCheckedChange={(checked) => onChange({ soulEnabled: checked })}
       />
 
       <SwitchRow
         label={t('library.config.agent.field.heartbeat_enabled.label')}
+        hint={t('agent.cherryClaw.heartbeat.enabledHelper')}
         checked={form.heartbeatEnabled}
         onCheckedChange={(checked) => onChange({ heartbeatEnabled: checked })}
       />
 
       {form.heartbeatEnabled ? (
         <Field className="gap-1.5">
-          <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-            {t('library.config.agent.field.heartbeat_interval.label')}
-          </FieldLabel>
+          <FieldHeader
+            label={t('library.config.agent.field.heartbeat_interval.label')}
+            hint={t('agent.cherryClaw.heartbeat.intervalHelper')}
+          />
           <FieldContent>
             <EditableNumber
               block
@@ -281,9 +285,10 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
       ) : null}
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-          {t('library.config.agent.field.description.label')}
-        </FieldLabel>
+        <FieldHeader
+          label={t('library.config.agent.field.description.label')}
+          hint={t('library.config.agent.field.description.hint')}
+        />
         <FieldContent>
           <Textarea.Input
             value={form.description}
@@ -334,10 +339,7 @@ function ModelField({
 
   return (
     <Field data-invalid={invalid || undefined} className="gap-1.5">
-      <div className="flex items-center justify-between gap-3">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">{label}</FieldLabel>
-        <span className="text-muted-foreground/50 text-xs">{hint}</span>
-      </div>
+      <FieldHeader label={label} hint={hint} />
       <FieldContent>
         <div
           className={`rounded-xs border bg-accent/15 transition-colors ${
@@ -387,24 +389,21 @@ function ModelField({
 
 function SwitchRow({
   label,
-  help,
+  hint,
   checked,
   onCheckedChange
 }: {
   label: string
-  help?: string
+  hint?: string
   checked: boolean
   onCheckedChange: (checked: boolean) => void
 }) {
   return (
     <div className="rounded-xs border border-border/30 bg-accent/15 px-3 py-2.5">
-      <DescriptionSwitch
-        label={label}
-        description={help}
-        size="sm"
-        checked={checked}
-        onCheckedChange={onCheckedChange}
-      />
+      <div className="flex items-center justify-between gap-3">
+        <FieldHeader label={label} hint={hint} className="min-w-0 flex-1" />
+        <Switch size="sm" checked={checked} onCheckedChange={onCheckedChange} aria-label={label} />
+      </div>
     </div>
   )
 }
