@@ -149,14 +149,15 @@ describe('useModelMutations', () => {
     vi.clearAllMocks()
   })
 
-  it('should set up POST, DELETE, and PATCH mutations', () => {
+  it('should set up POST, DELETE, single PATCH, and bulk PATCH mutations', () => {
     renderHook(() => useModelMutations())
 
     const calls = mockUseMutation.mock.calls
     expect(calls.find((c: any[]) => c[0] === 'POST' && c[1] === '/models')).toBeDefined()
     expect(calls.find((c: any[]) => c[0] === 'DELETE' && c[1] === '/models/:uniqueModelId*')).toBeDefined()
     expect(calls.find((c: any[]) => c[0] === 'PATCH' && c[1] === '/models/:uniqueModelId*')).toBeDefined()
-    expect(mockUseMutation).toHaveBeenCalledTimes(3)
+    expect(calls.find((c: any[]) => c[0] === 'PATCH' && c[1] === '/models')).toBeDefined()
+    expect(mockUseMutation).toHaveBeenCalledTimes(4)
   })
 
   it('should configure all mutations to refresh /models', () => {
@@ -322,6 +323,27 @@ describe('useModelMutations', () => {
     })
   })
 
+  it('should call bulk PATCH mutation trigger with the full item array when updateModels is invoked', async () => {
+    const bulkUpdateTrigger = vi.fn().mockResolvedValue([])
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models' && _method === 'PATCH' ? bulkUpdateTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    const items = [
+      { uniqueModelId: 'openai::gpt-4o', patch: { isEnabled: false } },
+      { uniqueModelId: 'openai::gpt-4o-mini', patch: { isEnabled: true } }
+    ]
+    await act(async () => {
+      await result.current.updateModels(items)
+    })
+
+    expect(bulkUpdateTrigger).toHaveBeenCalledWith({ body: items })
+  })
+
   it('should log and rethrow deleteModel errors', async () => {
     const error = new Error('Delete failed')
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
@@ -364,6 +386,25 @@ describe('useModelMutations', () => {
       modelId: 'gpt-4o',
       error
     })
+  })
+
+  it('should log and rethrow updateModels errors', async () => {
+    const error = new Error('Bulk patch failed')
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger: path === '/models' && _method === 'PATCH' ? vi.fn().mockRejectedValue(error) : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useModelMutations())
+
+    const items = [{ uniqueModelId: 'openai::gpt-4o', patch: { isEnabled: false } }]
+    await act(async () => {
+      await expect(result.current.updateModels(items)).rejects.toThrow('Bulk patch failed')
+    })
+
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to bulk update models', { count: 1, error })
   })
 
   it('should build uniqueModelId param correctly for simple IDs', async () => {
@@ -421,7 +462,7 @@ describe('useModelMutations', () => {
     expect(deleteTrigger).not.toHaveBeenCalled()
   })
 
-  it('should expose isCreating, isDeleting, isUpdating loading states', () => {
+  it('should expose mutation loading states', () => {
     mockUseMutation.mockImplementation((_method: string) => ({
       trigger: vi.fn(),
       isLoading: _method === 'POST',
@@ -433,5 +474,6 @@ describe('useModelMutations', () => {
     expect(result.current.isCreating).toBe(true)
     expect(result.current.isDeleting).toBe(false)
     expect(result.current.isUpdating).toBe(false)
+    expect(result.current.isBulkUpdating).toBe(false)
   })
 })

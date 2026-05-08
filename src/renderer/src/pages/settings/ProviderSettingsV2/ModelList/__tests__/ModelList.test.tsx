@@ -5,6 +5,7 @@ import { useProviderModelList } from '../useProviderModelList'
 
 const useModelsMock = vi.fn()
 const updateModelMock = vi.fn()
+const updateModelsMock = vi.fn()
 
 const models = [
   {
@@ -26,7 +27,8 @@ const models = [
 vi.mock('@renderer/hooks/useModels', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
-    updateModel: updateModelMock
+    updateModel: updateModelMock,
+    updateModels: updateModelsMock
   })
 }))
 
@@ -36,6 +38,7 @@ describe('useProviderModelList', () => {
 
     useModelsMock.mockReturnValue({ models, isLoading: false })
     updateModelMock.mockResolvedValue(undefined)
+    updateModelsMock.mockResolvedValue(undefined)
   })
 
   it('opens local edit drawer state when editing a model', () => {
@@ -68,8 +71,9 @@ describe('useProviderModelList', () => {
       await Promise.resolve()
     })
 
-    expect(updateModelMock).toHaveBeenCalledTimes(1)
-    expect(updateModelMock).toHaveBeenCalledWith('openai', 'model-beta', { isEnabled: true })
+    expect(updateModelsMock).toHaveBeenCalledTimes(1)
+    expect(updateModelsMock).toHaveBeenCalledWith([{ uniqueModelId: 'openai::model-beta', patch: { isEnabled: true } }])
+    expect(updateModelMock).not.toHaveBeenCalled()
   })
 
   it('does not surface local capability filtering as a loading state for larger model sets', async () => {
@@ -184,7 +188,12 @@ describe('useProviderModelList', () => {
       await Promise.resolve()
     })
 
-    expect(updateModelMock).toHaveBeenCalledTimes(2)
+    expect(updateModelsMock).toHaveBeenCalledTimes(1)
+    expect(updateModelsMock).toHaveBeenCalledWith([
+      { uniqueModelId: 'openai::reasoning-alpha', patch: { isEnabled: false } },
+      { uniqueModelId: 'openai::reasoning-beta', patch: { isEnabled: false } }
+    ])
+    expect(updateModelMock).not.toHaveBeenCalled()
     expect(result.current.header.enabledModelCount).toBe(0)
     expect(result.current.sections.displayEnabledModelCount).toBe(2)
     expect(result.current.sections.displayDisabledModelCount).toBe(1)
