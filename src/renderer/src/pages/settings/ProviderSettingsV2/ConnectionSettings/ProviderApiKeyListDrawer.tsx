@@ -256,7 +256,7 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault()
-              void onSave()
+              onSave()
             }
             if (event.key === 'Escape') {
               event.preventDefault()
@@ -275,7 +275,7 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
           {t('common.enabled')}
         </label>
         <div className={apiKeyListClasses.actionCluster}>
-          <Button variant="ghost" size="icon-sm" disabled={saving} onClick={() => void onSave()}>
+          <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onSave}>
             <Check size={14} />
           </Button>
           <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onCancel}>
