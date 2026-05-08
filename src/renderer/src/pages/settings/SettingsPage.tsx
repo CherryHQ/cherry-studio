@@ -21,8 +21,7 @@ import {
   Search,
   Server,
   Settings2,
-  TextCursorInput,
-  Zap
+  TextCursorInput
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -145,13 +144,6 @@ const SettingsPage: FC = () => {
                 label={t('settings.scheduledTasks.title')}
                 active={isActive('/settings/scheduled-tasks')}
                 onClick={() => go('/settings/scheduled-tasks')}
-              />
-              <MenuItem
-                className={menuItemClassName}
-                icon={<Zap />}
-                label={t('settings.prompts.title')}
-                active={isActive('/settings/prompts')}
-                onClick={() => go('/settings/prompts')}
               />
               <MenuItem
                 className={menuItemClassName}
