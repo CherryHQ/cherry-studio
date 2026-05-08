@@ -73,7 +73,11 @@ describe('webSearchPreferences', () => {
     const providers = resolveWebSearchProviders({
       tavily: {
         apiKeys: [' key-1 ', 'key-2'],
-        apiHost: ' https://custom.tavily.dev ',
+        capabilities: {
+          searchKeywords: {
+            apiHost: ' https://custom.tavily.dev '
+          }
+        },
         engines: ['web'],
         basicAuthUsername: ' user ',
         basicAuthPassword: 'pass'
@@ -121,7 +125,11 @@ describe('webSearchPreferences', () => {
 
     expect(overrides.tavily).toEqual({
       apiKeys: ['key-1', 'key-2'],
-      apiHost: 'https://custom.tavily.dev',
+      capabilities: {
+        searchKeywords: {
+          apiHost: 'https://custom.tavily.dev'
+        }
+      },
       engines: ['web'],
       basicAuthUsername: 'user',
       basicAuthPassword: 'pass'
@@ -144,7 +152,11 @@ describe('webSearchPreferences', () => {
 
     expect(overrides.tavily).toEqual({
       apiKeys: ['key-2', 'key-3'],
-      apiHost: 'https://custom.tavily.dev'
+      capabilities: {
+        searchKeywords: {
+          apiHost: 'https://custom.tavily.dev'
+        }
+      }
     })
   })
 
@@ -154,7 +166,11 @@ describe('webSearchPreferences', () => {
         apiKeys: ['tavily-key']
       },
       zhipu: {
-        apiHost: 'https://custom.zhipu.dev'
+        capabilities: {
+          searchKeywords: {
+            apiHost: 'https://custom.zhipu.dev'
+          }
+        }
       }
     })
 
@@ -166,7 +182,11 @@ describe('webSearchPreferences', () => {
       },
       zhipu: {
         apiKeys: ['zhipu-key'],
-        apiHost: 'https://custom.zhipu.dev'
+        capabilities: {
+          searchKeywords: {
+            apiHost: 'https://custom.zhipu.dev'
+          }
+        }
       }
     })
   })
@@ -196,7 +216,11 @@ describe('webSearchPreferences', () => {
     const overrides = updateWebSearchProviderOverride(
       {
         tavily: {
-          apiHost: 'https://custom.tavily.dev'
+          capabilities: {
+            searchKeywords: {
+              apiHost: 'https://custom.tavily.dev'
+            }
+          }
         }
       },
       'tavily',
@@ -207,7 +231,11 @@ describe('webSearchPreferences', () => {
 
     expect(overrides).toEqual({
       tavily: {
-        apiHost: ''
+        capabilities: {
+          searchKeywords: {
+            apiHost: ''
+          }
+        }
       }
     })
   })
@@ -325,7 +353,7 @@ describe('webSearchPreferences', () => {
     },
     {
       name: 'enables non-API-key providers with a configured host',
-      overrides: { searxng: { apiHost: 'https://search.example.com' } },
+      overrides: { searxng: { capabilities: { searchKeywords: { apiHost: 'https://search.example.com' } } } },
       providerId: 'searxng',
       expected: true
     },

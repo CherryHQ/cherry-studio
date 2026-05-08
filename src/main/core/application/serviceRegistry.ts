@@ -30,6 +30,7 @@ import { SpanCacheService } from '@main/services/SpanCacheService'
 import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
+import { WebSearchService } from '@main/services/webSearch'
 import { WebviewService } from '@main/services/WebviewService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
@@ -80,6 +81,7 @@ export const services = {
   ProxyManager,
   PythonService,
   TrayService,
+  WebSearchService,
   WebviewService,
   MainWindowService,
   QuickAssistantService,
