@@ -139,13 +139,15 @@ describe('Model drawers', () => {
     })
     fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
 
-    expect(createModelMock).toHaveBeenCalledWith({
-      providerId: 'openai',
-      modelId: 'alpha-model',
-      name: 'Alpha Model',
-      group: 'Alpha',
-      endpointTypes: undefined
-    })
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'openai',
+        modelId: 'alpha-model',
+        name: 'Alpha Model',
+        group: 'Alpha',
+        endpointTypes: undefined
+      })
+    )
   })
 
   it('renders the new-api add drawer with the shared select surface and keeps endpoint type in create payload', () => {

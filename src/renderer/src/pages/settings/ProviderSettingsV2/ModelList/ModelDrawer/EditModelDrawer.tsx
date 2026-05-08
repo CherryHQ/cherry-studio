@@ -294,6 +294,8 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
                 modelId: apiModelId,
                 name,
                 group,
+                maxInputTokens,
+                maxOutputTokens,
                 endpointTypes
               }}
               showEndpointType={mode === 'new-api'}
