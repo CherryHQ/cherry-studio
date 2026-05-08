@@ -736,6 +736,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS.mimo,
     isSystem: true,
     enabled: false
+  },
+  ofoxai: {
+    id: 'ofoxai',
+    name: 'OfoxAI',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.ofox.ai',
+    anthropicApiHost: 'https://api.ofox.ai',
+    models: [],
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -1510,6 +1521,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://platform.xiaomimimo.com/#/console/usage',
       docs: 'https://platform.xiaomimimo.com/#/docs/welcome',
       models: 'https://platform.xiaomimimo.com/'
+    }
+  },
+  ofoxai: {
+    api: {
+      url: 'https://api.ofox.ai'
+    },
+    websites: {
+      official: 'https://ofox.ai',
+      apiKey: 'https://ofox.ai',
+      docs: 'https://docs.ofox.ai/zh/api',
+      models: 'https://docs.ofox.ai/zh/api'
     }
   }
 }
