@@ -1,0 +1,197 @@
+import EmojiIcon from '@renderer/components/EmojiIcon'
+import type { ScrollbarProps } from '@renderer/components/Scrollbar'
+import Scrollbar from '@renderer/components/Scrollbar'
+import { SettingDivider } from '@renderer/pages/settings'
+import type {
+  AgentConfiguration,
+  AgentEntity,
+  AgentSessionEntity,
+  GetAgentResponse,
+  GetAgentSessionResponse,
+  PermissionMode,
+  Tool,
+  UpdateAgentFunction,
+  UpdateAgentSessionFunction
+} from '@renderer/types'
+import { cn } from '@renderer/utils'
+import type { ModalProps } from 'antd'
+import React, { type ReactNode } from 'react'
+
+// Shared types and constants for agent settings
+export type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
+
+// Concrete defaults — not derived from Zod schema, which carries no .default() calls
+// (Rule E: defaults belong at the consumption point, not in schemas). Use these where
+// a non-optional numeric / enum value is required (e.g. useState<number> initializers).
+export const DEFAULT_MAX_TURNS = 100
+export const DEFAULT_PERMISSION_MODE = 'default' as const
+
+export const defaultConfiguration: AgentConfigurationState = {
+  permission_mode: DEFAULT_PERMISSION_MODE,
+  max_turns: DEFAULT_MAX_TURNS,
+  env_vars: {}
+}
+
+/**
+ * Unified props type for settings components that work with both Agent and Session
+ */
+export type AgentOrSessionSettingsProps =
+  | {
+      agentBase: GetAgentResponse | undefined | null
+      update: UpdateAgentFunction
+    }
+  | {
+      agentBase: GetAgentSessionResponse | undefined | null
+      update: UpdateAgentSessionFunction
+    }
+
+/**
+ * Computes the list of tool IDs that should be automatically approved for a given permission mode.
+ */
+export const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string[] => {
+  const defaultToolIds = tools.filter((tool) => !tool.requirePermissions).map((tool) => tool.id)
+  switch (mode) {
+    case 'acceptEdits':
+      return [
+        ...defaultToolIds,
+        'Edit',
+        'MultiEdit',
+        'NotebookEdit',
+        'Write',
+        'Bash(mkdir:*)',
+        'Bash(touch:*)',
+        'Bash(rm:*)',
+        'Bash(mv:*)',
+        'Bash(cp:*)'
+      ]
+    case 'bypassPermissions':
+      return tools.map((tool) => tool.id)
+    case 'default':
+    case 'plan':
+      return defaultToolIds
+  }
+}
+
+export interface SettingsTitleProps extends React.ComponentPropsWithRef<'div'> {
+  contentAfter?: ReactNode
+}
+
+export const SettingsTitle: React.FC<SettingsTitleProps> = ({ children, contentAfter }) => {
+  return (
+    <div className="mb-1 flex items-center gap-2">
+      <span className="flex items-center gap-1 font-bold">{children}</span>
+      {contentAfter !== undefined && contentAfter}
+    </div>
+  )
+}
+
+export type AgentLabelProps = {
+  agent: AgentEntity | undefined | null
+  classNames?: {
+    container?: string
+    avatar?: string
+    name?: string
+  }
+  hideIcon?: boolean
+}
+
+export const SOUL_MODE_EMOJI = '🦞'
+
+export const isSoulModeEnabled = (configuration: AgentConfiguration | undefined | null): boolean =>
+  configuration?.soul_enabled === true
+
+export const AgentLabel = ({ agent, classNames, hideIcon }: AgentLabelProps) => {
+  const emoji = agent?.configuration?.avatar || '⭐️'
+
+  return (
+    <div className={cn('flex w-full items-center gap-2 truncate', classNames?.container)}>
+      {!hideIcon && <EmojiIcon emoji={emoji} className={classNames?.avatar} size={24} />}
+      <span className={cn('truncate', 'text-(--color-foreground)', classNames?.name)}>{agent?.name ?? ''}</span>
+    </div>
+  )
+}
+
+export type SessionLabelProps = {
+  session?: AgentSessionEntity
+  className?: string
+}
+
+export const SessionLabel = ({ session, className }: SessionLabelProps) => {
+  const displayName = session?.name ?? session?.id
+  return (
+    <>
+      <span className={cn('truncate text-(--color-foreground) text-sm', className)}>{displayName}</span>
+    </>
+  )
+}
+
+export interface SettingsItemProps extends React.ComponentPropsWithRef<'div'> {
+  /** Add a divider beneath the item if true, defaults to true.  */
+  divider?: boolean
+  /** Apply row direction flex or not, defaults to false. */
+  inline?: boolean
+}
+
+export const SettingsItem: React.FC<SettingsItemProps> = ({
+  children,
+  divider = true,
+  inline = false,
+  className,
+  ...props
+}) => {
+  return (
+    <>
+      <div
+        {...props}
+        className={cn('flex flex-col', inline ? 'flex-row items-center justify-between gap-4' : undefined, className)}>
+        {children}
+      </div>
+      {divider && <SettingDivider />}
+    </>
+  )
+}
+
+export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'> & ScrollbarProps> = ({
+  children,
+  className,
+  ...props
+}) => {
+  return (
+    <Scrollbar className={cn('p-4', className)} {...props}>
+      {children}
+    </Scrollbar>
+  )
+}
+
+export const LeftMenu = ({ className, ...props }: React.ComponentPropsWithRef<'div'>) => (
+  <div className={cn('h-full border-border border-r-[0.5px]', className)} {...props} />
+)
+
+export const Settings = ({ className, ...props }: React.ComponentPropsWithRef<'div'>) => (
+  <div className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)} {...props} />
+)
+
+/**
+ * Shared modal styles configuration for settings popups
+ */
+export const settingsModalStyles: ModalProps['styles'] = {
+  content: {
+    padding: 0,
+    overflow: 'hidden',
+    height: '80vh',
+    display: 'flex',
+    flexDirection: 'column'
+  },
+  header: {
+    padding: '10px 15px',
+    paddingRight: '32px',
+    borderBottom: '0.5px solid var(--color-border)',
+    margin: 0,
+    borderRadius: 0
+  },
+  body: {
+    padding: 0,
+    display: 'flex',
+    flex: 1
+  }
+}

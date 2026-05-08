@@ -26,6 +26,7 @@ interface ModelSelectorCommonProps {
   align?: ModelSelectorAlign
   sideOffset?: number
   contentClassName?: string
+  listVisibleCount?: number
   multiSelectMode?: boolean
   defaultMultiSelectMode?: boolean
   onMultiSelectModeChange?: (enabled: boolean) => void

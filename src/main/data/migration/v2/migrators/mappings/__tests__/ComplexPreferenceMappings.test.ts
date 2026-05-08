@@ -91,7 +91,7 @@ describe('ComplexPreferenceMappings', () => {
         (m) => m.id === 'websearch_default_provider_migrate'
       )
       expect(defaultProviderMapping).toBeDefined()
-      expect(defaultProviderMapping?.targetKeys).toEqual(['chat.web_search.default_provider'])
+      expect(defaultProviderMapping?.targetKeys).toEqual(['chat.web_search.default_search_keywords_provider'])
     })
 
     it('should contain the code_cli_overrides mapping', () => {
@@ -110,7 +110,7 @@ describe('ComplexPreferenceMappings', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toContain('chat.web_search.compression.method')
       expect(keys).toContain('chat.web_search.provider_overrides')
-      expect(keys).toContain('chat.web_search.default_provider')
+      expect(keys).toContain('chat.web_search.default_search_keywords_provider')
       expect(keys).toContain('feature.code_cli.overrides')
       expect(keys).toContain('feature.file_processing.overrides')
       expect(keys).toContain('chat.default_model_id')

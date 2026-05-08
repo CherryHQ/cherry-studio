@@ -1,7 +1,6 @@
+import { Slider } from '@cherrystudio/ui/components/primitives/slider'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
-
-import { Slider } from '../../../src/components/primitives/slider'
 
 const meta: Meta<typeof Slider> = {
   title: 'Components/Primitives/Slider',

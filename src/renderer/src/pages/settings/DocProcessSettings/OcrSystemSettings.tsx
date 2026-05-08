@@ -1,19 +1,14 @@
-// import { loggerService } from '@logger'
-import { Flex } from '@cherrystudio/ui'
-import { InfoTooltip } from '@cherrystudio/ui'
+import { Combobox, type ComboboxOption, Flex, InfoTooltip } from '@cherrystudio/ui'
 import { SuccessTag } from '@renderer/components/Tags/SuccessTag'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
 import type { TranslateLanguageCode } from '@renderer/types'
 import { BuiltinOcrProviderIds, isOcrSystemProvider } from '@renderer/types'
-import { Select } from 'antd'
 import { startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingRow, SettingRowTitle } from '..'
-
-// const logger = loggerService.withContext('OcrSystemSettings')
 
 export const OcrSystemSettings = () => {
   const { t } = useTranslation()
@@ -41,15 +36,40 @@ export const OcrSystemSettings = () => {
     [translateLanguages]
   )
 
-  const onChange = useCallback((value: TranslateLanguageCode[]) => {
-    startTransition(() => {
-      setLangs(value)
-    })
-  }, [])
+  const renderSelectedLanguages = useCallback(
+    (selectedValue: string | string[], availableOptions: ComboboxOption[]) => {
+      const selectedValues = Array.isArray(selectedValue) ? selectedValue : []
+      if (selectedValues.length === 0) return <span className="text-muted-foreground">{t('common.select')}</span>
 
-  const onBlur = useCallback(() => {
-    updateConfig({ langs })
-  }, [langs, updateConfig])
+      const firstValue = selectedValues[0]
+      const firstOption = availableOptions.find((option) => option.value === firstValue)
+
+      return (
+        <div className="flex min-w-0 items-center gap-1">
+          <span className="truncate rounded bg-primary/10 px-2 py-0.5 text-primary text-xs">
+            {firstOption?.label ?? firstValue}
+          </span>
+          {selectedValues.length > 1 && (
+            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+              +{selectedValues.length - 1}
+            </span>
+          )}
+        </div>
+      )
+    },
+    [t]
+  )
+
+  const onChange = useCallback(
+    (value: string | string[]) => {
+      const nextLangs = Array.isArray(value) ? value : []
+      startTransition(() => {
+        setLangs(nextLangs)
+      })
+      updateConfig({ langs: nextLangs })
+    },
+    [updateConfig]
+  )
 
   return (
     <>
@@ -63,14 +83,16 @@ export const OcrSystemSettings = () => {
         <div style={{ display: 'flex', gap: '8px' }}>
           {isMac && <SuccessTag message={t('settings.tool.ocr.image.system.no_need_configure')} />}
           {isWin && (
-            <Select
-              mode="multiple"
-              style={{ width: '100%', minWidth: 200 }}
+            <Combobox
+              multiple
+              width={220}
               value={langs}
               options={options}
               onChange={onChange}
-              onBlur={onBlur}
-              maxTagCount={1}
+              renderValue={renderSelectedLanguages}
+              searchable={false}
+              placeholder={t('common.select')}
+              emptyText={t('common.no_results')}
             />
           )}
         </div>

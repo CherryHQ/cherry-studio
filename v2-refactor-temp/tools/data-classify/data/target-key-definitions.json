@@ -48,11 +48,18 @@
       "description": "Paintings default provider preference (v2 new, non-migration)"
     },
     {
-      "targetKey": "chat.web_search.default_provider",
+      "targetKey": "chat.web_search.default_search_keywords_provider",
       "type": "PreferenceTypes.WebSearchProviderId",
       "defaultValue": null,
       "status": "classified",
-      "description": "Web search default provider id (normalized from legacy defaultProvider, unsupported legacy values collapse to null)"
+      "description": "Default Web Search provider for keyword search capability"
+    },
+    {
+      "targetKey": "chat.web_search.default_fetch_urls_provider",
+      "type": "PreferenceTypes.WebSearchProviderId",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Default Web Search provider for URL fetch capability"
     },
     {
       "targetKey": "chat.web_search.subscribe_sources",

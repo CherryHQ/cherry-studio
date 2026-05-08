@@ -8,7 +8,6 @@ import { Descriptions, Modal } from 'antd'
 import { Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface ShowParams {
   id: string
@@ -104,7 +103,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
       width={500}
       transitionName="animation-move-down"
       centered>
-      <Container>
+      <div className="my-3">
         <Descriptions column={1} size="small" bordered>
           <Descriptions.Item label={t('settings.models.provider_name')}>{displayName}</Descriptions.Item>
           <Descriptions.Item label={t('settings.models.provider_id')}>{baseProvider.id}</Descriptions.Item>
@@ -114,29 +113,19 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
               {showFullKey ? newApiKey : maskApiKey(newApiKey)}
               <Button variant="ghost" size="icon-sm" onClick={() => setShowFullKey((prev) => !prev)}>
                 {showFullKey ? (
-                  <Eye size={16} color="var(--color-text-3)" />
+                  <Eye size={16} color="var(--color-foreground-muted)" />
                 ) : (
-                  <EyeOff size={16} color="var(--color-text-3)" />
+                  <EyeOff size={16} color="var(--color-foreground-muted)" />
                 )}
               </Button>
             </Flex>
           </Descriptions.Item>
         </Descriptions>
-        <ConfirmMessage>{confirmMessage}</ConfirmMessage>
-      </Container>
+        <div className="mt-4 text-foreground">{confirmMessage}</div>
+      </div>
     </Modal>
   )
 }
-
-const Container = styled.div`
-  margin-top: 12px;
-  margin-bottom: 12px;
-`
-
-const ConfirmMessage = styled.div`
-  color: var(--color-text);
-  margin-top: 16px;
-`
 
 const TopViewKey = 'UrlSchemaInfoPopup'
 

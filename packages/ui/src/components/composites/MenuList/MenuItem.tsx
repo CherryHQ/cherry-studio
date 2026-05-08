@@ -24,7 +24,7 @@ const menuItemVariants = cva(
           'text-foreground-secondary',
           'hover:bg-accent hover:text-foreground',
           'data-[active=true]:bg-accent data-[active=true]:text-foreground',
-          'data-[active=true]:border-border'
+          'data-[active=true]:border-transparent'
         ),
         ghost: cn(
           'text-foreground-secondary',
