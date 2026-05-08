@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentMutations, useAgentMutationsById } from '../../adapters/agentAdapter'
-import { useEnsureTags, useTagList } from '../../adapters/tagAdapter'
 import { ConfigEditorShell } from '../ConfigEditorShell'
 import { useResourceEditorState } from '../useResourceEditorState'
 import {
@@ -49,8 +48,7 @@ const EMPTY_AGENT_FOR_CREATE: AgentDetail = {
   modelName: null,
   createdAt: '',
   updatedAt: '',
-  tools: [],
-  tags: []
+  tools: []
 }
 
 /**
@@ -86,13 +84,6 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
   // Safe empty-string id in create mode — `useMutation` builds the path at
   // call-time and we only invoke the edit mutations in edit mode.
   const { updateAgent } = useAgentMutationsById(editAgent?.id ?? '')
-  const { ensureTags } = useEnsureTags()
-  const tagList = useTagList()
-  const tagColorByName = useMemo(
-    () => new Map(tagList.tags.map((tag) => [tag.name, tag.color ?? ''] as const).filter(([, color]) => color !== '')),
-    [tagList.tags]
-  )
-  const allTagNames = useMemo(() => tagList.tags.map((tag) => tag.name), [tagList.tags])
 
   const initialForm = useMemo(() => buildInitialAgentFormState(editAgent), [editAgent])
 
@@ -105,13 +96,7 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
     diff: (nextForm, baseline) => diffAgentSaveIntent(nextForm, baseline, editAgent ?? null),
     onCommit: async (intent) => {
       if (intent.kind === 'create') {
-        // Resolve tag names to ids before the POST so the agent row + tag
-        // bindings land in the same backend transaction.
-        const tagIds = intent.tagNames.length > 0 ? (await ensureTags(intent.tagNames)).map((tag) => tag.id) : undefined
-        const created = await createAgent({
-          ...intent.payload,
-          ...(tagIds !== undefined ? { tagIds } : {})
-        })
+        const created = await createAgent(intent.payload)
         onCreated?.(created)
         // Even though the page returns to the list right after create, keep
         // the canonical row here so the save state machine completes against
@@ -119,13 +104,7 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
         const next = buildInitialAgentFormState(created)
         return { nextBaseline: next, nextForm: next }
       }
-      // Only ensure tags when the binding actually changed — avoids creating
-      // empty-name tags on a bare metadata edit.
-      const tagIds = intent.tagsChanged ? (await ensureTags(intent.tagNames)).map((tag) => tag.id) : undefined
-      const updated = await updateAgent({
-        ...intent.payload,
-        ...(tagIds !== undefined ? { tagIds } : {})
-      })
+      const updated = await updateAgent(intent.payload)
       setCurrentAgent(updated)
       const next = buildInitialAgentFormState(updated)
       return { nextBaseline: next, nextForm: next }
@@ -158,8 +137,6 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
           onChange={onChange}
           nameError={createValidation?.nameMissing ? requiredFieldMessage : undefined}
           modelError={createValidation?.modelMissing ? requiredFieldMessage : undefined}
-          tagColorByName={tagColorByName}
-          allTagNames={allTagNames}
         />
       )}
       {activeSection === 'prompt' && <PromptSection form={form} onChange={onChange} />}

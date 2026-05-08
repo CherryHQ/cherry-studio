@@ -3,14 +3,12 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
 import type { InstalledSkill, SkillFileNode } from '@types'
 import type { TFunction } from 'i18next'
-import { ArrowLeft, Clock, FileText, Loader2, Tag, Trash2, Zap } from 'lucide-react'
+import { ArrowLeft, Clock, FileText, Loader2, Trash2, Zap } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useSkillMutationsById } from '../../adapters/skillAdapter'
-import { useEnsureTags, useEntityTags, useSyncEntityTags, useTagList } from '../../adapters/tagAdapter'
-import { TagSelector } from '../../TagSelector'
 import { FileTreeNode, guessLanguage, isMarkdownFile } from './skillFileTree'
 
 interface Props {
@@ -57,16 +55,12 @@ function timeAgo(t: TFunction, dateStr: string): string {
  * Resource-library skill detail view.
  *
  * Source files remain the real skill file tree; the preview below follows the
- * currently selected file. User tags are global entity_tag bindings, while
- * SKILL.md metadata tags stay on `sourceTags` and are not edited here.
+ * currently selected file. SKILL.md metadata tags stay on `sourceTags` and are
+ * displayed in the header.
  */
 const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
   const { t } = useTranslation()
   const { uninstallSkill } = useSkillMutationsById(skill.id)
-  const { ensureTags } = useEnsureTags()
-  const { syncEntityTags } = useSyncEntityTags()
-  const tagList = useTagList()
-  const entityTags = useEntityTags('skill', skill.id)
 
   const [fileTree, setFileTree] = useState<SkillFileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
@@ -76,26 +70,10 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
   const [loadingContent, setLoadingContent] = useState(false)
   const [uninstalling, setUninstalling] = useState(false)
   const [confirmUninstallOpen, setConfirmUninstallOpen] = useState(false)
-  const [localTags, setLocalTags] = useState<string[]>(() => skill.tags.map((tag) => tag.name))
-  const [tagError, setTagError] = useState<string | null>(null)
-  const [savingTags, setSavingTags] = useState(false)
 
   const isBuiltin = skill.source === 'builtin'
   const selectedFileName = selectedFile ? (selectedFile.split('/').pop() ?? selectedFile) : null
   const sourceTags = skill.sourceTags ?? []
-
-  const displayTags = useMemo(() => {
-    if (entityTags.supported && !entityTags.isLoading && !entityTags.error) return entityTags.tags
-    return skill.tags
-  }, [entityTags.error, entityTags.isLoading, entityTags.supported, entityTags.tags, skill.tags])
-
-  // Skip resync while a mutation is in flight — otherwise the SWR refresh from
-  // a quick first toggle can clobber the user's optimistic state for a second
-  // toggle landing right after.
-  useEffect(() => {
-    if (savingTags) return
-    setLocalTags(displayTags.map((tag) => tag.name))
-  }, [displayTags, savingTags])
 
   // Load the skill's file tree on mount / id change. Auto-select SKILL.md when
   // present, otherwise the first markdown file, then the first file.
@@ -157,13 +135,6 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
     }
   }, [skill.id, selectedFile])
 
-  const tagColorByName = useMemo(
-    () => new Map(tagList.tags.map((tag) => [tag.name, tag.color ?? ''] as const).filter(([, color]) => color !== '')),
-    [tagList.tags]
-  )
-
-  const allTagNames = useMemo(() => tagList.tags.map((tag) => tag.name), [tagList.tags])
-
   const tree = useMemo(
     () =>
       fileTree.map((node) => (
@@ -185,37 +156,6 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
         />
       )),
     [fileTree, expandedDirs, selectedFile]
-  )
-
-  const persistTags = useCallback(
-    async (nextNames: string[], previousNames: string[]) => {
-      setSavingTags(true)
-      try {
-        const tags = await ensureTags(nextNames)
-        await syncEntityTags(
-          'skill',
-          skill.id,
-          tags.map((tag) => tag.id)
-        )
-        setTagError(null)
-      } catch (error) {
-        setLocalTags(previousNames)
-        setTagError(error instanceof Error ? error.message : t('library.tag_sync_failed'))
-      } finally {
-        setSavingTags(false)
-      }
-    },
-    [ensureTags, skill.id, syncEntityTags, t]
-  )
-
-  const handleTagChange = useCallback(
-    (next: string[]) => {
-      const previous = localTags
-      setLocalTags(next)
-      setTagError(null)
-      void persistTags(next, previous)
-    },
-    [localTags, persistTags]
   )
 
   const handleUninstall = useCallback(async () => {
@@ -337,23 +277,6 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
               </div>
             )}
           </div>
-        </section>
-
-        <Separator className="bg-border/20" />
-
-        <section className="flex flex-col gap-4">
-          <h2 className="flex items-center gap-2 font-medium text-muted-foreground/70 text-sm">
-            <Tag size={14} />
-            {t('library.skill_detail.tags')}
-          </h2>
-          <TagSelector
-            value={localTags}
-            onChange={handleTagChange}
-            tagColorByName={tagColorByName}
-            allTagNames={allTagNames}
-            disabled={savingTags}
-          />
-          {tagError ? <p className="text-destructive/80 text-xs">{tagError}</p> : null}
         </section>
 
         <Separator className="bg-border/20" />

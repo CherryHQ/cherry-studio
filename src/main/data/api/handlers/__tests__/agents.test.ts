@@ -142,32 +142,41 @@ describe('agentHandlers', () => {
 
       const result = await agentHandlers['/agents'].GET({} as never)
 
-      // page=1, limit=100 (AGENTS_DEFAULT_LIMIT) → offset=0; search/tagIds undefined.
+      // page=1, limit=100 (AGENTS_DEFAULT_LIMIT) → offset=0; search undefined.
       expect(listAgentsMock).toHaveBeenCalledWith({
         limit: 100,
         offset: 0,
-        search: undefined,
-        tagIds: undefined
+        search: undefined
       })
       expect(result).toMatchObject({ total: 0, page: 1 })
     })
 
-    it('GET forwards search and tagIds to the service', async () => {
+    it('GET forwards search to the service', async () => {
       listAgentsMock.mockResolvedValueOnce({ agents: [], total: 0 })
 
       await agentHandlers['/agents'].GET({
         query: {
-          search: 'research',
-          tagIds: ['11111111-1111-4111-8111-111111111111']
+          search: 'research'
         }
       } as never)
 
       expect(listAgentsMock).toHaveBeenCalledWith({
         limit: 100,
         offset: 0,
-        search: 'research',
-        tagIds: ['11111111-1111-4111-8111-111111111111']
+        search: 'research'
       })
+    })
+
+    it('GET rejects tagIds before calling the service', async () => {
+      await expect(
+        agentHandlers['/agents'].GET({
+          query: { tagIds: ['11111111-1111-4111-8111-111111111111'] }
+        } as never)
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
+
+      expect(listAgentsMock).not.toHaveBeenCalled()
     })
 
     it('GET rejects invalid pagination', async () => {
@@ -553,20 +562,21 @@ describe('agentHandlers', () => {
       expect(result).toEqual([mockSkill])
     })
 
-    it('forwards search and tagIds to skillService.list', async () => {
-      const tagId = '11111111-1111-4111-8111-111111111111'
+    it('forwards search to skillService.list', async () => {
       listSkillsMock.mockResolvedValueOnce([mockSkill])
 
       await agentHandlers['/skills'].GET({
-        query: { search: 'summary', tagIds: [tagId] }
+        query: { search: 'summary' }
       } as never)
 
-      expect(listSkillsMock).toHaveBeenCalledWith({ search: 'summary', tagIds: [tagId] })
+      expect(listSkillsMock).toHaveBeenCalledWith({ search: 'summary' })
     })
 
-    it('rejects invalid skill tag filters before calling the service', async () => {
+    it('rejects skill tag filters before calling the service', async () => {
       await expect(
-        agentHandlers['/skills'].GET({ query: { tagIds: ['not-a-tag-id'] } } as never)
+        agentHandlers['/skills'].GET({
+          query: { tagIds: ['11111111-1111-4111-8111-111111111111'] }
+        } as never)
       ).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })

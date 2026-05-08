@@ -89,10 +89,11 @@ export default function LibraryPage() {
   const activeResourceType = sidebarFilter.resourceType
   const isAssistantLibrary = activeResourceType === 'assistant'
   const isAssistantCatalogMine = !isAssistantLibrary || activeAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB
+  const assistantTagUiEnabled = isAssistantLibrary && isAssistantCatalogMine
 
   const { resources, allResources, typeCounts, refetch } = useResourceLibrary({
     sidebarFilter,
-    activeTag: isAssistantCatalogMine && activeResourceType !== 'prompt' ? activeTag : null,
+    activeTag: assistantTagUiEnabled ? activeTag : null,
     search: isAssistantCatalogMine ? search : '',
     sort: 'name'
   })
@@ -113,10 +114,10 @@ export default function LibraryPage() {
   // `refresh: ['/tags']` side-effect on createTag / ensureTags.
   const tagList = useTagList()
 
-  const scopedTags = useMemo(
-    () => buildTags(allResources, tagList.tags, activeResourceType),
-    [allResources, tagList.tags, activeResourceType]
-  )
+  const scopedTags = useMemo(() => {
+    if (!assistantTagUiEnabled) return []
+    return buildTags(allResources, tagList.tags, 'assistant')
+  }, [allResources, assistantTagUiEnabled, tagList.tags])
 
   // Selection pool includes *every* tag that exists server-side — even ones
   // that have never been bound to an assistant, so a newly-created tag from

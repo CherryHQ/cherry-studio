@@ -6,9 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentConfigPage from '../AgentConfigPage'
 
-const { createAgentMock, ensureTagsMock, updateAgentMock } = vi.hoisted(() => ({
+const { createAgentMock, updateAgentMock } = vi.hoisted(() => ({
   createAgentMock: vi.fn(),
-  ensureTagsMock: vi.fn(),
   updateAgentMock: vi.fn()
 }))
 
@@ -24,15 +23,6 @@ vi.mock('../../../adapters/agentAdapter', () => ({
   }),
   useAgentMutationsById: () => ({
     updateAgent: updateAgentMock
-  })
-}))
-
-vi.mock('../../../adapters/tagAdapter', () => ({
-  useEnsureTags: () => ({
-    ensureTags: ensureTagsMock
-  }),
-  useTagList: () => ({
-    tags: []
   })
 }))
 
@@ -103,7 +93,6 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
       avatar: 'old-avatar',
       plugin_state: 'keep-me'
     },
-    tags: [],
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
     ...overrides
@@ -113,9 +102,7 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
 describe('AgentConfigPage', () => {
   beforeEach(() => {
     createAgentMock.mockReset()
-    ensureTagsMock.mockReset()
     updateAgentMock.mockReset()
-    ensureTagsMock.mockResolvedValue([])
   })
 
   it('uses the latest saved agent configuration as the next merge base', async () => {

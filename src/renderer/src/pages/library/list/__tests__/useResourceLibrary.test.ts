@@ -97,7 +97,6 @@ describe('useResourceLibrary model display names', () => {
           description: '',
           emoji: '💬',
           modelName: 'GPT-4o',
-          tags: [],
           createdAt: '2026-04-27T00:00:00.000Z',
           updatedAt: '2026-04-27T00:00:00.000Z'
         }
@@ -112,7 +111,6 @@ describe('useResourceLibrary model display names', () => {
           configuration: {},
           model: 'anthropic::claude-sonnet-4-5',
           modelName: 'Claude Sonnet 4.5',
-          tags: [],
           createdAt: '2026-04-27T00:00:00.000Z',
           updatedAt: '2026-04-27T00:00:00.000Z'
         }
@@ -135,7 +133,6 @@ describe('useResourceLibrary model display names', () => {
           configuration: {},
           model: 'anthropic::claude-sonnet-4-5',
           modelName: null,
-          tags: [],
           createdAt: '2026-04-27T00:00:00.000Z',
           updatedAt: '2026-04-27T00:00:00.000Z'
         }
@@ -147,7 +144,7 @@ describe('useResourceLibrary model display names', () => {
     expect(result.current.allResources.find((resource) => resource.type === 'agent')?.model).toBeUndefined()
   })
 
-  it('uses global tags for skill resource cards instead of source metadata tags', () => {
+  it('does not use skill source metadata tags or stale global tags for resource cards', () => {
     const productivity = createTag('tag-1', '生产力')
     mocks.useSkillList.mockReturnValue(
       listResult([
@@ -175,10 +172,10 @@ describe('useResourceLibrary model display names', () => {
     })
     const skill = result.current.allResources.find((resource) => resource.type === 'skill')
 
-    expect(skill?.tags).toEqual(['生产力'])
+    expect(skill?.tags).toEqual([])
   })
 
-  it('passes skill search and tag filters to the backend without local filtering', () => {
+  it('passes skill search to the backend and ignores activeTag', () => {
     const productivity = createTag('tag-1', '生产力')
     mocks.useSkillList.mockImplementation((query?: ResourceListQuery) => {
       if (query) {
@@ -192,7 +189,6 @@ describe('useResourceLibrary model display names', () => {
             sourceUrl: null,
             namespace: null,
             author: null,
-            tags: [],
             sourceTags: [],
             contentHash: 'filtered-hash',
             isEnabled: false,
@@ -229,7 +225,7 @@ describe('useResourceLibrary model display names', () => {
     })
 
     expect(mocks.useSkillList.mock.calls[0]).toEqual([])
-    expect(mocks.useSkillList.mock.calls[1]).toEqual([{ search: 'summary', tagIds: ['tag-1'] }])
+    expect(mocks.useSkillList.mock.calls[1]).toEqual([{ search: 'summary' }])
     expect(result.current.resources.map((resource) => resource.id)).toEqual(['skill-filtered'])
   })
 

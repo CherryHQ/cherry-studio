@@ -202,25 +202,24 @@ describe('tagHandlers', () => {
       expect(syncEntityTagsMock).toHaveBeenCalledWith('assistant', ENTITY_ID, { tagIds: [TAG_ID, OTHER_TAG_ID] })
     })
 
-    it('should accept skill as a taggable entity type', async () => {
-      getTagsByEntityMock.mockResolvedValueOnce([{ id: TAG_ID, name: 'productivity' }])
-      syncEntityTagsMock.mockResolvedValueOnce(undefined)
+    it('should reject agent and skill entity types before calling the service', async () => {
+      for (const entityType of ['agent', 'skill']) {
+        await expect(
+          tagHandlers['/tags/entities/:entityType/:entityId'].GET({
+            params: { entityType, entityId: ENTITY_ID }
+          } as never)
+        ).rejects.toHaveProperty('name', 'ZodError')
 
-      await expect(
-        tagHandlers['/tags/entities/:entityType/:entityId'].GET({
-          params: { entityType: 'skill', entityId: ENTITY_ID }
-        } as never)
-      ).resolves.toEqual([{ id: TAG_ID, name: 'productivity' }])
+        await expect(
+          tagHandlers['/tags/entities/:entityType/:entityId'].PUT({
+            params: { entityType, entityId: ENTITY_ID },
+            body: { tagIds: [TAG_ID] }
+          } as never)
+        ).rejects.toHaveProperty('name', 'ZodError')
+      }
 
-      await expect(
-        tagHandlers['/tags/entities/:entityType/:entityId'].PUT({
-          params: { entityType: 'skill', entityId: ENTITY_ID },
-          body: { tagIds: [TAG_ID] }
-        } as never)
-      ).resolves.toBeUndefined()
-
-      expect(getTagsByEntityMock).toHaveBeenCalledWith('skill', ENTITY_ID)
-      expect(syncEntityTagsMock).toHaveBeenCalledWith('skill', ENTITY_ID, { tagIds: [TAG_ID] })
+      expect(getTagsByEntityMock).not.toHaveBeenCalled()
+      expect(syncEntityTagsMock).not.toHaveBeenCalled()
     })
 
     it('should reject invalid entityType before calling the service', async () => {

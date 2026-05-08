@@ -6,10 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ResourceItem } from '../../types'
 import { FixedCardMenu } from '../ResourceGrid'
 
-const { ensureTagsMock, syncEntityTagsMock, updateAgentMock, updateAssistantMock } = vi.hoisted(() => ({
+const { ensureTagsMock, updateAssistantMock } = vi.hoisted(() => ({
   ensureTagsMock: vi.fn(),
-  syncEntityTagsMock: vi.fn(),
-  updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn()
 }))
 
@@ -97,12 +95,6 @@ vi.mock('@cherrystudio/ui', () => ({
   Separator: () => <div />
 }))
 
-vi.mock('../../adapters/agentAdapter', () => ({
-  useAgentMutationsById: () => ({
-    updateAgent: updateAgentMock
-  })
-}))
-
 vi.mock('../../adapters/assistantAdapter', () => ({
   useAssistantMutationsById: () => ({
     updateAssistant: updateAssistantMock
@@ -112,9 +104,6 @@ vi.mock('../../adapters/assistantAdapter', () => ({
 vi.mock('../../adapters/tagAdapter', () => ({
   useEnsureTags: () => ({
     ensureTags: ensureTagsMock
-  }),
-  useSyncEntityTags: () => ({
-    syncEntityTags: syncEntityTagsMock
   }),
   useTagList: () => ({
     tags: [
@@ -134,6 +123,20 @@ function createDeferred<T>() {
   return { promise, resolve, reject }
 }
 
+function createAssistantResource(): ResourceItem {
+  return {
+    id: 'assistant-1',
+    type: 'assistant',
+    name: 'Assistant',
+    description: '',
+    avatar: 'A',
+    tags: [],
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+    raw: null
+  }
+}
+
 function createAgentResource(): ResourceItem {
   return {
     id: 'agent-1',
@@ -141,6 +144,20 @@ function createAgentResource(): ResourceItem {
     name: 'Agent',
     description: '',
     avatar: 'A',
+    tags: [],
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+    raw: null
+  }
+}
+
+function createSkillResource(): ResourceItem {
+  return {
+    id: 'skill-1',
+    type: 'skill',
+    name: 'Skill',
+    description: '',
+    avatar: 'S',
     tags: [],
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
@@ -165,8 +182,6 @@ function createPromptResource(): ResourceItem {
 describe('FixedCardMenu tag binding', () => {
   beforeEach(() => {
     ensureTagsMock.mockReset()
-    syncEntityTagsMock.mockReset()
-    updateAgentMock.mockReset()
     updateAssistantMock.mockReset()
   })
 
@@ -174,14 +189,14 @@ describe('FixedCardMenu tag binding', () => {
     const user = userEvent.setup()
     const pendingTags = createDeferred<Array<{ id: string; name: string }>>()
     ensureTagsMock.mockReturnValueOnce(pendingTags.promise)
-    updateAgentMock.mockResolvedValue({})
+    updateAssistantMock.mockResolvedValue({})
     const onUpdateResourceTags = vi.fn()
 
     render(
       <FixedCardMenu
         x={240}
         y={120}
-        resource={createAgentResource()}
+        resource={createAssistantResource()}
         onClose={vi.fn()}
         onEdit={vi.fn()}
         onDuplicate={vi.fn()}
@@ -203,14 +218,48 @@ describe('FixedCardMenu tag binding', () => {
     pendingTags.resolve([{ id: 'tag-alpha', name: 'alpha' }])
 
     await waitFor(() => {
-      expect(updateAgentMock).toHaveBeenCalledWith({ tagIds: ['tag-alpha'] })
+      expect(updateAssistantMock).toHaveBeenCalledWith({ tagIds: ['tag-alpha'] })
     })
-    expect(onUpdateResourceTags).toHaveBeenCalledWith('agent-1', ['alpha'])
+    expect(onUpdateResourceTags).toHaveBeenCalledWith('assistant-1', ['alpha'])
     expect(ensureTagsMock).toHaveBeenCalledTimes(1)
   })
 
-  it('does not expose tag management for prompt resources', () => {
-    render(
+  it('does not expose tag management for agent, skill, or prompt resources', () => {
+    const { rerender } = render(
+      <FixedCardMenu
+        x={240}
+        y={120}
+        resource={createAgentResource()}
+        onClose={vi.fn()}
+        onEdit={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        onUpdateResourceTags={vi.fn()}
+        allTagNames={['alpha', 'beta']}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
+
+    rerender(
+      <FixedCardMenu
+        x={240}
+        y={120}
+        resource={createSkillResource()}
+        onClose={vi.fn()}
+        onEdit={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        onUpdateResourceTags={vi.fn()}
+        allTagNames={['alpha', 'beta']}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
+
+    rerender(
       <FixedCardMenu
         x={240}
         y={120}

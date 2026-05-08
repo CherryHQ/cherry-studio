@@ -9,8 +9,6 @@ import {
   type InsertAgentGlobalSkillRow
 } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
-import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
-import { tagService } from '@data/services/TagService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { directoryExists } from '@main/utils/file'
@@ -18,7 +16,6 @@ import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { executeCommand, findExecutableInEnv } from '@main/utils/process'
 import type { ListSkillsQuery } from '@shared/data/api/schemas/agents'
-import type { Tag } from '@shared/data/types/tag'
 import type {
   InstalledSkill,
   SkillFileNode,
@@ -27,7 +24,7 @@ import type {
   SkillInstallOptions,
   SkillToggleOptions
 } from '@types'
-import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, or, type SQL, sql } from 'drizzle-orm'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
 
@@ -94,19 +91,6 @@ export class SkillService {
       if (searchClause) conditions.push(searchClause)
     }
 
-    if (query.tagIds && query.tagIds.length > 0) {
-      const tagIds = Array.from(new Set(query.tagIds))
-      conditions.push(
-        inArray(
-          agentGlobalSkillTable.id,
-          this.db
-            .select({ entityId: entityTagTable.entityId })
-            .from(entityTagTable)
-            .where(and(eq(entityTagTable.entityType, 'skill'), inArray(entityTagTable.tagId, tagIds)))
-        )
-      )
-    }
-
     const rows =
       conditions.length > 0
         ? await this.db
@@ -115,8 +99,7 @@ export class SkillService {
             .where(and(...conditions))
             .orderBy(asc(agentGlobalSkillTable.createdAt))
         : await this.db.select().from(agentGlobalSkillTable).orderBy(asc(agentGlobalSkillTable.createdAt))
-    const tagMap = await this.getTagsBySkillIds(rows.map((row) => row.id))
-    const skills = rows.map((row) => this.rowToInstalledSkill(row, tagMap.get(row.id) ?? []))
+    const skills = rows.map((row) => this.rowToInstalledSkill(row))
     if (!query.agentId) {
       return skills.map((s) => ({ ...s, isEnabled: false }))
     }
@@ -338,10 +321,7 @@ export class SkillService {
     // Remove from global storage; FK cascade on skill_id deletes agent_skills rows.
     const skillPath = this.getSkillStoragePath(skill.folderName)
     await this.installer.uninstall(skillPath)
-    await this.db.transaction(async (tx) => {
-      await tx.delete(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, skillId))
-      await tagService.purgeForEntity(tx, 'skill', skillId)
-    })
+    await this.db.delete(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, skillId))
     logger.info('Skill uninstalled', { skillId, folderName: skill.folderName })
   }
 
@@ -795,8 +775,7 @@ export class SkillService {
   private async getSkillById(id: string): Promise<InstalledSkill | null> {
     const rows = await this.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, id)).limit(1)
     if (!rows[0]) return null
-    const tagMap = await this.getTagsBySkillIds([rows[0].id])
-    return this.rowToInstalledSkill(rows[0], tagMap.get(rows[0].id) ?? [])
+    return this.rowToInstalledSkill(rows[0])
   }
 
   private async getSkillByFolderName(folderName: string): Promise<InstalledSkill | null> {
@@ -806,8 +785,7 @@ export class SkillService {
       .where(eq(agentGlobalSkillTable.folderName, folderName))
       .limit(1)
     if (!rows[0]) return null
-    const tagMap = await this.getTagsBySkillIds([rows[0].id])
-    return this.rowToInstalledSkill(rows[0], tagMap.get(rows[0].id) ?? [])
+    return this.rowToInstalledSkill(rows[0])
   }
 
   private async upsertAgentSkill(agentId: string, skillId: string, isEnabled: boolean): Promise<void> {
@@ -820,45 +798,7 @@ export class SkillService {
       })
   }
 
-  private async getTagsBySkillIds(skillIds: string[]): Promise<Map<string, Tag[]>> {
-    const tagMap = new Map<string, Tag[]>()
-    if (skillIds.length === 0) return tagMap
-
-    for (const id of skillIds) {
-      tagMap.set(id, [])
-    }
-
-    const rows = await this.db
-      .select({
-        skillId: entityTagTable.entityId,
-        tagId: tagTable.id,
-        tagName: tagTable.name,
-        tagColor: tagTable.color,
-        tagCreatedAt: tagTable.createdAt,
-        tagUpdatedAt: tagTable.updatedAt
-      })
-      .from(entityTagTable)
-      .innerJoin(tagTable, eq(entityTagTable.tagId, tagTable.id))
-      .where(and(eq(entityTagTable.entityType, 'skill'), inArray(entityTagTable.entityId, skillIds)))
-      .orderBy(asc(entityTagTable.entityId), asc(tagTable.name))
-
-    for (const row of rows) {
-      // Bucket is initialized above for every requested id, and `inArray`
-      // bounds rows to that same set — so `get` is non-null here.
-      const bucket = tagMap.get(row.skillId)!
-      bucket.push({
-        id: row.tagId,
-        name: row.tagName,
-        color: row.tagColor ?? null,
-        createdAt: timestampToISO(row.tagCreatedAt),
-        updatedAt: timestampToISO(row.tagUpdatedAt)
-      })
-    }
-
-    return tagMap
-  }
-
-  private rowToInstalledSkill(row: AgentGlobalSkillRow, tags: Tag[] = []): InstalledSkill {
+  private rowToInstalledSkill(row: AgentGlobalSkillRow): InstalledSkill {
     return {
       id: row.id,
       name: row.name,
@@ -868,7 +808,6 @@ export class SkillService {
       sourceUrl: row.sourceUrl,
       namespace: row.namespace,
       author: row.author,
-      tags,
       sourceTags: row.tags ?? [],
       contentHash: row.contentHash,
       isEnabled: row.isEnabled,

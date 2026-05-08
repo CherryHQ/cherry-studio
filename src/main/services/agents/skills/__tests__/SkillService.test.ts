@@ -85,7 +85,7 @@ describe('SkillService', () => {
       expect(result.map((s) => s.name)).toContain('skill-one')
     })
 
-    it('returns user tags separately from source metadata tags', async () => {
+    it('returns source metadata tags and does not expose stale user tags', async () => {
       const skillService = new SkillService()
       await seedSkills()
       await dbh.db
@@ -105,8 +105,7 @@ describe('SkillService', () => {
       const skill = result.find((s) => s.id === SKILL_ID_1)
 
       expect(skill?.sourceTags).toEqual(['source-ai'])
-      expect(skill?.tags.map((tag) => tag.name)).toEqual(['alpha', 'beta'])
-      expect(skill?.tags[0]).toMatchObject({ id: TAG_ID_1, color: '#8b5cf6' })
+      expect('tags' in (skill as object)).toBe(false)
     })
 
     it('reflects per-agent enablement when agentId is provided', async () => {
@@ -163,7 +162,7 @@ describe('SkillService', () => {
       expect(result.map((s) => s.id)).toEqual([SKILL_ID_1])
     })
 
-    it('filters by global tagIds with union semantics', async () => {
+    it('ignores legacy global tagIds list options if a stale caller passes them', async () => {
       const skillService = new SkillService()
       await seedSkills()
       await dbh.db.insert(tagTable).values([
@@ -175,22 +174,22 @@ describe('SkillService', () => {
         { entityType: 'skill', entityId: SKILL_ID_2, tagId: TAG_ID_2 }
       ])
 
-      const result = await skillService.list({ tagIds: [TAG_ID_2] })
-      const unionResult = await skillService.list({ tagIds: [TAG_ID_1, TAG_ID_2] })
+      const result = await skillService.list({ tagIds: [TAG_ID_2] } as never)
+      const unionResult = await skillService.list({ tagIds: [TAG_ID_1, TAG_ID_2] } as never)
 
-      expect(result.map((s) => s.id)).toEqual([SKILL_ID_2])
-      expect(unionResult.map((s) => s.id)).toEqual([SKILL_ID_1, SKILL_ID_2])
+      expect(result.map((s) => s.id)).toEqual([SKILL_ID_1, SKILL_ID_2, SKILL_ID_BUILTIN])
+      expect(unionResult.map((s) => s.id)).toEqual([SKILL_ID_1, SKILL_ID_2, SKILL_ID_BUILTIN])
     })
 
-    it('ANDs search with global tagIds', async () => {
+    it('keeps search behavior when legacy global tagIds are present', async () => {
       const skillService = new SkillService()
       await seedSkills()
       await dbh.db.insert(tagTable).values({ id: TAG_ID_1, name: 'alpha', color: '#8b5cf6' })
       await dbh.db.insert(entityTagTable).values({ entityType: 'skill', entityId: SKILL_ID_1, tagId: TAG_ID_1 })
 
-      const result = await skillService.list({ search: 'two', tagIds: [TAG_ID_1] })
+      const result = await skillService.list({ search: 'two', tagIds: [TAG_ID_1] } as never)
 
-      expect(result).toEqual([])
+      expect(result.map((s) => s.id)).toEqual([SKILL_ID_2])
     })
   })
 
@@ -212,9 +211,9 @@ describe('SkillService', () => {
         id: SKILL_ID_1,
         name: 'skill-one',
         folderName: 'skill-one',
-        source: 'marketplace',
-        tags: [{ id: TAG_ID_1, name: 'alpha', color: '#8b5cf6' }]
+        source: 'marketplace'
       })
+      expect('tags' in (result as object)).toBe(false)
     })
   })
 
@@ -326,7 +325,7 @@ describe('SkillService', () => {
       expect(skillService['installer'].uninstall).toHaveBeenCalledOnce()
     })
 
-    it('removes global tag bindings for the uninstalled skill', async () => {
+    it('leaves stale global tag bindings untouched when uninstalling', async () => {
       const skillService = new SkillService()
       await seedSkills()
       await dbh.db.insert(tagTable).values({ id: TAG_ID_1, name: 'alpha', color: '#8b5cf6' })
@@ -336,7 +335,7 @@ describe('SkillService', () => {
       await skillService.uninstall(SKILL_ID_1)
 
       const rows = await dbh.db.select().from(entityTagTable).where(eq(entityTagTable.entityId, SKILL_ID_1))
-      expect(rows).toHaveLength(0)
+      expect(rows).toHaveLength(1)
     })
 
     it('removes symlinks for enabled agents before deleting', async () => {

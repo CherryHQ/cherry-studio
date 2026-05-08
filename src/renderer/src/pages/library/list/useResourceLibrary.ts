@@ -45,6 +45,8 @@ export function useResourceLibrary({
 
   const trimmedSearch = search.trim() || undefined
 
+  const assistantTagsActive = sidebarFilter.resourceType === 'assistant' && Boolean(activeTag)
+
   // Two reads per filterable type:
   // - Base (no params): powers `typeCounts` and `allResources` so the sidebar
   //   numbers / chip set don't collapse when the user types in the search box.
@@ -57,7 +59,7 @@ export function useResourceLibrary({
   const skills = skillAdapter.useList()
   const basePrompts = promptAdapter.useList()
 
-  // Resolve tag names to ids primarily from the embedded tags we already
+  // Resolve assistant tag names to ids primarily from the embedded tags we already
   // have on base data — every chip the user can click was rendered from a
   // resource in this set, so its id is guaranteed to be here. Falling back to
   // `useTagList()` alone would race: if `/tags` is slow or fails after the user
@@ -72,16 +74,15 @@ export function useResourceLibrary({
       for (const t of refs) if (!map.has(t.name)) map.set(t.name, t.id)
     }
     for (const a of baseAssistants.data) collect(a.tags)
-    for (const a of baseAgents.data) collect(a.tags)
-    for (const s of skills.data) collect(s.tags)
     for (const t of tagList.tags) if (!map.has(t.name)) map.set(t.name, t.id)
     return map
-  }, [baseAssistants.data, baseAgents.data, skills.data, tagList.tags])
+  }, [baseAssistants.data, tagList.tags])
 
   // Resolved query filter (omitted entirely if no tag is selected). Empty
   // arrays are forbidden by the backend schema (`tagIds.min(1)`), so we drop
   // the param when nothing resolves rather than sending a 400.
   const tagIds = useMemo(() => {
+    if (!assistantTagsActive) return undefined
     const names = [activeTag].filter((x): x is string => Boolean(x))
     if (names.length === 0) return undefined
     const ids = names.flatMap((name) => {
@@ -89,7 +90,7 @@ export function useResourceLibrary({
       return id ? [id] : []
     })
     return ids.length > 0 ? ids : undefined
-  }, [activeTag, tagIdByName])
+  }, [activeTag, assistantTagsActive, tagIdByName])
 
   // Defensive guard for the rare race where the user has a chip selected but
   // we can't resolve its id (e.g. base data reset between click and filter
@@ -97,15 +98,15 @@ export function useResourceLibrary({
   // query would degrade to "no tag filter" and surface every resource —
   // misleading for a user who explicitly picked a tag.
   const hasUnresolvedTagSelection =
-    sidebarFilter.resourceType !== 'prompt' && Boolean(activeTag) && tagIds === undefined
+    sidebarFilter.resourceType === 'assistant' && Boolean(activeTag) && tagIds === undefined
 
   const filteredAssistants = assistantAdapter.useList({ search: trimmedSearch, tagIds })
-  const filteredAgents = agentAdapter.useList({ search: trimmedSearch, tagIds })
+  const filteredAgents = agentAdapter.useList({ search: trimmedSearch })
   // Skip the filtered fetch when skills are not displayed (sidebar pinned to
   // assistant or agent). With no args the adapter shares the same cache key
   // as the unfiltered `skills` call above, so we don't pay an extra request.
   const skillsVisible = sidebarFilter.resourceType === 'skill'
-  const filteredSkills = skillAdapter.useList(skillsVisible ? { search: trimmedSearch, tagIds } : undefined)
+  const filteredSkills = skillAdapter.useList(skillsVisible ? { search: trimmedSearch } : undefined)
   const promptsVisible = sidebarFilter.resourceType === 'prompt'
   const filteredPrompts = promptAdapter.useList(promptsVisible ? { search: trimmedSearch } : undefined)
 
@@ -132,7 +133,6 @@ export function useResourceLibrary({
 
   const buildAgentItem = useCallback((a: AgentDetail): ResourceItem => {
     const avatarFromConfig = typeof a.configuration?.avatar === 'string' ? a.configuration.avatar : ''
-    const tags = a.tags ?? []
     return {
       id: a.id,
       type: 'agent',
@@ -140,7 +140,7 @@ export function useResourceLibrary({
       description: a.description ?? '',
       avatar: avatarFromConfig || '🤖',
       model: a.modelName ?? undefined,
-      tags: tags.map((t) => t.name),
+      tags: [],
       createdAt: a.createdAt,
       updatedAt: a.updatedAt,
       raw: a
@@ -148,7 +148,6 @@ export function useResourceLibrary({
   }, [])
 
   const buildSkillItem = useCallback((s: InstalledSkill): ResourceItem => {
-    const tags = s.tags ?? []
     return {
       id: s.id,
       type: 'skill',
@@ -156,10 +155,9 @@ export function useResourceLibrary({
       description: s.description ?? '',
       // No emoji on InstalledSkill — fall back to the lightning glyph.
       avatar: '⚡',
-      // `tags` are user-bound global tags from entity_tag. Skill metadata
-      // tags from SKILL.md live on `sourceTags` and are intentionally not used
-      // for resource-library filtering.
-      tags: tags.map((t) => t.name),
+      // Skill metadata tags from SKILL.md live on `sourceTags`; the outer
+      // resource-library user tag concept is assistant-only.
+      tags: [],
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
       raw: s

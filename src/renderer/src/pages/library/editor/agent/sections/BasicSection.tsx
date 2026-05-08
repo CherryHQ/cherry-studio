@@ -33,7 +33,6 @@ import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TagSelector } from '../../../TagSelector'
 import type { AgentFormState } from '../descriptor'
 
 const logger = loggerService.withContext('AgentConfig:BasicSection')
@@ -43,17 +42,6 @@ interface Props {
   onChange: (patch: Partial<AgentFormState>) => void
   nameError?: string
   modelError?: string
-  /**
-   * Map of tag name → backend-assigned color (random hex chosen at POST time).
-   * Used for the tag-dot icon in the Combobox options.
-   */
-  tagColorByName: Map<string, string>
-  /**
-   * Full set of tags available in the backend. Feeds the tag-select options.
-   * New tags must be created from the library page's "+ 标签" entry point —
-   * this section is selection-only.
-   */
-  allTagNames: string[]
 }
 
 // Avatar quick-pick presets shown next to the emoji picker button.
@@ -95,7 +83,7 @@ function toSelectorValue(value: string): UniqueModelId | undefined {
  * Each sub-field stays in one flat list to match the "one tall Essential
  * tab" feel of the legacy popup.
  */
-const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagColorByName, allTagNames }) => {
+const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
   const { t } = useTranslation()
   const [emojiOpen, setEmojiOpen] = useState(false)
   const { models } = useModels({ enabled: true })
@@ -303,23 +291,6 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
             placeholder={t('library.config.agent.field.description.placeholder')}
             className="min-h-18 rounded-xs border-border/20 bg-accent/15 px-3 py-2 text-xs focus:border-border/40 focus:bg-accent/20"
           />
-        </FieldContent>
-      </Field>
-
-      <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-          {t('library.config.basic.tags')}
-        </FieldLabel>
-        <FieldContent>
-          <TagSelector
-            value={form.tags}
-            onChange={(tags) => onChange({ tags })}
-            tagColorByName={tagColorByName}
-            allTagNames={allTagNames}
-          />
-          <FieldDescription className="text-muted-foreground/50 text-xs">
-            {t('library.config.basic.tag_hint')}
-          </FieldDescription>
         </FieldContent>
       </Field>
     </div>

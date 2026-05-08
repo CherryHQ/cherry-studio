@@ -15,16 +15,15 @@ const DEFAULT_LIST_LIMIT = 500
 /**
  * List hook for agent resources — mirrors `assistantAdapter.useAssistantList`.
  *
- * `search` and `tagIds` are forwarded to `GET /agents` query params and
- * evaluated server-side (see `AgentService.listAgents`), so callers don't
- * need to chain a client-side filter on top.
+ * `search` is forwarded to `GET /agents` and evaluated server-side (see
+ * `AgentService.listAgents`), so callers don't need to chain a client-side
+ * filter on top.
  */
 function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail> {
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/agents', {
     query: {
       limit: query?.limit ?? DEFAULT_LIST_LIMIT,
-      ...(query?.search ? { search: query.search } : {}),
-      ...(query?.tagIds && query.tagIds.length > 0 ? { tagIds: query.tagIds } : {})
+      ...(query?.search ? { search: query.search } : {})
     }
   })
 

@@ -17,13 +17,12 @@ const logger = loggerService.withContext('SkillAdapter')
  * library, so `isEnabled` is always `false` there. Per-agent enablement state
  * belongs to the agent editor's Skills tab (`useInstalledSkills(agentId)`).
  *
- * `search` / `tagIds` are forwarded to `GET /skills` and evaluated server-side.
+ * `search` is forwarded to `GET /skills` and evaluated server-side.
  */
 function useSkillList(query?: ResourceListQuery): ResourceListResult<InstalledSkill> {
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', {
     query: {
-      ...(query?.search ? { search: query.search } : {}),
-      ...(query?.tagIds && query.tagIds.length > 0 ? { tagIds: query.tagIds } : {})
+      ...(query?.search ? { search: query.search } : {})
     }
   })
 

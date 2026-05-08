@@ -21,9 +21,8 @@ import type { FC, MouseEvent } from 'react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useAgentMutationsById } from '../adapters/agentAdapter'
 import { useAssistantMutationsById } from '../adapters/assistantAdapter'
-import { useEnsureTags, useSyncEntityTags, useTagList } from '../adapters/tagAdapter'
+import { useEnsureTags, useTagList } from '../adapters/tagAdapter'
 import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_META } from '../constants'
 import type { ResourceItem, ResourceType, TagItem } from '../types'
 import {
@@ -164,7 +163,7 @@ export const ResourceGrid: FC<Props> = ({
   const showingAssistantCatalogPresets =
     Boolean(assistantCatalog) && assistantCatalog?.activeTab !== ASSISTANT_CATALOG_MY_TAB
   const showTagToolbar =
-    activeResourceType !== 'prompt' && (!assistantCatalog || assistantCatalog.activeTab === ASSISTANT_CATALOG_MY_TAB)
+    activeResourceType === 'assistant' && (!assistantCatalog || assistantCatalog.activeTab === ASSISTANT_CATALOG_MY_TAB)
 
   const openMenu = useCallback((id: string, e: MouseEvent) => {
     e.stopPropagation()
@@ -613,14 +612,9 @@ export function FixedCardMenu({
   const [bindingPending, setBindingPending] = useState(false)
   const bindingPendingRef = useRef(false)
 
-  // Assistant / agent tag binding flows through the resource's own PATCH so
-  // row updates and tag ids land together. Skills have no editable row fields
-  // in DataApi, so they use the generic entity_tag endpoint.
   const { ensureTags } = useEnsureTags()
   const { updateAssistant } = useAssistantMutationsById(resource.id)
-  const { updateAgent } = useAgentMutationsById(resource.id)
-  const { syncEntityTags } = useSyncEntityTags()
-  const canBindTags = resource.type === 'assistant' || resource.type === 'agent' || resource.type === 'skill'
+  const canBindTags = resource.type === 'assistant'
 
   // Backend-assigned tag color (random-from-palette at POST time) — look up so
   // chip dots render consistently across Row 2, card menu, and BasicSection.
@@ -645,10 +639,6 @@ export function FixedCardMenu({
         const tagIds = tags.map((tag) => tag.id)
         if (resource.type === 'assistant') {
           await updateAssistant({ tagIds })
-        } else if (resource.type === 'agent') {
-          await updateAgent({ tagIds })
-        } else if (resource.type === 'skill') {
-          await syncEntityTags('skill', resource.id, tagIds)
         }
         onUpdateResourceTags(resource.id, nextNames)
       } catch (e) {
@@ -660,17 +650,7 @@ export function FixedCardMenu({
         setBindingPending(false)
       }
     },
-    [
-      canBindTags,
-      ensureTags,
-      updateAssistant,
-      updateAgent,
-      syncEntityTags,
-      onUpdateResourceTags,
-      resource.id,
-      resource.type,
-      t
-    ]
+    [canBindTags, ensureTags, updateAssistant, onUpdateResourceTags, resource.id, resource.type, t]
   )
 
   const toggleTag = (tag: string) => {
@@ -720,7 +700,7 @@ export function FixedCardMenu({
           }}
         />
 
-        {/* Tag picker — assistant / agent / skill. */}
+        {/* Tag picker — assistant only. */}
         {canBindTags && (
           <div className="relative">
             <MenuItem

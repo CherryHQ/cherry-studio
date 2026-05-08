@@ -7,12 +7,12 @@
 
 import * as z from 'zod'
 
-import { EntityIdSchema, EntityTypeSchema } from '../../types/entityType'
+import { EntityIdSchema } from '../../types/entityType'
 import { type Tag, TagIdSchema as SharedTagIdSchema, TagSchema } from '../../types/tag'
 
 export const TAG_ASSOCIATION_MAX_ITEMS = 100
 export const TagIdSchema = SharedTagIdSchema
-export const TaggableEntityTypeSchema = EntityTypeSchema.or(z.literal('skill'))
+export const TaggableEntityTypeSchema = z.enum(['assistant', 'topic', 'model', 'knowledge'])
 export type TaggableEntityType = z.infer<typeof TaggableEntityTypeSchema>
 
 // ============================================================================

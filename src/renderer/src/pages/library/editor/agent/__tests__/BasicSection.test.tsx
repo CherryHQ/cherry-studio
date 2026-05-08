@@ -121,7 +121,6 @@ function createForm(overrides: Partial<AgentFormState> = {}): AgentFormState {
     soulEnabled: false,
     heartbeatEnabled: false,
     heartbeatInterval: 0,
-    tags: [],
     ...overrides
   }
 }
@@ -131,7 +130,7 @@ describe('BasicSection agent model selectors', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
 
-    render(<BasicSection form={createForm()} onChange={onChange} tagColorByName={new Map()} allTagNames={[]} />)
+    render(<BasicSection form={createForm()} onChange={onChange} />)
 
     await user.click(screen.getAllByRole('button', { name: 'select main' })[0])
     await user.click(screen.getAllByRole('button', { name: 'select plan' })[1])
@@ -154,8 +153,6 @@ describe('BasicSection agent model selectors', () => {
           smallModel: 'anthropic::claude-opus-4-5'
         })}
         onChange={onChange}
-        tagColorByName={new Map()}
-        allTagNames={[]}
       />
     )
 

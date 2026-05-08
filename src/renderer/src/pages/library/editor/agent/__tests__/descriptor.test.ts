@@ -22,7 +22,6 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     mcps: [],
     allowedTools: [],
     configuration: {},
-    tags: [],
     createdAt: '2026-04-20T00:00:00.000Z',
     updatedAt: '2026-04-20T00:00:00.000Z',
     ...overrides
@@ -153,7 +152,6 @@ describe('diffAgentUpdate', () => {
       name: 'Renamed',
       instructions: 'new prompt'
     })
-    expect(result?.tagsChanged).toBe(false)
   })
 
   it('preserves UniqueModelIds in the PATCH payload without legacy conversion', () => {
@@ -255,18 +253,5 @@ describe('diffAgentUpdate', () => {
     expect(result?.dto.configuration).toMatchObject({
       max_turns: 100
     })
-  })
-
-  it('flags tag-only changes as save-worthy', () => {
-    const agent = createAgent()
-    const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, tags: ['work'] }
-
-    const result = diffAgentUpdate(baseline, next, agent)
-    expect(result).not.toBeNull()
-    expect(result?.tagsChanged).toBe(true)
-    expect(result?.tagNames).toEqual(['work'])
-    // The dto itself stays empty — tagIds resolution lives at the page level.
-    expect(result?.dto).toEqual({})
   })
 })

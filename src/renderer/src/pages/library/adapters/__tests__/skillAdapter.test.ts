@@ -25,7 +25,6 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     sourceUrl: null,
     namespace: null,
     author: null,
-    tags: [],
     contentHash: 'hash-1',
     isEnabled: false,
     createdAt: '2024-01-01T00:00:00.000Z',
