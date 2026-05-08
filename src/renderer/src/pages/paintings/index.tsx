@@ -1,12 +1,11 @@
 import './painting-theme.css'
 
-import { cn } from '@cherrystudio/ui/lib/utils'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { type FC, useCallback, useMemo, useState } from 'react'
 
 import PaintingModelSelector from './components/PaintingModelSelector'
+import { PaintingModeTabs } from './components/PaintingModeTabs'
 import PaintingPromptBar from './components/PaintingPromptBar'
-import { PaintingPromptLeadingActions } from './components/PaintingPromptLeadingActions'
 import { PaintingArtboard, PaintingProviderHeaderActions } from './components/PaintingProviderViews'
 import PaintingSettings, { PaintingSettingsHeader } from './components/PaintingSettings'
 import PaintingStrip from './components/PaintingStrip'
@@ -25,7 +24,6 @@ const PaintingPage: FC = () => {
   const providerOptions = usePaintingProviderOptions()
   const { initialProviderId, initialProviderDefinition } = usePaintingInitialProvider(providerOptions)
 
-  const [isParametersOpen, setIsParametersOpen] = useState(true)
   const [currentPainting, setCurrentPainting] = useState<PaintingData>(() =>
     initialProviderDefinition.mode.createPaintingData({ tab: initialProviderDefinition.mode.defaultTab })
   )
@@ -82,16 +80,9 @@ const PaintingPage: FC = () => {
         <div className="flex h-full flex-1 flex-col bg-white dark:bg-background">
           <div className={paintingClasses.frame}>
             <div className={paintingClasses.surface}>
-              <div
-                className={cn(
-                  paintingClasses.panel,
-                  isParametersOpen ? paintingClasses.panelVisible : paintingClasses.panelHidden
-                )}>
+              <div className={paintingClasses.panel}>
                 <div className={paintingClasses.panelHeader}>
-                  <PaintingSettingsHeader
-                    actions={<PaintingProviderHeaderActions providerId={currentProviderId} />}
-                    onClose={() => setIsParametersOpen(false)}
-                  />
+                  <PaintingSettingsHeader actions={<PaintingProviderHeaderActions providerId={currentProviderId} />} />
                 </div>
                 <div className={paintingClasses.panelModelSelector}>
                   <PaintingModelSelector
@@ -108,6 +99,9 @@ const PaintingPage: FC = () => {
               </div>
 
               <div className={paintingClasses.centerPane}>
+                <div className={paintingClasses.tabsWrap}>
+                  <PaintingModeTabs painting={currentPainting} onPaintingChange={patchPainting} />
+                </div>
                 <PaintingArtboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
               </div>
 
@@ -123,13 +117,6 @@ const PaintingPage: FC = () => {
           <PaintingPromptBar
             painting={currentPainting}
             generating={generating}
-            leadingActions={
-              <PaintingPromptLeadingActions
-                painting={currentPainting}
-                onPaintingChange={patchPainting}
-                onToggleParameters={() => setIsParametersOpen((open) => !open)}
-              />
-            }
             onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
             onGenerate={submit}
           />

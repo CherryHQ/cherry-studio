@@ -1,5 +1,4 @@
-import { Button, InfoTooltip } from '@cherrystudio/ui'
-import { X } from 'lucide-react'
+import { InfoTooltip } from '@cherrystudio/ui'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,10 +13,8 @@ import { PaintingSettingsExtras } from './PaintingProviderViews'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
 export function PaintingSettingsHeader({
-  onClose,
   actions
 }: {
-  onClose: () => void
   /** Inline with title: e.g. provider “Learn more” before the close button. */
   actions?: ReactNode
 }) {
@@ -26,17 +23,7 @@ export function PaintingSettingsHeader({
   return (
     <div className="flex w-full min-w-0 items-center justify-between gap-2">
       <span className="min-w-0 truncate text-foreground text-xs tracking-wider">{t('paintings.parameters')}</span>
-      <div className="flex shrink-0 flex-nowrap items-center gap-x-1">
-        {actions}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-6 shrink-0 p-0.5 text-muted-foreground/70 hover:text-foreground"
-          onClick={onClose}>
-          <X className="size-3" />
-        </Button>
-      </div>
+      <div className="flex shrink-0 flex-nowrap items-center gap-x-1">{actions}</div>
     </div>
   )
 }

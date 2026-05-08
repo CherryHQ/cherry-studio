@@ -11,9 +11,7 @@ export const paintingClasses = {
     'relative isolate flex min-w-0 flex-1 overflow-hidden rounded-[var(--painting-radius-surface)] bg-white dark:bg-background',
   centerPane: 'relative flex min-w-0 flex-1 flex-col overflow-hidden',
   panel:
-    'painting-theme-portal absolute top-[var(--painting-panel-inset)] bottom-[var(--painting-panel-inset)] left-[var(--painting-panel-inset)] z-30 flex w-[var(--painting-panel-width)] flex-col overflow-hidden rounded-[var(--painting-radius-panel)] border border-border/40 bg-[var(--painting-panel-bg)] shadow-[var(--painting-panel-shadow)] backdrop-blur-xl transition-all duration-200',
-  panelHidden: 'pointer-events-none -translate-x-4 opacity-0',
-  panelVisible: 'translate-x-0 opacity-100',
+    'painting-theme-portal flex h-full w-[var(--painting-panel-width)] shrink-0 flex-col overflow-hidden border-border/50 border-r bg-[var(--painting-panel-bg)]',
   panelHeader: 'flex items-center justify-between px-4 pt-3 pb-2',
   panelModelSelector: 'shrink-0 px-4 pb-3',
   panelModelSelectorTrigger:
@@ -29,7 +27,6 @@ export const paintingClasses = {
   historyItemActive: 'border-border bg-white shadow-sm ring-1 ring-foreground/10 dark:bg-background',
   historyDelete:
     'absolute -top-1 -right-1 z-20 flex size-5 cursor-pointer items-center justify-center rounded-full border border-border/70 bg-white/95 text-destructive opacity-0 shadow-sm transition group-hover:opacity-100 dark:bg-background/95',
-  promptSettingButton: 'rounded-full text-muted-foreground hover:bg-muted/50 hover:text-foreground',
   promptModeTabsList: 'h-8 rounded-full border border-border/60 bg-muted/35 p-0.5 shadow-none dark:bg-muted/20',
   promptModeTabsTrigger:
     'h-7 rounded-full px-2.5 text-xs text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',

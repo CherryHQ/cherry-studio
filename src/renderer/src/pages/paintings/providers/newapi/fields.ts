@@ -8,8 +8,8 @@ import {
 import type { BaseConfigItem } from '../shared/providerFieldSchema'
 import { MODELS } from './config'
 
-function getModelConfig(modelId: unknown) {
-  return MODELS.find((model) => model.name === modelId)
+export function getNewApiModelConfig(modelId: unknown) {
+  return MODELS.find((model) => model.name === modelId) ?? MODELS[0]
 }
 
 function buildSizeField(): BaseConfigItem {
@@ -18,11 +18,11 @@ function buildSizeField(): BaseConfigItem {
     key: 'size',
     title: 'paintings.image.size',
     condition: (painting) => {
-      const modelConfig = getModelConfig(painting.model)
+      const modelConfig = getNewApiModelConfig(painting.model)
       return !!(modelConfig?.imageSizes && modelConfig.imageSizes.length > 0)
     },
     options: (_config, painting) => {
-      const modelConfig = getModelConfig(painting.model)
+      const modelConfig = getNewApiModelConfig(painting.model)
       return (modelConfig?.imageSizes || []).map((size) => ({
         label: getPaintingsImageSizeOptionsLabel(size.value) ?? size.value,
         value: size.value
@@ -37,11 +37,11 @@ function buildQualityField(): BaseConfigItem {
     key: 'quality',
     title: 'paintings.quality',
     condition: (painting) => {
-      const modelConfig = getModelConfig(painting.model)
+      const modelConfig = getNewApiModelConfig(painting.model)
       return !!(modelConfig?.quality && modelConfig.quality.length > 0)
     },
     options: (_config, painting) => {
-      const modelConfig = getModelConfig(painting.model)
+      const modelConfig = getNewApiModelConfig(painting.model)
       return (modelConfig?.quality || []).map((quality) => ({
         label: getPaintingsQualityOptionsLabel(quality.value) ?? quality.value,
         value: quality.value
@@ -56,11 +56,11 @@ function buildModerationField(): BaseConfigItem {
     key: 'moderation',
     title: 'paintings.moderation',
     condition: (painting) => {
-      const modelConfig = getModelConfig(painting.model)
+      const modelConfig = getNewApiModelConfig(painting.model)
       return !!(modelConfig?.moderation && modelConfig.moderation.length > 0)
     },
     options: (_config, painting) => {
-      const modelConfig = getModelConfig(painting.model)
+      const modelConfig = getNewApiModelConfig(painting.model)
       return (modelConfig?.moderation || []).map((moderation) => ({
         label: getPaintingsModerationOptionsLabel(moderation.value) ?? moderation.value,
         value: moderation.value
@@ -75,11 +75,11 @@ function buildBackgroundField(): BaseConfigItem {
     key: 'background',
     title: 'paintings.background',
     condition: (painting) => {
-      const modelConfig = getModelConfig(painting.model)
+      const modelConfig = getNewApiModelConfig(painting.model)
       return !!(modelConfig?.background && modelConfig.background.length > 0)
     },
     options: (_config, painting) => {
-      const modelConfig = getModelConfig(painting.model)
+      const modelConfig = getNewApiModelConfig(painting.model)
       return (modelConfig?.background || []).map((background) => ({
         label: getPaintingsBackgroundOptionsLabel(background.value) ?? background.value,
         value: background.value
@@ -95,7 +95,7 @@ function buildCountField(): BaseConfigItem {
     title: 'paintings.number_images',
     min: 1,
     max: 10,
-    condition: (painting) => !!getModelConfig(painting.model)?.max_images
+    condition: (painting) => !!getNewApiModelConfig(painting.model)?.max_images
   }
 }
 

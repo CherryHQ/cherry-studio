@@ -29,7 +29,7 @@ export function NewApiHeaderActions({ provider, t }: { provider: PaintingProvide
 }
 
 function getModelDefaults(modelId: string) {
-  const modelConfig = MODELS.find((model) => model.name === modelId)
+  const modelConfig = MODELS.find((model) => model.name === modelId) ?? MODELS[0]
   const updates: Partial<PaintingData> = { model: modelId, n: 1 }
 
   if (modelConfig?.imageSizes?.length) {
