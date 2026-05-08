@@ -159,6 +159,7 @@ const GeneralSettings: FC = () => {
     { value: 'en-US', label: 'English', flag: '🇺🇸' },
     { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
     { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
+    { value: 'ko-KR', label: '한국어', flag: '🇰🇷' },
     { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
     { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
     { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
