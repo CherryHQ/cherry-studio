@@ -35,12 +35,12 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
               <button
                 type="button"
                 onClick={() => void onItemClick(item.id)}
-                className={`relative flex h-9 w-9 items-center justify-center rounded-md transition-all duration-150 ${
+                className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
                   isActive
                     ? 'bg-sidebar-active-bg text-foreground'
                     : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                 }`}>
-                {isActive && <ActiveIndicator className="rounded-md" />}
+                {isActive && <ActiveIndicator className="rounded-full" />}
                 <Icon size={18} strokeWidth={1.6} />
               </button>
             </SidebarTooltip>
@@ -50,10 +50,10 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
                 <button
                   type="button"
                   onClick={() => onMiniAppTabClick?.(miniTab.id)}
-                  className={`relative flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150 ${
+                  className={`relative flex h-7 w-7 items-center justify-center rounded-full transition-all duration-150 ${
                     activeTabId === miniTab.id ? 'bg-sidebar-active-bg' : 'hover:bg-accent/50'
                   }`}>
-                  {activeTabId === miniTab.id && <ActiveIndicator className="rounded-md" />}
+                  {activeTabId === miniTab.id && <ActiveIndicator className="rounded-full" />}
                   <MiniAppIcon tab={miniTab} size="md" />
                 </button>
               </SidebarTooltip>
@@ -78,12 +78,12 @@ function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, on
             <button
               type="button"
               onClick={() => void onItemClick(item.id)}
-              className={`relative flex w-full flex-col items-center gap-0.5 rounded-[16px] py-2.5 transition-all duration-150 ${
+              className={`relative flex w-full flex-col items-center gap-0.5 rounded-lg py-2.5 transition-all duration-150 ${
                 isActive
                   ? 'bg-sidebar-active-bg text-foreground'
                   : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
               }`}>
-              {isActive && <ActiveIndicator className="rounded-[16px]" />}
+              {isActive && <ActiveIndicator className="rounded-lg" />}
               <Icon size={18} strokeWidth={1.6} />
               <span className="text-[9px] leading-tight">{item.label}</span>
             </button>
@@ -93,12 +93,12 @@ function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, on
                 type="button"
                 key={miniTab.id}
                 onClick={() => onMiniAppTabClick?.(miniTab.id)}
-                className={`relative flex w-full flex-col items-center gap-0.5 rounded-[16px] py-2 transition-all duration-150 ${
+                className={`relative flex w-full flex-col items-center gap-0.5 rounded-lg py-2 transition-all duration-150 ${
                   activeTabId === miniTab.id
                     ? 'bg-sidebar-active-bg text-foreground'
                     : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'
                 }`}>
-                {activeTabId === miniTab.id && <ActiveIndicator className="rounded-[16px]" />}
+                {activeTabId === miniTab.id && <ActiveIndicator className="rounded-lg" />}
                 <MiniAppIcon tab={miniTab} size="md" />
                 <span className="max-w-[50px] truncate text-[8px] leading-tight">{miniTab.title}</span>
               </button>

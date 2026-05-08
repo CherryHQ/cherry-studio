@@ -44,7 +44,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   return (
     <NavbarHeader className="home-navbar" style={{ height: 'var(--navbar-height)' }}>
-      <div className="flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
+      <div className="flex h-full min-w-0 flex-1 shrink items-center overflow-x-auto overflow-y-hidden">
         {isTopNavbar && showAssistants && (
           <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
             <NavbarIcon onClick={toggleShowAssistants}>

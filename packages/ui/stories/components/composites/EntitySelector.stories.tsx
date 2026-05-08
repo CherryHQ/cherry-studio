@@ -1,10 +1,10 @@
+import { Button } from '@cherrystudio/ui/components/primitives/button'
+import { Checkbox } from '@cherrystudio/ui/components/primitives/checkbox'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { ArrowDown, ArrowUp, Check, ChevronRight, Pencil, Pin, PinOff, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { EntitySelector } from '../../../src/components/composites/EntitySelector'
-import { Button } from '../../../src/components/primitives/button'
-import { Checkbox } from '../../../src/components/primitives/checkbox'
 
 type ExampleItem = { id: string; name: string; description?: string; emoji?: string }
 

@@ -1,4 +1,4 @@
-import { Button, ButtonGroup } from '@cherrystudio/ui'
+import { Button, ButtonGroup, ButtonGroupItem, Input } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react'
 
@@ -73,6 +73,27 @@ export const IconToggleStyle: Story = {
       <Button variant="outline" size="icon" aria-label="List view">
         <List />
       </Button>
+    </ButtonGroup>
+  )
+}
+
+export const InputWithButton: Story = {
+  render: () => (
+    <ButtonGroup className="w-80">
+      <Input placeholder="Type to search..." className="flex-1" />
+      <Button>Search</Button>
+    </ButtonGroup>
+  )
+}
+
+export const WrappedInputWithButton: Story = {
+  render: () => (
+    <ButtonGroup className="w-80">
+      <ButtonGroupItem className="flex-1">
+        <Input placeholder="Wrapped input..." className="pr-14" />
+        <span className="-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground text-xs">Ctrl K</span>
+      </ButtonGroupItem>
+      <Button>Search</Button>
     </ButtonGroup>
   )
 }

@@ -1,5 +1,5 @@
 import { permissionModeCards } from '@renderer/config/agent'
-import SessionSettingsPopup from '@renderer/pages/settings/AgentSettings/SessionSettingsPopup'
+import SessionSettingsPopup from '@renderer/pages/agents/AgentSettings/SessionSettingsPopup'
 import type { GetAgentSessionResponse, PermissionMode } from '@renderer/types'
 import { FileEdit, Lightbulb, Shield, ShieldOff } from 'lucide-react'
 import type { FC } from 'react'

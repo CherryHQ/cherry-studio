@@ -126,6 +126,7 @@ const ThinkModelTypes = [
   'gemini3_flash',
   'gemini3_pro',
   'gemini3_1_pro',
+  'gemma4_hosted',
   'qwen',
   'qwen_thinking',
   'doubao',
@@ -674,7 +675,9 @@ export const WebSearchProviderIds = {
   exa: 'exa',
   'exa-mcp': 'exa-mcp',
   bocha: 'bocha',
-  querit: 'querit'
+  querit: 'querit',
+  fetch: 'fetch',
+  jina: 'jina'
 } as const
 
 export type WebSearchProviderId = keyof typeof WebSearchProviderIds

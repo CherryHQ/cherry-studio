@@ -1,15 +1,18 @@
-import { ArrowLeftOutlined } from '@ant-design/icons'
-import { MenuItem, MenuList } from '@cherrystudio/ui'
-import DividerWithText from '@renderer/components/DividerWithText'
+import { Flex, MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { Button, Flex } from 'antd'
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { FolderCog, Package, ShoppingBag } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
+import {
+  settingsSubmenuDividerClassName,
+  settingsSubmenuItemClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuScrollClassName,
+  settingsSubmenuSectionTitleClassName
+} from '..'
 import { getMCPProviderLogo, getProviderDisplayName, providers } from './providers/config'
 
 const MCPSettings: FC = () => {
@@ -38,45 +41,36 @@ const MCPSettings: FC = () => {
 
   const activeView = getActiveView()
 
-  // 判断是否为主页面（是否显示返回按钮）
-  const isHomePage = () => {
-    const path = location.pathname
-    // 主页面不显示返回按钮
-    if (path === '/settings/mcp' || path === '/settings/mcp/servers') return true
-    if (path === '/settings/mcp/builtin' || path === '/settings/mcp/marketplaces') return true
-
-    // 服务商页面也是主页面
-    return providers.some((p) => path === `/settings/mcp/${p.key}`)
-  }
-
   return (
-    <Container>
-      <MainContainer>
-        <McpMenuScroll>
-          <McpMenuList>
+    <Flex className="min-w-0 flex-1">
+      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full min-w-0 flex-1 flex-row overflow-hidden">
+        <Scrollbar className={settingsSubmenuScrollClassName}>
+          <MenuList className={settingsSubmenuListClassName}>
             <MenuItem
               label={t('settings.mcp.servers', 'MCP Servers')}
               active={activeView === 'servers'}
               onClick={() => navigate({ to: '/settings/mcp/servers' })}
               icon={<McpLogo width={18} height={18} style={{ opacity: 0.8 }} />}
-              className="font-medium"
+              className={settingsSubmenuItemClassName}
             />
-            <DividerWithText text={t('settings.mcp.discover', 'Discover')} style={{ margin: '10px 0 8px 0' }} />
+            <MenuDivider className={settingsSubmenuDividerClassName} />
+            <div className={settingsSubmenuSectionTitleClassName}>{t('settings.mcp.discover', 'Discover')}</div>
             <MenuItem
               label={t('settings.mcp.builtinServers', 'Built-in Servers')}
               active={activeView === 'builtin'}
               onClick={() => navigate({ to: '/settings/mcp/builtin' })}
               icon={<Package size={18} />}
-              className="font-medium"
+              className={settingsSubmenuItemClassName}
             />
             <MenuItem
               label={t('settings.mcp.marketplaces', 'Marketplaces')}
               active={activeView === 'marketplaces'}
               onClick={() => navigate({ to: '/settings/mcp/marketplaces' })}
               icon={<ShoppingBag size={18} />}
-              className="font-medium"
+              className={settingsSubmenuItemClassName}
             />
-            <DividerWithText text={t('settings.mcp.providers', 'Providers')} style={{ margin: '10px 0 8px 0' }} />
+            <MenuDivider className={settingsSubmenuDividerClassName} />
+            <div className={settingsSubmenuSectionTitleClassName}>{t('settings.mcp.providers', 'Providers')}</div>
             {providers.map((provider) => (
               <MenuItem
                 key={provider.key}
@@ -87,71 +81,17 @@ const MCPSettings: FC = () => {
                   const logo = getMCPProviderLogo(provider.key)
                   return logo ? <logo.Avatar size={24} shape="circle" /> : <FolderCog size={16} />
                 })()}
-                className="font-medium"
+                className={settingsSubmenuItemClassName}
               />
             ))}
-          </McpMenuList>
-        </McpMenuScroll>
-        <RightContainer>
-          {!isHomePage() && (
-            <BackButtonContainer>
-              <Link to="/settings/mcp/servers">
-                <Button type="default" shape="circle" size="small">
-                  <ArrowLeftOutlined />
-                </Button>
-              </Link>
-            </BackButtonContainer>
-          )}
+          </MenuList>
+        </Scrollbar>
+        <div className="relative min-w-0 flex-1 overflow-hidden">
           <Outlet />
-        </RightContainer>
-      </MainContainer>
-    </Container>
+        </div>
+      </div>
+    </Flex>
   )
 }
-
-const Container = styled(Flex)`
-  flex: 1;
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  width: 100%;
-  height: calc(100vh - var(--navbar-height) - 6px);
-  overflow: hidden;
-`
-
-const McpMenuScroll = styled(Scrollbar)`
-  width: var(--settings-width);
-  height: calc(100vh - var(--navbar-height));
-  border-right: 0.5px solid var(--color-border);
-`
-
-const McpMenuList = styled(MenuList)`
-  display: flex;
-  flex-direction: column;
-  padding: 12px;
-  padding-bottom: 48px;
-  min-height: 100%;
-  box-sizing: border-box;
-`
-
-const RightContainer = styled.div`
-  flex: 1;
-  position: relative;
-`
-
-const BackButtonContainer = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 10px 20px;
-  background-color: transparent;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
-`
 
 export default MCPSettings

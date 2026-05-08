@@ -36,6 +36,11 @@ const meta: Meta<typeof Combobox> = {
     searchable: {
       control: { type: 'boolean' },
       description: 'Enable search functionality'
+    },
+    searchPlacement: {
+      control: { type: 'select' },
+      options: ['content', 'trigger'],
+      description: 'Where the search input is rendered'
     }
   }
 }
@@ -111,6 +116,145 @@ const iconOptions = [
     value: 'user3',
     label: '@jane',
     icon: <User className="size-4" />
+  }
+]
+
+const fontOptions = [
+  {
+    value: 'inter',
+    label: 'Inter',
+    description: 'Neutral UI sans serif',
+    category: 'Sans',
+    fontFamily: 'Inter, sans-serif'
+  },
+  {
+    value: 'nunito-sans',
+    label: 'Nunito Sans',
+    description: 'Friendly rounded sans serif',
+    category: 'Sans',
+    fontFamily: '"Nunito Sans", sans-serif'
+  },
+  {
+    value: 'geist',
+    label: 'Geist',
+    description: 'Modern app interface font',
+    category: 'Sans',
+    fontFamily: 'Geist, sans-serif'
+  },
+  {
+    value: 'system-ui',
+    label: 'System UI',
+    description: 'Native operating system font',
+    category: 'Sans',
+    fontFamily: 'system-ui, sans-serif'
+  },
+  {
+    value: 'sf-pro',
+    label: 'SF Pro',
+    description: 'Apple platform interface font',
+    category: 'Sans',
+    fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif'
+  },
+  {
+    value: 'roboto',
+    label: 'Roboto',
+    description: 'Android and Material UI font',
+    category: 'Sans',
+    fontFamily: 'Roboto, sans-serif'
+  },
+  {
+    value: 'source-sans',
+    label: 'Source Sans 3',
+    description: 'Readable product copy font',
+    category: 'Sans',
+    fontFamily: '"Source Sans 3", sans-serif'
+  },
+  {
+    value: 'ibm-plex-sans',
+    label: 'IBM Plex Sans',
+    description: 'Technical and enterprise UI font',
+    category: 'Sans',
+    fontFamily: '"IBM Plex Sans", sans-serif'
+  },
+  {
+    value: 'geist-mono',
+    label: 'Geist Mono',
+    description: 'Technical mono for code',
+    category: 'Mono',
+    fontFamily: '"Geist Mono", monospace'
+  },
+  {
+    value: 'jetbrains-mono',
+    label: 'JetBrains Mono',
+    description: 'Programming-focused mono font',
+    category: 'Mono',
+    fontFamily: '"JetBrains Mono", monospace'
+  },
+  {
+    value: 'fira-code',
+    label: 'Fira Code',
+    description: 'Ligature-friendly code font',
+    category: 'Mono',
+    fontFamily: '"Fira Code", monospace'
+  },
+  {
+    value: 'source-code-pro',
+    label: 'Source Code Pro',
+    description: 'Adobe monospace family',
+    category: 'Mono',
+    fontFamily: '"Source Code Pro", monospace'
+  },
+  {
+    value: 'berkeley-mono',
+    label: 'Berkeley Mono',
+    description: 'Dense terminal and editor font',
+    category: 'Mono',
+    fontFamily: '"Berkeley Mono", monospace'
+  },
+  {
+    value: 'ui-monospace',
+    label: 'UI Monospace',
+    description: 'Native system monospace stack',
+    category: 'Mono',
+    fontFamily: 'ui-monospace, monospace'
+  }
+]
+
+const searchableToolOptions = [
+  {
+    value: 'claude-code',
+    label: 'Claude Code',
+    description: 'Agentic coding assistant',
+    category: 'AI',
+    keywords: 'anthropic sonnet terminal'
+  },
+  {
+    value: 'cursor',
+    label: 'Cursor',
+    description: 'AI-native code editor',
+    category: 'Editor',
+    keywords: 'autocomplete composer workspace'
+  },
+  {
+    value: 'github-copilot',
+    label: 'GitHub Copilot',
+    description: 'Inline code completion',
+    category: 'AI',
+    keywords: 'github suggestion pair programming'
+  },
+  {
+    value: 'raycast',
+    label: 'Raycast',
+    description: 'Command launcher and extensions',
+    category: 'Productivity',
+    keywords: 'launcher snippets automation'
+  },
+  {
+    value: 'linear',
+    label: 'Linear',
+    description: 'Issue tracking and planning',
+    category: 'Planning',
+    keywords: 'tickets roadmap triage'
   }
 ]
 
@@ -346,6 +490,78 @@ export const WithoutSearch: Story = {
     searchable: false,
     options: simpleOptions,
     width: 280
+  }
+}
+
+export const TriggerSearchFontList: Story = {
+  render: function TriggerSearchFontListExample() {
+    const [font, setFont] = useState('inter')
+    const selectedFont = fontOptions.find((option) => option.value === font)
+
+    return (
+      <div className="flex w-[360px] flex-col gap-4">
+        <Combobox
+          options={fontOptions}
+          value={font}
+          onChange={(val) => setFont(val as string)}
+          searchPlacement="trigger"
+          placeholder="Select font"
+          emptyText="No fonts found"
+          width={360}
+          renderOption={(option) => (
+            <div className="flex w-full items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate" style={{ fontFamily: option.fontFamily }}>
+                  {option.label}
+                </div>
+                <div className="truncate text-muted-foreground text-xs">{option.description}</div>
+              </div>
+              <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">{option.category}</span>
+            </div>
+          )}
+        />
+        <div className="rounded-md border bg-muted/40 px-3 py-2">
+          <div className="text-muted-foreground text-xs">Selected font</div>
+          <div className="mt-1 truncate text-sm" style={{ fontFamily: selectedFont?.fontFamily }}>
+            {selectedFont?.label}
+          </div>
+        </div>
+      </div>
+    )
+  }
+}
+
+export const CustomFilterOption: Story = {
+  render: function CustomFilterOptionExample() {
+    const [tool, setTool] = useState('')
+
+    return (
+      <Combobox
+        options={searchableToolOptions}
+        value={tool}
+        onChange={(val) => setTool(val as string)}
+        placeholder="Search tools"
+        searchPlaceholder="Search label, category, or keyword"
+        emptyText="No tools found"
+        width={320}
+        filterOption={(option, search) =>
+          [option.label, option.description, option.category, option.keywords]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(search.trim().toLowerCase())
+        }
+        renderOption={(option) => (
+          <div className="flex w-full items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate">{option.label}</div>
+              <div className="truncate text-muted-foreground text-xs">{option.description}</div>
+            </div>
+            <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">{option.category}</span>
+          </div>
+        )}
+      />
+    )
   }
 }
 

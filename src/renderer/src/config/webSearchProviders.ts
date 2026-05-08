@@ -1,5 +1,5 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
-import { Bocha, Exa, Querit, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
+import { Bocha, Cherryin, Exa, Jina, Querit, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 
@@ -84,6 +84,25 @@ export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchPr
       official: 'https://querit.ai',
       apiKey: 'https://www.querit.ai/en/dashboard/api-keys'
     }
+  },
+  fetch: {
+    capabilities: {
+      requiresApiKey: false,
+      supportsBasicAuth: false
+    },
+    websites: {
+      official: 'https://github.com/zcaceres/fetch-mcp'
+    }
+  },
+  jina: {
+    capabilities: {
+      requiresApiKey: true,
+      supportsBasicAuth: false
+    },
+    websites: {
+      official: 'https://jina.ai/reader',
+      apiKey: 'https://jina.ai'
+    }
   }
 }
 
@@ -128,6 +147,16 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
     id: 'querit',
     name: 'Querit',
     apiHost: 'https://api.querit.ai',
+    apiKey: ''
+  },
+  {
+    id: 'fetch',
+    name: 'Fetch'
+  },
+  {
+    id: 'jina',
+    name: 'Jina',
+    apiHost: 'https://s.jina.ai',
     apiKey: ''
   }
 ] as const
@@ -188,6 +217,10 @@ export function getWebSearchProviderLogo(providerId: WebSearchProviderId): Compo
       return Bocha
     case 'querit':
       return Querit
+    case 'fetch':
+      return Cherryin
+    case 'jina':
+      return Jina
     default:
       return undefined
   }

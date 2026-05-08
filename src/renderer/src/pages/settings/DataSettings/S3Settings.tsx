@@ -1,5 +1,5 @@
 import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
@@ -9,7 +9,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
-import { Input } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -70,11 +69,13 @@ const S3Settings: FC = () => {
     if (!s3Endpoint) return null
 
     if (!s3Sync?.lastSyncTime && !s3Sync?.syncing && !s3Sync?.lastSyncError) {
-      return <span style={{ color: 'var(--text-secondary)' }}>{t('settings.data.s3.syncStatus.noSync')}</span>
+      return (
+        <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.s3.syncStatus.noSync')}</span>
+      )
     }
 
     return (
-      <RowFlex className="items-center gap-[5px]">
+      <RowFlex className="items-center gap-1.25">
         {s3Sync?.syncing && <SyncOutlined spin />}
         {!s3Sync?.syncing && s3Sync?.lastSyncError && (
           <WarnTooltip
@@ -83,7 +84,7 @@ const S3Settings: FC = () => {
           />
         )}
         {s3Sync?.lastSyncTime && (
-          <span style={{ color: 'var(--text-secondary)' }}>
+          <span style={{ color: 'var(--color-foreground-secondary)' }}>
             {t('settings.data.s3.syncStatus.lastSync', { time: dayjs(s3Sync.lastSyncTime).format('HH:mm:ss') })}
           </span>
         )}
@@ -162,7 +163,8 @@ const S3Settings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.secretAccessKey.label')}</SettingRowTitle>
-        <Input.Password
+        <Input
+          type="password"
           placeholder={t('settings.data.s3.secretAccessKey.placeholder')}
           value={s3SecretAccessKey}
           onChange={(e) => setS3SecretAccessKey(e.target.value)}
@@ -184,15 +186,17 @@ const S3Settings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.backup.operation')}</SettingRowTitle>
-        <RowFlex className="justify-between gap-[5px]">
+        <RowFlex className="justify-between gap-1.25">
           <Button
             onClick={showBackupModal}
+            variant="outline"
             disabled={backuping || !s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
             <SaveOutlined />
             {t('settings.data.s3.backup.button')}
           </Button>
           <Button
             onClick={showBackupManager}
+            variant="outline"
             disabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
             <FolderOpenOutlined />
             {t('settings.data.s3.backup.manager.button')}

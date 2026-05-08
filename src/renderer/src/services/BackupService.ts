@@ -153,6 +153,8 @@ export async function reset() {
     title: i18n.t('common.warning'),
     content: i18n.t('message.reset.confirm.content'),
     centered: true,
+    okText: i18n.t('common.confirm'),
+    cancelText: i18n.t('common.cancel'),
     okButtonProps: {
       danger: true
     },
@@ -161,6 +163,8 @@ export async function reset() {
         title: i18n.t('message.reset.double.confirm.title'),
         content: i18n.t('message.reset.double.confirm.content'),
         centered: true,
+        okText: i18n.t('common.confirm'),
+        cancelText: i18n.t('common.cancel'),
         onOk: async () => {
           localStorage.clear()
           await clearDatabase()

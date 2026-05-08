@@ -1,9 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { Row } from 'antd'
 import { Plus } from 'lucide-react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingTitle } from '../..'
 
@@ -19,13 +17,13 @@ const SettingsActionsListHeader = memo(({ customItemsCount, maxCustomItems, onRe
   const isCustomItemLimitReached = customItemsCount >= maxCustomItems
 
   return (
-    <Row>
+    <div className="flex w-full items-center">
       <SettingTitle>{t('selection.settings.actions.title')}</SettingTitle>
-      <Spacer />
+      <div className="flex-1" />
       <Tooltip content={t('selection.settings.actions.reset.tooltip')}>
-        <ResetButton variant="ghost" onClick={onReset}>
+        <Button variant="ghost" className="mx-2 text-foreground-muted hover:text-primary" onClick={onReset}>
           {t('selection.settings.actions.reset.button')}
-        </ResetButton>
+        </Button>
       </Tooltip>
       <Tooltip
         content={
@@ -33,25 +31,13 @@ const SettingsActionsListHeader = memo(({ customItemsCount, maxCustomItems, onRe
             ? t('selection.settings.actions.add_tooltip.disabled', { max: maxCustomItems })
             : t('selection.settings.actions.add_tooltip.enabled')
         }>
-        <Button onClick={onAdd} disabled={isCustomItemLimitReached} style={{ paddingInline: '8px' }}>
+        <Button variant="outline" onClick={onAdd} disabled={isCustomItemLimitReached} style={{ paddingInline: '8px' }}>
           <Plus size={16} />
           {t('selection.settings.actions.custom')}
         </Button>
       </Tooltip>
-    </Row>
+    </div>
   )
 })
-
-const Spacer = styled.div`
-  flex: 1;
-`
-
-const ResetButton = styled(Button)`
-  margin: 0 8px;
-  color: var(--color-text-3);
-  &:hover {
-    color: var(--color-primary);
-  }
-`
 
 export default SettingsActionsListHeader
