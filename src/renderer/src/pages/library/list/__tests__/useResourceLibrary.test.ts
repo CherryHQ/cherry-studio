@@ -1,4 +1,3 @@
-import type { Tag } from '@shared/data/types/tag'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -48,16 +47,6 @@ function listResult(data: unknown[]) {
     isRefreshing: false,
     error: undefined,
     refetch: vi.fn()
-  }
-}
-
-function createTag(id: string, name: string): Tag {
-  return {
-    id,
-    name,
-    color: '#8b5cf6',
-    createdAt: '2026-04-27T00:00:00.000Z',
-    updatedAt: '2026-04-27T00:00:00.000Z'
   }
 }
 
@@ -144,8 +133,7 @@ describe('useResourceLibrary model display names', () => {
     expect(result.current.allResources.find((resource) => resource.type === 'agent')?.model).toBeUndefined()
   })
 
-  it('does not use skill source metadata tags or stale global tags for resource cards', () => {
-    const productivity = createTag('tag-1', '生产力')
+  it('does not use skill source metadata tags for resource cards', () => {
     mocks.useSkillList.mockReturnValue(
       listResult([
         {
@@ -157,7 +145,6 @@ describe('useResourceLibrary model display names', () => {
           sourceUrl: null,
           namespace: null,
           author: 'CherryStudio',
-          tags: [productivity],
           sourceTags: ['metadata-only'],
           contentHash: 'hash',
           isEnabled: false,
@@ -176,7 +163,6 @@ describe('useResourceLibrary model display names', () => {
   })
 
   it('passes skill search to the backend and ignores activeTag', () => {
-    const productivity = createTag('tag-1', '生产力')
     mocks.useSkillList.mockImplementation((query?: ResourceListQuery) => {
       if (query) {
         return listResult([
@@ -208,7 +194,6 @@ describe('useResourceLibrary model display names', () => {
           sourceUrl: null,
           namespace: null,
           author: null,
-          tags: [productivity],
           sourceTags: ['metadata-only'],
           contentHash: 'base-hash',
           isEnabled: false,
