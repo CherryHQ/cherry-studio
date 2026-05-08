@@ -18,6 +18,7 @@
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
 
+import { legacyModelJsonToUniqueId } from '../transformers/ModelTransformers'
 import {
   flattenCompressionConfig,
   migrateWebSearchProviders,
@@ -200,6 +201,21 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       'feature.translate.model_id'
     ],
     transform: transformLlmModelIds
+  },
+
+  // OpenClaw preferences migration (legacy port + JSON model string → v2 preferences)
+  {
+    id: 'openclaw_preferences',
+    description: 'Convert legacy OpenClaw port and selected model JSON string into v2 preferences',
+    sources: {
+      gatewayPort: { source: 'redux', category: 'openclaw', key: 'gatewayPort' },
+      selectedModelUniqId: { source: 'redux', category: 'openclaw', key: 'selectedModelUniqId' }
+    },
+    targetKeys: ['feature.openclaw.gateway_port', 'feature.openclaw.selected_model_id'],
+    transform: (sources) => ({
+      'feature.openclaw.gateway_port': sources.gatewayPort,
+      'feature.openclaw.selected_model_id': legacyModelJsonToUniqueId(sources.selectedModelUniqId)
+    })
   }
 ]
 
