@@ -3,7 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useCache } from '@renderer/data/hooks/useCache'
+import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useAgent } from '@renderer/hooks/agents/useAgentDataApi'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
@@ -36,8 +36,8 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const { theme } = useTheme()
   const [userName] = usePreference('app.user.name')
   const showMiniAppIcon = useSidebarIconShow('mini_app')
-  const [activeAgentId] = useCache('agent.active_id')
-  const { agent } = useAgent(activeAgentId)
+  const { session: activeSession } = useActiveSession()
+  const { agent } = useAgent(activeSession?.agentId ?? null)
   const isAgentView = window.location.hash.startsWith('#/agents')
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()

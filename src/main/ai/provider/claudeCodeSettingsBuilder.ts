@@ -205,6 +205,10 @@ export async function buildClaudeCodeSessionSettings(
 ): Promise<ClaudeCodeSettings> {
   // Agent owns all config (model, instructions, mcps, allowedTools,
   // accessiblePaths, configuration). Session is just the running instance.
+  // An orphan session (`agentId === null`, agent was deleted) cannot run.
+  if (!session.agentId) {
+    throw new Error(`Cannot build settings for orphan session ${session.id} — its agent was deleted`)
+  }
   const agent = await agentService.getAgent(session.agentId)
   if (!agent) {
     throw new Error(`Agent not found for session ${session.id}: ${session.agentId}`)
@@ -569,13 +573,15 @@ async function buildMcpServers(
   // 3. Exa — structured web search via HTTP (free tier, no API key)
   mcpList.exa = { type: 'http', url: 'https://mcp.exa.ai/mcp' }
 
-  // 4. Claw — agent autonomy tools (soul mode only)
+  // 4. Claw — agent autonomy tools (soul mode only). Use `agent.id` instead of
+  // `session.agentId` so TS can see the value is non-null after the upstream
+  // orphan check in buildClaudeCodeSessionSettings.
   if (soulEnabled) {
-    const sourceChannelId = await resolveSourceChannel(session.agentId, session.id)
-    const clawServer = new ClawServer(session.agentId, sourceChannelId)
+    const sourceChannelId = await resolveSourceChannel(agent.id, session.id)
+    const clawServer = new ClawServer(agent.id, sourceChannelId)
     mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
     logger.debug('Soul Mode: injected claw MCP server', {
-      agentId: session.agentId,
+      agentId: agent.id,
       totalMcpServers: Object.keys(mcpList).length
     })
   }

@@ -42,8 +42,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const sessionId = extractAgentSessionId(req.topicId)
 
     const session = await sessionService.getById(sessionId)
-    const agent = await agentService.getAgent(session.agentId)
-    if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${session.agentId}`)
+    if (!session.agentId) {
+      throw new Error(`Cannot dispatch on orphan session ${sessionId} — its agent was deleted`)
+    }
+    const agentId = session.agentId
+    const agent = await agentService.getAgent(agentId)
+    if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
     if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
 
     const uniqueModelId = parseAgentSessionModel(agent.model)
@@ -70,7 +74,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           message: {
             id: userMessageId,
             role: 'user',
-            assistantId: session.agentId,
+            assistantId: agentId,
             topicId: req.topicId,
             createdAt,
             status: 'success',
@@ -84,7 +88,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           message: {
             id: assistantMessageId,
             role: 'assistant',
-            assistantId: session.agentId,
+            assistantId: agentId,
             topicId: req.topicId,
             createdAt: new Date().toISOString(),
             status: 'pending',
@@ -100,9 +104,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
       modelId: uniqueModelId,
       backend: new AgentMessageBackend({
         sessionId,
-        agentId: session.agentId,
+        agentId: agentId,
         afterPersist: async (finalMessage) => {
-          await topicNamingService.maybeRenameAgentSession(session.agentId, sessionId, userText, finalMessage)
+          await topicNamingService.maybeRenameAgentSession(agentId, sessionId, userText, finalMessage)
         }
       })
     })
@@ -115,7 +119,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           request: {
             chatId: req.topicId,
             trigger: 'submit-message',
-            assistantId: session.agentId,
+            assistantId: agentId,
             uniqueModelId,
             messages: [{ id: userMessageId, role: 'user', parts: [{ type: 'text', text: userText }] }],
             messageId: assistantMessageId

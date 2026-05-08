@@ -20,7 +20,7 @@ import type { UpdateAgentBaseOptions, UpdateAgentSessionFunction } from '@render
 import { getErrorMessage } from '@renderer/utils/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
@@ -46,21 +46,38 @@ export const useSession = (agentId: string | null, sessionId: string | null) => 
 }
 
 /**
- * Cursor-paginated session list scoped to a single agent. Reorder uses the
- * same cache key so applying a new order syncs the infinite-query view.
+ * Cursor-paginated session list. With `agentId` undefined / null the result
+ * spans every agent (the global session view); pass an id to scope the
+ * listing. Reorder uses the same cache key so applying a new order syncs the
+ * infinite-query view.
  */
-export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_PAGE_SIZE) => {
+export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_PAGE_SIZE) => {
   const { t } = useTranslation()
 
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/sessions', {
     query: agentId ? { agentId } : undefined,
-    limit: pageSize,
-    enabled: !!agentId
+    limit: pageSize
   })
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/sessions')
 
-  const sessions = useInfiniteFlatItems(pages)
+  const flatSessions = useInfiniteFlatItems(pages)
+  const { data: pinList } = useQuery('/pins', { query: { entityType: 'session' } })
+  const pinIdBySessionId = useMemo(
+    () => new Map(Array.isArray(pinList) ? pinList.map((p) => [p.entityId, p.id] as const) : []),
+    [pinList]
+  )
+  // Pinned-first sort; preserves orderKey order within each section. Sessions
+  // already arrive ordered by `(orderKey, id)` from the server, so a stable
+  // partition is enough — no need to re-sort within a section.
+  const sessions = useMemo(() => {
+    const pinned: AgentSessionEntity[] = []
+    const unpinned: AgentSessionEntity[] = []
+    for (const s of flatSessions) {
+      ;(pinIdBySessionId.has(s.id) ? pinned : unpinned).push(s)
+    }
+    return [...pinned, ...unpinned]
+  }, [flatSessions, pinIdBySessionId])
   const total = sessions.length
   const hasMore = hasNext
   const isLoadingMore = isRefreshing && pages.length > 1
@@ -104,18 +121,36 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
 
   const reorderSessions = useCallback(
     async (reorderedList: AgentSessionEntity[]) => {
-      if (!agentId) return
       try {
         await applyReorderedList(reorderedList as unknown as Array<Record<string, unknown>>)
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
       }
     },
-    [agentId, applyReorderedList, t]
+    [applyReorderedList, t]
+  )
+
+  const { trigger: pinTrigger } = useMutation('POST', '/pins', { refresh: ['/pins'] })
+  const { trigger: unpinTrigger } = useMutation('DELETE', '/pins/:id', { refresh: ['/pins'] })
+  const togglePin = useCallback(
+    async (sessionId: string) => {
+      const pinId = pinIdBySessionId.get(sessionId)
+      try {
+        if (pinId) {
+          await unpinTrigger({ params: { id: pinId } })
+        } else {
+          await pinTrigger({ body: { entityType: 'session', entityId: sessionId } })
+        }
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.pin.error.failed')))
+      }
+    },
+    [pinIdBySessionId, pinTrigger, unpinTrigger, t]
   )
 
   return {
     sessions,
+    pinIdBySessionId,
     total,
     hasMore,
     error,
@@ -126,7 +161,8 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
     loadMore,
     createSession,
     deleteSession,
-    reorderSessions
+    reorderSessions,
+    togglePin
   }
 }
 

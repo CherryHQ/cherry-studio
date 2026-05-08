@@ -192,8 +192,9 @@ export class AgentService {
       return false
     }
 
-    // Wrap pin purge + agent delete in one transaction so a partial delete cannot leave
-    // dangling pin rows behind (mirrors AssistantService.delete + ProviderService.delete).
+    // Sessions detach (agentId → NULL) via FK ON DELETE SET NULL; their rows
+    // and pins survive the agent. Only the agent's own pin entries need a
+    // pre-delete purge since `pin` has no FK back here.
     const result = await withSqliteErrors(
       async () =>
         database.transaction(async (tx) => {

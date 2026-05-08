@@ -4,15 +4,8 @@
  * `agent` is the canonical reusable blueprint — sessions are pure instances of
  * it. Config (model / instructions / mcps / allowedTools / accessiblePaths /
  * configuration) lives here, not on sessions.
- *
- * Companion hooks for derived/lifecycle state (not CRUD):
- *  - {@link import('./useActiveAgent').useActiveAgent} — active-id cache wrapper
- *  - {@link import('./useAgentSessionInitializer').useAgentSessionInitializer}
- *  - {@link import('./useAgentSessionSync').useAgentSessionSync}
  */
 
-import { cacheService } from '@renderer/data/CacheService'
-import { useCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import type { AddAgentForm, AgentEntity, CreateAgentResponse, GetAgentResponse, UpdateAgentForm } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
@@ -56,14 +49,14 @@ export const useAgent = (id: string | null) => {
 }
 
 /**
- * List + mutate all agents. Delete clears the corresponding active-session
- * pointer so stale cache entries don't leak after the agent is gone.
+ * List + mutate all agents. Deleting an agent cascades to its sessions at
+ * the DB layer (FK ON DELETE cascade); the active-session pointer is
+ * normalized by `useAgentSessionInitializer` next render.
  */
 export const useAgents = () => {
   const { t } = useTranslation()
   const { data, isLoading, error } = useQuery('/agents')
   const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
-  const [activeAgentId] = useCache('agent.active_id')
 
   const { trigger: createTrigger } = useMutation('POST', '/agents', { refresh: ['/agents'] })
   const addAgent = useCallback(
@@ -81,23 +74,19 @@ export const useAgents = () => {
     [createTrigger, t]
   )
 
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId', { refresh: ['/agents'] })
+  const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId', {
+    refresh: ['/agents', '/sessions']
+  })
   const deleteAgent = useCallback(
     async (id: string) => {
       try {
         await deleteTrigger({ params: { agentId: id } })
-        const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
-        cacheService.set('agent.session.active_id_map', { ...currentMap, [id]: null })
-        if (activeAgentId === id) {
-          const newId = agents.filter((a) => a.id !== id).find(() => true)?.id
-          cacheService.set('agent.active_id', newId ?? null)
-        }
         window.toast.success(t('common.delete_success'))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
       }
     },
-    [deleteTrigger, activeAgentId, agents, t]
+    [deleteTrigger, t]
   )
 
   return { agents, error, isLoading, addAgent, deleteAgent }

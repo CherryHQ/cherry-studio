@@ -429,12 +429,10 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
 
   const navigateToSession = useCallback(
     (sessionId: string) => {
-      cacheService.set('agent.active_id', agentId)
-      const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
-      cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: sessionId })
+      cacheService.set('agent.active_session_id', sessionId)
       void navigate({ to: '/app/chat' })
     },
-    [agentId, navigate]
+    [navigate]
   )
 
   const columns = [

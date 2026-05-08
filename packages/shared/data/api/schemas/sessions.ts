@@ -21,7 +21,7 @@ import { AgentNameAtomSchema, type ListQuery } from './agents'
 
 export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),
-  agentId: z.string(),
+  agentId: z.string().nullable(),
   name: AgentNameAtomSchema,
   description: z.string().optional(),
   orderKey: z.string(),
@@ -30,10 +30,11 @@ export const AgentSessionEntitySchema = z.strictObject({
 })
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 
-export const CreateSessionSchema = AgentSessionEntitySchema.pick({
-  agentId: true,
-  name: true,
-  description: true
+// Create requires a real `agentId` — orphans only happen via cascade, never on insert.
+export const CreateSessionSchema = z.strictObject({
+  agentId: z.string(),
+  name: AgentNameAtomSchema,
+  description: z.string().optional()
 })
 export type CreateSessionDto = z.infer<typeof CreateSessionSchema>
 

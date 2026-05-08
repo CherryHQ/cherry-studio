@@ -2,6 +2,7 @@ import { application } from '@application'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import { pinService } from '@data/services/PinService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -13,7 +14,7 @@ import type {
   ListSessionsQuery,
   UpdateSessionDto
 } from '@shared/data/api/schemas/sessions'
-import { and, asc, eq, gt, inArray, or, type SQL } from 'drizzle-orm'
+import { and, asc, eq, gt, or, type SQL } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -77,11 +78,7 @@ export class SessionService {
             tx,
             sessionsTable,
             { id, agentId: dto.agentId, name: dto.name, description: dto.description },
-            {
-              pkColumn: sessionsTable.id,
-              position: 'first',
-              scope: eq(sessionsTable.agentId, dto.agentId)
-            }
+            { pkColumn: sessionsTable.id, position: 'first' }
           )
         ),
       {
@@ -145,58 +142,31 @@ export class SessionService {
 
   async delete(id: string): Promise<void> {
     const db = application.get('DbService').getDb()
-    const [row] = await db.delete(sessionsTable).where(eq(sessionsTable.id, id)).returning({ id: sessionsTable.id })
-    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    await db.transaction(async (tx) => {
+      const [row] = await tx.delete(sessionsTable).where(eq(sessionsTable.id, id)).returning({ id: sessionsTable.id })
+      if (!row) throw DataApiErrorFactory.notFound('Session', id)
+      await pinService.purgeForEntity(tx, 'session', id)
+    })
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
     const db = application.get('DbService').getDb()
     await db.transaction(async (tx) => {
       const [target] = await tx
-        .select({ agentId: sessionsTable.agentId })
+        .select({ id: sessionsTable.id })
         .from(sessionsTable)
         .where(eq(sessionsTable.id, id))
         .limit(1)
       if (!target) throw DataApiErrorFactory.notFound('Session', id)
 
-      await applyMoves(tx, sessionsTable, [{ id, anchor }], {
-        pkColumn: sessionsTable.id,
-        scope: eq(sessionsTable.agentId, target.agentId)
-      })
+      await applyMoves(tx, sessionsTable, [{ id, anchor }], { pkColumn: sessionsTable.id })
     })
   }
 
-  /** Cross-agent (mixed agentId) batches are rejected with VALIDATION_ERROR. */
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
-
     const db = application.get('DbService').getDb()
-    await db.transaction(async (tx) => {
-      const ids = moves.map((m) => m.id)
-      const targets = await tx
-        .select({ id: sessionsTable.id, agentId: sessionsTable.agentId })
-        .from(sessionsTable)
-        .where(inArray(sessionsTable.id, ids))
-
-      if (targets.length !== ids.length) {
-        const found = new Set(targets.map((t) => t.id))
-        const missing = ids.find((id) => !found.has(id)) ?? ids[0]
-        throw DataApiErrorFactory.notFound('Session', missing)
-      }
-
-      const scopes = new Set(targets.map((t) => t.agentId))
-      if (scopes.size > 1) {
-        const list = [...scopes].join(', ')
-        const message = `reorderBatch: batch spans multiple agentId scopes (${list})`
-        throw DataApiErrorFactory.validation({ _root: [message] }, message)
-      }
-
-      const [agentId] = [...scopes]
-      await applyMoves(tx, sessionsTable, moves, {
-        pkColumn: sessionsTable.id,
-        scope: eq(sessionsTable.agentId, agentId)
-      })
-    })
+    await db.transaction((tx) => applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id }))
   }
 
   async exists(id: string): Promise<boolean> {

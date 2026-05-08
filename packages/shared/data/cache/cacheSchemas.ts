@@ -139,9 +139,9 @@ export type UseCacheSchema = {
   'topic.newly_renamed': string[]
   'topic.home.first_launch_temp_used': boolean
 
-  // Agent management
-  'agent.active_id': string | null
-  'agent.session.active_id_map': Record<string, string | null>
+  // Agent management — sessions are the user-facing primary; active agent is
+  // derived from the active session's `agentId`, so a single pointer is enough.
+  'agent.active_session_id': string | null
   'agent.session.waiting_id_map': Record<string, boolean>
 
   // Translate page state management
@@ -223,8 +223,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'topic.home.first_launch_temp_used': false,
 
   // Agent management
-  'agent.active_id': null,
-  'agent.session.active_id_map': {},
+  'agent.active_session_id': null,
   'agent.session.waiting_id_map': {},
 
   // Translate page state management

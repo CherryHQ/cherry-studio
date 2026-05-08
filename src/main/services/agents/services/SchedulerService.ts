@@ -313,7 +313,7 @@ class SchedulerService {
             request: {
               chatId: topicId,
               trigger: 'submit-message',
-              assistantId: session.agentId,
+              assistantId: task.agentId,
               uniqueModelId,
               messages: [{ id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: fullPrompt }] }]
             }

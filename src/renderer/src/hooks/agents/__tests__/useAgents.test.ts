@@ -1,4 +1,3 @@
-import { cacheService } from '@data/CacheService'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
@@ -104,7 +103,7 @@ describe('useAgents', () => {
   })
 
   describe('deleteAgent', () => {
-    it('calls deleteTrigger and updates cache', async () => {
+    it('calls deleteTrigger and shows success toast', async () => {
       const mockTrigger = vi.fn().mockResolvedValue(undefined)
       MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agents/:agentId', mockTrigger)
       MockUseDataApiUtils.mockQueryResult('/agents', {
@@ -117,13 +116,12 @@ describe('useAgents', () => {
           page: 1
         } as any
       })
-      const cacheSpy = vi.spyOn(cacheService, 'set')
 
       const { result } = renderHook(() => useAgents())
       await act(async () => result.current.deleteAgent('agent-1'))
 
+      expect(mockTrigger).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
       expect(mockToast.success).toHaveBeenCalledWith('common.delete_success')
-      expect(cacheSpy).toHaveBeenCalled()
     })
 
     it('shows error toast when deleteTrigger throws', async () => {

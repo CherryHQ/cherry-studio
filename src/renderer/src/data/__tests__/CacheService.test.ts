@@ -48,26 +48,26 @@ describe('renderer CacheService equality semantics', () => {
     it('skips subscriber notification when object value has same content (new reference)', async () => {
       const service = await createService()
       const sub = vi.fn()
-      const key = 'agent.session.active_id_map'
+      const key = 'agent.session.waiting_id_map'
 
-      service.set(key, { a: '1', b: '2' })
+      service.set(key, { a: true, b: false })
       service.subscribe(key, sub)
       sub.mockClear()
 
-      service.set(key, { a: '1', b: '2' }) // new reference, same content
+      service.set(key, { a: true, b: false }) // new reference, same content
       expect(sub).not.toHaveBeenCalled()
     })
 
     it('notifies subscribers when content actually changes', async () => {
       const service = await createService()
       const sub = vi.fn()
-      const key = 'agent.session.active_id_map'
+      const key = 'agent.session.waiting_id_map'
 
-      service.set(key, { a: '1' })
+      service.set(key, { a: true })
       service.subscribe(key, sub)
       sub.mockClear()
 
-      service.set(key, { a: '1', b: '2' })
+      service.set(key, { a: true, b: false })
       expect(sub).toHaveBeenCalledTimes(1)
     })
   })

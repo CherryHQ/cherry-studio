@@ -194,6 +194,11 @@ export class ChannelMessageHandler {
 
       // Resolve agent for config (model / accessiblePaths / configuration / mcps / allowedTools).
       // session DTO no longer carries config — sessions are pure agent instances.
+      // An orphan session (`agentId === null`) cannot run; skip it.
+      if (!session.agentId) {
+        logger.error('Channel message hit an orphan session', { sessionId: session.id })
+        return
+      }
       const agent = await agentService.getAgent(session.agentId)
       if (!agent) {
         logger.error('Agent not found for session', { sessionId: session.id, agentId: session.agentId })
@@ -512,9 +517,13 @@ export class ChannelMessageHandler {
     adapter: ChannelAdapter,
     chatId: string
   ): Promise<string> {
-    const agent = await agentService.getAgent(session.agentId)
+    if (!session.agentId) {
+      throw new Error(`Cannot stream on orphan session ${session.id} — its agent was deleted`)
+    }
+    const agentId = session.agentId
+    const agent = await agentService.getAgent(agentId)
     if (!agent || !agent.model) {
-      throw new Error(`Agent ${session.agentId} not found or has no model configured`)
+      throw new Error(`Agent ${agentId} not found or has no model configured`)
     }
     const topicId = buildAgentSessionTopicId(session.id)
     const uniqueModelId = parseAgentSessionModel(agent.model)
@@ -560,7 +569,7 @@ export class ChannelMessageHandler {
           request: {
             chatId: topicId,
             trigger: 'submit-message',
-            assistantId: session.agentId,
+            assistantId: agentId,
             uniqueModelId,
             messages: [{ id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: content }] }]
           }

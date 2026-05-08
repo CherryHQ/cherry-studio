@@ -1,17 +1,16 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
-import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
-import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
+import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
+import { useAgent, useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import type { GetAgentResponse } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -36,35 +35,15 @@ const AgentChat = () => {
   const { t } = useTranslation()
   const { messageNavigation, messageStyle, topicPosition } = useSettings()
   const [showTopics] = usePreference('topic.tab.show')
-  const [activeAgentId] = useCache('agent.active_id')
-  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
 
-  const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
-  // undefined = session not yet initialized, null = initialized but no sessions
-  const isSessionInitialized = !activeAgentId || activeAgentId in activeSessionIdMap
-  const { agent: activeAgent, isLoading: isAgentLoading } = useActiveAgent()
+  const { session: activeSession, isLoading: isSessionLoading } = useActiveSession()
+  const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(activeSession?.agentId ?? null)
   const { isLoading: isAgentsLoading, agents } = useAgents()
-  const { createDefaultSession } = useCreateDefaultSession(activeAgentId)
 
-  // Don't show select/create alerts while data is still loading
-  // apiServerRunning is guaranteed by AgentPage guard
-  const isInitializing =
-    isAgentsLoading || isAgentLoading || !isSessionInitialized || !agents || (!activeAgentId && agents.length > 0)
+  const isInitializing = isAgentsLoading || isSessionLoading || (activeSession && isAgentLoading) || !agents
 
-  const showRightSessions = topicPosition === 'right' && showTopics && !!activeAgentId
-
-  useShortcut(
-    'topic.new',
-    () => {
-      void createDefaultSession()
-    },
-    {
-      enabled: true,
-      preventDefault: true,
-      enableOnFormTags: true
-    }
-  )
+  const showRightSessions = topicPosition === 'right' && showTopics && !!activeSession
 
   if (isInitializing) {
     return (
@@ -74,18 +53,7 @@ const AgentChat = () => {
     )
   }
 
-  // Initialized — agents.length === 0 is handled by AgentPage
-  if (!activeAgentId) {
-    return (
-      <Container className="flex flex-1 flex-col justify-between">
-        <div className="flex h-full w-full items-center justify-center">
-          <Alert type="info" message={t('chat.alerts.select_agent')} style={{ margin: '5px 16px' }} />
-        </div>
-      </Container>
-    )
-  }
-
-  if (!activeSessionId) {
+  if (!activeSession) {
     return (
       <Container className="flex flex-1 flex-col justify-between">
         <div className="flex h-full w-full items-center justify-center">
@@ -95,10 +63,26 @@ const AgentChat = () => {
     )
   }
 
+  // Orphan session — its agent was deleted. Show a read-only placeholder; user
+  // must reattach to another agent (UX TBD) or delete the session.
+  if (!activeSession.agentId) {
+    return (
+      <Container className="flex flex-1 flex-col justify-between">
+        <div className="flex h-full w-full items-center justify-center">
+          <Alert
+            type="warning"
+            message={t('agent.session.orphan.message', 'This session’s agent has been deleted')}
+            style={{ margin: '5px 16px' }}
+          />
+        </div>
+      </Container>
+    )
+  }
+
   return (
     <AgentChatInner
-      agentId={activeAgentId}
-      sessionId={activeSessionId}
+      agentId={activeSession.agentId}
+      sessionId={activeSession.id}
       activeAgent={activeAgent}
       showRightSessions={showRightSessions}
       messageNavigation={messageNavigation}
@@ -113,7 +97,7 @@ const AgentChat = () => {
 interface InnerProps {
   agentId: string
   sessionId: string
-  activeAgent: ReturnType<typeof useActiveAgent>['agent']
+  activeAgent: GetAgentResponse | undefined
   showRightSessions: boolean
   messageNavigation: string
   messageStyle: string
@@ -243,7 +227,7 @@ const AgentChatInner = ({
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             className="overflow-hidden">
             <div className="flex h-full w-(--assistants-width) flex-col overflow-hidden">
-              <Sessions agentId={agentId} />
+              <Sessions />
             </div>
           </motion.div>
         )}

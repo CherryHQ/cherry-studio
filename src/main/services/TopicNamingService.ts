@@ -193,7 +193,7 @@ export class TopicNamingService {
     agentSessionRenameLocks.add(sessionId)
     try {
       const session = await sessionService.getById(sessionId).catch(() => null)
-      if (!session) return
+      if (!session || !session.agentId) return
       const agent = await agentService.getAgent(session.agentId).catch(() => null)
       if (!agent || !agent.model) return
 

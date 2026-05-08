@@ -37,8 +37,7 @@ export const useCreateDefaultSession = (agentId: string | null) => {
       const created = await createSession(session)
 
       if (created) {
-        const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
-        cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: created.id })
+        cacheService.set('agent.active_session_id', created.id)
       }
 
       return created

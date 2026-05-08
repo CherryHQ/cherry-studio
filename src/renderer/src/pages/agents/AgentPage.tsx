@@ -1,9 +1,8 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { useCache } from '@renderer/data/hooks/useCache'
-import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
+import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -26,11 +25,12 @@ const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { topicPosition } = useSettings()
-  const [activeAgentId] = useCache('agent.active_id')
   const { agents } = useAgents()
-  const { setActiveAgentId } = useActiveAgent()
   const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
   const { t } = useTranslation()
+
+  // Seed `agent.active_session_id` to the most-recent session when nothing is set.
+  useAgentSessionInitializer()
 
   useShortcut('general.toggle_sidebar', () => {
     if (topicPosition === 'left') {
@@ -48,13 +48,6 @@ const AgentPage = () => {
       void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
     }
   })
-
-  // Auto-select first agent when none is active
-  useEffect(() => {
-    if (!activeAgentId && agents && agents.length > 0) {
-      void setActiveAgentId(agents[0].id)
-    }
-  }, [activeAgentId, agents, setActiveAgentId])
 
   useEffect(() => {
     void window.api.window.setMinimumSize(showSidebar ? MIN_WINDOW_WIDTH : SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)

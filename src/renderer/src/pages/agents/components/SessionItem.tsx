@@ -16,7 +16,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
-import { MenuIcon, XIcon } from 'lucide-react'
+import { MenuIcon, PinIcon, PinOffIcon, XIcon } from 'lucide-react'
 import React, { memo, startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -25,18 +25,17 @@ import styled from 'styled-components'
 
 interface SessionItemProps {
   session: AgentSessionEntity
-  // use external agentId as SSOT, instead of session.agent_id
-  agentId: string
   channelType?: string
+  pinned?: boolean
+  onTogglePin?: () => void
   onDelete: () => void
   onPress: () => void
 }
 
-const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: SessionItemProps) => {
+const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPress }: SessionItemProps) => {
   const { t } = useTranslation()
-  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
-  const { updateSession } = useUpdateSession(agentId)
-  const activeSessionId = activeSessionIdMap[agentId]
+  const [activeSessionId] = useCache('agent.active_session_id')
+  const { updateSession } = useUpdateSession(session.agentId)
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const [_targetSession, setTargetSession] = useState<AgentSessionEntity>(session)
@@ -116,17 +115,31 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
 
   const menuItems: MenuProps['items'] = useMemo(
     () => [
-      {
-        label: t('common.edit'),
-        key: 'edit',
-        icon: <EditIcon size={14} />,
-        onClick: () => {
-          void SessionSettingsPopup.show({
-            agentId,
-            sessionId: session.id
-          })
-        }
-      },
+      ...(session.agentId
+        ? [
+            {
+              label: t('common.edit'),
+              key: 'edit',
+              icon: <EditIcon size={14} />,
+              onClick: () => {
+                void SessionSettingsPopup.show({
+                  agentId: session.agentId!,
+                  sessionId: session.id
+                })
+              }
+            }
+          ]
+        : []),
+      ...(onTogglePin
+        ? [
+            {
+              label: pinned ? t('chat.topics.unpin') : t('chat.topics.pin'),
+              key: 'pin',
+              icon: pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
+              onClick: () => onTogglePin()
+            }
+          ]
+        : []),
       {
         label: t('settings.topic.position.label'),
         key: 'topic-position',
@@ -154,7 +167,7 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
         }
       }
     ],
-    [agentId, onDelete, session.id, sessionTopicId, setTopicPosition, t, targetSession.id]
+    [onDelete, onTogglePin, pinned, session.agentId, session.id, sessionTopicId, setTopicPosition, t, targetSession.id]
   )
 
   return (

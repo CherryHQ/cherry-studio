@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "70071910-ddaf-49e7-8e07-0377ec9f3312",
+  "id": "ef0b867e-0abd-403f-bbfc-a6932aaa6ee7",
   "prevId": "adf49fb7-cac0-487e-8e22-c94ea17d55bd",
   "tables": {
     "agent": {
@@ -500,7 +500,7 @@
           "name": "agent_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "name": {
@@ -541,9 +541,9 @@
         }
       },
       "indexes": {
-        "agent_session_agent_id_order_key_idx": {
-          "name": "agent_session_agent_id_order_key_idx",
-          "columns": ["agent_id", "order_key"],
+        "agent_session_order_key_idx": {
+          "name": "agent_session_order_key_idx",
+          "columns": ["order_key"],
           "isUnique": false
         }
       },
@@ -554,7 +554,7 @@
           "tableTo": "agent",
           "columnsFrom": ["agent_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

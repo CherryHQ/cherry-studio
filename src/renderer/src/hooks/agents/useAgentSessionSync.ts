@@ -11,15 +11,17 @@ import { useSharedCache } from '@data/hooks/useCache'
 import { useEffect, useRef } from 'react'
 import { mutate } from 'swr'
 
-// Matches both fixed string keys (`/v1/agents/{agentId}/sessions[/{id}]`) and
-// the serialized infinite key (`["/v1/agents/{agentId}/sessions",page,size]`),
-// while excluding message-scoped keys (`/sessions/{id}/messages...`).
-const SESSION_KEY_RE = /\/agents\/[^/"]+\/sessions(\/[^/"]+)?(?:"|$)/
+// Matches the flat session list (`/sessions`) and detail (`/sessions/{id}`),
+// excluding message-scoped keys (`/sessions/{id}/messages...`). Works against
+// both string keys and the serialized infinite-query key (which embeds the
+// path as the first array element wrapped in quotes).
+const SESSION_KEY_RE = /\/sessions(?:\/[^/"]+)?(?:"|$)/
+const MESSAGES_KEY_RE = /\/sessions\/[^/"]+\/messages/
 
 function isSessionKey(key: unknown): boolean {
-  if (typeof key === 'string') return SESSION_KEY_RE.test(key)
-  if (Array.isArray(key) && typeof key[0] === 'string') return SESSION_KEY_RE.test(key[0])
-  return false
+  const path = typeof key === 'string' ? key : Array.isArray(key) && typeof key[0] === 'string' ? key[0] : null
+  if (!path) return false
+  return SESSION_KEY_RE.test(path) && !MESSAGES_KEY_RE.test(path)
 }
 
 export function useAgentSessionSync() {

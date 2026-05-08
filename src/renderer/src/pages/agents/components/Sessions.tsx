@@ -1,31 +1,30 @@
 import AddButton from '@renderer/components/AddButton'
 import DraggableVirtualList, { type DraggableVirtualListRef } from '@renderer/components/DraggableList/virtual-list'
-import { cacheService } from '@renderer/data/CacheService'
-import { dataApiService } from '@renderer/data/DataApiService'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessionDataApi'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert, Button, Spin } from 'antd'
 import { motion } from 'framer-motion'
 import { throttle } from 'lodash'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SessionItem from './SessionItem'
 
 interface SessionsProps {
-  agentId: string
   onSelectItem?: () => void
 }
 
 const LOAD_MORE_THRESHOLD = 100
 const SCROLL_THROTTLE_DELAY = 150
 
-const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
+const Sessions = ({ onSelectItem }: SessionsProps) => {
   const { t } = useTranslation()
   const {
     sessions,
+    pinIdBySessionId,
     isLoading,
     error,
     deleteSession,
@@ -34,34 +33,30 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
     isLoadingMore,
     isValidating,
     reload,
-    reorderSessions
-  } = useSessions(agentId)
-  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
+    reorderSessions,
+    togglePin
+  } = useSessions()
+  const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
 
-  const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
+  // Create-session entry: pick the agent of the currently-active session by
+  // default, falling back to the agent owning the first listed session.
+  const fallbackAgentId = useMemo(() => {
+    const activeAgentId = sessions.find((s) => s.id === activeSessionId)?.agentId
+    return activeAgentId ?? sessions[0]?.agentId ?? null
+  }, [sessions, activeSessionId])
+  const { createDefaultSession, creatingSession } = useCreateDefaultSession(fallbackAgentId)
+
   const listRef = useRef<DraggableVirtualListRef>(null)
 
-  // Build sessionId → channelType map from channels table
-  const [channelTypeMap, setChannelTypeMap] = useState<Record<string, string>>({})
-  useEffect(() => {
-    if (!agentId) return
+  const { data: channels } = useQuery('/channels')
+  const channelTypeMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const ch of channels ?? []) {
+      if (ch.sessionId) map[ch.sessionId] = ch.type
+    }
+    return map
+  }, [channels])
 
-    dataApiService
-      .get('/channels' as never, { query: { agentId } })
-      .then((result: any) => {
-        const map: Record<string, string> = {}
-        for (const ch of result ?? []) {
-          if (ch.sessionId) {
-            map[ch.sessionId] = ch.type
-          }
-        }
-        setChannelTypeMap(map)
-      })
-      .catch(() => {})
-  }, [agentId])
-
-  // Use refs to always read the latest values inside the throttled handler,
-  // avoiding stale closures caused by recreating the throttle on each render.
   const hasMoreRef = useRef(hasMore)
   const isLoadingMoreRef = useRef(isLoadingMore)
   const loadMoreRef = useRef(loadMore)
@@ -69,13 +64,11 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
   isLoadingMoreRef.current = isLoadingMore
   loadMoreRef.current = loadMore
 
-  // Create the throttle once — refs ensure it always sees fresh state.
   const handleScroll = useMemo(
     () =>
       throttle(() => {
         const scrollElement = listRef.current?.scrollElement()
         if (!scrollElement) return
-
         const { scrollTop, scrollHeight, clientHeight } = scrollElement
         if (
           scrollHeight - scrollTop - clientHeight < LOAD_MORE_THRESHOLD &&
@@ -88,11 +81,9 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
     []
   )
 
-  // Handle scroll to load more
   useEffect(() => {
     const scrollElement = listRef.current?.scrollElement()
     if (!scrollElement) return
-
     scrollElement.addEventListener('scroll', handleScroll)
     return () => {
       handleScroll.cancel()
@@ -100,38 +91,25 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
     }
   }, [handleScroll])
 
-  const setActiveSessionId = useCallback((agentId: string, sessionId: string | null) => {
-    const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
-    cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: sessionId })
-  }, [])
-
   const handleDeleteSession = useCallback(
     async (id: string) => {
-      if (sessions.length === 1) {
-        window.toast.error(t('agent.session.delete.error.last'))
-        return
-      }
       const success = await deleteSession(id)
-      if (success) {
-        const newSessionId = sessions.find((s) => s.id !== id)?.id
-        if (newSessionId) {
-          const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
-          cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: newSessionId })
-        } else {
-          // may clear messages instead of forbidden deletion
-        }
+      if (success && activeSessionId === id) {
+        const remaining = sessions.find((s) => s.id !== id)
+        setActiveSessionId(remaining?.id ?? null)
       }
     },
-    [agentId, deleteSession, sessions, t]
+    [activeSessionId, deleteSession, sessions, setActiveSessionId]
   )
 
-  const activeSessionId = activeSessionIdMap[agentId]
-
+  // Cold start: seed the active pointer from the first available session if
+  // nothing is set. `useAgentSessionInitializer` (in AgentPage) does the same
+  // via a direct fetch — whichever runs first wins, the other is a no-op.
   useEffect(() => {
     if (!isLoading && sessions.length > 0 && !activeSessionId) {
-      setActiveSessionId(agentId, sessions[0].id)
+      setActiveSessionId(sessions[0].id)
     }
-  }, [isLoading, sessions, activeSessionId, agentId, setActiveSessionId])
+  }, [isLoading, sessions, activeSessionId, setActiveSessionId])
 
   if (isLoading) {
     return (
@@ -175,7 +153,7 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
         itemKey={(index) => sessions[index]?.id ?? index}
         header={
           <div className="-mt-0.5 mb-1.5">
-            <AddButton className="w-full" onClick={createDefaultSession} disabled={creatingSession}>
+            <AddButton className="w-full" onClick={createDefaultSession} disabled={creatingSession || !fallbackAgentId}>
               {t('agent.session.add.title')}
             </AddButton>
           </div>
@@ -184,11 +162,12 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
           <SessionItem
             key={session.id}
             session={session}
-            agentId={agentId}
             channelType={channelTypeMap[session.id]}
+            pinned={pinIdBySessionId.has(session.id)}
+            onTogglePin={() => togglePin(session.id)}
             onDelete={() => handleDeleteSession(session.id)}
             onPress={() => {
-              setActiveSessionId(agentId, session.id)
+              setActiveSessionId(session.id)
               onSelectItem?.()
             }}
           />
