@@ -12,7 +12,6 @@ import {
 import type { ModelTag } from '@renderer/types'
 import React, { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('TagFilterSection')
 
@@ -47,9 +46,9 @@ const TagFilterSection: React.FC<TagFilterSectionProps> = ({ availableTags, tagS
   )
 
   return (
-    <FilterContainer>
+    <div className="py-2 pr-2 pl-[18px]">
       <Flex className="flex-wrap gap-1">
-        <FilterText>{t('models.filter.by_tag')}</FilterText>
+        <span className="text-[var(--color-text-3)] text-xs">{t('models.filter.by_tag')}</span>
         {availableTags.map((tag) => {
           const TagElement = tagComponents[tag]
           if (!TagElement) {
@@ -66,18 +65,8 @@ const TagFilterSection: React.FC<TagFilterSectionProps> = ({ availableTags, tagS
           )
         })}
       </Flex>
-    </FilterContainer>
+    </div>
   )
 }
-
-const FilterContainer = styled.div`
-  padding: 8px;
-  padding-left: 18px;
-`
-
-const FilterText = styled.span`
-  color: var(--color-text-3);
-  font-size: 12px;
-`
 
 export default TagFilterSection
