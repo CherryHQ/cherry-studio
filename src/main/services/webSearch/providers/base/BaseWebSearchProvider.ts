@@ -3,14 +3,15 @@ import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 import { withoutTrailingSlash } from '@shared/utils'
 import type * as z from 'zod'
 
-import { ApiKeyRotationState, resolveProviderApiHost } from '../../utils/provider'
+import type { ApiKeyRotationState } from '../../utils/provider'
+import { resolveProviderApiHost } from '../../utils/provider'
 
 const MAX_HTTP_ERROR_TEXT_LENGTH = 500
 
 export abstract class BaseWebSearchProvider {
   constructor(
     protected readonly provider: ResolvedWebSearchProvider,
-    private readonly apiKeyRotationState: ApiKeyRotationState = new ApiKeyRotationState()
+    private readonly apiKeyRotationState: ApiKeyRotationState
   ) {}
 
   protected resolveApiUrl(capability: WebSearchCapability, path: string): string {

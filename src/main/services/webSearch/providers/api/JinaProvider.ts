@@ -1,5 +1,5 @@
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
-import { defaultAppHeaders, isValidUrl, withoutTrailingSlash } from '@shared/utils'
+import { defaultAppHeaders, withoutTrailingSlash } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
@@ -102,10 +102,6 @@ export class JinaProvider extends BaseWebSearchProvider {
   ): JinaContext {
     const url = query.trim()
 
-    if (!isValidUrl(url)) {
-      throw new Error(`Invalid URL format: ${url}`)
-    }
-
     return {
       apiKey: this.resolveApiKey(),
       query: url,
@@ -185,6 +181,10 @@ export class JinaProvider extends BaseWebSearchProvider {
   ): WebSearchResponse {
     const data = payload.data || payload
     const content = data.content?.trim() || data.text?.trim() || ''
+
+    if (!content) {
+      throw new Error(`Jina Reader returned empty content for ${context.query}`)
+    }
 
     return {
       query: context.query,

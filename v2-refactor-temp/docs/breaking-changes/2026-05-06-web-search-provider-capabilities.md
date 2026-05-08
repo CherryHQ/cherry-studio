@@ -2,13 +2,13 @@
 title: Web Search provider defaults are split by capability
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#14856'
 date: 2026-05-06
 ---
 
 ## What changed
 
-Web Search now has separate default provider settings for keyword search and URL content fetching. Jina is shown as one provider, `Jina`, with both capabilities instead of a separate `Jina Reader` entry.
+Web Search now has separate default provider settings for keyword search and URL content fetching. Jina is shown as one provider, `Jina`, with both capabilities instead of a separate `Jina Reader` entry. A new built-in `Fetch` provider is available for URL content fetching.
 
 ## Why this matters to the user
 
@@ -20,4 +20,4 @@ Select defaults for both Web Search capabilities in Settings. Users who rely on 
 
 ## Notes for release manager
 
-This is a v2 development breaking change. Per the architecture decision, no compatibility migration is included for the old v2-only `chat.web_search.default_provider` key or `jina-reader` provider id.
+This is a v2 development breaking change. Per the architecture decision, no compatibility migration is included for the old v2-only `chat.web_search.default_provider` key or `jina-reader` provider id. Existing v2 development provider overrides using the previous flat `apiHost` shape are also not preserved; users should reconfigure affected provider hosts in Settings.

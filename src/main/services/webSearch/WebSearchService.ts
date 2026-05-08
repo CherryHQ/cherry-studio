@@ -39,6 +39,7 @@ type PreparedWebSearchContext = {
 @Injectable('WebSearchService')
 @ServicePhase(Phase.WhenReady)
 export class WebSearchService extends BaseService {
+  // Service-scoped state preserves API key rotation across IPC calls and is cleared on stop.
   private readonly apiKeyRotationState = new ApiKeyRotationState()
 
   protected onInit(): void {
@@ -97,6 +98,7 @@ export class WebSearchService extends BaseService {
       (item): item is PromiseRejectedResult => item.status === 'rejected' && isAbortError(item.reason)
     )
 
+    // Only caller-aborted requests cancel the whole fanout; provider-side abort-like failures stay partial.
     if (abortedSearch && httpOptions?.signal?.aborted) {
       throw abortedSearch.reason
     }

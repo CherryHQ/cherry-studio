@@ -191,6 +191,7 @@ export interface WebSearchProvider {
   /** Capability API settings (user override merged into preset capabilities) */
   capabilities: Array<{
     feature: WebSearchCapability
+    /** Can be empty for self-hosted or hostless providers; resolve and validate via resolveProviderApiHost. */
     apiHost?: string
   }>
   /** Search engines (from user overrides) */

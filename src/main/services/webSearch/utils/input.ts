@@ -3,6 +3,7 @@ import { isValidUrl } from '@shared/utils'
 export const MAX_WEB_SEARCH_INPUTS = 20
 
 export function normalizeWebSearchKeywords(keywords: string[]): string[] {
+  // Free-form search terms are valid inputs; URL-only constraints belong to fetchUrls.
   const normalized = keywords.map((keyword) => keyword.trim()).filter(Boolean)
 
   if (normalized.length === 0) {

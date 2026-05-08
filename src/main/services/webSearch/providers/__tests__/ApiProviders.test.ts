@@ -22,6 +22,7 @@ vi.mock('electron', () => ({
   }
 }))
 
+import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
@@ -72,6 +73,18 @@ function createProvider(
     basicAuthPassword: '',
     ...restOverrides
   }
+}
+
+type ProviderConstructor<TProvider> = new (
+  provider: ResolvedWebSearchProvider,
+  apiKeyRotationState: ApiKeyRotationState
+) => TProvider
+
+function createProviderDriver<TProvider>(
+  Provider: ProviderConstructor<TProvider>,
+  provider: ResolvedWebSearchProvider
+): TProvider {
+  return new Provider(provider, new ApiKeyRotationState())
 }
 
 function loadFixtureText(name: string): string {
@@ -141,7 +154,8 @@ describe('main web search API providers', () => {
   it('matches Exa request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('exa-response.json')))
 
-    const provider = new ExaProvider(
+    const provider = createProviderDriver(
+      ExaProvider,
       createProvider({
         id: 'exa',
         name: 'Exa',
@@ -197,7 +211,8 @@ describe('main web search API providers', () => {
   it('matches Tavily request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('tavily-response.json')))
 
-    const provider = new TavilyProvider(
+    const provider = createProviderDriver(
+      TavilyProvider,
       createProvider({
         id: 'tavily',
         name: 'Tavily',
@@ -250,7 +265,8 @@ describe('main web search API providers', () => {
   it('fetches a URL without API key or API host', async () => {
     fetchMock.mockResolvedValue(createTextResponse(loadFixtureText('searxng-page.html'), 'text/html'))
 
-    const provider = new FetchProvider(
+    const provider = createProviderDriver(
+      FetchProvider,
       createProvider({
         id: 'fetch',
         name: 'Fetch',
@@ -306,7 +322,8 @@ describe('main web search API providers', () => {
       })
     )
 
-    const provider = new JinaProvider(
+    const provider = createProviderDriver(
+      JinaProvider,
       createProvider({
         id: 'jina',
         name: 'Jina',
@@ -354,8 +371,20 @@ describe('main web search API providers', () => {
     `)
   })
 
-  it('throws a clear error for non-URL reader queries', async () => {
-    const provider = new JinaProvider(
+  it('throws when Jina Reader returns empty content', async () => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        code: 200,
+        data: {
+          title: 'Reader Title',
+          content: '   ',
+          text: '\n'
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      JinaProvider,
       createProvider({
         id: 'jina',
         name: 'Jina',
@@ -364,8 +393,27 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.fetchUrls('not a url', runtimeConfig)).rejects.toThrow('Invalid URL format: not a url')
-    expect(fetchMock).not.toHaveBeenCalled()
+    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
+      'Jina Reader returned empty content for https://example.com/article'
+    )
+  })
+
+  it('includes Jina Reader upstream error body for HTTP failures', async () => {
+    fetchMock.mockResolvedValue(createTextResponse('unauthorized reader token', 'text/plain', 401))
+
+    const provider = createProviderDriver(
+      JinaProvider,
+      createProvider({
+        id: 'jina',
+        name: 'Jina',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+
+    await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
+      'Jina Reader fetch failed: HTTP 401 unauthorized reader token'
+    )
   })
 
   it('matches Searxng search requests and parsed content snapshots from fixtures', async () => {
@@ -373,7 +421,8 @@ describe('main web search API providers', () => {
       .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
       .mockResolvedValueOnce(createTextResponse(loadFixtureText('searxng-page.html'), 'text/html'))
 
-    const provider = new SearxngProvider(
+    const provider = createProviderDriver(
+      SearxngProvider,
       createProvider({
         id: 'searxng',
         name: 'Searxng',
@@ -436,7 +485,8 @@ describe('main web search API providers', () => {
       .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
       .mockResolvedValueOnce(createTextResponse(loadFixtureText('searxng-page.html'), 'text/html'))
 
-    const provider = new SearxngProvider(
+    const provider = createProviderDriver(
+      SearxngProvider,
       createProvider({
         id: 'searxng',
         name: 'Searxng',
@@ -479,7 +529,8 @@ describe('main web search API providers', () => {
       .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
       .mockResolvedValueOnce(createTextResponse('<html><body><div></div></body></html>', 'text/html'))
 
-    const provider = new SearxngProvider(
+    const provider = createProviderDriver(
+      SearxngProvider,
       createProvider({
         id: 'searxng',
         name: 'Searxng',
@@ -519,7 +570,8 @@ describe('main web search API providers', () => {
       .mockResolvedValueOnce(createTextResponse(loadFixtureText('searxng-page.html'), 'text/html'))
       .mockResolvedValueOnce(createTextResponse('server error', 'text/plain', 500))
 
-    const provider = new SearxngProvider(
+    const provider = createProviderDriver(
+      SearxngProvider,
       createProvider({
         id: 'searxng',
         name: 'Searxng',
@@ -561,7 +613,8 @@ describe('main web search API providers', () => {
       )
       .mockResolvedValueOnce(createTextResponse('server error', 'text/plain', 500))
 
-    const provider = new SearxngProvider(
+    const provider = createProviderDriver(
+      SearxngProvider,
       createProvider({
         id: 'searxng',
         name: 'Searxng',
@@ -576,7 +629,8 @@ describe('main web search API providers', () => {
   it('matches Bocha request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('bocha-response.json')))
 
-    const provider = new BochaProvider(
+    const provider = createProviderDriver(
+      BochaProvider,
       createProvider({
         id: 'bocha',
         name: 'Bocha',
@@ -631,7 +685,8 @@ describe('main web search API providers', () => {
   it('matches Querit request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('querit-response.json')))
 
-    const provider = new QueritProvider(
+    const provider = createProviderDriver(
+      QueritProvider,
       createProvider({
         id: 'querit',
         name: 'Querit',
@@ -691,7 +746,8 @@ describe('main web search API providers', () => {
   it('matches Zhipu request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('zhipu-response.json')))
 
-    const provider = new ZhipuProvider(
+    const provider = createProviderDriver(
+      ZhipuProvider,
       createProvider({
         id: 'zhipu',
         name: 'Zhipu',
@@ -745,7 +801,8 @@ describe('main web search API providers', () => {
   it('adds provider context when API response validation fails', async () => {
     fetchMock.mockResolvedValue(createJsonResponse({ results: 'invalid' }))
 
-    const provider = new ExaProvider(
+    const provider = createProviderDriver(
+      ExaProvider,
       createProvider({
         id: 'exa',
         name: 'Exa',
@@ -762,7 +819,8 @@ describe('main web search API providers', () => {
   it('adds provider context when API response body is invalid JSON', async () => {
     fetchMock.mockResolvedValue(createTextResponse('{invalid-json', 'application/json'))
 
-    const provider = new SearxngProvider(
+    const provider = createProviderDriver(
+      SearxngProvider,
       createProvider({
         id: 'searxng',
         name: 'Searxng',
@@ -779,7 +837,8 @@ describe('main web search API providers', () => {
   it('truncates oversized upstream HTTP error bodies in provider errors', async () => {
     fetchMock.mockResolvedValue(createTextResponse('x'.repeat(600), 'text/plain', 502))
 
-    const provider = new ExaProvider(
+    const provider = createProviderDriver(
+      ExaProvider,
       createProvider({
         id: 'exa',
         name: 'Exa',
@@ -796,7 +855,8 @@ describe('main web search API providers', () => {
   it('matches Exa MCP request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createTextResponse(loadFixtureText('exa-mcp-response.txt'), 'text/event-stream'))
 
-    const provider = new ExaMcpProvider(
+    const provider = createProviderDriver(
+      ExaMcpProvider,
       createProvider({
         id: 'exa-mcp',
         name: 'Exa MCP',
@@ -868,7 +928,8 @@ describe('main web search API providers', () => {
       )
     )
 
-    const provider = new ExaMcpProvider(
+    const provider = createProviderDriver(
+      ExaMcpProvider,
       createProvider({
         id: 'exa-mcp',
         name: 'Exa MCP',
@@ -898,7 +959,8 @@ describe('main web search API providers', () => {
   it('throws when Exa MCP response is non-empty but contains no parseable payloads', async () => {
     fetchMock.mockResolvedValue(createTextResponse('data: {"invalid": true}', 'text/event-stream'))
 
-    const provider = new ExaMcpProvider(
+    const provider = createProviderDriver(
+      ExaMcpProvider,
       createProvider({
         id: 'exa-mcp',
         name: 'Exa MCP',
@@ -928,7 +990,8 @@ describe('main web search API providers', () => {
       })
     })
 
-    const provider = new ExaMcpProvider(
+    const provider = createProviderDriver(
+      ExaMcpProvider,
       createProvider({
         id: 'exa-mcp',
         name: 'Exa MCP',
@@ -975,7 +1038,8 @@ describe('main web search API providers', () => {
         )
       )
 
-    const exaProvider = new ExaProvider(
+    const exaProvider = createProviderDriver(
+      ExaProvider,
       createProvider({
         id: 'exa',
         name: 'Exa',
@@ -983,7 +1047,8 @@ describe('main web search API providers', () => {
         apiHost: 'https://api.exa.ai'
       })
     )
-    const tavilyProvider = new TavilyProvider(
+    const tavilyProvider = createProviderDriver(
+      TavilyProvider,
       createProvider({
         id: 'tavily',
         name: 'Tavily',
@@ -991,7 +1056,8 @@ describe('main web search API providers', () => {
         apiHost: 'https://api.tavily.com'
       })
     )
-    const zhipuProvider = new ZhipuProvider(
+    const zhipuProvider = createProviderDriver(
+      ZhipuProvider,
       createProvider({
         id: 'zhipu',
         name: 'Zhipu',
@@ -999,7 +1065,8 @@ describe('main web search API providers', () => {
         apiHost: 'https://open.bigmodel.cn/api/paas/v4/tools'
       })
     )
-    const exaMcpProvider = new ExaMcpProvider(
+    const exaMcpProvider = createProviderDriver(
+      ExaMcpProvider,
       createProvider({
         id: 'exa-mcp',
         name: 'Exa MCP',

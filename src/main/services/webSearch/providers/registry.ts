@@ -14,7 +14,7 @@ import { ExaMcpProvider } from './mcp/ExaMcpProvider'
 
 type WebSearchProviderConstructor = new (
   provider: ResolvedWebSearchProvider,
-  apiKeyRotationState?: ApiKeyRotationState
+  apiKeyRotationState: ApiKeyRotationState
 ) => WebSearchProviderDriver
 
 export const WEB_SEARCH_PROVIDER_REGISTRY = {

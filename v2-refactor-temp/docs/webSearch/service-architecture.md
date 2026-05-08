@@ -181,16 +181,18 @@ Jina 官方 Reader 文档也把这两个能力分开描述：
 
 ### 3.5 不为 v2 旧数据做兼容
 
-本次重构不考虑 v2 兼容性。
+本次重构不兼容 v2 开发过程中的中间数据。
 
 因此可以做破坏性调整：
 
 1. `jina-reader` 可以改为 `jina`。
 2. 旧 `searchUrls` request type 可以移除或替换。
 3. 旧 provider id 分类类型可以移除。
-4. 旧 preference 数据不需要迁移或别名兼容。
+4. v2 开发过程中的旧 preference 中间形态不需要迁移或别名兼容。
 
-如果后续需要保护用户已有配置，应作为新的兼容性任务单独设计，而不是污染这次 Main service 架构。
+这不改变 v1 到 v2 的正式迁移职责；已发布 v1 数据仍应通过 `src/main/data/migration/v2/` 下的 migrator 进入目标结构。
+
+如果后续需要保护 v2 开发分支上的中间配置，应作为新的兼容性任务单独设计，而不是污染这次 Main service 架构。
 
 ---
 
@@ -545,7 +547,7 @@ Tool 化后，这个 shared cache 不再是结果展示边界：
 4. UI 运行中状态由 AI SDK tool invocation state 或 message/tool block state 表达。
 5. 如果 UI 仍需要跨组件的细粒度进度，再新增明确的 tool progress event、callback 或 tool block progress 字段；不要把 shared cache 作为 service contract。
 
-旧 Renderer 链路如果仍依赖 `chat.web_search.active_searches`，可以留到旧链路清理时删除。它不属于新 Main-side WebSearch 架构。
+旧 Renderer WebSearch service 如果仍写入并依赖 `chat.web_search.active_searches`，可以留到旧链路清理时删除。它不属于新 Main-side WebSearch 架构。
 
 ### 5.4 Blacklist 与 Post Processing
 
