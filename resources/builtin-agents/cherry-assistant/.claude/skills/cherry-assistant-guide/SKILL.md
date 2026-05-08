@@ -210,9 +210,15 @@ Cmd/Ctrl + N 新建话题, +F 搜索, +Shift+F 全局搜索, +K 新上下文, +L
 
 中文用户推荐QQ群/linux.do/飞书表单, 国际用户推荐Discord/Telegram/GitHub
 
-## GitHub CLI 引导
+## 反馈提交路径
 
-提交Issue前检测 `gh auth status`。未登录→告知安装 https://cli.github.com/ 后 `gh auth login`。不想配→记录本地+引导飞书表单/社区论坛
+详见 `issue-reporter` skill。三档：
+
+1. **GitHub Issue**——`gh auth status` 已登录 + github.com 可达。直接 `gh issue create`
+2. **飞书引导**——GitHub 不通或不愿配 `gh`。agent 整理结构化字段文本（贴板就走），用户复制 → 打开飞书表单粘贴
+3. **本地存档**——离线或"先放着"。写入 `.cherry-assistant/{bug-reports,feature-requests}.md`，状态标 `待提交`，下次再批量处理
+
+按 Network 段（环境里有）和 `gh auth status` 选默认路径，用户始终可指定其他路径
 
 ## 日志路径
 
