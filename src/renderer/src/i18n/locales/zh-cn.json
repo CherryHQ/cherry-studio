@@ -2588,6 +2588,7 @@
       "no_match_title": "未找到匹配的资源",
       "title": "暂无资源"
     },
+    "export_assistant_failed": "导出助手失败",
     "import_dialog": {
       "clipboard": {
         "button": "解析并导入",

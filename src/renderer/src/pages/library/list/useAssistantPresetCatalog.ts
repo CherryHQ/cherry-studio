@@ -149,11 +149,6 @@ export function toCreateAssistantDtoFromCatalogPreset(preset: AssistantCatalogPr
   return dto
 }
 
-async function getAssistantSubscribeUrl() {
-  const { default: store } = await import('@renderer/store')
-  return store.getState().settings.agentssubscribeUrl
-}
-
 async function readLocalPresets(language: string) {
   const resourcesPath = cacheService.get('app.path.resources')
   if (!resourcesPath) return []
@@ -164,16 +159,6 @@ async function readLocalPresets(language: string) {
 }
 
 async function loadCatalogPresets(language: string) {
-  try {
-    const subscribeUrl = await getAssistantSubscribeUrl()
-    if (subscribeUrl?.startsWith('http')) {
-      const response = await fetch(subscribeUrl)
-      if (response.ok) return normalizePresets(await response.json())
-    }
-  } catch (error) {
-    logger.warn('Failed to load assistant presets from subscription, falling back to local data', toLogContext(error))
-  }
-
   try {
     return await readLocalPresets(language)
   } catch (error) {

@@ -2588,6 +2588,7 @@
       "no_match_title": "No matching resources",
       "title": "No resources"
     },
+    "export_assistant_failed": "Failed to export assistant",
     "import_dialog": {
       "clipboard": {
         "button": "Parse and import",

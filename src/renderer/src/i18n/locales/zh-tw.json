@@ -2588,6 +2588,7 @@
       "no_match_title": "[to be translated]:No matching resources",
       "title": "尚無資源"
     },
+    "export_assistant_failed": "[to be translated]:Failed to export assistant",
     "import_dialog": {
       "clipboard": {
         "button": "[to be translated]:Parse and import",

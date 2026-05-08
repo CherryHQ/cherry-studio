@@ -290,9 +290,7 @@ export default function LibraryPage() {
           filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
         })
       } catch (error) {
-        // Export-specific fallback message — avoids the previous import.error
-        // reuse which mislabelled failures as "导入失败".
-        window.toast.error(error instanceof Error ? error.message : '导出助手失败')
+        window.toast.error(error instanceof Error ? error.message : t('library.export_assistant_failed'))
       }
     },
     [t]
