@@ -1,7 +1,7 @@
 import type { Prompt } from '@shared/data/types/prompt'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentProps, Ref } from 'react'
+import type { ComponentProps, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import PromptConfigPage from '../PromptConfigPage'
@@ -23,23 +23,21 @@ vi.mock('react-i18next', () => ({
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({
     children,
-    className: _className,
-    loading: _loading,
-    size: _size,
-    variant: _variant,
     ...props
-  }: ComponentProps<'button'> & { loading?: boolean; size?: string; variant?: string }) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  Input: ({ className: _className, ...props }: ComponentProps<'input'> & { className?: string }) => (
-    <input {...props} />
-  ),
+  }: ComponentProps<'button'> & { loading?: boolean; size?: string; variant?: string }) => {
+    const buttonProps = { ...props } as ComponentProps<'button'> & Record<string, unknown>
+    delete buttonProps.loading
+    delete buttonProps.size
+    delete buttonProps.variant
+    return (
+      <button type="button" {...buttonProps}>
+        {children}
+      </button>
+    )
+  },
+  Input: (props: ComponentProps<'input'>) => <input {...props} />,
   Textarea: {
     Input: ({
-      className: _className,
-      hasError: _hasError,
       onValueChange,
       ref,
       ...props
@@ -47,7 +45,11 @@ vi.mock('@cherrystudio/ui', () => ({
       hasError?: boolean
       onValueChange?: (value: string) => void
       ref?: Ref<HTMLTextAreaElement>
-    }) => <textarea {...props} ref={ref} onChange={(event) => onValueChange?.(event.currentTarget.value)} />
+    }) => {
+      const textareaProps = { ...props } as Omit<ComponentProps<'textarea'>, 'onChange'> & Record<string, unknown>
+      delete textareaProps.hasError
+      return <textarea {...textareaProps} ref={ref} onChange={(event) => onValueChange?.(event.currentTarget.value)} />
+    }
   }
 }))
 
@@ -60,10 +62,39 @@ vi.mock('../../../adapters/promptAdapter', () => ({
   })
 }))
 
+vi.mock('../../ConfigEditorShell', () => ({
+  ResourceEditorShell: ({
+    children,
+    onBack,
+    saveButton,
+    title
+  }: {
+    children: ReactNode
+    onBack: () => void
+    saveButton?: {
+      canSave: boolean
+      saving: boolean
+      onSave: () => void
+    }
+    title: string
+  }) => (
+    <div>
+      <button type="button" onClick={onBack}>
+        common.back
+      </button>
+      <span>{title}</span>
+      {saveButton && (
+        <button type="button" disabled={saveButton.saving || !saveButton.canSave} onClick={() => saveButton.onSave()}>
+          common.save
+        </button>
+      )}
+      {children}
+    </div>
+  )
+}))
+
 vi.mock('lucide-react', () => ({
-  ArrowLeft: () => <span />,
-  Braces: () => <span />,
-  Save: () => <span />
+  Braces: () => <span />
 }))
 
 function createPrompt(overrides: Partial<Prompt> = {}): Prompt {

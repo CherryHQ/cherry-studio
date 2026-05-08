@@ -1,11 +1,12 @@
 import { Button, Input, Textarea } from '@cherrystudio/ui'
 import { type Prompt, PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
-import { ArrowLeft, Braces, Save } from 'lucide-react'
+import { Braces } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePromptMutations, usePromptMutationsById } from '../../adapters/promptAdapter'
+import { ResourceEditorShell } from '../ConfigEditorShell'
 import { useResourceEditorState } from '../useResourceEditorState'
 
 interface Props {
@@ -106,6 +107,7 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
     form.content.length > PROMPT_CONTENT_MAX
       ? t('library.config.prompt.field.content.too_long', { max: PROMPT_CONTENT_MAX })
       : null
+  const title = isCreate ? form.title.trim() || t('library.type.new_prompt') : form.title.trim() || prompt?.title || ''
 
   const insertVariable = () => {
     const textarea = textareaRef.current
@@ -122,32 +124,12 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-background">
-      <div className="flex h-16 shrink-0 items-center gap-3 border-border/35 border-b px-7">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onBack}
-          aria-label={t('common.back')}
-          className="h-8 w-8 rounded-full text-muted-foreground/45 shadow-none hover:bg-accent/45 hover:text-foreground focus-visible:ring-0">
-          <ArrowLeft size={18} />
-        </Button>
-        <h2 className="font-semibold text-foreground text-lg">
-          {t(isCreate ? 'library.config.prompt.create_title' : 'library.config.prompt.edit_title')}
-        </h2>
-        <div className="flex-1" />
-        {saved && <span className="text-primary text-xs">{t('common.saved')}</span>}
-        {error && <span className="text-destructive text-xs">{error}</span>}
-        <Button
-          variant="default"
-          onClick={handleSave}
-          disabled={saving || !canSave}
-          className="flex h-9 min-h-0 items-center gap-1.5 rounded-full px-4 font-normal shadow-sm transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-35">
-          <Save size={14} className="lucide-custom" />
-          <span>{saving ? t('library.config.saving') : t('common.save')}</span>
-        </Button>
-      </div>
-
+    <ResourceEditorShell
+      title={title}
+      onBack={onBack}
+      saved={saved}
+      error={error}
+      saveButton={{ canSave, saving, onSave: handleSave }}>
       <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-9 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
         <div className="w-full max-w-[760px] space-y-8">
           <label className="block">
@@ -191,7 +173,7 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
           </div>
         </div>
       </div>
-    </div>
+    </ResourceEditorShell>
   )
 }
 

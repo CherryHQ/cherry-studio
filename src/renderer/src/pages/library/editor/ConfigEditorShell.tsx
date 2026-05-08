@@ -39,6 +39,110 @@ export interface ConfigEditorShellProps<Id extends string> {
   children: ReactNode
 }
 
+export interface ResourceEditorSaveButtonProps {
+  canSave: boolean
+  saving: boolean
+  onSave: () => void
+}
+
+export interface ResourceEditorTopBarProps {
+  title: string
+  onBack: () => void
+  saved?: boolean
+  error?: string | null
+  saveButton?: ResourceEditorSaveButtonProps
+}
+
+export interface ResourceEditorShellProps extends ResourceEditorTopBarProps {
+  topBanner?: ReactNode
+  children: ReactNode
+}
+
+export function ResourceEditorTopBar({
+  title,
+  onBack,
+  saved = false,
+  error = null,
+  saveButton
+}: ResourceEditorTopBarProps) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="flex shrink-0 items-center gap-3 border-border/50 border-b px-5 py-3">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={onBack}
+        aria-label={t('common.back')}
+        className="text-muted-foreground/50">
+        <ArrowLeft size={14} />
+      </Button>
+      <Breadcrumb>
+        <BreadcrumbList className="gap-1 text-muted-foreground/50 text-xs sm:gap-1">
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <button type="button" className="cursor-pointer" onClick={onBack}>
+                {t('library.config.breadcrumb')}
+              </button>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator className="[&>svg]:size-2.5" />
+          <BreadcrumbItem>
+            <BreadcrumbPage className="text-foreground">{title}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+      <div className="flex-1" />
+      <AnimatePresence>
+        {saved && (
+          <motion.span
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0 }}
+            className="text-primary text-xs">
+            {t('common.saved')}
+          </motion.span>
+        )}
+        {error && (
+          <motion.span
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0 }}
+            className="text-destructive text-xs">
+            {error}
+          </motion.span>
+        )}
+      </AnimatePresence>
+      {saveButton && (
+        <>
+          <Button variant="outline" size="sm" onClick={onBack} className="text-muted-foreground/60">
+            {t('common.cancel')}
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={saveButton.onSave}
+            disabled={saveButton.saving || !saveButton.canSave}
+            className="gap-1.5 transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40">
+            <Save size={10} className="lucide-custom" />
+            <span>{saveButton.saving ? t('library.config.saving') : t('common.save')}</span>
+          </Button>
+        </>
+      )}
+    </div>
+  )
+}
+
+export function ResourceEditorShell({ topBanner, children, ...topBarProps }: ResourceEditorShellProps) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col bg-background">
+      <ResourceEditorTopBar {...topBarProps} />
+      {topBanner}
+      {children}
+    </div>
+  )
+}
+
 /**
  * Shared shell for resource config editors (Agent / Assistant).
  * Owns the top bar (back + breadcrumb + saved/error flash + cancel +
@@ -63,64 +167,13 @@ export function ConfigEditorShell<Id extends string>({
   const { t } = useTranslation()
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-background">
-      {/* Top bar */}
-      <div className="flex shrink-0 items-center gap-3 border-border/50 border-b px-5 py-3">
-        <Button variant="ghost" size="icon-sm" onClick={onBack} className="text-muted-foreground/50">
-          <ArrowLeft size={14} />
-        </Button>
-        <Breadcrumb>
-          <BreadcrumbList className="gap-1 text-muted-foreground/50 text-xs sm:gap-1">
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <button type="button" className="cursor-pointer" onClick={onBack}>
-                  {t('library.config.breadcrumb')}
-                </button>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator className="[&>svg]:size-2.5" />
-            <BreadcrumbItem>
-              <BreadcrumbPage className="text-foreground">{title}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="flex-1" />
-        <AnimatePresence>
-          {saved && (
-            <motion.span
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0 }}
-              className="text-primary text-xs">
-              {t('common.saved')}
-            </motion.span>
-          )}
-          {error && (
-            <motion.span
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0 }}
-              className="text-destructive text-xs">
-              {error}
-            </motion.span>
-          )}
-        </AnimatePresence>
-        <Button variant="outline" size="sm" onClick={onBack} className="text-muted-foreground/60">
-          {t('common.cancel')}
-        </Button>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={onSave}
-          disabled={saving || !canSave}
-          className="gap-1.5 transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40">
-          <Save size={10} className="lucide-custom" />
-          <span>{saving ? t('library.config.saving') : t('common.save')}</span>
-        </Button>
-      </div>
-
-      {topBanner}
-
+    <ResourceEditorShell
+      title={title}
+      onBack={onBack}
+      saved={saved}
+      error={error}
+      saveButton={{ canSave, saving, onSave }}
+      topBanner={topBanner}>
       {/* Body */}
       <div className="flex min-h-0 flex-1">
         <div className="w-[220px] shrink-0 border-sidebar-border border-r bg-sidebar p-3">
@@ -161,7 +214,7 @@ export function ConfigEditorShell<Id extends string>({
           </AnimatePresence>
         </div>
       </div>
-    </div>
+    </ResourceEditorShell>
   )
 }
 

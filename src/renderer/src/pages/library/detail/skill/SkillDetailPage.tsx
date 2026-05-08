@@ -3,12 +3,13 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
 import type { InstalledSkill, SkillFileNode } from '@types'
 import type { TFunction } from 'i18next'
-import { ArrowLeft, Clock, FileText, Loader2, Trash2, Zap } from 'lucide-react'
+import { Clock, FileText, Loader2, Trash2, Zap } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useSkillMutationsById } from '../../adapters/skillAdapter'
+import { ResourceEditorShell } from '../../editor/ConfigEditorShell'
 import { FileTreeNode, guessLanguage, isMarkdownFile } from './skillFileTree'
 
 interface Props {
@@ -174,167 +175,164 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
   }, [uninstallSkill, skill.name, onUninstalled, t])
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-8 py-8">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onBack}
-          className="w-fit gap-1.5 rounded-xs px-2 text-muted-foreground/55 hover:text-foreground">
-          <ArrowLeft size={14} />
-          <span>{t('common.back')}</span>
-        </Button>
-
-        <div className="flex items-start justify-between gap-6">
-          <div className="flex min-w-0 items-start gap-4">
-            <div className="flex size-16 shrink-0 items-center justify-center rounded-sm bg-amber-500/10 text-amber-500">
-              <Zap size={30} strokeWidth={1.5} />
-            </div>
-            <div className="min-w-0">
-              <h1 className="truncate font-semibold text-2xl text-foreground">{skill.name}</h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Badge variant="secondary" className="border-0 bg-amber-500/10 px-2 py-0.5 text-amber-600 text-xs">
-                  {t('library.type.skill')}
-                </Badge>
-                <span className="text-muted-foreground/50 text-xs">{skill.source}</span>
-                {skill.author ? <span className="text-muted-foreground/50 text-xs">{skill.author}</span> : null}
-                {sourceTags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="text-muted-foreground/40 text-xs">
-                    {tag}
-                  </span>
-                ))}
+    <ResourceEditorShell title={skill.name} onBack={onBack}>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-8 py-8">
+          <div className="flex items-start justify-between gap-6">
+            <div className="flex min-w-0 items-start gap-4">
+              <div className="flex size-16 shrink-0 items-center justify-center rounded-sm bg-amber-500/10 text-amber-500">
+                <Zap size={30} strokeWidth={1.5} />
+              </div>
+              <div className="min-w-0">
+                <h1 className="truncate font-semibold text-2xl text-foreground">{skill.name}</h1>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary" className="border-0 bg-amber-500/10 px-2 py-0.5 text-amber-600 text-xs">
+                    {t('library.type.skill')}
+                  </Badge>
+                  <span className="text-muted-foreground/50 text-xs">{skill.source}</span>
+                  {skill.author ? <span className="text-muted-foreground/50 text-xs">{skill.author}</span> : null}
+                  {sourceTags.slice(0, 3).map((tag) => (
+                    <span key={tag} className="text-muted-foreground/40 text-xs">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
+            <Badge
+              variant="secondary"
+              className="shrink-0 gap-1.5 border-0 bg-emerald-500/10 px-2 py-0.5 text-emerald-600 text-xs">
+              <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+              {t('library.skill_detail.installed')}
+            </Badge>
           </div>
-          <Badge
-            variant="secondary"
-            className="shrink-0 gap-1.5 border-0 bg-emerald-500/10 px-2 py-0.5 text-emerald-600 text-xs">
-            <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-            {t('library.skill_detail.installed')}
-          </Badge>
-        </div>
 
-        <section className="flex flex-col gap-3">
-          <h2 className="font-medium text-muted-foreground/70 text-sm">{t('library.skill_detail.description')}</h2>
-          <p className="min-h-10 text-muted-foreground/65 text-sm leading-6">
-            {skill.description || t('library.skill_detail.no_description')}
-          </p>
-        </section>
+          <section className="flex flex-col gap-3">
+            <h2 className="font-medium text-muted-foreground/70 text-sm">{t('library.skill_detail.description')}</h2>
+            <p className="min-h-10 text-muted-foreground/65 text-sm leading-6">
+              {skill.description || t('library.skill_detail.no_description')}
+            </p>
+          </section>
 
-        <Separator className="bg-border/20" />
+          <Separator className="bg-border/20" />
 
-        <section className="flex flex-col gap-4">
-          <h2 className="font-medium text-muted-foreground/70 text-sm">{t('library.skill_detail.source_files')}</h2>
-          <div className="rounded-xs bg-muted/30 p-3">
-            {loadingTree ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 size={16} className="animate-spin text-muted-foreground/40" />
-              </div>
-            ) : fileTree.length === 0 ? (
-              <p className="py-5 text-center text-muted-foreground/40 text-xs">{t('settings.skills.noSkillFile')}</p>
-            ) : (
-              <div className="max-h-72 overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
-                {tree}
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="flex flex-col gap-4">
-          <h2 className="font-medium text-muted-foreground/70 text-sm">{t('library.skill_detail.file_preview')}</h2>
-          <div className="min-h-[360px] overflow-hidden rounded-xs bg-muted/30">
-            {selectedFile && fileContent !== null ? (
-              loadingContent ? (
-                <div className="flex min-h-[360px] items-center justify-center">
-                  <Loader2 size={18} className="animate-spin text-muted-foreground/40" />
+          <section className="flex flex-col gap-4">
+            <h2 className="font-medium text-muted-foreground/70 text-sm">{t('library.skill_detail.source_files')}</h2>
+            <div className="rounded-xs bg-muted/30 p-3">
+              {loadingTree ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 size={16} className="animate-spin text-muted-foreground/40" />
                 </div>
-              ) : isMarkdownFile(selectedFile) ? (
-                <div className="max-h-[520px] overflow-auto px-5 py-4">
-                  <div className="mb-4 flex items-center gap-2 text-muted-foreground/45 text-xs">
-                    <FileText size={13} />
-                    <span>{selectedFileName}</span>
-                  </div>
-                  <RichEditor
-                    key={selectedFile}
-                    initialContent={fileContent}
-                    isMarkdown={true}
-                    editable={false}
-                    showToolbar={false}
-                    isFullWidth={true}
-                  />
-                </div>
+              ) : fileTree.length === 0 ? (
+                <p className="py-5 text-center text-muted-foreground/40 text-xs">{t('settings.skills.noSkillFile')}</p>
               ) : (
-                <div className="max-h-[520px] overflow-auto">
-                  <CodeViewer key={selectedFile} value={fileContent} language={guessLanguage(selectedFile)} />
+                <div className="max-h-72 overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
+                  {tree}
                 </div>
-              )
-            ) : (
-              <div className="flex min-h-[360px] flex-col items-center justify-center gap-2 text-muted-foreground/40">
-                <FileText size={28} strokeWidth={1.2} />
-                <span className="text-xs">
-                  {selectedFile ? t('settings.skills.noSkillFile') : t('settings.skills.selectFile')}
+              )}
+            </div>
+          </section>
+
+          <section className="flex flex-col gap-4">
+            <h2 className="font-medium text-muted-foreground/70 text-sm">{t('library.skill_detail.file_preview')}</h2>
+            <div className="min-h-[360px] overflow-hidden rounded-xs bg-muted/30">
+              {selectedFile && fileContent !== null ? (
+                loadingContent ? (
+                  <div className="flex min-h-[360px] items-center justify-center">
+                    <Loader2 size={18} className="animate-spin text-muted-foreground/40" />
+                  </div>
+                ) : isMarkdownFile(selectedFile) ? (
+                  <div className="max-h-[520px] overflow-auto px-5 py-4">
+                    <div className="mb-4 flex items-center gap-2 text-muted-foreground/45 text-xs">
+                      <FileText size={13} />
+                      <span>{selectedFileName}</span>
+                    </div>
+                    <RichEditor
+                      key={selectedFile}
+                      initialContent={fileContent}
+                      isMarkdown={true}
+                      editable={false}
+                      showToolbar={false}
+                      isFullWidth={true}
+                    />
+                  </div>
+                ) : (
+                  <div className="max-h-[520px] overflow-auto">
+                    <CodeViewer key={selectedFile} value={fileContent} language={guessLanguage(selectedFile)} />
+                  </div>
+                )
+              ) : (
+                <div className="flex min-h-[360px] flex-col items-center justify-center gap-2 text-muted-foreground/40">
+                  <FileText size={28} strokeWidth={1.2} />
+                  <span className="text-xs">
+                    {selectedFile ? t('settings.skills.noSkillFile') : t('settings.skills.selectFile')}
+                  </span>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <Separator className="bg-border/20" />
+
+          <section className="grid gap-6 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <span className="font-medium text-muted-foreground/60 text-sm">
+                {t('library.skill_detail.created_at')}
+              </span>
+              <div className="flex items-center gap-2 text-muted-foreground/60 text-sm">
+                <Clock size={13} />
+                <span>{formatDate(skill.createdAt)}</span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="font-medium text-muted-foreground/60 text-sm">
+                {t('library.skill_detail.updated_at')}
+              </span>
+              <div className="flex items-center gap-2 text-muted-foreground/60 text-sm">
+                <Clock size={13} />
+                <span>
+                  {formatDate(skill.updatedAt)} ({timeAgo(t, skill.updatedAt)})
                 </span>
               </div>
-            )}
-          </div>
-        </section>
-
-        <Separator className="bg-border/20" />
-
-        <section className="grid gap-6 sm:grid-cols-2">
-          <div className="flex flex-col gap-2">
-            <span className="font-medium text-muted-foreground/60 text-sm">{t('library.skill_detail.created_at')}</span>
-            <div className="flex items-center gap-2 text-muted-foreground/60 text-sm">
-              <Clock size={13} />
-              <span>{formatDate(skill.createdAt)}</span>
             </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="font-medium text-muted-foreground/60 text-sm">{t('library.skill_detail.updated_at')}</span>
-            <div className="flex items-center gap-2 text-muted-foreground/60 text-sm">
-              <Clock size={13} />
-              <span>
-                {formatDate(skill.updatedAt)} ({timeAgo(t, skill.updatedAt)})
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {!isBuiltin ? (
-          <section className="flex items-center justify-between gap-4 rounded-xs border border-destructive/15 bg-destructive/5 px-5 py-4">
-            <div className="min-w-0">
-              <h2 className="font-medium text-foreground text-sm">{t('library.skill_detail.delete_title')}</h2>
-              <p className="mt-1 text-muted-foreground/55 text-xs">{t('library.skill_detail.delete_description')}</p>
-            </div>
-            <Button
-              variant="destructive"
-              onClick={() => setConfirmUninstallOpen(true)}
-              disabled={uninstalling}
-              className="shrink-0 gap-2 rounded-xs">
-              {uninstalling ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              <span>{t('library.action.uninstall')}</span>
-            </Button>
           </section>
-        ) : null}
+
+          {!isBuiltin ? (
+            <section className="flex items-center justify-between gap-4 rounded-xs border border-destructive/15 bg-destructive/5 px-5 py-4">
+              <div className="min-w-0">
+                <h2 className="font-medium text-foreground text-sm">{t('library.skill_detail.delete_title')}</h2>
+                <p className="mt-1 text-muted-foreground/55 text-xs">{t('library.skill_detail.delete_description')}</p>
+              </div>
+              <Button
+                variant="destructive"
+                onClick={() => setConfirmUninstallOpen(true)}
+                disabled={uninstalling}
+                className="shrink-0 gap-2 rounded-xs">
+                {uninstalling ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                <span>{t('library.action.uninstall')}</span>
+              </Button>
+            </section>
+          ) : null}
+        </div>
+        <ConfirmDialog
+          open={confirmUninstallOpen}
+          onOpenChange={(open) => {
+            if (open) {
+              setConfirmUninstallOpen(true)
+            } else if (!uninstalling) {
+              setConfirmUninstallOpen(false)
+            }
+          }}
+          title={t('library.delete.skill.title')}
+          description={t('library.delete.skill.content')}
+          confirmText={t('library.action.uninstall')}
+          cancelText={t('common.cancel')}
+          destructive
+          confirmLoading={uninstalling}
+          onConfirm={handleUninstall}
+        />
       </div>
-      <ConfirmDialog
-        open={confirmUninstallOpen}
-        onOpenChange={(open) => {
-          if (open) {
-            setConfirmUninstallOpen(true)
-          } else if (!uninstalling) {
-            setConfirmUninstallOpen(false)
-          }
-        }}
-        title={t('library.delete.skill.title')}
-        description={t('library.delete.skill.content')}
-        confirmText={t('library.action.uninstall')}
-        cancelText={t('common.cancel')}
-        destructive
-        confirmLoading={uninstalling}
-        onConfirm={handleUninstall}
-      />
-    </div>
+    </ResourceEditorShell>
   )
 }
 
