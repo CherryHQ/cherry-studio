@@ -208,9 +208,8 @@ export function getBriefInfo(text: string, maxLength: number = 50): string {
 
 /**
  * 清理 provider 名称，用于环境变量名：
- * - 移除非 ASCII 字符（环境变量名只允许 [a-zA-Z0-9_]）
- * - 替换空格为短横线
- * - 替换其他危险字符为下划线
+ * - 只保留 [a-zA-Z0-9_\s.-]（白名单）
+ * - 空格转短横线（下游会把 - 和 . 再转 _）
  * - 清理后为空时用 hash 兜底
  * @param {string} name 输入字符串
  * @returns {string} 清理后的字符串
@@ -219,9 +218,8 @@ export function sanitizeProviderName(name: string): string {
   if (!name) return name
 
   const sanitized = name
-    .replace(/[^\x20-\x7E]+/g, '') // remove non-ASCII printable
+    .replace(/[^a-zA-Z0-9_\s.-]/g, '') // whitelist: only keep env-var-safe chars
     .replace(/\s+/g, '-') // spaces -> dashes
-    .replace(/[<>:"|?*\\/_]/g, '_') // dangerous chars -> underscores
 
   if (!sanitized) {
     let hash = 0

@@ -330,12 +330,12 @@ describe('naming', () => {
       expect(sanitizeProviderName('My Provider')).toBe('My-Provider')
     })
 
-    it('should replace dangerous characters with underscores', () => {
-      expect(sanitizeProviderName('Provider/Name')).toBe('Provider_Name')
+    it('should strip characters outside env-var-safe whitelist', () => {
+      expect(sanitizeProviderName('Provider/Name')).toBe('ProviderName')
     })
 
     it('should handle mixed special characters', () => {
-      expect(sanitizeProviderName('My Provider <test>:name')).toBe('My-Provider-_test__name')
+      expect(sanitizeProviderName('My Provider <test>:name')).toBe('My-Provider-testname')
     })
 
     it('should return empty string for empty input', () => {
@@ -362,6 +362,20 @@ describe('naming', () => {
     it('should produce a valid env var identifier for mixed ASCII and non-ASCII', () => {
       expect(sanitizeProviderName('日本語Provider')).toBe('Provider')
       expect(sanitizeProviderName('My 测试 Provider')).toBe('My-Provider')
+    })
+
+    it('should strip ASCII symbols not allowed in env var names', () => {
+      expect(sanitizeProviderName('foo@bar')).toBe('foobar')
+      expect(sanitizeProviderName('foo@bar+baz(test)')).toBe('foobarbaztest')
+      expect(sanitizeProviderName('my$provider!name')).toBe('myprovidername')
+      expect(sanitizeProviderName('a#b%c&d')).toBe('abcd')
+    })
+
+    it('should keep allowed env-var-safe characters', () => {
+      expect(sanitizeProviderName('my-provider')).toBe('my-provider')
+      expect(sanitizeProviderName('my_provider')).toBe('my_provider')
+      expect(sanitizeProviderName('my.provider')).toBe('my.provider')
+      expect(sanitizeProviderName('Provider123')).toBe('Provider123')
     })
   })
 
