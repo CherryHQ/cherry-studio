@@ -1,6 +1,5 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { titleBarOverlayDark, titleBarOverlayLight } from '@main/config'
 import { isMac } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { type WindowOptions, WindowType } from '@main/core/window/types'
@@ -16,7 +15,6 @@ const logger = loggerService.withContext('SettingsWindowService')
 export function createSettingsWindowOptions(isMacPlatform: boolean, dark: boolean): Partial<WindowOptions> {
   return {
     darkTheme: dark,
-    ...(isMacPlatform && { titleBarOverlay: dark ? titleBarOverlayDark : titleBarOverlayLight }),
     ...(!isMacPlatform && { backgroundColor: dark ? '#181818' : '#FFFFFF' })
   }
 }

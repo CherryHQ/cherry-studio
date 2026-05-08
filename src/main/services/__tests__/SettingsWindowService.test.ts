@@ -318,14 +318,8 @@ describe('SettingsWindowService', () => {
   })
 
   it('uses platform-specific settings window options', () => {
-    expect(createSettingsWindowOptions(true, true)).toMatchObject({
-      darkTheme: true,
-      titleBarOverlay: expect.objectContaining({ symbolColor: '#fff' })
-    })
-    expect(createSettingsWindowOptions(true, false)).toMatchObject({
-      darkTheme: false,
-      titleBarOverlay: expect.objectContaining({ symbolColor: '#000' })
-    })
+    expect(createSettingsWindowOptions(true, true)).toEqual({ darkTheme: true })
+    expect(createSettingsWindowOptions(true, false)).toEqual({ darkTheme: false })
     expect(createSettingsWindowOptions(false, true)).toEqual({
       darkTheme: true,
       backgroundColor: '#181818'

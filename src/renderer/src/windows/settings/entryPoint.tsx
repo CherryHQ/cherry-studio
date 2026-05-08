@@ -7,7 +7,6 @@ import { Alert, Button } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import TopViewContainer from '@renderer/components/TopView'
-import { isMac } from '@renderer/config/constant'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { NotificationProvider } from '@renderer/context/NotificationProvider'
@@ -113,11 +112,7 @@ function SettingsWindowRouter({ initialPath }: { initialPath: string }) {
 }
 
 function SettingsWindowApp({ initialPath }: { initialPath: string }): React.ReactElement {
-  const shellStyle = {
-    '--navbar-height': '0px',
-    '--settings-window-sidebar-top-padding': isMac ? '32px' : '0px',
-    '--settings-window-sidebar-app-region': isMac ? 'drag' : 'no-drag'
-  } as CSSProperties
+  const shellStyle = { '--navbar-height': '0px' } as CSSProperties
   const isMacTransparentWindow = useMacTransparentWindow()
 
   return (

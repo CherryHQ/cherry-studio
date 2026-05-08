@@ -52,8 +52,8 @@ const SettingsPage: FC = () => {
             'flex min-h-0 w-[200px] min-w-[200px]',
             isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
           )}>
-          <Scrollbar className="flex min-h-0 flex-1 select-none flex-col px-2.5 pt-[calc(var(--settings-window-sidebar-top-padding,0px)+0.625rem)] pb-2.5 [-webkit-app-region:var(--settings-window-sidebar-app-region,no-drag)]">
-            <MenuList className="gap-1 [-webkit-app-region:no-drag]">
+          <Scrollbar className="flex min-h-0 flex-1 select-none flex-col px-2.5 pt-2.5 pb-2.5">
+            <MenuList className="gap-1">
               <div className={sectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
               <MenuItem
                 className={menuItemClassName}

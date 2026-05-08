@@ -113,12 +113,6 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       transparent: false,
       vibrancy: 'sidebar',
       visualEffectState: 'active',
-      platformOverrides: {
-        mac: {
-          titleBarStyle: 'hidden',
-          trafficLightPosition: { x: 13, y: 16 }
-        }
-      },
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
