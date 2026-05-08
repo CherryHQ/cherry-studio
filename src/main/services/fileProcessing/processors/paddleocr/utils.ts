@@ -203,6 +203,7 @@ export async function downloadPaddleResult(
   const safeDownloadUrl = sanitizeFileProcessingRemoteUrl(downloadUrl, configuredApiHost)
   const response = await net.fetch(safeDownloadUrl, {
     method: 'GET',
+    redirect: 'error',
     signal
   })
 

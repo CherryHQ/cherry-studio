@@ -69,6 +69,7 @@ describe('paddle utils', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('https://download.example.com/output.jsonl', {
       method: 'GET',
+      redirect: 'error',
       signal: undefined
     })
   })
@@ -103,6 +104,7 @@ describe('paddle utils', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('https://download.example.com/output.jsonl', {
       method: 'GET',
+      redirect: 'error',
       signal: undefined
     })
   })
@@ -137,6 +139,7 @@ describe('paddle utils', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('http://localhost:8080/output.jsonl', {
       method: 'GET',
+      redirect: 'error',
       signal: undefined
     })
   })

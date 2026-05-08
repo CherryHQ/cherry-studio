@@ -88,6 +88,14 @@ function resolvePreprocessFeature(processorId: FileProcessorId): FileProcessorFe
   return 'image_to_text'
 }
 
+function resolvePreprocessFeatures(processorId: FileProcessorId): FileProcessorFeature[] {
+  if (processorId === 'mistral') {
+    return ['document_to_markdown', 'image_to_text']
+  }
+
+  return [resolvePreprocessFeature(processorId)]
+}
+
 function setCapabilityApiHost(
   override: FileProcessorOverride,
   processorId: FileProcessorId,
@@ -189,13 +197,15 @@ function mergePreprocessProvider(overrides: FileProcessorOverrides, provider: un
   }
 
   const override = ensureOverride(overrides, providerId)
-  const feature = resolvePreprocessFeature(providerId)
+  const features = resolvePreprocessFeatures(providerId)
 
   addApiKey(override, provider.apiKey)
 
   if (providerId !== 'paddleocr') {
-    setCapabilityApiHost(override, providerId, feature, provider.apiHost)
-    setCapabilityModelId(override, providerId, feature, provider.model)
+    for (const feature of features) {
+      setCapabilityApiHost(override, providerId, feature, provider.apiHost)
+      setCapabilityModelId(override, providerId, feature, provider.model)
+    }
   }
 
   if (isRecord(provider.options)) {

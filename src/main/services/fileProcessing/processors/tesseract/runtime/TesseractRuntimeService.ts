@@ -73,10 +73,7 @@ export class TesseractRuntimeService extends BaseService {
 
         const buffer = await loadOcrImage(context.file)
         this.throwIfStopped()
-        const result = await worker.recognize(buffer).catch((error) => {
-          this.throwIfStopped()
-          throw error
-        })
+        const result = await this.recognizeWithAbort(worker, buffer, context.signal)
         this.throwIfStopped()
 
         return {
@@ -125,6 +122,56 @@ export class TesseractRuntimeService extends BaseService {
     }
 
     return this.sharedWorker
+  }
+
+  private async recognizeWithAbort(
+    worker: Tesseract.Worker,
+    buffer: Buffer,
+    signal?: AbortSignal
+  ): Promise<Tesseract.RecognizeResult> {
+    signal?.throwIfAborted()
+
+    const recognizePromise = worker.recognize(buffer).catch((error) => {
+      this.throwIfStopped()
+      signal?.throwIfAborted()
+      throw error
+    })
+
+    if (!signal) {
+      return recognizePromise
+    }
+
+    let rejectAbort!: (error: Error) => void
+    const abortHandler = () => {
+      void this.invalidateWorker(worker).catch((error) => {
+        logger.warn('Failed to terminate Tesseract worker after task abort', error as Error)
+      })
+      rejectAbort(this.createAbortError(signal.reason))
+    }
+    const abortPromise = new Promise<never>((_, reject) => {
+      rejectAbort = reject
+      signal.addEventListener('abort', abortHandler, { once: true })
+    })
+    if (signal.aborted) {
+      abortHandler()
+    }
+
+    try {
+      const result = await Promise.race([recognizePromise, abortPromise])
+      signal?.throwIfAborted()
+      return result
+    } finally {
+      signal.removeEventListener('abort', abortHandler)
+    }
+  }
+
+  private async invalidateWorker(worker: Tesseract.Worker): Promise<void> {
+    if (this.sharedWorker === worker) {
+      this.sharedWorker = null
+      this.previousLangsKey = null
+    }
+
+    await worker.terminate()
   }
 
   private async disposeWorker(): Promise<void> {

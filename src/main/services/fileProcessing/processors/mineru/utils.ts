@@ -84,6 +84,7 @@ export async function uploadFile(
       headers: uploadHeaders,
       body: fileStream as any,
       duplex: 'half',
+      redirect: 'error',
       signal
     } as any)
 

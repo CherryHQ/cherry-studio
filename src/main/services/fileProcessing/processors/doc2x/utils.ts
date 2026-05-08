@@ -70,6 +70,7 @@ export async function uploadFile(
       method: 'PUT',
       body: fileStream as any,
       duplex: 'half',
+      redirect: 'error',
       signal
     } as any)
 

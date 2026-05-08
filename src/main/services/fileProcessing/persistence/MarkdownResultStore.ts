@@ -33,6 +33,9 @@ export function getFileProcessingResultsDir(taskId: string): string {
     throw new Error(`Invalid file processing task id: ${taskId}`)
   }
 
+  // TODO(file-processing): Keep artifacts in the shared results root until the
+  // file storage layout is finalized; move to the final per-file directory in
+  // one filesystem pass instead of changing this path piecemeal.
   return path.join(application.getPath('feature.file_processing.results'), taskId)
 }
 
@@ -65,6 +68,7 @@ class MarkdownResultStore {
         )
         const response = await net.fetch(safeDownloadUrl, {
           method: 'GET',
+          redirect: 'error',
           signal: options.signal
         })
 

@@ -91,6 +91,10 @@ describe('FileProcessingOverrideMappings', () => {
               document_to_markdown: {
                 apiHost: 'https://mistral-proxy.example.com',
                 modelId: 'mistral-ocr-custom'
+              },
+              image_to_text: {
+                apiHost: 'https://mistral-proxy.example.com',
+                modelId: 'mistral-ocr-custom'
               }
             }
           },
@@ -143,7 +147,7 @@ describe('FileProcessingOverrideMappings', () => {
       })
     })
 
-    it('should apply mistral preprocess credentials to markdown conversion', () => {
+    it('should apply mistral preprocess credentials to markdown conversion and image OCR', () => {
       const result = mergeFileProcessingOverrides({
         preprocessProviders: [
           {
@@ -163,6 +167,10 @@ describe('FileProcessingOverrideMappings', () => {
             apiKeys: ['mistral-key'],
             capabilities: {
               document_to_markdown: {
+                apiHost: 'https://mistral-proxy.example.com',
+                modelId: 'mistral-ocr-custom'
+              },
+              image_to_text: {
                 apiHost: 'https://mistral-proxy.example.com',
                 modelId: 'mistral-ocr-custom'
               }

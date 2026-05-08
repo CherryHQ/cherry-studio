@@ -106,6 +106,7 @@ describe('MarkdownResultStore', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('https://cdn-mineru.openxlab.org.cn/pdf/task-1.zip', {
       method: 'GET',
+      redirect: 'error',
       signal: undefined
     })
     expect(persistResponseZipResultMock).toHaveBeenCalledOnce()
@@ -136,6 +137,7 @@ describe('MarkdownResultStore', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/result.zip', {
       method: 'GET',
+      redirect: 'error',
       signal: undefined
     })
     expect(persistResponseZipResultMock).toHaveBeenCalledOnce()

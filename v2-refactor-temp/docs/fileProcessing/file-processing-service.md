@@ -513,7 +513,8 @@ file-processing 相关数据按职责分层：
    - 包括 task record、provider task id、query context、abort controller、in-flight query、background execution
    - 不落 DataApi，不镜像到 Cache / SharedCache
 4. 最终 file artifact
-   - 落盘到 `application.getPath('feature.files.data')/fileId/file-processing/taskId`
+   - 当前落盘到 `application.getPath('feature.file_processing.results')/taskId`
+   - 更细的 per-file 目录归属等文件系统方案完成后再统一调整
    - 由 task completed artifact 返回 path
 
 DataApi 边界：
@@ -676,8 +677,8 @@ Markdown conversion 的文件 artifact 继续由 Main 进程稳定落盘。
 
 落盘规则：
 
-1. 路径使用 `application.getPath('feature.files.data')` 派生。
-2. 结果目录按 `fileId/taskId` 分桶。
+1. 路径使用 `application.getPath('feature.file_processing.results')` 派生。
+2. 结果目录当前按 `taskId` 分桶。
 3. Markdown 主文件归一为稳定文件名，例如 `output.md`。
 4. zip 结果必须做 entry path 规范化和安全校验，防止 zip slip。
 5. 写入结果目录时继续使用原子替换策略。
@@ -825,7 +826,7 @@ Persistence 测试：
 1. markdown content 原子写入 `output.md`。
 2. zip result 安全解包并归一 markdown path。
 3. unsafe zip entry 被拒绝。
-4. 同一 file 不同 taskId 的结果目录互不覆盖。
+4. 不同 taskId 的结果目录互不覆盖。
 
 Processor 测试：
 

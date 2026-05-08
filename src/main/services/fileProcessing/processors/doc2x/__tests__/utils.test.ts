@@ -73,6 +73,7 @@ describe('doc2x utils', () => {
         method: 'PUT',
         body: expect.any(Object),
         duplex: 'half',
+        redirect: 'error',
         signal: undefined
       })
     )

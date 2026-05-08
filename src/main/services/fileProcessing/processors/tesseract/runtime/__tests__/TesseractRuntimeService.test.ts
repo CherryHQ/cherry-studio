@@ -278,6 +278,76 @@ describe('TesseractRuntimeService', () => {
     expect(terminateMock).toHaveBeenCalledTimes(1)
   })
 
+  it('terminates the active worker when an in-flight recognize is aborted', async () => {
+    let rejectRecognize!: (error: Error) => void
+    const firstRecognizeMock = vi.fn().mockImplementation(
+      () =>
+        new Promise<{ data: { text: string } }>((_, reject) => {
+          rejectRecognize = reject
+        })
+    )
+    const firstTerminateMock = vi.fn().mockImplementation(async () => {
+      rejectRecognize(new Error('worker terminated'))
+    })
+    const secondRecognizeMock = vi.fn().mockResolvedValue({
+      data: {
+        text: 'next result'
+      }
+    })
+    const secondTerminateMock = vi.fn().mockResolvedValue(undefined)
+    createWorkerMock
+      .mockResolvedValueOnce({
+        recognize: firstRecognizeMock,
+        terminate: firstTerminateMock
+      })
+      .mockResolvedValueOnce({
+        recognize: secondRecognizeMock,
+        terminate: secondTerminateMock
+      })
+
+    service = new TesseractRuntimeService()
+    await service._doInit()
+
+    const controller = new AbortController()
+    const request: PreparedTesseractContext = {
+      file: {
+        id: 'file-1',
+        name: 'scan.png',
+        origin_name: 'scan.png',
+        path: '/tmp/scan.png',
+        size: 1024,
+        ext: '.png',
+        type: 'image',
+        created_at: '2026-03-31T00:00:00.000Z',
+        count: 1
+      },
+      langs: ['eng']
+    }
+    const extractPromise = service.extract({
+      ...request,
+      signal: controller.signal
+    })
+
+    await vi.waitFor(() => {
+      expect(firstRecognizeMock).toHaveBeenCalledTimes(1)
+    })
+
+    controller.abort(new DOMException('cancelled', 'AbortError'))
+
+    await expect(extractPromise).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+    expect(firstTerminateMock).toHaveBeenCalledTimes(1)
+
+    await expect(service.extract(request)).resolves.toEqual({
+      kind: 'text',
+      text: 'next result'
+    })
+
+    expect(createWorkerMock).toHaveBeenCalledTimes(2)
+    expect(secondRecognizeMock).toHaveBeenCalledTimes(1)
+  })
+
   it('does not fail stop when terminating the worker throws', async () => {
     const terminateMock = vi.fn().mockRejectedValue(new Error('terminate failed'))
     createWorkerMock.mockResolvedValue({

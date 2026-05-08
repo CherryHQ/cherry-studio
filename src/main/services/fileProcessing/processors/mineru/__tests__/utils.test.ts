@@ -78,6 +78,7 @@ describe('mineru utils', () => {
         headers: { Authorization: 'Bearer secret' },
         body: expect.any(Object),
         duplex: 'half',
+        redirect: 'error',
         signal: undefined
       })
     )
@@ -129,6 +130,7 @@ describe('mineru utils', () => {
         headers: { Authorization: 'Bearer secret' },
         body: expect.any(Object),
         duplex: 'half',
+        redirect: 'error',
         signal: undefined
       })
     )
