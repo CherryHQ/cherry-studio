@@ -1,5 +1,13 @@
-import { InfoTooltip, Switch } from '@cherrystudio/ui'
-import Selector from '@renderer/components/Selector'
+import {
+  InfoTooltip,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider,
+  Switch
+} from '@cherrystudio/ui'
 import { getWebSearchProviderLogo, webSearchProviderRequiresApiKey } from '@renderer/config/webSearchProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import {
@@ -10,7 +18,6 @@ import {
 import { webSearchService } from '@renderer/services/WebSearchService'
 import type { WebSearchProvider } from '@renderer/types'
 import { useNavigate } from '@tanstack/react-router'
-import { Slider } from 'antd'
 import type { TFunction } from 'i18next'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -81,7 +88,7 @@ const BasicSettings: FC = () => {
         {logo ? (
           <logo.Avatar size={16} shape="rounded" />
         ) : (
-          <div className="h-4 w-4 rounded-sm bg-[var(--color-background-soft)]" />
+          <div className="h-4 w-4 rounded-sm bg-(--color-background-subtle)" />
         )}
         <span>
           {provider.name}
@@ -96,30 +103,32 @@ const BasicSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.tool.websearch.search_provider')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.tool.websearch.default_provider')}</SettingRowTitle>
-          <Selector
-            size={14}
-            value={defaultProvider?.id}
-            onChange={(value: string) => updateSelectedWebSearchProvider(value)}
-            placeholder={t('settings.tool.websearch.search_provider_placeholder')}
-            options={providers.map((p) => ({
-              value: p.id,
-              label: renderProviderLabel(p)
-            }))}
-          />
+        <SettingRow className="gap-8 py-2">
+          <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.default_provider')}</SettingRowTitle>
+          <Select value={defaultProvider?.id} onValueChange={updateSelectedWebSearchProvider}>
+            <SelectTrigger style={{ width: '200px' }}>
+              <SelectValue placeholder={t('settings.tool.websearch.search_provider_placeholder')} />
+            </SelectTrigger>
+            <SelectContent>
+              {providers.map((provider) => (
+                <SelectItem key={provider.id} value={provider.id}>
+                  {renderProviderLabel(provider)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme} style={{ paddingBottom: 8 }}>
         <SettingTitle>{t('settings.general.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.tool.websearch.search_with_time')}</SettingRowTitle>
+        <SettingRow className="gap-8 py-2">
+          <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.search_with_time')}</SettingRowTitle>
           <Switch checked={searchWithTime} onCheckedChange={(checked) => void setSearchWithTime(checked)} />
         </SettingRow>
-        <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
-        <SettingRow style={{ height: 40 }}>
-          <SettingRowTitle style={{ minWidth: 120 }}>
+        <SettingDivider />
+        <SettingRow className="items-start gap-8">
+          <SettingRowTitle className="mt-2 min-w-32 shrink-0">
             {t('settings.tool.websearch.search_max_result.label')}
             {maxResults > 20 && compressionConfig?.method === 'none' && (
               <InfoTooltip
@@ -128,16 +137,24 @@ const BasicSettings: FC = () => {
               />
             )}
           </SettingRowTitle>
-          <Slider
-            value={draftMaxResults}
-            style={{ width: '100%' }}
-            min={1}
-            max={100}
-            step={1}
-            marks={{ 1: '1', 5: '5', 20: '20', 50: '50', 100: '100' }}
-            onChange={(value) => setDraftMaxResults(value)}
-            onChangeComplete={(value) => void setMaxResults(value)}
-          />
+          <div className="-mb-2 mt-3 w-full max-w-xl">
+            <Slider
+              value={[draftMaxResults]}
+              className="w-full"
+              min={1}
+              max={100}
+              step={1}
+              marks={[
+                { value: 1, label: '1' },
+                { value: 5, label: '5' },
+                { value: 20, label: '20' },
+                { value: 50, label: '50' },
+                { value: 100, label: '100' }
+              ]}
+              onValueChange={(value) => setDraftMaxResults(value[0])}
+              onValueCommit={(value) => void setMaxResults(value[0])}
+            />
+          </div>
         </SettingRow>
       </SettingGroup>
     </>

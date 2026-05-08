@@ -12,7 +12,7 @@ import * as React from 'react'
 const textareaVariants = cva(
   cn(
     'flex field-sizing-content min-h-16 w-full border bg-transparent px-4 py-3 text-lg shadow-xs transition-[color,box-shadow] outline-none resize-y',
-    'rounded-xs',
+    'rounded-md',
     'border-input text-foreground placeholder:text-foreground-secondary',
     'focus-visible:border-primary focus-visible:ring-ring focus-visible:ring-[3px]',
     'disabled:cursor-not-allowed disabled:opacity-50',

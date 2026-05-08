@@ -13,7 +13,7 @@
   --cs-warning: var(--cs-amber-500);
 
   /* Background & Foreground */
-  --cs-background: var(--cs-zinc-50);
+  --cs-background: var(--cs-white);
   --cs-background-subtle: oklch(0 0 0 / 0.04);
   --cs-foreground: oklch(0 0 0 / 0.9);
   --cs-foreground-secondary: oklch(0 0 0 / 0.6);
@@ -48,7 +48,7 @@
 /* Dark Mode */
 .dark {
   /* Background & Foreground */
-  --cs-background: var(--cs-zinc-900);
+  --cs-background: oklch(0.191 0 0 / 0.55);
   --cs-background-subtle: oklch(1 0 0 / 0.06);
   --cs-foreground: oklch(1 0 0 / 0.9);
   --cs-foreground-secondary: oklch(1 0 0 / 0.6);

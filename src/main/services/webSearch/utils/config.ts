@@ -1,8 +1,10 @@
 import type {
   PreferenceDefaultScopeType,
   PreferenceKeyType,
+  WebSearchCapability,
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchProviderFeatureCapability } from '@shared/data/presets/web-search-providers'
 import { PRESETS_WEB_SEARCH_PROVIDERS, WEB_SEARCH_PROVIDER_PRESET_MAP } from '@shared/data/presets/web-search-providers'
 import type {
   ResolvedWebSearchProvider,
@@ -15,11 +17,28 @@ export interface WebSearchPreferenceReader {
   get<K extends PreferenceKeyType>(key: K): PreferenceDefaultScopeType[K] | Promise<PreferenceDefaultScopeType[K]>
 }
 
+const DEFAULT_PROVIDER_KEY_BY_CAPABILITY = {
+  searchKeywords: 'chat.web_search.default_search_keywords_provider',
+  fetchUrls: 'chat.web_search.default_fetch_urls_provider'
+} as const satisfies Record<WebSearchCapability, PreferenceKeyType>
+
 export async function getProviderOverrides(
   preferences: WebSearchPreferenceReader
 ): Promise<WebSearchProviderOverrides> {
   const providerOverrides = await preferences.get('chat.web_search.provider_overrides')
   return providerOverrides || {}
+}
+
+function mergeProviderCapabilities(
+  presetCapabilities: readonly WebSearchProviderFeatureCapability[],
+  override: WebSearchProviderOverrides[ResolvedWebSearchProvider['id']]
+): WebSearchProviderFeatureCapability[] {
+  return presetCapabilities.map((capability) => ({
+    ...capability,
+    ...(override?.capabilities?.[capability.feature]?.apiHost !== undefined
+      ? { apiHost: override.capabilities[capability.feature]?.apiHost?.trim() }
+      : {})
+  }))
 }
 
 export function resolveProviders(providerOverrides: WebSearchProviderOverrides): ResolvedWebSearchProvider[] {
@@ -32,10 +51,10 @@ export function resolveProviders(providerOverrides: WebSearchProviderOverrides):
       name: preset.name,
       type: preset.type,
       apiKeys,
-      apiHost: override?.apiHost?.trim() || preset.defaultApiHost,
+      capabilities: mergeProviderCapabilities(preset.capabilities, override),
       engines: override?.engines || [],
       basicAuthUsername: override?.basicAuthUsername?.trim() || '',
-      basicAuthPassword: override?.basicAuthPassword?.trim() || ''
+      basicAuthPassword: override?.basicAuthPassword || ''
     }
   })
 }
@@ -73,10 +92,10 @@ export async function getResolvedConfig(preferences: WebSearchPreferenceReader):
   }
 }
 
-export async function getProviderById(
-  providerId: ResolvedWebSearchProvider['id'],
+export async function getProviderById<TProviderId extends ResolvedWebSearchProvider['id']>(
+  providerId: TProviderId,
   preferences: WebSearchPreferenceReader
-): Promise<ResolvedWebSearchProvider> {
+): Promise<ResolvedWebSearchProvider & { id: TProviderId }> {
   const providerOverrides = await getProviderOverrides(preferences)
   const override = providerOverrides[providerId]
   const preset = WEB_SEARCH_PROVIDER_PRESET_MAP[providerId]
@@ -91,9 +110,23 @@ export async function getProviderById(
     name: preset.name,
     type: preset.type,
     apiKeys,
-    apiHost: override?.apiHost?.trim() || preset.defaultApiHost,
+    capabilities: mergeProviderCapabilities(preset.capabilities, override),
     engines: override?.engines || [],
     basicAuthUsername: override?.basicAuthUsername?.trim() || '',
-    basicAuthPassword: override?.basicAuthPassword?.trim() || ''
+    basicAuthPassword: override?.basicAuthPassword || ''
+  } as ResolvedWebSearchProvider & { id: TProviderId }
+}
+
+export async function getProviderForCapability(
+  requestedProviderId: ResolvedWebSearchProvider['id'] | undefined,
+  capability: WebSearchCapability,
+  preferences: WebSearchPreferenceReader
+): Promise<ResolvedWebSearchProvider> {
+  const providerId = requestedProviderId ?? (await preferences.get(DEFAULT_PROVIDER_KEY_BY_CAPABILITY[capability]))
+
+  if (!providerId) {
+    throw new Error(`Default web search provider is not configured for capability ${capability}`)
   }
+
+  return getProviderById(providerId, preferences)
 }

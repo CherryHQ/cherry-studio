@@ -1,14 +1,15 @@
+import { Button, Skeleton } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
-import { Button, Skeleton } from 'antd'
+import { cn } from '@renderer/utils/style'
 import { isEmpty } from 'lodash'
 import { CreditCard, LogIn, LogOut, RefreshCw } from 'lucide-react'
+import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('CherryINOAuth')
 
@@ -138,7 +139,8 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     if (!hasApiKey) {
       // Case 1: No API key - show login button
       return (
-        <Button type="primary" shape="round" icon={<LogIn size={16} />} onClick={handleOAuthLogin}>
+        <Button className="rounded-full" onClick={handleOAuthLogin}>
+          <LogIn size={16} />
           {t('auth.login')}
         </Button>
       )
@@ -146,14 +148,15 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
 
     if (hasOAuthToken === null) {
       // Still checking OAuth token status
-      return <Skeleton.Input active size="small" style={{ width: 120, height: 32 }} />
+      return <Skeleton className="h-8 w-[120px]" />
     }
 
     if (!hasOAuthToken) {
       // Case 3: Has API key but no OAuth token (legacy manual key)
       // Show button to connect OAuth for better experience
       return (
-        <Button type="primary" shape="round" icon={<LogIn size={16} />} onClick={handleOAuthLogin}>
+        <Button className="rounded-full" onClick={handleOAuthLogin}>
+          <LogIn size={16} />
           {t('auth.login')}
         </Button>
       )
@@ -165,15 +168,16 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
         <BalanceCapsule onClick={fetchData} disabled={isLoadingData}>
           <BalanceLabel>{t('settings.provider.oauth.balance')}</BalanceLabel>
           {isLoadingData && !balanceInfo ? (
-            <Skeleton.Input active size="small" style={{ width: 50, height: 16, minWidth: 50 }} />
+            <Skeleton className="h-4 min-w-[50px]" />
           ) : (
             <BalanceValue>
               ${balanceInfo?.balance.toFixed(2) ?? '--'}
-              <RefreshCw size={12} className={isLoadingData ? 'spinning' : ''} />
+              <RefreshCw size={12} className={isLoadingData ? 'animate-spin' : ''} />
             </BalanceValue>
           )}
         </BalanceCapsule>
-        <TopupButton type="primary" shape="round" icon={<CreditCard size={16} />} onClick={handleTopup}>
+        <TopupButton className="rounded-full" onClick={handleTopup}>
+          <CreditCard size={16} />
           {t('settings.provider.oauth.topup')}
         </TopupButton>
       </ButtonRow>
@@ -202,124 +206,56 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   )
 }
 
-const Container = styled.div`
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 15px;
-  padding: 20px;
-`
+const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('relative flex flex-col items-center justify-center gap-3.75 p-5', className)} {...props} />
+)
 
-const LogoutCorner = styled.button`
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--color-text-3);
-  cursor: pointer;
-  transition: all 0.2s;
+const LogoutCorner = ({ className, ...props }: React.ComponentPropsWithoutRef<'button'>) => (
+  <button
+    className={cn(
+      'absolute top-2 right-2 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-foreground-muted transition-all hover:bg-background-subtle hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50',
+      className
+    )}
+    {...props}
+  />
+)
 
-  &:hover {
-    background: var(--color-background-soft);
-    color: var(--color-error);
-  }
+const ProviderLogoWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('cursor-pointer transition-opacity hover:opacity-80', className)} {...props} />
+)
 
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
-`
+const ButtonRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex items-center gap-3', className)} {...props} />
+)
 
-const ProviderLogoWrapper = styled.div`
-  cursor: pointer;
-  transition: opacity 0.2s;
+const BalanceCapsule = ({ className, ...props }: React.ComponentPropsWithoutRef<'button'>) => (
+  <button
+    className={cn(
+      'flex h-8 min-w-[110px] cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border bg-background-subtle px-3.75 transition-all hover:border-primary disabled:cursor-not-allowed disabled:opacity-70',
+      className
+    )}
+    {...props}
+  />
+)
 
-  &:hover {
-    opacity: 0.8;
-  }
-`
+const TopupButton = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Button>) => (
+  <Button className={cn('min-w-[110px]', className)} {...props} />
+)
 
-const ButtonRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-`
+const BalanceLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('text-[13px] text-foreground-muted', className)} {...props} />
+)
 
-const BalanceCapsule = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 15px;
-  min-width: 110px;
-  height: 32px;
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  background: var(--color-background-soft);
-  cursor: pointer;
-  transition: all 0.2s;
+const BalanceValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('flex items-center gap-1 font-semibold text-[13px] text-foreground', className)} {...props} />
+)
 
-  &:hover {
-    border-color: var(--color-primary);
-  }
+const Description = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex items-center gap-1.25 text-[11px] text-foreground-secondary', className)} {...props} />
+)
 
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.7;
-  }
-
-  .spinning {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
-`
-
-const TopupButton = styled(Button)`
-  min-width: 110px;
-`
-
-const BalanceLabel = styled.span`
-  font-size: 13px;
-  color: var(--color-text-3);
-`
-
-const BalanceValue = styled.span`
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text-1);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
-
-const Description = styled.div`
-  font-size: 11px;
-  color: var(--color-text-2);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-`
-
-const OfficialWebsite = styled.a`
-  text-decoration: none;
-  color: var(--color-text-2);
-`
+const OfficialWebsite = ({ className, ...props }: React.ComponentPropsWithoutRef<'a'>) => (
+  <a className={cn('text-foreground-secondary no-underline', className)} {...props} />
+)
 
 export default CherryINOAuth

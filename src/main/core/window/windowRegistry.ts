@@ -93,6 +93,36 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
+  // Settings window — singleton popup surface for application settings.
+  // The renderer consumes initData as the target /settings/* route, so open()
+  // can focus an existing settings window and navigate it in-place.
+  [WindowType.Settings]: {
+    type: WindowType.Settings,
+    lifecycle: 'singleton',
+    singletonConfig: {
+      retentionTime: 300
+    },
+    htmlPath: 'settings.html',
+    windowOptions: {
+      ...DEFAULT_WINDOW_CONFIG,
+      width: 960,
+      height: 680,
+      minWidth: 760,
+      minHeight: 520,
+      autoHideMenuBar: true,
+      transparent: false,
+      vibrancy: 'sidebar',
+      visualEffectState: 'active',
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        webSecurity: false,
+        webviewTag: true
+      }
+    }
+  },
+
   // Detached tab window — multi-instance, one per user-detached Tab.
   // Placed adjacent to Main because a SubWindow is logically a Main spin-off
   // (a Tab dragged out of Main becomes its own BrowserWindow here; drag back

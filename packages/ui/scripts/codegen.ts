@@ -100,12 +100,12 @@ export function generateAvatar(opts: { outPath: string; colorName: string; varia
   const sf = project.createSourceFile('avatar.tsx', '', { overwrite: true })
 
   sf.addImportDeclaration({
-    moduleSpecifier: '../../../../lib/utils',
+    moduleSpecifier: '@cherrystudio/ui/lib/utils',
     namedImports: ['cn']
   })
 
   sf.addImportDeclaration({
-    moduleSpecifier: '../../../primitives/avatar',
+    moduleSpecifier: '@cherrystudio/ui/components/primitives/avatar',
     namedImports: ['Avatar', 'AvatarFallback']
   })
 

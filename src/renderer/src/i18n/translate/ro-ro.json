@@ -36,9 +36,9 @@
         "comingSoon": "În curând",
         "connected": "Conectat",
         "connecting": "Conectare",
-        "createError": "[to be translated]:Failed to create channel",
+        "createError": "Nu s-a reușit crearea canalului",
         "deleteConfirm": "Șterge canalul „{{name}}”?",
-        "deleteError": "[to be translated]:Failed to delete channel",
+        "deleteError": "Nu s-a putut șterge canalul",
         "description": "Conectați agentul la platforme de mesagerie.",
         "disconnected": "Deconectat",
         "discord": {
@@ -123,7 +123,7 @@
           "title": "Telegram"
         },
         "title": "Canale",
-        "updateError": "[to be translated]:Failed to update channel",
+        "updateError": "Nu s-a putut actualiza canalul",
         "wechat": {
           "addAccount": "Adaugă cont WeChat",
           "chatIds": "ID-uri de utilizator permise",
@@ -215,7 +215,7 @@
         "edit": "Editează",
         "empty": "Nu există sarcini programate. Adăugați una pentru a începe.",
         "error": {
-          "loadFailed": "[to be translated]:Failed to load tasks"
+          "loadFailed": "Nu s-au putut încărca sarcinile"
         },
         "intervalPlaceholder": "Interval în minute",
         "intervalUnit": "minute",
@@ -226,7 +226,7 @@
           "error": "Eroare",
           "justNow": "chiar acum",
           "label": "Istoric rulări",
-          "loadError": "[to be translated]:Failed to load run history",
+          "loadError": "Nu s-a reușit încărcarea istoricului de execuție",
           "result": "Rezultat",
           "runAt": "Rulat la",
           "running": "Alergând...",
@@ -957,17 +957,6 @@
         "xhigh": "Extra ridicat",
         "xhigh_description": "Raționament de nivel extra ridicat"
       },
-      "regular_phrases": {
-        "add": "Adaugă expresie",
-        "contentLabel": "Conținut",
-        "contentPlaceholder": "Te rugăm să introduci conținutul expresiei; poți folosi variabile și poți apăsa Tab pentru a localiza rapid variabila de modificat. De exemplu: \nAjută-mă să planific o rută de la ${from} până la ${to} și trimite-o la ${email}.",
-        "delete": "Șterge expresia",
-        "deleteConfirm": "Ești sigur că vrei să ștergi această expresie?",
-        "edit": "Editează expresia",
-        "title": "Expresie uzuală",
-        "titleLabel": "Titlu",
-        "titlePlaceholder": "Introdu titlul"
-      },
       "title": "Setări asistent",
       "tool_use_mode": {
         "function": "Funcție",
@@ -1510,8 +1499,8 @@
     "bun_required_message": "Mediul Bun este necesar pentru a rula instrumente CLI",
     "cli_tool": "Instrument CLI",
     "cli_tool_placeholder": "Selectează instrumentul CLI de utilizat",
-    "count_one": "[to be translated]:{{count}} item",
-    "count_other": "[to be translated]:{{count}} items",
+    "count_one": "{{count}} element",
+    "count_other": "{{count}} articole",
     "custom_path": "Cale personalizată",
     "custom_path_error": "Nu s-a putut seta calea personalizată a terminalului",
     "custom_path_required": "Calea personalizată este necesară pentru acest terminal",
@@ -1519,12 +1508,12 @@
     "description": "Lansează rapid mai multe instrumente CLI de cod pentru a îmbunătăți eficiența dezvoltării",
     "empty": {
       "no_match": {
-        "description": "[to be translated]:Try adjusting your search terms",
-        "title": "[to be translated]:No matching tools found"
+        "description": "Încearcă să îți ajustezi termenii de căutare",
+        "title": "Nu au fost găsite unelte potrivite"
       },
       "no_tool": {
-        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
-        "title": "[to be translated]:No code tools yet"
+        "description": "Adaugă un instrument CLI sau un asistent de cod pentru a începe",
+        "title": "Nu există încă instrumente de cod."
       }
     },
     "env_vars_help": "Introdu variabile de mediu personalizate (una pe rând, format: CHEIE=valoare)",
@@ -1536,28 +1525,28 @@
       "bun_required": "Te rugăm să instalezi mai întâi mediul Bun înainte de a lansa instrumentele CLI",
       "error": "Lansarea a eșuat, te rugăm să încerci din nou",
       "label": "Lansează",
-      "launched": "[to be translated]:Launched",
+      "launched": "Lansat",
       "success": "Lansare reușită",
       "validation_error": "Te rugăm să completezi toate câmpurile obligatorii: instrument CLI, model și director de lucru"
     },
     "launching": "Se lansează...",
     "model": "Model",
-    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
+    "model_hint": "Alegeți ce model AI să folosească instrumentul CLI",
     "model_placeholder": "Selectează modelul de utilizat",
     "model_required": "Te rugăm să selectezi un model",
-    "official_tag": "[to be translated]:Official",
-    "official_tools": "[to be translated]:Official",
-    "search_placeholder": "[to be translated]:Search CLI tools…",
+    "official_tag": "Oficial",
+    "official_tools": "Oficial",
+    "search_placeholder": "Caută instrumente CLI…",
     "select_folder": "Selectează dosarul",
     "set_custom_path": "Setează calea personalizată a terminalului",
     "supported_providers": "Furnizori acceptați",
     "terminal": "Terminal",
-    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
+    "terminal_hint": "Alege în ce aplicație terminal să rulezi CLI-ul",
     "terminal_placeholder": "Selectează aplicația terminal",
     "title": "Instrumente de cod",
     "update_options": "Opțiuni de actualizare",
     "working_directory": "Director de lucru",
-    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
+    "working_directory_hint": "Directorul de lucru în care pornește instrumentul CLI"
   },
   "code_block": {
     "collapse": "Restrânge",
@@ -2147,7 +2136,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
-    "minapps": "Mini-aplicații"
+    "miniApps": "Mini-aplicații"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2500,15 +2489,20 @@
       "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Adaugă în Launchpad",
     "add_to_sidebar": "Adaugă în bara laterală",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
-      "close": "Închide MinApp",
+      "close": "Închide MiniApp",
       "devtools": "Instrumente dezvoltator",
       "goBack": "Mergi înapoi",
       "goForward": "Mergi înainte",
-      "minimize": "Minimizează MinApp",
       "openExternal": "Deschide în browser",
       "open_link_external_off": "Curent: Deschide linkurile în fereastra implicită",
       "open_link_external_on": "Curent: Deschide linkurile în browser",
@@ -2517,6 +2511,13 @@
     },
     "remove_from_launchpad": "Elimină din Launchpad",
     "remove_from_sidebar": "Elimină din bara laterală",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Închide"
@@ -2531,9 +2532,11 @@
         "title": "Șterge aplicația personalizată"
       }
     },
-    "title": "MinApp"
+    "title": "MiniApp",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -2552,6 +2555,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -2560,8 +2564,8 @@
   },
   "models": {
     "action": {
-      "pin": "[to be translated]:Pin this model",
-      "unpin": "[to be translated]:Unpin model"
+      "pin": "Fixează acest model",
+      "unpin": "Dezactivează modelul"
     },
     "add_parameter": "Adaugă parametru",
     "all": "Toate",
@@ -2581,7 +2585,7 @@
     "invalid_model": "Model invalid",
     "json_parse_error": "Format JSON invalid",
     "multi_select": {
-      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+      "label": "Multi-model paralel (mutu exclusiv cu multi-asistent)"
     },
     "no_matches": "Nu există modele disponibile",
     "parameter_name": "Nume parametru",
@@ -3824,27 +3828,27 @@
   },
   "selector": {
     "agent": {
-      "create_new": "[to be translated]:New Agent",
-      "empty_text": "[to be translated]:No agents yet",
-      "search_placeholder": "[to be translated]:Search agents…"
+      "create_new": "Agent nou",
+      "empty_text": "Niciun agent încă",
+      "search_placeholder": "Caută agenți…"
     },
     "assistant": {
-      "create_new": "[to be translated]:New Assistant",
-      "empty_text": "[to be translated]:No assistants yet",
-      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
-      "multi_label": "[to be translated]:Multi-assistant parallel",
-      "search_placeholder": "[to be translated]:Search assistants…"
+      "create_new": "Asistent Nou",
+      "empty_text": "Niciun asistent încă",
+      "multi_hint": "(exclusiv în mod reciproc cu multi-model)",
+      "multi_label": "Asistenți multipli în paralel",
+      "search_placeholder": "Asistenți de căutare…"
     },
     "common": {
-      "edit": "[to be translated]:Edit",
-      "pin": "[to be translated]:Pin",
-      "pinned_title": "[to be translated]:Pinned",
+      "edit": "Editează",
+      "pin": "Pin",
+      "pinned_title": "Fixat",
       "sort": {
-        "asc": "[to be translated]:Oldest",
-        "desc": "[to be translated]:Recent"
+        "asc": "Cel mai vechi",
+        "desc": "Recent"
       },
-      "sort_label": "[to be translated]:Sort",
-      "unpin": "[to be translated]:Unpin"
+      "sort_label": "Sortează",
+      "unpin": "Anulați fixarea"
     }
   },
   "settings": {
@@ -3915,72 +3919,72 @@
     },
     "componentLab": {
       "agentSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
-        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Agent Selector",
-        "triggerPlaceholder": "[to be translated]:Select an agent",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "Clar",
+        "configDescription": "Comută proprietățile pentru a previzualiza comportamentul componentei",
+        "configTitle": "Configurare",
+        "currentProps": "Proprietăți curente",
+        "description": "AgentSelector citește acum date reale din DataApi /agents pentru a verifica selecția id/item, fixarea, sortarea și comportamentul căutării.",
+        "emptyShellNotice": "Această previzualizare utilizează lista reală de agenți returnată de DataApi /agents.",
+        "lastOnChange": "Cel mai recent onChange",
+        "previewDescription": "Faceți clic pe declanșator pentru a deschide selectorul",
+        "previewTitle": "Previzualizare",
+        "title": "Selector Agent",
+        "triggerPlaceholder": "Selectați un agent",
+        "valueProp": "Valoare curentă"
       },
       "assistantSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Assistant Selector",
-        "triggerPlaceholder": "[to be translated]:Select an assistant",
-        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "Clar",
+        "configDescription": "Comută proprietățile pentru a previzualiza comportamentul componentei",
+        "configTitle": "Configurare",
+        "currentProps": "Proprietățile curente",
+        "description": "Montează componenta business AssistantSelector direct pentru a verifica comportamentul multi/single, id/item, pin, sortare și căutare.",
+        "lastOnChange": "Cel mai recent onChange",
+        "previewDescription": "Faceți clic pe declanșator pentru a deschide selectorul",
+        "previewTitle": "Previzualizare",
+        "title": "Selector de asistent",
+        "triggerPlaceholder": "Selectați un asistent",
+        "triggerSelectedCount": "{{count}} asistenți selectați",
+        "valueProp": "Valoare curentă"
       },
-      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
-      "label": "[to be translated]:Component Lab",
+      "description": "Vizibil doar în dezvoltare pentru testarea noului selector de model direct în aplicație.",
+      "label": "Laborator de Componente",
       "modelSelector": {
-        "behaviorConfig": "[to be translated]:Behavior & Display Config",
-        "callbackEmpty": "[to be translated]:No component callback received yet",
-        "clearSelection": "[to be translated]:Clear Selection",
-        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
-        "configTitle": "[to be translated]:Props Playground",
-        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
-        "currentProps": "[to be translated]:Current Props",
-        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
-        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
-        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
-        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
-        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
-        "loading": "[to be translated]:Loading models...",
-        "modelId": "[to be translated]:Model ID",
-        "multiSelectMode": "[to be translated]:multiSelectMode",
-        "multiple": "[to be translated]:multiple",
-        "normalizedIds": "[to be translated]:Normalized Selected IDs",
-        "outputEmpty": "[to be translated]:No data to display yet",
-        "provider": "[to be translated]:Provider",
-        "resetOutputs": "[to be translated]:Reset Outputs",
-        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
-        "resultsTitle": "[to be translated]:Outputs & State",
-        "selected": "[to be translated]:Current Selection",
-        "selectedEmpty": "[to be translated]:No model selected yet",
-        "selectionConfig": "[to be translated]:Selection Value Config",
-        "selectionType": "[to be translated]:selectionType",
-        "selectionTypeId": "[to be translated]:Return Model IDs",
-        "selectionTypeModel": "[to be translated]:Return Model Objects",
-        "showPinnedModels": "[to be translated]:showPinnedModels",
-        "showTagFilter": "[to be translated]:showTagFilter",
-        "title": "[to be translated]:Model Selector",
-        "triggerPlaceholder": "[to be translated]:Select a model",
-        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
-        "valueProp": "[to be translated]:Current Value Prop"
+        "behaviorConfig": "Configurare comportament și afișare",
+        "callbackEmpty": "Niciun apel de întoarcere al componentei nu a fost încă primit",
+        "clearSelection": "Șterge selecția",
+        "configDescription": "Comută proprietățile cheie ale selectorului de model de mai sus și inspectează valoarea de intrare plus încărcăturile de apel invers de mai jos.",
+        "configTitle": "Teren de joacă pentru recuzită",
+        "controlMultiSelectMode": "Mod multiSelect controlat",
+        "currentProps": "Proprietăți actuale",
+        "defaultMultiSelectMode": "modImplicitSelectareMultiplă",
+        "description": "Această pagină montează direct componenta de business ModelSelector curentă, astfel încât să putem verifica comportamentul de selecție, filtrare, căutare și fixare.",
+        "empty": "Niciun model nu este disponibil în prezent, așa că selectorul nu poate fi încă afișat.",
+        "lastModeChangeReturn": "Ultimul Return privind schimbarea modului de selecție multiplă",
+        "lastSelectReturn": "Cel mai recent Return onSelect",
+        "loading": "Se încarcă modelele...",
+        "modelId": "ID model",
+        "multiSelectMode": "modSelectareMultiplă",
+        "multiple": "multiple",
+        "normalizedIds": "ID-uri selectate normalizate",
+        "outputEmpty": "Nu există încă date de afișat",
+        "provider": "Furnizor",
+        "resetOutputs": "Resetare ieșiri",
+        "resultsDescription": "Acesta arată propoziția de valoare curentă, ID-urile selectate normalizate și cea mai recentă ieșire de callback de la componentă.",
+        "resultsTitle": "Ieșiri și Stare",
+        "selected": "Selecție curentă",
+        "selectedEmpty": "Niciun model selectat încă",
+        "selectionConfig": "Configurare Valoare Selecție",
+        "selectionType": "tipSelecție",
+        "selectionTypeId": "Returnează ID-urile modelului",
+        "selectionTypeModel": "Returnează Obiectele Modelului",
+        "showPinnedModels": "aratăModeleFixate",
+        "showTagFilter": "aratăFiltrulEtichete",
+        "title": "Selector de modele",
+        "triggerPlaceholder": "Selectați un model",
+        "triggerSelectedCount": "{{count}} modele selectate",
+        "valueProp": "Propunerea de valoare actuală"
       },
-      "title": "[to be translated]:Development Component Lab"
+      "title": "Componenta Laborator Dezvoltare"
     },
     "data": {
       "app_data": {
@@ -4029,7 +4033,7 @@
       },
       "clear_cache": {
         "button": "Golește memoria cache",
-        "confirm": "Golirea memoriei cache va șterge datele cache ale aplicației, inclusiv datele minapp. Această acțiune este ireversibilă, continui?",
+        "confirm": "Golirea memoriei cache va șterge datele cache ale aplicației, inclusiv datele miniapp. Această acțiune este ireversibilă, continui?",
         "error": "Eroare la golirea memoriei cache",
         "success": "Memoria cache a fost golită",
         "title": "Golește memoria cache"
@@ -4646,8 +4650,8 @@
         "knowledge": {
           "icon": "Afișează pictograma Cunoștințe"
         },
-        "minapp": {
-          "icon": "Afișează pictograma MinApp"
+        "miniApp": {
+          "icon": "Afișează pictograma MiniApp"
         },
         "painting": {
           "icon": "Afișează pictograma Imagini"
@@ -4680,6 +4684,15 @@
       "backup": {
         "button": "Backup",
         "title": "Backup și recuperare date"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "CSS personalizat",
+          "display_language": "Afișare și limbă",
+          "privacy_advanced": "Confidențialitate și avansat",
+          "system_startup": "Sistem și Pornire"
+        },
+        "title": "Setări comune"
       },
       "display": {
         "title": "Setări afișare"
@@ -4741,6 +4754,12 @@
         "label": "Limba țintă",
         "russian": "Rusă"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "Note"
+      },
+      "title": "Integrări"
     },
     "launch": {
       "onboot": "Pornește automat la pornirea sistemului",
@@ -5011,6 +5030,13 @@
       "url": "URL",
       "user": "Utilizator"
     },
+    "menuGroups": {
+      "appSettings": "Setări aplicație",
+      "integrations": "Modele",
+      "productivity": "Productivitate",
+      "services": "Module suplimentare",
+      "system": "Sistem"
+    },
     "messages": {
       "divider": {
         "label": "Afișează divizor între mesaje",
@@ -5048,7 +5074,7 @@
       "title": "Setări mesaje",
       "use_serif_font": "Folosește font serif"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise atinge valoarea setată",
       "cache_description": "Setează numărul maxim de mini-aplicații active de păstrat în memorie",
       "cache_settings": "Setări cache",
@@ -5098,8 +5124,6 @@
         "title": "Filtru zonă aplicație miniatură"
       },
       "reset_tooltip": "Resetează la implicit",
-      "sidebar_description": "Afișează mini-aplicațiile active în bara laterală",
-      "sidebar_title": "Afișare mini-aplicații active în bara laterală",
       "title": "Setări mini-aplicații",
       "visible": "Mini-aplicații vizibile"
     },
@@ -5164,7 +5188,7 @@
         "use_all_keys": "Cheie(i)"
       },
       "default_assistant_model": "Model asistent implicit",
-      "default_assistant_model_description": "Model folosit la crearea unui nou asistent; dacă asistentul nu este setat, va fi folosit acest model",
+      "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "empty": "Nu s-au găsit modele",
       "manage": {
         "add_listed": {
@@ -5258,9 +5282,35 @@
         "title": "Verbozitate"
       }
     },
+    "plugins": {
+      "bunDescription": "Runtime JavaScript folosit de serviciile MCP și de toolchain-urile aferente.",
+      "description": "Gestionați instrumentele binare și dependențele de runtime necesare aplicației.",
+      "installing": "Se instalează...",
+      "notInstalled": "Neinstalat",
+      "title": "Dependențe de mediu",
+      "uvDescription": "Manager de pachete Python pentru serviciile MCP și instalarea dependențelor."
+    },
     "privacy": {
       "enable_privacy_mode": "Raportare anonimă a erorilor și statisticilor",
       "title": "Setări confidențialitate"
+    },
+    "prompts": {
+      "add": "[to be translated]:Add Prompt",
+      "contentLabel": "[to be translated]:Content",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "[to be translated]:Delete Prompt",
+      "deleteConfirm": "[to be translated]:The prompt will be permanently deleted. Continue?",
+      "edit": "[to be translated]:Edit Prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "[to be translated]:Prompt Management",
+      "titleLabel": "[to be translated]:Title",
+      "titlePlaceholder": "[to be translated]:Enter prompt title"
     },
     "provider": {
       "add": {
@@ -5555,20 +5605,6 @@
       "select": "Selectează",
       "title": "Meniu rapid"
     },
-    "quickPhrase": {
-      "add": "Adaugă expresie",
-      "assistant": "Expresii asistent",
-      "contentLabel": "Conținut",
-      "contentPlaceholder": "Te rugăm să introduci conținutul expresiei, poți folosi variabile și poți apăsa Tab pentru a localiza rapid variabila de modificat. De exemplu: \nAjută-mă să planific o rută de la ${from} la ${to} și trimite-o la ${email}.",
-      "delete": "Șterge expresia",
-      "deleteConfirm": "Expresia nu poate fi recuperată după ștergere, continui?",
-      "edit": "Editează expresia",
-      "global": "Expresii globale",
-      "locationLabel": "Adaugă locație",
-      "title": "Expresii rapide",
-      "titleLabel": "Titlu",
-      "titlePlaceholder": "Te rugăm să introduci titlul expresiei"
-    },
     "scheduledTasks": {
       "description": "Gestionați sarcinile programate pentru toți agenții. Sarcinile rulează automat conform programului configurat.",
       "noAgents": "Niciun agent găsit. Creează mai întâi un agent pentru a adăuga sarcini programate.",
@@ -5580,12 +5616,22 @@
     "shortcuts": {
       "action": "Acțiune",
       "actions": "Comandă",
+      "all_disable": "Dezactivați tot",
+      "all_enable": "Activează tot",
       "bind_first_to_enable": "Asociază mai întâi o comandă rapidă pentru a-i schimba starea de activare",
+      "categories": {
+        "assistant": "Instrumente AI Assistant",
+        "chat": "Interacțiune cu mesajul",
+        "general": "Global și Fereastră",
+        "title": "Grupuri de comenzi rapide",
+        "topic": "Conversație și Subiecte"
+      },
       "clear_shortcut": "Șterge comanda rapidă",
       "clear_topic": "Șterge mesajele",
       "conflict_with": "Deja folosit de \"{{name}}\"",
       "copy_last_message": "Copiază ultimul mesaj",
       "edit_last_user_message": "Editează ultimul mesaj al utilizatorului",
+      "empty": "Nu există comenzi rapide disponibile în acest grup",
       "enabled": "Activează",
       "exit_fullscreen": "Ieși din ecran complet",
       "label": "Tastă",
@@ -5594,6 +5640,7 @@
       "press_shortcut": "Apasă comanda rapidă",
       "quick_assistant": "Asistent rapid",
       "rename_topic": "Redenumește subiectul",
+      "reset": "Resetare",
       "reset_defaults": "Resetează la implicite",
       "reset_defaults_confirm": "Ești sigur că vrei să resetezi toate comenzile rapide?",
       "reset_defaults_failed": "Nu s-a reușit resetarea comenzilor rapide la valorile implicite",
@@ -5674,6 +5721,14 @@
         "error": {
           "not_system": "OCR-ul de sistem acceptă doar Windows și MacOS"
         },
+        "features": {
+          "paddleocr": "Mai puternic pentru textul chinezesc și mai potrivit pentru bonuri, scanări și imagini cu layout-uri mai complexe.",
+          "system": {
+            "macos": "Folosește motorul OCR integrat în macOS fără nicio configurare, ideal pentru capturi de ecran și extragere ușoară de text.",
+            "windows": "Utilizează motorul nativ OCR Windows, cu integrare puternică în sistemul de operare, pentru sarcini locale de recunoaștere de bază."
+          },
+          "tesseract": "O opțiune clasică locală OCR cu pachete de limbi personalizabile, ideală pentru fluxuri de lucru offline și multilingve."
+        },
         "image": {
           "error": {
             "provider_not_found": "Furnizorul nu există"
@@ -5700,6 +5755,13 @@
         "title": "Serviciu OCR"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "Perfect potrivit pentru conversia PDF-urilor în Markdown mai curat sau text editabil pentru recuperare și editare ulterioară.",
+          "mineru": "Optimizat pentru o recuperare a aspectului de înaltă fidelitate, deosebit de util pentru PDF-uri academice, tabele și formule.",
+          "mistral": "Puternică înțelegere a documentelor bazată pe cloud, potrivită pentru extragerea structurată, fișiere multi-pagină și layout-uri complexe.",
+          "open_mineru": "O opțiune de implementare deschisă, potrivită pentru echipele care doresc auto-găzduire sau un control mai strâns asupra fluxului de procesare.",
+          "paddleocr": "O opțiune de integrare mai ușoară, care funcționează bine pentru documente chinezești, scanări și conținut obișnuit de tip bon fiscal."
+        },
         "paddleocr": {
           "aistudio_access_token": "Token de acces al Comunității AI Studio",
           "api_url": "URL API",

@@ -1,5 +1,16 @@
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@cherrystudio/ui'
 import type { FeishuChannelConfig, FeishuDomain, PermissionMode } from '@renderer/types'
-import { Input, Modal, Select } from 'antd'
 import { QRCodeSVG } from 'qrcode.react'
 import type { ReactNode } from 'react'
 import { type FC, useCallback, useEffect, useState } from 'react'
@@ -16,6 +27,8 @@ const PERMISSION_MODE_OPTIONS: Array<{ value: PermissionMode | ''; labelKey: str
   { value: 'bypassPermissions', labelKey: 'agent.settings.tooling.permissionMode.bypassPermissions.title' },
   { value: 'plan', labelKey: 'agent.settings.tooling.permissionMode.plan.title' }
 ]
+
+const INHERIT_PERMISSION_MODE_VALUE = '__inherit'
 
 // --------------- Form types ---------------
 
@@ -55,15 +68,23 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
     <div className="flex flex-col gap-1">
       <label className="font-medium text-xs">{t('agent.cherryClaw.channels.security.permissionMode')}</label>
       <Select
-        value={channel.permissionMode ?? ''}
-        onChange={(value) => onConfigChange({ permissionMode: value === '' ? undefined : value })}
-        size="small"
-        className="w-full"
-        options={PERMISSION_MODE_OPTIONS.map((opt) => ({
-          value: opt.value,
-          label: t(opt.labelKey)
-        }))}
-      />
+        value={channel.permissionMode ?? INHERIT_PERMISSION_MODE_VALUE}
+        onValueChange={(value) =>
+          onConfigChange({
+            permissionMode: value === INHERIT_PERMISSION_MODE_VALUE ? undefined : (value as PermissionMode)
+          })
+        }>
+        <SelectTrigger size="sm" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PERMISSION_MODE_OPTIONS.map((opt) => (
+            <SelectItem key={opt.value || 'inherit'} value={opt.value || INHERIT_PERMISSION_MODE_VALUE}>
+              {t(opt.labelKey)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }
@@ -117,12 +138,13 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
           <div key={field.key} className={field.span === 2 ? 'col-span-2' : ''}>
             <label className="mb-1 block font-medium text-xs">{field.label}</label>
             {field.secret ? (
-              <Input.Password
+              <Input
+                type="password"
                 value={fieldValues[field.key] ?? ''}
                 onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                 onBlur={() => saveField(field.key, fieldValues[field.key] ?? '')}
                 placeholder={field.placeholder}
-                size="small"
+                className="h-8 text-sm"
               />
             ) : (
               <Input
@@ -130,7 +152,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
                 onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                 onBlur={() => saveField(field.key, fieldValues[field.key] ?? '')}
                 placeholder={field.placeholder}
-                size="small"
+                className="h-8 text-sm"
               />
             )}
           </div>
@@ -143,7 +165,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
             onChange={(e) => setChatIds(e.target.value)}
             onBlur={saveChatIds}
             placeholder={chatIdsConfig.placeholder}
-            size="small"
+            className="h-8 text-sm"
           />
           <span className="mt-1 block text-gray-400 text-xs">{chatIdsConfig.hint}</span>
           {!chatIds.trim() && idsKey === 'allowed_chat_ids' && (
@@ -192,16 +214,17 @@ const FeishuDomainSelector: FC<ChannelFormProps> = ({ channel, onConfigChange })
   return (
     <div>
       <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.feishu.domain')}</label>
-      <Select<FeishuDomain>
+      <Select
         value={(cfg.domain as FeishuDomain) ?? 'feishu'}
-        onChange={(value) => onConfigChange({ config: { ...cfg, domain: value } })}
-        size="small"
-        className="w-full"
-        options={[
-          { value: 'feishu', label: t('agent.cherryClaw.channels.feishu.domainFeishu') },
-          { value: 'lark', label: t('agent.cherryClaw.channels.feishu.domainLark') }
-        ]}
-      />
+        onValueChange={(value) => onConfigChange({ config: { ...cfg, domain: value as FeishuDomain } })}>
+        <SelectTrigger size="sm" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="feishu">{t('agent.cherryClaw.channels.feishu.domainFeishu')}</SelectItem>
+          <SelectItem value="lark">{t('agent.cherryClaw.channels.feishu.domainLark')}</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   )
 }
@@ -294,23 +317,25 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
         }}
       />
 
-      <Modal
+      <Dialog
         open={!!qrUrl}
-        title={t('agent.cherryClaw.channels.feishu.qrTitle')}
-        footer={null}
-        onCancel={() => {
+        onOpenChange={(open) => {
+          if (open) return
           setQrUrl(null)
           if (status === 'pending') setStatus('idle')
-        }}
-        centered
-        width={360}>
-        <div className="flex flex-col items-center gap-4 py-4">
-          {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
-          <span className="text-center text-foreground-500 text-xs">
-            {t('agent.cherryClaw.channels.feishu.qrScanHint')}
-          </span>
-        </div>
-      </Modal>
+        }}>
+        <DialogContent className="max-w-[360px]">
+          <DialogHeader>
+            <DialogTitle>{t('agent.cherryClaw.channels.feishu.qrTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
+            <span className="text-center text-muted-foreground text-xs">
+              {t('agent.cherryClaw.channels.feishu.qrScanHint')}
+            </span>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -438,23 +463,25 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
 
       <ChannelPermissionMode channel={channel} onConfigChange={onConfigChange} />
 
-      <Modal
+      <Dialog
         open={!!qrUrl}
-        title={t('agent.cherryClaw.channels.wechat.qrTitle')}
-        footer={null}
-        onCancel={() => {
+        onOpenChange={(open) => {
+          if (open) return
           setQrUrl(null)
           if (status !== 'confirmed' && onRemove) onRemove()
-        }}
-        centered
-        width={360}>
-        <div className="flex flex-col items-center gap-4 py-4">
-          {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
-          <span className="text-center text-foreground-500 text-xs">
-            {t('agent.cherryClaw.channels.wechat.qrHint')}
-          </span>
-        </div>
-      </Modal>
+        }}>
+        <DialogContent className="max-w-[360px]">
+          <DialogHeader>
+            <DialogTitle>{t('agent.cherryClaw.channels.wechat.qrTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
+            <span className="text-center text-muted-foreground text-xs">
+              {t('agent.cherryClaw.channels.wechat.qrHint')}
+            </span>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

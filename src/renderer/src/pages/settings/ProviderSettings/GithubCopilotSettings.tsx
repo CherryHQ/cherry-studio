@@ -1,13 +1,14 @@
 import { CheckCircleOutlined, CopyOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Alert, Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Alert, Input, Slider, Steps, Typography } from 'antd'
+import { cn } from '@renderer/utils/style'
+import { Input, Slider, Steps, Typography } from 'antd'
+import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingRow, SettingSubtitle } from '..'
 
@@ -342,91 +343,68 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
   )
 }
 
-const Container = styled.div`
-  padding-top: 15px;
-`
+const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('pt-3.75', className)} {...props} />
+)
 
-const StartContainer = styled.div`
-  margin-bottom: 20px;
-`
+const StartContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-5', className)} {...props} />
+)
 
-const AuthSuccessContainer = styled.div`
-  margin-bottom: 20px;
-`
+const AuthSuccessContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-5', className)} {...props} />
+)
 
-const AuthFlowContainer = styled.div`
-  display: flex;
-  gap: 24px;
-  margin-bottom: 20px;
+const AuthFlowContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-5 flex gap-6 max-md:flex-col max-md:gap-4', className)} {...props} />
+)
 
-  @media (max-width: 768px) {
-    flex-direction: column;
-    gap: 16px;
-  }
-`
+const StepsContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'min-w-[200px] flex-1 [&_.ant-steps-item-description]:mt-1 [&_.ant-steps-item-description]:text-foreground-secondary [&_.ant-steps-item-description]:text-xs',
+      className
+    )}
+    {...props}
+  />
+)
 
-const StepsContainer = styled.div`
-  flex: 1;
-  min-width: 200px;
+const AuthActionsContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-[2] flex-col gap-4', className)} {...props} />
+)
 
-  .ant-steps-item-description {
-    margin-top: 4px;
-    font-size: 12px;
-    color: var(--color-text-secondary);
-  }
-`
+const StepCard = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn('rounded-lg border border-border bg-card p-4 transition-all hover:border-border-subtle', className)}
+    {...props}
+  />
+)
 
-const AuthActionsContainer = styled.div`
-  flex: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-`
+const StepHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-3 flex items-start gap-3', className)} {...props} />
+)
 
-const StepCard = styled.div`
-  padding: 16px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-background-soft);
-  transition: all 0.2s ease;
+const StepNumber = ({
+  completed,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { completed?: boolean }) => (
+  <div
+    className={cn(
+      'flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-bold text-white text-xs transition-all',
+      completed ? 'bg-success' : 'bg-primary',
+      className
+    )}
+    {...props}
+  />
+)
 
-  &:hover {
-    border-color: var(--color-border-soft);
-  }
-`
+const StepTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('font-medium text-foreground text-sm', className)} {...props} />
+)
 
-const StepHeader = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
-`
-
-const StepNumber = styled.div<{ completed?: boolean }>`
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
-  background: ${(props) => (props.completed ? 'var(--color-status-success)' : 'var(--color-primary)')};
-  color: white;
-  flex-shrink: 0;
-  transition: all 0.2s ease;
-`
-
-const StepTitle = styled.div`
-  font-weight: 500;
-  font-size: 14px;
-  color: var(--color-text);
-`
-
-const StepDesc = styled.div`
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  margin-top: 2px;
-`
+const StepDesc = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-0.5 text-foreground-secondary text-xs', className)} {...props} />
+)
 
 export default GithubCopilotSettings

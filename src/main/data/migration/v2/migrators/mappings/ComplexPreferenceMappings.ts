@@ -91,11 +91,11 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
   // WebSearch default provider normalization
   {
     id: 'websearch_default_provider_migrate',
-    description: 'Normalize legacy websearch default provider into the curated preset-backed preference key',
+    description: 'Normalize legacy websearch default provider into the v2 keyword-search default provider key',
     sources: {
       defaultProvider: { source: 'redux', category: 'websearch', key: 'defaultProvider' }
     },
-    targetKeys: ['chat.web_search.default_provider'],
+    targetKeys: ['chat.web_search.default_search_keywords_provider'],
     transform: normalizeWebSearchDefaultProvider
   },
 
@@ -150,6 +150,25 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: [...SHORTCUT_TARGET_KEYS],
     transform: transformShortcuts
+  },
+
+  // Sidebar icons: rewrite 'minapp' → 'mini_app' (v1→v2 rename)
+  {
+    id: 'sidebar_icons_rename',
+    description: "Rewrite legacy 'minapp' icon key to 'mini_app' in sidebar icon arrays",
+    sources: {
+      visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
+      disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }
+    },
+    targetKeys: ['ui.sidebar.icons.visible', 'ui.sidebar.icons.invisible'],
+    transform: (sources) => {
+      const rewrite = (arr: unknown): unknown =>
+        Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : arr
+      return {
+        'ui.sidebar.icons.visible': rewrite(sources.visible),
+        'ui.sidebar.icons.invisible': rewrite(sources.disabled)
+      }
+    }
   },
 
   // File processing overrides merging

@@ -91,7 +91,7 @@ describe('ComplexPreferenceMappings', () => {
         (m) => m.id === 'websearch_default_provider_migrate'
       )
       expect(defaultProviderMapping).toBeDefined()
-      expect(defaultProviderMapping?.targetKeys).toEqual(['chat.web_search.default_provider'])
+      expect(defaultProviderMapping?.targetKeys).toEqual(['chat.web_search.default_search_keywords_provider'])
     })
 
     it('should contain the code_cli_overrides mapping', () => {
@@ -110,7 +110,7 @@ describe('ComplexPreferenceMappings', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toContain('chat.web_search.compression.method')
       expect(keys).toContain('chat.web_search.provider_overrides')
-      expect(keys).toContain('chat.web_search.default_provider')
+      expect(keys).toContain('chat.web_search.default_search_keywords_provider')
       expect(keys).toContain('feature.code_cli.overrides')
       expect(keys).toContain('feature.file_processing.overrides')
       expect(keys).toContain('chat.default_model_id')
@@ -118,7 +118,9 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('feature.quick_assistant.model_id')
       expect(keys).toContain('feature.translate.model_id')
       expect(keys).toContain('shortcut.general.zoom_in')
-      expect(keys.length).toBe(31) // 3 websearch compression + 1 provider overrides + 1 default provider + 1 code_cli + 20 shortcuts + 1 file processing + 4 llm model ids
+      expect(keys).toContain('ui.sidebar.icons.visible')
+      expect(keys).toContain('ui.sidebar.icons.invisible')
+      expect(keys.length).toBe(33) // 3 websearch compression + 1 provider overrides + 1 default provider + 1 code_cli + 20 shortcuts + 2 sidebar icons + 1 file processing + 4 llm model ids
     })
 
     it('should flatten target keys from all mappings', () => {
@@ -162,6 +164,55 @@ describe('ComplexPreferenceMappings', () => {
     it('should return undefined for non-existent id', () => {
       const mapping = getComplexMappingById('does_not_exist')
       expect(mapping).toBeUndefined()
+    })
+  })
+
+  describe('sidebar_icons_rename', () => {
+    it("should rewrite 'minapp' to 'mini_app' in both visible and disabled arrays", () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')
+      expect(mapping).toBeDefined()
+
+      const result = mapping!.transform({
+        visible: ['assistants', 'minapp', 'translate'],
+        disabled: ['minapp', 'files']
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.icons.visible': ['assistants', 'mini_app', 'translate'],
+        'ui.sidebar.icons.invisible': ['mini_app', 'files']
+      })
+    })
+
+    it('should pass through other literals unchanged', () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')!
+      const result = mapping.transform({
+        visible: ['assistants', 'translate', 'paintings'],
+        disabled: ['files', 'knowledge']
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.icons.visible': ['assistants', 'translate', 'paintings'],
+        'ui.sidebar.icons.invisible': ['files', 'knowledge']
+      })
+    })
+
+    it('should return non-array inputs as-is without crashing', () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')!
+
+      expect(mapping.transform({ visible: undefined, disabled: undefined })).toEqual({
+        'ui.sidebar.icons.visible': undefined,
+        'ui.sidebar.icons.invisible': undefined
+      })
+
+      expect(mapping.transform({ visible: null, disabled: null })).toEqual({
+        'ui.sidebar.icons.visible': null,
+        'ui.sidebar.icons.invisible': null
+      })
+
+      expect(mapping.transform({})).toEqual({
+        'ui.sidebar.icons.visible': undefined,
+        'ui.sidebar.icons.invisible': undefined
+      })
     })
   })
 

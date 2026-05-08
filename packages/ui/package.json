@@ -52,10 +52,17 @@
   },
   "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "peerDependencies": {
+    "@hookform/resolvers": "^5.0.0",
     "framer-motion": "^11.0.0 || ^12.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-hook-form": "^7.55.0",
     "tailwindcss": "^4.1.13"
+  },
+  "peerDependenciesMeta": {
+    "@hookform/resolvers": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -79,10 +86,14 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/react-use-callback-ref": "^1.1.1",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
+    "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "date-fns": "^4.1.0",
     "lucide-react": "^0.545.0",
+    "radix-ui": "^1.4.3",
+    "react-day-picker": "^9.14.0",
     "react-dropzone": "^14.3.8",
     "tailwind-merge": "^2.5.5",
     "vaul": "^1.1.2"

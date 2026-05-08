@@ -578,6 +578,98 @@
     },
     "sidebar_title": "Agents",
     "todo": {
+      "mock": {
+        "actions": {
+          "complete": "完成",
+          "dismiss": "關閉"
+        },
+        "details": {
+          "addRouter": {
+            "summary": "正在使用 react-router-dom v6 設定客戶端路由...",
+            "title": "新增 React Router"
+          },
+          "configureProject": {
+            "resources": {
+              "createdMeta": "created",
+              "postcssConfig": "postcss.config.js",
+              "tailwindConfig": "tailwind.config.js",
+              "updatedMeta": "updated",
+              "viteConfig": "vite.config.ts - port 3001"
+            },
+            "title": "設定專案"
+          },
+          "installDependencies": {
+            "resources": {
+              "dependenciesMeta": "dependencies",
+              "devDependenciesMeta": "devDependencies",
+              "reactDeps": "react@18.3.1, react-dom@18.3.1",
+              "tailwindDeps": "tailwindcss@3.4.4, postcss@8.4.38",
+              "typescriptDeps": "typescript@5.4.5, vite@5.3.0"
+            },
+            "summary": "安裝了 react, react-dom, tailwindcss, postcss, autoprefixer 和 TypeScript。",
+            "title": "安裝依賴"
+          },
+          "reviewReferences": {
+            "collectionTitle": "審閱參考資料",
+            "resources": {
+              "npmCreateVite": "npm create vite - Official Scaffolding",
+              "npmMeta": "npmjs.com",
+              "reactDocs": "React Documentation - Quick Start",
+              "reactMeta": "react.dev",
+              "tailwindDocs": "Tailwind CSS - Installation Guide",
+              "tailwindMeta": "tailwindcss.com",
+              "viteDocs": "Vite - Next Generation Frontend Tooling",
+              "viteMeta": "vitejs.dev"
+            },
+            "title": "審閱參考資料"
+          },
+          "searchWeb": {
+            "resources": {
+              "reactViteQuery": "React Vite TypeScript starter 2025 best practices"
+            },
+            "summary": "收集了 React + Vite 專案腳手架和最佳實務的最新資料。",
+            "title": "搜尋網路資料"
+          },
+          "title": "執行過程詳情",
+          "writeComponents": {
+            "collectionTitle": "建立的檔案",
+            "resources": {
+              "app": "src/App.tsx",
+              "button": "src/components/Button.tsx",
+              "card": "src/components/Card.tsx",
+              "footer": "src/components/Footer.tsx",
+              "header": "src/components/Header.tsx",
+              "layout": "src/components/Layout.tsx",
+              "modifiedMeta": "modified",
+              "newMeta": "new",
+              "updatedMeta": "updated"
+            },
+            "title": "編寫元件"
+          },
+          "writePages": {
+            "resources": {
+              "about": "src/pages/About.tsx",
+              "home": "src/pages/Home.tsx",
+              "newMeta": "new"
+            },
+            "title": "編寫頁面"
+          }
+        },
+        "progress": "{{completed}}/{{total}} 任務已完成",
+        "tasks": {
+          "addLinting": "新增 ESLint + Prettier",
+          "addRouter": "新增 React Router",
+          "buildDeploy": "建置與部署",
+          "configureProject": "設定專案",
+          "finish": "完成",
+          "installDependencies": "安裝依賴",
+          "reviewReferences": "審閱參考資料",
+          "searchWeb": "搜尋網路資料",
+          "writeComponents": "編寫元件",
+          "writePages": "編寫頁面"
+        },
+        "title": "任務"
+      },
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 個任務"
       },
@@ -742,7 +834,7 @@
       "running": "執行中",
       "stopped": "已停止"
     },
-    "title": "API 伺服器"
+    "title": "API 閘道"
   },
   "appMenu": {
     "about": "關於",
@@ -956,17 +1048,6 @@
         "off_description": "禁用推理",
         "xhigh": "極力思考",
         "xhigh_description": "超高階推理"
-      },
-      "regular_phrases": {
-        "add": "新增短語",
-        "contentLabel": "內容",
-        "contentPlaceholder": "請輸入短語內容，支援使用變數，然後按 Tab 鍵可以快速定位到變數進行修改。例如：\n幫我規劃從 ${from} 到 ${to} 的行程，然後傳送到 ${email}",
-        "delete": "刪除短語",
-        "deleteConfirm": "確定要刪除這個短語嗎？",
-        "edit": "編輯短語",
-        "title": "常用短語",
-        "titleLabel": "標題",
-        "titlePlaceholder": "輸入標題"
       },
       "title": "助手設定",
       "tool_use_mode": {
@@ -2147,7 +2228,7 @@
   },
   "launchpad": {
     "apps": "應用",
-    "minapps": "小程式"
+    "miniApps": "小程式"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2500,15 +2581,20 @@
       "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "新增到啟動台",
     "add_to_sidebar": "新增到側邊欄",
+    "error": {
+      "load_failed": "應用載入失敗",
+      "not_found": "應用未找到"
+    },
+    "hide_failed": "隱藏小程式失敗",
+    "pin_failed": "固定小程式失敗",
     "popup": {
       "close": "關閉小工具",
       "devtools": "開發者工具",
       "goBack": "上一頁",
       "goForward": "下一頁",
-      "minimize": "最小化小工具",
       "openExternal": "在瀏覽器中開啟",
       "open_link_external_off": "目前：使用預設視窗開啟連結",
       "open_link_external_on": "目前：在瀏覽器中開啟連結",
@@ -2517,6 +2603,13 @@
     },
     "remove_from_launchpad": "從啟動台移除",
     "remove_from_sidebar": "從側邊欄移除",
+    "reorder_failed": "小程式排序更新失敗",
+    "shortcut": {
+      "failed": "失敗：{{message}}",
+      "html_saved": "HTML 已儲存至：{{path}}",
+      "pdf_saved": "PDF 已儲存至：{{path}}"
+    },
+    "show_failed": "顯示小程式失敗",
     "sidebar": {
       "close": {
         "title": "關閉"
@@ -2531,9 +2624,11 @@
         "title": "刪除自訂小工具"
       }
     },
-    "title": "小工具"
+    "title": "小工具",
+    "unpin_failed": "取消固定小程式失敗",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "百小應",
     "baidu-ai-search": "百度 AI 搜尋",
@@ -2552,6 +2647,7 @@
     "stepfun": "階躍 AI",
     "tencent-yuanbao": "騰訊元寶",
     "tiangong-ai": "天工 AI",
+    "update_partial_failure_generic": "部分小程式更新失敗",
     "wanzhi": "萬知",
     "wenxin": "文心一言",
     "wps-copilot": "WPS 靈犀",
@@ -3928,6 +4024,9 @@
         "triggerPlaceholder": "選擇智能體",
         "valueProp": "目前 value"
       },
+      "agentTodoList": {
+        "title": "Agent 任務列表"
+      },
       "assistantSelector": {
         "clearSelection": "清空",
         "configDescription": "切換 props 預覽元件行為",
@@ -4646,7 +4745,7 @@
         "knowledge": {
           "icon": "顯示知識圖示"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "顯示小工具圖示"
         },
         "painting": {
@@ -4680,6 +4779,15 @@
       "backup": {
         "button": "備份",
         "title": "資料備份與復原"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "自訂 CSS",
+          "display_language": "顯示與語言",
+          "privacy_advanced": "隱私與進階",
+          "system_startup": "系統與啟動"
+        },
+        "title": "通用設定"
       },
       "display": {
         "title": "顯示設定"
@@ -4741,6 +4849,12 @@
         "label": "目標語言",
         "russian": "俄文"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "筆記"
+      },
+      "title": "集成"
     },
     "launch": {
       "onboot": "開機自動啟動",
@@ -5011,6 +5125,13 @@
       "url": "URL",
       "user": "使用者"
     },
+    "menuGroups": {
+      "appSettings": "應用設定",
+      "integrations": "模型",
+      "productivity": "效率",
+      "services": "插件",
+      "system": "系統"
+    },
     "messages": {
       "divider": {
         "label": "訊息間顯示分隔線",
@@ -5048,7 +5169,7 @@
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
       "cache_description": "設定同時保持活躍狀態的小程式最大數量",
       "cache_settings": "快取設定",
@@ -5098,8 +5219,6 @@
         "title": "小程式區域篩選"
       },
       "reset_tooltip": "重設為預設值",
-      "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
-      "sidebar_title": "側邊欄活躍小程式顯示設定",
       "title": "小程式設定",
       "visible": "顯示的小程式"
     },
@@ -5164,7 +5283,7 @@
         "use_all_keys": "使用金鑰"
       },
       "default_assistant_model": "預設助手模型",
-      "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
+      "default_assistant_model_description": "助手未指定模型時使用",
       "empty": "找不到模型",
       "manage": {
         "add_listed": {
@@ -5258,9 +5377,35 @@
         "title": "詳細程度"
       }
     },
+    "plugins": {
+      "bunDescription": "用於 MCP 服務和相關工具鏈的 JavaScript 執行階段。",
+      "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
+      "installing": "安裝中...",
+      "notInstalled": "未安裝",
+      "title": "環境依賴",
+      "uvDescription": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
+    },
     "privacy": {
       "enable_privacy_mode": "匿名傳送錯誤報告和資料統計",
       "title": "隱私設定"
+    },
+    "prompts": {
+      "add": "新增提示詞",
+      "contentLabel": "內容",
+      "contentPlaceholder": "請輸入提示詞內容，支援使用 ${變數}，按 Tab 可在變數間快速定位。例如：\n幫我規劃從 ${from} 到 ${to} 的路線，然後傳送到 ${email}",
+      "delete": "刪除提示詞",
+      "deleteConfirm": "刪除提示詞後將無法復原，是否繼續？",
+      "edit": "編輯提示詞",
+      "errors": {
+        "createFailed": "建立提示詞失敗",
+        "deleteFailed": "刪除提示詞失敗",
+        "loadFailed": "載入提示詞失敗",
+        "reorderFailed": "調整提示詞順序失敗",
+        "updateFailed": "更新提示詞失敗"
+      },
+      "title": "提示詞管理",
+      "titleLabel": "標題",
+      "titlePlaceholder": "請輸入提示詞標題"
     },
     "provider": {
       "add": {
@@ -5555,20 +5700,6 @@
       "select": "選擇",
       "title": "快捷選單"
     },
-    "quickPhrase": {
-      "add": "新增短語",
-      "assistant": "助手提示詞",
-      "contentLabel": "內容",
-      "contentPlaceholder": "請輸入短語內容，支援使用變數，然後按 Tab 鍵可以快速定位到變數進行修改。例如：\n幫我規劃從 ${from} 到 ${to} 的行程，然後傳送到 ${email}",
-      "delete": "刪除短語",
-      "deleteConfirm": "刪除後無法復原，是否繼續？",
-      "edit": "編輯短語",
-      "global": "全域快速短語",
-      "locationLabel": "新增位置",
-      "title": "快捷短語",
-      "titleLabel": "標題",
-      "titlePlaceholder": "請輸入短語標題"
-    },
     "scheduledTasks": {
       "description": "管理所有代理的排程任務。任務將依設定好的排程自動執行。",
       "noAgents": "排程任務需要開啟靈魂模式或無權限模式的代理才能執行。請先在代理設定中啟用。",
@@ -5580,12 +5711,22 @@
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
+      "all_disable": "全部停用",
+      "all_enable": "全部啟用",
       "bind_first_to_enable": "請先綁定快捷鍵，再調整啟用狀態",
+      "categories": {
+        "assistant": "AI 助手工具",
+        "chat": "訊息互動",
+        "general": "全域與視窗",
+        "title": "快捷鍵分組",
+        "topic": "會話與話題"
+      },
       "clear_shortcut": "清除快捷鍵",
       "clear_topic": "清除所有訊息",
       "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "複製上一則訊息",
       "edit_last_user_message": "編輯最後一則使用者訊息",
+      "empty": "目前分組下沒有可顯示的快捷鍵",
       "enabled": "啟用",
       "exit_fullscreen": "離開全螢幕",
       "label": "按鍵",
@@ -5594,6 +5735,7 @@
       "press_shortcut": "按下快捷鍵",
       "quick_assistant": "快捷助手",
       "rename_topic": "重新命名話題",
+      "reset": "重設",
       "reset_defaults": "重設預設快捷鍵",
       "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
       "reset_defaults_failed": "重設快捷鍵失敗",
@@ -5674,6 +5816,14 @@
         "error": {
           "not_system": "系統 OCR 僅支援 Windows 與 MacOS"
         },
+        "features": {
+          "paddleocr": "更適合中文文字，並更適用於收據、掃描檔案以及版面較複雜的圖片。",
+          "system": {
+            "macos": "使用內建 macOS OCR 引擎，無需設定，適合截圖與輕量文字擷取。",
+            "windows": "使用原生 Windows OCR 引擎，具備強大的作業系統整合能力，適用於基本的本機辨識工作。"
+          },
+          "tesseract": "一款經典的本地 OCR 選項，具備可自訂的語言套件，非常適合離線與多語言工作流程。"
+        },
         "image": {
           "error": {
             "provider_not_found": "該供應商不存在"
@@ -5700,6 +5850,13 @@
         "title": "OCR 服務"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "非常適合將 PDF 轉換為更乾淨的 Markdown 或可編輯文字，以便後續檢索與編輯。",
+          "mineru": "針對更高保真度的版面復原進行最佳化，特別適用於學術 PDF、表格與公式。",
+          "mistral": "強大的雲端文件理解能力，適用於結構化擷取、多頁檔案及複雜版面。",
+          "open_mineru": "一個開放的部署選項，適合希望自行託管或對處理流程有更高控制權的團隊。",
+          "paddleocr": "更輕量的整合選擇，非常適合中文文件、掃描檔及常見收據格式的內容。"
+        },
         "paddleocr": {
           "aistudio_access_token": "星河社區訪問令牌",
           "api_url": "API 網址",
