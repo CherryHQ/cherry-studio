@@ -23,13 +23,11 @@ import { Route as SettingsQuickphraseRouteImport } from './routes/settings/quick
 import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quickAssistant'
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
 import { Route as SettingsPluginsRouteImport } from './routes/settings/plugins'
-import { Route as SettingsNotesRouteImport } from './routes/settings/notes'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsIntegrationsRouteImport } from './routes/settings/integrations'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsDocprocessRouteImport } from './routes/settings/docprocess'
-import { Route as SettingsDisplayRouteImport } from './routes/settings/display'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsComponentLabRouteImport } from './routes/settings/component-lab'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
@@ -131,11 +129,6 @@ const SettingsPluginsRoute = SettingsPluginsRouteImport.update({
   path: '/plugins',
   getParentRoute: () => SettingsRoute,
 } as any)
-const SettingsNotesRoute = SettingsNotesRouteImport.update({
-  id: '/notes',
-  path: '/notes',
-  getParentRoute: () => SettingsRoute,
-} as any)
 const SettingsModelRoute = SettingsModelRouteImport.update({
   id: '/model',
   path: '/model',
@@ -159,11 +152,6 @@ const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
 const SettingsDocprocessRoute = SettingsDocprocessRouteImport.update({
   id: '/docprocess',
   path: '/docprocess',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsDisplayRoute = SettingsDisplayRouteImport.update({
-  id: '/display',
-  path: '/display',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsDataRoute = SettingsDataRouteImport.update({
@@ -334,13 +322,11 @@ export interface FileRoutesByFullPath {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
-  '/settings/notes': typeof SettingsNotesRoute
   '/settings/plugins': typeof SettingsPluginsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
@@ -385,12 +371,10 @@ export interface FileRoutesByTo {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/model': typeof SettingsModelRoute
-  '/settings/notes': typeof SettingsNotesRoute
   '/settings/plugins': typeof SettingsPluginsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
@@ -436,13 +420,11 @@ export interface FileRoutesById {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
-  '/settings/notes': typeof SettingsNotesRoute
   '/settings/plugins': typeof SettingsPluginsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
@@ -490,13 +472,11 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/display'
     | '/settings/docprocess'
     | '/settings/general'
     | '/settings/integrations'
     | '/settings/mcp'
     | '/settings/model'
-    | '/settings/notes'
     | '/settings/plugins'
     | '/settings/provider'
     | '/settings/quickAssistant'
@@ -541,12 +521,10 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/display'
     | '/settings/docprocess'
     | '/settings/general'
     | '/settings/integrations'
     | '/settings/model'
-    | '/settings/notes'
     | '/settings/plugins'
     | '/settings/provider'
     | '/settings/quickAssistant'
@@ -591,13 +569,11 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/display'
     | '/settings/docprocess'
     | '/settings/general'
     | '/settings/integrations'
     | '/settings/mcp'
     | '/settings/model'
-    | '/settings/notes'
     | '/settings/plugins'
     | '/settings/provider'
     | '/settings/quickAssistant'
@@ -732,13 +708,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsPluginsRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/notes': {
-      id: '/settings/notes'
-      path: '/notes'
-      fullPath: '/settings/notes'
-      preLoaderRoute: typeof SettingsNotesRouteImport
-      parentRoute: typeof SettingsRoute
-    }
     '/settings/model': {
       id: '/settings/model'
       path: '/model'
@@ -772,13 +741,6 @@ declare module '@tanstack/react-router' {
       path: '/docprocess'
       fullPath: '/settings/docprocess'
       preLoaderRoute: typeof SettingsDocprocessRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/display': {
-      id: '/settings/display'
-      path: '/display'
-      fullPath: '/settings/display'
-      preLoaderRoute: typeof SettingsDisplayRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/data': {
@@ -1069,13 +1031,11 @@ interface SettingsRouteChildren {
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsComponentLabRoute: typeof SettingsComponentLabRoute
   SettingsDataRoute: typeof SettingsDataRoute
-  SettingsDisplayRoute: typeof SettingsDisplayRoute
   SettingsDocprocessRoute: typeof SettingsDocprocessRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
   SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsModelRoute: typeof SettingsModelRoute
-  SettingsNotesRoute: typeof SettingsNotesRoute
   SettingsPluginsRoute: typeof SettingsPluginsRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
   SettingsQuickAssistantRoute: typeof SettingsQuickAssistantRoute
@@ -1094,13 +1054,11 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsComponentLabRoute: SettingsComponentLabRoute,
   SettingsDataRoute: SettingsDataRoute,
-  SettingsDisplayRoute: SettingsDisplayRoute,
   SettingsDocprocessRoute: SettingsDocprocessRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsIntegrationsRoute: SettingsIntegrationsRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsModelRoute: SettingsModelRoute,
-  SettingsNotesRoute: SettingsNotesRoute,
   SettingsPluginsRoute: SettingsPluginsRoute,
   SettingsProviderRoute: SettingsProviderRoute,
   SettingsQuickAssistantRoute: SettingsQuickAssistantRoute,

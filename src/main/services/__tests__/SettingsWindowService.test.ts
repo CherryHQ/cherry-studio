@@ -294,13 +294,13 @@ describe('SettingsWindowService', () => {
     markMainWindowReady(service, mainWindow)
 
     const openInAppHandler = getIpcHandleHandler(service, IpcChannel.SettingsWindow_OpenInApp)
-    openInAppHandler({ sender: createMockWindow().webContents }, '/settings/display')
+    openInAppHandler({ sender: createMockWindow().webContents }, '/settings/general')
 
     expect(mainWindow.webContents.send).toHaveBeenCalledWith(
       IpcChannel.Tab_Attach,
       expect.objectContaining({
-        id: 'settings:/settings/display',
-        url: '/settings/display'
+        id: 'settings:/settings/general',
+        url: '/settings/general'
       })
     )
   })

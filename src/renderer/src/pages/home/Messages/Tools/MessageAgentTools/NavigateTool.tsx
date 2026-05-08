@@ -25,7 +25,6 @@ const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   '/settings/provider': { icon: '🔑', label: 'Provider' },
   '/settings/model': { icon: '🤖', label: 'Models' },
   '/settings/general': { icon: '⚙️', label: 'Common Settings' },
-  '/settings/display': { icon: '⚙️', label: 'Common Settings' },
   '/settings/data': { icon: '💾', label: 'Data' },
   '/settings/mcp': { icon: '🔌', label: 'MCP' },
   '/settings/websearch': { icon: '🔍', label: 'Web Search' },
