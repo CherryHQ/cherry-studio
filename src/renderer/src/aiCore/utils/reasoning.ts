@@ -1011,6 +1011,9 @@ export function getOllamaReasoningParams(assistant: Assistant, model: Model): Pi
  * 从 assistant 设置中提取自定义参数
  */
 export function getCustomParameters(assistant: Assistant): Record<string, any> {
+  if (assistant?.settings?.enableCustomParameters === false) {
+    return {}
+  }
   return (
     assistant?.settings?.customParameters?.reduce((acc, param) => {
       if (!param.name?.trim()) {

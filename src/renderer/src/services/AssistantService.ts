@@ -53,6 +53,7 @@ export const DEFAULT_ASSISTANT_SETTINGS = {
   streamOutput: true,
   defaultModel: undefined,
   customParameters: [],
+  enableCustomParameters: true,
   reasoning_effort: 'default',
   qwenThinkMode: undefined,
   // It would gracefully fallback to prompt if not supported by model.
