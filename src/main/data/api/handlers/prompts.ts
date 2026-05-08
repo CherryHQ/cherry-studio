@@ -10,6 +10,7 @@ import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreatePromptSchema,
+  ListPromptsQuerySchema,
   PromptIdSchema,
   type PromptSchemas,
   UpdatePromptSchema
@@ -17,8 +18,9 @@ import {
 
 export const promptHandlers: HandlersFor<PromptSchemas> = {
   '/prompts': {
-    GET: async () => {
-      return await promptService.getAll()
+    GET: async ({ query }) => {
+      const parsed = ListPromptsQuerySchema.parse(query ?? {})
+      return await promptService.getAll(parsed)
     },
 
     POST: async ({ body }) => {

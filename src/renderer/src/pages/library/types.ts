@@ -1,4 +1,4 @@
-export type ResourceType = 'agent' | 'assistant' | 'skill'
+export type ResourceType = 'agent' | 'assistant' | 'skill' | 'prompt'
 
 export type SortKey = 'updatedAt' | 'createdAt' | 'name'
 

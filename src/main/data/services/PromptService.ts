@@ -12,9 +12,9 @@ import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { CreatePromptDto, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
+import type { CreatePromptDto, ListPromptsQuery, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
 import type { Prompt } from '@shared/data/types/prompt'
-import { asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
@@ -49,9 +49,19 @@ export class PromptService {
     return application.get('DbService').getDb()
   }
 
-  async getAll(): Promise<Prompt[]> {
+  async getAll(query: ListPromptsQuery = {}): Promise<Prompt[]> {
     // Canonical API order is old → new; settings UI reverses this for display.
-    const rows = await this.db.select().from(promptTable).orderBy(asc(promptTable.orderKey))
+    const conditions: SQL[] = []
+    if (query.search) {
+      const pattern = `%${query.search.replace(/[\\%_]/g, '\\$&')}%`
+      const titleMatch = sql`${promptTable.title} LIKE ${pattern} ESCAPE '\\'`
+      const contentMatch = sql`${promptTable.content} LIKE ${pattern} ESCAPE '\\'`
+      const searchClause = or(titleMatch, contentMatch)
+      if (searchClause) conditions.push(searchClause)
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+    const rows = await this.db.select().from(promptTable).where(whereClause).orderBy(asc(promptTable.orderKey))
     return rows.map(rowToPrompt)
   }
 

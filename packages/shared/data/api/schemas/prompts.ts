@@ -5,7 +5,7 @@
  * Entity schemas and types live in `@shared/data/types/prompt`.
  */
 
-import type * as z from 'zod'
+import * as z from 'zod'
 
 import { type Prompt, PromptIdSchema as SharedPromptIdSchema, PromptSchema } from '../../types/prompt'
 import type { OrderEndpoints } from './_endpointHelpers'
@@ -28,6 +28,13 @@ export const UpdatePromptSchema = CreatePromptSchema.partial().refine(
 )
 export type UpdatePromptDto = z.infer<typeof UpdatePromptSchema>
 
+export const ListPromptsQuerySchema = z.strictObject({
+  /** Free-text match against title OR content. */
+  search: z.string().trim().min(1).optional()
+})
+export type ListPromptsQueryParams = z.input<typeof ListPromptsQuerySchema>
+export type ListPromptsQuery = z.output<typeof ListPromptsQuerySchema>
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -36,6 +43,7 @@ export type PromptSchemas = {
   '/prompts': {
     /** List all prompts, ordered by `orderKey` */
     GET: {
+      query?: ListPromptsQueryParams
       response: Prompt[]
     }
     /** Create a new prompt */

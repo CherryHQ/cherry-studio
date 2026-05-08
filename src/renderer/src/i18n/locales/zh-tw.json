@@ -2425,8 +2425,21 @@
         "title": "[to be translated]:Knowledge bases"
       },
       "prompt": {
+        "create_title": "[to be translated]:New Prompt",
         "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
         "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
+        "edit_title": "[to be translated]:Edit Prompt",
+        "field": {
+          "content": {
+            "label": "[to be translated]:Content",
+            "too_long": "[to be translated]:Content must be {{max}} characters or fewer"
+          },
+          "name": {
+            "label": "[to be translated]:Name",
+            "too_long": "[to be translated]:Name must be {{max}} characters or fewer"
+          }
+        },
+        "insert_variable": "[to be translated]:Insert variable",
         "label": "[to be translated]:System prompt",
         "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
         "title": "[to be translated]:Prompt",
@@ -2617,6 +2630,8 @@
       "assistant": "助手",
       "new_agent": "[to be translated]:New agent",
       "new_assistant": "[to be translated]:New assistant",
+      "new_prompt": "[to be translated]:New Prompt",
+      "prompt": "[to be translated]:Prompt",
       "skill": "技能"
     },
     "view": {

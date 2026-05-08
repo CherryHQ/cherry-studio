@@ -55,6 +55,33 @@ describe('PromptService', () => {
     it('should return an empty array when no prompts exist', async () => {
       await expect(promptService.getAll()).resolves.toEqual([])
     })
+
+    it('should filter by search on title', async () => {
+      await seedPrompt('Daily Report', 'body')
+      await seedPrompt('Meeting Notes', 'body')
+
+      const all = await promptService.getAll({ search: 'daily' })
+      expect(all.map((p) => p.title)).toEqual(['Daily Report'])
+    })
+
+    it('should filter by search on content', async () => {
+      await seedPrompt('A', 'Summarize unread email')
+      await seedPrompt('B', 'Draft changelog')
+
+      const all = await promptService.getAll({ search: 'email' })
+      expect(all.map((p) => p.title)).toEqual(['A'])
+    })
+
+    it('should treat %/_ in search as literals, not wildcards', async () => {
+      await seedPrompt('percent_100', 'exact')
+      await seedPrompt('noMatch', 'exact')
+
+      const underscore = await promptService.getAll({ search: 'percent_' })
+      expect(underscore.map((p) => p.title)).toEqual(['percent_100'])
+
+      const literalMiss = await promptService.getAll({ search: '_Match' })
+      expect(literalMiss).toHaveLength(0)
+    })
   })
 
   describe('getById', () => {

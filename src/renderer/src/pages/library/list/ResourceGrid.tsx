@@ -163,6 +163,8 @@ export const ResourceGrid: FC<Props> = ({
   const [addingPresetKeys, setAddingPresetKeys] = useState<Set<string>>(new Set())
   const showingAssistantCatalogPresets =
     Boolean(assistantCatalog) && assistantCatalog?.activeTab !== ASSISTANT_CATALOG_MY_TAB
+  const showTagToolbar =
+    activeResourceType !== 'prompt' && (!assistantCatalog || assistantCatalog.activeTab === ASSISTANT_CATALOG_MY_TAB)
 
   const openMenu = useCallback((id: string, e: MouseEvent) => {
     e.stopPropagation()
@@ -278,7 +280,7 @@ export const ResourceGrid: FC<Props> = ({
         )}
 
         {/* Row 2: Tag chips */}
-        {(!assistantCatalog || assistantCatalog.activeTab === ASSISTANT_CATALOG_MY_TAB) && (
+        {showTagToolbar && (
           <div className="flex items-center gap-1.5 overflow-x-auto px-5 pb-3 [&::-webkit-scrollbar]:h-0">
             <Tag size={11} className="mr-0.5 shrink-0 text-muted-foreground/40" />
             {tags.map((tag) => (

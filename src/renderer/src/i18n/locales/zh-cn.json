@@ -2425,8 +2425,21 @@
         "title": "知识库关联"
       },
       "prompt": {
+        "create_title": "新建 Prompt",
         "dblclick_hint": "双击预览区可切回编辑",
         "desc": "系统提示词将作为该助手的上下文开头发送给模型",
+        "edit_title": "编辑 Prompt",
+        "field": {
+          "content": {
+            "label": "内容",
+            "too_long": "内容不能超过 {{max}} 个字符"
+          },
+          "name": {
+            "label": "名称",
+            "too_long": "名称不能超过 {{max}} 个字符"
+          }
+        },
+        "insert_variable": "插入变量",
         "label": "系统提示词",
         "placeholder": "在这里输入系统提示词,支持 {{date}} / {{model_name}} 等变量...",
         "title": "提示词",
@@ -2617,6 +2630,8 @@
       "assistant": "助手",
       "new_agent": "新智能体",
       "new_assistant": "新助手",
+      "new_prompt": "新 Prompt",
+      "prompt": "提示词",
       "skill": "技能"
     },
     "view": {

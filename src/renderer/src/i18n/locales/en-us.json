@@ -2425,8 +2425,21 @@
         "title": "Knowledge bases"
       },
       "prompt": {
+        "create_title": "New Prompt",
         "dblclick_hint": "Double-click the preview to switch back to edit",
         "desc": "The system prompt is sent as the opening context of the assistant",
+        "edit_title": "Edit Prompt",
+        "field": {
+          "content": {
+            "label": "Content",
+            "too_long": "Content must be {{max}} characters or fewer"
+          },
+          "name": {
+            "label": "Name",
+            "too_long": "Name must be {{max}} characters or fewer"
+          }
+        },
+        "insert_variable": "Insert variable",
         "label": "System prompt",
         "placeholder": "Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
         "title": "Prompt",
@@ -2617,6 +2630,8 @@
       "assistant": "Assistant",
       "new_agent": "New agent",
       "new_assistant": "New assistant",
+      "new_prompt": "New Prompt",
+      "prompt": "Prompt",
       "skill": "Skill"
     },
     "view": {

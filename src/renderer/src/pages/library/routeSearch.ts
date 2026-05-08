@@ -10,7 +10,7 @@ export type LibraryRouteSearch = {
   id?: string
 }
 
-const RESOURCE_TYPES = new Set<ResourceType>(['agent', 'assistant', 'skill'])
+const RESOURCE_TYPES = new Set<ResourceType>(['agent', 'assistant', 'skill', 'prompt'])
 const ROUTE_ACTIONS = new Set<LibraryRouteAction>(['create', 'edit'])
 
 export function buildLibraryListSearch(resourceType?: ResourceType): LibraryRouteSearch {

@@ -61,7 +61,8 @@ vi.mock('../list/useResourceLibrary', () => ({
     typeCounts: {
       assistant: 0,
       agent: 0,
-      skill: 0
+      skill: 0,
+      prompt: 0
     },
     refetch: refetchSpy
   })
@@ -88,8 +89,8 @@ vi.mock('../list/ResourceGrid', () => ({
     activeResourceType,
     onCreate
   }: {
-    activeResourceType: 'assistant' | 'agent' | 'skill'
-    onCreate: (type: 'assistant' | 'agent' | 'skill') => void
+    activeResourceType: 'assistant' | 'agent' | 'skill' | 'prompt'
+    onCreate: (type: 'assistant' | 'agent' | 'skill' | 'prompt') => void
   }) => (
     <div data-testid="resource-grid" data-resource-type={activeResourceType}>
       <button type="button" onClick={() => onCreate('assistant')}>
@@ -97,6 +98,9 @@ vi.mock('../list/ResourceGrid', () => ({
       </button>
       <button type="button" onClick={() => onCreate('agent')}>
         create agent
+      </button>
+      <button type="button" onClick={() => onCreate('prompt')}>
+        create prompt
       </button>
     </div>
   )
@@ -123,6 +127,16 @@ vi.mock('../editor/agent/AgentConfigPage', () => ({
     <div data-testid={agent ? 'agent-edit-page' : 'agent-create-page'}>
       <button type="button" onClick={() => onCreated?.({ id: 'agent-created' })}>
         finish agent create
+      </button>
+    </div>
+  )
+}))
+
+vi.mock('../editor/prompt/PromptConfigPage', () => ({
+  default: ({ prompt, onCreated }: { prompt?: { id: string }; onCreated?: (created: { id: string }) => void }) => (
+    <div data-testid={prompt ? 'prompt-edit-page' : 'prompt-create-page'}>
+      <button type="button" onClick={() => onCreated?.({ id: 'prompt-created' })}>
+        finish prompt create
       </button>
     </div>
   )
@@ -177,12 +191,37 @@ describe('LibraryPage create flow', () => {
     expect(refetchSpy).toHaveBeenCalledTimes(1)
   })
 
+  it('returns to the list and refetches after prompt creation succeeds', async () => {
+    const user = userEvent.setup()
+
+    render(<LibraryPage />)
+
+    await user.click(screen.getByRole('button', { name: 'create prompt' }))
+    expect(screen.getByTestId('prompt-create-page')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'finish prompt create' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId('prompt-edit-page')).not.toBeInTheDocument()
+    expect(refetchSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('opens the assistant create page from route search', () => {
     routeSearchMock.mockReturnValue({ resourceType: 'assistant', action: 'create' })
 
     render(<LibraryPage />)
 
     expect(screen.getByTestId('assistant-create-page')).toBeInTheDocument()
+  })
+
+  it('opens the prompt create page from route search', () => {
+    routeSearchMock.mockReturnValue({ resourceType: 'prompt', action: 'create' })
+
+    render(<LibraryPage />)
+
+    expect(screen.getByTestId('prompt-create-page')).toBeInTheDocument()
   })
 
   it('opens the agent editor from route search after resources load', () => {
@@ -202,5 +241,24 @@ describe('LibraryPage create flow', () => {
     render(<LibraryPage />)
 
     expect(screen.getByTestId('agent-edit-page')).toBeInTheDocument()
+  })
+
+  it('opens the prompt editor from route search after resources load', () => {
+    allResourcesMock.push({
+      id: 'prompt-from-selector',
+      type: 'prompt',
+      name: 'Selector Prompt',
+      description: '',
+      avatar: 'Aa',
+      tags: [],
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      raw: { id: 'prompt-from-selector' }
+    })
+    routeSearchMock.mockReturnValue({ resourceType: 'prompt', action: 'edit', id: 'prompt-from-selector' })
+
+    render(<LibraryPage />)
+
+    expect(screen.getByTestId('prompt-edit-page')).toBeInTheDocument()
   })
 })

@@ -44,7 +44,23 @@ describe('promptHandlers', () => {
     it('should delegate GET to promptService.getAll', async () => {
       getAllMock.mockResolvedValueOnce([{ id: PROMPT_ID, title: 't', content: 'c' }])
       await expect(promptHandlers['/prompts'].GET({} as never)).resolves.toMatchObject([{ id: PROMPT_ID }])
-      expect(getAllMock).toHaveBeenCalledOnce()
+      expect(getAllMock).toHaveBeenCalledWith({})
+    })
+
+    it('should parse and forward search query to promptService.getAll', async () => {
+      getAllMock.mockResolvedValueOnce([])
+
+      await expect(promptHandlers['/prompts'].GET({ query: { search: ' daily ' } } as never)).resolves.toEqual([])
+
+      expect(getAllMock).toHaveBeenCalledWith({ search: 'daily' })
+    })
+
+    it('should reject empty search query before calling the service', async () => {
+      await expect(promptHandlers['/prompts'].GET({ query: { search: '   ' } } as never)).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
+      expect(getAllMock).not.toHaveBeenCalled()
     })
 
     it('should delegate POST with title/content only', async () => {

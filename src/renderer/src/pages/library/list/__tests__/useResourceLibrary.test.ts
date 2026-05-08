@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   useAssistantList: vi.fn(),
   useAgentList: vi.fn(),
   useSkillList: vi.fn(),
+  usePromptList: vi.fn(),
   useTagList: vi.fn()
 }))
 
@@ -27,6 +28,12 @@ vi.mock('../../adapters/agentAdapter', () => ({
 vi.mock('../../adapters/skillAdapter', () => ({
   skillAdapter: {
     useList: mocks.useSkillList
+  }
+}))
+
+vi.mock('../../adapters/promptAdapter', () => ({
+  promptAdapter: {
+    useList: mocks.usePromptList
   }
 }))
 
@@ -72,6 +79,7 @@ describe('useResourceLibrary model display names', () => {
     mocks.useAssistantList.mockReturnValue(listResult([]))
     mocks.useAgentList.mockReturnValue(listResult([]))
     mocks.useSkillList.mockReturnValue(listResult([]))
+    mocks.usePromptList.mockReturnValue(listResult([]))
     mocks.useTagList.mockReturnValue({
       tags: [],
       isLoading: false,
@@ -223,5 +231,53 @@ describe('useResourceLibrary model display names', () => {
     expect(mocks.useSkillList.mock.calls[0]).toEqual([])
     expect(mocks.useSkillList.mock.calls[1]).toEqual([{ search: 'summary', tagIds: ['tag-1'] }])
     expect(result.current.resources.map((resource) => resource.id)).toEqual(['skill-filtered'])
+  })
+
+  it('maps prompt resources and forwards search without tag filters', () => {
+    mocks.usePromptList.mockImplementation((query?: ResourceListQuery) => {
+      if (query) {
+        return listResult([
+          {
+            id: 'prompt-filtered',
+            title: '日报模板',
+            content: '今日完成 ${task}',
+            orderKey: 'b',
+            createdAt: '2026-04-27T00:00:00.000Z',
+            updatedAt: '2026-04-27T00:00:00.000Z'
+          }
+        ])
+      }
+
+      return listResult([
+        {
+          id: 'prompt-base',
+          title: '会议纪要',
+          content: '总结会议内容',
+          orderKey: 'a',
+          createdAt: '2026-04-26T00:00:00.000Z',
+          updatedAt: '2026-04-26T00:00:00.000Z'
+        }
+      ])
+    })
+
+    const { result } = renderResourceLibrary({
+      sidebarFilter: { resourceType: 'prompt' },
+      activeTag: '生产力',
+      search: ' 日报 '
+    })
+
+    expect(mocks.usePromptList.mock.calls[0]).toEqual([])
+    expect(mocks.usePromptList.mock.calls[1]).toEqual([{ search: '日报' }])
+    expect(result.current.typeCounts.prompt).toBe(1)
+    expect(result.current.resources).toMatchObject([
+      {
+        id: 'prompt-filtered',
+        type: 'prompt',
+        name: '日报模板',
+        description: '今日完成 ${task}',
+        avatar: 'Aa',
+        tags: []
+      }
+    ])
   })
 })

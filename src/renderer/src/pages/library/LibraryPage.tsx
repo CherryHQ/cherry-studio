@@ -1,5 +1,6 @@
 import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { Prompt } from '@shared/data/types/prompt'
 import type { Tag } from '@shared/data/types/tag'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
@@ -13,6 +14,7 @@ import SkillDetailPage from './detail/skill/SkillDetailPage'
 import AgentConfigPage from './editor/agent/AgentConfigPage'
 import AssistantConfigPage from './editor/assistant/AssistantConfigPage'
 import { serializeAssistantForExport } from './editor/assistant/transfer'
+import PromptConfigPage from './editor/prompt/PromptConfigPage'
 import { AssistantPresetPreviewDialog } from './list/AssistantPresetPreviewDialog'
 import { DeleteConfirmDialog } from './list/DeleteConfirmDialog'
 import { ImportAssistantDialog } from './list/ImportAssistantDialog'
@@ -36,6 +38,8 @@ type ConfigView =
   | { type: 'agent-edit'; agent: AgentDetail }
   | { type: 'agent-create' }
   | { type: 'skill-detail'; skill: InstalledSkill }
+  | { type: 'prompt-create' }
+  | { type: 'prompt-edit'; prompt: Prompt }
 
 const DEFAULT_RESOURCE_TYPE = RESOURCE_TYPE_ORDER[0]
 
@@ -88,7 +92,7 @@ export default function LibraryPage() {
 
   const { resources, allResources, typeCounts, refetch } = useResourceLibrary({
     sidebarFilter,
-    activeTag: isAssistantCatalogMine ? activeTag : null,
+    activeTag: isAssistantCatalogMine && activeResourceType !== 'prompt' ? activeTag : null,
     search: isAssistantCatalogMine ? search : '',
     sort: 'name'
   })
@@ -160,6 +164,8 @@ export default function LibraryPage() {
       setConfigView((prev) => (prev.type === 'assistant-create' ? prev : { type: 'assistant-create' }))
     } else if (routeResourceType === 'agent') {
       setConfigView((prev) => (prev.type === 'agent-create' ? prev : { type: 'agent-create' }))
+    } else if (routeResourceType === 'prompt') {
+      setConfigView((prev) => (prev.type === 'prompt-create' ? prev : { type: 'prompt-create' }))
     }
   }, [routeAction, routeResourceType])
 
@@ -180,6 +186,11 @@ export default function LibraryPage() {
       const agent = resource.raw as AgentDetail
       setConfigView((prev) =>
         prev.type === 'agent-edit' && prev.agent.id === agent.id ? prev : { type: 'agent-edit', agent }
+      )
+    } else if (resource.type === 'prompt') {
+      const prompt = resource.raw as Prompt
+      setConfigView((prev) =>
+        prev.type === 'prompt-edit' && prev.prompt.id === prompt.id ? prev : { type: 'prompt-edit', prompt }
       )
     }
   }, [allResources, routeAction, routeResourceId, routeResourceType])
@@ -204,6 +215,8 @@ export default function LibraryPage() {
       setConfigView({ type: 'agent-edit', agent: r.raw as AgentDetail })
     } else if (r.type === 'skill') {
       setConfigView({ type: 'skill-detail', skill: r.raw as InstalledSkill })
+    } else if (r.type === 'prompt') {
+      setConfigView({ type: 'prompt-edit', prompt: r.raw as Prompt })
     }
   }, [])
 
@@ -300,6 +313,8 @@ export default function LibraryPage() {
       // ZIP / directory / marketplace flows from 设置 → Skills can be exposed
       // here without leaving the library page.
       setSkillImportOpen(true)
+    } else if (type === 'prompt') {
+      setConfigView({ type: 'prompt-create' })
     }
   }, [])
 
@@ -358,6 +373,36 @@ export default function LibraryPage() {
           exit={{ opacity: 0, x: -20 }}
           className="flex min-h-0 flex-1 flex-col bg-background">
           <AgentConfigPage onBack={handleBackToList} onCreated={handleCreated} />
+        </motion.div>
+      </AnimatePresence>
+    )
+  }
+
+  if (configView.type === 'prompt-create') {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key="prompt-create"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          className="flex min-h-0 flex-1 flex-col bg-background">
+          <PromptConfigPage onBack={handleBackToList} onCreated={handleCreated} />
+        </motion.div>
+      </AnimatePresence>
+    )
+  }
+
+  if (configView.type === 'prompt-edit') {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`prompt-edit-${configView.prompt.id}`}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          className="flex min-h-0 flex-1 flex-col bg-background">
+          <PromptConfigPage prompt={configView.prompt} onBack={handleBackToList} />
         </motion.div>
       </AnimatePresence>
     )

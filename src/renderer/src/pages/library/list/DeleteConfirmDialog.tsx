@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useAgentMutationsById } from '../adapters/agentAdapter'
 import { useAssistantMutationsById } from '../adapters/assistantAdapter'
+import { usePromptMutationsById } from '../adapters/promptAdapter'
 import { useSkillMutationsById } from '../adapters/skillAdapter'
 import type { ResourceItem } from '../types'
 
@@ -29,6 +30,7 @@ const DeleteDialogBody: FC<{ resource: ResourceItem; onClose: () => void }> = ({
   const { t } = useTranslation()
   const { deleteAssistant } = useAssistantMutationsById(resource.id)
   const { deleteAgent } = useAgentMutationsById(resource.id)
+  const { deletePrompt } = usePromptMutationsById(resource.id)
   const { uninstallSkill } = useSkillMutationsById(resource.id)
   const [pending, setPending] = useState(false)
 
@@ -41,11 +43,13 @@ const DeleteDialogBody: FC<{ resource: ResourceItem; onClose: () => void }> = ({
         await deleteAgent()
       } else if (resource.type === 'skill') {
         await uninstallSkill()
+      } else if (resource.type === 'prompt') {
+        await deletePrompt()
       }
     } finally {
       setPending(false)
     }
-  }, [resource, deleteAssistant, deleteAgent, uninstallSkill])
+  }, [resource, deleteAssistant, deleteAgent, uninstallSkill, deletePrompt])
 
   const { title, description, confirmText } = useMemo(() => {
     if (resource.type === 'agent') {
@@ -60,6 +64,13 @@ const DeleteDialogBody: FC<{ resource: ResourceItem; onClose: () => void }> = ({
         title: t('library.delete.skill.title'),
         description: t('library.delete.skill.content'),
         confirmText: t('library.action.uninstall')
+      }
+    }
+    if (resource.type === 'prompt') {
+      return {
+        title: t('settings.prompts.delete'),
+        description: t('settings.prompts.deleteConfirm'),
+        confirmText: t('common.delete')
       }
     }
     return {

@@ -1,5 +1,5 @@
 import type { AssistantSettings } from '@shared/data/types/assistant'
-import { Bot, MessageCircle, Zap } from 'lucide-react'
+import { Bot, FileText, MessageCircle, Zap } from 'lucide-react'
 
 import type { ResourceType, ResourceTypeUIConfig } from './types'
 
@@ -22,10 +22,15 @@ export const RESOURCE_TYPE_META: Record<ResourceType, ResourceTypeMeta> = {
     icon: Zap,
     color: 'text-amber-500 bg-amber-500/10',
     labelKey: 'library.type.skill'
+  },
+  prompt: {
+    icon: FileText,
+    color: 'text-emerald-500 bg-emerald-500/10',
+    labelKey: 'library.type.prompt'
   }
 }
 
-export const RESOURCE_TYPE_ORDER: ResourceType[] = ['agent', 'assistant', 'skill']
+export const RESOURCE_TYPE_ORDER: ResourceType[] = ['agent', 'assistant', 'skill', 'prompt']
 
 export const MCP_MODE_OPTIONS: {
   id: AssistantConfigMcpMode

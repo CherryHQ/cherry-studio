@@ -148,6 +148,20 @@ function createAgentResource(): ResourceItem {
   }
 }
 
+function createPromptResource(): ResourceItem {
+  return {
+    id: 'prompt-1',
+    type: 'prompt',
+    name: 'Prompt',
+    description: '',
+    avatar: 'Aa',
+    tags: [],
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+    raw: null
+  }
+}
+
 describe('FixedCardMenu tag binding', () => {
   beforeEach(() => {
     ensureTagsMock.mockReset()
@@ -193,5 +207,24 @@ describe('FixedCardMenu tag binding', () => {
     })
     expect(onUpdateResourceTags).toHaveBeenCalledWith('agent-1', ['alpha'])
     expect(ensureTagsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not expose tag management for prompt resources', () => {
+    render(
+      <FixedCardMenu
+        x={240}
+        y={120}
+        resource={createPromptResource()}
+        onClose={vi.fn()}
+        onEdit={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        onUpdateResourceTags={vi.fn()}
+        allTagNames={['alpha', 'beta']}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
   })
 })

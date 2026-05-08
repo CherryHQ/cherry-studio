@@ -1,10 +1,12 @@
 import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { Prompt } from '@shared/data/types/prompt'
 import type { Tag } from '@shared/data/types/tag'
 import { useCallback, useMemo } from 'react'
 
 import { agentAdapter } from '../adapters/agentAdapter'
 import { assistantAdapter } from '../adapters/assistantAdapter'
+import { promptAdapter } from '../adapters/promptAdapter'
 import { skillAdapter } from '../adapters/skillAdapter'
 import { useTagList } from '../adapters/tagAdapter'
 import type { LibrarySidebarFilter, ResourceItem, ResourceType, SortKey } from '../types'
@@ -53,6 +55,7 @@ export function useResourceLibrary({
   const baseAssistants = assistantAdapter.useList()
   const baseAgents = agentAdapter.useList()
   const skills = skillAdapter.useList()
+  const basePrompts = promptAdapter.useList()
 
   // Resolve tag names to ids primarily from the embedded tags we already
   // have on base data — every chip the user can click was rendered from a
@@ -93,7 +96,8 @@ export function useResourceLibrary({
   // resolve, or the tag was deleted server-side). Without this, the filtered
   // query would degrade to "no tag filter" and surface every resource —
   // misleading for a user who explicitly picked a tag.
-  const hasUnresolvedTagSelection = Boolean(activeTag) && tagIds === undefined
+  const hasUnresolvedTagSelection =
+    sidebarFilter.resourceType !== 'prompt' && Boolean(activeTag) && tagIds === undefined
 
   const filteredAssistants = assistantAdapter.useList({ search: trimmedSearch, tagIds })
   const filteredAgents = agentAdapter.useList({ search: trimmedSearch, tagIds })
@@ -102,6 +106,8 @@ export function useResourceLibrary({
   // as the unfiltered `skills` call above, so we don't pay an extra request.
   const skillsVisible = sidebarFilter.resourceType === 'skill'
   const filteredSkills = skillAdapter.useList(skillsVisible ? { search: trimmedSearch, tagIds } : undefined)
+  const promptsVisible = sidebarFilter.resourceType === 'prompt'
+  const filteredPrompts = promptAdapter.useList(promptsVisible ? { search: trimmedSearch } : undefined)
 
   const buildAssistantItem = useCallback((a: Assistant): ResourceItem => {
     // Defensive `?? []`: schema declares tags as required, but stale DataApi
@@ -160,17 +166,41 @@ export function useResourceLibrary({
     }
   }, [])
 
+  const buildPromptItem = useCallback((p: Prompt): ResourceItem => {
+    return {
+      id: p.id,
+      type: 'prompt',
+      name: p.title,
+      description: p.content.replace(/\s+/g, ' ').trim(),
+      avatar: 'Aa',
+      tags: [],
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      raw: p
+    }
+  }, [])
+
   const allResources = useMemo<ResourceItem[]>(
     () => [
       ...baseAssistants.data.map(buildAssistantItem),
       ...baseAgents.data.map(buildAgentItem),
-      ...skills.data.map(buildSkillItem)
+      ...skills.data.map(buildSkillItem),
+      ...basePrompts.data.map(buildPromptItem)
     ],
-    [baseAssistants.data, baseAgents.data, skills.data, buildAssistantItem, buildAgentItem, buildSkillItem]
+    [
+      baseAssistants.data,
+      baseAgents.data,
+      skills.data,
+      basePrompts.data,
+      buildAssistantItem,
+      buildAgentItem,
+      buildSkillItem,
+      buildPromptItem
+    ]
   )
 
   const typeCounts = useMemo<Record<ResourceType, number>>(() => {
-    const counts: Record<ResourceType, number> = { agent: 0, assistant: 0, skill: 0 }
+    const counts: Record<ResourceType, number> = { agent: 0, assistant: 0, skill: 0, prompt: 0 }
     for (const r of allResources) counts[r.type] += 1
     return counts
   }, [allResources])
@@ -184,6 +214,7 @@ export function useResourceLibrary({
     [filteredAgents.data, buildAgentItem]
   )
   const skillItems = useMemo(() => filteredSkills.data.map(buildSkillItem), [filteredSkills.data, buildSkillItem])
+  const promptItems = useMemo(() => filteredPrompts.data.map(buildPromptItem), [filteredPrompts.data, buildPromptItem])
 
   const resources = useMemo<ResourceItem[]>(() => {
     // Tag selected but unresolvable → return empty rather than degrading to
@@ -193,10 +224,19 @@ export function useResourceLibrary({
     let list: ResourceItem[]
     if (sidebarFilter.resourceType === 'assistant') list = filteredAssistantItems
     else if (sidebarFilter.resourceType === 'agent') list = filteredAgentItems
+    else if (sidebarFilter.resourceType === 'prompt') list = promptItems
     else list = skillItems
 
     return [...list].sort((a, b) => compareItems(a, b, sort))
-  }, [hasUnresolvedTagSelection, sidebarFilter, filteredAssistantItems, filteredAgentItems, skillItems, sort])
+  }, [
+    hasUnresolvedTagSelection,
+    sidebarFilter,
+    filteredAssistantItems,
+    filteredAgentItems,
+    promptItems,
+    skillItems,
+    sort
+  ])
 
   const isLoading =
     baseAssistants.isLoading ||
@@ -204,21 +244,27 @@ export function useResourceLibrary({
     baseAgents.isLoading ||
     filteredAgents.isLoading ||
     skills.isLoading ||
-    filteredSkills.isLoading
+    filteredSkills.isLoading ||
+    basePrompts.isLoading ||
+    filteredPrompts.isLoading
   const isRefreshing =
     baseAssistants.isRefreshing ||
     filteredAssistants.isRefreshing ||
     baseAgents.isRefreshing ||
     filteredAgents.isRefreshing ||
     skills.isRefreshing ||
-    filteredSkills.isRefreshing
+    filteredSkills.isRefreshing ||
+    basePrompts.isRefreshing ||
+    filteredPrompts.isRefreshing
   const error =
     baseAssistants.error ??
     filteredAssistants.error ??
     baseAgents.error ??
     filteredAgents.error ??
     skills.error ??
-    filteredSkills.error
+    filteredSkills.error ??
+    basePrompts.error ??
+    filteredPrompts.error
 
   const refetch = useCallback(() => {
     baseAssistants.refetch()
@@ -227,8 +273,20 @@ export function useResourceLibrary({
     filteredAgents.refetch()
     skills.refetch()
     filteredSkills.refetch()
+    basePrompts.refetch()
+    filteredPrompts.refetch()
     tagList.refetch()
-  }, [baseAssistants, filteredAssistants, baseAgents, filteredAgents, skills, filteredSkills, tagList])
+  }, [
+    baseAssistants,
+    filteredAssistants,
+    baseAgents,
+    filteredAgents,
+    skills,
+    filteredSkills,
+    basePrompts,
+    filteredPrompts,
+    tagList
+  ])
 
   return {
     resources,
