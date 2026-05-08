@@ -1,6 +1,6 @@
 # Ordering Guide
 
-Canonical spec for any sortable resource in the DataApi system. Uses a single fractional-indexing design ([fractional-indexing](https://www.npmjs.com/package/fractional-indexing), Rocicorp, ~2 KB gzip) — `PATCH /{resource}/:id/order` with an anchor body. Scales from tens to thousands of rows without background rebalancing; applies uniformly whether the view is paginated or not. Replaces the two incompatible predecessors (`PATCH /miniapps` absolute `sortOrder` integers and `PATCH /mcp-servers` full `orderedIds` list).
+Canonical spec for any sortable resource in the DataApi system. Uses a single fractional-indexing design ([fractional-indexing](https://www.npmjs.com/package/fractional-indexing), Rocicorp, ~2 KB gzip) — `PATCH /{resource}/:id/order` with an anchor body. Scales from tens to thousands of rows without background rebalancing; applies uniformly whether the view is paginated or not. Replaces the two incompatible predecessors (`PATCH /mini-apps` absolute `sortOrder` integers and `PATCH /mcp-servers` full `orderedIds` list).
 
 Every sortable resource stores its position as a string `order_key` column. A reorder is always **relative** against an anchor (another row's id, or a `first` / `last` sentinel), never an absolute index. The server computes a new key between neighbours in one transaction; the renderer optimistically reorders its local cache and revalidates on completion.
 
@@ -96,7 +96,7 @@ function PinList() {
 }
 
 // Non-`id` primary key (e.g. miniapp.appId):
-useReorder('/miniapps', { idKey: 'appId' })
+useReorder('/mini-apps', { idKey: 'appId' })
 ```
 
 Optimistic writes / server revalidation / failure rollback are all handled internally through the DataApi cache hooks (`useReadCache` / `useWriteCache` / `useInvalidateCache`) — the component never tracks the list in local state and never calls SWR directly. `useReorder` reads the items list from the cache by auto-detecting flat arrays and `{ items }`-shaped objects; see §4.3 for nested shapes.
@@ -246,7 +246,7 @@ Three observable steps: **optimistic write → PATCH → revalidate** (or **inva
 ### 4.2 Non-`id` primary keys — the `idKey` option
 
 ```tsx
-useReorder('/miniapps', { idKey: 'appId' })
+useReorder('/mini-apps', { idKey: 'appId' })
 ```
 
 Flows into both the optimistic reducer and the new-list diff. The server-facing contract is unchanged — `move(id, anchor)` still takes a plain string id, PATCH body shape is untouched. `idKey` only affects how the client **extracts** ids from cached items.
@@ -260,7 +260,7 @@ Single field only — composite keys like `${providerId}:${modelName}` are out o
 | Shape | Example endpoints | How items are extracted |
 |---|---|---|
 | **Flat array** `T[]` | `GET /pins`, `GET /groups`, `GET /tags`, `GET /providers` | The cache value *is* the array. |
-| **Wrapped pagination** `{ items, total, page }` / `{ items, nextCursor }` | `GET /miniapps`, `GET /mcp-servers`, `GET /assistants`, `GET /knowledges` | Reads `cache.items`; preserves `total` / `page` / `nextCursor` on optimistic writes. |
+| **Wrapped pagination** `{ items, total, page }` / `{ items, nextCursor }` | `GET /mini-apps`, `GET /mcp-servers`, `GET /assistants`, `GET /knowledges` | Reads `cache.items`; preserves `total` / `page` / `nextCursor` on optimistic writes. |
 | **Naked items wrapper** `{ items: T[] }` | `GET /knowledges/:id/items` | Reads `cache.items`. |
 
 No caller configuration is required for any of the three. Both pagination shapes (`OffsetPaginationResponse` and `CursorPaginationResponse`) fall under the same `{ items }` branch — metadata fields are passed through unchanged.

@@ -36,7 +36,9 @@
         "comingSoon": "即將推出",
         "connected": "已連線",
         "connecting": "連接",
+        "createError": "",
         "deleteConfirm": "確定刪除頻道「{{name}}」？",
+        "deleteError": "",
         "description": "將您的 Agent 連接到訊息平台。",
         "disconnected": "已中斷連線",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "頻道",
+        "updateError": "",
         "wechat": {
           "addAccount": "新增微信帳號",
           "chatIds": "允許的使用者 ID",
@@ -211,6 +214,9 @@
         },
         "edit": "編輯",
         "empty": "暫無排程任務。新增一個開始吧。",
+        "error": {
+          "loadFailed": ""
+        },
         "intervalPlaceholder": "間隔（分鐘）",
         "intervalUnit": "分鐘",
         "lastRun": "上次執行",
@@ -220,6 +226,7 @@
           "error": "錯誤",
           "justNow": "剛剛",
           "label": "執行歷史",
+          "loadError": "",
           "result": "結果",
           "runAt": "執行時間",
           "running": "執行中...",
@@ -949,17 +956,6 @@
         "off_description": "禁用推理",
         "xhigh": "極力思考",
         "xhigh_description": "超高階推理"
-      },
-      "regular_phrases": {
-        "add": "新增短語",
-        "contentLabel": "內容",
-        "contentPlaceholder": "請輸入短語內容，支援使用變數，然後按 Tab 鍵可以快速定位到變數進行修改。例如：\n幫我規劃從 ${from} 到 ${to} 的行程，然後傳送到 ${email}",
-        "delete": "刪除短語",
-        "deleteConfirm": "確定要刪除這個短語嗎？",
-        "edit": "編輯短語",
-        "title": "常用短語",
-        "titleLabel": "標題",
-        "titlePlaceholder": "輸入標題"
       },
       "title": "助手設定",
       "tool_use_mode": {
@@ -2140,7 +2136,7 @@
   },
   "launchpad": {
     "apps": "應用",
-    "minapps": "小程式"
+    "miniApps": "小程式"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2490,20 +2486,23 @@
     "websearch": {
       "cutoff": "正在截斷搜尋內容...",
       "fetch_complete": "{{count}} 個搜尋結果",
-      "rag": "正在執行 RAG...",
-      "rag_complete": "保留 {{countBefore}} 個結果中的 {{countAfter}} 個...",
-      "rag_failed": "RAG 失敗，回傳空結果..."
+      "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "新增到啟動台",
     "add_to_sidebar": "新增到側邊欄",
+    "error": {
+      "load_failed": "應用載入失敗",
+      "not_found": "應用未找到"
+    },
+    "hide_failed": "隱藏小程式失敗",
+    "pin_failed": "固定小程式失敗",
     "popup": {
       "close": "關閉小工具",
       "devtools": "開發者工具",
       "goBack": "上一頁",
       "goForward": "下一頁",
-      "minimize": "最小化小工具",
       "openExternal": "在瀏覽器中開啟",
       "open_link_external_off": "目前：使用預設視窗開啟連結",
       "open_link_external_on": "目前：在瀏覽器中開啟連結",
@@ -2512,6 +2511,13 @@
     },
     "remove_from_launchpad": "從啟動台移除",
     "remove_from_sidebar": "從側邊欄移除",
+    "reorder_failed": "小程式排序更新失敗",
+    "shortcut": {
+      "failed": "失敗：{{message}}",
+      "html_saved": "HTML 已儲存至：{{path}}",
+      "pdf_saved": "PDF 已儲存至：{{path}}"
+    },
+    "show_failed": "顯示小程式失敗",
     "sidebar": {
       "close": {
         "title": "關閉"
@@ -2526,9 +2532,11 @@
         "title": "刪除自訂小工具"
       }
     },
-    "title": "小工具"
+    "title": "小工具",
+    "unpin_failed": "取消固定小程式失敗",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "百小應",
     "baidu-ai-search": "百度 AI 搜尋",
@@ -2547,6 +2555,7 @@
     "stepfun": "階躍 AI",
     "tencent-yuanbao": "騰訊元寶",
     "tiangong-ai": "天工 AI",
+    "update_partial_failure_generic": "部分小程式更新失敗",
     "wanzhi": "萬知",
     "wenxin": "文心一言",
     "wps-copilot": "WPS 靈犀",
@@ -4642,7 +4651,7 @@
         "knowledge": {
           "icon": "顯示知識圖示"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "顯示小工具圖示"
         },
         "painting": {
@@ -5044,7 +5053,7 @@
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
       "cache_description": "設定同時保持活躍狀態的小程式最大數量",
       "cache_settings": "快取設定",
@@ -5094,8 +5103,6 @@
         "title": "小程式區域篩選"
       },
       "reset_tooltip": "重設為預設值",
-      "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
-      "sidebar_title": "側邊欄活躍小程式顯示設定",
       "title": "小程式設定",
       "visible": "顯示的小程式"
     },
@@ -5328,6 +5335,24 @@
     "privacy": {
       "enable_privacy_mode": "匿名傳送錯誤報告和資料統計",
       "title": "隱私設定"
+    },
+    "prompts": {
+      "add": "新增提示詞",
+      "contentLabel": "內容",
+      "contentPlaceholder": "請輸入提示詞內容，支援使用 ${變數}，按 Tab 可在變數間快速定位。例如：\n幫我規劃從 ${from} 到 ${to} 的路線，然後傳送到 ${email}",
+      "delete": "刪除提示詞",
+      "deleteConfirm": "刪除提示詞後將無法復原，是否繼續？",
+      "edit": "編輯提示詞",
+      "errors": {
+        "createFailed": "建立提示詞失敗",
+        "deleteFailed": "刪除提示詞失敗",
+        "loadFailed": "載入提示詞失敗",
+        "reorderFailed": "調整提示詞順序失敗",
+        "updateFailed": "更新提示詞失敗"
+      },
+      "title": "提示詞管理",
+      "titleLabel": "標題",
+      "titlePlaceholder": "請輸入提示詞標題"
     },
     "provider": {
       "add": {
@@ -5589,7 +5614,8 @@
         "documentation": "檢視官方文件以取得更多設定詳細資訊：",
         "learn_more": "瞭解更多",
         "location": "地區",
-        "location_help": "Vertex AI 服務地區，例如：us-central1",
+        "location_help": "Vertex AI 服務地區，例如：us-central1。此欄位不會從 Service Account JSON 自動帶入，需手動填寫。",
+        "location_placeholder": "選擇 Vertex AI 地區",
         "project_id": "專案 ID",
         "project_id_help": "您的 Google Cloud 專案 ID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5599,7 +5625,12 @@
           "client_email_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 client_email 欄位",
           "client_email_placeholder": "輸入服務帳戶 client email",
           "description": "使用服務帳戶進行身份驗證，適用於 ADC 無法使用的環境",
-          "incomplete_config": "請先完成服務帳戶設定",
+          "incomplete_config": "請先完整填寫所有必需的 Vertex AI 設定",
+          "json_input": "Service Account JSON",
+          "json_input_help": "貼上完整 JSON 金鑰內容。解析後只會儲存 project_id、client_email 和 private_key，並清空原始 JSON。",
+          "json_input_placeholder": "貼上完整的 Service Account JSON 金鑰內容",
+          "json_parse_error": "解析 Service Account JSON 失敗，請確認格式正確",
+          "json_parse_success": "Service Account JSON 已解析",
           "private_key": "私密金鑰",
           "private_key_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 private_key 欄位",
           "private_key_placeholder": "輸入服務帳戶私密金鑰",
@@ -5635,20 +5666,6 @@
       "page": "翻頁",
       "select": "選擇",
       "title": "快捷選單"
-    },
-    "quickPhrase": {
-      "add": "新增短語",
-      "assistant": "助手提示詞",
-      "contentLabel": "內容",
-      "contentPlaceholder": "請輸入短語內容，支援使用變數，然後按 Tab 鍵可以快速定位到變數進行修改。例如：\n幫我規劃從 ${from} 到 ${to} 的行程，然後傳送到 ${email}",
-      "delete": "刪除短語",
-      "deleteConfirm": "刪除後無法復原，是否繼續？",
-      "edit": "編輯短語",
-      "global": "全域快速短語",
-      "locationLabel": "新增位置",
-      "title": "快捷短語",
-      "titleLabel": "標題",
-      "titlePlaceholder": "請輸入短語標題"
     },
     "scheduledTasks": {
       "description": "管理所有代理的排程任務。任務將依設定好的排程自動執行。",
@@ -5819,23 +5836,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG 失敗"
-          },
-          "info": {
-            "dimensions_auto_success": "維度自動取得成功，維度為 {{dimensions}}"
-          },
           "method": {
             "cutoff": "截斷",
             "label": "壓縮方法",
-            "none": "不壓縮",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "文件片段數量",
-              "tooltip": "預期從單個搜尋結果中提取的文件片段數量，實際提取的總數量是這個值乘以搜尋結果數量。"
-            }
+            "none": "不壓縮"
           },
           "title": "搜尋結果壓縮"
         },

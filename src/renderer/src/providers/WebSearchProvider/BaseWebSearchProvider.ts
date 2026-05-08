@@ -1,6 +1,5 @@
 import { cacheService } from '@data/CacheService'
-import type { WebSearchState } from '@renderer/store/websearch'
-import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import type { WebSearchProvider, WebSearchProviderResponse, WebSearchState } from '@renderer/types'
 
 export default abstract class BaseWebSearchProvider {
   // @ts-ignore this

@@ -34,6 +34,7 @@ function createDeferred<T>() {
 
 describe('fetchKnowledgeWebPage', () => {
   beforeEach(() => {
+    vi.useRealTimers()
     fetchMock.mockReset()
   })
 
@@ -132,5 +133,46 @@ describe('fetchKnowledgeWebPage', () => {
 
     await expect(Promise.all(requests)).resolves.toEqual(['page 1', 'page 2', 'page 3', 'page 4', 'page 5'])
     expect(maxActiveFetches).toBeLessThanOrEqual(3)
+  })
+
+  it('does not create the fetch timeout while a request is waiting in the queue', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
+    const deferredResponses = Array.from({ length: 4 }, () => createDeferred<Response>())
+    let fetchCallIndex = 0
+
+    fetchMock.mockImplementation(async () => {
+      const deferred = deferredResponses[fetchCallIndex]
+      fetchCallIndex += 1
+      if (!deferred) {
+        throw new Error('Unexpected fetch call')
+      }
+
+      return await deferred.promise
+    })
+
+    const queuedController = new AbortController()
+    const activeRequests = [
+      fetchKnowledgeWebPage('https://example.com/1'),
+      fetchKnowledgeWebPage('https://example.com/2'),
+      fetchKnowledgeWebPage('https://example.com/3')
+    ]
+    const queuedRequest = fetchKnowledgeWebPage('https://example.com/4', queuedController.signal)
+    void queuedRequest.catch(() => undefined)
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+    })
+
+    expect(timeoutSpy).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+
+    queuedController.abort(new Error('queued abort'))
+    deferredResponses[0].resolve(new Response('page 1', { status: 200 }))
+    deferredResponses[1].resolve(new Response('page 2', { status: 200 }))
+    deferredResponses[2].resolve(new Response('page 3', { status: 200 }))
+
+    await expect(Promise.all(activeRequests)).resolves.toEqual(['page 1', 'page 2', 'page 3'])
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    timeoutSpy.mockRestore()
   })
 })

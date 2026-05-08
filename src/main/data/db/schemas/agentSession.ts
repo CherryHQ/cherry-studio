@@ -2,15 +2,13 @@ import type { AgentConfiguration, SlashCommand } from '@shared/data/api/schemas/
 import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps } from './_columnHelpers'
+import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 
 export const agentSessionTable = sqliteTable(
   'agent_session',
   {
-    // IDs use the app-generated "session_<timestamp>_<random>" format, not UUIDs,
-    // so uuidPrimaryKey() is intentionally not used here. Callers must always supply an id.
-    id: text().primaryKey(),
+    id: uuidPrimaryKey(),
     agentType: text().notNull(),
     agentId: text()
       .notNull()

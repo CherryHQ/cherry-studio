@@ -42,7 +42,7 @@ describe('useProviders', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }))
 
@@ -58,7 +58,7 @@ describe('useProviders', () => {
       isLoading: true,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }))
 
@@ -74,7 +74,7 @@ describe('useProviders', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }))
 
@@ -150,7 +150,7 @@ describe('useProviders', () => {
   })
 
   it('should expose refetch from useQuery', () => {
-    const mockRefetch = vi.fn()
+    const mockRefetch = vi.fn().mockResolvedValue(undefined)
     mockUseQuery.mockImplementation(() => ({
       data: mockProviderList,
       isLoading: false,
@@ -191,7 +191,7 @@ describe('useProvider', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }))
 
@@ -210,7 +210,7 @@ describe('useProvider', () => {
 
   it('should expose error and refetch from useQuery', () => {
     const mockError = new Error('Load failed')
-    const mockRefetch = vi.fn()
+    const mockRefetch = vi.fn().mockResolvedValue(undefined)
     mockUseQuery.mockImplementation(() => ({
       data: undefined,
       isLoading: false,
@@ -669,7 +669,7 @@ describe('useProviderAuthConfig', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }))
 
@@ -703,7 +703,7 @@ describe('useProviderApiKeys', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }))
 
@@ -735,7 +735,7 @@ describe('useProviderRegistryModels', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }))
 

@@ -53,7 +53,7 @@ export enum IpcChannel {
   Open_Path = 'open:path',
   Open_Website = 'open:website',
 
-  Minapp = 'minapp',
+  MiniApp = 'mini-app',
 
   Config_Set = 'config:set',
   Config_Get = 'config:get',
@@ -193,10 +193,14 @@ export enum IpcChannel {
   KnowledgeBase_Search = 'knowledge-base:search',
   KnowledgeBase_Rerank = 'knowledge-base:rerank',
   KnowledgeRuntime_CreateBase = 'knowledge-runtime:create-base',
+  KnowledgeRuntime_RestoreBase = 'knowledge-runtime:restore-base',
   KnowledgeRuntime_DeleteBase = 'knowledge-runtime:delete-base',
   KnowledgeRuntime_AddItems = 'knowledge-runtime:add-items',
   KnowledgeRuntime_DeleteItems = 'knowledge-runtime:delete-items',
+  KnowledgeRuntime_ReindexItems = 'knowledge-runtime:reindex-items',
   KnowledgeRuntime_Search = 'knowledge-runtime:search',
+  KnowledgeRuntime_ListItemChunks = 'knowledge-runtime:list-item-chunks',
+  KnowledgeRuntime_DeleteItemChunk = 'knowledge-runtime:delete-item-chunk',
 
   //file
   File_Open = 'file:open',
@@ -475,7 +479,11 @@ export enum IpcChannel {
   // OS-level only; does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen.
   WindowManager_FullscreenChanged = 'window-manager:fullscreen-changed',
   // Payload = the initData passed to open(); omitted if none supplied, not fired on fresh creation.
-  WindowManager_Reused = 'window-manager:reused'
+  WindowManager_Reused = 'window-manager:reused',
+
+  // Agent operations
+  Agent_RunTask = 'agent:run-task',
+  Agent_GetModels = 'agent:get-models'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

@@ -36,7 +36,9 @@
         "comingSoon": "近日公開",
         "connected": "接続済み",
         "connecting": "接続",
+        "createError": "[to be translated]:Failed to create channel",
         "deleteConfirm": "チャンネル「{{name}}」を削除しますか？",
+        "deleteError": "[to be translated]:Failed to delete channel",
         "description": "エージェントをメッセージングプラットフォームに接続します。",
         "disconnected": "切断済み",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "チャンネル",
+        "updateError": "[to be translated]:Failed to update channel",
         "wechat": {
           "addAccount": "WeChatアカウントを追加",
           "chatIds": "許可されたユーザーID",
@@ -211,6 +214,9 @@
         },
         "edit": "編集",
         "empty": "スケジュールタスクがありません。追加して開始しましょう。",
+        "error": {
+          "loadFailed": "[to be translated]:Failed to load tasks"
+        },
         "intervalPlaceholder": "間隔（分）",
         "intervalUnit": "議事録",
         "lastRun": "前回の実行",
@@ -220,6 +226,7 @@
           "error": "エラー",
           "justNow": "さっき",
           "label": "実行履歴",
+          "loadError": "[to be translated]:Failed to load run history",
           "result": "結果",
           "runAt": "実行時刻",
           "running": "走っている…",
@@ -949,17 +956,6 @@
         "off_description": "推論を無効にする",
         "xhigh": "超高",
         "xhigh_description": "超高度な推論"
-      },
-      "regular_phrases": {
-        "add": "プロンプトを追加",
-        "contentLabel": "内容",
-        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
-        "delete": "プロンプトを削除",
-        "deleteConfirm": "このプロンプトを削除してもよろしいですか？",
-        "edit": "プロンプトを編集",
-        "title": "定型プロンプト",
-        "titleLabel": "タイトル",
-        "titlePlaceholder": "タイトルを入力"
       },
       "title": "アシスタント設定",
       "tool_use_mode": {
@@ -2140,7 +2136,7 @@
   },
   "launchpad": {
     "apps": "アプリ",
-    "minapps": "アプリ"
+    "miniApps": "アプリ"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2490,20 +2486,23 @@
     "websearch": {
       "cutoff": "検索内容を切り詰めています...",
       "fetch_complete": "{{count}}件の検索結果",
-      "rag": "RAGを実行中...",
-      "rag_complete": "{{countBefore}}個の結果から{{countAfter}}個を保持...",
-      "rag_failed": "RAGが失敗しました。空の結果を返します..."
+      "partial_failure": "{{count}}件の検索結果、一部の検索に失敗しました"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "スタート画面に追加",
     "add_to_sidebar": "サイドバーに追加",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "ミニアプリを閉じる",
       "devtools": "開発者ツール",
       "goBack": "戻る",
       "goForward": "進む",
-      "minimize": "ミニアプリを最小化",
       "openExternal": "ブラウザで開く",
       "open_link_external_off": "現在：デフォルトのウィンドウで開く",
       "open_link_external_on": "現在：ブラウザで開く",
@@ -2512,6 +2511,13 @@
     },
     "remove_from_launchpad": "スタート画面から削除",
     "remove_from_sidebar": "サイドバーから削除",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "閉じる"
@@ -2526,9 +2532,11 @@
         "title": "カスタムアプリを削除"
       }
     },
-    "title": "ミニアプリ"
+    "title": "ミニアプリ",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "百小應",
     "baidu-ai-search": "百度AI検索",
@@ -2547,6 +2555,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "騰訊元宝",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "万知",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -3818,6 +3827,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "[to be translated]:New Agent",
+      "empty_text": "[to be translated]:No agents yet",
+      "search_placeholder": "[to be translated]:Search agents…"
+    },
+    "assistant": {
+      "create_new": "[to be translated]:New Assistant",
+      "empty_text": "[to be translated]:No assistants yet",
+      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
+      "multi_label": "[to be translated]:Multi-assistant parallel",
+      "search_placeholder": "[to be translated]:Search assistants…"
+    },
+    "common": {
+      "edit": "[to be translated]:Edit",
+      "pin": "[to be translated]:Pin",
+      "pinned_title": "[to be translated]:Pinned",
+      "sort": {
+        "asc": "[to be translated]:Oldest",
+        "desc": "[to be translated]:Recent"
+      },
+      "sort_label": "[to be translated]:Sort",
+      "unpin": "[to be translated]:Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3885,6 +3919,34 @@
       "title": "チャンネル"
     },
     "componentLab": {
+      "agentSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Agent Selector",
+        "triggerPlaceholder": "[to be translated]:Select an agent",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "assistantSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Assistant Selector",
+        "triggerPlaceholder": "[to be translated]:Select an assistant",
+        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
+        "valueProp": "[to be translated]:Current value"
+      },
       "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
       "label": "[to be translated]:Component Lab",
       "modelSelector": {
@@ -4589,7 +4651,7 @@
         "knowledge": {
           "icon": "ナレッジのアイコンを表示"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "ミニアプリのアイコンを表示"
         },
         "painting": {
@@ -4991,7 +5053,7 @@
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
       "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
       "cache_settings": "キャッシュ設定",
@@ -5041,8 +5103,6 @@
         "title": "ミニアプリ地域絞り込み"
       },
       "reset_tooltip": "デフォルト値にリセット",
-      "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
-      "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
       "title": "ミニアプリ設定",
       "visible": "表示するミニアプリ"
     },
@@ -5275,6 +5335,24 @@
     "privacy": {
       "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信",
       "title": "プライバシー設定"
+    },
+    "prompts": {
+      "add": "プロンプトを追加",
+      "contentLabel": "内容",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "プロンプトを削除",
+      "deleteConfirm": "プロンプトは完全に削除されます。続行しますか？",
+      "edit": "プロンプトを編集",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "プロンプト管理",
+      "titleLabel": "タイトル",
+      "titlePlaceholder": "プロンプトのタイトルを入力してください"
     },
     "provider": {
       "add": {
@@ -5536,7 +5614,8 @@
         "documentation": "詳細な設定については、公式ドキュメントを参照してください:",
         "learn_more": "詳細を確認",
         "location": "場所",
-        "location_help": "Vertex AIサービスの場所、例：us-central1",
+        "location_help": "Vertex AIサービスの場所、例：us-central1。この項目は Service Account JSON から読み取られないため、手動で入力する必要があります。",
+        "location_placeholder": "Vertex AI の場所を選択",
         "project_id": "プロジェクトID",
         "project_id_help": "Google CloudプロジェクトID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5547,6 +5626,11 @@
           "client_email_placeholder": "サービスアカウントのクライアントメールを入力してください",
           "description": "ADCが利用できない環境での認証に適しています",
           "incomplete_config": "まずサービスアカウントの設定を完了してください",
+          "json_input": "Service Account JSON",
+          "json_input_help": "完全な JSON キー内容を貼り付けてください。解析後は project_id、client_email、private_key のみ保存され、元の JSON はクリアされます。",
+          "json_input_placeholder": "完全な Service Account JSON キー内容を貼り付け",
+          "json_parse_error": "Service Account JSON の解析に失敗しました。形式が正しいことを確認してください。",
+          "json_parse_success": "Service Account JSON を解析しました",
           "private_key": "秘密鍵",
           "private_key_help": "Google Cloud ConsoleからダウンロードしたJSONキーファイルのprivate_keyフィールド",
           "private_key_placeholder": "サービスアカウントの秘密鍵を入力してください",
@@ -5582,20 +5666,6 @@
       "page": "ページ",
       "select": "選択",
       "title": "クイックメニュー"
-    },
-    "quickPhrase": {
-      "add": "フレーズを追加",
-      "assistant": "アシスタントプロンプト",
-      "contentLabel": "内容",
-      "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
-      "delete": "フレーズを削除",
-      "deleteConfirm": "削除後は復元できません。続行しますか？",
-      "edit": "フレーズを編集",
-      "global": "グローバルクイックフレーズ",
-      "locationLabel": "追加場所",
-      "title": "クイックフレーズ",
-      "titleLabel": "タイトル",
-      "titlePlaceholder": "フレーズのタイトルを入力してください"
     },
     "scheduledTasks": {
       "description": "すべてのエージェントにわたるスケジュールされたタスクを管理します。タスクは設定されたスケジュールに従って自動的に実行されます。",
@@ -5766,23 +5836,10 @@
               "token": "トークン"
             }
           },
-          "error": {
-            "rag_failed": "RAG に失敗しました"
-          },
-          "info": {
-            "dimensions_auto_success": "次元が自動取得されました。次元: {{dimensions}}"
-          },
           "method": {
             "cutoff": "切り捨て",
             "label": "圧縮方法",
-            "none": "圧縮しない",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "文書チャンク数",
-              "tooltip": "単一の検索結果から抽出する文書チャンク数。実際に抽出される文書チャンク数は、この値に検索結果数を乗じたものです。"
-            }
+            "none": "圧縮しない"
           },
           "title": "検索結果の圧縮"
         },

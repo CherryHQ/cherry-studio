@@ -1,8 +1,7 @@
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
 import type { AppProviderId } from '@renderer/aiCore/types'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
-import type { CherryWebSearchConfig } from '@renderer/store/websearch'
-import type { Model } from '@renderer/types'
+import type { Model, WebSearchState } from '@renderer/types'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 
 export function getWebSearchParams(model: Model): Record<string, any> {
@@ -50,7 +49,7 @@ function mapMaxResultToOpenAIContextSize(
 
 export function buildProviderBuiltinWebSearchConfig(
   providerId: AppProviderId,
-  webSearchConfig: CherryWebSearchConfig,
+  webSearchConfig: Pick<WebSearchState, 'maxResults' | 'excludeDomains'>,
   model?: Model
 ): WebSearchPluginConfig | undefined {
   switch (providerId) {

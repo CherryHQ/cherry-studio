@@ -22,6 +22,7 @@ import {
 import type { ListOptions } from '@types'
 import { CronExpressionParser } from 'cron-parser'
 import { and, asc, count, desc, eq, inArray, lte, ne } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('TaskService')
 
@@ -29,7 +30,7 @@ export class AgentTaskService {
   async createTask(agentId: string, req: CreateTaskDto): Promise<ScheduledTaskEntity> {
     await this.assertAutonomous(agentId)
 
-    const id = `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+    const id = uuidv4()
 
     const nextRun = this.computeInitialNextRun(req.scheduleType, req.scheduleValue)
 
@@ -404,14 +405,14 @@ export class AgentTaskService {
 
   // --- Task run logs ---
 
-  async logTaskRun(log: Omit<InsertTaskRunLogRow, 'id'>): Promise<number> {
+  async logTaskRun(log: Omit<InsertTaskRunLogRow, 'id'>): Promise<string> {
     const database = application.get('DbService').getDb()
     const result = await database.insert(taskRunLogsTable).values(log).returning({ id: taskRunLogsTable.id })
     return result[0].id
   }
 
   async updateTaskRunLog(
-    logId: number,
+    logId: string,
     updates: Partial<Pick<InsertTaskRunLogRow, 'status' | 'result' | 'error' | 'durationMs' | 'sessionId'>>
   ): Promise<void> {
     const database = application.get('DbService').getDb()

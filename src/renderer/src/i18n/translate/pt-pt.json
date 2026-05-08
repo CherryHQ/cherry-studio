@@ -36,7 +36,9 @@
         "comingSoon": "Em breve",
         "connected": "Conectado",
         "connecting": "Conectando",
+        "createError": "[to be translated]:Failed to create channel",
         "deleteConfirm": "Excluir canal \"{{name}}\"?",
+        "deleteError": "[to be translated]:Failed to delete channel",
         "description": "Conecte o seu agente a plataformas de mensagens.",
         "disconnected": "Desconectado",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Canais",
+        "updateError": "[to be translated]:Failed to update channel",
         "wechat": {
           "addAccount": "Adicionar Conta WeChat",
           "chatIds": "IDs de Usuários Permitidos",
@@ -211,6 +214,9 @@
         },
         "edit": "Editar",
         "empty": "Sem tarefas agendadas. Adicione uma para começar.",
+        "error": {
+          "loadFailed": "[to be translated]:Failed to load tasks"
+        },
         "intervalPlaceholder": "Intervalo em minutos",
         "intervalUnit": "minutos",
         "lastRun": "Última execução",
@@ -220,6 +226,7 @@
           "error": "Erro",
           "justNow": "agora mesmo",
           "label": "Histórico de execução",
+          "loadError": "[to be translated]:Failed to load run history",
           "result": "Resultado",
           "runAt": "Executado em",
           "running": "Correndo...",
@@ -949,17 +956,6 @@
         "off_description": "Desabilitar raciocínio",
         "xhigh": "Extra Alta",
         "xhigh_description": "Raciocínio de altíssimo nível"
-      },
-      "regular_phrases": {
-        "add": "Adicionar Frase",
-        "contentLabel": "Conteúdo",
-        "contentPlaceholder": "Por favor, insira o conteúdo da frase. Há suporte para o uso de variáveis, e em seguida você pode pressionar a tecla Tab para localizar rapidamente a variável e editá-la. Por exemplo:\\n Planeie uma rota de ${from} para ${to} e depois envie para ${email}.",
-        "delete": "Excluir Frase",
-        "deleteConfirm": "Tem certeza de que deseja excluir esta frase?",
-        "edit": "Editar Frase",
-        "title": "Frases Comuns",
-        "titleLabel": "Título",
-        "titlePlaceholder": "Digite o título"
       },
       "title": "Configurações do Assistente",
       "tool_use_mode": {
@@ -2140,7 +2136,7 @@
   },
   "launchpad": {
     "apps": "Aplicativos",
-    "minapps": "Miniaplicativos"
+    "miniApps": "Miniaplicativos"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2490,20 +2486,23 @@
     "websearch": {
       "cutoff": "Truncando o conteúdo da pesquisa...",
       "fetch_complete": "{{count}} resultados da pesquisa",
-      "rag": "Executando RAG...",
-      "rag_complete": "Mantendo {{countAfter}} dos {{countBefore}} resultados...",
-      "rag_failed": "RAG falhou, retornando resultado vazio..."
+      "partial_failure": "{{count}} resultados da pesquisa, algumas pesquisas falharam"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Adicionar ao Painel de Inicialização",
     "add_to_sidebar": "Adicionar à Barra Lateral",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Fechar aplicativo",
       "devtools": "Ferramentas de Desenvolvedor",
       "goBack": "Voltar",
       "goForward": "Avançar",
-      "minimize": "Minimizar aplicativo",
       "openExternal": "Abrir no navegador",
       "open_link_external_off": "Atual: Abrir links em janela padrão",
       "open_link_external_on": "Atual: Abrir links no navegador",
@@ -2512,6 +2511,13 @@
     },
     "remove_from_launchpad": "Remover do Painel de Inicialização",
     "remove_from_sidebar": "Remover da Barra Lateral",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Fechar"
@@ -2526,9 +2532,11 @@
         "title": "Excluir aplicativo personalizado"
       }
     },
-    "title": "Pequeno aplicativo"
+    "title": "Pequeno aplicativo",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -2547,6 +2555,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -3818,6 +3827,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "[to be translated]:New Agent",
+      "empty_text": "[to be translated]:No agents yet",
+      "search_placeholder": "[to be translated]:Search agents…"
+    },
+    "assistant": {
+      "create_new": "[to be translated]:New Assistant",
+      "empty_text": "[to be translated]:No assistants yet",
+      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
+      "multi_label": "[to be translated]:Multi-assistant parallel",
+      "search_placeholder": "[to be translated]:Search assistants…"
+    },
+    "common": {
+      "edit": "[to be translated]:Edit",
+      "pin": "[to be translated]:Pin",
+      "pinned_title": "[to be translated]:Pinned",
+      "sort": {
+        "asc": "[to be translated]:Oldest",
+        "desc": "[to be translated]:Recent"
+      },
+      "sort_label": "[to be translated]:Sort",
+      "unpin": "[to be translated]:Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3885,6 +3919,34 @@
       "title": "Canais"
     },
     "componentLab": {
+      "agentSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Agent Selector",
+        "triggerPlaceholder": "[to be translated]:Select an agent",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "assistantSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Assistant Selector",
+        "triggerPlaceholder": "[to be translated]:Select an assistant",
+        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
+        "valueProp": "[to be translated]:Current value"
+      },
       "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
       "label": "[to be translated]:Component Lab",
       "modelSelector": {
@@ -4589,7 +4651,7 @@
         "knowledge": {
           "icon": "Mostrar ícone de conhecimento"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "Mostrar ícone de aplicativo"
         },
         "painting": {
@@ -4991,7 +5053,7 @@
       "title": "Configurações de mensagem",
       "use_serif_font": "Usar fonte serif"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "As alterações entrarão em vigor após a abertura ou remoção dos mini aplicativos até atingir o número definido",
       "cache_description": "Defina o número máximo de mini aplicativos que permanecerão ativos simultaneamente",
       "cache_settings": "Configurações de Cache",
@@ -5041,8 +5103,6 @@
         "title": "Filtro de área do mini programa"
       },
       "reset_tooltip": "Redefinir para os valores padrão",
-      "sidebar_description": "Defina se os mini aplicativos ativos serão exibidos na barra lateral",
-      "sidebar_title": "Exibição de Mini Aplicativos Ativos na Barra Lateral",
       "title": "Configurações do Mini Aplicativo",
       "visible": "Mini Aplicativos Visíveis"
     },
@@ -5275,6 +5335,24 @@
     "privacy": {
       "enable_privacy_mode": "Enviar relatórios de erro e estatísticas de forma anônima",
       "title": "Configurações de Privacidade"
+    },
+    "prompts": {
+      "add": "Adicionar Prompt",
+      "contentLabel": "Conteúdo",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Eliminar Prompt",
+      "deleteConfirm": "O prompt será eliminado permanentemente. Continuar?",
+      "edit": "Editar Prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Gestão de Prompts",
+      "titleLabel": "Título",
+      "titlePlaceholder": "Introduza o título do prompt"
     },
     "provider": {
       "add": {
@@ -5536,7 +5614,8 @@
         "documentation": "Consulte a documentação oficial para obter mais detalhes de configuração:",
         "learn_more": "Saiba mais",
         "location": "Região",
-        "location_help": "Região do serviço Vertex AI, por exemplo, us-central1",
+        "location_help": "Região do serviço Vertex AI, por exemplo, us-central1. Este campo não é lido do JSON da Conta de Serviço e tem de ser introduzido manualmente.",
+        "location_placeholder": "Selecionar região do Vertex AI",
         "project_id": "ID do Projeto",
         "project_id_help": "Seu ID do projeto no Google Cloud",
         "project_id_placeholder": "seu-id-do-projeto-no-google-cloud",
@@ -5547,6 +5626,11 @@
           "client_email_placeholder": "Por favor, insira o e-mail do cliente da Conta de Serviço",
           "description": "Autenticar usando uma Conta de Serviço, adequado para ambientes onde o ADC não pode ser usado",
           "incomplete_config": "Por favor, configure completamente as informações da Conta de Serviço primeiro",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Cole o conteúdo completo da chave JSON. Após a análise, apenas project_id, client_email e private_key são guardados, e o JSON original é limpo.",
+          "json_input_placeholder": "Cole o conteúdo completo da chave JSON da Conta de Serviço",
+          "json_parse_error": "Falha ao analisar Service Account JSON. Confirme que o formato está correto.",
+          "json_parse_success": "Service Account JSON analisado",
           "private_key": "Chave privada",
           "private_key_help": "Campo private_key do arquivo de chave JSON baixado do Google Cloud Console",
           "private_key_placeholder": "Por favor, insira a chave privada da Conta de Serviço",
@@ -5582,20 +5666,6 @@
       "page": "Página",
       "select": "Selecionar",
       "title": "Menu de Atalho"
-    },
-    "quickPhrase": {
-      "add": "Adicionar Frase",
-      "assistant": "Frase do Assistente",
-      "contentLabel": "Conteúdo",
-      "contentPlaceholder": "Por favor, insira o conteúdo da frase. É permitido usar variáveis, e em seguida pressionar a tecla Tab para localizar rapidamente as variáveis e editá-las. Por exemplo:\\nPlaneje uma rota de ${from} para ${to} e envie para ${email}.",
-      "delete": "Excluir Frase",
-      "deleteConfirm": "A frase excluída não poderá ser recuperada. Deseja continuar?",
-      "edit": "Editar Frase",
-      "global": "Frase Global",
-      "locationLabel": "Adicionar Localização",
-      "title": "Frases Rápidas",
-      "titleLabel": "Título",
-      "titlePlaceholder": "Por favor, insira o título da frase"
     },
     "scheduledTasks": {
       "description": "Gerencie tarefas agendadas em todos os agentes. As tarefas são executadas automaticamente conforme o agendamento configurado.",
@@ -5766,23 +5836,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG falhou"
-          },
-          "info": {
-            "dimensions_auto_success": "Obtenção automática de dimensões bem-sucedida, as dimensões são {{dimensions}}"
-          },
           "method": {
             "cutoff": "Cortar",
             "label": "Método de compressão",
-            "none": "Sem compressão",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Número de fragmentos de documentos",
-              "tooltip": "Número esperado de fragmentos de documentos a serem extraídos de um único resultado de pesquisa. O número total real extraído será esse valor multiplicado pelo número de resultados de pesquisa."
-            }
+            "none": "Sem compressão"
           },
           "title": "Compressão de resultados de pesquisa"
         },

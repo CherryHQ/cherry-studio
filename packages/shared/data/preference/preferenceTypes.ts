@@ -83,7 +83,7 @@ export type SidebarIcon =
   | 'store'
   | 'paintings'
   | 'translate'
-  | 'minapp'
+  | 'mini_app'
   | 'knowledge'
   | 'files'
   | 'code_tools'
@@ -145,6 +145,13 @@ export type WebSearchProviderOverride = {
 }
 
 export type WebSearchProviderOverrides = Partial<Record<WebSearchProviderId, WebSearchProviderOverride>>
+
+export type WebSearchSubscribeSource = {
+  key: number
+  url: string
+  name: string
+  blacklist?: string[]
+}
 
 /**
  * Full WebSearch Provider configuration
@@ -208,7 +215,7 @@ export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>
  * Compression method type
  * Stored in chat.web_search.compression.method
  */
-export type WebSearchCompressionMethod = 'none' | 'cutoff' | 'rag'
+export type WebSearchCompressionMethod = 'none' | 'cutoff'
 
 /**
  * Cutoff unit type
@@ -257,3 +264,8 @@ export type FileProcessorOverride = {
 }
 
 export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcessorOverride>>
+
+/** Region types for miniApps visibility */
+export type MiniAppRegion = 'CN' | 'Global'
+
+export type MiniAppRegionFilter = 'auto' | MiniAppRegion

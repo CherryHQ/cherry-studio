@@ -36,7 +36,9 @@
         "comingSoon": "Скоро",
         "connected": "Подключено",
         "connecting": "Подключение",
+        "createError": "[to be translated]:Failed to create channel",
         "deleteConfirm": "Удалить канал \"{{name}}\"?",
+        "deleteError": "[to be translated]:Failed to delete channel",
         "description": "Подключите вашего агента к платформам обмена сообщениями.",
         "disconnected": "Отключено",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Каналы",
+        "updateError": "[to be translated]:Failed to update channel",
         "wechat": {
           "addAccount": "Добавить аккаунт WeChat",
           "chatIds": "Разрешённые идентификаторы пользователей",
@@ -211,6 +214,9 @@
         },
         "edit": "Редактировать",
         "empty": "Нет запланированных задач. Добавьте одну, чтобы начать.",
+        "error": {
+          "loadFailed": "[to be translated]:Failed to load tasks"
+        },
         "intervalPlaceholder": "Интервал в минутах",
         "intervalUnit": "минуты",
         "lastRun": "Последний запуск",
@@ -220,6 +226,7 @@
           "error": "Ошибка",
           "justNow": "только что",
           "label": "История запусков",
+          "loadError": "[to be translated]:Failed to load run history",
           "result": "Результат",
           "runAt": "Запущено в",
           "running": "Бежит...",
@@ -949,17 +956,6 @@
         "off_description": "Отключить рассуждение",
         "xhigh": "Сверхвысокое",
         "xhigh_description": "Высочайший уровень рассуждений"
-      },
-      "regular_phrases": {
-        "add": "Добавить подсказку",
-        "contentLabel": "Содержание",
-        "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}.",
-        "delete": "Удалить подсказку",
-        "deleteConfirm": "Вы уверены, что хотите удалить эту подсказку?",
-        "edit": "Редактировать подсказку",
-        "title": "Регулярные подсказки",
-        "titleLabel": "Заголовок",
-        "titlePlaceholder": "Введите заголовок"
       },
       "title": "Настройки ассистента",
       "tool_use_mode": {
@@ -2140,7 +2136,7 @@
   },
   "launchpad": {
     "apps": "Приложения",
-    "minapps": "Приложения"
+    "miniApps": "Приложения"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2490,20 +2486,23 @@
     "websearch": {
       "cutoff": "Обрезка содержимого поиска...",
       "fetch_complete": "{{count}} результатов поиска",
-      "rag": "Выполнение RAG...",
-      "rag_complete": "Сохранено {{countAfter}} из {{countBefore}} результатов...",
-      "rag_failed": "RAG не удалось, возвращается пустой результат..."
+      "partial_failure": "{{count}} результатов поиска, некоторые поиски завершились ошибкой"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Добавить в стартовый экран",
     "add_to_sidebar": "Добавить в боковую панель",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Закрыть встроенное приложение",
       "devtools": "Инструменты разработчика",
       "goBack": "Назад",
       "goForward": "Вперед",
-      "minimize": "Свернуть встроенное приложение",
       "openExternal": "Открыть в браузере",
       "open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию",
       "open_link_external_on": "Текущий: Открыть ссылки в браузере",
@@ -2512,6 +2511,13 @@
     },
     "remove_from_launchpad": "Удалить из стартового экрана",
     "remove_from_sidebar": "Удалить из боковой панели",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Закрыть"
@@ -2526,9 +2532,11 @@
         "title": "Удалить пользовательское приложение"
       }
     },
-    "title": "Встроенные приложения"
+    "title": "Встроенные приложения",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Байчжан",
     "baidu-ai-search": "Baidu AI Search",
@@ -2547,6 +2555,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Tencent Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -3818,6 +3827,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "[to be translated]:New Agent",
+      "empty_text": "[to be translated]:No agents yet",
+      "search_placeholder": "[to be translated]:Search agents…"
+    },
+    "assistant": {
+      "create_new": "[to be translated]:New Assistant",
+      "empty_text": "[to be translated]:No assistants yet",
+      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
+      "multi_label": "[to be translated]:Multi-assistant parallel",
+      "search_placeholder": "[to be translated]:Search assistants…"
+    },
+    "common": {
+      "edit": "[to be translated]:Edit",
+      "pin": "[to be translated]:Pin",
+      "pinned_title": "[to be translated]:Pinned",
+      "sort": {
+        "asc": "[to be translated]:Oldest",
+        "desc": "[to be translated]:Recent"
+      },
+      "sort_label": "[to be translated]:Sort",
+      "unpin": "[to be translated]:Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3885,6 +3919,34 @@
       "title": "Каналы"
     },
     "componentLab": {
+      "agentSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Agent Selector",
+        "triggerPlaceholder": "[to be translated]:Select an agent",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "assistantSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Assistant Selector",
+        "triggerPlaceholder": "[to be translated]:Select an assistant",
+        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
+        "valueProp": "[to be translated]:Current value"
+      },
       "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
       "label": "[to be translated]:Component Lab",
       "modelSelector": {
@@ -4589,7 +4651,7 @@
         "knowledge": {
           "icon": "Показывать иконку знаний"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "Показывать иконку мини-приложения"
         },
         "painting": {
@@ -4991,7 +5053,7 @@
       "title": "Настройки сообщений",
       "use_serif_font": "Использовать serif шрифт"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения",
       "cache_description": "Установить максимальное количество активных мини-приложений в памяти",
       "cache_settings": "Настройки кэша",
@@ -5041,8 +5103,6 @@
         "title": "Фильтрация по регионам в мини-программе"
       },
       "reset_tooltip": "Сбросить до значения по умолчанию",
-      "sidebar_description": "Настройка отображения активных мини-приложений в боковой панели",
-      "sidebar_title": "Отображение активных мини-приложений в боковой панели",
       "title": "Настройки мини-приложений",
       "visible": "Отображаемые мини-приложения"
     },
@@ -5275,6 +5335,24 @@
     "privacy": {
       "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике",
       "title": "Настройки конфиденциальности"
+    },
+    "prompts": {
+      "add": "Добавить промпт",
+      "contentLabel": "Содержание",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Удалить промпт",
+      "deleteConfirm": "Промпт будет удален без возможности восстановления. Продолжить?",
+      "edit": "Редактировать промпт",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Управление промптами",
+      "titleLabel": "Заголовок",
+      "titlePlaceholder": "Введите заголовок промпта"
     },
     "provider": {
       "add": {
@@ -5536,7 +5614,8 @@
         "documentation": "Смотрите официальную документацию для получения более подробной информации о конфигурации:",
         "learn_more": "Узнать больше",
         "location": "Местоположение",
-        "location_help": "Местоположение службы Vertex AI, например, us-central1",
+        "location_help": "Местоположение службы Vertex AI, например, us-central1. Это поле не считывается из JSON Service Account и должно быть заполнено вручную.",
+        "location_placeholder": "Выберите местоположение Vertex AI",
         "project_id": "ID проекта",
         "project_id_help": "Ваш ID проекта Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5547,6 +5626,11 @@
           "client_email_placeholder": "Введите email клиента Service Account",
           "description": "Используйте Service Account для аутентификации, подходит для сред, где ADC недоступен",
           "incomplete_config": "Пожалуйста, сначала завершите конфигурацию Service Account",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Вставьте полное содержимое JSON-ключа. После разбора сохраняются только project_id, client_email и private_key, а исходный JSON очищается.",
+          "json_input_placeholder": "Вставьте полное содержимое JSON-ключа Service Account",
+          "json_parse_error": "Не удалось разобрать Service Account JSON. Пожалуйста, проверьте правильность формата.",
+          "json_parse_success": "Service Account JSON разобран",
           "private_key": "Приватный ключ",
           "private_key_help": "Поле private_key из файла ключа JSON, загруженного из Google Cloud Console",
           "private_key_placeholder": "Введите приватный ключ Service Account",
@@ -5582,20 +5666,6 @@
       "page": "Страница",
       "select": "Выбрать",
       "title": "Быстрое меню"
-    },
-    "quickPhrase": {
-      "add": "Добавить фразу",
-      "assistant": "Подсказки ассистента",
-      "contentLabel": "Содержание",
-      "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}.",
-      "delete": "Удалить фразу",
-      "deleteConfirm": "После удаления фраза не может быть восстановлена, продолжить?",
-      "edit": "Редактировать фразу",
-      "global": "Глобальные быстрые фразы",
-      "locationLabel": "Место добавления",
-      "title": "Быстрые фразы",
-      "titleLabel": "Заголовок",
-      "titlePlaceholder": "Введите заголовок фразы"
     },
     "scheduledTasks": {
       "description": "Управляйте запланированными задачами на всех агентах. Задачи выполняются автоматически по заданному расписанию.",
@@ -5766,23 +5836,10 @@
               "token": "Токены"
             }
           },
-          "error": {
-            "rag_failed": "RAG не удалось"
-          },
-          "info": {
-            "dimensions_auto_success": "Размерности успешно получены, размерности: {{dimensions}}"
-          },
           "method": {
             "cutoff": "Обрезка",
             "label": "Метод сжатия",
-            "none": "Не сжимать",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Количество фрагментов документов",
-              "tooltip": "Ожидаемое количество фрагментов документов, которые будут извлечены из каждого результата поиска. Фактическое количество извлеченных фрагментов документов равно этому значению, умноженному на количество результатов поиска."
-            }
+            "none": "Не сжимать"
           },
           "title": "Сжатие результатов поиска"
         },

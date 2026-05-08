@@ -36,7 +36,9 @@
         "comingSoon": "În curând",
         "connected": "Conectat",
         "connecting": "Conectare",
+        "createError": "[to be translated]:Failed to create channel",
         "deleteConfirm": "Șterge canalul „{{name}}”?",
+        "deleteError": "[to be translated]:Failed to delete channel",
         "description": "Conectați agentul la platforme de mesagerie.",
         "disconnected": "Deconectat",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Canale",
+        "updateError": "[to be translated]:Failed to update channel",
         "wechat": {
           "addAccount": "Adaugă cont WeChat",
           "chatIds": "ID-uri de utilizator permise",
@@ -211,6 +214,9 @@
         },
         "edit": "Editează",
         "empty": "Nu există sarcini programate. Adăugați una pentru a începe.",
+        "error": {
+          "loadFailed": "[to be translated]:Failed to load tasks"
+        },
         "intervalPlaceholder": "Interval în minute",
         "intervalUnit": "minute",
         "lastRun": "Ultima rulare",
@@ -220,6 +226,7 @@
           "error": "Eroare",
           "justNow": "chiar acum",
           "label": "Istoric rulări",
+          "loadError": "[to be translated]:Failed to load run history",
           "result": "Rezultat",
           "runAt": "Rulat la",
           "running": "Alergând...",
@@ -949,17 +956,6 @@
         "off_description": "Dezactivează raționamentul",
         "xhigh": "Extra ridicat",
         "xhigh_description": "Raționament de nivel extra ridicat"
-      },
-      "regular_phrases": {
-        "add": "Adaugă expresie",
-        "contentLabel": "Conținut",
-        "contentPlaceholder": "Te rugăm să introduci conținutul expresiei; poți folosi variabile și poți apăsa Tab pentru a localiza rapid variabila de modificat. De exemplu: \nAjută-mă să planific o rută de la ${from} până la ${to} și trimite-o la ${email}.",
-        "delete": "Șterge expresia",
-        "deleteConfirm": "Ești sigur că vrei să ștergi această expresie?",
-        "edit": "Editează expresia",
-        "title": "Expresie uzuală",
-        "titleLabel": "Titlu",
-        "titlePlaceholder": "Introdu titlul"
       },
       "title": "Setări asistent",
       "tool_use_mode": {
@@ -2140,7 +2136,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
-    "minapps": "Mini-aplicații"
+    "miniApps": "Mini-aplicații"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2490,20 +2486,23 @@
     "websearch": {
       "cutoff": "Se trunchiază conținutul căutării...",
       "fetch_complete": "{{count}} rezultat(e) căutare",
-      "rag": "Se execută RAG...",
-      "rag_complete": "Se păstrează {{countAfter}} din {{countBefore}} rezultate...",
-      "rag_failed": "RAG a eșuat, se returnează rezultate goale..."
+      "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Adaugă în Launchpad",
     "add_to_sidebar": "Adaugă în bara laterală",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
-      "close": "Închide MinApp",
+      "close": "Închide MiniApp",
       "devtools": "Instrumente dezvoltator",
       "goBack": "Mergi înapoi",
       "goForward": "Mergi înainte",
-      "minimize": "Minimizează MinApp",
       "openExternal": "Deschide în browser",
       "open_link_external_off": "Curent: Deschide linkurile în fereastra implicită",
       "open_link_external_on": "Curent: Deschide linkurile în browser",
@@ -2512,6 +2511,13 @@
     },
     "remove_from_launchpad": "Elimină din Launchpad",
     "remove_from_sidebar": "Elimină din bara laterală",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Închide"
@@ -2526,9 +2532,11 @@
         "title": "Șterge aplicația personalizată"
       }
     },
-    "title": "MinApp"
+    "title": "MiniApp",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -2547,6 +2555,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -3818,6 +3827,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "[to be translated]:New Agent",
+      "empty_text": "[to be translated]:No agents yet",
+      "search_placeholder": "[to be translated]:Search agents…"
+    },
+    "assistant": {
+      "create_new": "[to be translated]:New Assistant",
+      "empty_text": "[to be translated]:No assistants yet",
+      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
+      "multi_label": "[to be translated]:Multi-assistant parallel",
+      "search_placeholder": "[to be translated]:Search assistants…"
+    },
+    "common": {
+      "edit": "[to be translated]:Edit",
+      "pin": "[to be translated]:Pin",
+      "pinned_title": "[to be translated]:Pinned",
+      "sort": {
+        "asc": "[to be translated]:Oldest",
+        "desc": "[to be translated]:Recent"
+      },
+      "sort_label": "[to be translated]:Sort",
+      "unpin": "[to be translated]:Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3885,6 +3919,34 @@
       "title": "Canale"
     },
     "componentLab": {
+      "agentSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Agent Selector",
+        "triggerPlaceholder": "[to be translated]:Select an agent",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "assistantSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Assistant Selector",
+        "triggerPlaceholder": "[to be translated]:Select an assistant",
+        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
+        "valueProp": "[to be translated]:Current value"
+      },
       "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
       "label": "[to be translated]:Component Lab",
       "modelSelector": {
@@ -3972,7 +4034,7 @@
       },
       "clear_cache": {
         "button": "Golește memoria cache",
-        "confirm": "Golirea memoriei cache va șterge datele cache ale aplicației, inclusiv datele minapp. Această acțiune este ireversibilă, continui?",
+        "confirm": "Golirea memoriei cache va șterge datele cache ale aplicației, inclusiv datele miniapp. Această acțiune este ireversibilă, continui?",
         "error": "Eroare la golirea memoriei cache",
         "success": "Memoria cache a fost golită",
         "title": "Golește memoria cache"
@@ -4589,8 +4651,8 @@
         "knowledge": {
           "icon": "Afișează pictograma Cunoștințe"
         },
-        "minapp": {
-          "icon": "Afișează pictograma MinApp"
+        "miniApp": {
+          "icon": "Afișează pictograma MiniApp"
         },
         "painting": {
           "icon": "Afișează pictograma Imagini"
@@ -4991,7 +5053,7 @@
       "title": "Setări mesaje",
       "use_serif_font": "Folosește font serif"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise atinge valoarea setată",
       "cache_description": "Setează numărul maxim de mini-aplicații active de păstrat în memorie",
       "cache_settings": "Setări cache",
@@ -5041,8 +5103,6 @@
         "title": "Filtru zonă aplicație miniatură"
       },
       "reset_tooltip": "Resetează la implicit",
-      "sidebar_description": "Afișează mini-aplicațiile active în bara laterală",
-      "sidebar_title": "Afișare mini-aplicații active în bara laterală",
       "title": "Setări mini-aplicații",
       "visible": "Mini-aplicații vizibile"
     },
@@ -5275,6 +5335,24 @@
     "privacy": {
       "enable_privacy_mode": "Raportare anonimă a erorilor și statisticilor",
       "title": "Setări confidențialitate"
+    },
+    "prompts": {
+      "add": "[to be translated]:Add Prompt",
+      "contentLabel": "[to be translated]:Content",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "[to be translated]:Delete Prompt",
+      "deleteConfirm": "[to be translated]:The prompt will be permanently deleted. Continue?",
+      "edit": "[to be translated]:Edit Prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "[to be translated]:Prompt Management",
+      "titleLabel": "[to be translated]:Title",
+      "titlePlaceholder": "[to be translated]:Enter prompt title"
     },
     "provider": {
       "add": {
@@ -5536,7 +5614,8 @@
         "documentation": "Vezi documentația oficială pentru mai multe detalii de configurare:",
         "learn_more": "Află mai multe",
         "location": "Locație",
-        "location_help": "Locația serviciului Vertex AI, de ex., us-central1",
+        "location_help": "Locația serviciului Vertex AI, de ex., us-central1. Acest câmp nu este citit din JSON-ul Service Account și trebuie introdus manual.",
+        "location_placeholder": "Selectează locația Vertex AI",
         "project_id": "ID Proiect",
         "project_id_help": "ID-ul tău de proiect Google Cloud",
         "project_id_placeholder": "id-ul-tau-proiect-google-cloud",
@@ -5547,6 +5626,11 @@
           "client_email_placeholder": "Introdu e-mailul clientului Contului de Serviciu",
           "description": "Folosește Contul de Serviciu pentru autentificare, potrivit pentru mediile unde ADC nu este disponibil",
           "incomplete_config": "Te rugăm să finalizezi mai întâi configurarea Contului de Serviciu",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Lipește conținutul complet al cheii JSON. După analiză, se salvează doar project_id, client_email și private_key, iar JSON-ul inițial este șters.",
+          "json_input_placeholder": "Lipește conținutul complet al cheii JSON pentru Service Account",
+          "json_parse_error": "Analizarea Service Account JSON a eșuat. Te rugăm să confirmi că formatul este corect.",
+          "json_parse_success": "Service Account JSON analizat",
           "private_key": "Cheie privată",
           "private_key_help": "Câmpul private_key din fișierul cheie JSON descărcat din Google Cloud Console",
           "private_key_placeholder": "Introdu cheia privată a Contului de Serviciu",
@@ -5582,20 +5666,6 @@
       "page": "Pagină",
       "select": "Selectează",
       "title": "Meniu rapid"
-    },
-    "quickPhrase": {
-      "add": "Adaugă expresie",
-      "assistant": "Expresii asistent",
-      "contentLabel": "Conținut",
-      "contentPlaceholder": "Te rugăm să introduci conținutul expresiei, poți folosi variabile și poți apăsa Tab pentru a localiza rapid variabila de modificat. De exemplu: \nAjută-mă să planific o rută de la ${from} la ${to} și trimite-o la ${email}.",
-      "delete": "Șterge expresia",
-      "deleteConfirm": "Expresia nu poate fi recuperată după ștergere, continui?",
-      "edit": "Editează expresia",
-      "global": "Expresii globale",
-      "locationLabel": "Adaugă locație",
-      "title": "Expresii rapide",
-      "titleLabel": "Titlu",
-      "titlePlaceholder": "Te rugăm să introduci titlul expresiei"
     },
     "scheduledTasks": {
       "description": "Gestionați sarcinile programate pentru toți agenții. Sarcinile rulează automat conform programului configurat.",
@@ -5766,23 +5836,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG eșuat"
-          },
-          "info": {
-            "dimensions_auto_success": "Dimensiuni obținute automat cu succes, dimensiuni: {{dimensions}}"
-          },
           "method": {
             "cutoff": "Trunchiere",
             "label": "Metodă compresie",
-            "none": "Niciuna",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Număr fragmente document",
-              "tooltip": "Numărul așteptat de fragmente de document de extras din fiecare rezultat al căutării; numărul total real de fragmente extrase este această valoare înmulțită cu numărul de rezultate ale căutării."
-            }
+            "none": "Niciuna"
           },
           "title": "Compresie rezultate căutare"
         },

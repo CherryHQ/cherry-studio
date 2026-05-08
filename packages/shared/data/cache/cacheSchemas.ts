@@ -1,3 +1,5 @@
+import type { MiniAppRegion } from '@shared/data/types/miniApp'
+
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -121,11 +123,15 @@ export type UseCacheSchema = {
   'chat.generating': boolean
   'chat.web_search.searching': boolean
 
-  // Minapp management
-  'minapp.opened_keep_alive': CacheValueTypes.CacheMinAppType[]
-  'minapp.current_id': string
-  'minapp.show': boolean
-  'minapp.opened_oneoff': CacheValueTypes.CacheMinAppType | null
+  // Knowledge recall test query history (session-only)
+  'knowledge.recall.search_queries': Record<string, string[]>
+
+  // MiniApp management
+  'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
+  'mini_app.current_id': string
+  'mini_app.show': boolean
+  'mini_app.opened_oneoff': CacheValueTypes.CacheMiniAppType | null
+  'mini_app.detected_region': MiniAppRegion | null
 
   // Topic management
   'topic.active': CacheValueTypes.CacheTopic | null
@@ -190,12 +196,14 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.selected_message_ids': [],
   'chat.generating': false,
   'chat.web_search.searching': false,
+  'knowledge.recall.search_queries': {},
 
-  // Minapp management
-  'minapp.opened_keep_alive': [],
-  'minapp.current_id': '',
-  'minapp.show': false,
-  'minapp.opened_oneoff': null,
+  // MiniApp management
+  'mini_app.opened_keep_alive': [],
+  'mini_app.current_id': '',
+  'mini_app.show': false,
+  'mini_app.opened_oneoff': null,
+  'mini_app.detected_region': null,
 
   // Topic management
   'topic.active': null,

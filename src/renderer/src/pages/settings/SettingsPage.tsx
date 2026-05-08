@@ -126,9 +126,9 @@ const SettingsPage: FC = () => {
             />
             <MenuItem
               icon={<Zap size={18} />}
-              label={t('settings.quickPhrase.title')}
-              active={isActive('/settings/quickphrase')}
-              onClick={() => go('/settings/quickphrase')}
+              label={t('settings.prompts.title')}
+              active={isActive('/settings/prompts')}
+              onClick={() => go('/settings/prompts')}
             />
             <MenuItem
               icon={<Command size={18} />}
