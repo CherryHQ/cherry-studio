@@ -21,7 +21,6 @@ import {
   Search,
   Server,
   Settings2,
-  Sparkles,
   TextCursorInput,
   Zap
 } from 'lucide-react'
@@ -86,13 +85,6 @@ const SettingsPage: FC = () => {
                 label={t('settings.mcp.title')}
                 active={isActive('/settings/mcp')}
                 onClick={() => go('/settings/mcp')}
-              />
-              <MenuItem
-                className={menuItemClassName}
-                icon={<Sparkles />}
-                label={t('settings.skills.title')}
-                active={isActive('/settings/skills')}
-                onClick={() => go('/settings/skills')}
               />
               <MenuItem
                 className={menuItemClassName}
