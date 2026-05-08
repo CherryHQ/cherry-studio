@@ -23,11 +23,11 @@ import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useUpdateWebSearchProviderOverride } from '@renderer/hooks/useWebSearchProviders'
 import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import { updateWebSearchProviderPreferenceOverride } from '@renderer/services/WebSearchService'
 import type { SystemProviderId } from '@renderer/types'
 import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
@@ -131,6 +131,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const hideApiInput = noAPIInputProviders.some((id) => id === provider.id)
   const noAPIKeyInputProviders = ['copilot', 'vertexai'] as const satisfies SystemProviderId[]
   const hideApiKeyInput = noAPIKeyInputProviders.some((id) => id === provider.id)
+  const updateWebSearchProviderOverride = useUpdateWebSearchProviderOverride()
 
   const providerConfig = PROVIDER_URLS[provider.id]
   const officialWebsite = providerConfig?.websites?.official
@@ -149,13 +150,13 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const updateWebSearchProviderKey = useCallback(
     ({ apiKey }: { apiKey: string }) => {
       if (provider.id === 'zhipu') {
-        void updateWebSearchProviderPreferenceOverride('zhipu', { apiKey: apiKey.split(',')[0] }).catch((error) => {
+        void updateWebSearchProviderOverride('zhipu', { apiKey: apiKey.split(',')[0] }).catch((error) => {
           logger.error('Failed to update Zhipu web-search provider preference override', { error })
           window.toast.error(t('error.diagnosis.unknown'))
         })
       }
     },
-    [provider.id, t]
+    [provider.id, t, updateWebSearchProviderOverride]
   )
 
   // Store callbacks in ref to avoid recreating debounce function when dependencies change

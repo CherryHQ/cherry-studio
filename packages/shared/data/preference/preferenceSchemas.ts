@@ -571,7 +571,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.web_search.compression.cutoff_limit': 2000,
     'chat.web_search.compression.cutoff_unit': 'char',
     'chat.web_search.compression.method': 'none',
-    'chat.web_search.default_fetch_urls_provider': null,
+    'chat.web_search.default_fetch_urls_provider': 'fetch',
     'chat.web_search.default_search_keywords_provider': null,
     'chat.web_search.exclude_domains': [],
     'chat.web_search.max_results': 5,

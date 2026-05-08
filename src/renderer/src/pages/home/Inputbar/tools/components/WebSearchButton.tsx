@@ -12,18 +12,13 @@ interface Props {
   assistantId: string
 }
 
-const WebSearchButton: FC<Props> = ({ quickPanelController, assistantId }) => {
+const WebSearchButton: FC<Props> = ({ assistantId }) => {
   const { t } = useTranslation()
-  const { enableWebSearch, toggleQuickPanel, updateWebSearchProvider, selectedProviderId } =
-    useWebSearchPanelController(assistantId, quickPanelController)
+  const { enableWebSearch, updateToModelBuiltinWebSearch } = useWebSearchPanelController(assistantId)
 
   const onClick = useCallback(() => {
-    if (enableWebSearch) {
-      void updateWebSearchProvider(undefined)
-    } else {
-      toggleQuickPanel()
-    }
-  }, [enableWebSearch, toggleQuickPanel, updateWebSearchProvider])
+    updateToModelBuiltinWebSearch()
+  }, [updateToModelBuiltinWebSearch])
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
 
@@ -34,7 +29,7 @@ const WebSearchButton: FC<Props> = ({ quickPanelController, assistantId }) => {
         active={!!enableWebSearch}
         aria-label={ariaLabel}
         aria-pressed={!!enableWebSearch}
-        icon={<WebSearchProviderIcon pid={selectedProviderId} />}></ActionIconButton>
+        icon={<WebSearchProviderIcon />}></ActionIconButton>
     </Tooltip>
   )
 }

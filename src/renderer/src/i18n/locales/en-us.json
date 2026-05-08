@@ -5880,6 +5880,10 @@
         "blacklist": "Blacklist",
         "blacklist_description": "Results from the following websites will not appear in search results",
         "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
+        "capability": {
+          "fetchUrls": "URL fetch endpoint",
+          "searchKeywords": "Search endpoint"
+        },
         "check": "Check",
         "check_failed": "Verification failed",
         "check_success": "Verification successful",
@@ -5905,6 +5909,7 @@
         "content_limit": "Content length limit",
         "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
         "default_provider": "Default Provider",
+        "fetch_urls_provider": "Default URL fetch provider",
         "free": "Free",
         "is_default": "Default",
         "local_provider": {
@@ -5922,7 +5927,6 @@
         },
         "search_provider": "Search service provider",
         "search_provider_placeholder": "Choose a search service provider.",
-        "search_with_time": "Search with dates included",
         "set_as_default": "Set as Default",
         "subscribe": "Blacklist Subscription",
         "subscribe_add": "Add Subscription",

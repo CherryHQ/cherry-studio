@@ -15,7 +15,6 @@ export type RendererCompressionConfig = {
 export type WebSearchState = {
   defaultProvider: WebSearchProviderId | null
   providers: WebSearchProvider[]
-  searchWithTime: boolean
   maxResults: number
   excludeDomains: string[]
   subscribeSources: WebSearchSubscribeSource[]

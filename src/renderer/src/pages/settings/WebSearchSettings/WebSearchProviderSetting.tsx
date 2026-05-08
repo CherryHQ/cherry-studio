@@ -1,6 +1,5 @@
-import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Button, ButtonGroup, Divider, Flex, InfoTooltip, Input, Label, RowFlex, Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
+import { ExportOutlined } from '@ant-design/icons'
+import { Button, Divider, Flex, InfoTooltip, Input, Label, RowFlex, Tooltip } from '@cherrystudio/ui'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import {
   getWebSearchProviderLogo,
@@ -8,11 +7,11 @@ import {
   webSearchProviderRequiresApiKey,
   webSearchProviderSupportsBasicAuth
 } from '@renderer/config/webSearchProviders'
-import { useTimer } from '@renderer/hooks/useTimer'
 import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
-import { webSearchService } from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys } from '@renderer/utils'
+import { getWebSearchProviderAvailability } from '@renderer/utils/webSearchProviders'
+import type { WebSearchProviderFeatureCapability } from '@shared/data/presets/web-search-providers'
 import { List } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -28,7 +27,6 @@ import {
   SettingTitleExternalLink
 } from '..'
 
-const logger = loggerService.withContext('WebSearchProviderSetting')
 interface Props {
   providerId: WebSearchProviderId
 }
@@ -38,12 +36,9 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const { provider: defaultProvider, setDefaultProvider } = useDefaultWebSearchProvider()
   const { t } = useTranslation()
   const [apiKey, setApiKey] = useState(provider.apiKey || '')
-  const [apiHost, setApiHost] = useState(provider.apiHost || '')
-  const [apiChecking, setApiChecking] = useState(false)
+  const [apiHosts, setApiHosts] = useState<Record<string, string>>({})
   const [basicAuthUsername, setBasicAuthUsername] = useState(provider.basicAuthUsername || '')
   const [basicAuthPassword, setBasicAuthPassword] = useState(provider.basicAuthPassword || '')
-  const [apiValid, setApiValid] = useState(false)
-  const { setTimeoutTimer } = useTimer()
 
   const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
   const apiKeyWebsite = webSearchProviderConfig?.websites?.apiKey
@@ -55,15 +50,20 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     }
   }
 
-  const onUpdateApiHost = () => {
-    let trimmedHost = apiHost?.trim() || ''
+  const onUpdateApiHost = (capability: WebSearchProviderFeatureCapability) => {
+    let trimmedHost = apiHosts[capability.feature]?.trim() || ''
     if (trimmedHost.endsWith('/')) {
       trimmedHost = trimmedHost.slice(0, -1)
     }
-    if (trimmedHost !== provider.apiHost) {
-      void updateProvider({ apiHost: trimmedHost })
+
+    if (trimmedHost !== (capability.apiHost ?? '')) {
+      void updateProvider({
+        capabilities: provider.capabilities.map((item) =>
+          item.feature === capability.feature ? { ...item, apiHost: trimmedHost } : item
+        )
+      })
     } else {
-      setApiHost(provider.apiHost || '')
+      setApiHosts((current) => ({ ...current, [capability.feature]: capability.apiHost ?? '' }))
     }
   }
 
@@ -94,65 +94,21 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     })
   }
 
-  async function checkSearch() {
-    if (!provider) {
-      window.toast.error({
-        title: t('settings.no_provider_selected'),
-        timeout: 3000
-      })
-      return
-    }
-
-    if (needsApiKey && !hasApiKey) {
-      return
-    }
-
-    if (apiKey.includes(',')) {
-      await openApiKeyList()
-      return
-    }
-
-    try {
-      setApiChecking(true)
-      const { valid, error } = await webSearchService.checkSearch({ ...provider, apiKey, apiHost })
-
-      const errorMessage = error && error?.message ? ' ' + error?.message : ''
-      window.toast[valid ? 'success' : 'error']({
-        timeout: valid ? 2000 : 8000,
-        title: valid
-          ? t('settings.tool.websearch.check_success')
-          : t('settings.tool.websearch.check_failed') + errorMessage
-      })
-
-      setApiValid(valid)
-    } catch (err) {
-      logger.error('Check search error:', err as Error)
-      setApiValid(false)
-      window.toast.error({
-        timeout: 8000,
-        title: t('settings.tool.websearch.check_failed')
-      })
-    } finally {
-      setApiChecking(false)
-      setTimeoutTimer('checkSearch', () => setApiValid(false), 2500)
-    }
-  }
-
   useEffect(() => {
     setApiKey(provider.apiKey ?? '')
-    setApiHost(provider.apiHost ?? '')
+    setApiHosts(
+      Object.fromEntries(provider.capabilities.map((capability) => [capability.feature, capability.apiHost ?? '']))
+    )
     setBasicAuthUsername(provider.basicAuthUsername ?? '')
     setBasicAuthPassword(provider.basicAuthPassword ?? '')
-  }, [provider.apiKey, provider.apiHost, provider.basicAuthUsername, provider.basicAuthPassword])
+  }, [provider.apiKey, provider.capabilities, provider.basicAuthUsername, provider.basicAuthPassword])
 
   const providerLogo = getWebSearchProviderLogo(providerId)
 
   const isDefault = defaultProvider?.id === provider.id
   const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
   const supportsBasicAuth = webSearchProviderSupportsBasicAuth(provider.id)
-  const hasApiKey = apiKey.split(',').some((key) => key.trim() !== '')
-  const canCheckSearch = !apiChecking && (!needsApiKey || hasApiKey)
-  const canSetAsDefault = !isDefault && webSearchService.isWebSearchEnabled(provider.id) === true
+  const canSetAsDefault = !isDefault && getWebSearchProviderAvailability(provider, 'searchKeywords').available
 
   const handleSetAsDefault = () => {
     if (canSetAsDefault) {
@@ -200,7 +156,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               </Button>
             </Tooltip>
           </SettingSubtitle>
-          <ButtonGroup className="w-full">
+          <div className="w-full">
             <Input
               type="password"
               value={apiKey}
@@ -211,20 +167,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               autoFocus={apiKey === ''}
               className="min-w-0 flex-1"
             />
-            <Button
-              variant="outline"
-              className="h-9 shrink-0 px-3 shadow-none"
-              onClick={checkSearch}
-              disabled={!canCheckSearch}>
-              {apiChecking ? (
-                <LoadingOutlined spin />
-              ) : apiValid ? (
-                <CheckOutlined />
-              ) : (
-                t('settings.tool.websearch.check')
-              )}
-            </Button>
-          </ButtonGroup>
+          </div>
           <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
             <RowFlex>
               {apiKeyWebsite && (
@@ -237,24 +180,32 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           </SettingHelpTextRow>
         </>
       )}
-      {provider.apiHost !== undefined && (
+      {provider.capabilities.map((capability) => (
+        <div key={capability.feature}>
+          {capability.apiHost !== undefined && (
+            <>
+              <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
+                {t(`settings.tool.websearch.capability.${capability.feature}`)}
+              </SettingSubtitle>
+              <Flex className="gap-2">
+                <Input
+                  value={apiHosts[capability.feature] ?? ''}
+                  placeholder={t('settings.provider.api_host')}
+                  onChange={(e) => setApiHosts((current) => ({ ...current, [capability.feature]: e.target.value }))}
+                  onBlur={() => onUpdateApiHost(capability)}
+                />
+              </Flex>
+            </>
+          )}
+        </div>
+      ))}
+      {provider.capabilities.length > 0 && (
         <>
-          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
-            {t('settings.provider.api_host')}
-          </SettingSubtitle>
-          <Flex className="gap-2">
-            <Input
-              value={apiHost}
-              placeholder={t('settings.provider.api_host')}
-              onChange={(e) => setApiHost(e.target.value)}
-              onBlur={onUpdateApiHost}
-            />
-          </Flex>
+          <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
         </>
       )}
       {supportsBasicAuth && (
         <>
-          <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
           <SettingSubtitle
             style={{ marginTop: 5, marginBottom: 10, display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
             {t('settings.provider.basic_auth.label')}

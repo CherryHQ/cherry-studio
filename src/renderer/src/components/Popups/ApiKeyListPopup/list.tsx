@@ -196,10 +196,10 @@ export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, showHea
   return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
 }
 
-export const WebSearchApiKeyList: FC<WebSearchApiKeyList> = ({ providerId, showHealthCheck = true }) => {
+export const WebSearchApiKeyList: FC<WebSearchApiKeyList> = ({ providerId }) => {
   const { provider, updateProvider } = useWebSearchProvider(providerId)
 
-  return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
+  return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={false} />
 }
 
 export const DocPreprocessApiKeyList: FC<DocPreprocessApiKeyListProps> = ({ providerId, showHealthCheck = true }) => {

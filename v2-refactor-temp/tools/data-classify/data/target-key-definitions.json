@@ -50,7 +50,7 @@
     {
       "targetKey": "chat.web_search.default_fetch_urls_provider",
       "type": "PreferenceTypes.WebSearchProviderId",
-      "defaultValue": null,
+      "defaultValue": "fetch",
       "status": "classified",
       "description": "Default Web Search provider for URL fetch capability"
     },

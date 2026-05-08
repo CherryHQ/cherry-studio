@@ -1,4 +1,4 @@
-import type { WebSearchToolInput, WebSearchToolOutput } from '@renderer/aiCore/tools/WebSearchTool'
+import type { FetchUrlsToolInput, FetchUrlsToolOutput, WebSearchToolInput } from '@renderer/aiCore/tools/WebSearchTool'
 import Spinner from '@renderer/components/Spinner'
 import type { NormalToolResponse } from '@renderer/types'
 import { Typography } from 'antd'
@@ -10,15 +10,16 @@ const { Text } = Typography
 
 export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const { t } = useTranslation()
-  const toolInput = toolResponse.arguments as WebSearchToolInput
-  const toolOutput = toolResponse.response as WebSearchToolOutput
+  const toolInput = toolResponse.arguments as FetchUrlsToolInput | WebSearchToolInput
+  const toolOutput = toolResponse.response as FetchUrlsToolOutput
+  const inputs = 'urls' in toolInput ? toolInput.urls : toolInput.queries || [toolInput.additionalContext]
 
   return toolResponse.status !== 'done' ? (
     <Spinner
       text={
         <PrepareToolWrapper>
           {t('message.searching')}
-          <span>{toolInput?.additionalContext ?? ''}</span>
+          <span>{inputs?.join(', ') ?? ''}</span>
         </PrepareToolWrapper>
       }
     />

@@ -1,21 +1,23 @@
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { filterSupportedWebSearchProviders } from '@renderer/config/webSearchProviders'
+import type { WebSearchProviderId } from '@renderer/types'
 import {
   buildRendererWebSearchState,
   buildWebSearchProviderOverrides,
+  type RendererWebSearchProvider,
   resolveWebSearchProviders,
   updateWebSearchProviderOverride,
-  WEB_SEARCH_PREFERENCE_KEYS
-} from '@renderer/services/WebSearchService'
-import type { WebSearchProvider, WebSearchProviderId, WebSearchState } from '@renderer/types'
+  WEB_SEARCH_PREFERENCE_KEYS,
+  type WebSearchPreferenceValues
+} from '@renderer/utils/webSearchProviders'
 import type { UnifiedPreferenceType, WebSearchSubscribeSource } from '@shared/data/preference/preferenceTypes'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 import { t } from 'i18next'
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 
 const logger = loggerService.withContext('useWebSearchProviders')
+const WEB_SEARCH_PROVIDER_OVERRIDE_UPDATE_OPTIONS = { optimistic: false } as const
 
 async function safeSetWebSearchPreference(action: string, update: () => Promise<void>): Promise<void> {
   try {
@@ -37,25 +39,40 @@ export const useDefaultWebSearchProvider = () => {
   const { providers } = useWebSearchProviders()
   const provider = defaultProviderId ? providers.find((item) => item.id === defaultProviderId) : undefined
 
-  const setDefaultProvider = (nextProvider: WebSearchProvider) => {
+  const setDefaultProvider = (nextProvider: RendererWebSearchProvider) => {
     return safeSetWebSearchPreference('defaultProvider', () => setDefaultProviderId(nextProvider.id))
   }
 
   return { provider, setDefaultProvider, updateDefaultProvider: setDefaultProvider }
 }
 
+export const useDefaultFetchUrlsProvider = () => {
+  const [defaultProviderId, setDefaultProviderId] = usePreference('chat.web_search.default_fetch_urls_provider')
+  const { providers } = useWebSearchProviders()
+  const provider = defaultProviderId ? providers.find((item) => item.id === defaultProviderId) : undefined
+
+  const setDefaultProvider = (nextProvider: RendererWebSearchProvider) => {
+    return safeSetWebSearchPreference('defaultFetchUrlsProvider', () => setDefaultProviderId(nextProvider.id))
+  }
+
+  return { provider, setDefaultProvider, updateDefaultProvider: setDefaultProvider }
+}
+
 export const useWebSearchProviders = () => {
-  const [providerOverrides, setProviderOverrides] = usePreference('chat.web_search.provider_overrides')
+  const [providerOverrides, setProviderOverrides] = usePreference(
+    'chat.web_search.provider_overrides',
+    WEB_SEARCH_PROVIDER_OVERRIDE_UPDATE_OPTIONS
+  )
   const resolvedProviders = useMemo(() => resolveRendererWebSearchProviders(providerOverrides), [providerOverrides])
 
   return {
     providers: resolvedProviders,
-    updateWebSearchProviders: (nextProviders: WebSearchProvider[]) => {
+    updateWebSearchProviders: (nextProviders: RendererWebSearchProvider[]) => {
       return safeSetWebSearchPreference('providerOverrides', () =>
         setProviderOverrides(buildWebSearchProviderOverrides(nextProviders))
       )
     },
-    addWebSearchProvider: (provider: WebSearchProvider) => {
+    addWebSearchProvider: (provider: RendererWebSearchProvider) => {
       const exists = resolvedProviders.some((item) => item.id === provider.id)
       if (!exists) {
         return safeSetWebSearchPreference('providerOverrides', () =>
@@ -68,7 +85,10 @@ export const useWebSearchProviders = () => {
 }
 
 export const useWebSearchProvider = (id: WebSearchProviderId) => {
-  const [providerOverrides, setProviderOverrides] = usePreference('chat.web_search.provider_overrides')
+  const [providerOverrides, setProviderOverrides] = usePreference(
+    'chat.web_search.provider_overrides',
+    WEB_SEARCH_PROVIDER_OVERRIDE_UPDATE_OPTIONS
+  )
   const providers = useMemo(() => resolveRendererWebSearchProviders(providerOverrides), [providerOverrides])
   const provider = providers.find((item) => item.id === id)
 
@@ -78,12 +98,28 @@ export const useWebSearchProvider = (id: WebSearchProviderId) => {
 
   return {
     provider,
-    updateProvider: (updates: Partial<WebSearchProvider>) => {
+    updateProvider: (updates: Partial<RendererWebSearchProvider>) => {
       return safeSetWebSearchPreference('providerOverride', () =>
         setProviderOverrides(updateWebSearchProviderOverride(providerOverrides, id, updates))
       )
     }
   }
+}
+
+export const useUpdateWebSearchProviderOverride = () => {
+  const [providerOverrides, setProviderOverrides] = usePreference(
+    'chat.web_search.provider_overrides',
+    WEB_SEARCH_PROVIDER_OVERRIDE_UPDATE_OPTIONS
+  )
+
+  return useCallback(
+    (providerId: WebSearchProviderId, updates: Partial<RendererWebSearchProvider>) => {
+      return safeSetWebSearchPreference('providerOverride', () =>
+        setProviderOverrides(updateWebSearchProviderOverride(providerOverrides, providerId, updates))
+      )
+    },
+    [providerOverrides, setProviderOverrides]
+  )
 }
 
 export const useBlacklist = () => {
@@ -115,11 +151,12 @@ export const useBlacklist = () => {
   }
 }
 
-export const useWebSearchSettings = (): WebSearchState & {
+export const useWebSearchSettings = (): ReturnType<typeof buildRendererWebSearchState> & {
   setMaxResults: (value: number) => Promise<void>
-  setSearchWithTime: (value: boolean) => Promise<void>
-  setCompressionConfig: (config: WebSearchState['compressionConfig']) => Promise<void>
-  updateCompressionConfig: (config: Partial<WebSearchState['compressionConfig']>) => Promise<void>
+  setCompressionConfig: (config: ReturnType<typeof buildRendererWebSearchState>['compressionConfig']) => Promise<void>
+  updateCompressionConfig: (
+    config: Partial<ReturnType<typeof buildRendererWebSearchState>['compressionConfig']>
+  ) => Promise<void>
 } => {
   const [preferences, setPreferences] = useMultiplePreferences(WEB_SEARCH_PREFERENCE_KEYS)
   const state = buildRendererWebSearchState(preferences)
@@ -129,12 +166,9 @@ export const useWebSearchSettings = (): WebSearchState & {
     setMaxResults: async (value: number) => {
       await safeSetWebSearchPreference('maxResults', () => setPreferences({ maxResults: value }))
     },
-    setSearchWithTime: async (value: boolean) => {
-      await safeSetWebSearchPreference('searchWithTime', () => setPreferences({ searchWithTime: value }))
-    },
     setCompressionConfig: async (config) => {
       await safeSetWebSearchPreference('compressionConfig', () =>
-        setCompressionPreferences(config, state.compressionConfig)
+        setCompressionPreferences(setPreferences, config, state.compressionConfig)
       )
     },
     updateCompressionConfig: async (config) => {
@@ -143,34 +177,44 @@ export const useWebSearchSettings = (): WebSearchState & {
         ...config
       }
       await safeSetWebSearchPreference('compressionConfig', () =>
-        setCompressionPreferences(nextConfig, state.compressionConfig)
+        setCompressionPreferences(setPreferences, nextConfig, state.compressionConfig)
       )
     }
   }
 }
 
 async function setCompressionPreferences(
-  nextConfig: WebSearchState['compressionConfig'],
-  currentConfig: WebSearchState['compressionConfig']
+  setPreferences: (updates: Partial<WebSearchPreferenceValues>) => Promise<void>,
+  nextConfig: ReturnType<typeof buildRendererWebSearchState>['compressionConfig'],
+  currentConfig: ReturnType<typeof buildRendererWebSearchState>['compressionConfig']
 ) {
   const nextValues = mapCompressionConfigToPreferenceValues(nextConfig)
   const currentValues = mapCompressionConfigToPreferenceValues(currentConfig)
+  const updates: Partial<WebSearchPreferenceValues> = {}
 
-  for (const [key, value] of Object.entries(nextValues)) {
-    if (currentValues[key as keyof UnifiedPreferenceType] === value) {
-      continue
-    }
+  if (currentValues.compressionMethod !== nextValues.compressionMethod) {
+    updates.compressionMethod = nextValues.compressionMethod
+  }
 
-    await preferenceService.set(key as keyof UnifiedPreferenceType, value)
+  if (currentValues.cutoffLimit !== nextValues.cutoffLimit) {
+    updates.cutoffLimit = nextValues.cutoffLimit
+  }
+
+  if (currentValues.cutoffUnit !== nextValues.cutoffUnit) {
+    updates.cutoffUnit = nextValues.cutoffUnit
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await setPreferences(updates)
   }
 }
 
 function mapCompressionConfigToPreferenceValues(
-  config: WebSearchState['compressionConfig']
-): Partial<UnifiedPreferenceType> {
+  config: ReturnType<typeof buildRendererWebSearchState>['compressionConfig']
+): Pick<WebSearchPreferenceValues, 'compressionMethod' | 'cutoffLimit' | 'cutoffUnit'> {
   return {
-    'chat.web_search.compression.method': config.method,
-    'chat.web_search.compression.cutoff_limit': normalizeWebSearchCutoffLimit(config.cutoffLimit),
-    'chat.web_search.compression.cutoff_unit': config.cutoffUnit ?? 'char'
+    compressionMethod: config.method,
+    cutoffLimit: normalizeWebSearchCutoffLimit(config.cutoffLimit),
+    cutoffUnit: config.cutoffUnit ?? 'char'
   }
 }

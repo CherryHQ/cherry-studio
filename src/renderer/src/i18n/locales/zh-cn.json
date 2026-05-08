@@ -5880,6 +5880,10 @@
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
         "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
+        "capability": {
+          "fetchUrls": "URL 获取端点",
+          "searchKeywords": "搜索端点"
+        },
         "check": "检测",
         "check_failed": "验证失败",
         "check_success": "验证成功",
@@ -5905,6 +5909,7 @@
         "content_limit": "内容长度限制",
         "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断",
         "default_provider": "默认搜索引擎",
+        "fetch_urls_provider": "默认 URL 获取服务商",
         "free": "免费",
         "is_default": "默认搜索",
         "local_provider": {
@@ -5922,7 +5927,6 @@
         },
         "search_provider": "搜索服务商",
         "search_provider_placeholder": "选择一个搜索服务商",
-        "search_with_time": "搜索包含日期",
         "set_as_default": "设为默认",
         "subscribe": "黑名单订阅",
         "subscribe_add": "添加订阅",

@@ -1,7 +1,11 @@
 import { Badge, MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getWebSearchProviderLogo } from '@renderer/config/webSearchProviders'
-import { useDefaultWebSearchProvider, useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
+import {
+  useDefaultFetchUrlsProvider,
+  useDefaultWebSearchProvider,
+  useWebSearchProviders
+} from '@renderer/hooks/useWebSearchProviders'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import type { FC } from 'react'
@@ -20,6 +24,7 @@ const WebSearchSettings: FC = () => {
   const { t } = useTranslation()
   const { providers } = useWebSearchProviders()
   const { provider: defaultProvider } = useDefaultWebSearchProvider()
+  const { provider: defaultFetchUrlsProvider } = useDefaultFetchUrlsProvider()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -57,7 +62,7 @@ const WebSearchSettings: FC = () => {
             <div className={settingsSubmenuSectionTitleClassName}>{t('settings.tool.websearch.api_providers')}</div>
             {providers.map((provider) => {
               const logo = getWebSearchProviderLogo(provider.id)
-              const isDefault = defaultProvider?.id === provider.id
+              const isDefault = defaultProvider?.id === provider.id || defaultFetchUrlsProvider?.id === provider.id
               return (
                 <MenuItem
                   key={provider.id}

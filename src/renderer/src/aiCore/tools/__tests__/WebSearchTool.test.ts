@@ -1,155 +1,102 @@
-import type { WebSearchProviderResponse } from '@renderer/types'
+import type { WebSearchResponse } from '@shared/data/types/webSearch'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { fetchUrlsTool, webSearchTool } from '../WebSearchTool'
+
 const mocks = vi.hoisted(() => ({
-  getWebSearchProviderAsync: vi.fn(),
-  processWebsearch: vi.fn(),
-  loggerWarn: vi.fn()
+  searchKeywords: vi.fn(),
+  fetchUrls: vi.fn()
 }))
 
-vi.mock('@renderer/services/WebSearchService', () => ({
-  webSearchService: {
-    getWebSearchProviderAsync: mocks.getWebSearchProviderAsync,
-    processWebsearch: mocks.processWebsearch
-  }
-}))
+beforeEach(() => {
+  mocks.searchKeywords.mockReset()
+  mocks.fetchUrls.mockReset()
+  vi.stubGlobal('window', {
+    api: {
+      webSearch: {
+        searchKeywords: mocks.searchKeywords,
+        fetchUrls: mocks.fetchUrls
+      }
+    }
+  })
+})
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: vi.fn(() => ({
-      warn: mocks.loggerWarn
-    }))
-  }
-}))
-
-import { webSearchToolWithPreExtractedKeywords } from '../WebSearchTool'
-
-describe('webSearchToolWithPreExtractedKeywords', () => {
-  beforeEach(() => {
-    mocks.getWebSearchProviderAsync.mockReset()
-    mocks.processWebsearch.mockReset()
-    mocks.loggerWarn.mockReset()
-    mocks.getWebSearchProviderAsync.mockResolvedValue({ id: 'tavily' })
-    mocks.processWebsearch.mockResolvedValue({
-      query: 'first | second',
+describe('webSearchTool', () => {
+  it('deduplicates and limits queries before calling main web search IPC', async () => {
+    const response: WebSearchResponse = {
+      query: 'first | second | third',
+      providerId: 'tavily',
+      capability: 'searchKeywords',
+      inputs: ['first', 'second', 'third'],
       results: [
         {
           title: 'Result',
           content: 'Content',
-          url: 'https://example.com/path?utm_source=newsletter#details'
+          url: 'https://example.com/path?utm_source=newsletter#details',
+          sourceInput: 'first'
         }
       ]
-    })
-  })
+    }
+    mocks.searchKeywords.mockResolvedValue(response)
 
-  it('deduplicates queries, limits them, keeps full URLs in output, and shortens model URLs', async () => {
-    const searchTool = webSearchToolWithPreExtractedKeywords(
-      'tavily',
-      {
-        question: [' first ', 'FIRST', 'second', 'third', 'fourth']
-      },
-      'request-1'
-    ) as any
+    const searchTool = webSearchTool() as any
+    const result = await searchTool.execute({ queries: [' first ', 'FIRST', 'second', 'third', 'fourth'] })
 
-    const firstResult = await searchTool.execute({})
-    const secondResult = await searchTool.execute({ additionalContext: 'new context' })
+    expect(mocks.searchKeywords).toHaveBeenCalledWith({ keywords: ['first', 'second', 'third'] })
+    expect(result).toBe(response)
 
-    expect(mocks.processWebsearch).toHaveBeenCalledTimes(1)
-    expect(mocks.processWebsearch).toHaveBeenCalledWith(
-      { id: 'tavily' },
-      {
-        websearch: {
-          question: ['first', 'second', 'third'],
-          links: undefined
-        }
-      },
-      'request-1'
-    )
-    expect(firstResult.results[0].url).toBe('https://example.com/path?utm_source=newsletter#details')
-    expect(secondResult).toBe(firstResult)
-
-    const modelOutput = searchTool.toModelOutput({ output: firstResult })
+    const modelOutput = searchTool.toModelOutput({ output: result })
     const modelText = modelOutput.value.map((part: { text: string }) => part.text).join('\n')
 
     expect(modelText).toContain('"url": "https://example.com"')
     expect(modelText).not.toContain('utm_source')
   })
 
-  it('reuses the in-flight search request for concurrent executions', async () => {
-    const searchResponse: WebSearchProviderResponse = {
-      query: 'first',
+  it('accepts legacy additionalContext input as a single query', async () => {
+    const response: WebSearchResponse = {
+      query: 'latest cherry studio',
+      providerId: 'tavily',
+      capability: 'searchKeywords',
+      inputs: ['latest cherry studio'],
+      results: []
+    }
+    mocks.searchKeywords.mockResolvedValue(response)
+
+    const searchTool = webSearchTool() as any
+    await searchTool.execute({ additionalContext: ' latest cherry studio ' })
+
+    expect(mocks.searchKeywords).toHaveBeenCalledWith({ keywords: ['latest cherry studio'] })
+  })
+})
+
+describe('fetchUrlsTool', () => {
+  it('deduplicates URLs before calling main fetch URLs IPC', async () => {
+    const response: WebSearchResponse = {
+      query: 'https://example.com',
+      providerId: 'fetch',
+      capability: 'fetchUrls',
+      inputs: ['https://example.com'],
       results: [
         {
-          title: 'Result',
-          content: 'Content',
-          url: 'https://example.com/path?utm_source=newsletter#details'
+          title: 'Example',
+          content: 'Fetched content',
+          url: 'https://example.com',
+          sourceInput: 'https://example.com'
         }
       ]
     }
-    mocks.processWebsearch.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(searchResponse), 0))
-    )
+    mocks.fetchUrls.mockResolvedValue(response)
 
-    const searchTool = webSearchToolWithPreExtractedKeywords(
-      'tavily',
-      {
-        question: ['first']
-      },
-      'request-1'
-    ) as any
+    const fetchTool = fetchUrlsTool() as any
+    const result = await fetchTool.execute({ urls: [' https://example.com ', 'https://example.com'] })
 
-    const [firstResult, secondResult] = await Promise.all([
-      searchTool.execute({ additionalContext: 'first context' }),
-      searchTool.execute({ additionalContext: 'second context' })
-    ])
+    expect(mocks.fetchUrls).toHaveBeenCalledWith({ urls: ['https://example.com'] })
+    expect(result).toBe(response)
 
-    expect(mocks.processWebsearch).toHaveBeenCalledTimes(1)
-    expect(mocks.processWebsearch).toHaveBeenCalledWith(
-      { id: 'tavily' },
-      {
-        websearch: {
-          question: ['first context'],
-          links: undefined
-        }
-      },
-      'request-1'
-    )
-    expect(firstResult).toBe(searchResponse)
-    expect(secondResult).toBe(searchResponse)
-  })
-
-  it('returns an explicit unavailable result when the configured provider is unavailable', async () => {
-    mocks.getWebSearchProviderAsync.mockResolvedValue(undefined)
-
-    const searchTool = webSearchToolWithPreExtractedKeywords(
-      'tavily',
-      { question: ['latest cherry studio'] },
-      'request-1'
-    )
-
-    const result = await searchTool.execute?.({ additionalContext: undefined }, {} as never)
-
-    expect(result).toEqual({
-      query: 'latest cherry studio',
-      results: [
-        {
-          title: 'Web search provider unavailable',
-          content: 'Web search provider "tavily" is unavailable, so the prepared search could not be executed.',
-          url: 'web-search-provider-unavailable'
-        }
-      ]
-    })
-
-    expect(mocks.processWebsearch).not.toHaveBeenCalled()
-    expect(mocks.loggerWarn).toHaveBeenCalledWith('Skip web search because provider is unavailable', {
-      webSearchProviderId: 'tavily',
-      requestId: 'request-1'
-    })
-
-    const modelOutput = (searchTool as any).toModelOutput({ output: result })
+    const modelOutput = fetchTool.toModelOutput({ output: result })
     const modelText = modelOutput.value.map((part: { text: string }) => part.text).join('\n')
 
-    expect(modelText).toContain('configured provider is unavailable')
-    expect(modelText).not.toContain('No search needed')
+    expect(modelText).toContain('fetches URL content')
+    expect(modelText).toContain('"title": "Example"')
   })
 })
