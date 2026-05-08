@@ -103,12 +103,12 @@ describe('OpenClawService gateway status state machine', () => {
   })
 
   describe('getDashboardUrl', () => {
-    it('uses query string token to preserve dashboard UI state', () => {
+    it('uses fragment token to keep dashboard auth client-side', () => {
       // @ts-expect-error -- accessing private field for testing
       service.gatewayAuthToken = 'a b+c'
 
       const url = service.getDashboardUrl()
-      expect(url).toBe(`http://127.0.0.1:18790?token=${encodeURIComponent('a b+c')}`)
+      expect(url).toBe(`http://127.0.0.1:18790#token=${encodeURIComponent('a b+c')}`)
     })
   })
 

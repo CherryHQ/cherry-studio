@@ -741,7 +741,7 @@ export class OpenClawService extends BaseService {
 
   /**
    * Get OpenClaw Dashboard URL (for opening in miniapp).
-   * The Control UI uses ?token= to auto-authenticate the WebSocket connection.
+   * The Control UI uses #token= to auto-authenticate the WebSocket connection.
    */
   public getDashboardUrl(): string {
     // Ensure we have the token (may have been lost after app restart)
@@ -750,8 +750,7 @@ export class OpenClawService extends BaseService {
     }
     let url = `http://127.0.0.1:${this.gatewayPort}`
     if (this.gatewayAuthToken) {
-      // Use query string (not URL fragment) so dashboard app state can persist correctly.
-      // Fragment (#...) is often used by SPAs for transient client-side state.
+      // Use URL fragment so the token stays client-side and is not sent in HTTP requests.
       url += `#token=${encodeURIComponent(this.gatewayAuthToken)}`
     }
     return url
