@@ -187,9 +187,7 @@ export default function AddModelFormPanel({
                 maxInputTokens={formState.maxInputTokens}
                 maxOutputTokens={formState.maxOutputTokens}
                 onMaxInputTokensChange={(value) => setFormState((current) => ({ ...current, maxInputTokens: value }))}
-                onMaxOutputTokensChange={(value) =>
-                  setFormState((current) => ({ ...current, maxOutputTokens: value }))
-                }
+                onMaxOutputTokensChange={(value) => setFormState((current) => ({ ...current, maxOutputTokens: value }))}
               />
             </div>
           </ProviderSection>

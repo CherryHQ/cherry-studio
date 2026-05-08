@@ -117,9 +117,7 @@ export function ModelContextWindowFields({
 
   return (
     <>
-      <ProviderField
-        title={t('settings.models.add.max_input_tokens.label')}
-        titleClassName={drawerFieldTitleClassName}>
+      <ProviderField title={t('settings.models.add.max_input_tokens.label')} titleClassName={drawerFieldTitleClassName}>
         <input
           type="number"
           min={1}

@@ -1,23 +1,21 @@
 import type { CreateModelInput } from '@data/services/ModelService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
-import {
-  BulkUpdateModelsSchema,
-  CreateModelsSchema,
-  MODELS_BATCH_MAX_ITEMS
-} from '@shared/data/api/schemas/models'
+import { BulkUpdateModelsSchema, CreateModelsSchema, MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 
-const { listMock, getByKeyMock, updateMock, deleteMock, createMock, bulkUpdateMock, lookupModelMock } = vi.hoisted(() => ({
-  listMock: vi.fn(),
-  getByKeyMock: vi.fn(),
-  updateMock: vi.fn(),
-  deleteMock: vi.fn(),
-  createMock: vi.fn(),
-  bulkUpdateMock: vi.fn(),
-  lookupModelMock: vi.fn()
-}))
+const { listMock, getByKeyMock, updateMock, deleteMock, createMock, bulkUpdateMock, lookupModelMock } = vi.hoisted(
+  () => ({
+    listMock: vi.fn(),
+    getByKeyMock: vi.fn(),
+    updateMock: vi.fn(),
+    deleteMock: vi.fn(),
+    createMock: vi.fn(),
+    bulkUpdateMock: vi.fn(),
+    lookupModelMock: vi.fn()
+  })
+)
 
 vi.mock('@data/services/ModelService', () => ({
   modelService: {

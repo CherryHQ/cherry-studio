@@ -214,7 +214,11 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
 
         <div className={apiKeyListClasses.actionRow}>
           <div className={apiKeyListClasses.helperText}>{t('settings.provider.api_key.tip')}</div>
-          <Button className={apiKeyListClasses.addButton} variant="outline" disabled={!!draft || saving} onClick={startAdd}>
+          <Button
+            className={apiKeyListClasses.addButton}
+            variant="outline"
+            disabled={!!draft || saving}
+            onClick={startAdd}>
             <Plus size={14} />
             {t('common.add')}
           </Button>
@@ -316,7 +320,11 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
         </button>
         <div className={apiKeyListClasses.actionCluster}>
           <Tooltip content={t('settings.provider.api_key.copy')}>
-            <Button variant="ghost" size="icon-sm" disabled={saving} onClick={() => void navigator.clipboard.writeText(entry.key)}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              disabled={saving}
+              onClick={() => void navigator.clipboard.writeText(entry.key)}>
               <Copy size={14} />
             </Button>
           </Tooltip>
