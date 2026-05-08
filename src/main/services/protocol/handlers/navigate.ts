@@ -5,9 +5,8 @@ import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
 
 const logger = loggerService.withContext('ProtocolService:navigate')
 
-// Allowed route prefixes to prevent arbitrary navigation
-const ALLOWED_ROUTES = [
-  '/settings/',
+const ALLOWED_ROUTE_PREFIXES = [
+  '/settings',
   '/agents',
   '/knowledge',
   '/openclaw',
@@ -18,9 +17,11 @@ const ALLOWED_ROUTES = [
   '/apps',
   '/code',
   '/store',
-  '/launchpad',
-  '/'
+  '/launchpad'
 ]
+
+const isAllowedRoute = (path: string): boolean =>
+  ALLOWED_ROUTE_PREFIXES.some((route) => path === route || path.startsWith(`${route}/`))
 
 /**
  * Handle cherrystudio://navigate/<path> deep links.
@@ -34,7 +35,7 @@ export function handleNavigateProtocolUrl(url: URL) {
   const targetPath = url.pathname || '/'
   const normalizedPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`
 
-  if (!ALLOWED_ROUTES.some((route) => normalizedPath === route || normalizedPath.startsWith(route))) {
+  if (!isAllowedRoute(normalizedPath)) {
     logger.warn(`Blocked navigation to disallowed route: ${normalizedPath}`)
     return
   }
@@ -68,7 +69,7 @@ export function handleNavigateProtocolUrl(url: URL) {
         return
       }
 
-      void mainWindow.webContents.executeJavaScript(`window.navigate('${fullPath}')`)
+      await mainWindow.webContents.executeJavaScript(`window.navigate({ to: ${JSON.stringify(fullPath)} })`)
       if (isMac) {
         application.get('MainWindowService').showMainWindow()
       }

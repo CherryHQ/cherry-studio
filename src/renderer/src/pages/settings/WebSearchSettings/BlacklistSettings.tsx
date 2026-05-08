@@ -215,6 +215,10 @@ const BlacklistSettings: FC = () => {
       setSelectedRowKeys([])
     } catch (error) {
       logger.error('Error deleting subscribes:', error as Error)
+      window.toast.error({
+        title: `${t('common.delete_failed')}: ${formatErrorMessage(error)}`,
+        timeout: 2000
+      })
     }
   }
 

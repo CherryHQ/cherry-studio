@@ -73,6 +73,8 @@ vi.mock('electron', () => ({
   shell: shellMock
 }))
 
+import { handleZoomFactor } from '@main/utils/zoom'
+
 import { AppMenuService } from '../AppMenuService'
 
 const latestTemplate = () => menuMock.buildFromTemplate.mock.calls.at(-1)?.[0] as MenuItemConstructorOptions[]
@@ -99,5 +101,37 @@ describe('AppMenuService', () => {
     settingsItem?.click?.(undefined as never, undefined as never, undefined as never)
 
     expect(settingsWindowServiceMock.openUsingPreference).toHaveBeenCalledWith('/settings/provider')
+  })
+
+  it('opens the About settings route from the native app menu', async () => {
+    await (service as any).onInit()
+
+    const appSubmenu = latestTemplate()[0].submenu as MenuItemConstructorOptions[]
+    const aboutItem = appSubmenu.find((item) => String(item.label).startsWith('About '))
+
+    aboutItem?.click?.(undefined as never, undefined as never, undefined as never)
+
+    expect(settingsWindowServiceMock.openUsingPreference).toHaveBeenCalledWith('/settings/about')
+  })
+
+  it('uses default zoom accelerators and wires them to zoom handling', async () => {
+    await (service as any).onInit()
+
+    const viewSubmenu = latestTemplate()[3].submenu as MenuItemConstructorOptions[]
+    const zoomInItem = viewSubmenu.find((item) => item.accelerator === 'CommandOrControl+=')
+    const zoomOutItem = viewSubmenu.find((item) => item.accelerator === 'CommandOrControl+-')
+    const zoomResetItem = viewSubmenu.find((item) => item.accelerator === 'CommandOrControl+0')
+
+    expect(zoomInItem).toBeTruthy()
+    expect(zoomOutItem).toBeTruthy()
+    expect(zoomResetItem).toBeTruthy()
+
+    zoomInItem?.click?.(undefined as never, undefined as never, undefined as never)
+    zoomOutItem?.click?.(undefined as never, undefined as never, undefined as never)
+    zoomResetItem?.click?.(undefined as never, undefined as never, undefined as never)
+
+    expect(handleZoomFactor).toHaveBeenCalledWith([], 0.1)
+    expect(handleZoomFactor).toHaveBeenCalledWith([], -0.1)
+    expect(handleZoomFactor).toHaveBeenCalledWith([], 0, true)
   })
 })

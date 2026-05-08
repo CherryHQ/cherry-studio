@@ -428,7 +428,7 @@ describe('useMiniAppPopup', () => {
     it('should still activate the app tab when the keep-alive entry already exists', async () => {
       // `MiniAppTabsPool.shouldShow` keys off the active tab URL, not pool
       // membership. Every caller of `openSmartMiniApp` (AboutSettings, S3,
-      // OpenClaw, etc.) sits on a non-mini-app route, so skipping `navigate`
+      // OpenClaw, etc.) sits on a non-mini-app route, so skipping `openTab`
       // when cached would leave the pool hidden and the user looking at a
       // settings page. Webview re-use stays correct: we don't recreate the
       // keep-alive entry or reset `src`, only the route activates.

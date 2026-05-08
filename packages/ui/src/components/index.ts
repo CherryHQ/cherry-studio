@@ -74,7 +74,6 @@ export { DraggableList, useDraggableReorder } from './composites/DraggableList'
 // EditableNumber
 export type { EditableNumberProps } from './composites/EditableNumber'
 export { default as EditableNumber } from './composites/EditableNumber'
-// Form (react-hook-form integration)
 export {
   Form,
   FormControl,

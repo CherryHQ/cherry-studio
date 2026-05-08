@@ -1,15 +1,19 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { isLinux, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { getThemeModeLabel } from '@renderer/i18n/label'
 import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { Monitor, Moon, Settings, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import WindowControls from '../WindowControls'
+
+const logger = loggerService.withContext('ShellTabBarActions')
 
 export function useShellTabBarLayout(isDetached: boolean) {
   const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
@@ -38,31 +42,36 @@ export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolea
 
   const ThemeIcon = settedTheme === 'dark' ? Moon : settedTheme === 'light' ? Sun : Monitor
 
-  const handleSettingsClick = () => {
+  const handleSettingsClick = async () => {
     const settingsPath = '/settings/provider'
 
-    if (settingsOpenTarget === 'app') {
-      const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
+    try {
+      if (settingsOpenTarget === 'app') {
+        const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
 
-      if (!hasUserTabsInTabBar) {
-        openTab(settingsPath, {
-          forceNew: true,
-          title: getDefaultRouteTitle(settingsPath)
-        })
+        if (!hasUserTabsInTabBar) {
+          openTab(settingsPath, {
+            forceNew: true,
+            title: getDefaultRouteTitle(settingsPath)
+          })
+          return
+        }
+
+        if (activeTabId) {
+          updateTab(activeTabId, {
+            url: settingsPath,
+            title: getDefaultRouteTitle(settingsPath),
+            icon: undefined
+          })
+        }
         return
       }
 
-      if (activeTabId) {
-        updateTab(activeTabId, {
-          url: settingsPath,
-          title: getDefaultRouteTitle(settingsPath),
-          icon: undefined
-        })
-      }
-      return
+      await openSettingsWindow(settingsPath)
+    } catch (error) {
+      logger.error('Failed to open settings', error as Error)
+      window.toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
     }
-
-    void openSettingsWindow(settingsPath)
   }
 
   return (

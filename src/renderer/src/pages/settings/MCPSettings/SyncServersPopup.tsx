@@ -142,7 +142,6 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
     defaultValues: { token: selectedProvider.getToken() ?? '' }
   })
 
-  // Reload token when provider switches
   useEffect(() => {
     form.reset({ token: selectedProvider.getToken() ?? '' })
   }, [selectedProvider, form])

@@ -46,8 +46,9 @@ export class MainWindowService extends BaseService {
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
         try {
           listener(this.mainWindow)
-        } catch {
+        } catch (error) {
           // Keep replay semantics aligned with Emitter.fire(): one listener must not break service init.
+          logger.error('Failed to replay main window listener', error as Error)
         }
       }
       return disposable

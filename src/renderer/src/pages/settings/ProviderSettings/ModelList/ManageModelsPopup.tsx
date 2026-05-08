@@ -274,7 +274,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
               value={searchText}
               onChange={(e) => {
                 const newSearchValue = e.target.value
-                setSearchText(newSearchValue) // Update input field immediately
+                setSearchText(newSearchValue)
                 debouncedSetFilterText(newSearchValue)
               }}
               disabled={loadingModels}

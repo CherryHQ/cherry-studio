@@ -72,25 +72,31 @@ export class ProtocolService extends BaseService {
   private handleProtocolUrl(url: string) {
     if (!url) return
 
-    const urlObj = new URL(url)
-    const params = new URLSearchParams(urlObj.search)
+    try {
+      const urlObj = new URL(url)
+      const params = new URLSearchParams(urlObj.search)
 
-    switch (urlObj.hostname.toLowerCase()) {
-      case 'mcp':
-        handleMcpProtocolUrl(urlObj)
-        return
-      case 'providers':
-        void handleProvidersProtocolUrl(urlObj)
-        return
-      case 'navigate':
-        handleNavigateProtocolUrl(urlObj)
-        return
+      switch (urlObj.hostname.toLowerCase()) {
+        case 'mcp':
+          handleMcpProtocolUrl(urlObj)
+          return
+        case 'providers':
+          handleProvidersProtocolUrl(urlObj).catch((error) =>
+            logger.error('Failed to handle providers protocol URL', error as Error)
+          )
+          return
+        case 'navigate':
+          handleNavigateProtocolUrl(urlObj)
+          return
+      }
+
+      application.get('WindowManager').broadcastToType(WindowType.Main, 'protocol-data', {
+        url,
+        params: Object.fromEntries(params.entries())
+      })
+    } catch (error) {
+      logger.error('Failed to handle protocol URL', error as Error)
     }
-
-    application.get('WindowManager').broadcastToType(WindowType.Main, 'protocol-data', {
-      url,
-      params: Object.fromEntries(params.entries())
-    })
   }
 
   private handleArgvForUrl(args: string[]) {

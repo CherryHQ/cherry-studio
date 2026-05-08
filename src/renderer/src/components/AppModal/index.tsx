@@ -10,6 +10,7 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { AlertCircle, CheckCircle2, Info, Loader2, TriangleAlert, XCircle } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
@@ -46,9 +47,7 @@ export interface AppModalFuncProps {
   okCancel?: boolean
 }
 
-export interface AppModalReturn extends PromiseLike<boolean> {
-  catch: Promise<boolean>['catch']
-  finally: Promise<boolean>['finally']
+export interface AppModalReturn extends Promise<boolean> {
   destroy: () => void
   update: (config: AppModalFuncProps) => void
 }
@@ -163,6 +162,7 @@ function AppModalItem({
       close(item.id, true)
     } catch (error) {
       logger.error('Modal onOk failed', error as Error)
+      window.toast.error({ title: i18n.t('common.error'), description: formatErrorMessage(error) })
       updateLoading(item.id, false)
     }
   }, [close, item.id, props, updateLoading])

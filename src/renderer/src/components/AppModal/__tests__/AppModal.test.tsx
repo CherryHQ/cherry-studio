@@ -1,7 +1,9 @@
 import i18n from '@renderer/i18n'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const toastError = vi.fn()
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -32,6 +34,14 @@ vi.mock('@cherrystudio/ui', () => {
 })
 
 import AppModalProvider, { type AppModalApi } from '..'
+
+beforeEach(() => {
+  toastError.mockClear()
+  Object.defineProperty(window, 'toast', {
+    configurable: true,
+    value: { error: toastError }
+  })
+})
 
 async function renderModalProvider() {
   let modal: AppModalApi | undefined
@@ -93,6 +103,7 @@ describe('AppModalProvider', () => {
     await waitFor(() => {
       expect(onOk).toHaveBeenCalledOnce()
     })
+    expect(toastError).toHaveBeenCalledWith({ title: i18n.t('common.error'), description: 'failed' })
     expect(screen.getByText('Retry action')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }))

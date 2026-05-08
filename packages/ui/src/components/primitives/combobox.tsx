@@ -68,20 +68,20 @@ const comboboxInputSizeClasses = {
 
 // ==================== Types ====================
 
-export interface ComboboxOption {
+export type ComboboxOption<TExtra extends object = Record<never, never>> = {
   value: string
   label: string
   disabled?: boolean
   icon?: React.ReactNode
   description?: string
-  [key: string]: any
-}
+} & TExtra
 
 export type ComboboxSearchPlacement = 'content' | 'trigger'
 
-export interface ComboboxProps extends Omit<VariantProps<typeof comboboxTriggerVariants>, 'state'> {
+export interface ComboboxProps<TExtra extends object = Record<never, never>>
+  extends Omit<VariantProps<typeof comboboxTriggerVariants>, 'state'> {
   // Data source
-  options: ComboboxOption[]
+  options: ComboboxOption<TExtra>[]
   value?: string | string[]
   defaultValue?: string | string[]
   onChange?: (value: string | string[]) => void
@@ -90,8 +90,8 @@ export interface ComboboxProps extends Omit<VariantProps<typeof comboboxTriggerV
   multiple?: boolean
 
   // Custom rendering
-  renderOption?: (option: ComboboxOption) => React.ReactNode
-  renderValue?: (value: string | string[], options: ComboboxOption[]) => React.ReactNode
+  renderOption?: (option: ComboboxOption<TExtra>) => React.ReactNode
+  renderValue?: (value: string | string[], options: ComboboxOption<TExtra>[]) => React.ReactNode
 
   // Search
   searchable?: boolean
@@ -99,7 +99,7 @@ export interface ComboboxProps extends Omit<VariantProps<typeof comboboxTriggerV
   searchPlaceholder?: string
   emptyText?: string
   onSearch?: (search: string) => void
-  filterOption?: (option: ComboboxOption, search: string) => boolean
+  filterOption?: (option: ComboboxOption<TExtra>, search: string) => boolean
 
   // State
   error?: boolean
@@ -120,7 +120,7 @@ export interface ComboboxProps extends Omit<VariantProps<typeof comboboxTriggerV
 
 // ==================== Component ====================
 
-export function Combobox({
+export function Combobox<TExtra extends object = Record<never, never>>({
   options,
   value: controlledValue,
   defaultValue,
@@ -145,7 +145,7 @@ export function Combobox({
   width,
   size,
   name
-}: ComboboxProps) {
+}: ComboboxProps<TExtra>) {
   // ==================== State ====================
   const [internalOpen, setInternalOpen] = React.useState(false)
   const [internalValue, setInternalValue] = React.useState<string | string[]>(defaultValue ?? (multiple ? [] : ''))
@@ -417,7 +417,7 @@ export function Combobox({
     )
   }
 
-  const renderOptionContent = (option: ComboboxOption) => {
+  const renderOptionContent = (option: ComboboxOption<TExtra>) => {
     if (renderOption) {
       return renderOption(option)
     }

@@ -137,7 +137,7 @@ export function loadScript(url: string) {
 /**
  * 检查 URL 是否包含路径部分。
  * @param {string} url 输入 URL 字符串
- * @returns {boolean} 如果 URL 包含路径则返回 true，否则返回 false
+ * @returns {boolean} true when the URL contains a path.
  */
 export function hasPath(url: string): boolean {
   try {
@@ -150,9 +150,9 @@ export function hasPath(url: string): boolean {
 }
 
 /**
- * 显示确认模态框。
- * @param {AppModalFuncProps} params 模态框参数
- * @returns {Promise<boolean>} 用户确认返回 true，取消返回 false
+ * Shows a confirmation modal.
+ * @param {AppModalFuncProps} params Modal options.
+ * @returns {Promise<boolean>} true when confirmed, false when cancelled.
  */
 export function modalConfirm(params: AppModalFuncProps): Promise<boolean> {
   return new Promise((resolve) => {

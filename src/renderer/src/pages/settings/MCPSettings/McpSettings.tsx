@@ -256,7 +256,8 @@ const McpSettings: React.FC = () => {
         const localTools = await window.api.mcp.listTools(server)
         setTools(localTools)
       } catch (error) {
-        setLoadingServer(server.id)
+        logger.error('Failed to list MCP tools', error as Error)
+        setTools([])
       } finally {
         setLoadingServer(null)
       }
@@ -270,6 +271,7 @@ const McpSettings: React.FC = () => {
         const localPrompts = await window.api.mcp.listPrompts(server)
         setPrompts(localPrompts)
       } catch (error) {
+        logger.error('Failed to list MCP prompts', error as Error)
         setPrompts([])
       } finally {
         setLoadingServer(null)
@@ -284,6 +286,7 @@ const McpSettings: React.FC = () => {
         const localResources = await window.api.mcp.listResources(server)
         setResources(localResources)
       } catch (error) {
+        logger.error('Failed to list MCP resources', error as Error)
         setResources([])
       } finally {
         setLoadingServer(null)
@@ -297,6 +300,7 @@ const McpSettings: React.FC = () => {
         const version = await window.api.mcp.getServerVersion(server)
         setServerVersion(version)
       } catch (error) {
+        logger.error('Failed to get MCP server version', error as Error)
         setServerVersion(null)
       }
     }
@@ -772,7 +776,7 @@ const McpSettings: React.FC = () => {
                               className="mt-2"
                               placeholder={t(
                                 'settings.mcp.customRegistryPlaceholder',
-                                '请输入私有仓库地址，如: https://npm.company.com'
+                                'Enter private registry URL, for example: https://npm.company.com'
                               )}
                               value={customRegistryUrl}
                               onChange={(e) => onCustomRegistryChange(e.target.value)}

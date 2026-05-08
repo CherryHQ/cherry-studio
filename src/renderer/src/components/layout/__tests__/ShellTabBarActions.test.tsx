@@ -1,18 +1,27 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     openSettingsWindow: vi.fn(),
     openTab: vi.fn(),
     updateTab: vi.fn(),
+    toastError: vi.fn(),
     tabs: [{ id: 'home' }],
     activeTabId: 'home',
     settingsOpenTarget: 'window'
+  }
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      error: vi.fn()
+    })
   }
 }))
 
@@ -49,6 +58,10 @@ vi.mock('@renderer/services/SettingsWindowService', () => ({
   openSettingsWindow: mocks.openSettingsWindow
 }))
 
+vi.mock('@renderer/utils/error', () => ({
+  formatErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
+}))
+
 vi.mock('@renderer/utils/routeTitle', () => ({
   getDefaultRouteTitle: () => 'Settings'
 }))
@@ -72,6 +85,13 @@ afterEach(() => {
 })
 
 describe('ShellTabBarActions', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'toast', {
+      configurable: true,
+      value: { error: mocks.toastError }
+    })
+  })
+
   it('opens settings in a new tab when app target is selected and only home exists', async () => {
     const user = userEvent.setup()
     mocks.settingsOpenTarget = 'app'
@@ -114,5 +134,18 @@ describe('ShellTabBarActions', () => {
     expect(mocks.openSettingsWindow).toHaveBeenCalledWith('/settings/provider')
     expect(mocks.openTab).not.toHaveBeenCalled()
     expect(mocks.updateTab).not.toHaveBeenCalled()
+  })
+
+  it('shows a toast when opening the settings window fails', async () => {
+    const user = userEvent.setup()
+    mocks.openSettingsWindow.mockRejectedValueOnce(new Error('IPC failed'))
+
+    render(<ShellTabBarActions />)
+
+    await user.click(screen.getByRole('button', { name: /settings/i }))
+
+    await waitFor(() => {
+      expect(mocks.toastError).toHaveBeenCalledWith({ title: 'common.error', description: 'IPC failed' })
+    })
   })
 })

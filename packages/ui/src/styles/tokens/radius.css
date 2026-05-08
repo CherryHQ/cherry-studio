@@ -14,5 +14,5 @@
   --cs-radius-xl: 0.875rem; /* 14px */
   --cs-radius-2xl: 1.125rem; /* 18px */
   --cs-radius-3xl: 1.375rem; /* 22px */
-  --cs-radius-round: 9999px; /* 完全圆角，保持 px */
+  --cs-radius-round: 9999px; /* fully rounded, keep px */
 }

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // Hoisted state lets individual tests mutate platform flags / preferences without
 // re-mocking modules. The mock factories below read these via getters, preserving
 // live-binding semantics so each test sees the current value.
-const { platformState, prefValues, applicationMock, windowManagerMock } = vi.hoisted(() => {
+const { platformState, prefValues, applicationMock, windowManagerMock, loggerMock } = vi.hoisted(() => {
   const platformState = { isMac: false, isWin: false, isLinux: false, isDev: false }
   const prefValues: Record<string, unknown> = {
     'app.tray.enabled': false,
@@ -26,6 +26,11 @@ const { platformState, prefValues, applicationMock, windowManagerMock } = vi.hoi
     onWindowDestroyedByType: vi.fn(() => vi.fn()),
     open: vi.fn(() => 'mock-window-id')
   }
+  const loggerMock = {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn()
+  }
   const applicationMock = {
     isQuitting: false,
     quit: vi.fn(),
@@ -41,7 +46,7 @@ const { platformState, prefValues, applicationMock, windowManagerMock } = vi.hoi
     }),
     getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
-  return { platformState, prefValues, applicationMock, windowManagerMock }
+  return { platformState, prefValues, applicationMock, windowManagerMock, loggerMock }
 })
 
 vi.mock('@main/constant', () => ({
@@ -61,7 +66,7 @@ vi.mock('@main/constant', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })
+    withContext: () => loggerMock
   }
 }))
 
@@ -181,6 +186,7 @@ describe('MainWindowService', () => {
     applicationMock.quit.mockReset()
     applicationMock.forceExit.mockReset()
     windowManagerMock.behavior.setMacShowInDockByType.mockReset()
+    loggerMock.error.mockReset()
 
     svc = new MainWindowService()
     win = createMockWindow()
@@ -197,6 +203,19 @@ describe('MainWindowService', () => {
     svc.onMainWindowCreated(listener)
 
     expect(listener).toHaveBeenCalledWith(win)
+  })
+
+  it('logs late subscriber replay failures without throwing', () => {
+    ;(svc as any).mainWindow = win
+    const error = new Error('listener failed')
+    const listener = vi.fn(() => {
+      throw error
+    })
+
+    expect(() => svc.onMainWindowCreated(listener)).not.toThrow()
+
+    expect(listener).toHaveBeenCalledWith(win)
+    expect(loggerMock.error).toHaveBeenCalledWith('Failed to replay main window listener', error)
   })
 
   describe('close handler', () => {
