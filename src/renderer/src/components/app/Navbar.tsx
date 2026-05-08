@@ -38,12 +38,7 @@ export const NavbarCenter: FC<Props> = ({ children, ...props }) => {
 }
 
 export const NavbarRight: FC<Props> = ({ children, ...props }) => {
-  const isFullscreen = useFullscreen()
-  return (
-    <NavbarRightContainer {...props} isFullscreen={isFullscreen}>
-      {children}
-    </NavbarRightContainer>
-  )
+  return <NavbarRightContainer {...props}>{children}</NavbarRightContainer>
 }
 
 export const NavbarMain: FC<Props> = ({ children, ...props }) => {
@@ -74,31 +69,24 @@ const NavbarContainer: FC<Props & { isFullScreen: boolean }> = ({ isFullScreen, 
 )
 
 const NavbarLeftContainer: FC<Props> = ({ className, ...props }) => (
-  <div className={cn('flex flex-row items-center px-2.5 font-bold text-[var(--color-text-1)]', className)} {...props} />
+  <div className={cn('flex flex-row items-center px-2.5 font-bold text-foreground', className)} {...props} />
 )
 
 const NavbarCenterContainer: FC<Props> = ({ className, style, ...props }) => (
   <div
-    className={cn('relative flex flex-1 items-center pl-2.5 font-bold text-[var(--color-text-1)]', className)}
+    className={cn('relative flex flex-1 items-center pl-2.5 font-bold text-foreground', className)}
     style={{ paddingRight: isMac ? '20px' : 0, ...style }}
     {...props}
   />
 )
 
-const NavbarRightContainer: FC<Props & { isFullscreen: boolean }> = ({
-  isFullscreen: _isFullscreen,
-  className,
-  ...props
-}) => (
+const NavbarRightContainer: FC<Props> = ({ className, ...props }) => (
   <div className={cn('flex min-w-(--topic-list-width) flex-1 items-center justify-end px-3', className)} {...props} />
 )
 
 const NavbarMainContainer: FC<Props & { isFullscreen: boolean }> = ({ isFullscreen, className, style, ...props }) => (
   <div
-    className={cn(
-      'flex flex-1 flex-row items-center justify-between pl-2.5 font-bold text-[var(--color-text-1)]',
-      className
-    )}
+    className={cn('flex flex-1 flex-row items-center justify-between pl-2.5 font-bold text-foreground', className)}
     style={{
       paddingRight: isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px',
       ...style

@@ -41,13 +41,13 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({
   return (
     <div className="flex w-full overflow-hidden rounded-lg border border-[var(--color-border)]" style={{ height }}>
       <textarea
-        className="flex-1 resize-none border-0 border-[var(--color-border)] border-r bg-[var(--color-bg-1)] p-3 font-[var(--font-family)] text-[var(--color-text)] text-sm leading-[1.5] outline-none placeholder:text-[var(--color-text-3)] focus:outline-none"
+        className="flex-1 resize-none border-0 border-[var(--color-border)] border-r bg-background p-3 font-[var(--font-family)] text-foreground text-sm leading-[1.5] outline-none placeholder:text-foreground-muted focus:outline-none"
         value={inputValue}
         onChange={handleChange}
         placeholder={placeholder}
         autoFocus={autoFocus}
       />
-      <div className="markdown flex-1 overflow-auto bg-[var(--color-bg-1)] p-3">
+      <div className="markdown flex-1 overflow-auto bg-background p-3">
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkCjkFriendly, remarkMath]}
           rehypePlugins={[rehypeRaw, rehypeKatex]}>

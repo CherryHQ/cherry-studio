@@ -45,7 +45,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
     return (
       <div className="flex flex-row items-center gap-1">
         <CustomTag
-          color="var(--color-link)"
+          color="var(--color-primary)"
           size={11}
           onClick={onNavigateProvider}
           style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -59,8 +59,8 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
   return (
     <div className="flex flex-row items-center gap-1">
       <IndicatorLight size={6} color="var(--color-primary)" animation={false} shadow={false} />
-      <span className="text-[12px] text-[var(--color-text-2)]">{t('common.powered_by')}</span>
-      <a className="text-[12px] text-[var(--color-link)]" onClick={onSelectProvider}>
+      <span className="text-[12px] text-foreground-secondary">{t('common.powered_by')}</span>
+      <a className="text-[12px] text-primary" onClick={onSelectProvider}>
         {getProviderLabel(providerId)}
       </a>
     </div>

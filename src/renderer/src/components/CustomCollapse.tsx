@@ -47,7 +47,7 @@ const CustomCollapse: FC<CustomCollapseProps> = ({
     padding: '3px 16px',
     alignItems: 'center',
     justifyContent: 'space-between',
-    background: 'var(--color-background-soft)'
+    background: 'var(--color-background-subtle)'
   }
 
   const getHeaderStyle = () => {
@@ -102,7 +102,7 @@ const CustomCollapse: FC<CustomCollapseProps> = ({
               className="min-w-0 flex-1 justify-start gap-2 rounded-none p-0 font-normal hover:no-underline [&>svg:last-child]:hidden">
               <ChevronRight
                 size={16}
-                color="var(--color-text-3)"
+                color="var(--color-foreground-muted)"
                 strokeWidth={1.5}
                 className="shrink-0 transition-transform"
                 style={{ transform: activeKeys.length > 0 ? 'rotate(90deg)' : 'rotate(0deg)' }}

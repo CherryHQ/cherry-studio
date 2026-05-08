@@ -85,13 +85,13 @@ const ErrorDetailItem = ({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 )
 
 const ErrorDetailLabel = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn('font-semibold text-[14px] text-[var(--color-text)]', className)} {...props} />
+  <div className={cn('font-semibold text-[14px] text-foreground', className)} {...props} />
 )
 
 const ErrorDetailValue = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'rounded-[4px] border border-[var(--color-border)] bg-[var(--color-code-background)] p-2 font-[var(--code-font-family)] text-[12px] text-[var(--color-text)] [word-break:break-word]',
+      'rounded-[4px] border border-[var(--color-border)] bg-background-subtle p-2 font-[var(--code-font-family)] text-[12px] text-foreground [word-break:break-word]',
       className
     )}
     {...props}
@@ -101,7 +101,7 @@ const ErrorDetailValue = ({ className, ...props }: React.HTMLAttributes<HTMLDivE
 const StackTrace = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'rounded-[6px] border border-[var(--color-error)] bg-[var(--color-background-soft)] p-3 [&_pre]:m-0 [&_pre]:whitespace-pre-wrap [&_pre]:font-[var(--code-font-family)] [&_pre]:text-[12px] [&_pre]:text-[var(--color-error)] [&_pre]:leading-[1.4] [&_pre]:[word-break:break-word]',
+      'rounded-[6px] border border-error-base bg-background-subtle p-3 [&_pre]:m-0 [&_pre]:whitespace-pre-wrap [&_pre]:font-[var(--code-font-family)] [&_pre]:text-[12px] [&_pre]:text-error-base [&_pre]:leading-[1.4] [&_pre]:[word-break:break-word]',
       className
     )}
     {...props}

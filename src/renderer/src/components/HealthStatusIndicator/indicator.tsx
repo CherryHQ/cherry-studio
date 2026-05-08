@@ -14,10 +14,10 @@ interface HealthStatusIndicatorProps {
 }
 
 const STATUS_COLOR = {
-  success: 'var(--color-status-success)',
-  error: 'var(--color-status-error)',
-  partial: 'var(--color-status-warning)',
-  checking: 'var(--color-text)'
+  success: 'var(--color-success-base)',
+  error: 'var(--color-error-base)',
+  partial: 'var(--color-warning-base)',
+  checking: 'var(--color-foreground)'
 } as const
 
 const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
@@ -69,7 +69,7 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
 
   return (
     <Flex className="items-center gap-1.5">
-      {latencyText && <span className="ml-2.5 text-[12px] text-[var(--color-text-secondary)]">{latencyText}</span>}
+      {latencyText && <span className="ml-2.5 text-[12px] text-foreground-secondary">{latencyText}</span>}
       <Tooltip content={tooltip} className="select-text">
         <div
           className="flex items-center justify-center text-sm"

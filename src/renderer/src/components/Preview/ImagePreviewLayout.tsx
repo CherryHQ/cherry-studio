@@ -48,8 +48,8 @@ const ImagePreviewLayout = ({
   return (
     <PreviewContainer className={`image-preview-layout flex-col ${className ?? ''}`}>
       {loading && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--color-background-opacity)]">
-          <LoadingIcon color="var(--color-text-2)" />
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background-subtle">
+          <LoadingIcon color="var(--color-foreground-secondary)" />
         </div>
       )}
       {error && <PreviewError>{error}</PreviewError>}

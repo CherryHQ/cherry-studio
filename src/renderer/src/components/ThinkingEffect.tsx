@@ -84,7 +84,7 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content
 
                 return (
                   <div
-                    className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-[var(--color-text-2)] leading-[14px]"
+                    className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-foreground-secondary leading-[14px]"
                     key={index}>
                     {message}
                   </div>
@@ -99,7 +99,7 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content
           'relative flex h-full w-10 shrink-0 items-center justify-center text-[var(--color-border)] transition-transform duration-150',
           expanded && 'rotate-90'
         )}>
-        <ChevronRight size={20} color="var(--color-text-3)" strokeWidth={1} />
+        <ChevronRight size={20} color="var(--color-foreground-muted)" strokeWidth={1} />
       </div>
     </div>
   )

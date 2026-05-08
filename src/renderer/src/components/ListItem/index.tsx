@@ -17,8 +17,8 @@ const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick, rightCon
   return (
     <div
       className={cn(
-        'relative flex cursor-pointer flex-col justify-between rounded-[var(--list-item-border-radius)] border border-transparent px-3 py-[7px] text-[13px] hover:bg-[var(--color-background-soft)]',
-        active && 'bg-[var(--color-background-soft)]'
+        'relative flex cursor-pointer flex-col justify-between rounded-[10px] border border-transparent px-3 py-[7px] text-[13px] hover:bg-accent',
+        active && 'bg-background-subtle'
       )}
       onClick={onClick}
       style={style}>
@@ -30,7 +30,7 @@ const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick, rightCon
               {title}
             </span>
           </Tooltip>
-          {subtitle && <div className="mt-[2px] line-clamp-1 text-[10px] text-[var(--color-text-3)]">{subtitle}</div>}
+          {subtitle && <div className="mt-[2px] line-clamp-1 text-[10px] text-foreground-muted">{subtitle}</div>}
         </div>
         {rightContent && <div className="ml-auto">{rightContent}</div>}
       </div>

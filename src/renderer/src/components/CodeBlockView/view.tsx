@@ -331,13 +331,13 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {
       return (
-        <div className="mt-1.5 flex h-4 items-center rounded-t-lg bg-transparent px-2.5 font-bold text-[var(--color-text)] text-sm leading-none" />
+        <div className="mt-1.5 flex h-4 items-center rounded-t-lg bg-transparent px-2.5 font-bold text-foreground text-sm leading-none" />
       )
     }
     const ext = getExtensionByLanguage(language)
     const iconName = getFileIconName(`file${ext}`)
     return (
-      <div className="flex h-[34px] items-center rounded-t-lg bg-[var(--color-background-mute)] px-2.5 font-bold text-[var(--color-text)] text-sm leading-none">
+      <div className="flex h-[34px] items-center rounded-t-lg bg-muted px-2.5 font-bold text-foreground text-sm leading-none">
         <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
         {language.charAt(0).toUpperCase() + language.slice(1)}
       </div>
@@ -357,7 +357,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           !hasStatusBar && '[&_.code-viewer]:rounded-[inherit]',
           showSpecialView &&
             showSourceView &&
-            "before:-translate-x-1/2 relative before:absolute before:top-0 before:bottom-0 before:left-1/2 before:z-[1] before:w-px before:bg-[var(--color-background-mute)] before:content-['']"
+            "before:-translate-x-1/2 relative before:absolute before:top-0 before:bottom-0 before:left-1/2 before:z-[1] before:w-px before:bg-muted before:content-['']"
         )}>
         {showSpecialView && specialView}
         {showSourceView && sourceView}
@@ -373,7 +373,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
         '[&:hover_.code-toolbar]:opacity-100 [&_.code-toolbar.show]:opacity-100',
         isInSpecialView
           ? '[&_.code-toolbar]:rounded-none [&_.code-toolbar]:bg-transparent'
-          : '[&_.code-toolbar]:rounded-[4px] [&_.code-toolbar]:bg-[var(--color-background-mute)]'
+          : '[&_.code-toolbar]:rounded-[4px] [&_.code-toolbar]:bg-muted'
       )}>
       {renderHeader}
       <CodeToolbar tools={tools} />

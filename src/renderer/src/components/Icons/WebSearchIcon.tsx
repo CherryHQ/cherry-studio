@@ -15,7 +15,7 @@ const WebSearchIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement
           size={15}
           className={props.className}
           style={{
-            color: 'var(--color-link)',
+            color: 'var(--color-primary)',
             marginRight: 6,
             ...props.style
           }}

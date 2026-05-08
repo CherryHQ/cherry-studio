@@ -53,16 +53,16 @@ const STYLE_CONTENT = `
   gap: 4px;
   padding: 4px 8px;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-background-soft);
+  background: var(--color-background-subtle);
   overflow-x: auto;
   overflow-y: hidden;
   white-space: nowrap;
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border) var(--color-background-soft);
+  scrollbar-color: var(--color-border) var(--color-background-subtle);
 }
 
 .ToolbarWrapper::-webkit-scrollbar-track {
-  background: var(--color-background-soft);
+  background: var(--color-background-subtle);
 }
 
 .ToolbarWrapper::-webkit-scrollbar-thumb {
@@ -71,7 +71,7 @@ const STYLE_CONTENT = `
 }
 
 .ToolbarWrapper::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-3);
+  background: var(--color-foreground-muted);
 }
 
 .ToolbarButton {
@@ -89,7 +89,12 @@ const STYLE_CONTENT = `
 }
 
 .ToolbarButton:hover:not(:disabled) {
-  background: var(--color-hover);
+  background: var(--color-accent);
+}
+
+.ToolbarButton.is-active {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
 }
 
 .ToolbarButton:disabled,
@@ -134,7 +139,7 @@ const STYLE_CONTENT = `
 
 .RichEditorContent .plus-button:hover,
 .RichEditorContent .drag-handle:hover {
-  background: var(--color-hover);
+  background: var(--color-accent);
 }
 
 .RichEditorContent .plus-button svg,
@@ -185,7 +190,7 @@ const STYLE_CONTENT = `
 
 .RichEditorContent .ProseMirror .rich-editor-link:hover {
   text-decoration-thickness: 2px;
-  background-color: var(--color-hover);
+  background-color: var(--color-accent);
   padding: 1px 2px;
   margin: -1px -2px;
   border-radius: 3px;
@@ -242,7 +247,7 @@ const STYLE_CONTENT = `
 .TableOfContentsWrapper .toc-item a {
   display: block;
   padding: 0.25rem 0.5rem;
-  color: var(--color-text-2);
+  color: var(--color-foreground-secondary);
   text-decoration: none;
   border-radius: 4px;
   font-size: 0.9rem;
@@ -251,8 +256,8 @@ const STYLE_CONTENT = `
 }
 
 .TableOfContentsWrapper .toc-item a:hover {
-  background: var(--color-hover);
-  color: var(--color-text);
+  background: var(--color-accent);
+  color: var(--color-foreground);
 }
 
 .TableOfContentsWrapper .toc-item.is-active a {
@@ -268,7 +273,7 @@ const STYLE_CONTENT = `
 .TableOfContentsWrapper .toc-empty-state {
   text-align: center;
   padding: 2rem 1rem;
-  color: var(--color-text-3);
+  color: var(--color-foreground-muted);
 }
 
 .TableOfContentsWrapper .toc-empty-state p {
@@ -319,7 +324,7 @@ const STYLE_CONTENT = `
   appearance: none;
   border: none;
   padding: 0;
-  background: var(--color-gray-3, var(--color-border));
+  background: var(--color-border, var(--color-border));
   height: 4px;
   border-radius: 3px;
   cursor: pointer;
@@ -334,18 +339,18 @@ const STYLE_CONTENT = `
 }
 
 .ToCDock .toc-rail-button:hover {
-  background: var(--color-text);
+  background: var(--color-foreground);
   opacity: 1;
   transform: scaleX(1.05);
 }
 
 .ToCDock .toc-rail-button.active {
-  background: var(--color-text);
+  background: var(--color-foreground);
   opacity: 1;
 }
 
 .ToCDock .toc-rail-button.scrolled-over {
-  background: var(--color-gray-3);
+  background: var(--color-border);
   opacity: 0.9;
 }
 
@@ -474,7 +479,7 @@ export const ToolbarWrapper = createDivComponent('ToolbarWrapper', 'ToolbarWrapp
 
 export const ToolbarButton = ({
   ref,
-  $active: _active,
+  $active,
   $disabled,
   className,
   disabled,
@@ -485,7 +490,7 @@ export const ToolbarButton = ({
     ...props,
     ref,
     disabled,
-    className: cn('ToolbarButton', $disabled && 'is-disabled', className)
+    className: cn('ToolbarButton', $active && 'is-active', $disabled && 'is-disabled', className)
   })
 }
 ToolbarButton.displayName = 'ToolbarButton'

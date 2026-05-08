@@ -364,7 +364,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                     <ActionIconButton
                       onClick={userOutlinedButtonOnClick}
                       icon={
-                        <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
+                        <User size={18} style={{ color: includeUser ? 'var(--color-primary)' : 'var(--color-icon)' }} />
                       }
                     />{' '}
                   </Tooltip>
@@ -375,7 +375,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                     icon={
                       <CaseSensitive
                         size={18}
-                        style={{ color: isCaseSensitive ? 'var(--color-link)' : 'var(--color-icon)' }}
+                        style={{ color: isCaseSensitive ? 'var(--color-primary)' : 'var(--color-icon)' }}
                       />
                     }
                   />{' '}
@@ -384,7 +384,10 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                   <ActionIconButton
                     onClick={wholeWordButtonOnClick}
                     icon={
-                      <WholeWord size={18} style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }} />
+                      <WholeWord
+                        size={18}
+                        style={{ color: isWholeWord ? 'var(--color-primary)' : 'var(--color-icon)' }}
+                      />
                     }
                   />
                 </Tooltip>
@@ -482,7 +485,7 @@ const Input = ({
   <input
     ref={ref}
     className={classNames(
-      'w-full flex-1 border-none bg-transparent px-[5px] py-0 font-[Ubuntu] text-[14px] text-[var(--color-text)] outline-none',
+      'w-full flex-1 border-none bg-transparent px-[5px] py-0 font-[Ubuntu] text-[14px] text-foreground outline-none',
       className
     )}
     {...props}
@@ -504,7 +507,7 @@ const Separator = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>
 const SearchResults = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={classNames(
-      'mx-[2px] flex w-20 flex-[0_0_auto] justify-center font-[Ubuntu] text-[14px] text-[var(--color-text-1)]',
+      'mx-[2px] flex w-20 flex-[0_0_auto] justify-center font-[Ubuntu] text-[14px] text-foreground',
       className
     )}
     {...props}
@@ -512,17 +515,17 @@ const SearchResults = ({ className, ...props }: React.HTMLAttributes<HTMLDivElem
 )
 
 const SearchResultsPlaceholder = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
-  <span className={classNames('text-[var(--color-text-1)] opacity-50', className)} {...props} />
+  <span className={classNames('text-foreground opacity-50', className)} {...props} />
 )
 
 const SearchResultCount = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
-  <span className={classNames('text-[var(--color-text)]', className)} {...props} />
+  <span className={classNames('text-foreground', className)} {...props} />
 )
 
 const SearchResultSeparator = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
-  <span className={classNames('mx-1 text-[var(--color-text)]', className)} {...props} />
+  <span className={classNames('mx-1 text-foreground', className)} {...props} />
 )
 
 const SearchResultTotalCount = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
-  <span className={classNames('text-[var(--color-text)]', className)} {...props} />
+  <span className={classNames('text-foreground', className)} {...props} />
 )

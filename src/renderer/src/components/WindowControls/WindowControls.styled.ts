@@ -16,10 +16,10 @@ export const ControlButton = ({
     ...props,
     className: cn(
       'relative flex h-full w-[46px] cursor-pointer items-center justify-center rounded-none border-none bg-transparent p-0',
-      'text-[var(--color-text)] outline-none transition-[background,color] duration-150 [&_svg]:pointer-events-none',
+      'text-foreground outline-none transition-[background,color] duration-150 [&_svg]:pointer-events-none',
       $isClose
         ? 'hover:bg-[#e81123] hover:text-white active:bg-[#c50e1f] active:text-white'
-        : 'hover:bg-[rgba(128,128,128,0.3)] hover:text-[var(--color-text)] active:bg-[rgba(128,128,128,0.4)] active:text-[var(--color-text)]',
+        : 'hover:bg-[rgba(128,128,128,0.3)] hover:text-foreground active:bg-[rgba(128,128,128,0.4)] active:text-foreground',
       className
     )
   })

@@ -48,7 +48,7 @@ const TagFilterSection: React.FC<TagFilterSectionProps> = ({ availableTags, tagS
   return (
     <div className="py-2 pr-2 pl-[18px]">
       <Flex className="flex-wrap gap-1">
-        <span className="text-[var(--color-text-3)] text-xs">{t('models.filter.by_tag')}</span>
+        <span className="text-foreground-muted text-xs">{t('models.filter.by_tag')}</span>
         {availableTags.map((tag) => {
           const TagElement = tagComponents[tag]
           if (!TagElement) {

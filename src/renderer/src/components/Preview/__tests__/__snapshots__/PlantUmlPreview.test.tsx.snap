@@ -16,7 +16,7 @@ exports[`PlantUmlPreview > basic rendering > should match snapshot 1`] = `
     >
       <div
         class="plantuml-preview special-preview"
-        style="--shadow-host-background-color: white; --shadow-host-border: 0.5px solid var(--color-code-background); --shadow-host-border-radius: 8px;"
+        style="--shadow-host-background-color: white; --shadow-host-border: 0.5px solid var(--color-background-subtle); --shadow-host-border-radius: 8px;"
       />
     </div>
   </div>

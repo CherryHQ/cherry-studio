@@ -35,7 +35,7 @@ export const PreviewContainer = ({
 
 const shadowWhiteStyle: ShadowContainerStyle = {
   '--shadow-host-background-color': 'white',
-  '--shadow-host-border': '0.5px solid var(--color-code-background)',
+  '--shadow-host-border': '0.5px solid var(--color-background-subtle)',
   '--shadow-host-border-radius': '8px'
 }
 

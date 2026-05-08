@@ -10,7 +10,7 @@ exports[`TagFilterSection > rendering > should match snapshot 1`] = `
       data-testid="flex"
     >
       <span
-        class="text-[var(--color-text-3)] text-xs"
+        class="text-foreground-muted text-xs"
       >
         models.filter.by_tag
       </span>
