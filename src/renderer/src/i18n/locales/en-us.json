@@ -3393,6 +3393,7 @@
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
+    "cherryai": "CherryAI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
@@ -5248,6 +5249,14 @@
           },
           "tooltip": "Example: gpt-3.5-turbo"
         },
+        "max_input_tokens": {
+          "label": "Context window (max input)",
+          "placeholder": "e.g. 128000"
+        },
+        "max_output_tokens": {
+          "label": "Context window (max output)",
+          "placeholder": "e.g. 4096"
+        },
         "model_name": {
           "label": "Model Name",
           "placeholder": "Optional e.g. GPT-4",
@@ -5578,9 +5587,17 @@
       "api_host_preview": "Preview: {{url}}",
       "api_host_tooltip": "Override only when your provider requires a custom OpenAI-compatible endpoint.",
       "api_key": {
+        "copy": "Copy",
+        "enabled_suffix": "enabled",
+        "hide_key": "Hide key",
         "label": "API Key",
+        "label_placeholder": "Label",
+        "list_description": "Manage multiple API keys for this provider",
+        "placeholder": "Use commas to separate multiple keys",
         "save_failed": "Failed to save API keys",
-        "tip": "Use commas to separate multiple keys"
+        "show_key": "Show key",
+        "tip": "Use commas to separate multiple keys",
+        "unnamed": "API Key"
       },
       "api_version": "API Version",
       "auth_connection_section": "Connection & authentication",

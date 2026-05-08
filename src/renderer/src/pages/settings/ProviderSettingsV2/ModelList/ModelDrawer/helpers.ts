@@ -67,6 +67,8 @@ export function getInitialAddModelFormState(
     modelId: prefill?.model ? getModelApiId(prefill.model) : '',
     name: prefill?.model?.name ?? '',
     group: prefill?.model?.group ?? '',
+    maxInputTokens: prefill?.model?.maxInputTokens != null ? String(prefill.model.maxInputTokens) : '',
+    maxOutputTokens: prefill?.model?.maxOutputTokens != null ? String(prefill.model.maxOutputTokens) : '',
     endpointTypes: resolveInitialEndpointTypes(prefill, defaultEndpointType)
   }
 }

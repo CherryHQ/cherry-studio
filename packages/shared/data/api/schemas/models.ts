@@ -54,6 +54,8 @@ export const CreateModelSchema = z.strictObject({
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
   /** Context window size */
   contextWindow: z.number().int().positive().optional(),
+  /** Maximum input tokens */
+  maxInputTokens: z.number().int().positive().optional(),
   /** Maximum output tokens */
   maxOutputTokens: z.number().int().positive().optional(),
   /** Streaming support */
@@ -68,6 +70,7 @@ export const CreateModelSchema = z.strictObject({
 export type CreateModelDto = z.infer<typeof CreateModelSchema>
 
 export const MODELS_BATCH_MAX_ITEMS = 100
+export const MODELS_BULK_UPDATE_MAX_ITEMS = 1000
 
 /**
  * `POST /models` intentionally accepts arrays only.
@@ -114,7 +117,7 @@ export type BulkUpdateModelItem = z.infer<typeof BulkUpdateModelItemSchema>
  * array and always receive `Model[]`, while single-item convenience stays at
  * the row-level `PATCH /models/:uniqueModelId*` endpoint.
  */
-export const BulkUpdateModelsSchema = z.array(BulkUpdateModelItemSchema).min(1).max(MODELS_BATCH_MAX_ITEMS)
+export const BulkUpdateModelsSchema = z.array(BulkUpdateModelItemSchema).min(1).max(MODELS_BULK_UPDATE_MAX_ITEMS)
 export type BulkUpdateModelsDto = z.infer<typeof BulkUpdateModelsSchema>
 
 /** DTO for resolving raw model IDs against registry presets */

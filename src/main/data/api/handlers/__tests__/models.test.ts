@@ -1,16 +1,21 @@
 import type { CreateModelInput } from '@data/services/ModelService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
-import { CreateModelsSchema, MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
+import {
+  BulkUpdateModelsSchema,
+  CreateModelsSchema,
+  MODELS_BATCH_MAX_ITEMS
+} from '@shared/data/api/schemas/models'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 
-const { listMock, getByKeyMock, updateMock, deleteMock, createMock, lookupModelMock } = vi.hoisted(() => ({
+const { listMock, getByKeyMock, updateMock, deleteMock, createMock, bulkUpdateMock, lookupModelMock } = vi.hoisted(() => ({
   listMock: vi.fn(),
   getByKeyMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
   createMock: vi.fn(),
+  bulkUpdateMock: vi.fn(),
   lookupModelMock: vi.fn()
 }))
 
@@ -20,7 +25,8 @@ vi.mock('@data/services/ModelService', () => ({
     getByKey: getByKeyMock,
     update: updateMock,
     delete: deleteMock,
-    create: createMock
+    create: createMock,
+    bulkUpdate: bulkUpdateMock
   }
 }))
 
@@ -57,6 +63,15 @@ describe('Model handler validation', () => {
     }))
 
     expect(() => CreateModelsSchema.parse(items)).toThrow()
+  })
+
+  it('accepts bulk update payload arrays larger than the create batch limit', () => {
+    const items = Array.from({ length: MODELS_BATCH_MAX_ITEMS + 63 }, (_, index) => ({
+      uniqueModelId: `cherryin::model-${index}`,
+      patch: { isEnabled: false }
+    }))
+
+    expect(() => BulkUpdateModelsSchema.parse(items)).not.toThrow()
   })
 })
 
@@ -192,6 +207,20 @@ describe('/models', () => {
         body: [{ providerId: 'openai', modelId: 'gpt-4o' }]
       } as any)
     ).rejects.toBe(serviceError)
+  })
+
+  it('delegates bulk PATCH to modelService.bulkUpdate', async () => {
+    const updated = [{ id: 'cherryin::model-1', isEnabled: false }]
+    bulkUpdateMock.mockResolvedValueOnce(updated)
+
+    const result = await modelHandlers['/models'].PATCH({
+      body: [{ uniqueModelId: 'cherryin::model-1', patch: { isEnabled: false } }]
+    } as any)
+
+    expect(bulkUpdateMock).toHaveBeenCalledWith([
+      { providerId: 'cherryin', modelId: 'model-1', patch: { isEnabled: false } }
+    ])
+    expect(result).toBe(updated)
   })
 })
 

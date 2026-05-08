@@ -3,6 +3,7 @@ import { useModelMutations, useModels } from '@renderer/hooks/useModels'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { getDefaultGroupName } from '@renderer/utils'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,7 +12,7 @@ import ProviderActions from '../../components/ProviderActions'
 import ProviderSection from '../../components/ProviderSection'
 import { drawerClasses } from '../../components/ProviderSettingsPrimitives'
 import { isNewApiProvider } from '../../utils/provider'
-import { ModelBasicFields } from './content'
+import { ModelBasicFields, ModelContextWindowFields } from './content'
 import { getInitialAddModelFormState, splitModelIds } from './helpers'
 import type { AddModelDrawerPrefill, ModelBasicFormState, ModelDrawerMode } from './types'
 
@@ -44,12 +45,14 @@ export default function AddModelFormPanel({
     getInitialAddModelFormState(null, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   )
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
+  const [showMoreSettings, setShowMoreSettings] = useState(false)
 
   const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
 
   useEffect(() => {
     setFormState(getInitialAddModelFormState(prefill, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))
     setEndpointTypeTouched(false)
+    setShowMoreSettings(false)
   }, [prefill])
 
   const handleModelIdChange = useCallback(
@@ -86,7 +89,9 @@ export default function AddModelFormPanel({
         modelId,
         name: values.name ? values.name : modelId.toUpperCase(),
         group: values.group || getDefaultGroupName(modelId),
-        endpointTypes: mode === 'new-api' && values.endpointTypes?.length ? [...values.endpointTypes] : undefined
+        endpointTypes: mode === 'new-api' && values.endpointTypes?.length ? [...values.endpointTypes] : undefined,
+        ...(values.maxInputTokens ? { maxInputTokens: Number(values.maxInputTokens) } : {}),
+        ...(values.maxOutputTokens ? { maxOutputTokens: Number(values.maxOutputTokens) } : {})
       })
 
       return true
@@ -108,6 +113,8 @@ export default function AddModelFormPanel({
           modelId: singleId,
           name: singleId,
           group: '',
+          maxInputTokens: '',
+          maxOutputTokens: '',
           endpointTypes: undefined
         })
       }
@@ -161,6 +168,32 @@ export default function AddModelFormPanel({
             />
           </div>
         </ProviderSection>
+
+        <ProviderActions>
+          <Button
+            type="button"
+            variant="outline"
+            className={drawerClasses.toggleButton}
+            onClick={() => setShowMoreSettings((current) => !current)}>
+            {t('settings.moresetting.label')}
+            {showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </Button>
+        </ProviderActions>
+
+        {showMoreSettings && (
+          <ProviderSection className={drawerClasses.section}>
+            <div className={drawerClasses.fieldList}>
+              <ModelContextWindowFields
+                maxInputTokens={formState.maxInputTokens}
+                maxOutputTokens={formState.maxOutputTokens}
+                onMaxInputTokensChange={(value) => setFormState((current) => ({ ...current, maxInputTokens: value }))}
+                onMaxOutputTokensChange={(value) =>
+                  setFormState((current) => ({ ...current, maxOutputTokens: value }))
+                }
+              />
+            </div>
+          </ProviderSection>
+        )}
       </form>
       <ProviderActions className={`${drawerClasses.footer} mt-auto pt-2`}>
         <Button variant="outline" type="button" onClick={onCancel}>

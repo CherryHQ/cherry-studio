@@ -100,6 +100,58 @@ export function ModelBasicFields({
   )
 }
 
+interface ModelContextWindowFieldsProps {
+  maxInputTokens: string
+  maxOutputTokens: string
+  onMaxInputTokensChange: (value: string) => void
+  onMaxOutputTokensChange: (value: string) => void
+}
+
+export function ModelContextWindowFields({
+  maxInputTokens,
+  maxOutputTokens,
+  onMaxInputTokensChange,
+  onMaxOutputTokensChange
+}: ModelContextWindowFieldsProps) {
+  const { t } = useTranslation()
+
+  return (
+    <>
+      <ProviderField
+        title={t('settings.models.add.max_input_tokens.label')}
+        titleClassName={drawerFieldTitleClassName}>
+        <input
+          type="number"
+          min={1}
+          step={1}
+          inputMode="numeric"
+          aria-label={t('settings.models.add.max_input_tokens.label')}
+          value={maxInputTokens}
+          placeholder={t('settings.models.add.max_input_tokens.placeholder')}
+          className={drawerClasses.input}
+          onChange={(event) => onMaxInputTokensChange(event.target.value.replace(/[^\d]/g, ''))}
+        />
+      </ProviderField>
+
+      <ProviderField
+        title={t('settings.models.add.max_output_tokens.label')}
+        titleClassName={drawerFieldTitleClassName}>
+        <input
+          type="number"
+          min={1}
+          step={1}
+          inputMode="numeric"
+          aria-label={t('settings.models.add.max_output_tokens.label')}
+          value={maxOutputTokens}
+          placeholder={t('settings.models.add.max_output_tokens.placeholder')}
+          className={drawerClasses.input}
+          onChange={(event) => onMaxOutputTokensChange(event.target.value.replace(/[^\d]/g, ''))}
+        />
+      </ProviderField>
+    </>
+  )
+}
+
 interface ModelCapabilityTogglesProps {
   selectedCaps: Set<ModelCapabilityToggle>
   hasUserModified: boolean

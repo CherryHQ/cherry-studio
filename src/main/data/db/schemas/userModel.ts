@@ -43,6 +43,7 @@ export const REGISTRY_ENRICHABLE_FIELDS = [
   'outputModalities',
   'endpointTypes',
   'contextWindow',
+  'maxInputTokens',
   'maxOutputTokens',
   'supportsStreaming',
   'reasoning',
@@ -106,6 +107,9 @@ export const userModelTable = sqliteTable(
 
     /** Context window size */
     contextWindow: integer(),
+
+    /** Maximum input tokens */
+    maxInputTokens: integer(),
 
     /** Maximum output tokens */
     maxOutputTokens: integer(),

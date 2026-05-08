@@ -42,6 +42,7 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'parameterSupport',
       'supportsStreaming',
       'contextWindow',
+      'maxInputTokens',
       'maxOutputTokens',
       'reasoning',
       'pricing',

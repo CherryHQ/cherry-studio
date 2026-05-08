@@ -5578,9 +5578,17 @@
       "api_host_preview": "預覽：{{url}}",
       "api_host_tooltip": "僅在供應商需要自訂的 OpenAI 相容端點時才覆蓋。",
       "api_key": {
+        "copy": "複製",
+        "enabled_suffix": "已啟用",
+        "hide_key": "隱藏金鑰",
         "label": "API 金鑰",
+        "label_placeholder": "標籤",
+        "list_description": "管理目前供應商的多個 API Key",
+        "placeholder": "多個金鑰使用逗號分隔",
         "save_failed": "API 金鑰儲存失敗",
-        "tip": "多個金鑰使用逗號分隔"
+        "show_key": "顯示金鑰",
+        "tip": "多個金鑰使用逗號分隔",
+        "unnamed": "API Key"
       },
       "api_version": "API 版本",
       "auth_connection_section": "連接認證",

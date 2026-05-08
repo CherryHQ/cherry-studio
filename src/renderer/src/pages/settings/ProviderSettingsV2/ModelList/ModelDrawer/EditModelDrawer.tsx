@@ -16,7 +16,7 @@ import ProviderSection from '../../components/ProviderSection'
 import ProviderSettingsDrawer from '../../components/ProviderSettingsDrawer'
 import { drawerClasses, fieldClasses } from '../../components/ProviderSettingsPrimitives'
 import { isNewApiProvider } from '../../utils/provider'
-import { ModelBasicFields, ModelCapabilityToggles } from './content'
+import { ModelBasicFields, ModelCapabilityToggles, ModelContextWindowFields } from './content'
 import {
   getInitialSelectedCapabilities,
   getModelApiId,
@@ -41,6 +41,8 @@ interface BuildPatchOverrides {
   isCustomCurrency?: boolean
   inputPrice?: string
   outputPrice?: string
+  maxInputTokens?: string
+  maxOutputTokens?: string
 }
 
 type ModelDrawerCurrencySymbol = (typeof MODEL_DRAWER_CURRENCY_SYMBOLS)[number]
@@ -67,6 +69,8 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
   const [isCustomCurrency, setIsCustomCurrency] = useState(false)
   const [inputPrice, setInputPrice] = useState('0')
   const [outputPrice, setOutputPrice] = useState('0')
+  const [maxInputTokens, setMaxInputTokens] = useState('')
+  const [maxOutputTokens, setMaxOutputTokens] = useState('')
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
 
   const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
@@ -96,6 +100,8 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
     setIsCustomCurrency(nextIsCustomCurrency)
     setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
     setOutputPrice(String(model.pricing?.output?.perMillionTokens ?? 0))
+    setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
+    setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
     setEndpointTypeTouched(false)
   }, [model, open])
 
@@ -112,6 +118,8 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
         capabilities: patch.capabilities,
         supportsStreaming: patch.supportsStreaming,
         endpointTypes: patch.endpointTypes,
+        maxInputTokens: patch.maxInputTokens,
+        maxOutputTokens: patch.maxOutputTokens,
         pricing: patch.pricing
       })
     },
@@ -140,6 +148,8 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
           overrides?.caps ?? selectedCaps
         ) as Model['capabilities'],
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
+        maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
+        maxOutputTokens: Number(overrides?.maxOutputTokens ?? maxOutputTokens) || undefined,
         pricing: {
           input: {
             perMillionTokens: Number(overrides?.inputPrice ?? inputPrice) || 0,
@@ -159,6 +169,8 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
       group,
       inputPrice,
       isCustomCurrency,
+      maxInputTokens,
+      maxOutputTokens,
       mode,
       model,
       name,
@@ -332,6 +344,15 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
                 hasUserModified={hasUserModified}
                 onToggle={handleToggleCapability}
                 onReset={handleResetCapabilities}
+              />
+
+              <div className={drawerClasses.divider} />
+
+              <ModelContextWindowFields
+                maxInputTokens={maxInputTokens}
+                maxOutputTokens={maxOutputTokens}
+                onMaxInputTokensChange={setMaxInputTokens}
+                onMaxOutputTokensChange={setMaxOutputTokens}
               />
 
               <div className={drawerClasses.divider} />

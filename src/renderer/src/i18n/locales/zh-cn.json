@@ -3393,6 +3393,7 @@
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
+    "cherryai": "CherryAI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "阿里云百炼",
@@ -5248,6 +5249,14 @@
           },
           "tooltip": "例如 gpt-3.5-turbo"
         },
+        "max_input_tokens": {
+          "label": "上下文窗口（最大输入）",
+          "placeholder": "例如 128000"
+        },
+        "max_output_tokens": {
+          "label": "上下文窗口（最大输出）",
+          "placeholder": "例如 4096"
+        },
         "model_name": {
           "label": "模型名称",
           "placeholder": "例如 GPT-4",
@@ -5578,9 +5587,17 @@
       "api_host_preview": "预览：{{url}}",
       "api_host_tooltip": "仅在服务商需要自定义的 OpenAI 兼容地址时覆盖。",
       "api_key": {
+        "copy": "复制",
+        "enabled_suffix": "已启用",
+        "hide_key": "隐藏密钥",
         "label": "API 密钥",
+        "label_placeholder": "标签",
+        "list_description": "管理当前服务商的多个 API Key",
+        "placeholder": "多个密钥使用逗号分隔",
         "save_failed": "API 密钥保存失败",
-        "tip": "多个密钥使用逗号分隔"
+        "show_key": "显示密钥",
+        "tip": "多个密钥使用逗号分隔",
+        "unnamed": "API Key"
       },
       "api_version": "API 版本",
       "auth_connection_section": "连接认证",
