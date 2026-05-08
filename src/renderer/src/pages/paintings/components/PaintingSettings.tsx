@@ -21,9 +21,9 @@ export function PaintingSettingsHeader({
   const { t } = useTranslation()
 
   return (
-    <div className="flex w-full min-w-0 items-center justify-between gap-2">
+    <div className="flex w-full min-w-0 flex-nowrap items-center justify-between gap-2">
       <span className="min-w-0 truncate text-foreground text-xs tracking-wider">{t('paintings.parameters')}</span>
-      <div className="flex shrink-0 flex-nowrap items-center gap-x-1">{actions}</div>
+      <div className="flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-x-2">{actions}</div>
     </div>
   )
 }

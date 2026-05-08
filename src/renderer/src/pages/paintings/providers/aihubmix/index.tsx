@@ -16,7 +16,7 @@ export function AihubmixHeaderActions({ provider, t }: { provider: PaintingProvi
   return (
     <SettingHelpLink target="_blank" href={provider.apiHost}>
       {t('paintings.learn_more')}
-      {Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null}
+      {Icon ? <Icon.Avatar size={16} className="shrink-0" /> : null}
     </SettingHelpLink>
   )
 }

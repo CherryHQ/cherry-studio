@@ -15,7 +15,7 @@ export function TokenFluxHeaderActions({ t }: { t: TFunction }) {
   return (
     <SettingHelpLink target="_blank" href="https://tokenflux.ai">
       {t('paintings.learn_more')}
-      {Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null}
+      {Icon ? <Icon.Avatar size={16} className="shrink-0" /> : null}
     </SettingHelpLink>
   )
 }

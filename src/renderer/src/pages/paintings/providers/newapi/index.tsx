@@ -23,7 +23,7 @@ export function NewApiHeaderActions({ provider, t }: { provider: PaintingProvide
         'https://docs.newapi.pro/apps/cherry-studio/'
       }>
       {t('paintings.learn_more')}
-      {Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null}
+      {Icon ? <Icon.Avatar size={16} className="shrink-0" /> : null}
     </SettingHelpLink>
   )
 }
