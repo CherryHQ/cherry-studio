@@ -1,28 +1,33 @@
 import { describe, expect, it } from 'vitest'
 
-import { COMPLEX_PREFERENCE_MAPPINGS, getComplexMappingById } from '../ComplexPreferenceMappings'
+import { getSimpleMappingTargetKeys } from '../../PreferencesMigrator'
+import {
+  COMPLEX_PREFERENCE_MAPPINGS,
+  getComplexMappingById,
+  getComplexMappingTargetKeys
+} from '../ComplexPreferenceMappings'
 import { REDUX_STORE_MAPPINGS } from '../PreferencesMappings'
 
 describe('PreferencesMappings', () => {
   it('uses flat file processing default target keys', () => {
     expect(REDUX_STORE_MAPPINGS.preprocess).toContainEqual({
       originalKey: 'defaultProvider',
-      targetKey: 'feature.file_processing.default_markdown_conversion'
+      targetKey: 'feature.file_processing.default_document_to_markdown'
     })
 
     expect(REDUX_STORE_MAPPINGS.ocr).toContainEqual({
       originalKey: 'imageProviderId',
-      targetKey: 'feature.file_processing.default_text_extraction'
+      targetKey: 'feature.file_processing.default_image_to_text'
     })
 
     expect(REDUX_STORE_MAPPINGS.preprocess).not.toContainEqual({
       originalKey: 'defaultProvider',
-      targetKey: 'feature.file_processing.default.markdown_conversion'
+      targetKey: 'feature.file_processing.default.document_to_markdown'
     })
 
     expect(REDUX_STORE_MAPPINGS.ocr).not.toContainEqual({
       originalKey: 'imageProviderId',
-      targetKey: 'feature.file_processing.default.text_extraction'
+      targetKey: 'feature.file_processing.default.image_to_text'
     })
   })
 
@@ -71,6 +76,25 @@ describe('PreferencesMappings', () => {
 
       const conflicts = simpleTargetKeys.filter((k) => complexTargetKeys.includes(k))
       expect(conflicts).toHaveLength(0)
+    })
+  })
+
+  describe('mapping conflict invariant', () => {
+    it('simple and complex mappings must not share target keys (full coverage)', () => {
+      // Mirrors PreferencesMigrator.prepare's strict-mode check across all 4
+      // simple sources (electronStore + redux + dexie-settings + localStorage)
+      // with the same shortcut.* exclusion rule used by the migrator. A
+      // conflict here would crash prepare() at runtime, so guard it statically.
+      const simple = getSimpleMappingTargetKeys()
+      const complex = getComplexMappingTargetKeys()
+      const overlap = simple.filter((k) => complex.includes(k))
+      expect(overlap).toEqual([])
+    })
+
+    it('excludes shortcut.* keys from the simple-mapping target list', () => {
+      const simple = getSimpleMappingTargetKeys()
+      const offenders = simple.filter((k) => k.startsWith('shortcut.'))
+      expect(offenders).toEqual([])
     })
   })
 })

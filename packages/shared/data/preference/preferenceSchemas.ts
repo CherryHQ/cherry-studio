@@ -335,9 +335,9 @@ export interface PreferenceSchemas {
     // redux/settings/apiServer.port
     'feature.csaas.port': number
     // redux/preprocess/defaultProvider
-    'feature.file_processing.default_markdown_conversion': PreferenceTypes.FileProcessorId | null
+    'feature.file_processing.default_document_to_markdown': PreferenceTypes.FileProcessorId | null
     // redux/ocr/imageProviderId
-    'feature.file_processing.default_text_extraction': PreferenceTypes.FileProcessorId | null
+    'feature.file_processing.default_image_to_text': PreferenceTypes.FileProcessorId | null
     // target-key-definitions/complex/complex
     'feature.file_processing.overrides': PreferenceTypes.FileProcessorOverrides
     // redux/settings/maxKeepAliveMinapps
@@ -366,6 +366,10 @@ export interface PreferenceSchemas {
     'feature.notes.show_workspace': boolean
     // redux/note/sortType
     'feature.notes.sort_type': string
+    // target-key-definitions/complex/complex
+    'feature.openclaw.gateway_port': number
+    // target-key-definitions/complex/complex
+    'feature.openclaw.selected_model_id': string | null
     // target-key-definitions/complex/complex
     'feature.paintings.default_provider': string
     // redux/llm/quickAssistantId
@@ -649,8 +653,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.csaas.enabled': false,
     'feature.csaas.host': '127.0.0.1',
     'feature.csaas.port': 23333,
-    'feature.file_processing.default_markdown_conversion': null,
-    'feature.file_processing.default_text_extraction': null,
+    'feature.file_processing.default_document_to_markdown': null,
+    'feature.file_processing.default_image_to_text': null,
     'feature.file_processing.overrides': {} as PreferenceTypes.FileProcessorOverrides,
     'feature.mini_app.max_keep_alive': 3,
     'feature.mini_app.open_link_external': false,
@@ -665,6 +669,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.notes.show_table_of_contents': true,
     'feature.notes.show_workspace': true,
     'feature.notes.sort_type': 'sort_a2z',
+    'feature.openclaw.gateway_port': 18790,
+    'feature.openclaw.selected_model_id': null,
     'feature.paintings.default_provider': 'zhipu',
     'feature.quick_assistant.assistant_id': '',
     'feature.quick_assistant.click_tray_to_show': false,
@@ -773,7 +779,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 229
+ * - 总配置项: 231
  * - electronStore项: 1
  * - redux项: 202
  * - localStorage项: 0

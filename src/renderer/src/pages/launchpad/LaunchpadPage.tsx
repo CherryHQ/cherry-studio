@@ -59,7 +59,7 @@ const LaunchpadPage: FC = () => {
     {
       icon: <OpenClawIcon className="icon" />,
       text: t('title.openclaw'),
-      path: '/openclaw',
+      path: '/app/openclaw',
       bgColor: 'linear-gradient(135deg, #EF4444, #B91C1C)' // OpenClaw：红色渐变，代表龙虾的颜色
     },
     {
