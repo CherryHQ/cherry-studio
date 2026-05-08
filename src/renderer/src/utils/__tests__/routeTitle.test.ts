@@ -16,6 +16,7 @@ vi.mock('@renderer/i18n', () => ({
         'title.files': '文件',
         'title.code': 'Code',
         'title.notes': '笔记',
+        'title.openclaw': 'OpenClaw',
         'title.settings': '设置'
       }
       return translations[key] || key
@@ -45,6 +46,7 @@ describe('routeTitle', () => {
         ['/app/files', '文件'],
         ['/app/code', 'Code'],
         ['/app/notes', '笔记'],
+        ['/app/openclaw', 'OpenClaw'],
         ['/settings', '设置']
       ])('should return correct title for %s', (url, expectedTitle) => {
         expect(getDefaultRouteTitle(url)).toBe(expectedTitle)
@@ -114,6 +116,7 @@ describe('routeTitle', () => {
         ['/app/chat', 'common.chat'],
         ['/app/agents', 'common.agent_one'],
         ['/app/assistant', 'title.store'],
+        ['/app/openclaw', 'title.openclaw'],
         ['/settings', 'title.settings']
       ])('should return i18n key for %s', (url, expectedKey) => {
         expect(getRouteTitleKey(url)).toBe(expectedKey)
