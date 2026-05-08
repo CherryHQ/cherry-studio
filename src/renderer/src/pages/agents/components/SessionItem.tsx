@@ -28,7 +28,7 @@ import { classNames } from '@renderer/utils'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { MenuIcon, Sparkles, XIcon } from 'lucide-react'
-import React, { memo, startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import React, { memo, startTransition, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -50,8 +50,6 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
   const activeSessionId = activeSessionIdMap[agentId]
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const { setTimeoutTimer } = useTimer()
-  const [_targetSession, setTargetSession] = useState<AgentSessionEntity>(session)
-  const targetSession = useDeferredValue(_targetSession)
   const dispatch = useAppDispatch()
 
   const { isEditing, isSaving, startEdit, inputProps } = useInPlaceEdit({
@@ -133,7 +131,7 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
   }
 
   const handleAutoRename = async () => {
-    const agentSession = { agentId, sessionId: targetSession.id }
+    const agentSession = { agentId, sessionId: session.id }
     void dispatch(loadTopicMessagesThunk(sessionTopicId))
     try {
       startTopicRenaming(sessionTopicId)
@@ -151,7 +149,6 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
           onClick={isEditing ? undefined : onPress}
           onDoubleClick={() => startEdit(session.name ?? '')}
           title={session.name ?? session.id}
-          onContextMenu={() => setTargetSession(session)}
           style={{
             borderRadius: 'var(--list-item-border-radius)',
             cursor: isEditing ? 'default' : 'pointer'

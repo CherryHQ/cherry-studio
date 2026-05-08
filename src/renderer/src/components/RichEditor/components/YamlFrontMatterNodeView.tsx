@@ -1,3 +1,14 @@
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuItemContent,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react'
 import { Checkbox, Dropdown, Input, type MenuProps } from 'antd'
@@ -429,38 +440,89 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
           e.stopPropagation()
         }}>
         {parsedProperties.map((property) => (
-          <Dropdown
-            key={property.key}
-            menu={getPropertyMenu(property)}
-            trigger={['contextMenu']}
-            placement="bottomRight"
-            open={openDropdown === `context-${property.key}`}
-            onOpenChange={(open) => {
-              setOpenDropdown(open ? `context-${property.key}` : null)
-            }}>
-            <PropertyRow
-              onContextMenu={(e) => {
-                e.stopPropagation()
-              }}>
-              <PropertyIcon>{getPropertyIcon(property.type)}</PropertyIcon>
-              <PropertyName>{property.key}</PropertyName>
-              {renderPropertyValue(property)}
-              <PropertyActions>
-                <Dropdown
-                  menu={getPropertyMenu(property)}
-                  trigger={['click']}
-                  placement="bottomRight"
-                  open={openDropdown === `action-${property.key}`}
-                  onOpenChange={(open) => {
-                    setOpenDropdown(open ? `action-${property.key}` : null)
-                  }}>
-                  <ActionButton onClick={(e) => e.stopPropagation()} title={t('richEditor.frontMatter.moreActions')}>
-                    <MoreHorizontal size={14} />
-                  </ActionButton>
-                </Dropdown>
-              </PropertyActions>
-            </PropertyRow>
-          </Dropdown>
+          <ContextMenu key={property.key}>
+            <ContextMenuTrigger asChild>
+              <PropertyRow
+                onContextMenu={(e) => {
+                  e.stopPropagation()
+                }}>
+                <PropertyIcon>{getPropertyIcon(property.type)}</PropertyIcon>
+                <PropertyName>{property.key}</PropertyName>
+                {renderPropertyValue(property)}
+                <PropertyActions>
+                  <Dropdown
+                    menu={getPropertyMenu(property)}
+                    trigger={['click']}
+                    placement="bottomRight"
+                    open={openDropdown === `action-${property.key}`}
+                    onOpenChange={(open) => {
+                      setOpenDropdown(open ? `action-${property.key}` : null)
+                    }}>
+                    <ActionButton onClick={(e) => e.stopPropagation()} title={t('richEditor.frontMatter.moreActions')}>
+                      <MoreHorizontal size={14} />
+                    </ActionButton>
+                  </Dropdown>
+                </PropertyActions>
+              </PropertyRow>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem
+                onSelect={() => {
+                  setEditingProperty(property.key)
+                }}>
+                <ContextMenuItemContent icon={<Type size={14} />}>
+                  {t('richEditor.frontMatter.editValue')}
+                </ContextMenuItemContent>
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>{t('richEditor.frontMatter.changeType')}</ContextMenuSubTrigger>
+                <ContextMenuSubContent>
+                  <ContextMenuItem
+                    disabled={property.type === 'string'}
+                    onSelect={() => handleChangePropertyType(property.key, 'string')}>
+                    <ContextMenuItemContent icon={<FileText size={14} />}>
+                      {t('richEditor.frontMatter.changeToText')}
+                    </ContextMenuItemContent>
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    disabled={property.type === 'number'}
+                    onSelect={() => handleChangePropertyType(property.key, 'number')}>
+                    <ContextMenuItemContent icon={<Hash size={14} />}>
+                      {t('richEditor.frontMatter.changeToNumber')}
+                    </ContextMenuItemContent>
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    disabled={property.type === 'boolean'}
+                    onSelect={() => handleChangePropertyType(property.key, 'boolean')}>
+                    <ContextMenuItemContent icon={<Check size={14} />}>
+                      {t('richEditor.frontMatter.changeToBoolean')}
+                    </ContextMenuItemContent>
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    disabled={property.type === 'array'}
+                    onSelect={() => handleChangePropertyType(property.key, 'array')}>
+                    <ContextMenuItemContent icon={<TagIcon size={14} />}>
+                      {t('richEditor.frontMatter.changeToTags')}
+                    </ContextMenuItemContent>
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    disabled={property.type === 'date'}
+                    onSelect={() => handleChangePropertyType(property.key, 'date')}>
+                    <ContextMenuItemContent icon={<Calendar size={14} />}>
+                      {t('richEditor.frontMatter.changeToDate', 'Date')}
+                    </ContextMenuItemContent>
+                  </ContextMenuItem>
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+              <ContextMenuSeparator />
+              <ContextMenuItem variant="destructive" onSelect={() => handleDeleteProperty(property.key)}>
+                <ContextMenuItemContent icon={<Trash2 size={14} />}>
+                  {t('richEditor.frontMatter.deleteProperty')}
+                </ContextMenuItemContent>
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
         ))}
 
         {showAddProperty ? (
