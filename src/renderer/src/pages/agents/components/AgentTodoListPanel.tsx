@@ -1,27 +1,7 @@
 /**
- * Mock-only Agent todo list panel.
- *
- * This file currently renders static fixture data through AgentTodoListPanel.MockProvider.
- * It is intentionally not connected to any production API, agent session stream, or scheduled
- * task endpoint. The mock data exists only to preview the UI shape and composition API while
- * the real agent execution todo/progress contract is still undecided.
- *
- * When wiring real data later, keep this component presentational and add a connected wrapper
- * or real provider beside it. That wrapper should:
- * - accept the scope needed to query data, such as agentId plus sessionId/runId if the todo list
- *   represents one agent execution rather than scheduled tasks.
- * - fetch/subscribe to the real source of truth, then map the response into AgentTodoItem[] and
- *   AgentTodoDetailGroup[] before passing it into the provider.
- * - provide stable task ids, display labels or i18n keys, status values
- *   ('completed' | 'in_progress' | 'pending'), detail group ids/icons/titles, optional summaries,
- *   and optional resource rows with ids/icons/labels/meta.
- * - expose action handlers only from the provider layer when they become real, such as complete,
- *   dismiss, retry, refresh, or open-resource actions. The visual subcomponents should continue
- *   reading from context instead of calling APIs directly.
- *
- * Do not treat /agents/:agentId/tasks as the default backing API unless the product meaning is
- * actually "scheduled tasks". This panel currently models execution progress/todos, which may
- * need a session/run-scoped API instead.
+ * Mock-only preview: tasks and details come from in-file fixtures, not a real data source.
+ * Lives in ComponentLabSettings so the visual contract can be reviewed before the agent
+ * execution todo/progress API is decided.
  */
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
@@ -316,7 +296,7 @@ const useAgentTodoList = () => {
   const context = use(AgentTodoListContext)
 
   if (!context) {
-    throw new Error('AgentTodoListPanel compound components must be used within AgentTodoListPanel.MockProvider')
+    throw new Error('AgentTodoListPanel compound components must be used within an AgentTodoListPanel provider')
   }
 
   return context
@@ -581,18 +561,18 @@ const AgentTodoListFooter = () => {
 }
 
 const AgentTodoListPanelView = ({ className }: { className?: string }) => (
-  <AgentTodoListPanel.Root className={className}>
-    <AgentTodoListPanel.Header />
-    <AgentTodoListPanel.Tasks />
-    <AgentTodoListPanel.Details />
-    <AgentTodoListPanel.Footer />
-  </AgentTodoListPanel.Root>
+  <AgentTodoListRoot className={className}>
+    <AgentTodoListHeader />
+    <AgentTodoListTasks />
+    <AgentTodoListDetails />
+    <AgentTodoListFooter />
+  </AgentTodoListRoot>
 )
 
 const AgentTodoListPanelDefault = ({ className }: { className?: string }) => (
-  <AgentTodoListPanel.MockProvider>
+  <AgentTodoListMockProvider>
     <AgentTodoListPanelView className={className} />
-  </AgentTodoListPanel.MockProvider>
+  </AgentTodoListMockProvider>
 )
 
 export const AgentTodoListPanel = {
@@ -604,5 +584,12 @@ export const AgentTodoListPanel = {
   Footer: AgentTodoListFooter
 }
 
-export type { AgentTodoDetailGroup, AgentTodoItem, AgentTodoStatus }
+export type {
+  AgentTodoDetailGroup,
+  AgentTodoDetailIcon,
+  AgentTodoDetailResource,
+  AgentTodoItem,
+  AgentTodoResourceIcon,
+  AgentTodoStatus
+}
 export default AgentTodoListPanelDefault

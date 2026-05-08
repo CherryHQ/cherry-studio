@@ -2,7 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import AgentTodoListPanel from '../AgentTodoListPanel'
+import type { AgentTodoItem } from '../AgentTodoListPanel'
+import AgentTodoListPanel, { AgentTodoListPanel as AgentTodoListPanelCompound } from '../AgentTodoListPanel'
 
 const translations: Record<string, string> = {
   'agent.todo.mock.actions.complete': 'Complete',
@@ -81,6 +82,33 @@ vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: PropsWithChildren<{ content?: React.ReactNode }>) => <>{children}</>
 }))
 
+vi.mock('lucide-react', () => {
+  const icon =
+    (testId: string) =>
+    ({ className }: { className?: string; size?: number }) => <svg data-testid={testId} className={className} />
+
+  return {
+    Atom: icon('atom-icon'),
+    BookOpen: icon('book-icon'),
+    Check: icon('check-icon'),
+    ChevronDown: icon('chevron-down-icon'),
+    Circle: icon('circle-icon'),
+    CodeXml: icon('code-icon'),
+    FileText: icon('file-icon'),
+    Globe: icon('globe-icon'),
+    ListFilter: icon('list-filter-icon'),
+    LoaderCircle: icon('loader-circle-icon'),
+    Package: icon('package-icon'),
+    Paintbrush: icon('paintbrush-icon'),
+    Palette: icon('palette-icon'),
+    Rocket: icon('rocket-icon'),
+    Search: icon('search-icon'),
+    Settings: icon('settings-icon'),
+    Share2: icon('share-icon'),
+    X: icon('x-icon')
+  }
+})
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, number>) => {
@@ -96,6 +124,26 @@ vi.mock('react-i18next', () => ({
     }
   })
 }))
+
+const renderTasksOnly = (tasks: AgentTodoItem[]) =>
+  render(
+    <AgentTodoListPanelCompound.MockProvider tasks={tasks} details={[]}>
+      <AgentTodoListPanelCompound.Root>
+        <AgentTodoListPanelCompound.Tasks />
+      </AgentTodoListPanelCompound.Root>
+    </AgentTodoListPanelCompound.MockProvider>
+  )
+
+const renderPanelWithTasks = (tasks: AgentTodoItem[]) =>
+  render(
+    <AgentTodoListPanelCompound.MockProvider tasks={tasks} details={[]}>
+      <AgentTodoListPanelCompound.Root>
+        <AgentTodoListPanelCompound.Header />
+        <AgentTodoListPanelCompound.Tasks />
+        <AgentTodoListPanelCompound.Footer />
+      </AgentTodoListPanelCompound.Root>
+    </AgentTodoListPanelCompound.MockProvider>
+  )
 
 describe('AgentTodoListPanel', () => {
   it('renders the default mock task panel', () => {
@@ -133,5 +181,42 @@ describe('AgentTodoListPanel', () => {
 
     fireEvent.click(detailsToggle)
     expect(screen.getByText('React Vite TypeScript starter 2025 best practices')).toBeInTheDocument()
+  })
+
+  it('renders the completed status icon for completed tasks', () => {
+    renderTasksOnly([{ id: 'completed-task', labelKey: 'agent.todo.mock.tasks.searchWeb', status: 'completed' }])
+
+    expect(screen.getByTestId('check-icon')).toBeInTheDocument()
+  })
+
+  it('renders the spinning loader status icon for in_progress tasks', () => {
+    renderTasksOnly([{ id: 'active-task', labelKey: 'agent.todo.mock.tasks.addRouter', status: 'in_progress' }])
+
+    const loaderIcon = screen.getByTestId('loader-circle-icon')
+    expect(loaderIcon).toBeInTheDocument()
+    expect(loaderIcon).toHaveClass('animate-spin')
+  })
+
+  it('renders the pending status icon for pending tasks', () => {
+    renderTasksOnly([{ id: 'pending-task', labelKey: 'agent.todo.mock.tasks.addLinting', status: 'pending' }])
+
+    expect(screen.getByTestId('circle-icon')).toBeInTheDocument()
+  })
+
+  it('uses provided tasks instead of default mock tasks', () => {
+    renderPanelWithTasks([{ id: 'custom-task', labelKey: 'agent.todo.custom.task', status: 'pending' }])
+
+    expect(screen.getByText('agent.todo.custom.task')).toBeInTheDocument()
+    expect(screen.queryByText('Search web references')).not.toBeInTheDocument()
+  })
+
+  it('derives completed progress from provided tasks', () => {
+    renderPanelWithTasks([
+      { id: 'completed-task', labelKey: 'agent.todo.mock.tasks.searchWeb', status: 'completed' },
+      { id: 'active-task', labelKey: 'agent.todo.mock.tasks.addRouter', status: 'in_progress' },
+      { id: 'pending-task', labelKey: 'agent.todo.mock.tasks.addLinting', status: 'pending' }
+    ])
+
+    expect(screen.getByText('1/3 tasks completed')).toBeInTheDocument()
   })
 })
