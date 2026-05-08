@@ -15,6 +15,7 @@ const zoomShortcutKeys: ShortcutPreferenceKey[] = [
   'shortcut.general.zoom_out',
   'shortcut.general.zoom_reset'
 ]
+const menuShortcutKeys: ShortcutPreferenceKey[] = ['shortcut.general.show_settings', ...zoomShortcutKeys]
 
 const getShortcutAccelerator = (key: ShortcutPreferenceKey): string | undefined => {
   const definition = findShortcutDefinition(key)
@@ -43,7 +44,7 @@ export class AppMenuService extends BaseService {
     const preferenceService = application.get('PreferenceService')
     this.registerDisposable(preferenceService.subscribeChange('app.language', () => this.setupApplicationMenu()))
 
-    for (const key of zoomShortcutKeys) {
+    for (const key of menuShortcutKeys) {
       this.registerDisposable(preferenceService.subscribeChange(key, () => this.setupApplicationMenu()))
     }
 
@@ -54,6 +55,7 @@ export class AppMenuService extends BaseService {
     const locale = locales[getAppLanguage()]
     const { appMenu } = locale.translation
 
+    const settingsAccelerator = getShortcutAccelerator('shortcut.general.show_settings')
     const zoomInAccelerator = getShortcutAccelerator('shortcut.general.zoom_in')
     const zoomOutAccelerator = getShortcutAccelerator('shortcut.general.zoom_out')
     const zoomResetAccelerator = getShortcutAccelerator('shortcut.general.zoom_reset')
@@ -66,6 +68,13 @@ export class AppMenuService extends BaseService {
             label: appMenu.about + ' ' + app.name,
             click: () => {
               application.get('SettingsWindowService').openUsingPreference('/settings/about')
+            }
+          },
+          {
+            label: locale.translation.settings.title,
+            accelerator: settingsAccelerator,
+            click: () => {
+              application.get('SettingsWindowService').openUsingPreference('/settings/provider')
             }
           },
           { type: 'separator' },

@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isMac } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { handleZoomFactor } from '@main/utils/zoom'
@@ -20,6 +21,7 @@ const toAccelerator = (keys: string[]): string => keys.join('+')
 const relevantDefinitions = SHORTCUT_DEFINITIONS.filter(
   (d) =>
     d.scope !== 'renderer' &&
+    !(isMac && d.key === 'shortcut.general.show_settings') &&
     (!d.supportedPlatforms || d.supportedPlatforms.includes(process.platform as SupportedPlatform))
 )
 
@@ -152,8 +154,8 @@ export class ShortcutService extends BaseService {
       this.registerDisposable(() => window.off('closed', onClosed))
     }
 
-    if (!window.isDestroyed() && window.isFocused()) {
-      this.registerShortcuts(window, false)
+    if (!window.isDestroyed()) {
+      this.registerShortcuts(window, !window.isFocused())
     }
   }
 

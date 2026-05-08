@@ -107,19 +107,36 @@ vi.mock('@main/core/lifecycle', async () => {
   return { ...actual, BaseService: StubBase }
 })
 
-// Import after mocks
 import { MainWindowService } from '../MainWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
+  isDestroyed: ReturnType<typeof vi.fn>
   isFullScreen: ReturnType<typeof vi.fn>
+  isMinimized: ReturnType<typeof vi.fn>
+  isVisible: ReturnType<typeof vi.fn>
+  isFocused: ReturnType<typeof vi.fn>
   hide: ReturnType<typeof vi.fn>
+  show: ReturnType<typeof vi.fn>
+  focus: ReturnType<typeof vi.fn>
+  restore: ReturnType<typeof vi.fn>
+  setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
+  setFullScreen: ReturnType<typeof vi.fn>
   webContents: { reload: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn> }
 }
 
 function createMockWindow(): MockBrowserWindow {
   const win = new EventEmitter() as MockBrowserWindow
+  win.isDestroyed = vi.fn(() => false)
   win.isFullScreen = vi.fn(() => false)
+  win.isMinimized = vi.fn(() => false)
+  win.isVisible = vi.fn(() => true)
+  win.isFocused = vi.fn(() => true)
   win.hide = vi.fn()
+  win.show = vi.fn()
+  win.focus = vi.fn()
+  win.restore = vi.fn()
+  win.setVisibleOnAllWorkspaces = vi.fn()
+  win.setFullScreen = vi.fn()
   win.webContents = {
     reload: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
@@ -171,6 +188,15 @@ describe('MainWindowService', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('replays the existing main window to late subscribers', () => {
+    ;(svc as any).mainWindow = win
+    const listener = vi.fn()
+
+    svc.onMainWindowCreated(listener)
+
+    expect(listener).toHaveBeenCalledWith(win)
   })
 
   describe('close handler', () => {
@@ -286,6 +312,39 @@ describe('MainWindowService', () => {
       win.emit('close', event)
 
       expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('toggleMainWindow', () => {
+    it('hides a focused visible main window even when tray-close is disabled', () => {
+      ;(svc as any).mainWindow = win
+      prefValues['app.tray.on_close'] = false
+
+      svc.toggleMainWindow()
+
+      expect(win.hide).toHaveBeenCalledTimes(1)
+      expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
+    })
+
+    it('focuses a visible unfocused main window instead of hiding it', () => {
+      ;(svc as any).mainWindow = win
+      win.isFocused.mockReturnValue(false)
+
+      svc.toggleMainWindow()
+
+      expect(win.focus).toHaveBeenCalledTimes(1)
+      expect(win.hide).not.toHaveBeenCalled()
+    })
+
+    it('keeps Dock suppression when hiding on macOS with tray-close enabled', () => {
+      platformState.isMac = true
+      prefValues['app.tray.on_close'] = true
+      ;(svc as any).mainWindow = win
+
+      svc.toggleMainWindow()
+
+      expect(windowManagerMock.behavior.setMacShowInDockByType).toHaveBeenCalledWith('main', false)
+      expect(win.hide).toHaveBeenCalledTimes(1)
     })
   })
 

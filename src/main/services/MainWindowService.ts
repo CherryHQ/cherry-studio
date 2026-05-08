@@ -41,7 +41,17 @@ export class MainWindowService extends BaseService {
   constructor() {
     super()
     this._onMainWindowCreated = this.registerDisposable(new Emitter<BrowserWindow>())
-    this.onMainWindowCreated = this._onMainWindowCreated.event
+    this.onMainWindowCreated = (listener) => {
+      const disposable = this._onMainWindowCreated.event(listener)
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        try {
+          listener(this.mainWindow)
+        } catch {
+          // Keep replay semantics aligned with Emitter.fire(): one listener must not break service init.
+        }
+      }
+      return disposable
+    }
   }
 
   protected async onInit() {
@@ -588,16 +598,12 @@ export class MainWindowService extends BaseService {
 
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
       if (mainWindow.isFocused()) {
-        // if tray is enabled, hide the main window, else do nothing
-        if (application.get('PreferenceService').get('app.tray.on_close')) {
-          // Same pattern as the close handler: tell WM to stop counting Main
-          // toward Dock visibility BEFORE hiding, so the Dock coordinates with
-          // whatever else is alive (e.g. a SubWindow) rather than blindly hiding.
-          if (isMac) {
-            application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
-          }
-          mainWindow.hide()
+        // Same pattern as the close handler when the user opted into tray-close:
+        // tell WM to stop counting Main toward Dock visibility BEFORE hiding.
+        if (isMac && application.get('PreferenceService').get('app.tray.on_close')) {
+          application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
         }
+        mainWindow.hide()
       } else {
         mainWindow.focus()
       }
