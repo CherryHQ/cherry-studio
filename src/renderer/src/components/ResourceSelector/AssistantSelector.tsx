@@ -1,9 +1,3 @@
-// TODO(tags): wire tag filter chips once the resource library PR (feat/v2/resource-library-agents,
-//             upstream PR #14442) is merged into main. That PR exposes Assistant↔Tag associations
-//             (tagIds on the Assistant DTO or a batch lookup endpoint) and a tag list API for the
-//             filter panel source. Until it lands, the `tags` prop is omitted so ResourceSelectorShell
-//             hides the chip row automatically.
-
 import { loggerService } from '@logger'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
@@ -24,8 +18,8 @@ const logger = loggerService.withContext('AssistantSelector')
 /**
  * Row shape the selector operates on — derived from the Assistant DTO. `selectionType: 'item'`
  * returns values of this shape (not the raw Assistant) so the selector never leaks DB columns
- * the caller didn't ask about. Sort metadata (e.g. createdAt) is tracked side-band in this file,
- * not on the item, so callers with `selectionType: 'item'` still only see the base fields.
+ * the caller didn't ask about. Sort metadata (e.g. createdAt) is tracked side-band in this file;
+ * user tag names may be present so the selector can filter by assistant tags.
  */
 export type AssistantSelectorItem = ResourceSelectorShellItem
 
@@ -93,9 +87,15 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         id: a.id,
         name: a.name,
         emoji: a.emoji,
-        description: a.description
+        description: a.description,
+        tags: (a.tags ?? []).map((tag) => tag.name)
       })),
     [data]
+  )
+
+  const tags = useMemo(
+    () => Array.from(new Set(items.flatMap((item) => item.tags ?? []))).sort((a, b) => a.localeCompare(b, 'zh')),
+    [items]
   )
 
   const sortOptions = useCreatedAtSort<AssistantSelectorItem>(data?.items, t)
@@ -121,6 +121,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     // — ResourceSelectorShell de-duplicates by routing both paths through one effect.
     onOpen: refetchPins,
     items,
+    tags,
     loading: isLoading || isPinnedLoading,
     sortOptions,
     defaultSortId: 'desc',

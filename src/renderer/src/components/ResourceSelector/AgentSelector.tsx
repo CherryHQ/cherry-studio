@@ -1,8 +1,3 @@
-// TODO(tags): wire tag filter chips once the resource library PR (feat/v2/resource-library-agents,
-//             upstream PR #14442) is merged AND the /agents endpoint exposes a parallel
-//             tag association. The resource library PR adds the Assistant↔Tag model; agents are
-//             expected to follow the same shape once their DataApi lands.
-
 import { loggerService } from '@logger'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
