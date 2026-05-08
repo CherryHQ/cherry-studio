@@ -13,25 +13,17 @@ import {
   PopoverContent,
   PopoverTrigger,
   Switch,
-  Textarea,
-  Tooltip
+  Textarea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { ModelSelector } from '@renderer/components/ModelSelector'
-import { useModels } from '@renderer/hooks/useModels'
-import {
-  ENDPOINT_TYPE,
-  isUniqueModelId,
-  type Model,
-  MODEL_CAPABILITY,
-  type UniqueModelId
-} from '@shared/data/types/model'
-import { ChevronsUpDown, Plus, Trash2 } from 'lucide-react'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ModelSelectorField } from '../../ModelSelectorField'
 import type { AgentFormState } from '../descriptor'
 import { FieldHeader } from './FieldHeader'
 
@@ -52,19 +44,11 @@ const DISALLOWED_AGENT_CAPABILITIES = new Set<string>([
   MODEL_CAPABILITY.IMAGE_GENERATION
 ])
 
-function buildModelsById(models: Model[]): Map<UniqueModelId, Model> {
-  return new Map(models.map((model) => [model.id, model]))
-}
-
 function isSelectableAgentModel(model: Model): boolean {
   return (
     model.endpointTypes?.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES) === true &&
     !model.capabilities.some((capability) => DISALLOWED_AGENT_CAPABILITIES.has(capability))
   )
-}
-
-function toSelectorValue(value: string): UniqueModelId | undefined {
-  return isUniqueModelId(value) ? value : undefined
 }
 
 /**
@@ -86,8 +70,6 @@ function toSelectorValue(value: string): UniqueModelId | undefined {
 const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
   const { t } = useTranslation()
   const [emojiOpen, setEmojiOpen] = useState(false)
-  const { models } = useModels({ enabled: true })
-  const modelsById = useMemo(() => buildModelsById(models), [models])
 
   const removePath = (path: string) => {
     onChange({ accessiblePaths: form.accessiblePaths.filter((p) => p !== path) })
@@ -184,25 +166,22 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
           label={t('library.config.agent.field.model.label')}
           hint={t('library.config.agent.field.model.hint')}
           value={form.model}
-          modelsById={modelsById}
           errorMessage={modelError}
-          onSelect={(modelId) => onChange({ model: modelId })}
+          onSelect={(modelId) => onChange({ model: modelId ?? '' })}
         />
         <ModelField
           label={t('library.config.agent.field.plan_model.label')}
           hint={t('library.config.agent.field.plan_model.hint')}
           value={form.planModel}
-          modelsById={modelsById}
           allowClear
-          onSelect={(modelId) => onChange({ planModel: modelId })}
+          onSelect={(modelId) => onChange({ planModel: modelId ?? '' })}
         />
         <ModelField
           label={t('library.config.agent.field.small_model.label')}
           hint={t('library.config.agent.field.small_model.hint')}
           value={form.smallModel}
-          modelsById={modelsById}
           allowClear
-          onSelect={(modelId) => onChange({ smallModel: modelId })}
+          onSelect={(modelId) => onChange({ smallModel: modelId ?? '' })}
         />
       </ModelSubsection>
 
@@ -318,7 +297,6 @@ function ModelField({
   label,
   hint,
   value,
-  modelsById,
   allowClear = false,
   errorMessage,
   onSelect
@@ -326,64 +304,20 @@ function ModelField({
   label: string
   hint: string
   value: string
-  modelsById: ReadonlyMap<UniqueModelId, Model>
   allowClear?: boolean
   errorMessage?: string
-  onSelect: (modelId: UniqueModelId | '') => void
+  onSelect: (modelId: string | null) => void
 }) {
-  const { t } = useTranslation()
-  const invalid = Boolean(errorMessage)
-  const selectorValue = toSelectorValue(value)
-  const selectedModel = selectorValue ? modelsById.get(selectorValue) : undefined
-  const triggerLabel = selectedModel?.name ?? (value || t('library.config.basic.model_pick'))
-
   return (
-    <Field data-invalid={invalid || undefined} className="gap-1.5">
-      <FieldHeader label={label} hint={hint} />
-      <FieldContent>
-        <div
-          className={`rounded-xs border bg-accent/15 transition-colors ${
-            invalid ? 'border-destructive/50' : 'border-border/20'
-          }`}>
-          <div className="flex items-center gap-1.5 px-2 py-1">
-            <ModelSelector
-              multiple={false}
-              selectionType="id"
-              value={selectorValue}
-              filter={isSelectableAgentModel}
-              onSelect={(modelId) => onSelect(modelId ?? '')}
-              trigger={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="flex h-auto min-h-0 min-w-0 flex-1 items-center justify-between gap-1.5 rounded-[12px] px-2 py-1 font-normal text-foreground text-xs shadow-none hover:bg-accent/50 focus-visible:ring-0">
-                  <span className="min-w-0 truncate">{triggerLabel}</span>
-                  <ChevronsUpDown size={12} className="shrink-0 text-muted-foreground/50" />
-                </Button>
-              }
-            />
-            {allowClear && value ? (
-              <Tooltip content={t('library.config.basic.model_clear')}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  aria-label={`${label} ${t('library.config.basic.model_clear')}`}
-                  onClick={() => onSelect('')}
-                  className="flex h-6 min-h-0 w-6 shrink-0 items-center justify-center rounded-3xs font-normal text-muted-foreground/50 shadow-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0">
-                  <Trash2 size={12} />
-                </Button>
-              </Tooltip>
-            ) : null}
-          </div>
-        </div>
-        <FieldError className="text-xs" errors={errorMessage ? [{ message: errorMessage }] : undefined} />
-        {value && !selectedModel ? (
-          <FieldDescription className="text-muted-foreground/50 text-xs">
-            {t('library.config.basic.model_not_found', { id: value })}
-          </FieldDescription>
-        ) : null}
-      </FieldContent>
-    </Field>
+    <ModelSelectorField
+      label={label}
+      hint={hint}
+      value={value}
+      allowClear={allowClear}
+      errorMessage={errorMessage}
+      filter={isSelectableAgentModel}
+      onSelect={onSelect}
+    />
   )
 }
 

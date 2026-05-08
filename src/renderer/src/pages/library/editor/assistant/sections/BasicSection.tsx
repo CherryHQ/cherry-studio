@@ -23,17 +23,16 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { ModelSelector } from '@renderer/components/ModelSelector'
-import { useModels } from '@renderer/hooks/useModels'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { ChevronsUpDown, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TagSelector } from '../../../TagSelector'
 import { FieldHeader } from '../../FieldHeader'
+import { ModelSelectorField } from '../../ModelSelectorField'
 import { ASSISTANT_CONTEXT_COUNT_MIN, type AssistantFormState } from '../descriptor'
 import { isSelectableAssistantModel } from '../modelFilter'
 
@@ -45,10 +44,6 @@ const UI_MAX_CONTEXT_COUNT = 20
 const UI_DEFAULT_MAX_TOOL_CALLS = 20
 
 const AVATAR_OPTIONS = ['🤖', '💬', '✍️', '🎓', '💻', '🎨', '📝', '🌟', '🔮', '⚡', '🎭', '📊']
-
-function buildModelsById(models: Model[]): Map<UniqueModelId, Model> {
-  return new Map(models.map((model) => [model.id, model]))
-}
 
 interface Props {
   /** Present in edit mode; omitted during create. */
@@ -74,11 +69,8 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
   const { t } = useTranslation()
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const nameInvalid = Boolean(nameError)
-  const { models } = useModels({ enabled: true })
-  const modelsById = useMemo(() => buildModelsById(models), [models])
-  const selectedModel = form.modelId ? (modelsById.get(form.modelId) ?? null) : null
 
-  const handleSelectModel = (modelId: UniqueModelId | undefined) => {
+  const handleSelectModel = (modelId: UniqueModelId | null, model?: Model) => {
     if (!modelId) {
       onChange({ modelId: null })
       return
@@ -89,7 +81,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
     // Applied as a form-state patch (no mutation until 保存), matching the
     // rest of BasicSection. Tracked as tech-debt upstream (see v1 comment
     // "TODO: 移除根据模型自动修改参数的逻辑").
-    const nameLower = modelsById.get(modelId)?.name.toLowerCase() ?? ''
+    const nameLower = model?.name.toLowerCase() ?? ''
     const patch: Partial<AssistantFormState> = {
       modelId
     }
@@ -198,62 +190,14 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
 
       <Separator className="bg-border/30" />
 
-      {/* 默认模型 */}
-      <Field className="gap-1.5">
-        <FieldHeader label={t('library.config.basic.model')} hint={t('library.config.basic.field.model.hint')} />
-        <FieldContent>
-          {form.modelId ? (
-            <div className="flex items-center gap-2">
-              <ModelSelector
-                multiple={false}
-                selectionType="id"
-                value={form.modelId}
-                filter={isSelectableAssistantModel}
-                onSelect={handleSelectModel}
-                trigger={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="flex h-auto min-h-0 items-center gap-1.5 rounded-full bg-accent/40 px-2 py-[3px] font-normal text-foreground text-xs shadow-none transition-colors hover:bg-accent/50 focus-visible:ring-0">
-                    <span className="max-w-[180px] truncate">{selectedModel?.name ?? form.modelId}</span>
-                    <ChevronsUpDown size={12} className="shrink-0 text-muted-foreground/50" />
-                  </Button>
-                }
-              />
-              <Tooltip content={t('library.config.basic.model_clear')}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  aria-label={t('library.config.basic.model_clear')}
-                  onClick={() => onChange({ modelId: null })}
-                  className="flex h-6 min-h-0 w-6 items-center justify-center rounded-3xs font-normal text-muted-foreground/50 shadow-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0">
-                  <Trash2 size={12} />
-                </Button>
-              </Tooltip>
-            </div>
-          ) : (
-            <ModelSelector
-              multiple={false}
-              selectionType="id"
-              filter={isSelectableAssistantModel}
-              onSelect={handleSelectModel}
-              trigger={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-auto min-h-0 rounded-full border border-border/40 border-dashed px-2.5 py-[3px] font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:border-border/60 hover:text-foreground focus-visible:ring-0">
-                  {t('library.config.basic.model_pick')}
-                </Button>
-              }
-            />
-          )}
-          {form.modelId && !selectedModel ? (
-            <FieldDescription className="text-muted-foreground/50 text-xs">
-              {t('library.config.basic.model_not_found', { id: form.modelId })}
-            </FieldDescription>
-          ) : null}
-        </FieldContent>
-      </Field>
+      <ModelSelectorField
+        label={t('library.config.basic.model')}
+        hint={t('library.config.basic.field.model.hint')}
+        value={form.modelId}
+        allowClear
+        filter={isSelectableAssistantModel}
+        onSelect={handleSelectModel}
+      />
 
       {/* 模型温度 */}
       <ToggleFieldGroup
