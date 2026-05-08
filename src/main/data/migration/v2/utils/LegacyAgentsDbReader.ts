@@ -1,8 +1,6 @@
 import { existsSync } from 'node:fs'
 
 import { createClient } from '@libsql/client'
-import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/libsql'
 import { pathToFileURL } from 'url'
 
 import { type MigrationPaths, resolveMigrationPaths } from '../core/MigrationPaths'
@@ -40,24 +38,26 @@ export class LegacyAgentsDbReader {
       intMode: 'number'
     })
 
-    const db = drizzle(client)
-
     try {
       const schemaInfo = createEmptyAgentsSchemaInfo()
 
       for (const tableName of getAgentsSourceTableNames()) {
-        const table = await db.get<{ name: string }>(
-          sql.raw(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = '${tableName}'`)
-        )
+        const existsResult = await client.execute({
+          sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+          args: [tableName]
+        })
 
-        if (!table) {
+        if (existsResult.rows.length === 0) {
           continue
         }
 
         schemaInfo[tableName].exists = true
 
-        const columns = await db.all<{ name: string }>(sql.raw(`PRAGMA table_info(\`${tableName}\`)`))
-        schemaInfo[tableName].columns = new Set(columns.map((column) => column.name))
+        // PRAGMA does not accept bound parameters; tableName comes from the
+        // hardcoded getAgentsSourceTableNames() whitelist, so identifier
+        // interpolation here is safe.
+        const columnsResult = await client.execute(`PRAGMA table_info(\`${tableName}\`)`)
+        schemaInfo[tableName].columns = new Set(columnsResult.rows.map((row) => String(row.name)))
       }
 
       return schemaInfo
@@ -78,8 +78,6 @@ export class LegacyAgentsDbReader {
       intMode: 'number'
     })
 
-    const db = drizzle(client)
-
     try {
       const counts = this.createEmptyCounts()
       const effectiveSchemaInfo = schemaInfo ?? (await this.inspectSchema())
@@ -89,8 +87,9 @@ export class LegacyAgentsDbReader {
           continue
         }
 
-        const result = await db.get<{ count: number }>(sql.raw(`SELECT COUNT(*) AS count FROM \`${tableName}\``))
-        counts[tableName] = Number(result?.count ?? 0)
+        // tableName comes from the hardcoded getAgentsSourceTableNames() whitelist.
+        const result = await client.execute(`SELECT COUNT(*) AS count FROM \`${tableName}\``)
+        counts[tableName] = Number(result.rows[0]?.count ?? 0)
       }
 
       return counts
