@@ -351,10 +351,8 @@ export const ResourceGrid: FC<Props> = ({
         ) : resources.length === 0 ? (
           <EmptyState
             preset={search ? 'no-result' : 'no-resource'}
-            title={search ? t('library.empty_state.no_match_title') : t('library.empty_state.empty_title')}
-            description={
-              search ? t('library.empty_state.no_match_description') : t('library.empty_state.empty_description')
-            }
+            title={search ? t('library.empty_state.no_match_title') : t('library.empty_state.title')}
+            description={search ? t('library.empty_state.no_match_description') : t('library.empty_state.description')}
             className="py-20"
           />
         ) : (

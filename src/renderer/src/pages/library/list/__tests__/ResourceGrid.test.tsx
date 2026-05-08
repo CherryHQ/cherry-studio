@@ -4,7 +4,7 @@ import type { ComponentProps, ComponentType, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResourceItem } from '../../types'
-import { FixedCardMenu } from '../ResourceGrid'
+import { FixedCardMenu, ResourceGrid } from '../ResourceGrid'
 
 const { ensureTagsMock, updateAssistantMock } = vi.hoisted(() => ({
   ensureTagsMock: vi.fn(),
@@ -70,7 +70,12 @@ vi.mock('@cherrystudio/ui', () => ({
       {...props}
     />
   ),
-  EmptyState: () => <div />,
+  EmptyState: ({ description, title }: { description?: string; title?: string }) => (
+    <div data-testid="empty-state">
+      {title && <div>{title}</div>}
+      {description && <div>{description}</div>}
+    </div>
+  ),
   Input: ({ className: _className, ...props }: ComponentProps<'input'> & { className?: string }) => (
     <input {...props} />
   ),
@@ -178,6 +183,49 @@ function createPromptResource(): ResourceItem {
     raw: null
   }
 }
+
+function renderResourceGrid(props: Partial<ComponentProps<typeof ResourceGrid>> = {}) {
+  return render(
+    <ResourceGrid
+      resources={[]}
+      activeResourceType="assistant"
+      search=""
+      onSearchChange={vi.fn()}
+      onEdit={vi.fn()}
+      onDuplicate={vi.fn()}
+      onDelete={vi.fn()}
+      onExport={vi.fn()}
+      onCreate={vi.fn()}
+      onImportAssistant={vi.fn()}
+      tags={[]}
+      activeTag={null}
+      onTagFilter={vi.fn()}
+      onAddTag={vi.fn()}
+      onUpdateResourceTags={vi.fn()}
+      allTagNames={[]}
+      {...props}
+    />
+  )
+}
+
+describe('ResourceGrid empty state copy', () => {
+  it('uses the generic resource empty copy when there is no search', () => {
+    renderResourceGrid()
+
+    expect(screen.getByTestId('empty-state')).toBeInTheDocument()
+    expect(screen.getByText('library.empty_state.title')).toBeInTheDocument()
+    expect(screen.getByText('library.empty_state.description')).toBeInTheDocument()
+    expect(screen.queryByText('library.empty_state.empty_title')).not.toBeInTheDocument()
+    expect(screen.queryByText('library.empty_state.empty_description')).not.toBeInTheDocument()
+  })
+
+  it('uses the no-match copy when search has no results', () => {
+    renderResourceGrid({ search: 'missing' })
+
+    expect(screen.getByText('library.empty_state.no_match_title')).toBeInTheDocument()
+    expect(screen.getByText('library.empty_state.no_match_description')).toBeInTheDocument()
+  })
+})
 
 describe('FixedCardMenu tag binding', () => {
   beforeEach(() => {
