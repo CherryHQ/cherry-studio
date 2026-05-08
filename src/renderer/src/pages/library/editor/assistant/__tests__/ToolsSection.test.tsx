@@ -37,6 +37,12 @@ vi.mock('@data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Alert: ({ children, message }: { children?: ReactNode; message?: ReactNode }) => (
+    <div>
+      {message}
+      {children}
+    </div>
+  ),
   Button: (props: ComponentProps<'button'> & { variant?: string }) => {
     const { children, variant, ...buttonProps } = props
     void variant

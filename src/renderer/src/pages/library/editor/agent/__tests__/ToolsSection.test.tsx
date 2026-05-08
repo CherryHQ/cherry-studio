@@ -209,7 +209,7 @@ describe('ToolsSection', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: /Skills/i }))
+    await user.click(screen.getByRole('tab', { name: /library\.config\.agent\.section\.tools\.tab\.skills/i }))
 
     expect(screen.getByRole('button', { name: 'library.config.agent.section.tools.add' })).toBeDisabled()
     expect(screen.getByText('library.config.agent.section.tools.skills_require_save')).toBeInTheDocument()

@@ -1,9 +1,8 @@
-import { Button, Dialog, DialogContent } from '@cherrystudio/ui'
+import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState } from '@cherrystudio/ui'
 import type { InstalledSkill } from '@types'
-import { AlertCircle, CheckCircle2, FolderOpen, Loader2, Upload, X } from 'lucide-react'
+import { FolderOpen, Loader2, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import type { ChangeEvent, DragEvent } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useSkillMutations } from '../adapters/skillAdapter'
@@ -34,15 +33,12 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
   const { t } = useTranslation()
   const { installFromZip, installFromDirectory } = useSkillMutations()
 
-  const [dragOver, setDragOver] = useState(false)
   const [status, setStatus] = useState<ImportStatus>({ kind: 'idle' })
   const [installing, setInstalling] = useState<InstallingKey>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Reset transient state on open / close.
   useEffect(() => {
     if (!open) {
-      setDragOver(false)
       setStatus({ kind: 'idle' })
       setInstalling(null)
     }
@@ -108,11 +104,8 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
    * page uses the same probe (`window.api.file.isDirectory`) since dropped
    * directories show up as `File` entries on Electron.
    */
-  const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    setDragOver(false)
+  const handleDroppedEntry = async (file?: File) => {
     if (installing) return
-    const file = event.dataTransfer.files?.[0]
     if (!file) return
 
     const filePath = window.api.file.getPathForFile(file)
@@ -150,27 +143,6 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
     setStatus({ kind: 'error', message: t('settings.skills.invalidFormat') })
   }
 
-  // Hidden file input lets the drop-zone act as a button without going through
-  // the Electron picker (drag-drop reuses the same path).
-  const handleFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
-    if (installing) return
-    const filePath = window.api.file.getPathForFile(file)
-    if (!filePath) return
-    setInstalling('zip')
-    setStatus({ kind: 'idle' })
-    try {
-      const skill = await installFromZip(filePath)
-      finishInstall(skill)
-    } catch (e) {
-      failInstall(e, file.name)
-    } finally {
-      setInstalling(null)
-    }
-  }
-
   return (
     <Dialog
       open={open}
@@ -199,36 +171,34 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
 
         {/* Body */}
         <div className="px-5 py-5">
-          <div
-            role="button"
-            tabIndex={0}
-            onDragOver={(e) => {
-              e.preventDefault()
-              if (!installing) setDragOver(true)
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => void handleDrop(e)}
-            onClick={() => fileInputRef.current?.click()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                fileInputRef.current?.click()
+          <Dropzone
+            disabled={Boolean(installing)}
+            getFilesFromEvent={async (event) => {
+              if ('dataTransfer' in event && event.dataTransfer) {
+                return Array.from(event.dataTransfer.files)
               }
+
+              if ('target' in event && event.target && 'files' in event.target) {
+                const target = event.target as HTMLInputElement
+                return target.files ? Array.from(target.files) : []
+              }
+
+              return []
             }}
-            className={`flex cursor-pointer flex-col items-center justify-center rounded-2xs border-2 border-dashed p-8 transition-all ${
-              dragOver ? 'border-primary/40 bg-primary/5' : 'border-border/20 hover:border-border/40 hover:bg-accent/10'
-            } ${installing ? 'pointer-events-none opacity-60' : ''}`}>
-            <Upload size={26} strokeWidth={1.2} className="mb-3 text-muted-foreground/35" />
-            <p className="mb-1 text-muted-foreground/60 text-xs">{t('library.import_skill_dialog.local.drop_hint')}</p>
-            <p className="text-muted-foreground/40 text-xs">{t('library.import_skill_dialog.local.formats')}</p>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".zip,application/zip"
-            className="hidden"
-            onChange={(e) => void handleFileSelected(e)}
-          />
+            maxFiles={1}
+            onDrop={(files, _rejections, event) => {
+              const droppedFile = 'dataTransfer' in event ? event.dataTransfer?.files?.[0] : undefined
+              void handleDroppedEntry(droppedFile ?? files[0])
+            }}
+            className="flex cursor-pointer flex-col items-center justify-center rounded-2xs border-2 border-border/20 border-dashed bg-transparent p-8 text-center shadow-none transition-all hover:border-border/40 hover:bg-accent/10 disabled:pointer-events-none disabled:opacity-60">
+            <DropzoneEmptyState>
+              <Upload size={26} strokeWidth={1.2} className="mb-3 text-muted-foreground/35" />
+              <p className="mb-1 text-muted-foreground/60 text-xs">
+                {t('library.import_skill_dialog.local.drop_hint')}
+              </p>
+              <p className="text-muted-foreground/40 text-xs">{t('library.import_skill_dialog.local.formats')}</p>
+            </DropzoneEmptyState>
+          </Dropzone>
 
           <div className="mt-4 flex items-center gap-2">
             <Button
@@ -264,9 +234,13 @@ function StatusBanner({ status }: { status: ImportStatus }) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
-          className="mt-4 flex items-center gap-2 rounded-3xs border border-primary/20 bg-primary/10 px-3 py-2">
-          <CheckCircle2 size={12} className="text-primary" />
-          <span className="text-foreground text-xs">{status.message}</span>
+          className="mt-4">
+          <Alert
+            type="success"
+            showIcon
+            message={status.message}
+            className="rounded-3xs px-3 py-2 text-xs shadow-none"
+          />
         </motion.div>
       )}
       {status.kind === 'error' && (
@@ -274,9 +248,8 @@ function StatusBanner({ status }: { status: ImportStatus }) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
-          className="mt-4 flex items-center gap-2 rounded-3xs border border-destructive/20 bg-destructive/10 px-3 py-2">
-          <AlertCircle size={12} className="text-destructive" />
-          <span className="text-destructive text-xs">{status.message}</span>
+          className="mt-4">
+          <Alert type="error" showIcon message={status.message} className="rounded-3xs px-3 py-2 text-xs shadow-none" />
         </motion.div>
       )}
     </AnimatePresence>

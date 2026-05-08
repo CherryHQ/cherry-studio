@@ -1,4 +1,4 @@
-import { Input } from '@cherrystudio/ui'
+import { Input, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { permissionModeCards } from '@renderer/config/agent'
 import {
@@ -12,7 +12,6 @@ import type { Tool } from '@renderer/types'
 import type { AgentDetail } from '@shared/data/types/agent'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { Network, Search, Sparkles, Wrench } from 'lucide-react'
-import { motion } from 'motion/react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -186,29 +185,22 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
       </div>
 
       <div className="flex items-center border-border/30 border-b pb-px">
-        {tabs.map((tab) => {
-          const active = activeTab === tab.id
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`relative px-3 py-1.5 text-sm transition-colors ${
-                active ? 'text-foreground' : 'text-muted-foreground/55 hover:text-foreground/70'
-              }`}>
-              {tab.label}
-              <span className={`ml-1.5 text-xs ${active ? 'text-muted-foreground/50' : 'text-muted-foreground/40'}`}>
-                {tab.enabled}/{tab.total}
-              </span>
-              {active && (
-                <motion.div
-                  layoutId="agent-tools-tab"
-                  className="absolute right-0 bottom-0 left-0 h-[1.5px] rounded-full bg-foreground/60"
-                />
-              )}
-            </button>
-          )
-        })}
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ToolTab)} className="min-w-0">
+          <TabsList className="h-auto justify-start gap-0 bg-transparent p-0">
+            {tabs.map((tab) => (
+              <TabsTrigger
+                key={tab.id}
+                value={tab.id}
+                className="group relative h-auto rounded-none border-0 bg-transparent px-3 py-1.5 font-normal text-muted-foreground/55 text-sm shadow-none transition-colors hover:text-foreground/70 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent">
+                {tab.label}
+                <span className="ml-1.5 text-muted-foreground/40 text-xs group-data-[state=active]:text-muted-foreground/50">
+                  {tab.enabled}/{tab.total}
+                </span>
+                <span className="absolute right-0 bottom-0 left-0 h-[1.5px] rounded-full bg-foreground/60 opacity-0 transition-opacity group-data-[state=active]:opacity-100" />
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
 
         {activeTab === 'tools' && (
           <AddCatalogPopover

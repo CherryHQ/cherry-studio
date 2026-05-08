@@ -1,6 +1,6 @@
-import { Button } from '@cherrystudio/ui'
+import { Alert, Button } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
-import { AlertCircle, Plug } from 'lucide-react'
+import { Plug } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -106,13 +106,12 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
         </div>
       )}
 
-      <div className="flex items-start gap-2 rounded-xs border border-blue-500/15 bg-blue-500/5 px-3 py-2.5">
-        <AlertCircle size={12} className="mt-px shrink-0 text-blue-500/60" />
+      <Alert type="info" showIcon className="rounded-xs border-blue-500/15 bg-blue-500/5 px-3 py-2.5 shadow-none">
         <div>
           <p className="text-blue-600/70 text-xs dark:text-blue-400/80">{t('library.config.tools.info_main')}</p>
           <p className="mt-0.5 text-blue-600/50 text-xs dark:text-blue-400/60">{t('library.config.tools.info_sub')}</p>
         </div>
-      </div>
+      </Alert>
     </div>
   )
 }

@@ -1,8 +1,19 @@
-import { Button, Dialog, DialogContent, Input, Tabs, TabsList, TabsTrigger, Textarea } from '@cherrystudio/ui'
-import { AlertCircle, CheckCircle2, Clipboard, FileJson, Link, Upload, X } from 'lucide-react'
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogContent,
+  Dropzone,
+  DropzoneEmptyState,
+  Input,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  Textarea
+} from '@cherrystudio/ui'
+import { Clipboard, FileJson, Link, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import type { ChangeEvent, DragEvent } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { sanitizeUrl } from 'strict-url-sanitise'
 
@@ -41,17 +52,14 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
   const { ensureTags } = useEnsureTags()
 
   const [tab, setTab] = useState<ImportTab>('file')
-  const [dragOver, setDragOver] = useState(false)
   const [clipboardText, setClipboardText] = useState('')
   const [urlText, setUrlText] = useState('')
   const [status, setStatus] = useState<ImportStatus>({ kind: 'idle' })
   const [loading, setLoading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) {
       setTab('file')
-      setDragOver(false)
       setClipboardText('')
       setUrlText('')
       setStatus({ kind: 'idle' })
@@ -162,20 +170,8 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     return file.text()
   }
 
-  const handleFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
-    const content = await readFileOrBail(file)
-    if (content === null) return
-    await runImport(content, 'file', file.name)
-  }
-
-  const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    setDragOver(false)
+  const handleFileDrop = async (file?: File) => {
     if (loading) return
-    const file = event.dataTransfer.files?.[0]
     if (!file) return
     const content = await readFileOrBail(file)
     if (content === null) return
@@ -307,40 +303,23 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    if (!loading) setDragOver(true)
-                  }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={(e) => void handleDrop(e)}
-                  onClick={() => fileInputRef.current?.click()}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      fileInputRef.current?.click()
-                    }
-                  }}
-                  className={`flex cursor-pointer flex-col items-center justify-center rounded-2xs border-2 border-dashed p-8 transition-all ${
-                    dragOver
-                      ? 'border-primary/40 bg-primary/5'
-                      : 'border-border/20 hover:border-border/40 hover:bg-accent/10'
-                  } ${loading ? 'pointer-events-none opacity-60' : ''}`}>
-                  <Upload size={24} strokeWidth={1.2} className="mb-3 text-muted-foreground/30" />
-                  <p className="mb-1 text-[11px] text-muted-foreground/50">
-                    {t('library.import_dialog.file.drop_hint')}
-                  </p>
-                  <p className="text-[9px] text-muted-foreground/35">{t('library.import_dialog.file.formats')}</p>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json,application/json"
-                  className="hidden"
-                  onChange={(e) => void handleFileSelected(e)}
-                />
+                <Dropzone
+                  accept={{ 'application/json': ['.json'] }}
+                  disabled={loading}
+                  maxFiles={1}
+                  onDrop={(files) => void handleFileDrop(files[0])}
+                  onError={() =>
+                    setStatus({ kind: 'error', message: t('assistants.presets.import.error.invalid_format') })
+                  }
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-2xs border-2 border-border/20 border-dashed bg-transparent p-8 text-center shadow-none transition-all hover:border-border/40 hover:bg-accent/10 disabled:pointer-events-none disabled:opacity-60">
+                  <DropzoneEmptyState>
+                    <Upload size={24} strokeWidth={1.2} className="mb-3 text-muted-foreground/30" />
+                    <p className="mb-1 text-[11px] text-muted-foreground/50">
+                      {t('library.import_dialog.file.drop_hint')}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground/35">{t('library.import_dialog.file.formats')}</p>
+                  </DropzoneEmptyState>
+                </Dropzone>
               </motion.div>
             )}
             {tab === 'clipboard' && (
@@ -407,9 +386,13 @@ function StatusBanner({ status }: { status: ImportStatus }) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
-          className="mt-4 flex items-center gap-2 rounded-3xs border border-primary/20 bg-primary/10 px-3 py-2">
-          <CheckCircle2 size={12} className="text-primary" />
-          <span className="text-[10px] text-foreground">{status.message}</span>
+          className="mt-4">
+          <Alert
+            type="success"
+            showIcon
+            message={status.message}
+            className="rounded-3xs px-3 py-2 text-[10px] shadow-none"
+          />
         </motion.div>
       )}
       {status.kind === 'error' && (
@@ -417,9 +400,13 @@ function StatusBanner({ status }: { status: ImportStatus }) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
-          className="mt-4 flex items-center gap-2 rounded-3xs border border-destructive/20 bg-destructive/10 px-3 py-2">
-          <AlertCircle size={12} className="text-destructive" />
-          <span className="text-[10px] text-destructive">{status.message}</span>
+          className="mt-4">
+          <Alert
+            type="error"
+            showIcon
+            message={status.message}
+            className="rounded-3xs px-3 py-2 text-[10px] shadow-none"
+          />
         </motion.div>
       )}
     </AnimatePresence>

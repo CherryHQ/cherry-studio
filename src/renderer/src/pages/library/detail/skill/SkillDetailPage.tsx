@@ -1,4 +1,4 @@
-import { Badge, Button, ConfirmDialog, Separator } from '@cherrystudio/ui'
+import { Alert, Badge, Button, ConfirmDialog, Separator } from '@cherrystudio/ui'
 import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
 import type { InstalledSkill, SkillFileNode } from '@types'
@@ -298,20 +298,24 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
           </section>
 
           {!isBuiltin ? (
-            <section className="flex items-center justify-between gap-4 rounded-xs border border-destructive/15 bg-destructive/5 px-5 py-4">
+            <Alert
+              type="error"
+              action={
+                <Button
+                  variant="destructive"
+                  onClick={() => setConfirmUninstallOpen(true)}
+                  disabled={uninstalling}
+                  className="shrink-0 gap-2 rounded-xs">
+                  {uninstalling ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  <span>{t('library.action.uninstall')}</span>
+                </Button>
+              }
+              className="items-center rounded-xs border-destructive/15 bg-destructive/5 px-5 py-4 shadow-none">
               <div className="min-w-0">
                 <h2 className="font-medium text-foreground text-sm">{t('library.skill_detail.delete_title')}</h2>
                 <p className="mt-1 text-muted-foreground/55 text-xs">{t('library.skill_detail.delete_description')}</p>
               </div>
-              <Button
-                variant="destructive"
-                onClick={() => setConfirmUninstallOpen(true)}
-                disabled={uninstalling}
-                className="shrink-0 gap-2 rounded-xs">
-                {uninstalling ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                <span>{t('library.action.uninstall')}</span>
-              </Button>
-            </section>
+            </Alert>
           ) : null}
         </div>
         <ConfirmDialog

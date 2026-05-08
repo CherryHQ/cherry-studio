@@ -102,35 +102,39 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
               <Plus size={10} /> {t('library.config.knowledge.add')}
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="start" sideOffset={4} className="w-60 rounded-xs p-2">
-            <div className="relative mb-2">
+          <PopoverContent
+            align="start"
+            sideOffset={4}
+            className="w-60 rounded-xs border-border/30 p-1 shadow-black/[0.06] shadow-lg">
+            <div className="relative mb-1">
               <Search
-                size={10}
-                className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 text-muted-foreground/50"
+                size={14}
+                className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2.5 text-muted-foreground/40"
               />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t('library.config.knowledge.search')}
-                className="h-auto rounded-2xs border border-border/20 bg-accent/15 py-1.5 pr-2 pl-6 text-xs shadow-none transition-all focus-visible:border-border/40 focus-visible:ring-0"
+                className="h-8 rounded-2xs border-0 bg-transparent pr-2 pl-7 text-xs shadow-none transition-colors placeholder:text-muted-foreground/40 focus-visible:bg-accent/30 focus-visible:ring-0"
               />
             </div>
             {unlinkedItems.length === 0 ? (
-              <p className="px-2 py-3 text-center text-muted-foreground/50 text-xs">
+              <p className="px-2 py-5 text-center font-normal text-muted-foreground/45 text-xs">
                 {t('library.config.knowledge.no_more')}
               </p>
             ) : (
               <Scrollbar className="max-h-60">
-                <MenuList>
+                <MenuList className="gap-0.5">
                   {unlinkedItems.map((kb) => (
                     <MenuItem
                       key={kb.id}
                       size="sm"
                       variant="ghost"
-                      className="rounded-2xs"
+                      className="rounded-[10px] px-2 py-1.5 font-normal text-foreground/80 hover:text-foreground"
                       icon={<Database size={12} strokeWidth={1.4} />}
                       label={kb.name}
                       description={t('library.config.knowledge.doc_count', { count: kb.documentCount ?? 0 })}
+                      descriptionClassName="text-muted-foreground/45"
                       onClick={() => add(kb.id)}
                     />
                   ))}
