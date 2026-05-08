@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { COMPLEX_PREFERENCE_MAPPINGS, getComplexMappingById } from '../ComplexPreferenceMappings'
+import { getSimpleMappingTargetKeys } from '../../PreferencesMigrator'
+import {
+  COMPLEX_PREFERENCE_MAPPINGS,
+  getComplexMappingById,
+  getComplexMappingTargetKeys
+} from '../ComplexPreferenceMappings'
 import { REDUX_STORE_MAPPINGS } from '../PreferencesMappings'
 
 describe('PreferencesMappings', () => {
@@ -71,6 +76,25 @@ describe('PreferencesMappings', () => {
 
       const conflicts = simpleTargetKeys.filter((k) => complexTargetKeys.includes(k))
       expect(conflicts).toHaveLength(0)
+    })
+  })
+
+  describe('mapping conflict invariant', () => {
+    it('simple and complex mappings must not share target keys (full coverage)', () => {
+      // Mirrors PreferencesMigrator.prepare's strict-mode check across all 4
+      // simple sources (electronStore + redux + dexie-settings + localStorage)
+      // with the same shortcut.* exclusion rule used by the migrator. A
+      // conflict here would crash prepare() at runtime, so guard it statically.
+      const simple = getSimpleMappingTargetKeys()
+      const complex = getComplexMappingTargetKeys()
+      const overlap = simple.filter((k) => complex.includes(k))
+      expect(overlap).toEqual([])
+    })
+
+    it('excludes shortcut.* keys from the simple-mapping target list', () => {
+      const simple = getSimpleMappingTargetKeys()
+      const offenders = simple.filter((k) => k.startsWith('shortcut.'))
+      expect(offenders).toEqual([])
     })
   })
 })
