@@ -12,7 +12,6 @@ import { ChevronsUpDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   assistant: Assistant
@@ -58,29 +57,17 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
       size="sm"
       variant="ghost"
       onClick={onSelectModel}
-      className="mt-0.5 rounded-2xl border border-transparent border-solid bg-transparent px-1 py-3 text-xs shadow-none">
-      <ButtonContent>
-        <ModelAvatar model={model} size={20} />
-        <ModelName>
+      className="h-7 max-w-[min(360px,45vw)] rounded-md border border-transparent border-solid bg-transparent px-2 py-0 text-xs shadow-none">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <ModelAvatar model={model} size={18} />
+        <span className="min-w-0 truncate font-medium text-xs leading-none">
           {model ? model.name : t('button.select_model')} {providerName ? ' | ' + providerName : ''}
-        </ModelName>
-      </ButtonContent>
-      <ChevronsUpDown size={14} color="var(--color-icon)" />
+        </span>
+      </div>
+      <ChevronsUpDown size={13} className="text-muted-foreground" />
       {!provider && <Tag color="error">{t('models.invalid_model')}</Tag>}
     </Button>
   )
 }
-
-const ButtonContent = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-`
-
-const ModelName = styled.span`
-  font-weight: 500;
-  margin-right: -2px;
-  font-size: 12px;
-`
 
 export default SelectModelButton

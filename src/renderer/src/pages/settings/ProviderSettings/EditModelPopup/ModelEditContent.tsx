@@ -1,4 +1,4 @@
-import { Button, Flex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Divider, EditableNumber, Flex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import {
   EmbeddingTag,
@@ -22,13 +22,12 @@ import type { Model, ModelCapability, ModelType, Provider } from '@renderer/type
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import type { ModalProps } from 'antd'
-import { Divider, Form, Input, InputNumber, Modal, Select } from 'antd'
+import { Form, Input, Modal, Select } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, RotateCcw, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface ModelEditContentProps {
   provider: Provider
@@ -181,7 +180,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
 
     return (
       <>
-        <TypeTitle>
+        <div className="my-3 flex items-center justify-between font-semibold text-sm">
           <Flex className="h-6 items-center gap-1">
             {t('models.type.select')}
             <WarnTooltip content={t('settings.moresetting.check.warn')} />
@@ -194,7 +193,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
               </Button>
             </Tooltip>
           )}
-        </TypeTitle>
+        </div>
         <Flex className="mb-2 flex-wrap items-center justify-start gap-1">
           <VisionTag
             showLabel
@@ -263,7 +262,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
           label={t('settings.models.add.model_id.label')}
           tooltip={t('settings.models.add.model_id.tooltip')}
           rules={[{ required: true }]}>
-          <Flex className="justify-between gap-[5px]">
+          <Flex className="justify-between gap-1.25">
             <Input
               placeholder={t('settings.models.add.model_id.placeholder')}
               spellCheck={false}
@@ -321,7 +320,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
             <Button
               variant="default"
               onClick={() => setShowMoreSettings(!showMoreSettings)}
-              style={{ color: 'var(--color-text-3)' }}>
+              style={{ color: 'var(--color-foreground-muted)' }}>
               {t('settings.moresetting.label')}
               {showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </Button>
@@ -406,14 +405,13 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
             )}
 
             <Form.Item label={t('models.price.input')} style={{ marginBottom: 10 }} name="input_per_million_tokens">
-              <InputNumber
+              <EditableNumber
                 placeholder="0.00"
-                defaultValue={model.pricing?.input_per_million_tokens}
                 min={0}
                 step={0.01}
                 precision={2}
-                style={{ width: '240px' }}
-                addonAfter={`${currencySymbol} / ${t('models.price.million_tokens')}`}
+                className="w-[240px]"
+                suffix={`${currencySymbol} / ${t('models.price.million_tokens')}`}
                 onChange={() => {
                   // 自动保存
                   autoSave()
@@ -421,14 +419,13 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
               />
             </Form.Item>
             <Form.Item label={t('models.price.output')} style={{ marginBottom: 10 }} name="output_per_million_tokens">
-              <InputNumber
+              <EditableNumber
                 placeholder="0.00"
-                defaultValue={model.pricing?.output_per_million_tokens}
                 min={0}
                 step={0.01}
                 precision={2}
-                style={{ width: '240px' }}
-                addonAfter={`${currencySymbol} / ${t('models.price.million_tokens')}`}
+                className="w-[240px]"
+                suffix={`${currencySymbol} / ${t('models.price.million_tokens')}`}
                 onChange={() => {
                   // 自动保存
                   autoSave()
@@ -441,14 +438,5 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
     </Modal>
   )
 }
-
-const TypeTitle = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 12px 0;
-  font-size: 14px;
-  font-weight: 600;
-`
 
 export default ModelEditContent

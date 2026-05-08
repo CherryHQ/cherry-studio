@@ -1,7 +1,7 @@
 import { Kbd, KbdGroup } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Command, Copy, Save, Search } from 'lucide-react'
-// import { Tooltip, TooltipContent, TooltipTrigger } from '../../../src/components/primitives/tooltip'
+// import { Tooltip, TooltipContent, TooltipTrigger } from '@cherrystudio/ui/components/primitives/tooltip'
 
 const meta: Meta<typeof Kbd> = {
   title: 'Components/Primitives/Kbd',

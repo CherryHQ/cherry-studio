@@ -25,6 +25,7 @@ import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { SearchService } from '@main/services/SearchService'
 import { SelectionService } from '@main/services/selection/SelectionService'
+import { SettingsWindowService } from '@main/services/SettingsWindowService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
 import { SubWindowService } from '@main/services/SubWindowService'
@@ -71,6 +72,7 @@ export const services = {
   LanTransferService,
   PowerMonitorService,
   SelectionService,
+  SettingsWindowService,
   ShortcutService,
   ThemeService,
   SpanCacheService,

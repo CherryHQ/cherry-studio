@@ -1,4 +1,4 @@
-import { EyeInvisibleOutlined, EyeOutlined } from '@ant-design/icons'
+import { Alert, Button, Input, Textarea } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useVertexAISettings } from '@renderer/hooks/useVertexAI'
 import {
@@ -6,23 +6,12 @@ import {
   mergeVertexAILocationOptions,
   parseVertexAIServiceAccountJson
 } from '@renderer/utils/vertexAI'
-import { Alert, AutoComplete, Button, Input } from 'antd'
+import { Eye, EyeOff } from 'lucide-react'
+import type React from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
-
-const visibilityToggleStyle: React.CSSProperties = {
-  position: 'absolute',
-  top: '50%',
-  right: 8,
-  transform: 'translateY(-50%)',
-  zIndex: 1
-}
-
-const visibilityIconStyle: React.CSSProperties = {
-  color: 'var(--color-text-3)'
-}
 
 const VertexAISettings = () => {
   const { t } = useTranslation()
@@ -70,7 +59,6 @@ const VertexAISettings = () => {
   const secretTextAreaStyle = useMemo(
     () =>
       ({
-        paddingRight: 40,
         WebkitTextSecurity: privateKeyVisible ? 'none' : 'disc'
       }) as React.CSSProperties,
     [privateKeyVisible]
@@ -78,7 +66,6 @@ const VertexAISettings = () => {
   const jsonTextAreaStyle = useMemo(
     () =>
       ({
-        paddingRight: 40,
         WebkitTextSecurity: serviceAccountJsonVisible ? 'none' : 'disc'
       }) as React.CSSProperties,
     [serviceAccountJsonVisible]
@@ -175,7 +162,7 @@ const VertexAISettings = () => {
       </SettingSubtitle>
       <Alert
         type="info"
-        style={{ marginTop: 5 }}
+        className="mt-1.25"
         message={t('settings.provider.vertex_ai.service_account.description')}
         showIcon
       />
@@ -189,35 +176,31 @@ const VertexAISettings = () => {
         </SettingHelpTextRow>
       )}
       <div style={{ position: 'relative', marginTop: 5 }}>
-        <Input.TextArea
+        <Textarea.Input
           value={serviceAccountJson}
-          status={serviceAccountJsonError ? 'error' : undefined}
+          hasError={serviceAccountJsonError}
           placeholder={t('settings.provider.vertex_ai.service_account.json_input_placeholder')}
           onChange={handleServiceAccountJsonChange}
           onBlur={handleServiceAccountJsonBlur}
           style={jsonTextAreaStyle}
+          className="min-h-9 resize-none pr-10"
           spellCheck={false}
           autoComplete="off"
-          autoSize={serviceAccountJsonError ? { minRows: 2, maxRows: 2 } : { minRows: 1, maxRows: 1 }}
+          rows={serviceAccountJsonError ? 2 : 1}
         />
         <Button
-          type="text"
-          size="small"
+          type="button"
+          variant="ghost"
+          size="icon-sm"
           aria-label={jsonInputLabel}
-          icon={
-            serviceAccountJsonVisible ? (
-              <EyeOutlined style={visibilityIconStyle} />
-            ) : (
-              <EyeInvisibleOutlined style={visibilityIconStyle} />
-            )
-          }
           onClick={() => setServiceAccountJsonVisible((visible) => !visible)}
           onMouseDown={(event) => event.preventDefault()}
-          style={visibilityToggleStyle}
-        />
+          className="-translate-y-1/2 absolute top-1/2 right-1.5 z-1 size-7 text-muted-foreground shadow-none">
+          {serviceAccountJsonVisible ? <Eye size={14} /> : <EyeOff size={14} />}
+        </Button>
       </div>
       <SettingHelpTextRow>
-        <SettingHelpText style={serviceAccountJsonError ? { color: 'var(--color-error)' } : undefined}>
+        <SettingHelpText className={serviceAccountJsonError ? 'text-destructive' : undefined}>
           {serviceAccountJsonError
             ? t('settings.provider.vertex_ai.service_account.json_parse_error')
             : t('settings.provider.vertex_ai.service_account.json_input_help')}
@@ -227,13 +210,14 @@ const VertexAISettings = () => {
       <SettingSubtitle style={{ marginTop: 5 }}>
         {t('settings.provider.vertex_ai.service_account.client_email')}
       </SettingSubtitle>
-      <Input.Password
+      <Input
+        type="password"
         value={serviceAccount.clientEmail}
-        status={isClientEmailMissing ? 'error' : undefined}
+        aria-invalid={isClientEmailMissing}
         placeholder={t('settings.provider.vertex_ai.service_account.client_email_placeholder')}
         onChange={handleServiceAccountClientEmailChange}
         onBlur={handleServiceAccountClientEmailBlur}
-        style={{ marginTop: 5 }}
+        className="mt-1.25"
       />
       <SettingHelpTextRow>
         <SettingHelpText>{t('settings.provider.vertex_ai.service_account.client_email_help')}</SettingHelpText>
@@ -241,61 +225,65 @@ const VertexAISettings = () => {
 
       <SettingSubtitle style={{ marginTop: 5 }}>{privateKeyLabel}</SettingSubtitle>
       <div style={{ position: 'relative', marginTop: 5 }}>
-        <Input.TextArea
+        <Textarea.Input
           value={serviceAccount.privateKey}
-          status={isPrivateKeyMissing ? 'error' : undefined}
+          hasError={isPrivateKeyMissing}
           placeholder={t('settings.provider.vertex_ai.service_account.private_key_placeholder')}
           onChange={handleServiceAccountPrivateKeyChange}
           onBlur={handleServiceAccountPrivateKeyBlur}
           style={secretTextAreaStyle}
+          className="max-h-24 min-h-16 pr-10"
           spellCheck={false}
           autoComplete="off"
-          autoSize={{ minRows: 2, maxRows: 2 }}
+          rows={2}
         />
         <Button
-          type="text"
-          size="small"
+          type="button"
+          variant="ghost"
+          size="icon-sm"
           aria-label={privateKeyLabel}
-          icon={
-            privateKeyVisible ? (
-              <EyeOutlined style={visibilityIconStyle} />
-            ) : (
-              <EyeInvisibleOutlined style={visibilityIconStyle} />
-            )
-          }
           onClick={() => setPrivateKeyVisible((visible) => !visible)}
           onMouseDown={(event) => event.preventDefault()}
-          style={visibilityToggleStyle}
-        />
+          className="-translate-y-1/2 absolute top-1/2 right-1.5 z-1 size-7 text-muted-foreground shadow-none">
+          {privateKeyVisible ? <Eye size={14} /> : <EyeOff size={14} />}
+        </Button>
       </div>
       <SettingHelpTextRow>
         <SettingHelpText>{t('settings.provider.vertex_ai.service_account.private_key_help')}</SettingHelpText>
       </SettingHelpTextRow>
       <>
         <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.vertex_ai.project_id')}</SettingSubtitle>
-        <Input.Password
+        <Input
+          type="password"
           value={localProjectId}
-          status={isProjectIdMissing ? 'error' : undefined}
+          aria-invalid={isProjectIdMissing}
           placeholder={t('settings.provider.vertex_ai.project_id_placeholder')}
           onChange={handleProjectIdChange}
           onBlur={handleProjectIdBlur}
-          style={{ marginTop: 5 }}
+          className="mt-1.25"
         />
         <SettingHelpTextRow>
           <SettingHelpText>{t('settings.provider.vertex_ai.project_id_help')}</SettingHelpText>
         </SettingHelpTextRow>
 
         <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.vertex_ai.location')}</SettingSubtitle>
-        <AutoComplete
+        <Input
           value={localLocation}
-          status={isLocationMissing ? 'error' : undefined}
           placeholder={t('settings.provider.vertex_ai.location_placeholder')}
-          onChange={handleLocationChange}
-          onSelect={handleLocationSelect}
+          onChange={(event) => handleLocationChange(event.target.value)}
           onBlur={handleLocationBlur}
-          options={locationOptions}
-          style={{ marginTop: 5, width: '100%' }}
+          onSelect={(event) => handleLocationSelect(event.currentTarget.value)}
+          aria-invalid={isLocationMissing}
+          className="mt-1.25"
+          list="vertex-ai-location-options"
         />
+        <datalist id="vertex-ai-location-options">
+          {locationOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </datalist>
         <SettingHelpTextRow>
           <SettingHelpText>{t('settings.provider.vertex_ai.location_help')}</SettingHelpText>
         </SettingHelpTextRow>

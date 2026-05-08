@@ -1,7 +1,7 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultPreprocessProvider, usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import type { PreprocessProvider } from '@renderer/types'
-import { Select } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,16 +35,18 @@ const PreprocessSettings: FC = () => {
           <div style={{ display: 'flex', gap: '8px' }}>
             <Select
               value={selectedProvider?.id}
-              style={{ width: '200px' }}
-              onChange={(value: string) => updateSelectedPreprocessProvider(value)}
-              placeholder={t('settings.tool.preprocess.provider_placeholder')}
-              options={preprocessProviders.map((p) => ({
-                value: p.id,
-                label: p.name
-                // 由于system字段实际未使用，先注释掉
-                // disabled: !isMac && p.id === 'system' // 在非 Mac 系统下禁用 system 选项
-              }))}
-            />
+              onValueChange={(value: string) => updateSelectedPreprocessProvider(value)}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder={t('settings.tool.preprocess.provider_placeholder')} />
+              </SelectTrigger>
+              <SelectContent>
+                {preprocessProviders.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </SettingRow>
       </SettingGroup>

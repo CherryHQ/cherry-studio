@@ -36,9 +36,9 @@
         "comingSoon": "Sắp ra mắt",
         "connected": "Đã kết nối",
         "connecting": "Kết nối",
-        "createError": "[to be translated]:Failed to create channel",
+        "createError": "Không tạo được kênh",
         "deleteConfirm": "Xóa kênh \"{{name}}\"?",
-        "deleteError": "[to be translated]:Failed to delete channel",
+        "deleteError": "Không xóa được kênh",
         "description": "Kết nối tác nhân của bạn với các nền tảng nhắn tin.",
         "disconnected": "Ngắt kết nối",
         "discord": {
@@ -123,7 +123,7 @@
           "title": "Telegram"
         },
         "title": "Kênh",
-        "updateError": "[to be translated]:Failed to update channel",
+        "updateError": "Không thể cập nhật kênh",
         "wechat": {
           "addAccount": "Thêm Tài khoản WeChat",
           "chatIds": "ID Người Dùng Được Phép",
@@ -215,7 +215,7 @@
         "edit": "Chỉnh sửa",
         "empty": "Không có tác vụ nào được lên lịch. Thêm một tác vụ để bắt đầu.",
         "error": {
-          "loadFailed": "[to be translated]:Failed to load tasks"
+          "loadFailed": "Không tải được nhiệm vụ"
         },
         "intervalPlaceholder": "Khoảng thời gian tính bằng phút",
         "intervalUnit": "phút",
@@ -226,7 +226,7 @@
           "error": "Lỗi",
           "justNow": "vừa mới đây",
           "label": "Lịch sử chạy",
-          "loadError": "[to be translated]:Failed to load run history",
+          "loadError": "Không tải được lịch sử chạy",
           "result": "Kết quả",
           "runAt": "Chạy tại",
           "running": "Đang chạy...",
@@ -1487,7 +1487,7 @@
       "unpin": "Bỏ ghim chủ đề"
     },
     "translate": "Dịch",
-    "user": "[to be translated]:User",
+    "user": "Người dùng",
     "web_search": {
       "warning": {
         "openai": "Mô hình GPT-5 với nỗ lực suy luận tối thiểu không hỗ trợ tìm kiếm web."
@@ -1499,8 +1499,8 @@
     "bun_required_message": "Môi trường Bun là bắt buộc để chạy các công cụ CLI",
     "cli_tool": "Công cụ CLI",
     "cli_tool_placeholder": "Chọn công cụ CLI để sử dụng",
-    "count_one": "[to be translated]:{{count}} item",
-    "count_other": "[to be translated]:{{count}} items",
+    "count_one": "{{count}} mục",
+    "count_other": "{{count}} mục",
     "custom_path": "Đường dẫn tùy chỉnh",
     "custom_path_error": "Falha ao definir caminho personalizado do terminal",
     "custom_path_required": "Chemin personnalisé requis pour ce terminal",
@@ -1508,12 +1508,12 @@
     "description": "Khởi chạy nhanh nhiều công cụ CLI mã để nâng cao hiệu suất phát triển",
     "empty": {
       "no_match": {
-        "description": "[to be translated]:Try adjusting your search terms",
-        "title": "[to be translated]:No matching tools found"
+        "description": "Hãy thử điều chỉnh các từ khóa tìm kiếm của bạn",
+        "title": "Không tìm thấy công cụ phù hợp"
       },
       "no_tool": {
-        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
-        "title": "[to be translated]:No code tools yet"
+        "description": "Thêm một công cụ CLI hoặc trợ lý mã để bắt đầu",
+        "title": "Chưa có công cụ lập trình nào"
       }
     },
     "env_vars_help": "Nhập các biến môi trường tùy chỉnh (mỗi dòng một biến, định dạng: KEY=value)",
@@ -1525,28 +1525,28 @@
       "bun_required": "Vui lòng cài đặt môi trường Bun trước khi khởi chạy các công cụ CLI",
       "error": "Lancement échoué, veuillez réessayer",
       "label": "Lanzamiento",
-      "launched": "[to be translated]:Launched",
+      "launched": "Đã ra mắt",
       "success": "Khởi chạy thành công",
       "validation_error": "Vui lòng hoàn thành tất cả các trường bắt buộc: công cụ CLI, mô hình và thư mục làm việc"
     },
     "launching": "Lanzando...",
     "model": "Modelo",
-    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
+    "model_hint": "Chọn mô hình AI mà công cụ CLI nên sử dụng",
     "model_placeholder": "Chọn mô hình cần sử dụng",
     "model_required": "Vui lòng chọn một mô hình",
-    "official_tag": "[to be translated]:Official",
-    "official_tools": "[to be translated]:Official",
-    "search_placeholder": "[to be translated]:Search CLI tools…",
+    "official_tag": "Chính thức",
+    "official_tools": "Chính thức",
+    "search_placeholder": "Tìm kiếm công cụ CLI…",
     "select_folder": "Pilih Folder",
     "set_custom_path": "Đặt đường dẫn terminal tùy chỉnh",
     "supported_providers": "Nhà cung cấp được hỗ trợ",
     "terminal": "Thiết bị đầu cuối",
-    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
+    "terminal_hint": "Chọn ứng dụng terminal để chạy CLI",
     "terminal_placeholder": "Chọn ứng dụng thiết bị đầu cuối",
     "title": "Công cụ mã",
     "update_options": "Tùy chọn Cập nhật",
     "working_directory": "Thư mục làm việc",
-    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
+    "working_directory_hint": "Thư mục làm việc mà công cụ CLI khởi chạy trong"
   },
   "code_block": {
     "collapse": "Colapso",
@@ -2564,8 +2564,8 @@
   },
   "models": {
     "action": {
-      "pin": "[to be translated]:Pin this model",
-      "unpin": "[to be translated]:Unpin model"
+      "pin": "Ghim mô hình này",
+      "unpin": "Gỡ ghim mô hình"
     },
     "add_parameter": "Thêm tham số",
     "all": "Tất cả",
@@ -2585,7 +2585,7 @@
     "invalid_model": "Mô hình không hợp lệ",
     "json_parse_error": "Định dạng JSON không hợp lệ",
     "multi_select": {
-      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+      "label": "Đa mô hình song song (loại trừ lẫn nhau với đa trợ lý)"
     },
     "no_matches": "Không có mô hình nào khả dụng",
     "parameter_name": "Tên tham số",
@@ -3357,33 +3357,33 @@
   },
   "quickAssistant": {
     "alert": {
-      "google_login": "[to be translated]:Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
+      "google_login": "Mẹo: Nếu bạn thấy thông báo 'trình duyệt không được tin cậy' khi đăng nhập vào Google, vui lòng đầu tiên đăng nhập qua ứng dụng nhỏ Google trong danh sách ứng dụng nhỏ, sau đó sử dụng đăng nhập Google trong các ứng dụng nhỏ khác"
     },
     "clipboard": {
-      "empty": "[to be translated]:Clipboard is empty"
+      "empty": "Khay nhớp trống"
     },
     "feature": {
-      "chat": "[to be translated]:Answer this question",
-      "explanation": "[to be translated]:Explanation",
-      "summary": "[to be translated]:Content summary",
-      "translate": "[to be translated]:Text translation"
+      "chat": "Trả lời câu hỏi này",
+      "explanation": "Giải thích",
+      "summary": "Tóm tắt nội dung",
+      "translate": "Dịch văn bản"
     },
     "footer": {
-      "backspace_clear": "[to be translated]:Backspace to clear",
-      "copy_last_message": "[to be translated]:Press C to copy",
-      "esc": "[to be translated]:ESC to {{action}}",
-      "esc_back": "[to be translated]:return",
-      "esc_close": "[to be translated]:close",
-      "esc_pause": "[to be translated]:pause"
+      "backspace_clear": "Nhấn Backspace để xóa",
+      "copy_last_message": "Nhấn C để sao chép",
+      "esc": "ESC để {{action}}",
+      "esc_back": "trả về",
+      "esc_close": "đóng",
+      "esc_pause": "tạm dừng"
     },
     "input": {
       "placeholder": {
-        "empty": "[to be translated]:Ask {{model}} for help...",
-        "title": "[to be translated]:What do you want to do with this text?"
+        "empty": "Hỏi {{model}} để được giúp đỡ...",
+        "title": "Bạn muốn làm gì với văn bản này?"
       }
     },
     "tooltip": {
-      "pin": "[to be translated]:Keep Window on Top"
+      "pin": "Giữ cửa sổ ở trên cùng"
     }
   },
   "restore": {
@@ -3828,27 +3828,27 @@
   },
   "selector": {
     "agent": {
-      "create_new": "[to be translated]:New Agent",
-      "empty_text": "[to be translated]:No agents yet",
-      "search_placeholder": "[to be translated]:Search agents…"
+      "create_new": "Tác nhân mới",
+      "empty_text": "Chưa có tác nhân nào",
+      "search_placeholder": "Tìm kiếm đại lý…"
     },
     "assistant": {
-      "create_new": "[to be translated]:New Assistant",
-      "empty_text": "[to be translated]:No assistants yet",
-      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
-      "multi_label": "[to be translated]:Multi-assistant parallel",
-      "search_placeholder": "[to be translated]:Search assistants…"
+      "create_new": "Trợ lý mới",
+      "empty_text": "Chưa có trợ lý nào",
+      "multi_hint": "(loại trừ lẫn nhau với đa mô hình)",
+      "multi_label": "Trợ lý song song đa nhiệm",
+      "search_placeholder": "Trợ lý tìm kiếm…"
     },
     "common": {
-      "edit": "[to be translated]:Edit",
-      "pin": "[to be translated]:Pin",
-      "pinned_title": "[to be translated]:Pinned",
+      "edit": "Chỉnh sửa",
+      "pin": "Ghim",
+      "pinned_title": "Đã ghim",
       "sort": {
-        "asc": "[to be translated]:Oldest",
-        "desc": "[to be translated]:Recent"
+        "asc": "Lâu đời nhất",
+        "desc": "Gần đây"
       },
-      "sort_label": "[to be translated]:Sort",
-      "unpin": "[to be translated]:Unpin"
+      "sort_label": "Sắp xếp",
+      "unpin": "Bỏ ghim"
     }
   },
   "settings": {
@@ -3919,72 +3919,72 @@
     },
     "componentLab": {
       "agentSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
-        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Agent Selector",
-        "triggerPlaceholder": "[to be translated]:Select an agent",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "Rõ ràng",
+        "configDescription": "Chuyển đổi props để xem trước hành vi của thành phần",
+        "configTitle": "Cấu hình",
+        "currentProps": "Props hiện tại",
+        "description": "AgentSelector hiện đọc dữ liệu DataApi /agents thực tế để xác minh hành vi chọn id/mục, ghim, sắp xếp và tìm kiếm.",
+        "emptyShellNotice": "Bản xem trước này sử dụng danh sách tác nhân thực được trả về bởi /agents DataApi.",
+        "lastOnChange": "Cập nhật mới nhất về onChange",
+        "previewDescription": "Nhấp vào công tắc để mở bộ chọn",
+        "previewTitle": "Xem trước",
+        "title": "Bộ chọn tác nhân",
+        "triggerPlaceholder": "Chọn một đại lý",
+        "valueProp": "Giá trị hiện tại"
       },
       "assistantSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Assistant Selector",
-        "triggerPlaceholder": "[to be translated]:Select an assistant",
-        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "Rõ ràng",
+        "configDescription": "Chuyển đổi props để xem trước hành vi của component",
+        "configTitle": "Cấu hình",
+        "currentProps": "Props hiện tại",
+        "description": "Gắn trực tiếp thành phần kinh doanh AssistantSelector để xác minh hành vi đa/đơn, id/mục, ghim, sắp xếp và tìm kiếm.",
+        "lastOnChange": "Cập nhật mới nhất về onChange",
+        "previewDescription": "Nhấp vào kích hoạt để mở bộ chọn",
+        "previewTitle": "Xem trước",
+        "title": "Trình chọn Trợ lý",
+        "triggerPlaceholder": "Chọn một trợ lý",
+        "triggerSelectedCount": "{{count}} trợ lý đã được chọn",
+        "valueProp": "Giá trị hiện tại"
       },
-      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
-      "label": "[to be translated]:Component Lab",
+      "description": "Chỉ hiển thị trong quá trình phát triển để thử nghiệm trình chọn mô hình mới trực tiếp trong ứng dụng.",
+      "label": "Phòng thí nghiệm linh kiện",
       "modelSelector": {
-        "behaviorConfig": "[to be translated]:Behavior & Display Config",
-        "callbackEmpty": "[to be translated]:No component callback received yet",
-        "clearSelection": "[to be translated]:Clear Selection",
-        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
-        "configTitle": "[to be translated]:Props Playground",
-        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
-        "currentProps": "[to be translated]:Current Props",
-        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
-        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
-        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
-        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
-        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
-        "loading": "[to be translated]:Loading models...",
-        "modelId": "[to be translated]:Model ID",
-        "multiSelectMode": "[to be translated]:multiSelectMode",
-        "multiple": "[to be translated]:multiple",
-        "normalizedIds": "[to be translated]:Normalized Selected IDs",
-        "outputEmpty": "[to be translated]:No data to display yet",
-        "provider": "[to be translated]:Provider",
-        "resetOutputs": "[to be translated]:Reset Outputs",
-        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
-        "resultsTitle": "[to be translated]:Outputs & State",
-        "selected": "[to be translated]:Current Selection",
-        "selectedEmpty": "[to be translated]:No model selected yet",
-        "selectionConfig": "[to be translated]:Selection Value Config",
-        "selectionType": "[to be translated]:selectionType",
-        "selectionTypeId": "[to be translated]:Return Model IDs",
-        "selectionTypeModel": "[to be translated]:Return Model Objects",
-        "showPinnedModels": "[to be translated]:showPinnedModels",
-        "showTagFilter": "[to be translated]:showTagFilter",
-        "title": "[to be translated]:Model Selector",
-        "triggerPlaceholder": "[to be translated]:Select a model",
-        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
-        "valueProp": "[to be translated]:Current Value Prop"
+        "behaviorConfig": "Cấu hình Hành vi & Hiển thị",
+        "callbackEmpty": "Chưa nhận được bất kỳ callback thành phần nào",
+        "clearSelection": "Xóa lựa chọn",
+        "configDescription": "Chuyển đổi các thuộc tính ModelSelector chính ở trên và kiểm tra giá trị đầu vào cùng với các payload callback bên dưới.",
+        "configTitle": "Sân chơi Đạo cụ",
+        "controlMultiSelectMode": "Chế độ chọn nhiều được kiểm soát",
+        "currentProps": "Props Hiện Tại",
+        "defaultMultiSelectMode": "chế độ chọn nhiều mặc định",
+        "description": "Trang này gắn trực tiếp thành phần kinh doanh ModelSelector hiện tại để chúng ta có thể xác minh hành vi lựa chọn, lọc, tìm kiếm và ghim.",
+        "empty": "Hiện không có mô hình nào khả dụng nên bộ chọn chưa thể hiển thị.",
+        "lastModeChangeReturn": "Cập nhật mới nhất về Return onMultiSelectModeChange",
+        "lastSelectReturn": "Mới nhất vềSelect Return",
+        "loading": "Đang tải mô hình...",
+        "modelId": "ID mô hình",
+        "multiSelectMode": "chế độ chọn nhiều",
+        "multiple": "nhiều",
+        "normalizedIds": "ID Đã Chọn Được Chuẩn Hóa",
+        "outputEmpty": "Chưa có dữ liệu để hiển thị",
+        "provider": "Nhà cung cấp",
+        "resetOutputs": "Đặt lại đầu ra",
+        "resultsDescription": "Điều này hiển thị giá trị đề xuất hiện tại, các id đã chọn được chuẩn hóa và đầu ra gọi lại mới nhất từ thành phần.",
+        "resultsTitle": "Đầu ra & Trạng thái",
+        "selected": "Lựa chọn hiện tại",
+        "selectedEmpty": "Chưa chọn mô hình nào",
+        "selectionConfig": "Cấu hình Giá trị Lựa chọn",
+        "selectionType": "loại lựa chọn",
+        "selectionTypeId": "Trả về ID mô hình",
+        "selectionTypeModel": "Trả về các đối tượng mô hình",
+        "showPinnedModels": "hiển thị các mô hình được ghim",
+        "showTagFilter": "hiển thịBộLọcThẻ",
+        "title": "Bộ chọn mô hình",
+        "triggerPlaceholder": "Chọn một mô hình",
+        "triggerSelectedCount": "{{count}} mô hình đã được chọn",
+        "valueProp": "Giá trị đề xuất hiện tại"
       },
-      "title": "[to be translated]:Development Component Lab"
+      "title": "Phòng thí nghiệm Thành phần Phát triển"
     },
     "data": {
       "app_data": {
@@ -4685,6 +4685,15 @@
         "button": "Sao lưu",
         "title": "Sao lưu và Khôi phục Dữ liệu"
       },
+      "common": {
+        "sections": {
+          "custom_css": "CSS Tùy chỉnh",
+          "display_language": "Hiển thị & Ngôn ngữ",
+          "privacy_advanced": "Quyền riêng tư & Nâng cao",
+          "system_startup": "Hệ thống & Khởi động"
+        },
+        "title": "Cài đặt chung"
+      },
       "display": {
         "title": "Cài đặt hiển thị"
       },
@@ -4745,6 +4754,12 @@
         "label": "Ngôn ngữ đích",
         "russian": "Tiếng Nga"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "Ghi chú"
+      },
+      "title": "Tích hợp"
     },
     "launch": {
       "onboot": "Tự động khởi động khi bật máy",
@@ -5015,6 +5030,13 @@
       "url": "URL",
       "user": "Người dùng"
     },
+    "menuGroups": {
+      "appSettings": "Cài đặt ứng dụng",
+      "integrations": "Tích hợp",
+      "productivity": "Năng suất",
+      "services": "Dịch vụ",
+      "system": "Hệ thống"
+    },
     "messages": {
       "divider": {
         "label": "Hiển thị đường phân cách giữa các tin nhắn",
@@ -5166,7 +5188,7 @@
         "use_all_keys": "Clave(s)"
       },
       "default_assistant_model": "Mô hình Trợ lý Mặc định",
-      "default_assistant_model_description": "Mô hình được sử dụng khi tạo trợ lý mới, nếu trợ lý chưa được thiết lập, mô hình này sẽ được sử dụng",
+      "default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",
       "empty": "Không tìm thấy mô hình nào",
       "manage": {
         "add_listed": {
@@ -5259,6 +5281,14 @@
         "tip": "Kiểm soát mức độ chi tiết trong đầu ra của mô hình",
         "title": "Tính dài dòng"
       }
+    },
+    "plugins": {
+      "bunDescription": "Trình thực thi JavaScript được sử dụng bởi các dịch vụ MCP và các công cụ liên quan.",
+      "description": "Quản lý các công cụ nhị phân và phụ thuộc runtime cần thiết cho ứng dụng.",
+      "installing": "Đang cài đặt...",
+      "notInstalled": "Chưa cài đặt",
+      "title": "Phần bổ trợ",
+      "uvDescription": "Trình quản lý gói Python cho các dịch vụ MCP và cài đặt phụ thuộc."
     },
     "privacy": {
       "enable_privacy_mode": "Báo cáo lỗi và thống kê ẩn danh",
@@ -5586,29 +5616,40 @@
     "shortcuts": {
       "action": "Hành động",
       "actions": "hoạt động",
-      "bind_first_to_enable": "[to be translated]:Bind a shortcut first to change its enabled state",
+      "all_disable": "Tắt Tất Cả",
+      "all_enable": "Kích hoạt Tất cả",
+      "bind_first_to_enable": "Trước tiên hãy gán một phím tắt để thay đổi trạng thái kích hoạt của nó",
+      "categories": {
+        "assistant": "Công cụ Trợ lý AI",
+        "chat": "Tương tác tin nhắn",
+        "general": "Toàn cầu và Cửa sổ",
+        "title": "Nhóm Phím Tắt",
+        "topic": "Cuộc trò chuyện và Chủ đề"
+      },
       "clear_shortcut": "Phím tắt rõ ràng",
       "clear_topic": "Tin nhắn rõ ràng",
-      "conflict_with": "[to be translated]:Already used by \"{{name}}\"",
+      "conflict_with": "Đã được \"{{name}}\" sử dụng",
       "copy_last_message": "Sao tin nhắn cuối cùng",
       "edit_last_user_message": "Chỉnh sửa tin nhắn cuối cùng của người dùng",
+      "empty": "Không có phím tắt nào khả dụng trong nhóm này",
       "enabled": "Kích hoạt",
       "exit_fullscreen": "Thoát toàn màn hình",
       "label": "Khóa",
       "new_topic": "Chủ đề mới",
-      "occupied_by_other_application": "[to be translated]:This shortcut is already used by the system or another application",
+      "occupied_by_other_application": "Phím tắt này đã được hệ thống hoặc một ứng dụng khác sử dụng",
       "press_shortcut": "Nhấn Phím tắt",
-      "quick_assistant": "[to be translated]:Quick Assistant",
+      "quick_assistant": "Trợ lý nhanh",
       "rename_topic": "Đổi tên chủ đề",
+      "reset": "Đặt lại",
       "reset_defaults": "Đặt lại mặc định",
       "reset_defaults_confirm": "Bạn có chắc chắn muốn đặt lại tất cả phím tắt không?",
-      "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
+      "reset_defaults_failed": "Không thể đặt lại phím tắt về mặc định",
       "reset_to_default": "Đặt lại về mặc định",
-      "save_failed": "[to be translated]:Failed to save shortcut",
-      "save_failed_with_name": "[to be translated]:Failed to save shortcut: {{name}}",
+      "save_failed": "Không thể lưu phím tắt",
+      "save_failed_with_name": "Không thể lưu phím tắt: {{name}}",
       "search_message": "Tin nhắn tìm kiếm",
       "search_message_in_chat": "Tìm Tin nhắn trong Cuộc trò chuyện Hiện tại",
-      "search_placeholder": "[to be translated]:Search shortcuts...",
+      "search_placeholder": "Tìm kiếm phím tắt...",
       "select_model": "Chọn Mô hình",
       "selection_assistant_select_text": "Trợ lý Lựa chọn: Chọn Văn bản",
       "selection_assistant_toggle": "Bật Trợ lý Chọn",
@@ -5617,7 +5658,7 @@
       "title": "Phím tắt",
       "toggle_new_context": "Ngữ cảnh rõ ràng",
       "toggle_show_topics": "Chuyển đổi chủ đề",
-      "toggle_sidebar": "[to be translated]:Toggle Sidebar",
+      "toggle_sidebar": "Chuyển đổi thanh bên",
       "zoom_in": "Phóng to",
       "zoom_out": "Thu nhỏ",
       "zoom_reset": "Đặt lại thu phóng"
@@ -5680,6 +5721,14 @@
         "error": {
           "not_system": "Hệ thống OCR chỉ hỗ trợ Windows và MacOS"
         },
+        "features": {
+          "paddleocr": "Mạnh hơn đối với văn bản tiếng Trung và phù hợp hơn cho các hóa đơn, bản quét và hình ảnh có bố cục phức tạp hơn.",
+          "system": {
+            "macos": "Sử dụng công cụ OCR tích hợp sẵn của macOS mà không cần thiết lập, lý tưởng cho việc chụp ảnh màn hình và trích xuất văn bản nhẹ.",
+            "windows": "Sử dụng công cụ OCR gốc của Windows với khả năng tích hợp mạnh mẽ vào hệ điều hành cho các tác vụ nhận dạng cơ bản tại chỗ."
+          },
+          "tesseract": "Một tùy chọn OCR cục bộ cổ điển với các gói ngôn ngữ có thể tùy chỉnh, rất phù hợp cho quy trình làm việc ngoại tuyến và đa ngôn ngữ."
+        },
         "image": {
           "error": {
             "provider_not_found": "Nhà cung cấp không tồn tại"
@@ -5706,6 +5755,13 @@
         "title": "Dịch vụ OCR"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "Rất phù hợp để chuyển đổi PDF thành Markdown sạch hơn hoặc văn bản có thể chỉnh sửa cho việc truy xuất và chỉnh sửa sau đó.",
+          "mineru": "Được tối ưu hóa để khôi phục bố cục với độ chính xác cao hơn, đặc biệt hữu ích cho các tệp PDF học thuật, bảng biểu và công thức.",
+          "mistral": "Khả năng hiểu tài liệu dựa trên đám mây mạnh mẽ, phù hợp cho việc trích xuất có cấu trúc, tệp nhiều trang và bố cục phức tạp.",
+          "open_mineru": "Một tùy chọn triển khai mở phù hợp với các nhóm muốn tự lưu trữ hoặc kiểm soát chặt chẽ hơn đối với quy trình xử lý.",
+          "paddleocr": "Một lựa chọn tích hợp nhẹ phù hợp với tài liệu tiếng Trung, bản quét và nội dung dạng hóa đơn thông thường."
+        },
         "paddleocr": {
           "aistudio_access_token": "Mã truy cập của Cộng đồng AI Studio",
           "api_url": "URL API",
@@ -5873,11 +5929,11 @@
     }
   },
   "tab": {
-    "close": "[to be translated]:Close Tab",
-    "moveToFirst": "[to be translated]:Move to First",
-    "new": "[to be translated]:New Tab",
-    "pin": "[to be translated]:Pin Tab",
-    "unpin": "[to be translated]:Unpin Tab"
+    "close": "Đóng Tab",
+    "moveToFirst": "Di chuyển lên đầu",
+    "new": "Thẻ Mới",
+    "pin": "Ghim Tab",
+    "unpin": "Gỡ ghim thẻ"
   },
   "title": {
     "apps": "Ứng dụng",
@@ -6044,7 +6100,7 @@
   },
   "tray": {
     "quit": "Thôi",
-    "show_quick_assistant": "[to be translated]:Quick Assistant",
+    "show_quick_assistant": "Trợ lý Nhanh",
     "show_window": "Hiển thị cửa sổ"
   },
   "update": {

@@ -22,12 +22,12 @@ import { Route as SettingsScheduledTasksRouteImport } from './routes/settings/sc
 import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quickAssistant'
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
 import { Route as SettingsPromptsRouteImport } from './routes/settings/prompts'
-import { Route as SettingsNotesRouteImport } from './routes/settings/notes'
+import { Route as SettingsPluginsRouteImport } from './routes/settings/plugins'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
+import { Route as SettingsIntegrationsRouteImport } from './routes/settings/integrations'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsDocprocessRouteImport } from './routes/settings/docprocess'
-import { Route as SettingsDisplayRouteImport } from './routes/settings/display'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsComponentLabRouteImport } from './routes/settings/component-lab'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
@@ -124,9 +124,9 @@ const SettingsPromptsRoute = SettingsPromptsRouteImport.update({
   path: '/prompts',
   getParentRoute: () => SettingsRoute,
 } as any)
-const SettingsNotesRoute = SettingsNotesRouteImport.update({
-  id: '/notes',
-  path: '/notes',
+const SettingsPluginsRoute = SettingsPluginsRouteImport.update({
+  id: '/plugins',
+  path: '/plugins',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsModelRoute = SettingsModelRouteImport.update({
@@ -139,6 +139,11 @@ const SettingsMcpRoute = SettingsMcpRouteImport.update({
   path: '/mcp',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsIntegrationsRoute = SettingsIntegrationsRouteImport.update({
+  id: '/integrations',
+  path: '/integrations',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
@@ -147,11 +152,6 @@ const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
 const SettingsDocprocessRoute = SettingsDocprocessRouteImport.update({
   id: '/docprocess',
   path: '/docprocess',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsDisplayRoute = SettingsDisplayRouteImport.update({
-  id: '/display',
-  path: '/display',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsDataRoute = SettingsDataRouteImport.update({
@@ -322,12 +322,12 @@ export interface FileRoutesByFullPath {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
-  '/settings/notes': typeof SettingsNotesRoute
+  '/settings/plugins': typeof SettingsPluginsRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
@@ -371,11 +371,11 @@ export interface FileRoutesByTo {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/model': typeof SettingsModelRoute
-  '/settings/notes': typeof SettingsNotesRoute
+  '/settings/plugins': typeof SettingsPluginsRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
@@ -420,12 +420,12 @@ export interface FileRoutesById {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
-  '/settings/notes': typeof SettingsNotesRoute
+  '/settings/plugins': typeof SettingsPluginsRoute
   '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
@@ -472,12 +472,12 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/display'
     | '/settings/docprocess'
     | '/settings/general'
+    | '/settings/integrations'
     | '/settings/mcp'
     | '/settings/model'
-    | '/settings/notes'
+    | '/settings/plugins'
     | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quickAssistant'
@@ -521,11 +521,11 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/display'
     | '/settings/docprocess'
     | '/settings/general'
+    | '/settings/integrations'
     | '/settings/model'
-    | '/settings/notes'
+    | '/settings/plugins'
     | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quickAssistant'
@@ -569,12 +569,12 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/display'
     | '/settings/docprocess'
     | '/settings/general'
+    | '/settings/integrations'
     | '/settings/mcp'
     | '/settings/model'
-    | '/settings/notes'
+    | '/settings/plugins'
     | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quickAssistant'
@@ -701,11 +701,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsPromptsRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/notes': {
-      id: '/settings/notes'
-      path: '/notes'
-      fullPath: '/settings/notes'
-      preLoaderRoute: typeof SettingsNotesRouteImport
+    '/settings/plugins': {
+      id: '/settings/plugins'
+      path: '/plugins'
+      fullPath: '/settings/plugins'
+      preLoaderRoute: typeof SettingsPluginsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/model': {
@@ -722,6 +722,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsMcpRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/integrations': {
+      id: '/settings/integrations'
+      path: '/integrations'
+      fullPath: '/settings/integrations'
+      preLoaderRoute: typeof SettingsIntegrationsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/general': {
       id: '/settings/general'
       path: '/general'
@@ -734,13 +741,6 @@ declare module '@tanstack/react-router' {
       path: '/docprocess'
       fullPath: '/settings/docprocess'
       preLoaderRoute: typeof SettingsDocprocessRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/display': {
-      id: '/settings/display'
-      path: '/display'
-      fullPath: '/settings/display'
-      preLoaderRoute: typeof SettingsDisplayRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/data': {
@@ -1031,12 +1031,12 @@ interface SettingsRouteChildren {
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsComponentLabRoute: typeof SettingsComponentLabRoute
   SettingsDataRoute: typeof SettingsDataRoute
-  SettingsDisplayRoute: typeof SettingsDisplayRoute
   SettingsDocprocessRoute: typeof SettingsDocprocessRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
+  SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsModelRoute: typeof SettingsModelRoute
-  SettingsNotesRoute: typeof SettingsNotesRoute
+  SettingsPluginsRoute: typeof SettingsPluginsRoute
   SettingsPromptsRoute: typeof SettingsPromptsRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
   SettingsQuickAssistantRoute: typeof SettingsQuickAssistantRoute
@@ -1054,12 +1054,12 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsComponentLabRoute: SettingsComponentLabRoute,
   SettingsDataRoute: SettingsDataRoute,
-  SettingsDisplayRoute: SettingsDisplayRoute,
   SettingsDocprocessRoute: SettingsDocprocessRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
+  SettingsIntegrationsRoute: SettingsIntegrationsRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsModelRoute: SettingsModelRoute,
-  SettingsNotesRoute: SettingsNotesRoute,
+  SettingsPluginsRoute: SettingsPluginsRoute,
   SettingsPromptsRoute: SettingsPromptsRoute,
   SettingsProviderRoute: SettingsProviderRoute,
   SettingsQuickAssistantRoute: SettingsQuickAssistantRoute,

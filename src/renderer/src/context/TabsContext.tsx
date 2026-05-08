@@ -21,11 +21,15 @@ const DEFAULT_TAB: Tab = {
 
 function withLocalizedRouteTitle(tab: Tab): Tab {
   if (tab.type !== 'route') return tab
-  // Only auto-localize titles for top-level routes. Parameterized routes
-  // (e.g. /app/mini-app/<id>) preserve the title supplied at openTab time so
-  // callers can pass per-entity names like a mini-app's display name.
-  if (!isTopLevelRoute(tab.url)) return tab
+  // Only auto-localize titles for top-level and settings routes. Parameterized
+  // routes (e.g. /app/mini-app/<id>) preserve the title supplied at openTab
+  // time so callers can pass per-entity names like a mini-app's display name.
+  if (!isTopLevelRoute(tab.url) && !isSettingsRouteTab(tab)) return tab
   return { ...tab, title: getDefaultRouteTitle(tab.url) }
+}
+
+function isSettingsRouteTab(tab: Tab): boolean {
+  return tab.type === 'route' && tab.url.startsWith('/settings')
 }
 
 /**
@@ -433,7 +437,9 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       attachTab(tabData)
     }
 
-    return window.electron.ipcRenderer.on(IpcChannel.Tab_Attach, handleAttachRequest)
+    const removeAttachRequest = window.electron.ipcRenderer.on(IpcChannel.Tab_Attach, handleAttachRequest)
+
+    return removeAttachRequest
   }, [attachTab])
 
   /**
@@ -483,4 +489,8 @@ export function useTabsContext() {
     throw new Error('useTabsContext must be used within a TabsProvider')
   }
   return context
+}
+
+export function useOptionalTabsContext() {
+  return use(TabsContext)
 }
