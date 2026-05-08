@@ -40,7 +40,7 @@ import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import type { MCPPrompt, MCPResource, MCPTool } from '@renderer/types'
 import { parseKeyValueString } from '@renderer/utils/env'
-import { formatMcpError } from '@renderer/utils/error'
+import { formatErrorMessage, formatMcpError } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { MCPServerLogEntry } from '@shared/config/types'
 import type { MCPServer } from '@shared/data/types/mcpServer'
@@ -407,6 +407,7 @@ const McpSettings: React.FC = () => {
             await updateMCPServer({ body: { ...mcpServer, isActive: false } })
           } catch (rollbackError) {
             logger.error('Failed to rollback MCP server active state after restart failure:', rollbackError as Error)
+            window.toast.error(`${t('settings.mcp.updateError')}: ${formatErrorMessage(rollbackError)}`)
           }
           window.modal.error({
             title: t('settings.mcp.updateError'),

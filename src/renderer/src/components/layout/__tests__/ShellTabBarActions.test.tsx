@@ -9,6 +9,9 @@ const { mocks } = vi.hoisted(() => ({
   mocks: {
     openSettingsWindow: vi.fn(),
     openTab: vi.fn(),
+    updateTab: vi.fn(),
+    tabs: [{ id: 'home' }],
+    activeTabId: 'home',
     settingsOpenTarget: 'window'
   }
 }))
@@ -30,7 +33,12 @@ vi.mock('@renderer/context/ThemeProvider', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTabs', () => ({
-  useTabs: () => ({ openTab: mocks.openTab })
+  useTabs: () => ({
+    tabs: mocks.tabs,
+    activeTabId: mocks.activeTabId,
+    openTab: mocks.openTab,
+    updateTab: mocks.updateTab
+  })
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
@@ -59,10 +67,12 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   mocks.settingsOpenTarget = 'window'
+  mocks.tabs = [{ id: 'home' }]
+  mocks.activeTabId = 'home'
 })
 
 describe('ShellTabBarActions', () => {
-  it('opens settings in the main tab when app target is selected', async () => {
+  it('opens settings in a new tab when app target is selected and only home exists', async () => {
     const user = userEvent.setup()
     mocks.settingsOpenTarget = 'app'
 
@@ -70,7 +80,27 @@ describe('ShellTabBarActions', () => {
 
     await user.click(screen.getByRole('button', { name: /settings/i }))
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { title: 'Settings' })
+    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { forceNew: true, title: 'Settings' })
+    expect(mocks.updateTab).not.toHaveBeenCalled()
+    expect(mocks.openSettingsWindow).not.toHaveBeenCalled()
+  })
+
+  it('reuses the active tab when app target is selected and user tabs exist', async () => {
+    const user = userEvent.setup()
+    mocks.settingsOpenTarget = 'app'
+    mocks.tabs = [{ id: 'home' }, { id: 'tab-1' }]
+    mocks.activeTabId = 'tab-1'
+
+    render(<ShellTabBarActions />)
+
+    await user.click(screen.getByRole('button', { name: /settings/i }))
+
+    expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', {
+      url: '/settings/provider',
+      title: 'Settings',
+      icon: undefined
+    })
+    expect(mocks.openTab).not.toHaveBeenCalled()
     expect(mocks.openSettingsWindow).not.toHaveBeenCalled()
   })
 
@@ -83,5 +113,6 @@ describe('ShellTabBarActions', () => {
 
     expect(mocks.openSettingsWindow).toHaveBeenCalledWith('/settings/provider')
     expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 })
