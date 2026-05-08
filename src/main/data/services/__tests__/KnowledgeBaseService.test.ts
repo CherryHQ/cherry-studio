@@ -2,6 +2,7 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import { type CreateKnowledgeBaseDto, KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -20,7 +21,8 @@ describe('KnowledgeBaseService', () => {
 
   /** FK target for embedding_model_id → user_model.id */
   async function seedUserProvidersAndModelsForKb() {
-    await dbh.db.insert(userProviderTable).values([{ providerId: 'openai', name: 'OpenAI' }])
+    const [openaiKey] = generateOrderKeySequence(1)
+    await dbh.db.insert(userProviderTable).values([{ providerId: 'openai', name: 'OpenAI', orderKey: openaiKey }])
     await dbh.db.insert(userModelTable).values([
       {
         id: createUniqueModelId('openai', 'embed-model'),

@@ -7,6 +7,7 @@ import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { AssistantDataService, assistantDataService } from '@data/services/AssistantService'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -21,9 +22,10 @@ describe('AssistantDataService', () => {
   })
 
   async function seedModelRefs() {
+    const [openaiKey, anthropicKey] = generateOrderKeySequence(2)
     await dbh.db.insert(userProviderTable).values([
-      { providerId: 'openai', name: 'OpenAI' },
-      { providerId: 'anthropic', name: 'Anthropic' }
+      { providerId: 'openai', name: 'OpenAI', orderKey: openaiKey },
+      { providerId: 'anthropic', name: 'Anthropic', orderKey: anthropicKey }
     ])
 
     await dbh.db.insert(userModelTable).values([

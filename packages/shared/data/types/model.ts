@@ -40,11 +40,16 @@ export const PricePerTokenSchema = z.object({
 })
 
 /** Thinking token limits */
-export const ThinkingTokenLimitsSchema = z.object({
-  min: z.number().nonnegative().optional(),
-  max: z.number().positive().optional(),
-  default: z.number().nonnegative().optional()
-})
+export const ThinkingTokenLimitsSchema = z
+  .object({
+    min: z.number().nonnegative().optional(),
+    max: z.number().positive().optional(),
+    default: z.number().nonnegative().optional()
+  })
+  .refine((limits) => limits.min === undefined || limits.max === undefined || limits.min <= limits.max, {
+    message: 'min must be less than or equal to max',
+    path: ['min']
+  })
 
 /** Reasoning effort levels */
 const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
@@ -81,9 +86,27 @@ const RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS = ['?', '#'] as const
 export type UniqueModelId = `${string}${typeof UNIQUE_MODEL_ID_SEPARATOR}${string}`
 
 /** Zod schema for UniqueModelId with runtime validation */
-export const UniqueModelIdSchema = z.string().refine((v) => v.includes(UNIQUE_MODEL_ID_SEPARATOR), {
-  message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)`
-}) as z.ZodType<UniqueModelId>
+export const UniqueModelIdSchema = z.string().refine(
+  (value) => {
+    const separatorIndex = value.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
+    if (separatorIndex <= 0) {
+      return false
+    }
+    const modelIdStart = separatorIndex + UNIQUE_MODEL_ID_SEPARATOR.length
+    if (modelIdStart >= value.length) {
+      return false
+    }
+    const providerId = value.slice(0, separatorIndex)
+    const modelId = value.slice(modelIdStart)
+    return (
+      !providerId.includes(UNIQUE_MODEL_ID_SEPARATOR) &&
+      !RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.some((char) => modelId.includes(char))
+    )
+  },
+  {
+    message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)`
+  }
+) as z.ZodType<UniqueModelId>
 
 /**
  * Create a UniqueModelId from provider and model IDs
@@ -281,6 +304,8 @@ export const ModelSchema = z.object({
   isEnabled: z.boolean(),
   /** Whether this model is hidden from lists */
   isHidden: z.boolean(),
+  /** Whether this model has been deprecated by provider sync */
+  isDeprecated: z.boolean().optional(),
   /** Replacement model if this one is deprecated */
   replaceWith: UniqueModelIdSchema.optional(),
 

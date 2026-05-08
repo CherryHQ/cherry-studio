@@ -11,6 +11,7 @@
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -18,7 +19,6 @@ import type { Provider as LegacyProvider } from '@types'
 import { eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
 
@@ -192,9 +192,13 @@ export class ProviderModelMigrator extends BaseMigrator {
 
     try {
       await ctx.db.transaction(async (tx) => {
+        const providerRows = assignOrderKeysInSequence(
+          this.providers.map((provider) => transformProvider(provider, this.settings))
+        )
+
         for (let providerIndex = 0; providerIndex < this.providers.length; providerIndex++) {
           const provider = this.providers[providerIndex]
-          await tx.insert(userProviderTable).values(transformProvider(provider, this.settings, providerIndex))
+          await tx.insert(userProviderTable).values(providerRows[providerIndex])
           processedProviders++
 
           const uniqueModels = Array.from(new Map((provider.models ?? []).map((model) => [model.id, model])).values())

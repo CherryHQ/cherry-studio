@@ -12,6 +12,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { pinService } from '@data/services/PinService'
 import { providerService } from '@data/services/ProviderService'
+import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Pin } from '@shared/data/types/pin'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -29,7 +30,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai',
       presetProviderId: 'openai',
-      name: 'OpenAI'
+      name: 'OpenAI',
+      orderKey: generateOrderKeyBetween(null, null)
     })
 
     await expect(providerService.delete('openai')).rejects.toThrow(/Cannot delete preset provider/)
@@ -43,7 +45,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai-work',
       presetProviderId: 'openai',
-      name: 'OpenAI Work'
+      name: 'OpenAI Work',
+      orderKey: generateOrderKeyBetween(null, null)
     })
 
     await expect(providerService.delete('openai-work')).resolves.toBeUndefined()
@@ -56,7 +59,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'my-local-llm',
       presetProviderId: null,
-      name: 'My Local LLM'
+      name: 'My Local LLM',
+      orderKey: generateOrderKeyBetween(null, null)
     })
 
     await expect(providerService.delete('my-local-llm')).resolves.toBeUndefined()
@@ -66,16 +70,20 @@ describe('ProviderService.delete — preset protection boundary', () => {
   })
 
   it('should bulk purge pins for models owned by the deleted provider', async () => {
+    const [openaiWorkOrderKey, anthropicWorkOrderKey] = generateOrderKeySequence(2)
+
     await dbh.db.insert(userProviderTable).values([
       {
         providerId: 'openai-work',
         presetProviderId: 'openai',
-        name: 'OpenAI Work'
+        name: 'OpenAI Work',
+        orderKey: openaiWorkOrderKey
       },
       {
         providerId: 'anthropic-work',
         presetProviderId: 'anthropic',
-        name: 'Anthropic Work'
+        name: 'Anthropic Work',
+        orderKey: anthropicWorkOrderKey
       }
     ])
     const targetModelIds = [createUniqueModelId('openai-work', 'gpt-4o'), createUniqueModelId('openai-work', 'o3')]
@@ -121,10 +129,22 @@ describe('ProviderService.delete — preset protection boundary', () => {
     const gpt4 = createUniqueModelId('openai-work', 'gpt-4')
     const gpt35 = createUniqueModelId('openai-work', 'gpt-3.5')
     const claude = createUniqueModelId('anthropic', 'claude-3')
+    const openaiWorkOrderKey = generateOrderKeyBetween(null, null)
+    const anthropicOrderKey = generateOrderKeyBetween(openaiWorkOrderKey, null)
 
     await dbh.db.insert(userProviderTable).values([
-      { providerId: 'openai-work', presetProviderId: 'openai', name: 'OpenAI Work' },
-      { providerId: 'anthropic', presetProviderId: null, name: 'Anthropic' }
+      {
+        providerId: 'openai-work',
+        presetProviderId: 'openai',
+        name: 'OpenAI Work',
+        orderKey: openaiWorkOrderKey
+      },
+      {
+        providerId: 'anthropic',
+        presetProviderId: null,
+        name: 'Anthropic',
+        orderKey: anthropicOrderKey
+      }
     ])
     await dbh.db.insert(userModelTable).values([
       { id: gpt4, providerId: 'openai-work', modelId: 'gpt-4', name: 'GPT-4' },

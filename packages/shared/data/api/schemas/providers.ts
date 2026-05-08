@@ -6,7 +6,7 @@
 
 import * as z from 'zod'
 
-import type { EndpointType, Model } from '../../types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model, objectValues } from '../../types/model'
 import {
   ApiFeaturesSchema,
   type ApiKeyEntry,
@@ -16,8 +16,11 @@ import {
   type EndpointConfig,
   EndpointConfigSchema,
   type Provider,
-  ProviderSettingsSchema
+  type ProviderSettings,
+  ProviderSettingsSchema,
+  type ProviderWebsites
 } from '../../types/provider'
+import type { OrderEndpoints } from './_endpointHelpers'
 import type { EnrichModelsDto } from './models'
 
 // ============================================================================
@@ -29,7 +32,9 @@ import type { EnrichModelsDto } from './models'
  * strings; we keep the TS cast so `endpointConfigs` stays typed without
  * reaching for the full `provider-registry` enum in this file.
  */
-const ProviderEndpointConfigsSchema = z.record(z.string(), EndpointConfigSchema) as z.ZodType<
+const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
+
+const ProviderEndpointConfigsSchema = z.record(EndpointTypeSchema, EndpointConfigSchema) as z.ZodType<
   Partial<Record<EndpointType, EndpointConfig>>
 >
 
@@ -55,7 +60,7 @@ export const CreateProviderSchema = z.strictObject({
   /** Per-endpoint-type configuration */
   endpointConfigs: ProviderEndpointConfigsSchema.optional(),
   /** Default text generation endpoint (kebab-case `EndpointType` value) */
-  defaultChatEndpoint: z.string().optional() as z.ZodOptional<z.ZodType<EndpointType>>,
+  defaultChatEndpoint: EndpointTypeSchema.optional(),
   /** API keys */
   apiKeys: z.array(ApiKeyEntrySchema).optional(),
   /** Authentication configuration */
@@ -72,9 +77,7 @@ export const UpdateProviderSchema = CreateProviderSchema.partial()
   .omit({ providerId: true, presetProviderId: true })
   .extend({
     /** Whether this provider is enabled */
-    isEnabled: z.boolean().optional(),
-    /** Sort order in UI */
-    sortOrder: z.number().int().optional()
+    isEnabled: z.boolean().optional()
   })
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 
@@ -92,8 +95,20 @@ export const AddProviderApiKeySchema = z.strictObject({
 })
 export type AddProviderApiKeyDto = z.infer<typeof AddProviderApiKeySchema>
 
+/** PATCH /providers/:providerId/api-keys/:keyId body */
+export const UpdateApiKeySchema = z.strictObject({
+  key: z.string().min(1).optional(),
+  label: z.string().optional(),
+  isEnabled: z.boolean().optional()
+})
+export type UpdateApiKeyDto = z.infer<typeof UpdateApiKeySchema>
+
+export interface ProviderPresetMetadata {
+  websites?: ProviderWebsites
+}
+
 // Re-exported for handler-side re-use
-export type { ApiKeyEntry, AuthConfig, EndpointConfig }
+export type { ApiKeyEntry, AuthConfig, EndpointConfig, ProviderSettings }
 
 /**
  * Provider API Schema definitions
@@ -154,7 +169,8 @@ export type ProviderSchemas = {
   }
 
   /**
-   * Get all enabled API key values for a provider (for health check etc.)
+   * Get all API key values for a provider settings editor.
+   * Consumers that only need enabled keys should filter by `isEnabled` or use `/rotated-key`.
    * @example GET /providers/openai-main/api-keys
    * @example POST /providers/openai-main/api-keys { "key": "sk-xxx", "label": "From URL import" }
    */
@@ -206,13 +222,31 @@ export type ProviderSchemas = {
   }
 
   /**
-   * Delete a specific API key by ID
+   * Read-only preset metadata for a provider.
+   * Returns registry-backed display metadata without widening the runtime
+   * Provider contract.
+   */
+  '/providers/:providerId/preset-metadata': {
+    GET: {
+      params: { providerId: string }
+      response: ProviderPresetMetadata
+    }
+  }
+
+  /**
+   * Manage a specific API key by ID
+   * @example PATCH /providers/openai/api-keys/abc-123 { "label": "Primary" }
    * @example DELETE /providers/openai/api-keys/abc-123
    */
   '/providers/:providerId/api-keys/:keyId': {
+    PATCH: {
+      params: { providerId: string; keyId: string }
+      body: UpdateApiKeyDto
+      response: Provider
+    }
     DELETE: {
       params: { providerId: string; keyId: string }
       response: Provider
     }
   }
-}
+} & OrderEndpoints<'/providers'>
