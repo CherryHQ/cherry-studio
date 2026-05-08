@@ -243,6 +243,9 @@ export class AgentService extends BaseService {
         permission_mode: 'default',
         max_turns: 100,
         env_vars: {},
+        worker_instance_role: 'member',
+        worker_model_source: 'worker',
+        style_mode: 'normal',
         ...agentConfig?.configuration
       }
 
@@ -332,7 +335,10 @@ export class AgentService extends BaseService {
         scheduler_type: 'interval',
         heartbeat_enabled: true,
         heartbeat_interval: 30,
-        env_vars: {}
+        env_vars: {},
+        worker_instance_role: 'member',
+        worker_model_source: 'worker',
+        style_mode: 'normal'
       }
 
       const req: CreateAgentRequest = {

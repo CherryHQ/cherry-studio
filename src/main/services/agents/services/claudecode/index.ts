@@ -43,6 +43,7 @@ import {
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
+import { getAgentStyleModePreset } from '@types'
 import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
@@ -70,6 +71,18 @@ const IMAGE_MAX_DIMENSION = 2000
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024 // 5MB API limit
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
+const DEFAULT_LOCAL_CLAUDE_PATH = path.join(
+  process.env.HOME ?? '/Users/mac',
+  'Library',
+  'Application Support',
+  'Claude',
+  'claude-code',
+  '2.1.128',
+  'claude.app',
+  'Contents',
+  'MacOS',
+  'claude'
+)
 
 const getLanguageInstruction = () => {
   const lang = configManager.getLanguage()
@@ -95,10 +108,13 @@ class ClaudeCodeService implements AgentServiceInterface {
   private claudeProxyBootstrapPath: string
 
   constructor() {
-    // Resolve Claude Code CLI robustly (works in dev and in asar)
-    this.claudeExecutablePath = toAsarUnpackedPath(
+    // Resolve Claude Code executable robustly:
+    // 1) SDK packaged cli.js (dev / correctly unpacked prod)
+    // 2) User-installed local Claude Code binary (stable macOS fallback)
+    const sdkCliPath = toAsarUnpackedPath(
       path.join(path.dirname(require_.resolve('@anthropic-ai/claude-agent-sdk')), 'cli.js')
     )
+    this.claudeExecutablePath = fs.existsSync(sdkCliPath) ? sdkCliPath : DEFAULT_LOCAL_CLAUDE_PATH
     this.claudeProxyBootstrapPath = toAsarUnpackedPath(path.join(app.getAppPath(), 'out', 'proxy', 'index.js'))
   }
 
@@ -111,6 +127,18 @@ class ClaudeCodeService implements AgentServiceInterface {
     images?: Array<{ data: string; media_type: string }>
   ): Promise<AgentStream> {
     const aiStream = new ClaudeCodeStream()
+    const configuredWorkerCommand =
+      typeof session.configuration?.worker_command === 'string' && session.configuration.worker_command.trim()
+        ? session.configuration.worker_command.trim()
+        : undefined
+    const fallbackClaudeBinary = await getBinaryPath('claude')
+    const resolvedClaudeExecutablePath =
+      [configuredWorkerCommand, this.claudeExecutablePath, DEFAULT_LOCAL_CLAUDE_PATH, fallbackClaudeBinary]
+        .filter((candidate): candidate is string => Boolean(candidate))
+        .find((candidate) => {
+          if (path.isAbsolute(candidate)) return fs.existsSync(candidate)
+          return true
+        }) ?? this.claudeExecutablePath
 
     // Validate session accessible paths and make sure it exists as a directory
     const cwd = session.accessible_paths[0]
@@ -415,6 +443,8 @@ class ClaudeCodeService implements AgentServiceInterface {
     const agent = await agentService.getAgent(session.agent_id)
     const agentConfig = agent?.configuration
     const soulEnabled = agentConfig?.soul_enabled === true
+    const styleMode = agentConfig?.style_mode ?? session.configuration?.style_mode
+    const styleGuidance = styleMode ? getAgentStyleModePreset(styleMode).prompt : ''
     let soulSystemPrompt: string | undefined
 
     if (soulEnabled && cwd) {
@@ -462,10 +492,10 @@ class ClaudeCodeService implements AgentServiceInterface {
     if (isAssistant) {
       try {
         const context = await buildAssistantContext()
-        assistantSystemPrompt = session.instructions ? `${session.instructions}\n\n${context}` : context
+        assistantSystemPrompt = [styleGuidance, session.instructions, context].filter(Boolean).join('\n\n')
       } catch (err) {
         logger.warn('Failed to build assistant context', { error: err })
-        assistantSystemPrompt = session.instructions
+        assistantSystemPrompt = [styleGuidance, session.instructions].filter(Boolean).join('\n\n')
       }
     }
 
@@ -475,7 +505,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       cwd,
       env,
       // model: modelInfo.modelId,
-      pathToClaudeCodeExecutable: this.claudeExecutablePath,
+      pathToClaudeCodeExecutable: resolvedClaudeExecutablePath,
       spawnClaudeCodeProcess: (spawnOptions) => {
         const childEnv = { ...spawnOptions.env } as NodeJS.ProcessEnv
 
@@ -516,13 +546,17 @@ class ClaudeCodeService implements AgentServiceInterface {
       systemPrompt: assistantSystemPrompt
         ? assistantSystemPrompt
         : soulSystemPrompt
-          ? `${soulSystemPrompt}${session.instructions ? `\n\n${session.instructions}` : ''}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
+          ? `${soulSystemPrompt}${[styleGuidance, session.instructions]
+              .filter(Boolean)
+              .map((part) => `\n\n${part}`)
+              .join('')}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
           : {
               type: 'preset',
               preset: 'claude_code',
               append:
-                [nonSoulToolGuidance, nonSoulFactsRecall, session.instructions].filter(Boolean).join('\n\n') +
-                `${channelSecurityBlock}\n\n${getLanguageInstruction()}`
+                [styleGuidance, nonSoulToolGuidance, nonSoulFactsRecall, session.instructions]
+                  .filter(Boolean)
+                  .join('\n\n') + `${channelSecurityBlock}\n\n${getLanguageInstruction()}`
             },
       // Built-in agents skip CLAUDE.md loading to save tokens
       settingSources: builtinRole ? [] : ['project', 'local'],

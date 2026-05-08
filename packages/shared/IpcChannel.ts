@@ -61,6 +61,9 @@ export enum IpcChannel {
   Webview_PrintToPDF = 'webview:print-to-pdf',
   Webview_SaveAsHTML = 'webview:save-as-html',
 
+  MobileToolbar_Publish = 'mobile-toolbar:publish',
+  MobileToolbar_Action = 'mobile-toolbar:action',
+
   // Open
   Open_Path = 'open:path',
   Open_Website = 'open:website',

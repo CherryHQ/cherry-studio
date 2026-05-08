@@ -48,6 +48,7 @@ export enum ConfigKeys {
   UseSystemTitleBar = 'useSystemTitleBar',
   Proxy = 'proxy',
   EnableDeveloperMode = 'enableDeveloperMode',
+  WorkerFamilyOrder = 'workerFamilyOrder',
   ClientId = 'clientId',
   GitBashPath = 'gitBashPath',
   GitBashPathSource = 'gitBashPathSource' // 'manual' | 'auto' | null
@@ -258,6 +259,14 @@ export class ConfigManager {
 
   setUseSystemTitleBar(value: boolean) {
     this.set(ConfigKeys.UseSystemTitleBar, value)
+  }
+
+  getWorkerFamilyOrder(): string[] {
+    return this.get<string[]>(ConfigKeys.WorkerFamilyOrder, [])
+  }
+
+  setWorkerFamilyOrder(value: string[]) {
+    this.setAndNotify(ConfigKeys.WorkerFamilyOrder, value)
   }
 
   setAndNotify(key: string, value: unknown) {

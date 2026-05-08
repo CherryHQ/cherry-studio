@@ -42,8 +42,17 @@ import InputBar from './components/InputBar'
 
 const logger = loggerService.withContext('HomeWindow')
 
+type PetWorker = {
+  label: string
+  healthLabel: string
+  canRun: boolean
+  workload?: {
+    label: string
+  }
+}
+
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
-  const { language, readClipboardAtStartup, windowStyle } = useSettings()
+  const { language, readClipboardAtStartup, windowStyle, apiServer } = useSettings()
   const { theme } = useTheme()
   const { t } = useTranslation()
 
@@ -63,6 +72,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [isOutputted, setIsOutputted] = useState(false)
 
   const [error, setError] = useState<string | null>(null)
+  const [petWorkers, setPetWorkers] = useState<PetWorker[]>([])
+  const [petTaskText, setPetTaskText] = useState('')
+  const [petBusy, setPetBusy] = useState(false)
 
   const { quickAssistantId } = useAppSelector((state) => state.llm)
   const { assistant: currentAssistant } = useAssistant(quickAssistantId)
@@ -145,6 +157,53 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   useEffect(() => {
     void readClipboard()
   }, [readClipboard])
+
+  const apiBase = useMemo(() => `http://${apiServer.host}:${apiServer.port}`, [apiServer.host, apiServer.port])
+
+  const loadPetWorkers = useCallback(async () => {
+    if (!apiServer.enabled || !apiServer.apiKey) return
+    try {
+      const response = await fetch(`${apiBase}/v1/collaboration/workers`, {
+        headers: { Authorization: `Bearer ${apiServer.apiKey}` }
+      })
+      if (!response.ok) return
+      const payload = await response.json()
+      setPetWorkers(Array.isArray(payload.data) ? payload.data : [])
+    } catch {
+      setPetWorkers([])
+    }
+  }, [apiBase, apiServer.apiKey, apiServer.enabled])
+
+  useEffect(() => {
+    void loadPetWorkers()
+    const timer = window.setInterval(() => void loadPetWorkers(), 5000)
+    return () => window.clearInterval(timer)
+  }, [loadPetWorkers])
+
+  const sendPetTask = useCallback(async () => {
+    const content = petTaskText.trim()
+    if (!content || !apiServer.enabled || !apiServer.apiKey) return
+    setPetBusy(true)
+    try {
+      await fetch(`${apiBase}/mobile/api/tasks`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiServer.apiKey}`,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: content.slice(0, 32) || '桌面宠物任务',
+          content
+        })
+      })
+      setPetTaskText('')
+      void loadPetWorkers()
+    } catch (err) {
+      logger.warn('Failed to send pet task', err as Error)
+    } finally {
+      setPetBusy(false)
+    }
+  }, [apiBase, apiServer.apiKey, apiServer.enabled, loadPetWorkers, petTaskText])
 
   const handleCloseWindow = useCallback(() => window.api.miniWindow.hide(), [])
 
@@ -595,6 +654,42 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           />
           <Divider style={{ margin: '10px 0' }} />
           <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
+          <PetDock>
+            <PetHeader>
+              <PetOrb $active={petWorkers.some((worker) => worker.canRun)} />
+              <strong>Cherry 任务宠物</strong>
+              <span>
+                {petWorkers.filter((worker) => worker.canRun).length}/{petWorkers.length || 5} 在线
+              </span>
+            </PetHeader>
+            <PetWorkers>
+              {(petWorkers.length > 0
+                ? petWorkers
+                : [{ label: 'Worker', healthLabel: '等待任务台', canRun: false }]
+              ).map((worker) => (
+                <PetWorkerBadge key={worker.label} $active={worker.canRun}>
+                  {worker.label}
+                  <span>{worker.canRun ? worker.workload?.label || 'Idle' : worker.healthLabel}</span>
+                </PetWorkerBadge>
+              ))}
+            </PetWorkers>
+            <PetTaskRow>
+              <input
+                value={petTaskText}
+                onChange={(event) => setPetTaskText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    void sendPetTask()
+                  }
+                }}
+                placeholder="快速丢一个任务..."
+              />
+              <button disabled={!petTaskText.trim() || petBusy} onClick={() => void sendPetTask()}>
+                发送
+              </button>
+            </PetTaskRow>
+          </PetDock>
           <Main>
             <FeatureMenus
               setRoute={setRoute}
@@ -631,6 +726,99 @@ const Main = styled.main`
 
   flex: 1;
   overflow: hidden;
+`
+
+const PetDock = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 0.5px solid var(--color-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-background-soft) 82%, transparent);
+  padding: 9px;
+  -webkit-app-region: no-drag;
+`
+
+const PetHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  strong {
+    flex: 1;
+    color: var(--color-text);
+    font-size: 13px;
+  }
+
+  span {
+    color: var(--color-text-3);
+    font-size: 12px;
+  }
+`
+
+const PetOrb = styled.span<{ $active: boolean }>`
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: ${({ $active }) => ($active ? 'var(--color-primary)' : 'var(--color-border)')};
+  box-shadow: ${({ $active }) => ($active ? '0 0 0 4px color-mix(in srgb, var(--color-primary) 18%, transparent)' : 'none')};
+`
+
+const PetWorkers = styled.div`
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+`
+
+const PetWorkerBadge = styled.div<{ $active: boolean }>`
+  display: flex;
+  min-width: 82px;
+  flex-direction: column;
+  gap: 2px;
+  border: 0.5px solid ${({ $active }) => ($active ? 'var(--color-primary)' : 'var(--color-border)')};
+  border-radius: 8px;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-size: 12px;
+  padding: 6px 7px;
+  white-space: nowrap;
+
+  span {
+    color: var(--color-text-3);
+    font-size: 11px;
+  }
+`
+
+const PetTaskRow = styled.div`
+  display: flex;
+  gap: 7px;
+
+  input {
+    min-width: 0;
+    flex: 1;
+    border: 0.5px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-background);
+    color: var(--color-text);
+    font-size: 12px;
+    outline: none;
+    padding: 7px 8px;
+  }
+
+  button {
+    border: 0.5px solid var(--color-primary);
+    border-radius: 8px;
+    background: var(--color-primary);
+    color: var(--color-white);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0 10px;
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+  }
 `
 
 const ErrorMsg = styled.div`

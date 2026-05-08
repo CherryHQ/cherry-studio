@@ -15,9 +15,8 @@ import { BaseService } from '../BaseService'
 import { sessionMessagesTable } from '../database/schema'
 import { agentMessageRepository } from '../database/sessionMessageRepository'
 import type { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
-import ClaudeCodeService from './claudecode'
-
-const claudeCodeService = new ClaudeCodeService()
+import { sessionStreamBus } from './channels/SessionStreamBus'
+import { getAgentRunner } from './runners'
 
 const logger = loggerService.withContext('SessionMessageService')
 
@@ -36,6 +35,15 @@ export type CreateMessageOptions = {
   displayContent?: string
   /** Images to persist in the user message for UI display (not sent to AI model). */
   images?: Array<{ data: string; media_type: string }>
+  /** Optional bridge for mirroring a headless exchange onto the renderer session stream bus. */
+  streamBridge?: {
+    sessionId: string
+    agentId: string
+    userMessage?: {
+      text: string
+      images?: Array<{ data: string; media_type: string }>
+    }
+  }
 }
 
 // Ensure errors emitted through SSE are serializable
@@ -70,7 +78,7 @@ class TextStreamAccumulator {
         break
       case 'text-delta':
         if (part.text) {
-          this.textBuffer = part.text
+          this.textBuffer += part.text
         }
         break
       case 'text-end': {
@@ -184,7 +192,8 @@ export class SessionMessageService extends BaseService {
     const agentSessionId = await this.getLastAgentSessionId(session.id)
     logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
 
-    const claudeStream = await claudeCodeService.invoke(
+    const agentRunner = getAgentRunner(session.agent_type, session)
+    const agentStream = await agentRunner.invoke(
       req.content,
       session,
       abortController,
@@ -212,16 +221,37 @@ export class SessionMessageService extends BaseService {
     })
 
     let finished = false
+    let streamBridgeStarted = false
 
     const cleanup = () => {
       if (finished) return
       finished = true
-      claudeStream.removeAllListeners()
+      agentStream.removeAllListeners()
+    }
+
+    const publishStreamBridgeUserMessage = () => {
+      const bridge = options?.streamBridge
+      if (!bridge || streamBridgeStarted) return
+
+      streamBridgeStarted = true
+      sessionStreamBus.publish(bridge.sessionId, {
+        sessionId: bridge.sessionId,
+        agentId: bridge.agentId,
+        type: 'user-message',
+        userMessage: {
+          chatId: bridge.sessionId,
+          userId: bridge.agentId,
+          userName: session.name || session.id,
+          text: bridge.userMessage?.text || options?.displayContent || req.content,
+          images: bridge.userMessage?.images
+        }
+      })
     }
 
     const stream = new ReadableStream<TextStreamPart<Record<string, any>>>({
       start: (controller) => {
-        claudeStream.on('data', async (event: AgentStreamEvent) => {
+        publishStreamBridgeUserMessage()
+        agentStream.on('data', async (event: AgentStreamEvent) => {
           if (finished) return
           try {
             switch (event.type) {
@@ -233,6 +263,14 @@ export class SessionMessageService extends BaseService {
                 }
 
                 accumulator.add(chunk)
+                if (options?.streamBridge) {
+                  sessionStreamBus.publish(options.streamBridge.sessionId, {
+                    sessionId: options.streamBridge.sessionId,
+                    agentId: options.streamBridge.agentId,
+                    type: 'chunk',
+                    chunk
+                  })
+                }
                 controller.enqueue(chunk)
                 break
               }
@@ -242,6 +280,14 @@ export class SessionMessageService extends BaseService {
                 const underlyingError = event.error ?? (stderrMessage ? new Error(stderrMessage) : undefined)
                 cleanup()
                 const streamError = underlyingError ?? new Error('Stream error')
+                if (options?.streamBridge) {
+                  sessionStreamBus.publish(options.streamBridge.sessionId, {
+                    sessionId: options.streamBridge.sessionId,
+                    agentId: options.streamBridge.agentId,
+                    type: 'error',
+                    error: serializeError(streamError)
+                  })
+                }
                 controller.error(streamError)
                 rejectCompletion(serializeError(streamError))
                 break
@@ -249,12 +295,19 @@ export class SessionMessageService extends BaseService {
 
               case 'complete': {
                 cleanup()
+                if (options?.streamBridge) {
+                  sessionStreamBus.publish(options.streamBridge.sessionId, {
+                    sessionId: options.streamBridge.sessionId,
+                    agentId: options.streamBridge.agentId,
+                    type: 'complete'
+                  })
+                }
                 controller.close()
                 if (options?.persist) {
-                  // Read SDK session_id from the stream object (set by ClaudeCodeService on init)
-                  const resolvedSessionId = claudeStream.sdkSessionId || agentSessionId
+                  // Read SDK session_id from the stream object when the runner exposes one.
+                  const resolvedSessionId = agentStream.sdkSessionId || agentSessionId
                   logger.debug('Persisting headless exchange with agent session ID', {
-                    sdkSessionId: claudeStream.sdkSessionId,
+                    sdkSessionId: agentStream.sdkSessionId,
                     fallback: agentSessionId,
                     resolved: resolvedSessionId
                   })
@@ -278,9 +331,17 @@ export class SessionMessageService extends BaseService {
 
               case 'cancelled': {
                 cleanup()
+                if (options?.streamBridge) {
+                  sessionStreamBus.publish(options.streamBridge.sessionId, {
+                    sessionId: options.streamBridge.sessionId,
+                    agentId: options.streamBridge.agentId,
+                    type: 'error',
+                    error: { message: 'Stopped by user' }
+                  })
+                }
                 controller.close()
                 if (options?.persist) {
-                  const resolvedSessionId = claudeStream.sdkSessionId || agentSessionId
+                  const resolvedSessionId = agentStream.sdkSessionId || agentSessionId
                   const partialText = accumulator.getText()
                   if (partialText) {
                     this.persistHeadlessExchange(
@@ -305,7 +366,7 @@ export class SessionMessageService extends BaseService {
               }
 
               default:
-                logger.warn('Unknown event type from Claude Code service:', {
+                logger.warn('Unknown event type from agent runner:', {
                   type: event.type
                 })
                 break

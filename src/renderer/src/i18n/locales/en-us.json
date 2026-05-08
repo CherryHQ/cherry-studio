@@ -570,6 +570,7 @@
       }
     },
     "sidebar_title": "Agents",
+    "private_chat_title": "Private Chat",
     "todo": {
       "panel": {
         "title": "{{completed}}/{{total}} tasks completed"
@@ -771,6 +772,9 @@
     "zoom": "Zoom",
     "zoomIn": "Zoom In",
     "zoomOut": "Zoom Out"
+  },
+  "collaboration": {
+    "title": "Collaboration"
   },
   "assistants": {
     "abbr": "Assistants",

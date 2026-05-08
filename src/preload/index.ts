@@ -19,6 +19,7 @@ import type {
 import type { MCPServerLogEntry } from '@shared/config/types'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { MobileToolbarAction, MobileToolbarSnapshot } from '@shared/types/mobileToolbar'
 import type { Notification } from '@types'
 import type {
   AddMemoryOptions,
@@ -518,6 +519,16 @@ const api = {
     subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),
     unsubscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Unsubscribe),
     onUpdate: (action: any) => ipcRenderer.invoke(IpcChannel.StoreSync_OnUpdate, action)
+  },
+  mobileToolbar: {
+    publish: (snapshot: MobileToolbarSnapshot | null) => ipcRenderer.invoke(IpcChannel.MobileToolbar_Publish, snapshot),
+    onAction: (callback: (action: MobileToolbarAction) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, action: MobileToolbarAction) => callback(action)
+      ipcRenderer.on(IpcChannel.MobileToolbar_Action, listener)
+      return () => {
+        ipcRenderer.off(IpcChannel.MobileToolbar_Action, listener)
+      }
+    }
   },
   selection: {
     hideToolbar: () => ipcRenderer.invoke(IpcChannel.Selection_ToolbarHide),

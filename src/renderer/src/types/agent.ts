@@ -25,8 +25,61 @@ export const SessionMessageRoleSchema = z.enum(sessionMessageRoles)
 
 export type SessionMessageType = TextStreamPart<Record<string, any>>['type']
 
-export const AgentTypeSchema = z.enum(['claude-code'])
+export const AgentTypeSchema = z.enum([
+  'claude-code',
+  'codex',
+  'opencode',
+  'gemini-cli',
+  'hermes',
+  'aider',
+  'shell-script',
+  'openclaw-bot'
+])
 export type AgentType = z.infer<typeof AgentTypeSchema>
+
+export const WorkerCostClassSchema = z.enum(['local-fast', 'local-heavy', 'cloud'])
+export type WorkerCostClass = z.infer<typeof WorkerCostClassSchema>
+export const WorkerInstanceRoleSchema = z.enum(['primary', 'member', 'router'])
+export type WorkerInstanceRole = z.infer<typeof WorkerInstanceRoleSchema>
+export const WorkerModelSourceSchema = z.enum(['worker', 'cherry'])
+export type WorkerModelSource = z.infer<typeof WorkerModelSourceSchema>
+
+export const AgentStyleModeSchema = z.enum(['normal', 'creative', 'serious'])
+export type AgentStyleMode = z.infer<typeof AgentStyleModeSchema>
+
+export const AGENT_STYLE_MODE_PRESETS: Record<
+  AgentStyleMode,
+  {
+    label: string
+    temperature: number
+    top_p: number
+    prompt: string
+  }
+> = {
+  normal: {
+    label: '正常模式',
+    temperature: 0.7,
+    top_p: 0.9,
+    prompt: '工作风格：正常模式。保持清晰、稳定、实用，在必要时给出简短解释和可执行结果。'
+  },
+  creative: {
+    label: '创意模式',
+    temperature: 1.05,
+    top_p: 0.95,
+    prompt: '工作风格：创意模式。允许更大胆的想法和多方案探索，适合创作、编曲、命名、构思和方向发散。'
+  },
+  serious: {
+    label: '严肃模式',
+    temperature: 0.25,
+    top_p: 0.7,
+    prompt: '工作风格：严肃模式。优先准确、克制和可验证，少猜测，先指出风险，再给出稳妥执行路径。'
+  }
+}
+
+export const getAgentStyleModePreset = (mode?: unknown) => {
+  const parsed = AgentStyleModeSchema.safeParse(mode)
+  return AGENT_STYLE_MODE_PRESETS[parsed.success ? parsed.data : 'normal']
+}
 
 // ------------------ CherryClaw-specific types ------------------
 export const SchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
@@ -90,7 +143,25 @@ export const AgentConfigurationSchema = z
 
     // Heartbeat
     heartbeat_enabled: z.boolean().optional(),
-    heartbeat_interval: z.number().optional() // minutes, default 30
+    heartbeat_interval: z.number().optional(), // minutes, default 30
+
+    // Worker orchestration
+    worker_command: z.string().optional(), // executable path or command name for CLI-backed workers
+    worker_args: z.array(z.string()).optional(), // supports {{prompt}}, {{cwd}}, {{sessionId}}
+    worker_capability_tags: z.array(z.string()).optional(), // lightweight routing tags
+    worker_cost_class: WorkerCostClassSchema.optional(), // local-fast | local-heavy | cloud
+    worker_family: AgentTypeSchema.optional(),
+    worker_instance_role: WorkerInstanceRoleSchema.optional().default('member'),
+    worker_model_source: WorkerModelSourceSchema.optional().default('worker'),
+    worker_detected_model: z.string().optional(),
+    worker_detected_model_name: z.string().optional(),
+    autonomy_enabled: z.boolean().optional(),
+    autonomy_idle_minutes: z.number().optional(),
+
+    // Simple style modes for model-backed agents and CLI workers.
+    style_mode: AgentStyleModeSchema.optional().default('normal'),
+    temperature: z.number().optional(),
+    top_p: z.number().optional()
   })
   .loose()
 

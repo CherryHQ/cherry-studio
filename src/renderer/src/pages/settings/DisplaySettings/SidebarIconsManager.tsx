@@ -8,6 +8,7 @@ import { setSidebarIcons } from '@renderer/store/settings'
 import type { SidebarIcon } from '@renderer/types'
 import { message } from 'antd'
 import {
+  Boxes,
   Code,
   FileSearch,
   Folder,
@@ -119,6 +120,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
       ({
         assistants: <MessageSquareQuote size={16} />,
         agents: <MousePointerClick size={16} />,
+        collaboration: <Boxes size={16} />,
         store: <Sparkle size={16} />,
         paintings: <Palette size={16} />,
         translate: <Languages size={16} />,
