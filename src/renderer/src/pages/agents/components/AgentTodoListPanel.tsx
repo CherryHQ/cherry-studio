@@ -1,3 +1,28 @@
+/**
+ * Mock-only Agent todo list panel.
+ *
+ * This file currently renders static fixture data through AgentTodoListPanel.MockProvider.
+ * It is intentionally not connected to any production API, agent session stream, or scheduled
+ * task endpoint. The mock data exists only to preview the UI shape and composition API while
+ * the real agent execution todo/progress contract is still undecided.
+ *
+ * When wiring real data later, keep this component presentational and add a connected wrapper
+ * or real provider beside it. That wrapper should:
+ * - accept the scope needed to query data, such as agentId plus sessionId/runId if the todo list
+ *   represents one agent execution rather than scheduled tasks.
+ * - fetch/subscribe to the real source of truth, then map the response into AgentTodoItem[] and
+ *   AgentTodoDetailGroup[] before passing it into the provider.
+ * - provide stable task ids, display labels or i18n keys, status values
+ *   ('completed' | 'in_progress' | 'pending'), detail group ids/icons/titles, optional summaries,
+ *   and optional resource rows with ids/icons/labels/meta.
+ * - expose action handlers only from the provider layer when they become real, such as complete,
+ *   dismiss, retry, refresh, or open-resource actions. The visual subcomponents should continue
+ *   reading from context instead of calling APIs directly.
+ *
+ * Do not treat /agents/:agentId/tasks as the default backing API unless the product meaning is
+ * actually "scheduled tasks". This panel currently models execution progress/todos, which may
+ * need a session/run-scoped API instead.
+ */
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import {
@@ -335,7 +360,7 @@ const AgentTodoListMockProvider = ({
 const AgentTodoListRoot = ({ children, className }: AgentTodoListRootProps) => (
   <section
     className={cn(
-      'mx-3 mt-3 mb-1 flex-shrink-0 overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm',
+      'mx-3 mt-3 mb-1 shrink-0 overflow-hidden rounded-xl border border-border/60 bg-background shadow-sm',
       className
     )}>
     {children}
@@ -358,10 +383,10 @@ const AgentTodoListHeader = () => {
       onClick={toggleTasks}>
       <ChevronDown
         size={10}
-        className={cn('flex-shrink-0 text-muted-foreground transition-transform', !isTasksExpanded && '-rotate-90')}
+        className={cn('shrink-0 text-muted-foreground transition-transform', !isTasksExpanded && '-rotate-90')}
       />
       <span className="min-w-0 flex-1 truncate text-[10.5px] text-foreground/85">{t('agent.todo.mock.title')}</span>
-      <span className="flex-shrink-0 text-[9px] text-muted-foreground tabular-nums">
+      <span className="shrink-0 text-[9px] text-muted-foreground tabular-nums">
         {completedCount}/{totalCount}
       </span>
     </button>
@@ -390,7 +415,7 @@ const AgentTodoListTaskRow = ({ task }: { task: AgentTodoItem }) => {
   const { t } = useTranslation()
 
   return (
-    <div className="flex min-h-6 items-center gap-2 px-1 py-[5px]">
+    <div className="flex min-h-6 items-center gap-2 px-1 py-1.25">
       <AgentTodoListStatusIcon status={task.status} />
       <span
         className={cn(
@@ -408,7 +433,7 @@ const AgentTodoListTaskRow = ({ task }: { task: AgentTodoItem }) => {
 const AgentTodoListStatusIcon = ({ status }: { status: AgentTodoStatus }) => {
   if (status === 'completed') {
     return (
-      <span className="flex size-4 flex-shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
+      <span className="flex size-4 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
         <Check size={10} />
       </span>
     )
@@ -416,14 +441,14 @@ const AgentTodoListStatusIcon = ({ status }: { status: AgentTodoStatus }) => {
 
   if (status === 'in_progress') {
     return (
-      <span className="flex size-4 flex-shrink-0 items-center justify-center text-primary">
+      <span className="flex size-4 shrink-0 items-center justify-center text-primary">
         <LoaderCircle size={11} className="animate-spin" />
       </span>
     )
   }
 
   return (
-    <span className="flex size-4 flex-shrink-0 items-center justify-center text-muted-foreground/30">
+    <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground/30">
       <Circle size={10} />
     </span>
   )
@@ -445,10 +470,7 @@ const AgentTodoListDetails = () => {
         onClick={toggleDetails}>
         <ChevronDown
           size={9}
-          className={cn(
-            'flex-shrink-0 text-muted-foreground/60 transition-transform',
-            !isDetailsExpanded && '-rotate-90'
-          )}
+          className={cn('shrink-0 text-muted-foreground/60 transition-transform', !isDetailsExpanded && '-rotate-90')}
         />
         <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
           {t('agent.todo.mock.details.title')}
@@ -490,7 +512,7 @@ const AgentTodoListDetailGroup = ({ detail }: { detail: AgentTodoDetailGroup }) 
                   <span className="truncate text-[10px] text-muted-foreground">{t(detail.collectionTitleKey)}</span>
                   <span className="text-[9px] text-muted-foreground/60">{resourceCount}</span>
                 </div>
-                <Share2 size={9} className="flex-shrink-0 text-muted-foreground/50" />
+                <Share2 size={9} className="shrink-0 text-muted-foreground/50" />
               </div>
             )}
             <div className="py-0.5">
@@ -510,14 +532,12 @@ const AgentTodoListDetailResource = ({ resource }: { resource: AgentTodoDetailRe
   const Icon = RESOURCE_ICONS[resource.icon]
 
   return (
-    <div className="flex items-center gap-2 px-3 py-[4px] transition-colors hover:bg-muted/80">
-      <span className="flex size-4 flex-shrink-0 items-center justify-center rounded bg-muted text-[10px]">
+    <div className="flex items-center gap-2 px-3 py-1 transition-colors hover:bg-muted/80">
+      <span className="flex size-4 shrink-0 items-center justify-center rounded bg-muted text-[10px]">
         <Icon size={10} className="text-muted-foreground/70" />
       </span>
       <span className="min-w-0 flex-1 truncate text-[10.5px] text-foreground/70">{t(resource.labelKey)}</span>
-      {resource.metaKey && (
-        <span className="flex-shrink-0 text-[9px] text-muted-foreground/60">{t(resource.metaKey)}</span>
-      )}
+      {resource.metaKey && <span className="shrink-0 text-[9px] text-muted-foreground/60">{t(resource.metaKey)}</span>}
     </div>
   )
 }
@@ -530,7 +550,7 @@ const AgentTodoListFooter = () => {
 
   return (
     <div className="flex items-center gap-2 border-border/40 border-t px-3.5 py-2">
-      <ListFilter size={11} className="flex-shrink-0 text-muted-foreground/60" />
+      <ListFilter size={11} className="shrink-0 text-muted-foreground/60" />
       <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
         {t('agent.todo.mock.progress', { completed: completedCount, total: totalCount })}
       </span>

@@ -4024,6 +4024,9 @@
         "triggerPlaceholder": "选择智能体",
         "valueProp": "当前 value"
       },
+      "agentTodoList": {
+        "title": "Agent 任务列表"
+      },
       "assistantSelector": {
         "clearSelection": "清空",
         "configDescription": "调整 props 预览组件行为",

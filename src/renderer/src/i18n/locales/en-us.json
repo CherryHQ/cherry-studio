@@ -4024,6 +4024,9 @@
         "triggerPlaceholder": "Select an agent",
         "valueProp": "Current value"
       },
+      "agentTodoList": {
+        "title": "Agent Todo List"
+      },
       "assistantSelector": {
         "clearSelection": "Clear",
         "configDescription": "Toggle props to preview component behavior",
