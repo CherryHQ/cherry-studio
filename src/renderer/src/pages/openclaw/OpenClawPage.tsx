@@ -14,13 +14,14 @@ import { Download, ExternalLink, Loader2, Play, Square, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
+import useSWR, { mutate } from 'swr'
 
 import UpdateButton from './components/UpdateButton'
 
 const logger = loggerService.withContext('OpenClawPage')
 
 const DEFAULT_DOCS_URL = 'https://docs.openclaw.ai/'
+const NO_API_KEY_PROVIDERS = new Set(['ollama', 'lmstudio', 'gpustack'])
 
 function toLegacyModelSelectorValue(modelId: UniqueModelId | null): string | null {
   if (!modelId) return null
@@ -83,8 +84,6 @@ const OpenClawPage: FC = () => {
   const [gatewayPort] = usePreference('feature.openclaw.gateway_port')
   const [selectedModelId, setSelectedModelId] = usePreference('feature.openclaw.selected_model_id')
   const [gatewayStatus, setGatewayStatus] = useSharedCache('feature.openclaw.gateway_status')
-  const [, setLastHealthCheck] = useSharedCache('feature.openclaw.last_health_check')
-  const [, setChannels] = useSharedCache('feature.openclaw.channels')
 
   const [error, setError] = useState<string | null>(null)
   const [isInstalled, setIsInstalled] = useState<boolean | null>(null) // null = unknown, checking in background
@@ -103,8 +102,10 @@ const OpenClawPage: FC = () => {
   const [uninstallSuccess, setUninstallSuccess] = useState(false)
   const [isOpenClawUpdating, setIsOpenClawUpdating] = useState(false)
 
-  const noApiKeyProviders = ['ollama', 'lmstudio', 'gpustack']
-  const availableProviders = providers.filter((p) => p.enabled && (p.apiKey || noApiKeyProviders.includes(p.type)))
+  const availableProviders = useMemo(
+    () => providers.filter((p) => p.enabled && (p.apiKey || NO_API_KEY_PROVIDERS.has(p.type))),
+    [providers]
+  )
 
   const selectedModelInfo = useMemo(() => {
     if (!selectedModelId || !isUniqueModelId(selectedModelId)) return null
@@ -225,26 +226,6 @@ const OpenClawPage: FC = () => {
     { refreshInterval: 5000, revalidateOnFocus: false }
   )
 
-  useSWR(
-    isInstallPage && gatewayStatus === 'running' ? 'openclaw/health' : null,
-    async () => {
-      const health = await window.api.openclaw.checkHealth()
-      setLastHealthCheck(health)
-      return health
-    },
-    { refreshInterval: 5000, revalidateOnFocus: false }
-  )
-
-  useSWR(
-    isInstallPage ? 'openclaw/channels' : null,
-    async () => {
-      const channels = await window.api.openclaw.getChannels()
-      setChannels(channels)
-      return channels
-    },
-    { refreshInterval: 5000, revalidateOnFocus: false }
-  )
-
   useEffect(() => {
     void checkInstallation()
   }, [checkInstallation])
@@ -261,7 +242,12 @@ const OpenClawPage: FC = () => {
   }, [])
 
   const handleModelSelect = (modelUniqId: string) => {
-    void setSelectedModelId(fromLegacyModelSelectorValue(modelUniqId))
+    const nextModelId = fromLegacyModelSelectorValue(modelUniqId)
+    if (!nextModelId) {
+      logger.warn('Invalid model selector value, ignoring', { modelUniqId })
+      return
+    }
+    void setSelectedModelId(nextModelId)
   }
 
   const handleStartGateway = async () => {
@@ -300,11 +286,9 @@ const OpenClawPage: FC = () => {
         logo: 'openclaw'
       })
 
-      // Delay 500ms before updating UI state (wait for miniapp animation)
-      setTimeout(() => {
-        setGatewayStatus('running')
-        setIsStarting(false)
-      }, 500)
+      void mutate('openclaw/status', { status: 'running' }, { revalidate: false })
+      setGatewayStatus('running')
+      setIsStarting(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       setIsStarting(false)
@@ -328,13 +312,18 @@ const OpenClawPage: FC = () => {
   }
 
   const handleOpenDashboard = async () => {
-    const dashboardUrl = await window.api.openclaw.getDashboardUrl()
-    openSmartMiniApp({
-      appId: 'openclaw-dashboard',
-      name: 'OpenClaw',
-      url: dashboardUrl,
-      logo: 'openclaw'
-    })
+    try {
+      const dashboardUrl = await window.api.openclaw.getDashboardUrl()
+      openSmartMiniApp({
+        appId: 'openclaw-dashboard',
+        name: 'OpenClaw',
+        url: dashboardUrl,
+        logo: 'openclaw'
+      })
+    } catch (err) {
+      logger.error('Failed to open dashboard', err as Error)
+      setError(err instanceof Error ? err.message : String(err))
+    }
   }
 
   const renderLogContainer = (expanded = false) => (
@@ -509,6 +498,7 @@ const OpenClawPage: FC = () => {
                         window.toast.success(t('common.copied'))
                       } catch (err) {
                         window.toast.error(t('common.copy_failed'))
+                        logger.error('Failed to copy error message:', err as Error)
                       }
                     }}>
                     <CopyIcon className="size-3!" />

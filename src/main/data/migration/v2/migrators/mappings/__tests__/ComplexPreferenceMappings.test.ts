@@ -232,6 +232,15 @@ describe('ComplexPreferenceMappings', () => {
         'feature.openclaw.selected_model_id': 'openai::gpt-4o'
       })
     })
+
+    it('should skip invalid gateway ports so schema default applies', () => {
+      const mapping = getComplexMappingById('openclaw_preferences')!
+
+      expect(mapping.transform({ gatewayPort: undefined })['feature.openclaw.gateway_port']).toBeUndefined()
+      expect(mapping.transform({ gatewayPort: null })['feature.openclaw.gateway_port']).toBeUndefined()
+      expect(mapping.transform({ gatewayPort: '18790' })['feature.openclaw.gateway_port']).toBeUndefined()
+      expect(mapping.transform({ gatewayPort: Number.NaN })['feature.openclaw.gateway_port']).toBeUndefined()
+    })
   })
 
   describe('ComplexMapping structure validation', () => {

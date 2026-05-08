@@ -69,15 +69,3 @@ export type TranslatingState =
     }
 
 export type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
-
-export interface OpenClawChannelInfo {
-  id: string
-  name: string
-  type: string
-  status: 'connected' | 'disconnected' | 'error'
-}
-
-export interface OpenClawHealthInfo {
-  status: 'healthy' | 'unhealthy'
-  gatewayPort: number
-}

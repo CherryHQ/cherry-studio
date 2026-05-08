@@ -213,7 +213,10 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['feature.openclaw.gateway_port', 'feature.openclaw.selected_model_id'],
     transform: (sources) => ({
-      'feature.openclaw.gateway_port': sources.gatewayPort,
+      'feature.openclaw.gateway_port':
+        typeof sources.gatewayPort === 'number' && Number.isFinite(sources.gatewayPort) && sources.gatewayPort > 0
+          ? sources.gatewayPort
+          : undefined,
       'feature.openclaw.selected_model_id': legacyModelJsonToUniqueId(sources.selectedModelUniqId)
     })
   }
