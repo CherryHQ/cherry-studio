@@ -7,6 +7,9 @@ import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
+import { updateAssistant, updateDefaultAssistant } from '@renderer/store/assistants'
 import type { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -16,6 +19,7 @@ import { Input } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
@@ -35,6 +39,9 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'sk', label: 'Slovenčina', flag: '🇸🇰' },
   { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
 ]
+
+const getDefaultNamesForKey = (key: string): Set<string> =>
+  new Set(Object.keys(i18n.store.data).map((locale) => i18n.getFixedT(locale)(key)))
 
 const GeneralSettings: FC = () => {
   const [language, setLanguage] = usePreference('app.language')
@@ -91,15 +98,26 @@ const GeneralSettings: FC = () => {
     }
   }
 
-  // const dispatch = useAppDispatch()
+  const dispatch = useAppDispatch()
   const { t } = useTranslation()
+  const defaultAssistant = useSelector((state: RootState) => state.assistants.defaultAssistant)
 
-  const onSelectLanguage = (value: LanguageVarious) => {
+  const onSelectLanguage = async (value: LanguageVarious) => {
     // dispatch(setLanguage(value))
     // localStorage.setItem('language', value)
     // void window.api.setLanguage(value)
-    void i18n.changeLanguage(value)
+    await i18n.changeLanguage(value)
     void setLanguage(value)
+
+    if (getDefaultNamesForKey('chat.default.name').has(defaultAssistant.name)) {
+      const newName = i18n.t('chat.default.name')
+      const knownTopicNames = getDefaultNamesForKey('chat.default.topic.name')
+      const updatedTopics = defaultAssistant.topics.map((topic) =>
+        knownTopicNames.has(topic.name) ? { ...topic, name: i18n.t('chat.default.topic.name') } : topic
+      )
+      dispatch(updateDefaultAssistant({ assistant: { ...defaultAssistant, name: newName, topics: updatedTopics } }))
+      dispatch(updateAssistant({ id: defaultAssistant.id, name: newName, topics: updatedTopics }))
+    }
   }
 
   const handleSpellCheckChange = (checked: boolean) => {
