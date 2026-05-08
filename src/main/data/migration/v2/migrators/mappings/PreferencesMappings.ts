@@ -716,7 +716,7 @@ export const REDUX_STORE_MAPPINGS = {
   preprocess: [
     {
       originalKey: 'defaultProvider',
-      targetKey: 'feature.file_processing.default_markdown_conversion'
+      targetKey: 'feature.file_processing.default_document_to_markdown'
     }
   ],
   translate: [
@@ -746,7 +746,7 @@ export const REDUX_STORE_MAPPINGS = {
   ocr: [
     {
       originalKey: 'imageProviderId',
-      targetKey: 'feature.file_processing.default_text_extraction'
+      targetKey: 'feature.file_processing.default_image_to_text'
     }
   ],
   note: [
