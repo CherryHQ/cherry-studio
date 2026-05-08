@@ -206,6 +206,13 @@ export function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }
 
+function getPresetCapability(
+  preset: (typeof PRESETS_WEB_SEARCH_PROVIDERS)[number],
+  feature: 'searchKeywords' | 'fetchUrls'
+) {
+  return preset.capabilities.find((capability) => capability.feature === feature)
+}
+
 const SUPPORTED_WEB_SEARCH_PROVIDER_IDS = new Set<WebSearchProviderId>(
   PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => preset.id)
 )
@@ -219,7 +226,8 @@ function isSupportedWebSearchProviderId(value: string): value is WebSearchProvid
 // ============================================================================
 
 /**
- * Normalize the legacy default web search provider into a v2 Preference key.
+ * Normalize the legacy default web search provider into the v2 keyword-search
+ * default provider key.
  *
  * Unsupported legacy ids, removed local providers, and empty strings are all
  * treated as "no default provider selected" to keep the migrated Preference
@@ -235,7 +243,7 @@ export function normalizeWebSearchDefaultProvider(sources: { defaultProvider?: s
   }
 
   return {
-    'chat.web_search.default_provider':
+    'chat.web_search.default_search_keywords_provider':
       defaultProvider && isSupportedWebSearchProviderId(defaultProvider) ? defaultProvider : null
   }
 }
@@ -385,8 +393,11 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
 
     const rawApiHost = provider.apiHost?.trim() ? provider.apiHost : provider.url
     const apiHost = rawApiHost?.trim()
-    if (apiHost && apiHost !== preset.defaultApiHost) {
-      override.apiHost = apiHost
+    const searchKeywordsCapability = getPresetCapability(preset, 'searchKeywords')
+    if (apiHost && searchKeywordsCapability && apiHost !== searchKeywordsCapability.apiHost) {
+      override.capabilities = {
+        searchKeywords: { apiHost }
+      }
     }
 
     if (provider.engines && provider.engines.length > 0) {

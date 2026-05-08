@@ -338,6 +338,10 @@ export enum IpcChannel {
   // Provider
   Provider_AddKey = 'provider:add-key',
 
+  // Web Search
+  WebSearch_SearchKeywords = 'web-search:search-keywords',
+  WebSearch_FetchUrls = 'web-search:fetch-urls',
+
   //Selection Assistant
   Selection_TextSelected = 'selection:text-selected',
   Selection_ToolbarHide = 'selection:toolbar-hide',

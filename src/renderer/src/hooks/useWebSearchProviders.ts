@@ -33,7 +33,7 @@ function resolveRendererWebSearchProviders(
 }
 
 export const useDefaultWebSearchProvider = () => {
-  const [defaultProviderId, setDefaultProviderId] = usePreference('chat.web_search.default_provider')
+  const [defaultProviderId, setDefaultProviderId] = usePreference('chat.web_search.default_search_keywords_provider')
   const { providers } = useWebSearchProviders()
   const provider = defaultProviderId ? providers.find((item) => item.id === defaultProviderId) : undefined
 

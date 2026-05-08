@@ -36,6 +36,11 @@ import type {
   KnowledgeSearchResult as KnowledgeVectorSearchResult,
   RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
+import type {
+  WebSearchFetchUrlsRequest,
+  WebSearchResponse,
+  WebSearchSearchKeywordsRequest
+} from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
@@ -834,6 +839,12 @@ const api = {
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Cherryai_GetSignature, params)
+  },
+  webSearch: {
+    searchKeywords: (request: WebSearchSearchKeywordsRequest): Promise<WebSearchResponse> =>
+      ipcRenderer.invoke(IpcChannel.WebSearch_SearchKeywords, request),
+    fetchUrls: (request: WebSearchFetchUrlsRequest): Promise<WebSearchResponse> =>
+      ipcRenderer.invoke(IpcChannel.WebSearch_FetchUrls, request)
   },
   shortcut: {
     onRegistrationConflict: (callback: (payload: ShortcutRegistrationConflictPayload) => void): (() => void) => {

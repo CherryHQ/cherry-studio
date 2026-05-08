@@ -675,7 +675,9 @@ export const WebSearchProviderIds = {
   exa: 'exa',
   'exa-mcp': 'exa-mcp',
   bocha: 'bocha',
-  querit: 'querit'
+  querit: 'querit',
+  fetch: 'fetch',
+  jina: 'jina'
 } as const
 
 export type WebSearchProviderId = keyof typeof WebSearchProviderIds

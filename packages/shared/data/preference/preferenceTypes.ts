@@ -132,13 +132,35 @@ export const WEB_SEARCH_PROVIDER_TYPES = ['api', 'mcp'] as const
 
 export type WebSearchProviderType = (typeof WEB_SEARCH_PROVIDER_TYPES)[number]
 
-export const WEB_SEARCH_PROVIDER_IDS = ['zhipu', 'tavily', 'searxng', 'exa', 'exa-mcp', 'bocha', 'querit'] as const
+export const WEB_SEARCH_PROVIDER_IDS = [
+  'zhipu',
+  'tavily',
+  'searxng',
+  'exa',
+  'exa-mcp',
+  'bocha',
+  'querit',
+  'fetch',
+  'jina'
+] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
 
+export const WEB_SEARCH_CAPABILITIES = ['searchKeywords', 'fetchUrls'] as const
+
+export type WebSearchCapability = (typeof WEB_SEARCH_CAPABILITIES)[number]
+
+export type WebSearchProviderCapabilityOverride = {
+  apiHost?: string
+}
+
+export type WebSearchProviderCapabilityOverrides = Partial<
+  Record<WebSearchCapability, WebSearchProviderCapabilityOverride>
+>
+
 export type WebSearchProviderOverride = {
   apiKeys?: string[]
-  apiHost?: string
+  capabilities?: WebSearchProviderCapabilityOverrides
   engines?: string[]
   basicAuthUsername?: string
   basicAuthPassword?: string
@@ -166,8 +188,12 @@ export interface WebSearchProvider {
   type: WebSearchProviderType
   /** API keys (from user overrides) */
   apiKeys: string[]
-  /** API host (user override or preset default) */
-  apiHost: string
+  /** Capability API settings (user override merged into preset capabilities) */
+  capabilities: Array<{
+    feature: WebSearchCapability
+    /** Can be empty for self-hosted or hostless providers; resolve and validate via resolveProviderApiHost. */
+    apiHost?: string
+  }>
   /** Search engines (from user overrides) */
   engines: string[]
   /** Basic auth username (from user overrides) */
