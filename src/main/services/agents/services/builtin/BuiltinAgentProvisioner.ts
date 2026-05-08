@@ -29,9 +29,8 @@ function resolveLocalizedField(value: unknown): string | undefined {
   return map[lang] || (prefixKey && map[prefixKey]) || map['en-US'] || Object.values(map)[0]
 }
 
-const ROLE_TO_TEMPLATE: Record<string, string> = {
-  assistant: 'cherry-assistant',
-  'skill-creator': 'skill-creator'
+const TEMPLATE_NAME_BY_ROLE: Record<string, string> = {
+  assistant: 'cherry-assistant'
 }
 
 /**
@@ -64,14 +63,14 @@ export interface BuiltinAgentConfig {
  * working directory so the SDK can auto-discover them.
  *
  * @param workspacePath - The agent's working directory (accessible_paths[0])
- * @param builtinRole - The built-in role identifier ('assistant' or 'skill-creator')
+ * @param builtinRole - The built-in role identifier (currently only 'assistant')
  * @returns The parsed agent.json config, or undefined if not found
  */
 export async function provisionBuiltinAgent(
   workspacePath: string,
   builtinRole: string
 ): Promise<BuiltinAgentConfig | undefined> {
-  const templateName = ROLE_TO_TEMPLATE[builtinRole]
+  const templateName = TEMPLATE_NAME_BY_ROLE[builtinRole]
   if (!templateName) {
     logger.warn('Unknown builtin role, skipping provisioning', { builtinRole })
     return undefined
@@ -103,7 +102,7 @@ export async function provisionBuiltinAgent(
 
     // Copy SOUL.md, USER.md, and memory/ only if they don't already exist (first-time provision)
     // Never overwrite — user may have customized their persona or accumulated memories
-    fs.mkdirSync(workspacePath, { recursive: true })
+    // workspacePath is created by the .claude/ copy above (every builtin template ships .claude/skills/)
     for (const soulFile of ['SOUL.md', 'USER.md']) {
       const srcFile = path.join(templateDir, soulFile)
       const destFile = path.join(workspacePath, soulFile)
@@ -121,13 +120,23 @@ export async function provisionBuiltinAgent(
     // Read agent.json to extract full config
     const agentJsonPath = path.join(templateDir, 'agent.json')
     if (fs.existsSync(agentJsonPath)) {
-      const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
+      let agentConfig: Record<string, unknown>
+      try {
+        agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
+      } catch (err) {
+        logger.warn('Failed to parse agent.json, skipping config load', {
+          builtinRole,
+          agentJsonPath,
+          error: err instanceof Error ? err.message : String(err)
+        })
+        return undefined
+      }
       return {
-        name: agentConfig.name,
+        name: agentConfig.name as string | undefined,
         description: resolveLocalizedField(agentConfig.description),
         instructions: resolveLocalizedField(agentConfig.instructions),
-        configuration: agentConfig.configuration
-      } as BuiltinAgentConfig
+        configuration: agentConfig.configuration as Record<string, unknown> | undefined
+      }
     }
 
     return undefined

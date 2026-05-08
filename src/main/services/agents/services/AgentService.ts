@@ -225,7 +225,7 @@ export class AgentService extends BaseService {
             let existingConfig: Record<string, unknown> = {}
             if (existing.configuration) {
               try {
-                existingConfig = JSON.parse(existing.configuration as string)
+                existingConfig = JSON.parse(existing.configuration)
               } catch {
                 logger.warn('Failed to parse existing agent configuration, using empty config', { agentId: id })
               }
