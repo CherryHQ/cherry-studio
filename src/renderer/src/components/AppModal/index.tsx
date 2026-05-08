@@ -47,7 +47,9 @@ export interface AppModalFuncProps {
   okCancel?: boolean
 }
 
-export interface AppModalReturn extends Promise<boolean> {
+export interface AppModalReturn extends PromiseLike<boolean> {
+  catch: Promise<boolean>['catch']
+  finally: Promise<boolean>['finally']
   destroy: () => void
   update: (config: AppModalFuncProps) => void
 }
