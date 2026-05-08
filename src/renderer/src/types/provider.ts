@@ -80,9 +80,28 @@ export function isGroqServiceTier(tier: string | undefined | null): tier is Groq
 export type ServiceTier = OpenAIServiceTier | GroqServiceTier
 
 export type AnthropicCacheControlSettings = {
+  enabled: boolean
+  ttl?: 'ephemeral' | '1h'
+}
+
+export type LegacyAnthropicCacheControlSettings = {
   tokenThreshold: number
   cacheSystemMessage: boolean
   cacheLastNMessages: number
+}
+
+export function isLegacyCacheSettings(
+  settings: AnthropicCacheControlSettings | LegacyAnthropicCacheControlSettings | undefined
+): settings is LegacyAnthropicCacheControlSettings {
+  return !!settings && 'tokenThreshold' in settings
+}
+
+export function isAnthropicCacheEnabled(
+  settings: AnthropicCacheControlSettings | LegacyAnthropicCacheControlSettings | undefined
+): boolean {
+  if (!settings) return false
+  if (isLegacyCacheSettings(settings)) return settings.tokenThreshold > 0
+  return settings.enabled
 }
 
 export function isServiceTier(tier: string | null | undefined): tier is ServiceTier {

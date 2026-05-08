@@ -5339,8 +5339,14 @@
             "cache_last_n_help": "Stochează ultimele N mesaje din conversație (excluzând mesajele de sistem)",
             "cache_system": "Mesaj de sistem Cache",
             "cache_system_help": "Dacă să se memoreze în cache promptul de sistem",
+            "prompt_caching": "Prompt Caching",
+            "prompt_caching_help": "Enable Anthropic prompt caching to reduce costs on repeated conversations. Uses strategic cache breakpoints on system prompt and conversation history.",
             "token_threshold": "Prag de Token Cache",
-            "token_threshold_help": "Mesajele care depășesc acest număr de tokeni vor fi memorate în cache. Setați la 0 pentru a dezactiva memorarea în cache."
+            "token_threshold_help": "Mesajele care depășesc acest număr de tokeni vor fi memorate în cache. Setați la 0 pentru a dezactiva memorarea în cache.",
+            "ttl": "Cache Duration",
+            "ttl_1h": "1 hour",
+            "ttl_5min": "5 minutes",
+            "ttl_help": "How long cached content persists. 5 minutes is the default; 1 hour costs extra but provides longer cache lifetime."
           },
           "array_content": {
             "help": "Furnizorul acceptă ca câmpul content al mesajului să fie de tip array?",

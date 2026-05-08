@@ -103,7 +103,9 @@ export class AiSdkToChunkAdapter {
       reasoningContent: '',
       webSearchResults: [],
       reasoningId: '',
-      providerMetadata: undefined as ProviderMetadata | undefined
+      providerMetadata: undefined as ProviderMetadata | undefined,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0
     }
     this.resetTimingState()
     this.responseStartTimestamp = Date.now()
@@ -171,6 +173,8 @@ export class AiSdkToChunkAdapter {
       webSearchResults: AISDKWebSearchResult[]
       reasoningId: string
       providerMetadata: ProviderMetadata | undefined
+      cacheReadTokens: number
+      cacheCreationTokens: number
     }
   ) {
     logger.silly(`AI SDK chunk type: ${chunk.type}`, chunk)
@@ -346,6 +350,15 @@ export class AiSdkToChunkAdapter {
           this.onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
         }
 
+        // Extract Anthropic cache token info from provider metadata
+        const anthropicUsage = providerMetadata?.anthropic?.usage as
+          | { cache_read_input_tokens?: number; cache_creation_input_tokens?: number }
+          | undefined
+        if (anthropicUsage) {
+          final.cacheReadTokens += anthropicUsage.cache_read_input_tokens || 0
+          final.cacheCreationTokens += anthropicUsage.cache_creation_input_tokens || 0
+        }
+
         final.webSearchResults = []
         // final.reasoningId = ''
         break
@@ -374,7 +387,9 @@ export class AiSdkToChunkAdapter {
         const usage = {
           completion_tokens: chunk.totalUsage?.outputTokens || 0,
           prompt_tokens: chunk.totalUsage?.inputTokens || 0,
-          total_tokens: chunk.totalUsage?.totalTokens || 0
+          total_tokens: chunk.totalUsage?.totalTokens || 0,
+          ...(final.cacheReadTokens > 0 && { cache_read_tokens: final.cacheReadTokens }),
+          ...(final.cacheCreationTokens > 0 && { cache_creation_tokens: final.cacheCreationTokens })
         }
         const metrics = this.buildMetrics(chunk.totalUsage)
         const baseResponse = {

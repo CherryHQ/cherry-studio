@@ -5339,8 +5339,14 @@
             "cache_last_n_help": "Mettre en cache les N derniers messages de conversation (à l’exclusion des messages système)",
             "cache_system": "Message du système de cache",
             "cache_system_help": "S'il faut mettre en cache l'invite système",
+            "prompt_caching": "Prompt Caching",
+            "prompt_caching_help": "Enable Anthropic prompt caching to reduce costs on repeated conversations. Uses strategic cache breakpoints on system prompt and conversation history.",
             "token_threshold": "Seuil de jeton de cache",
-            "token_threshold_help": "Les messages dépassant ce nombre de jetons seront mis en cache. Mettre à 0 pour désactiver la mise en cache."
+            "token_threshold_help": "Les messages dépassant ce nombre de jetons seront mis en cache. Mettre à 0 pour désactiver la mise en cache.",
+            "ttl": "Cache Duration",
+            "ttl_1h": "1 hour",
+            "ttl_5min": "5 minutes",
+            "ttl_help": "How long cached content persists. 5 minutes is the default; 1 hour costs extra but provides longer cache lifetime."
           },
           "array_content": {
             "help": "Ce fournisseur prend-il en charge le champ content du message sous forme de tableau ?",
