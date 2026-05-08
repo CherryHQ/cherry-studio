@@ -12,7 +12,7 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
         closable: true,
         okText: i18next.t('common.go_to_settings'),
         onOk: () => {
-          window.location.hash = `/settings/provider?id=${provider.id}`
+          void window.navigate({ to: '/settings/provider', search: { id: provider.id } })
           reject('Provider disabled')
         },
         onCancel: () => reject('Provider disabled')
@@ -32,7 +32,7 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
       closable: true,
       okText: i18next.t('common.go_to_settings'),
       onOk: () => {
-        window.location.hash = `/settings/provider?id=${provider.id}`
+        void window.navigate({ to: '/settings/provider', search: { id: provider.id } })
         reject('Provider disabled')
       },
       onCancel: () => reject('Provider disabled')

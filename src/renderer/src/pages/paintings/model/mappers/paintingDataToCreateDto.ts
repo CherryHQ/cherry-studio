@@ -15,6 +15,7 @@ const RESERVED_PAINTING_PARAM_KEYS = new Set([
   'mode',
   'mediaType',
   'files',
+  'inputFiles',
   'model',
   'prompt',
   'persistedAt'
@@ -29,6 +30,10 @@ function getTopLevelFileIds(files: unknown): string[] {
     }
     return []
   })
+}
+
+export function paintingFileIdsForPersistence(files: unknown): string[] {
+  return getTopLevelFileIds(files)
 }
 
 export function paintingParamsForPersistence(painting: PaintingData): Record<string, unknown> {
@@ -48,6 +53,9 @@ export function paintingDataToCreateDto(painting: CreatePaintingData): CreatePai
     model: typeof painting.model === 'string' && painting.model.trim() ? painting.model : undefined,
     prompt: painting.prompt ?? '',
     params: paintingParamsForPersistence(painting),
-    files: { output: getTopLevelFileIds(painting.files), input: [] }
+    files: {
+      output: getTopLevelFileIds(painting.files),
+      input: getTopLevelFileIds(painting.inputFiles)
+    }
   }
 }

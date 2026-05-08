@@ -26,7 +26,7 @@ function renderEmptyModelState(providerId: string, t: TFunction) {
       <Button
         variant="default"
         onClick={() => {
-          window.location.hash = `/settings/provider?id=${providerId}`
+          void window.navigate({ to: '/settings/provider', search: { id: providerId } })
         }}>
         {t('paintings.go_to_settings')}
       </Button>

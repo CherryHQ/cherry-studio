@@ -7,10 +7,15 @@ import { cleanRuntime, readRuntime } from '../utils/paintingGenerationParams'
 
 const LEGACY_RUNTIME_PARAM_KEYS = new Set(['taskId', 'taskStatus', 'generationId', 'runtimeProviderId'])
 
+async function resolveFiles(ids: string[]): Promise<FileMetadata[]> {
+  return (await Promise.all(ids.map(async (id) => (await FileManager.getFile(id)) ?? null))).filter(
+    (file): file is FileMetadata => Boolean(file)
+  )
+}
+
 export async function recordToPaintingData(record: PaintingRecord): Promise<PaintingData> {
-  const files = (
-    await Promise.all((record.files?.output ?? []).map(async (id) => (await FileManager.getFile(id)) ?? null))
-  ).filter((file): file is FileMetadata => Boolean(file))
+  const files = await resolveFiles(record.files?.output ?? [])
+  const inputFiles = await resolveFiles(record.files?.input ?? [])
 
   let rawParams = { ...record.params }
   const generationFields = readRuntime(rawParams)
@@ -28,6 +33,7 @@ export async function recordToPaintingData(record: PaintingRecord): Promise<Pain
     model: record.model ?? undefined,
     prompt: record.prompt,
     files,
+    inputFiles,
     persistedAt: record.createdAt,
     ...generationFields,
     ...rawParams

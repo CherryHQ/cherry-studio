@@ -4,6 +4,7 @@ import { getModelsByMode, type PpioMode } from './config'
 import { createDefaultPpioPainting } from './config'
 import { ppioFields } from './fields'
 import { generateWithPpio } from './generate'
+import { getPpioPreviewSrc, handlePpioImageUpload, ppioImagePlaceholder } from './imageUpload'
 
 export const ppioProvider: PaintingProviderDefinition = createMultiModeProvider<PaintingData>({
   id: 'ppio',
@@ -26,6 +27,11 @@ export const ppioProvider: PaintingProviderDefinition = createMultiModeProvider<
   fields: {
     byTab: ppioFields,
     onModelChange: ({ modelId }) => ({ model: modelId }) as Partial<PaintingData>
+  },
+  image: {
+    onUpload: ({ key, file, patchPainting }) => handlePpioImageUpload(key, file, patchPainting),
+    getPreviewSrc: ({ key, painting }) => getPpioPreviewSrc(key, painting),
+    placeholder: ppioImagePlaceholder
   },
   generate: generateWithPpio
 })

@@ -12,6 +12,7 @@ export interface PaintingDataBase {
   model?: string
   prompt: string
   files: FileMetadata[]
+  inputFiles?: FileMetadata[]
   persistedAt?: string
   generationStatus?: PaintingGenerationStatus | null
   generationTaskId?: string | null

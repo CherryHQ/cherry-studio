@@ -46,7 +46,6 @@ export class PaintingMigrator extends BaseMigrator {
         }
       }
 
-      // --- DEBUG: log raw source data shape ---
       const stateKeys = Object.keys(state)
       logger.info('[prepare] paintings state loaded', {
         keys: stateKeys.join(','),
@@ -54,24 +53,6 @@ export class PaintingMigrator extends BaseMigrator {
           .map((k) => `${k}:${Array.isArray(state[k]) ? (state[k] as unknown[]).length : typeof state[k]}`)
           .join(', ')
       })
-
-      // Log a sample record from the first non-empty namespace
-      for (const ns of stateKeys) {
-        const arr = state[ns]
-        if (Array.isArray(arr) && arr.length > 0) {
-          const sample = arr[0] as Record<string, unknown>
-          logger.info('[prepare] sample record from ' + ns, {
-            keys: Object.keys(sample).join(','),
-            id: sample.id,
-            hasFiles: 'files' in sample,
-            filesType: typeof sample.files,
-            filesIsArray: Array.isArray(sample.files),
-            filesLength: Array.isArray(sample.files) ? sample.files.length : 'N/A',
-            filesSample: JSON.stringify(sample.files)?.slice(0, 500)
-          })
-          break
-        }
-      }
 
       const groupedRecords = new Map<string, NormalizedPaintingRow[]>()
       const seenIds = new Set<string>()
@@ -141,21 +122,12 @@ export class PaintingMigrator extends BaseMigrator {
     }
 
     try {
-      // --- DEBUG: log what we're about to insert ---
       const withFiles = this.preparedPaintings.filter((p) => p.files && p.files.output.length > 0)
       const withoutFiles = this.preparedPaintings.filter((p) => !p.files || p.files.output.length === 0)
       logger.info('[execute] insert summary', {
         total: this.preparedPaintings.length,
         withFiles: withFiles.length,
-        withoutFiles: withoutFiles.length,
-        sampleWithFiles:
-          withFiles.length > 0
-            ? JSON.stringify({ id: withFiles[0].id, files: withFiles[0].files })?.slice(0, 300)
-            : 'none',
-        sampleWithoutFiles:
-          withoutFiles.length > 0
-            ? JSON.stringify({ id: withoutFiles[0].id, files: withoutFiles[0].files })?.slice(0, 300)
-            : 'none'
+        withoutFiles: withoutFiles.length
       })
 
       await ctx.db.transaction(async (tx) => {

@@ -79,25 +79,22 @@ function getFileId(value: unknown): string | undefined {
 }
 
 function getFileIds(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    logger.warn('[getFileIds] record.files is not an array', {
-      type: typeof value,
-      value: String(value)?.slice(0, 200)
-    })
+  if (value === undefined || value === null) {
     return []
   }
 
-  logger.info('[getFileIds] record.files array', {
-    length: value.length,
-    sample: JSON.stringify(value[0])?.slice(0, 300)
-  })
+  if (!Array.isArray(value)) {
+    logger.warn('[getFileIds] record.files is not an array', {
+      type: typeof value
+    })
+    return []
+  }
 
   return value.flatMap((item) => {
     const id = getFileId(item)
     if (!id) {
       logger.warn('[getFileIds] item has no extractable id', {
-        type: typeof item,
-        keys: item && typeof item === 'object' ? Object.keys(item) : 'N/A'
+        type: typeof item
       })
     }
     return id ? [id] : []
@@ -256,15 +253,8 @@ export function transformLegacyPaintingRecord(
     }
   }
 
-  // --- DEBUG: log raw record shape ---
-  const recordKeys = Object.keys(record)
   logger.info(`[transform] ${namespace} id=${id}`, {
-    keys: recordKeys.join(','),
-    hasFiles: 'files' in record,
-    filesType: typeof record.files,
-    filesIsArray: Array.isArray(record.files),
-    filesLength: Array.isArray(record.files) ? (record.files as unknown[]).length : 'N/A',
-    filesRaw: JSON.stringify(record.files)?.slice(0, 500)
+    filesLength: Array.isArray(record.files) ? (record.files as unknown[]).length : 0
   })
 
   const outputFileIds = getFileIds(record.files)
@@ -275,7 +265,6 @@ export function transformLegacyPaintingRecord(
 
   logger.info(`[transform] ${namespace} id=${id} result`, {
     outputFileIdsCount: outputFileIds.length,
-    outputFileIds: outputFileIds.slice(0, 5),
     inputFileIdsCount: inputFileIds.length,
     promptLength: prompt.length,
     hasTaskId

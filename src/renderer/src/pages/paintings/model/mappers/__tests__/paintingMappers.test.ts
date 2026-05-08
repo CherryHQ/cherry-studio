@@ -49,7 +49,7 @@ describe('paintingMappers', () => {
     },
     files: {
       output: ['file-1', 'missing-file'],
-      input: []
+      input: ['input-file-1', 'missing-input-file']
     },
     orderKey: 'a0',
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -59,8 +59,8 @@ describe('paintingMappers', () => {
   beforeEach(() => {
     mockGetFile.mockReset()
     mockGetFile.mockImplementation(async (id: string) => {
-      if (id === 'file-1') {
-        return file
+      if (id === 'file-1' || id === 'input-file-1') {
+        return { ...file, id, name: `${id}.png` }
       }
 
       return undefined
@@ -77,7 +77,8 @@ describe('paintingMappers', () => {
       mediaType: 'video',
       model: 'model-1',
       prompt: 'draw a cat',
-      files: [file],
+      files: [{ ...file, name: 'file-1.png' }],
+      inputFiles: [{ ...file, id: 'input-file-1', name: 'input-file-1.png' }],
       persistedAt: '2026-01-01T00:00:00.000Z',
       generationStatus: 'running',
       generationTaskId: 'task-top-level',
@@ -113,7 +114,7 @@ describe('paintingMappers', () => {
       },
       files: {
         output: ['file-1'],
-        input: []
+        input: ['input-file-1']
       }
     })
 
@@ -131,7 +132,7 @@ describe('paintingMappers', () => {
       },
       files: {
         output: ['file-1'],
-        input: []
+        input: ['input-file-1']
       }
     })
   })
