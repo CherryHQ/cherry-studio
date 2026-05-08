@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9926328a-4aaa-4be6-beb3-a503e3dbe9e1",
+  "id": "358143a7-913a-4a5a-aaad-0972d4cc7721",
   "prevId": "39877ab7-aad7-4432-adb5-c526fd17cca5",
   "tables": {
     "agent": {
@@ -55,7 +55,7 @@
           "name": "model",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "plan_model": {
@@ -143,35 +143,7 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {
-        "agent_model_user_model_id_fk": {
-          "name": "agent_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_plan_model_user_model_id_fk": {
-          "name": "agent_plan_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["plan_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_small_model_user_model_id_fk": {
-          "name": "agent_small_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["small_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -545,7 +517,7 @@
           "name": "model",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "plan_model": {
@@ -642,33 +614,6 @@
           "columnsFrom": ["agent_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "agent_session_model_user_model_id_fk": {
-          "name": "agent_session_model_user_model_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "user_model",
-          "columnsFrom": ["model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_session_plan_model_user_model_id_fk": {
-          "name": "agent_session_plan_model_user_model_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "user_model",
-          "columnsFrom": ["plan_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_session_small_model_user_model_id_fk": {
-          "name": "agent_session_small_model_user_model_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "user_model",
-          "columnsFrom": ["small_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -2390,6 +2335,64 @@
           "name": "preference_scope_key_pk"
         }
       },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "prompt": {
+      "name": "prompt",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "prompt_order_key_idx": {
+          "name": "prompt_order_key_idx",
+          "columns": ["order_key"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
     },

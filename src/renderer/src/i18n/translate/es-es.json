@@ -957,17 +957,6 @@
         "xhigh": "Extra Alta",
         "xhigh_description": "Razonamiento de extra alto nivel"
       },
-      "regular_phrases": {
-        "add": "Agregar frase",
-        "contentLabel": "Contenido",
-        "contentPlaceholder": "Por favor, introduzca el contenido de la frase. Puede usar variables y luego presionar Tab para navegar rápidamente a las variables y modificarlas. Por ejemplo: \\nAyúdame a planificar una ruta desde ${from} hasta ${to}, y luego envíala a ${email}.",
-        "delete": "Eliminar frase",
-        "deleteConfirm": "¿Está seguro de que desea eliminar esta frase?",
-        "edit": "Editar frase",
-        "title": "Frases comunes",
-        "titleLabel": "Título",
-        "titlePlaceholder": "Ingrese el título"
-      },
       "title": "Configuración del Asistente",
       "tool_use_mode": {
         "function": "Función",
@@ -2147,7 +2136,7 @@
   },
   "launchpad": {
     "apps": "Aplicaciones",
-    "minapps": "Miniaplicaciones"
+    "miniApps": "Miniaplicaciones"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2497,20 +2486,23 @@
     "websearch": {
       "cutoff": "Truncando el contenido de búsqueda...",
       "fetch_complete": "{{count}} resultados de búsqueda",
-      "rag": "Ejecutando RAG...",
-      "rag_complete": "Conservando {{countAfter}} de los {{countBefore}} resultados...",
-      "rag_failed": "RAG fallido, devolviendo resultados vacíos..."
+      "partial_failure": "{{count}} resultados de búsqueda, algunas búsquedas fallaron"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Agregar al panel de inicio",
     "add_to_sidebar": "Agregar a la barra lateral",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Cerrar la aplicación",
       "devtools": "Herramientas de desarrollo",
       "goBack": "Retroceder",
       "goForward": "Avanzar",
-      "minimize": "Minimizar la aplicación",
       "openExternal": "Abrir en el navegador",
       "open_link_external_off": "Actual: Abrir enlaces en ventana predeterminada",
       "open_link_external_on": "Actual: Abrir enlaces en el navegador",
@@ -2519,6 +2511,13 @@
     },
     "remove_from_launchpad": "Eliminar del panel de inicio",
     "remove_from_sidebar": "Eliminar de la barra lateral",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Cerrar"
@@ -2533,9 +2532,11 @@
         "title": "Eliminar aplicación personalizada"
       }
     },
-    "title": "Mini programa"
+    "title": "Mini programa",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -2554,6 +2555,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -4648,7 +4650,7 @@
         "knowledge": {
           "icon": "Mostrar icono de conocimiento"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "Mostrar icono de miniprogramas"
         },
         "painting": {
@@ -5050,7 +5052,7 @@
       "title": "Configuración de mensajes",
       "use_serif_font": "Usar fuente serif"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Los cambios surtirán efecto cuando el número de miniaplicaciones abiertas aumente o disminuya hasta alcanzar el valor configurado",
       "cache_description": "Establece el número máximo de miniaplicaciones que pueden permanecer activas simultáneamente",
       "cache_settings": "Configuración de caché",
@@ -5100,8 +5102,6 @@
         "title": "Filtro de área de la miniaplicación"
       },
       "reset_tooltip": "Restablecer a los valores predeterminados",
-      "sidebar_description": "Configura si se muestra o no en la barra lateral la miniaplicación activa",
-      "sidebar_title": "Visualización de miniaplicaciones activas en la barra lateral",
       "title": "Configuración de miniaplicaciones",
       "visible": "Miniaplicaciones visibles"
     },
@@ -5263,6 +5263,24 @@
     "privacy": {
       "enable_privacy_mode": "Enviar informes de errores y estadísticas de forma anónima",
       "title": "Configuración de privacidad"
+    },
+    "prompts": {
+      "add": "Añadir Prompt",
+      "contentLabel": "Contenido",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Eliminar Prompt",
+      "deleteConfirm": "El prompt se eliminará permanentemente. ¿Continuar?",
+      "edit": "Editar Prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Gestión de Prompts",
+      "titleLabel": "Título",
+      "titlePlaceholder": "Introduce el título del prompt"
     },
     "provider": {
       "add": {
@@ -5504,7 +5522,8 @@
         "documentation": "Consulte la documentación oficial para obtener más detalles de configuración:",
         "learn_more": "Más información",
         "location": "Región",
-        "location_help": "Región del servicio Vertex AI, por ejemplo, us-central1",
+        "location_help": "Región del servicio Vertex AI, por ejemplo, us-central1. Este campo no se lee del JSON de Service Account y debe introducirse manualmente.",
+        "location_placeholder": "Seleccionar región de Vertex AI",
         "project_id": "ID del proyecto",
         "project_id_help": "Su ID de proyecto de Google Cloud",
         "project_id_placeholder": "su-id-de-proyecto-de-google-cloud",
@@ -5515,6 +5534,11 @@
           "client_email_placeholder": "Ingrese el correo electrónico del cliente de Service Account",
           "description": "Autenticarse usando Service Account, adecuado para entornos donde no se puede usar ADC",
           "incomplete_config": "Complete primero la configuración de la información de Service Account",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Pegue el contenido completo de la clave JSON. Después de analizarlo, solo se guardan project_id, client_email y private_key, y el JSON original se borra.",
+          "json_input_placeholder": "Pegue el contenido completo de la clave JSON de Service Account",
+          "json_parse_error": "No se pudo analizar el Service Account JSON. Confirme que el formato sea correcto.",
+          "json_parse_success": "Service Account JSON analizado",
           "private_key": "Clave privada",
           "private_key_help": "Campo private_key del archivo de clave JSON descargado desde Google Cloud Console",
           "private_key_placeholder": "Ingrese la clave privada de Service Account",
@@ -5550,20 +5574,6 @@
       "page": "Página",
       "select": "Seleccionar",
       "title": "Menú de acceso rápido"
-    },
-    "quickPhrase": {
-      "add": "Agregar frase",
-      "assistant": "Frase de asistente",
-      "contentLabel": "Contenido",
-      "contentPlaceholder": "Ingrese el contenido de la frase. Se admite el uso de variables, y luego puede presionar Tab para ubicar rápidamente la variable y modificarla. Por ejemplo: \\nAyúdame a planificar la ruta desde ${desde} hasta ${hasta}, y luego envíala a ${correo}.",
-      "delete": "Eliminar frase",
-      "deleteConfirm": "Una vez eliminada, la frase no podrá recuperarse. ¿Desea continuar?",
-      "edit": "Editar frase",
-      "global": "Frase global",
-      "locationLabel": "Agregar ubicación",
-      "title": "Frases rápidas",
-      "titleLabel": "Título",
-      "titlePlaceholder": "Ingrese el título de la frase"
     },
     "scheduledTasks": {
       "description": "Administrar tareas programadas en todos los agentes. Las tareas se ejecutan automáticamente según el horario configurado.",
@@ -5734,23 +5744,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG fallido"
-          },
-          "info": {
-            "dimensions_auto_success": "Dimensiones obtenidas automáticamente con éxito, las dimensiones son {{dimensions}}"
-          },
           "method": {
             "cutoff": "Corte",
             "label": "Método de compresión",
-            "none": "Sin compresión",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Número de fragmentos de documento",
-              "tooltip": "Número esperado de fragmentos de documento extraídos de un único resultado de búsqueda; el número total extraído será este valor multiplicado por la cantidad de resultados de búsqueda"
-            }
+            "none": "Sin compresión"
           },
           "title": "Compresión de resultados de búsqueda"
         },

@@ -461,7 +461,7 @@
         {
           "originalKey": "enabled",
           "type": "string",
-          "defaultValue": "DEFAULT_MIN_APPS",
+          "defaultValue": "allMiniApps",
           "status": "pending",
           "category": null,
           "targetKey": null
@@ -1588,14 +1588,14 @@
                 "store",
                 "paintings",
                 "translate",
-                "minapp",
+                "mini_app",
                 "knowledge",
                 "files",
                 "code_tools",
                 "notes"
               ],
               "originalKey": "visible",
-              "status": "classified",
+              "status": "pending",
               "targetKey": "ui.sidebar.icons.visible",
               "type": "PreferenceTypes.SidebarIcon[]"
             },
@@ -1603,7 +1603,7 @@
               "category": "preferences",
               "defaultValue": [],
               "originalKey": "disabled",
-              "status": "classified",
+              "status": "pending",
               "targetKey": "ui.sidebar.icons.invisible",
               "type": "PreferenceTypes.SidebarIcon[]"
             }
@@ -1618,13 +1618,13 @@
             "store",
             "paintings",
             "translate",
-            "minapp",
+            "mini_app",
             "knowledge",
             "files",
             "code_tools",
             "notes"
           ],
-          "status": "classified",
+          "status": "pending",
           "category": "preferences",
           "targetKey": "ui.sidebar.icons.visible"
         },
@@ -1632,7 +1632,7 @@
           "originalKey": "disabled",
           "type": "PreferenceTypes.SidebarIcon[]",
           "defaultValue": [],
-          "status": "classified",
+          "status": "pending",
           "category": "preferences",
           "targetKey": "ui.sidebar.icons.invisible"
         },
@@ -1882,15 +1882,15 @@
           "defaultValue": 3,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.minapp.max_keep_alive"
+          "targetKey": "feature.mini_app.max_keep_alive"
         },
         {
           "originalKey": "showOpenedMinappsInSidebar",
           "type": "boolean",
           "defaultValue": true,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "feature.minapp.show_opened_in_sidebar"
+          "status": "deleted",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "minappsOpenLinkExternal",
@@ -1898,15 +1898,15 @@
           "defaultValue": false,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.minapp.open_link_external"
+          "targetKey": "feature.mini_app.open_link_external"
         },
         {
           "originalKey": "minAppRegion",
-          "type": "unknown",
+          "type": "PreferenceTypes.MiniAppRegionFilter",
           "defaultValue": "auto",
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.mini_app.region"
         },
         {
           "originalKey": "enableDataCollection",
@@ -2868,7 +2868,7 @@
           "defaultValue": true,
           "status": "classified",
           "category": "preferences",
-          "targetKey": null
+          "targetKey": "chat.web_search.search_with_time"
         },
         {
           "originalKey": "maxResults",
@@ -2892,7 +2892,7 @@
           "defaultValue": [],
           "status": "classified",
           "category": "preferences",
-          "targetKey": null
+          "targetKey": "chat.web_search.subscribe_sources"
         },
         {
           "originalKey": "overwrite",

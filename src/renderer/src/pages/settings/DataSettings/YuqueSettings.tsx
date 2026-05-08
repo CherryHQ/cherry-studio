@@ -2,7 +2,7 @@ import { Button, InfoTooltip, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { Space } from 'antd'
 import { Input } from 'antd'
 import type { FC } from 'react'
@@ -13,7 +13,7 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 const YuqueSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { openSmartMinapp } = useMinappPopup()
+  const { openSmartMiniApp } = useMiniAppPopup()
 
   const [yuqueToken, setYuqueToken] = usePreference('data.integration.yuque.token')
   const [yuqueUrl, setYuqueUrl] = usePreference('data.integration.yuque.url')
@@ -63,8 +63,8 @@ const YuqueSettings: FC = () => {
   }
 
   const handleYuqueHelpClick = () => {
-    openSmartMinapp({
-      id: 'yuque-help',
+    openSmartMiniApp({
+      appId: 'yuque-help',
       name: 'Yuque Help',
       url: 'https://www.yuque.com/settings/tokens',
       logo: AppLogo

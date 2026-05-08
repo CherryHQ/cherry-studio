@@ -144,8 +144,22 @@
     {
       "idx": 20,
       "version": "6",
-      "when": 1777644716023,
-      "tag": "0020_parallel_gargoyle",
+      "when": 1778063182815,
+      "tag": "0020_known_captain_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1778156840137,
+      "tag": "0021_vengeful_green_goblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1778215866436,
+      "tag": "0022_amusing_black_tom",
       "breakpoints": true
     }
   ],

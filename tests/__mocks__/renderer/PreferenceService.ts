@@ -70,6 +70,14 @@ export const createMockPreferenceService = (customDefaults: Record<string, any> 
       return Promise.resolve()
     }),
 
+    getCachedValue: vi.fn((key: string) => {
+      return mergedDefaults[key]
+    }),
+
+    isCached: vi.fn((key: string) => {
+      return mergedDefaults[key] !== undefined
+    }),
+
     delete: vi.fn((key: string) => {
       delete mergedDefaults[key]
       return Promise.resolve()
