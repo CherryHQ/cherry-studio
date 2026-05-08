@@ -71,6 +71,8 @@ interface MockWebContents extends EventEmitter {
 interface MockBrowserWindow extends EventEmitter {
   webContents: MockWebContents
   setTitle: ReturnType<typeof vi.fn>
+  getBounds: ReturnType<typeof vi.fn>
+  setBounds: ReturnType<typeof vi.fn>
   isDestroyed: ReturnType<typeof vi.fn>
   isMinimized: ReturnType<typeof vi.fn>
   isVisible: ReturnType<typeof vi.fn>
@@ -85,6 +87,8 @@ function createMockWindow(): MockBrowserWindow {
   window.webContents.send = vi.fn()
   window.webContents.isDestroyed = vi.fn(() => false)
   window.setTitle = vi.fn()
+  window.getBounds = vi.fn(() => ({ x: 0, y: 0, width: 1280, height: 800 }))
+  window.setBounds = vi.fn()
   window.isDestroyed = vi.fn(() => false)
   window.isMinimized = vi.fn(() => false)
   window.isVisible = vi.fn(() => false)
@@ -205,6 +209,28 @@ describe('SettingsWindowService', () => {
       WindowType.Settings,
       expect.objectContaining({ initData: '/settings/about' })
     )
+  })
+
+  it('opens the standalone settings window over the current main window bounds', () => {
+    const mainWindow = createMockWindow()
+    const settingsWindow = createMockWindow()
+    mainWindow.getBounds.mockReturnValue({ x: 20, y: 40, width: 1440, height: 900 })
+    mockManagedWindows({ mainWindow, settingsWindow })
+
+    service.open('/settings/about')
+
+    expect(windowManagerMock.open).toHaveBeenCalledWith(
+      WindowType.Settings,
+      expect.objectContaining({
+        options: expect.objectContaining({
+          x: 20,
+          y: 40,
+          width: 1440,
+          height: 900
+        })
+      })
+    )
+    expect(settingsWindow.setBounds).toHaveBeenCalledWith({ x: 20, y: 40, width: 1440, height: 900 })
   })
 
   it('opens settings in the main app according to the configured app target', () => {

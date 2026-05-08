@@ -69,10 +69,13 @@ export class SettingsWindowService extends BaseService {
 
   public open(path?: SettingsPath): string {
     const wm = application.get('WindowManager')
-    return wm.open(WindowType.Settings, {
+    const options = this.getWindowOptions()
+    const windowId = wm.open(WindowType.Settings, {
       initData: this.normalizePath(path),
-      options: this.getWindowOptions()
+      options
     })
+    this.syncSettingsWindowBounds(windowId, options)
+    return windowId
   }
 
   public openUsingPreference(path?: SettingsPath): string | boolean {
@@ -133,7 +136,34 @@ export class SettingsWindowService extends BaseService {
   }
 
   private getWindowOptions(): Partial<WindowOptions> {
-    return createSettingsWindowOptions(isMac, nativeTheme.shouldUseDarkColors)
+    return {
+      ...createSettingsWindowOptions(isMac, nativeTheme.shouldUseDarkColors),
+      ...this.getMainWindowBoundsOptions()
+    }
+  }
+
+  private getMainWindowBoundsOptions(): Pick<WindowOptions, 'x' | 'y' | 'width' | 'height'> | undefined {
+    const wm = application.get('WindowManager')
+    const mainWindowInfo = wm.getWindowsByType(WindowType.Main)[0]
+    if (!mainWindowInfo) return undefined
+
+    const mainWindow = wm.getWindow(mainWindowInfo.id)
+    if (!mainWindow || mainWindow.isDestroyed()) return undefined
+
+    const { x, y, width, height } = mainWindow.getBounds()
+    if (width <= 0 || height <= 0) return undefined
+
+    return { x, y, width, height }
+  }
+
+  private syncSettingsWindowBounds(windowId: string, options: Partial<WindowOptions>): void {
+    const { x, y, width, height } = options
+    if (x === undefined || y === undefined || !width || !height) return
+
+    const window = application.get('WindowManager').getWindow(windowId)
+    if (!window || window.isDestroyed()) return
+
+    window.setBounds({ x, y, width, height })
   }
 
   private normalizePath(path: unknown): SettingsPath {
