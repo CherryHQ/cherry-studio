@@ -1,3 +1,11 @@
+import {
+  DEFAULT_HEARTBEAT_ENABLED,
+  DEFAULT_HEARTBEAT_INTERVAL,
+  DEFAULT_MAX_TURNS,
+  mergePermissionModeTools,
+  normalizePermissionMode
+} from '@renderer/hooks/agents/permissionMode'
+import type { Tool } from '@renderer/types'
 import type { CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration, AgentDetail, AgentType } from '@shared/data/types/agent'
 import { FileText, Settings, Shield, SlidersHorizontal, Wrench } from 'lucide-react'
@@ -80,8 +88,6 @@ export interface AgentFormState {
   heartbeatInterval: number
 }
 
-const DEFAULT_AGENT_MAX_TURNS = 100
-
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
@@ -98,7 +104,7 @@ function asFormMaxTurns(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return 0
   }
-  if (value <= 0 || value === DEFAULT_AGENT_MAX_TURNS) {
+  if (value <= 0 || value === DEFAULT_MAX_TURNS) {
     return 0
   }
   return value
@@ -161,9 +167,40 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
     maxTurns: asFormMaxTurns(cfg.max_turns),
     envVarsText: envVarsToText(cfg.env_vars),
     soulEnabled: asBoolean(cfg.soul_enabled),
-    heartbeatEnabled: asBoolean(cfg.heartbeat_enabled),
-    heartbeatInterval: asNumber(cfg.heartbeat_interval)
+    heartbeatEnabled: cfg.heartbeat_enabled ?? DEFAULT_HEARTBEAT_ENABLED,
+    heartbeatInterval: asNumber(cfg.heartbeat_interval) || DEFAULT_HEARTBEAT_INTERVAL
   }
+}
+
+export function applyAgentFormPatch(
+  current: AgentFormState,
+  patch: Partial<AgentFormState>,
+  tools: Tool[] = []
+): AgentFormState {
+  const next: AgentFormState = { ...current, ...patch }
+  const currentMode = normalizePermissionMode(current.permissionMode)
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'permissionMode')) {
+    const nextMode = normalizePermissionMode(patch.permissionMode)
+    next.permissionMode = nextMode
+    if (nextMode !== currentMode) {
+      next.allowedTools = mergePermissionModeTools(current.allowedTools, currentMode, nextMode, tools)
+    }
+    if (
+      nextMode !== 'bypassPermissions' &&
+      current.soulEnabled &&
+      !Object.prototype.hasOwnProperty.call(patch, 'soulEnabled')
+    ) {
+      next.soulEnabled = false
+    }
+  }
+
+  if (patch.soulEnabled === true && !current.soulEnabled) {
+    next.permissionMode = 'bypassPermissions'
+    next.allowedTools = mergePermissionModeTools(current.allowedTools, currentMode, 'bypassPermissions', tools)
+  }
+
+  return next
 }
 
 /**
@@ -179,9 +216,11 @@ function buildConfigurationPayload(form: AgentFormState): AgentConfiguration | u
   if (form.maxTurns > 0) cfg.max_turns = form.maxTurns
   if (form.envVarsText.trim()) cfg.env_vars = envVarsFromText(form.envVarsText)
   if (form.soulEnabled) cfg.soul_enabled = true
-  if (form.heartbeatEnabled) {
+  if (!form.heartbeatEnabled) {
+    cfg.heartbeat_enabled = false
+  } else if (form.heartbeatInterval > 0 && form.heartbeatInterval !== DEFAULT_HEARTBEAT_INTERVAL) {
     cfg.heartbeat_enabled = true
-    if (form.heartbeatInterval > 0) cfg.heartbeat_interval = form.heartbeatInterval
+    cfg.heartbeat_interval = form.heartbeatInterval
   }
   return Object.keys(cfg).length > 0 ? cfg : undefined
 }
@@ -305,7 +344,7 @@ export function diffAgentUpdate(
     cfgDirty = true
   }
   if (baseline.maxTurns !== next.maxTurns) {
-    cfgPatch.max_turns = next.maxTurns > 0 ? next.maxTurns : DEFAULT_AGENT_MAX_TURNS
+    cfgPatch.max_turns = next.maxTurns > 0 ? next.maxTurns : DEFAULT_MAX_TURNS
     cfgDirty = true
   }
   if (baseline.envVarsText !== next.envVarsText) {
@@ -321,6 +360,9 @@ export function diffAgentUpdate(
     cfgDirty = true
   }
   if (baseline.heartbeatInterval !== next.heartbeatInterval) {
+    if (next.heartbeatEnabled) {
+      cfgPatch.heartbeat_enabled = true
+    }
     cfgPatch.heartbeat_interval = next.heartbeatInterval
     cfgDirty = true
   }

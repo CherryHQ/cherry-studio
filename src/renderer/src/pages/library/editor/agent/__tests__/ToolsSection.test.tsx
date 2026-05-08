@@ -37,13 +37,31 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 }))
 
 vi.mock('../sections/catalogComponents', () => ({
-  AddCatalogPopover: ({ triggerLabel, disabled }: { triggerLabel: string; disabled?: boolean }) => (
-    <button type="button" disabled={disabled}>
+  AddCatalogPopover: ({
+    triggerLabel,
+    disabled,
+    items,
+    enabledIds,
+    onAdd
+  }: {
+    triggerLabel: string
+    disabled?: boolean
+    items: Array<{ id: string; name: string }>
+    enabledIds: Set<string>
+    onAdd: (id: string) => void
+  }) => (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => {
+        const next = items.find((item) => !enabledIds.has(item.id))
+        if (next) onAdd(next.id)
+      }}>
       {triggerLabel}
     </button>
   ),
-  BoundCatalogList: ({ items, emptyLabel }: { items: Array<{ id: string }>; emptyLabel: ReactNode }) => (
-    <div>{items.length === 0 ? emptyLabel : 'has-items'}</div>
+  BoundCatalogList: ({ items, emptyLabel }: { items: Array<{ id: string; name: string }>; emptyLabel: ReactNode }) => (
+    <div>{items.length === 0 ? emptyLabel : items.map((item) => item.name).join(', ')}</div>
   )
 }))
 
@@ -70,6 +88,63 @@ function createForm(overrides: Partial<AgentFormState> = {}): AgentFormState {
 }
 
 describe('ToolsSection', () => {
+  const tools = [
+    { id: 'Read', name: 'Read', type: 'builtin' as const, requirePermissions: false },
+    { id: 'Glob', name: 'Glob', type: 'builtin' as const, requirePermissions: false },
+    { id: 'Bash', name: 'Bash', type: 'builtin' as const, requirePermissions: true }
+  ]
+
+  it('shows permission-mode default tools even when allowedTools is empty', () => {
+    render(
+      <ToolsSection
+        agent={{
+          id: 'agent-1',
+          type: 'claude-code',
+          name: 'Agent',
+          accessiblePaths: [],
+          model: 'claude-sonnet-4-5',
+          modelName: null,
+          createdAt: '',
+          updatedAt: ''
+        }}
+        tools={tools}
+        form={createForm({ permissionMode: 'default', allowedTools: [] })}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Read, Glob')).toBeInTheDocument()
+  })
+
+  it('adds a built-in tool while preserving auto-approved defaults', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+
+    render(
+      <ToolsSection
+        agent={{
+          id: 'agent-1',
+          type: 'claude-code',
+          name: 'Agent',
+          accessiblePaths: [],
+          model: 'claude-sonnet-4-5',
+          modelName: null,
+          createdAt: '',
+          updatedAt: ''
+        }}
+        tools={tools}
+        form={createForm({ permissionMode: 'default', allowedTools: [] })}
+        onChange={onChange}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'library.config.agent.section.tools.add' }))
+
+    expect(onChange).toHaveBeenCalledWith({
+      allowedTools: ['Read', 'Glob', 'Bash']
+    })
+  })
+
   it('disables skill enablement before the agent has been created', async () => {
     const user = userEvent.setup()
 
@@ -86,6 +161,7 @@ describe('ToolsSection', () => {
           updatedAt: '',
           tools: []
         }}
+        tools={[]}
         form={createForm()}
         onChange={vi.fn()}
       />

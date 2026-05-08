@@ -26,6 +26,14 @@ vi.mock('../../../adapters/agentAdapter', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/agents/useAgentTools', () => ({
+  useAgentTools: () => ({
+    tools: [{ id: 'Read', name: 'Read', type: 'builtin', requirePermissions: false }],
+    isLoading: false,
+    error: undefined
+  })
+}))
+
 vi.mock('../../ConfigEditorShell', () => ({
   ConfigEditorShell: ({
     children,
@@ -34,11 +42,14 @@ vi.mock('../../ConfigEditorShell', () => ({
   }: {
     children: ReactNode
     onSave: () => Promise<void>
-    onSectionChange: (section: 'advanced') => void
+    onSectionChange: (section: 'advanced' | 'tools') => void
   }) => (
     <div>
       <button type="button" onClick={() => onSectionChange('advanced')}>
         advanced
+      </button>
+      <button type="button" onClick={() => onSectionChange('tools')}>
+        tools
       </button>
       <button type="button" onClick={() => void onSave()}>
         save
@@ -62,7 +73,13 @@ vi.mock('../sections/AdvancedSection', () => ({
 }))
 
 vi.mock('../sections/BasicSection', () => ({
-  default: () => null
+  default: ({ onChange }: { onChange: (patch: Partial<{ name: string; model: string }>) => void }) => (
+    <div>
+      <button type="button" onClick={() => onChange({ name: 'Created Agent', model: 'anthropic::claude-sonnet-4-5' })}>
+        set basic
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('../sections/PermissionSection', () => ({
@@ -74,7 +91,11 @@ vi.mock('../sections/PromptSection', () => ({
 }))
 
 vi.mock('../sections/ToolsSection', () => ({
-  default: () => null
+  default: ({ onChange }: { onChange: (patch: Partial<{ allowedTools: string[]; mcps: string[] }>) => void }) => (
+    <button type="button" onClick={() => onChange({ allowedTools: ['Read'], mcps: ['mcp-1'] })}>
+      set tools
+    </button>
+  )
 }))
 
 function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
@@ -152,5 +173,27 @@ describe('AgentConfigPage', () => {
         max_turns: 5
       }
     })
+  })
+
+  it('creates an agent with the configured tool and MCP bindings', async () => {
+    const user = userEvent.setup()
+    createAgentMock.mockResolvedValueOnce(createAgent({ id: 'created-1', name: 'Created Agent' }))
+
+    render(<AgentConfigPage onBack={vi.fn()} onCreated={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'set basic' }))
+    await user.click(screen.getByRole('button', { name: 'tools' }))
+    await user.click(screen.getByRole('button', { name: 'set tools' }))
+    await user.click(screen.getByRole('button', { name: 'save' }))
+
+    await waitFor(() => expect(createAgentMock).toHaveBeenCalledTimes(1))
+    expect(createAgentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Created Agent',
+        model: 'anthropic::claude-sonnet-4-5',
+        allowedTools: ['Read'],
+        mcps: ['mcp-1']
+      })
+    )
   })
 })

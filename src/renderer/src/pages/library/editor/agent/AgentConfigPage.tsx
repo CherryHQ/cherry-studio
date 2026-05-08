@@ -1,6 +1,7 @@
+import { useAgentTools } from '@renderer/hooks/agents/useAgentTools'
 import type { AgentDetail } from '@shared/data/types/agent'
 import type { FC } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentMutations, useAgentMutationsById } from '../../adapters/agentAdapter'
@@ -11,6 +12,7 @@ import {
   type AgentConfigSection,
   type AgentFormState,
   type AgentSaveIntent,
+  applyAgentFormPatch,
   buildInitialAgentFormState,
   diffAgentSaveIntent,
   validateAgentCreateForm
@@ -36,9 +38,9 @@ interface Props {
   onCreated?: (created: AgentDetail) => void
 }
 
-// Stub used by the Tools tab in create mode so `agent.tools` / `agent.id`
-// reads are safe. The tab renders empty-state copy until the agent exists
-// server-side (see `ToolsSection` comments).
+// Stub used by the Tools tab in create mode so `agent.id` reads are safe.
+// Skills still require a persisted agent id; tool and MCP draft changes are
+// saved with the create payload.
 const EMPTY_AGENT_FOR_CREATE: AgentDetail = {
   id: '',
   type: 'claude-code',
@@ -87,7 +89,7 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
 
   const initialForm = useMemo(() => buildInitialAgentFormState(editAgent), [editAgent])
 
-  const { form, onChange, canSave, saving, saved, error, handleSave } = useResourceEditorState<
+  const { form, setForm, canSave, saving, saved, error, handleSave } = useResourceEditorState<
     AgentFormState,
     AgentSaveIntent
   >({
@@ -111,6 +113,13 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
     },
     fallbackErrorMessage: t('library.config.save_failed')
   })
+  const { tools } = useAgentTools(editAgent?.type ?? 'claude-code', form.mcps)
+  const onChange = useCallback(
+    (patch: Partial<AgentFormState>) => {
+      setForm((prev) => applyAgentFormPatch(prev, patch, tools))
+    },
+    [setForm, tools]
+  )
 
   const title = isCreate
     ? form.name.trim() || t('library.config.agent.create_title')
@@ -142,7 +151,7 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
       {activeSection === 'prompt' && <PromptSection form={form} onChange={onChange} />}
       {activeSection === 'permission' && <PermissionSection form={form} onChange={onChange} />}
       {activeSection === 'tools' && (
-        <ToolsSection agent={editAgent ?? EMPTY_AGENT_FOR_CREATE} form={form} onChange={onChange} />
+        <ToolsSection agent={editAgent ?? EMPTY_AGENT_FOR_CREATE} tools={tools} form={form} onChange={onChange} />
       )}
       {activeSection === 'advanced' && <AdvancedSection form={form} onChange={onChange} />}
     </ConfigEditorShell>
@@ -152,16 +161,14 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
 export default AgentConfigPage
 
 /**
- * Inline banner shown above the shell body while the agent doesn't yet
- * exist server-side: the Tools tab can't bind MCP servers / tools
- * against an id that hasn't been assigned. The banner only appears
- * during the pre-save draft session.
+ * Inline banner shown above the shell body while the agent doesn't yet exist
+ * server-side: skills cannot be enabled until an agent id has been assigned.
  */
 function CreateAgentBanner() {
   const { t } = useTranslation()
   return (
     <div className="flex shrink-0 items-center gap-2 border-border/40 border-b bg-accent/20 px-5 py-2 text-muted-foreground/70 text-xs">
-      <span>{t('library.config.agent.create_banner')}</span>
+      <span>{t('library.config.agent.section.tools.skills_require_save')}</span>
     </div>
   )
 }

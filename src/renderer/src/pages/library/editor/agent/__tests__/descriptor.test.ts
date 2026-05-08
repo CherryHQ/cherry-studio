@@ -2,6 +2,7 @@ import type { AgentDetail } from '@shared/data/types/agent'
 import { describe, expect, it } from 'vitest'
 
 import {
+  applyAgentFormPatch,
   buildCreateAgentPayload,
   buildInitialAgentFormState,
   diffAgentUpdate,
@@ -90,6 +91,13 @@ describe('buildInitialAgentFormState', () => {
     const state = buildInitialAgentFormState(agent)
     expect(state.maxTurns).toBe(0)
   })
+
+  it('uses the legacy heartbeat defaults when configuration omits heartbeat keys', () => {
+    const state = buildInitialAgentFormState(createAgent({ configuration: {} }))
+
+    expect(state.heartbeatEnabled).toBe(true)
+    expect(state.heartbeatInterval).toBe(30)
+  })
 })
 
 describe('agent create flow helpers', () => {
@@ -132,6 +140,60 @@ describe('agent create flow helpers', () => {
       modelMissing: true,
       isValid: false
     })
+  })
+
+  it('writes an explicit heartbeat disable in the create payload', () => {
+    const draft = buildInitialAgentFormState()
+    const payload = buildCreateAgentPayload({
+      ...draft,
+      name: 'Planner',
+      model: 'anthropic::claude-sonnet-4-5',
+      heartbeatEnabled: false
+    })
+
+    expect(payload.configuration).toMatchObject({
+      heartbeat_enabled: false
+    })
+  })
+})
+
+describe('applyAgentFormPatch', () => {
+  const tools = [
+    { id: 'Read', name: 'Read', type: 'builtin' as const, requirePermissions: false },
+    { id: 'Glob', name: 'Glob', type: 'builtin' as const, requirePermissions: false },
+    { id: 'Edit', name: 'Edit', type: 'builtin' as const, requirePermissions: true }
+  ]
+
+  it('updates allowedTools when permission mode changes', () => {
+    const draft = buildInitialAgentFormState()
+    const next = applyAgentFormPatch(draft, { permissionMode: 'acceptEdits' }, tools)
+
+    expect(next.permissionMode).toBe('acceptEdits')
+    expect(next.allowedTools).toEqual(
+      expect.arrayContaining(['Read', 'Glob', 'Edit', 'Bash(mkdir:*)', 'Bash(touch:*)'])
+    )
+  })
+
+  it('enabling soul mode switches to bypass permissions and approves all available tools', () => {
+    const draft = buildInitialAgentFormState()
+    const next = applyAgentFormPatch(draft, { soulEnabled: true }, tools)
+
+    expect(next.soulEnabled).toBe(true)
+    expect(next.permissionMode).toBe('bypassPermissions')
+    expect(next.allowedTools).toEqual(expect.arrayContaining(['Read', 'Glob', 'Edit']))
+  })
+
+  it('leaving bypass permissions disables soul mode to match the legacy settings popup', () => {
+    const draft = buildInitialAgentFormState(
+      createAgent({
+        allowedTools: ['Read', 'Glob', 'Edit'],
+        configuration: { soul_enabled: true, permission_mode: 'bypassPermissions' }
+      })
+    )
+    const next = applyAgentFormPatch(draft, { permissionMode: 'default' }, tools)
+
+    expect(next.permissionMode).toBe('default')
+    expect(next.soulEnabled).toBe(false)
   })
 })
 

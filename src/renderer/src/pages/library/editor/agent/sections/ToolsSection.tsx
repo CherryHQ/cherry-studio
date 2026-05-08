@@ -1,6 +1,13 @@
 import { Input } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
+import {
+  computeModeDefaults,
+  mergeAutoApprovedTools,
+  normalizePermissionMode,
+  uniq
+} from '@renderer/hooks/agents/permissionMode'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
+import type { Tool } from '@renderer/types'
 import type { AgentDetail } from '@shared/data/types/agent'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { Network, Search, Sparkles, Wrench } from 'lucide-react'
@@ -14,6 +21,7 @@ import { AddCatalogPopover, BoundCatalogList, type CatalogItem } from './catalog
 
 interface Props {
   agent: AgentDetail
+  tools: Tool[]
   form: AgentFormState
   onChange: (patch: Partial<AgentFormState>) => void
 }
@@ -28,8 +36,8 @@ type ToolTab = 'tools' | 'mcp' | 'skills'
  * "+ 添加" opens a popover listing the rest.
  *
  * Data sources:
- * - **内置工具**: `agent.tools` (backend-filled catalog on GET `/agents/:id`);
- *   `form.allowedTools` is the approval whitelist. Enabled iff id in whitelist.
+ * - **内置工具**: `tools` prop from `useAgentTools(form.mcps)`;
+ *   `form.allowedTools` stores manual approvals, while permission mode supplies auto-approved defaults.
  * - **MCP Server**: `useQuery('/mcp-servers').items`; `form.mcps` stores bound
  *   ids. Inactive servers remain visible in the bound list (with a "未启用"
  *   badge) but are excluded from the add popover (`pickable: false`).
@@ -37,7 +45,7 @@ type ToolTab = 'tools' | 'mcp' | 'skills'
  *   each skill row (`isEnabled`) and toggles via IPC — it is NOT part of
  *   `AgentBase`, so the save flow ignores it.
  */
-const ToolsSection: FC<Props> = ({ agent, form, onChange }) => {
+const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<ToolTab>('tools')
   const [search, setSearch] = useState('')
@@ -46,18 +54,28 @@ const ToolsSection: FC<Props> = ({ agent, form, onChange }) => {
   // --- 内置工具 ----------------------------------------------------------------
   const builtinCatalog = useMemo<CatalogItem[]>(
     () =>
-      (agent.tools ?? []).map((tool) => ({
-        id: tool.id,
-        name: tool.name,
-        description: tool.description,
-        icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />
-      })),
-    [agent.tools]
+      tools
+        .filter((tool) => tool.type !== 'mcp')
+        .map((tool) => ({
+          id: tool.id,
+          name: tool.name,
+          description: tool.description,
+          icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />
+        })),
+    [tools]
   )
-  const allowedIds = useMemo(() => new Set(form.allowedTools), [form.allowedTools])
+  const permissionMode = normalizePermissionMode(form.permissionMode)
+  const autoToolIds = useMemo(() => computeModeDefaults(permissionMode, tools), [permissionMode, tools])
+  const approvedToolIds = useMemo(
+    () => mergeAutoApprovedTools(form.allowedTools, permissionMode, tools),
+    [form.allowedTools, permissionMode, tools]
+  )
+  const allowedIds = useMemo(() => new Set(approvedToolIds), [approvedToolIds])
   const boundBuiltin = useMemo(() => builtinCatalog.filter((it) => allowedIds.has(it.id)), [builtinCatalog, allowedIds])
-  const enableBuiltin = (id: string) => onChange({ allowedTools: [...form.allowedTools, id] })
-  const disableBuiltin = (id: string) => onChange({ allowedTools: form.allowedTools.filter((x) => x !== id) })
+  const enableBuiltin = (id: string) => onChange({ allowedTools: uniq([...approvedToolIds, id]) })
+  const disableBuiltin = (id: string) => {
+    onChange({ allowedTools: uniq(approvedToolIds.filter((x) => x !== id).concat(autoToolIds)) })
+  }
 
   // --- MCP Server --------------------------------------------------------------
   const { data: mcpData, isLoading: mcpLoading } = useQuery('/mcp-servers', {})
