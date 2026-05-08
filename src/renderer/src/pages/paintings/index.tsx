@@ -93,6 +93,13 @@ const PaintingPage: FC = () => {
                     onClose={() => setIsParametersOpen(false)}
                   />
                 </div>
+                <div className={paintingClasses.panelModelSelector}>
+                  <PaintingModelSelector
+                    className={paintingClasses.panelModelSelectorTrigger}
+                    painting={currentPainting}
+                    onSelect={switchModel}
+                  />
+                </div>
                 <div className={paintingClasses.panelBody}>
                   <Scrollbar className={paintingClasses.panelScroll}>
                     <PaintingSettings painting={currentPainting} onConfigChange={patchPainting} />
@@ -123,7 +130,6 @@ const PaintingPage: FC = () => {
                 onToggleParameters={() => setIsParametersOpen((open) => !open)}
               />
             }
-            modelSelector={<PaintingModelSelector painting={currentPainting} onSelect={switchModel} />}
             onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
             onGenerate={submit}
           />

@@ -11,7 +11,6 @@ interface PaintingPromptBarProps {
   painting: PaintingData
   generating: boolean
   leadingActions?: ReactNode
-  modelSelector?: ReactNode
   onPromptChange: (value: string) => void
   onGenerate: () => void
   onKeyDown?: KeyboardEventHandler<HTMLTextAreaElement>
@@ -21,7 +20,6 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
   painting,
   generating,
   leadingActions,
-  modelSelector,
   onPromptChange,
   onGenerate,
   onKeyDown
@@ -49,7 +47,6 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
         <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 px-3.5 pt-2 pb-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{leadingActions}</div>
           <div className="flex min-w-0 shrink-0 items-center gap-2">
-            {modelSelector}
             <SendMessageButton sendMessage={onGenerate} disabled={disabled} />
           </div>
         </div>
