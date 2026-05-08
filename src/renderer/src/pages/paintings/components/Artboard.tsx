@@ -21,7 +21,7 @@ const LoadingStateCard: FC<{ text: React.ReactNode; onCancel: () => void; cancel
   cancelLabel
 }) => {
   return (
-    <div className="flex flex-col items-center gap-4 rounded-[18px] border border-border/70 bg-card/96 px-10 py-10 shadow-2xl shadow-black/10 backdrop-blur-sm">
+    <div className="flex min-w-56 flex-col items-center gap-4 rounded-[18px] border border-border/70 bg-card/96 px-10 py-10 shadow-2xl shadow-black/10 backdrop-blur-sm">
       <div className="relative h-12 w-12">
         <motion.div
           className="absolute inset-0 rounded-full border-2 border-border"
@@ -35,13 +35,6 @@ const LoadingStateCard: FC<{ text: React.ReactNode; onCancel: () => void; cancel
         />
       </div>
       <div className="text-center font-medium text-[13px] text-foreground/85">{text}</div>
-      <div className="h-1.5 w-36 overflow-hidden rounded-full bg-muted/60">
-        <motion.div
-          className="h-full w-16 rounded-full bg-primary"
-          animate={{ x: ['-110%', '170%'] }}
-          transition={{ duration: 1.4, repeat: Number.POSITIVE_INFINITY, ease: 'easeInOut' }}
-        />
-      </div>
       <Button variant="outline" size="sm" onClick={onCancel} className="mt-1 min-w-20">
         {cancelLabel}
       </Button>
