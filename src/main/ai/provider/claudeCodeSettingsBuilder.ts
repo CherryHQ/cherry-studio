@@ -55,7 +55,8 @@ import {
   SOUL_MODE_DISALLOWED_TOOLS
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agents'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { app } from 'electron'
@@ -93,7 +94,8 @@ export function buildAgentSessionTopicId(sessionId: string): string {
 }
 
 /**
- * Parse `session.model` into a `UniqueModelId` (`"providerId::modelId"`).
+ * Parse a model id string (sourced from `agent.model`) into a `UniqueModelId`
+ * (`"providerId::modelId"`).
  *
  * The agents DB stores the model string in canonical `providerId::modelId`
  * form after `data_0003`. Some legacy rows and test fixtures still use the
@@ -201,14 +203,21 @@ export async function buildClaudeCodeSessionSettings(
   provider: Provider,
   options?: ClaudeCodeSessionOptions
 ): Promise<ClaudeCodeSettings> {
+  // Agent owns all config (model, instructions, mcps, allowedTools,
+  // accessiblePaths, configuration). Session is just the running instance.
+  const agent = await agentService.getAgent(session.agentId)
+  if (!agent) {
+    throw new Error(`Agent not found for session ${session.id}: ${session.agentId}`)
+  }
+
   // 1. Working directory
-  const cwd = session.accessiblePaths[0]
+  const cwd = agent.accessiblePaths[0]
   if (!cwd) {
-    throw new Error('No accessible paths defined for the agent session')
+    throw new Error('No accessible paths defined for the agent')
   }
 
   // 2. Environment variables
-  const env = await buildEnvironment(provider, session)
+  const env = await buildEnvironment(provider, agent)
 
   // 3. Plugins
   const plugins = await discoverPlugins(cwd, session.agentId)
@@ -223,19 +232,19 @@ export async function buildClaudeCodeSessionSettings(
       toolApprovalRegistry.abort(session.id, 'stream-ended')
     }
   }
-  const { canUseTool, hooks, allowedTools, disallowedTools } = buildToolPermissions(session, approvalEmitter)
+  const { canUseTool, hooks, allowedTools, disallowedTools } = buildToolPermissions(session, agent, approvalEmitter)
 
   // 5. System prompt
-  const systemPrompt = await buildSystemPrompt(session, cwd)
+  const systemPrompt = await buildSystemPrompt(session, agent, cwd)
 
   // 6. Spawn options
   const spawnClaudeCodeProcess = buildSpawnProcess()
 
   // 7. MCP servers (session + built-in)
-  const sessionConfig = session.configuration
-  const soulEnabled = sessionConfig?.soul_enabled === true
-  const isAssistant = sessionConfig?.builtin_role === 'assistant'
-  const mcpServers = await buildMcpServers(session, soulEnabled, isAssistant)
+  const agentConfig = agent.configuration
+  const soulEnabled = agentConfig?.soul_enabled === true
+  const isAssistant = agentConfig?.builtin_role === 'assistant'
+  const mcpServers = await buildMcpServers(session, agent, soulEnabled, isAssistant)
 
   // 8. Adjust allowedTools for injected MCP servers
   const finalAllowedTools = adjustAllowedToolsForMcp(allowedTools, soulEnabled, isAssistant)
@@ -247,10 +256,10 @@ export async function buildClaudeCodeSessionSettings(
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     spawnClaudeCodeProcess,
     systemPrompt,
-    settingSources: getSettingSources(session),
+    settingSources: getSettingSources(agent),
     includePartialMessages: true,
-    permissionMode: sessionConfig?.permission_mode,
-    maxTurns: sessionConfig?.max_turns,
+    permissionMode: agentConfig?.permission_mode,
+    maxTurns: agentConfig?.max_turns,
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
@@ -263,8 +272,8 @@ export async function buildClaudeCodeSessionSettings(
     ...(options?.lastAgentSessionId ? { resume: options.lastAgentSessionId } : {})
   }
 
-  if (session.accessiblePaths.length > 1) {
-    settings.additionalDirectories = session.accessiblePaths.slice(1)
+  if (agent.accessiblePaths.length > 1) {
+    settings.additionalDirectories = agent.accessiblePaths.slice(1)
   }
 
   return settings
@@ -277,20 +286,22 @@ export function resolveClaudeExecutablePath(): string {
 }
 
 async function buildEnvironment(
-  _provider: Provider, // retained for API compat; providerId resolved from session.model
-  session: AgentSessionEntity
+  _provider: Provider, // retained for API compat; providerId resolved from agent.model
+  agent: AgentEntity
 ): Promise<Record<string, string | undefined>> {
   const loginShellEnv = await getLoginShellEnvironment()
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
 
   // API key and base URL are injected by the provider layer (ClaudeCodeProviderSettings),
-  // not set here. This function only builds session-specific env vars.
+  // not set here. This function only builds agent-specific env vars.
 
-  // session.model is UniqueModelId ("providerId::modelId") after data_0003 migration;
-  // the helper also accepts the legacy single-colon form so older fixtures still parse.
-  // Try DB lookup for apiModelId (may differ from raw ID), fall back to raw if not registered.
-  const { providerId, modelId: rawModelId } = parseUniqueModelId(parseAgentSessionModel(session.model))
+  // agent.model is UniqueModelId ("providerId::modelId"); helper accepts legacy
+  // single-colon form too. DB lookup for apiModelId, fall back to raw if missing.
+  if (!agent.model) {
+    throw new Error(`buildEnvironment: agent ${agent.id} has no model`)
+  }
+  const { providerId, modelId: rawModelId } = parseUniqueModelId(parseAgentSessionModel(agent.model))
   let apiModelId = rawModelId
   try {
     const model = await modelService.getByKey(providerId, rawModelId)
@@ -319,7 +330,7 @@ async function buildEnvironment(
   }
 
   // Merge user-defined env vars with blocked list
-  const userEnvVars = session.configuration?.env_vars
+  const userEnvVars = agent.configuration?.env_vars
   if (userEnvVars && typeof userEnvVars === 'object') {
     const BLOCKED_ENV_KEYS = new Set([
       'ANTHROPIC_API_KEY',
@@ -375,10 +386,14 @@ async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginC
   }
 }
 
-function buildToolPermissions(session: AgentSessionEntity, approvalEmitter: ToolApprovalEmitterHolder) {
-  const sessionConfig = session.configuration
-  const soulEnabled = sessionConfig?.soul_enabled === true
-  const isAssistant = sessionConfig?.builtin_role === 'assistant'
+function buildToolPermissions(
+  session: AgentSessionEntity,
+  agent: AgentEntity,
+  approvalEmitter: ToolApprovalEmitterHolder
+) {
+  const agentConfig = agent.configuration
+  const soulEnabled = agentConfig?.soul_enabled === true
+  const isAssistant = agentConfig?.builtin_role === 'assistant'
 
   const canUseTool: CanUseTool = async (toolName, input, opts) => {
     if (opts.signal.aborted) {
@@ -388,8 +403,8 @@ function buildToolPermissions(session: AgentSessionEntity, approvalEmitter: Tool
       shouldAutoApprove({
         toolKind: 'claude-agent',
         toolName,
-        agentAllowedTools: session.allowedTools,
-        permissionMode: sessionConfig?.permission_mode
+        agentAllowedTools: agent.allowedTools,
+        permissionMode: agentConfig?.permission_mode
       })
     ) {
       return { behavior: 'allow', updatedInput: input }
@@ -437,7 +452,7 @@ function buildToolPermissions(session: AgentSessionEntity, approvalEmitter: Tool
   return {
     canUseTool,
     hooks: { PreToolUse: [{ hooks: [rtkRewriteHook] }] },
-    allowedTools: session.allowedTools,
+    allowedTools: agent.allowedTools,
     disallowedTools: [
       ...GLOBALLY_DISALLOWED_TOOLS,
       ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
@@ -448,24 +463,25 @@ function buildToolPermissions(session: AgentSessionEntity, approvalEmitter: Tool
 
 async function buildSystemPrompt(
   session: AgentSessionEntity,
+  agent: AgentEntity,
   cwd: string
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
-  const agent = await agentService.getAgent(session.agentId)
-  const agentConfig = agent?.configuration
+  const agentConfig = agent.configuration
   const soulEnabled = agentConfig?.soul_enabled === true
 
-  const builtinRole = session.configuration?.builtin_role as string | undefined
+  const builtinRole = agentConfig?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
 
   // Provision builtin agent workspace
+  let instructions = agent.instructions
   if (builtinRole && cwd && !isProvisioned(cwd)) {
     const provisioned = await provisionBuiltinAgent(cwd, builtinRole)
-    if (provisioned?.instructions && !session.instructions) {
-      session = { ...session, instructions: provisioned.instructions }
+    if (provisioned?.instructions && !instructions) {
+      instructions = provisioned.instructions
     }
   }
 
-  // Channel security
+  // Channel security (still scoped per session — channels link to a session)
   const linkedChannel = await channelService.findBySessionId(session.id)
   const channelSecurityBlock = linkedChannel ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
   const langInstruction = getLanguageInstruction()
@@ -474,31 +490,25 @@ async function buildSystemPrompt(
   if (isAssistant) {
     try {
       const context = await buildAssistantContext()
-      return session.instructions ? `${session.instructions}\n\n${context}` : context
+      return instructions ? `${instructions}\n\n${context}` : context
     } catch {
-      return session.instructions
+      return instructions
     }
   }
 
   // Soul mode
-  // Ordering: persona → user intent → channel safety → language directive.
-  // Upstream #14424: without the `session.instructions` slot, Soul Mode
-  // silently dropped any per-session user instructions (only Assistant /
-  // default branches honored them). Keep Soul persona dominant by
-  // appending (not prepending), and keep channel security after so
-  // external-channel safety still wins over user-provided instructions.
   if (soulEnabled) {
     const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
-    const userInstructions = session.instructions ? `\n\n${session.instructions}` : ''
+    const userInstructions = instructions ? `\n\n${instructions}` : ''
     return `${soulPrompt}${userInstructions}${channelSecurityBlock}\n\n${langInstruction}`
   }
 
   // Standard mode
-  if (session.instructions) {
+  if (instructions) {
     return {
       type: 'preset',
       preset: 'claude_code',
-      append: `${session.instructions}${channelSecurityBlock}\n\n${langInstruction}`
+      append: `${instructions}${channelSecurityBlock}\n\n${langInstruction}`
     }
   }
   return {
@@ -537,13 +547,14 @@ export function buildSpawnProcess(): ClaudeCodeSettings['spawnClaudeCodeProcess'
 
 async function buildMcpServers(
   session: AgentSessionEntity,
+  agent: AgentEntity,
   soulEnabled: boolean,
   isAssistant: boolean
 ): Promise<Record<string, McpServerConfig> | undefined> {
   const mcpList: Record<string, McpServerConfig> = {}
 
-  // 1. Session-configured MCP servers (user-added via UI)
-  const mcpIds = session.mcps
+  // 1. Agent-configured MCP servers (user-added via UI)
+  const mcpIds = agent.mcps
   if (mcpIds && mcpIds.length > 0) {
     for (const mcpId of mcpIds) {
       try {
@@ -615,8 +626,8 @@ function adjustAllowedToolsForMcp(
   return result.length > 0 ? result : undefined
 }
 
-function getSettingSources(session: AgentSessionEntity): Array<'user' | 'project' | 'local'> {
-  const builtinRole = session.configuration?.builtin_role
+function getSettingSources(agent: AgentEntity): Array<'user' | 'project' | 'local'> {
+  const builtinRole = agent.configuration?.builtin_role
   return builtinRole ? [] : ['project', 'local']
 }
 

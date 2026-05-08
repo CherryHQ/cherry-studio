@@ -144,19 +144,9 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     targetTable: 'agent_session',
     columns: [
       'id',
-      'agent_type',
       'agent_id',
       'name',
       notNullCol('description', "''"),
-      notNullCol('accessible_paths', "'[]'"),
-      'instructions',
-      { name: 'model', expr: buildUserModelLookupExpr('model'), sourceColumn: 'model' },
-      { name: 'plan_model', expr: buildUserModelLookupExpr('plan_model'), sourceColumn: 'plan_model' },
-      { name: 'small_model', expr: buildUserModelLookupExpr('small_model'), sourceColumn: 'small_model' },
-      notNullCol('mcps', "'[]'"),
-      notNullCol('allowed_tools', "'[]'"),
-      notNullCol('slash_commands', "'[]'"),
-      notNullCol('configuration', "'{}'"),
       // Placeholder; AgentsMigrator backfills real fractional-indexing keys
       // scoped by agentId, ordered by source `sort_order` after INSERT.
       notNullCol('order_key', "''"),

@@ -4,12 +4,12 @@ import path from 'node:path'
 
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
+import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId, parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
 import { application } from '@main/core/application'
-import type { GetAgentSessionResponse, PermissionMode } from '@types'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 
 import { sanitizeChannelOutput, wrapExternalContent } from '../security'
 import type {
@@ -54,7 +54,7 @@ export class ChannelMessageHandler {
   private static instance: ChannelMessageHandler | null = null
   // TODO: in v2 use cacheService
   private readonly sessionTracker = new Map<string, string>() // `${agentId}:${channelId}:${chatId}` -> sessionId
-  private readonly pendingResolutions = new Map<string, Promise<GetAgentSessionResponse | null>>()
+  private readonly pendingResolutions = new Map<string, Promise<AgentSessionEntity | null>>()
   /** Per-chat debounce buffer — accumulates rapid messages before flushing */
   private readonly pendingBatches = new Map<string, PendingBatch>()
   /** Per-chat serial queue — ensures only one stream runs at a time per chat */
@@ -192,12 +192,19 @@ export class ChannelMessageHandler {
         return
       }
 
-      // Apply channel-level permission mode override on every message (not just session creation).
-      // This ensures changes to the channel's permission_mode take effect immediately,
-      // even for sessions created before the setting was changed.
-      await this.applyChannelPermissionMode(session, adapter.channelId)
+      // Resolve agent for config (model / accessiblePaths / configuration / mcps / allowedTools).
+      // session DTO no longer carries config — sessions are pure agent instances.
+      const agent = await agentService.getAgent(session.agentId)
+      if (!agent) {
+        logger.error('Agent not found for session', { sessionId: session.id, agentId: session.agentId })
+        return
+      }
 
-      const workDir = session.accessiblePaths[0]
+      // TODO(channel-perm-override): channel-level permission_mode used to mutate
+      // session.configuration in-place; with config now living on agent, this
+      // override needs to flow as a per-dispatch option instead. Tracked separately.
+
+      const workDir = agent.accessiblePaths[0]
 
       // Save images to agent workspace so the agent can read them via the Read tool
       let imagePaths: string[] = []
@@ -303,28 +310,14 @@ export class ChannelMessageHandler {
     try {
       switch (command.command) {
         case 'new': {
-          const agent = await agentService.getAgent(agentId)
-          const channelRow = await channelService.getChannel(adapter.channelId)
-          const permMode = channelRow?.permissionMode as PermissionMode | undefined
-
-          const newSession = await sessionService.createSession(agentId, {
-            ...(agent?.configuration
-              ? {
-                  configuration: {
-                    ...agent.configuration,
-                    ...(permMode ? { permission_mode: permMode } : {})
-                  }
-                }
-              : {})
-          })
-          if (newSession) {
-            // Update channel's session_id to point to the new session
-            await channelService.updateChannel(adapter.channelId, { sessionId: newSession.id })
-            const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
-            this.sessionTracker.set(trackerKey, newSession.id)
-            this.evictSessionTracker()
-            await adapter.sendMessage(command.chatId, 'New session created.')
-          }
+          // TODO(channel-perm-override): channel.permissionMode no longer
+          // applied here — config lives on agent now. Tracked separately.
+          const newSession = await sessionService.createSession({ agentId, name: 'Channel session' })
+          await channelService.updateChannel(adapter.channelId, { sessionId: newSession.id })
+          const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
+          this.sessionTracker.set(trackerKey, newSession.id)
+          this.evictSessionTracker()
+          await adapter.sendMessage(command.chatId, 'New session created.')
           break
         }
         case 'compact': {
@@ -398,22 +391,6 @@ export class ChannelMessageHandler {
     }
   }
 
-  /**
-   * Look up the channel's current permission_mode from the agent config and
-   * override the session's configuration in-place. This ensures that changes
-   * to the channel permission mode take effect immediately — even for sessions
-   * that were created before the setting was changed.
-   */
-  private async applyChannelPermissionMode(session: GetAgentSessionResponse, channelId: string): Promise<void> {
-    const channel = await channelService.getChannel(channelId)
-    if (channel?.permissionMode && session.configuration) {
-      session.configuration = {
-        ...session.configuration,
-        permission_mode: channel.permissionMode
-      }
-    }
-  }
-
   /** Evict oldest session tracker entries when the map exceeds the size limit. */
   private evictSessionTracker(): void {
     if (this.sessionTracker.size <= SESSION_TRACKER_MAX_SIZE) return
@@ -460,7 +437,7 @@ export class ChannelMessageHandler {
     channelId: string,
     channelType: string,
     chatId: string
-  ): Promise<GetAgentSessionResponse | null> {
+  ): Promise<AgentSessionEntity | null> {
     const trackerKey = `${agentId}:${channelId}:${chatId}`
 
     // Coalesce concurrent resolutions for the same chat to avoid duplicate sessions
@@ -482,15 +459,15 @@ export class ChannelMessageHandler {
     _channelType: string,
     _chatId: string,
     trackerKey: string
-  ): Promise<GetAgentSessionResponse | null> {
+  ): Promise<AgentSessionEntity | null> {
     const channelRow = await channelService.getChannel(channelId)
+    const lookup = async (sessionId: string) => sessionService.getById(sessionId).catch(() => null)
 
     // Check tracker first
     const trackedId = this.sessionTracker.get(trackerKey)
     if (trackedId) {
-      const session = await sessionService.getSession(agentId, trackedId)
-      if (session) {
-        // Ensure channel's session_id stays in sync
+      const session = await lookup(trackedId)
+      if (session && session.agentId === agentId) {
         if (channelRow && channelRow.sessionId !== session.id) {
           channelService
             .updateChannel(channelId, { sessionId: session.id })
@@ -498,19 +475,18 @@ export class ChannelMessageHandler {
               logger.warn('Failed to sync channel-session link', err instanceof Error ? err : new Error(String(err)))
             )
         }
-        return session as GetAgentSessionResponse
+        return session
       }
-      // Tracked session gone, clear it
       this.sessionTracker.delete(trackerKey)
     }
 
     // Look up existing session via channel's session_id
     if (channelRow?.sessionId) {
-      const existingSession = await sessionService.getSession(agentId, channelRow.sessionId)
-      if (existingSession) {
+      const existingSession = await lookup(channelRow.sessionId)
+      if (existingSession && existingSession.agentId === agentId) {
         this.sessionTracker.set(trackerKey, existingSession.id)
         this.evictSessionTracker()
-        return existingSession as GetAgentSessionResponse
+        return existingSession
       }
     }
 
@@ -521,39 +497,27 @@ export class ChannelMessageHandler {
       channelSessionId: channelRow?.sessionId ?? null,
       trackerKey
     })
-    const agent = await agentService.getAgent(agentId)
-    const channelPermissionMode = channelRow?.permissionMode as PermissionMode | undefined
 
-    const newSession = await sessionService.createSession(agentId, {
-      ...(agent?.configuration
-        ? {
-            configuration: {
-              ...agent.configuration,
-              ...(channelPermissionMode ? { permission_mode: channelPermissionMode } : {})
-            }
-          }
-        : {})
-    })
-    if (newSession) {
-      // Link channel to the new session
-      await channelService.updateChannel(channelId, { sessionId: newSession.id })
-      this.sessionTracker.set(trackerKey, newSession.id)
-      this.evictSessionTracker()
-      return newSession as GetAgentSessionResponse
-    }
-
-    return null
+    const newSession = await sessionService.createSession({ agentId, name: 'Channel session' })
+    await channelService.updateChannel(channelId, { sessionId: newSession.id })
+    this.sessionTracker.set(trackerKey, newSession.id)
+    this.evictSessionTracker()
+    return newSession
   }
 
   private async collectStreamResponse(
-    session: GetAgentSessionResponse,
+    session: AgentSessionEntity,
     content: string,
     abortController: AbortController,
     adapter: ChannelAdapter,
     chatId: string
   ): Promise<string> {
+    const agent = await agentService.getAgent(session.agentId)
+    if (!agent || !agent.model) {
+      throw new Error(`Agent ${session.agentId} not found or has no model configured`)
+    }
     const topicId = buildAgentSessionTopicId(session.id)
-    const uniqueModelId = parseAgentSessionModel(session.model)
+    const uniqueModelId = parseAgentSessionModel(agent.model)
 
     // Build listeners
     // Renderer subscribes via Ai_Stream_Attach IPC → WebContentsListener added by AiStreamManager.

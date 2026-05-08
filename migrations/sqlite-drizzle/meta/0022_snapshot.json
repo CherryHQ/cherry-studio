@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "fa020c7b-814c-4c3f-be46-77504a7ea8b4",
+  "id": "70071910-ddaf-49e7-8e07-0377ec9f3312",
   "prevId": "adf49fb7-cac0-487e-8e22-c94ea17d55bd",
   "tables": {
     "agent": {
@@ -496,13 +496,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "agent_type": {
-          "name": "agent_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "agent_id": {
           "name": "agent_id",
           "type": "text",
@@ -524,74 +517,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": "''"
-        },
-        "accessible_paths": {
-          "name": "accessible_paths",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "instructions": {
-          "name": "instructions",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "model": {
-          "name": "model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "plan_model": {
-          "name": "plan_model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "small_model": {
-          "name": "small_model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "mcps": {
-          "name": "mcps",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "allowed_tools": {
-          "name": "allowed_tools",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "slash_commands": {
-          "name": "slash_commands",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "configuration": {
-          "name": "configuration",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'{}'"
         },
         "order_key": {
           "name": "order_key",
@@ -616,11 +541,6 @@
         }
       },
       "indexes": {
-        "agent_session_model_idx": {
-          "name": "agent_session_model_idx",
-          "columns": ["model"],
-          "isUnique": false
-        },
         "agent_session_agent_id_order_key_idx": {
           "name": "agent_session_agent_id_order_key_idx",
           "columns": ["agent_id", "order_key"],
@@ -635,33 +555,6 @@
           "columnsFrom": ["agent_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "agent_session_model_user_model_id_fk": {
-          "name": "agent_session_model_user_model_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "user_model",
-          "columnsFrom": ["model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_session_plan_model_user_model_id_fk": {
-          "name": "agent_session_plan_model_user_model_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "user_model",
-          "columnsFrom": ["plan_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_session_small_model_user_model_id_fk": {
-          "name": "agent_session_small_model_user_model_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "user_model",
-          "columnsFrom": ["small_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -3162,10 +3055,7 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {
-      "\"agent\".\"sort_order\"": "\"agent\".\"order_key\"",
-      "\"agent_session\".\"sort_order\"": "\"agent_session\".\"order_key\""
-    }
+    "columns": {}
   },
   "internal": {
     "indexes": {}

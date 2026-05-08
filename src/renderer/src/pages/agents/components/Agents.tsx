@@ -3,7 +3,7 @@ import DraggableVirtualList from '@renderer/components/DraggableList/virtual-lis
 import AgentModalPopup from '@renderer/components/Popups/agent/AgentModal'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
-import { useAgents } from '@renderer/hooks/agents/useAgents'
+import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import type { AgentEntity } from '@renderer/types'
 import { memo, useCallback } from 'react'

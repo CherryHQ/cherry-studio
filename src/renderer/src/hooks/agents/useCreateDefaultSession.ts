@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { cacheService } from '@renderer/data/CacheService'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useSessions } from '@renderer/hooks/agents/useSessions'
+import { useAgent } from '@renderer/hooks/agents/useAgentDataApi'
+import { useSessions } from '@renderer/hooks/agents/useSessionDataApi'
 import type { CreateSessionForm } from '@renderer/types'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,9 +30,7 @@ export const useCreateDefaultSession = (agentId: string | null) => {
     setCreatingSession(true)
     try {
       const session = {
-        ...agent,
-        model: agent.model,
-        id: undefined,
+        agentId,
         name: t('common.unnamed')
       } satisfies CreateSessionForm
 

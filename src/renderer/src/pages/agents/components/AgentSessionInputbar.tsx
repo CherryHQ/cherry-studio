@@ -4,8 +4,8 @@ import { loggerService } from '@logger'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useSession } from '@renderer/hooks/agents/useSession'
+import { useAgent } from '@renderer/hooks/agents/useAgentDataApi'
+import { useSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -29,6 +29,7 @@ import type { FileMetadata } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
+import { getBuiltinSlashCommands } from '@shared/data/types/agentSlashCommands'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
@@ -65,6 +66,7 @@ const AgentSessionInputbar = ({
   isStreaming: isStreamingProp
 }: Props) => {
   const { session } = useSession(agentId, sessionId)
+  const { agent } = useAgent(agentId)
   const { providers } = useProviders()
   // FIXME: 不应该使用ref将action传到context提供给tool，权宜之计
   const actionsRef = useRef({
@@ -75,21 +77,22 @@ const AgentSessionInputbar = ({
   })
 
   // Resolve the v1-shape model the InputbarTools / model checks need.
+  // Model now lives on the parent agent, not the session.
   const sessionModel = useMemo<Model | undefined>(() => {
-    if (!session?.model) return undefined
-    const [providerId, actualModelId] = session.model.split(':')
+    if (!agent?.model) return undefined
+    const [providerId, actualModelId] = agent.model.split(':')
     if (!providerId || !actualModelId) return undefined
     return providers.flatMap((p) => p.models).find((m) => m.id === actualModelId && m.provider === providerId)
-  }, [session?.model, providers])
+  }, [agent?.model, providers])
 
   // v2-shape Assistant stub for tools that expect a real assistant record.
   const assistantStub = useMemo<Assistant | null>(() => {
-    if (!session) return null
+    if (!session || !agent) return null
     const now = new Date().toISOString()
     return {
       id: session.agentId ?? agentId,
       name: session.name ?? 'Agent Session',
-      prompt: session.instructions ?? '',
+      prompt: agent.instructions ?? '',
       emoji: '🌟',
       description: '',
       settings: DEFAULT_ASSISTANT_SETTINGS,
@@ -99,19 +102,18 @@ const AgentSessionInputbar = ({
       createdAt: now,
       updatedAt: now
     } satisfies Assistant
-  }, [session, agentId, sessionModel])
+  }, [session, agent, agentId, sessionModel])
 
-  // Prepare session data for tools
+  // Prepare session data for tools (slashCommands derive from agent.type)
   const sessionData = useMemo(() => {
-    if (!session) return undefined
+    if (!session || !agent) return undefined
     return {
       agentId,
       sessionId,
-      slashCommands: session.slashCommands,
-      tools: session.tools,
-      accessiblePaths: session.accessiblePaths ?? []
+      agentType: agent.type,
+      accessiblePaths: agent.accessiblePaths ?? []
     }
-  }, [session, agentId, sessionId])
+  }, [session, agent, agentId, sessionId])
 
   const initialState = useMemo(
     () => ({
@@ -268,7 +270,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
   // For Agent Session, we directly trigger SlashCommands panel instead of Root menu
   useEffect(() => {
     rootTriggerHandlerRef.current = (payload) => {
-      const slashCommands = sessionData?.slashCommands || []
+      const slashCommands = getBuiltinSlashCommands(sessionData?.agentType)
       const triggerInfo = (payload ?? {}) as QuickPanelTriggerInfo
 
       if (slashCommands.length === 0) {

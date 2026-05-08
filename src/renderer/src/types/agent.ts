@@ -5,35 +5,30 @@
  * WARNING: Any null value will be converted to undefined from api.
  */
 import { type AgentConfiguration, AgentConfigurationSchema } from '@shared/data/api/schemas/agents'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { ModelMessage, TextStreamPart } from 'ai'
+import type { ModelMessage } from 'ai'
 import * as z from 'zod'
 
 import type { MessageBlock } from './newMessage'
-import { PluginMetadataSchema } from './plugin'
 
 // ------------------ Core enums and helper types ------------------
 export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
 export type PermissionMode = z.infer<typeof PermissionModeSchema>
 
-export type SessionMessageRole = ModelMessage['role']
+type SessionMessageRole = ModelMessage['role']
 
 const sessionMessageRoles = ['assistant', 'user', 'system', 'tool'] as const satisfies readonly [
   SessionMessageRole,
   ...SessionMessageRole[]
 ]
 
-export const SessionMessageRoleSchema = z.enum(sessionMessageRoles)
-
-export type SessionMessageType = TextStreamPart<Record<string, any>>['type']
+const SessionMessageRoleSchema = z.enum(sessionMessageRoles)
 
 export const AgentTypeSchema = z.enum(['claude-code'])
 export type AgentType = z.infer<typeof AgentTypeSchema>
 
 // ------------------ CherryClaw-specific types ------------------
-export const SchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
-export type SchedulerType = z.infer<typeof SchedulerTypeSchema>
-
 export type FeishuDomain = 'feishu' | 'lark'
 export type FeishuChannelConfig = {
   type: 'feishu'
@@ -70,15 +65,11 @@ export type SlashCommand = z.infer<typeof SlashCommandSchema>
 // ------------------ Agent configuration & base schema ------------------
 export { type AgentConfiguration, AgentConfigurationSchema }
 
-/** @deprecated Use AgentConfiguration directly — all fields are now in AgentConfigurationSchema */
-export type CherryClawConfiguration = AgentConfiguration
-
 // ------------------ Scheduled Task types ------------------
-export const TaskScheduleTypeSchema = z.enum(['cron', 'interval', 'once'])
+const TaskScheduleTypeSchema = z.enum(['cron', 'interval', 'once'])
 export type TaskScheduleType = z.infer<typeof TaskScheduleTypeSchema>
 
-export const TaskStatusSchema = z.enum(['active', 'paused', 'completed'])
-export type TaskStatus = z.infer<typeof TaskStatusSchema>
+const TaskStatusSchema = z.enum(['active', 'paused', 'completed'])
 
 export const ScheduledTaskEntitySchema = z.object({
   id: z.string(),
@@ -128,20 +119,7 @@ export const AgentBaseSchema = z.object({
 
 export type AgentBase = z.infer<typeof AgentBaseSchema>
 
-export const isAgentBase = (value: unknown): value is AgentBase => {
-  return AgentBaseSchema.safeParse(value).success
-}
-
-export const AgentBaseWithIdSchema = AgentBaseSchema.extend({
-  id: z.string(),
-  model: z.string().optional()
-})
-
-export type AgentBaseWithId = z.infer<typeof AgentBaseWithIdSchema>
-
-export const isAgentBaseWithId = (value: unknown): value is AgentBaseWithId => {
-  return AgentBaseWithIdSchema.safeParse(value).success
-}
+export type AgentBaseWithId = Omit<AgentBase, 'model'> & { id: string; model?: string }
 
 // ------------------ Persistence entities ------------------
 
@@ -165,23 +143,6 @@ export interface ListOptions {
   offset?: number
   sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'orderKey'
   orderBy?: 'asc' | 'desc'
-}
-
-// AgentSession entity. `model` is optional for the same reason as AgentEntity.
-export const AgentSessionEntitySchema = AgentBaseSchema.extend({
-  id: z.string(),
-  agentId: z.string(),
-  agentType: AgentTypeSchema,
-  model: z.string().optional(),
-  slashCommands: z.array(SlashCommandSchema).optional(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime()
-})
-
-export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
-
-export const isAgentSessionEntity = (value: unknown): value is AgentSessionEntity => {
-  return AgentSessionEntitySchema.safeParse(value).success
 }
 
 // AgentSessionMessageEntity representing a message within a session
@@ -250,12 +211,6 @@ export interface AgentMessagePersistExchangeResult {
   assistantMessage?: AgentSessionMessageEntity
 }
 
-// ------------------ Session message payload ------------------
-
-// Not implemented fields:
-// - plan_model: Optional model for planning/thinking tasks
-// - small_model: Optional lightweight model for quick responses
-// - configuration: Optional agent settings (temperature, top_p, etc.)
 // ------------------ Form models ------------------
 export type BaseAgentForm = {
   id?: string
@@ -277,15 +232,18 @@ export type UpdateAgentForm = Partial<Omit<BaseAgentForm, 'type'>> & {
   type?: never
 }
 
-export type AgentForm = AddAgentForm | UpdateAgentForm
+/**
+ * Session forms only carry instance-level fields. Config (model, instructions,
+ * etc.) belongs to the parent agent and is updated via UpdateAgentForm.
+ */
+export type CreateSessionForm = {
+  agentId: string
+  name: string
+  description?: string
+  id?: never
+}
 
-export type BaseSessionForm = AgentBase
-
-export type CreateSessionForm = BaseSessionForm & { id?: never }
-
-export type UpdateSessionForm = Partial<BaseSessionForm> & { id: string }
-
-export type SessionForm = CreateSessionForm | UpdateSessionForm
+export type UpdateSessionForm = { id: string; name?: string; description?: string }
 
 export type UpdateAgentBaseForm = Partial<AgentBase> & { id: string }
 
@@ -309,75 +267,9 @@ export type UpdateAgentSessionFunction = (
 export type UpdateAgentFunctionUnion = UpdateAgentFunction | UpdateAgentSessionFunction
 
 // ------------------ API data transfer objects ------------------
-export interface CreateAgentRequest extends AgentBase {
-  type: AgentType
-}
-
-export const CreateAgentResponseSchema = AgentEntitySchema
-
 export type CreateAgentResponse = AgentEntity
 
-export interface UpdateAgentRequest extends Partial<AgentBase> {}
-
-export type ReplaceAgentRequest = AgentBase
-
-export const GetAgentResponseSchema = AgentEntitySchema.extend({
-  tools: z.array(ToolSchema).optional() // All tools available to the agent (including built-in and custom)
-})
-
-export type GetAgentResponse = z.infer<typeof GetAgentResponseSchema>
-
-export const ListAgentsResponseSchema = z.object({
-  data: z.array(GetAgentResponseSchema),
-  total: z.int(),
-  limit: z.int(),
-  offset: z.int()
-})
-
-export type ListAgentsResponse = z.infer<typeof ListAgentsResponseSchema>
-
-export const UpdateAgentResponseSchema = GetAgentResponseSchema
-
-export type UpdateAgentResponse = GetAgentResponse
-
-export type CreateSessionRequest = z.infer<typeof CreateSessionRequestSchema>
-
-export interface UpdateSessionRequest extends Partial<AgentBase> {
-  slashCommands?: SlashCommand[]
-}
-
-export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
-  tools: z.array(ToolSchema).optional(), // All tools available to the session (including built-in and custom)
-  messages: z.array(AgentSessionMessageEntitySchema).optional(), // Messages in the session
-  plugins: z
-    .array(
-      z.object({
-        filename: z.string(),
-        type: z.enum(['agent', 'command', 'skill']),
-        metadata: PluginMetadataSchema
-      })
-    )
-    .optional() // Installed plugins from workdir
-})
-
-export const CreateAgentSessionResponseSchema = GetAgentSessionResponseSchema
-
-export type GetAgentSessionResponse = z.infer<typeof GetAgentSessionResponseSchema>
-
-export type CreateAgentSessionResponse = GetAgentSessionResponse
-
-export const ListAgentSessionsResponseSchema = z.object({
-  data: z.array(AgentSessionEntitySchema),
-  total: z.int(),
-  limit: z.int(),
-  offset: z.int()
-})
-
-export type ListAgentSessionsResponse = z.infer<typeof ListAgentSessionsResponseSchema>
-
-export type CreateSessionMessageRequest = z.infer<typeof CreateSessionMessageRequestSchema>
-
-export type UpdateSessionResponse = GetAgentSessionResponse
+export type GetAgentResponse = AgentEntity & { tools?: Tool[] }
 
 export const AgentServerErrorSchema = z.object({
   error: z.object({
@@ -413,94 +305,6 @@ export const UpdateTaskRequestSchema = z.object({
 })
 
 export type UpdateTaskRequest = z.infer<typeof UpdateTaskRequestSchema>
-
-export const ListTasksResponseSchema = z.object({
-  data: z.array(ScheduledTaskEntitySchema),
-  total: z.int(),
-  limit: z.int(),
-  offset: z.int()
-})
-
-export type ListTasksResponse = z.infer<typeof ListTasksResponseSchema>
-
-export const ListTaskLogsResponseSchema = z.object({
-  data: z.array(TaskRunLogEntitySchema),
-  total: z.int(),
-  limit: z.int(),
-  offset: z.int()
-})
-
-export type ListTaskLogsResponse = z.infer<typeof ListTaskLogsResponseSchema>
-
-export const TaskIdParamSchema = z.object({
-  taskId: z.string().min(1, 'Task ID is required')
-})
-
-// ------------------ API validation schemas ------------------
-
-// Parameter validation schemas
-export const AgentIdParamSchema = z.object({
-  agentId: z.string().min(1, 'Agent ID is required')
-})
-
-export const SessionIdParamSchema = z.object({
-  sessionId: z.string().min(1, 'Session ID is required')
-})
-
-export const SessionMessageIdParamSchema = z.object({
-  messageId: z.string().min(1, 'Message ID is required')
-})
-
-// Query validation schemas
-export const PaginationQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
-  offset: z.coerce.number().int().min(0).optional().default(0),
-  status: z.enum(['idle', 'running', 'completed', 'failed', 'stopped']).optional()
-})
-
-// Request body validation schemas derived from shared bases
-const agentCreatableSchema = AgentBaseSchema.extend({
-  name: z.string().min(1, 'Name is required'),
-  model: z.string().min(1, 'Model is required')
-})
-
-export const CreateAgentRequestSchema = agentCreatableSchema.extend({
-  type: AgentTypeSchema
-})
-
-export const UpdateAgentRequestSchema = AgentBaseSchema.partial()
-
-export const ReplaceAgentRequestSchema = AgentBaseSchema
-
-const sessionCreatableSchema = AgentBaseSchema.extend({
-  model: z.string().min(1, 'Model is required'),
-  slashCommands: z.array(SlashCommandSchema).optional()
-})
-
-export const CreateSessionRequestSchema = sessionCreatableSchema
-
-export const UpdateSessionRequestSchema = sessionCreatableSchema.partial()
-
-export const ReplaceSessionRequestSchema = sessionCreatableSchema
-
-export type ReplaceSessionRequest = z.infer<typeof ReplaceSessionRequestSchema>
-
-const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'max'])
-
-const AgentThinkingConfigSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('enabled'), budgetTokens: z.number().optional() }),
-  z.object({ type: z.literal('disabled') }),
-  z.object({ type: z.literal('adaptive') })
-])
-
-export type AgentEffort = z.infer<typeof AgentEffortSchema>
-export type AgentThinkingConfig = z.infer<typeof AgentThinkingConfigSchema>
-
-export const CreateSessionMessageRequestSchema = z.object({
-  content: z.string().min(1, 'Content must be a valid string'),
-  effort: AgentEffortSchema.optional(),
-  thinking: AgentThinkingConfigSchema.optional()
-})
 
 export type PermissionModeCard = {
   mode: PermissionMode

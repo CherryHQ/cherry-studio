@@ -24,11 +24,8 @@ async function insertAgent(db: ReturnType<typeof setupTestDatabase>['db'], id: s
 async function insertSession(db: ReturnType<typeof setupTestDatabase>['db'], sessionId: string, agentId: string) {
   await db.insert(agentSessionTable).values({
     id: sessionId,
-    agentType: 'claude-code',
     agentId,
     name: 'Test Session',
-    instructions: 'You are a helpful assistant.',
-    model: null,
     orderKey: 'a0'
   })
 }

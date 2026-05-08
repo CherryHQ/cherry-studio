@@ -1,7 +1,7 @@
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useCallback } from 'react'
 
-import { useAgent } from './useAgent'
+import { useAgent } from './useAgentDataApi'
 import { useAgentSessionInitializer } from './useAgentSessionInitializer'
 
 export const useActiveAgent = () => {

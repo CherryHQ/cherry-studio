@@ -1,6 +1,7 @@
-import type { AgentEntity, AgentSessionEntity } from '@renderer/types'
+import type { AgentEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { Folder } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,7 +18,7 @@ const SessionWorkspaceMeta = ({ agent, session }: SessionWorkspaceMetaProps) => 
     return null
   }
 
-  const firstAccessiblePath = session.accessiblePaths?.[0]
+  const firstAccessiblePath = agent.accessiblePaths?.[0]
 
   const getLastFolderName = (path: string): string => {
     const trimmedPath = path.replace(/[/\\]+$/, '')

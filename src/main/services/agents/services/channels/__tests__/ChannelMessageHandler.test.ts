@@ -1,6 +1,6 @@
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
+import { sessionService } from '@data/services/SessionService'
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,14 +19,18 @@ vi.mock('../../security', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
-    getAgent: vi.fn().mockResolvedValue({ configuration: {} })
+    getAgent: vi.fn().mockResolvedValue({
+      id: 'agent-1',
+      configuration: {},
+      accessiblePaths: ['/tmp/test-workspace'],
+      model: 'openai::gpt-4'
+    })
   }
 }))
 
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    listSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
-    getSession: vi.fn(),
+vi.mock('@data/services/SessionService', () => ({
+  sessionService: {
+    getById: vi.fn(),
     createSession: vi.fn()
   }
 }))
@@ -112,8 +116,13 @@ describe('ChannelMessageHandler', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()
-    // Reset the default mock for listSessions after clearAllMocks
-    vi.mocked(sessionService.listSessions).mockResolvedValue({ sessions: [] as any[], total: 0 })
+    // Restore default agent mock after clearAllMocks
+    vi.mocked(agentService.getAgent).mockResolvedValue({
+      id: 'agent-1',
+      configuration: {},
+      accessiblePaths: ['/tmp/test-workspace'],
+      model: 'openai::gpt-4'
+    } as any)
     // Clear session tracker to ensure clean state
     channelMessageHandler.clearSessionTracker('agent-1')
   })
@@ -216,8 +225,9 @@ describe('ChannelMessageHandler', () => {
       command: 'new'
     })
 
-    expect(sessionService.createSession).toHaveBeenCalledWith('agent-1', {
-      configuration: {}
+    expect(sessionService.createSession).toHaveBeenCalledWith({
+      agentId: 'agent-1',
+      name: 'Channel session'
     })
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.')
   })
@@ -317,7 +327,7 @@ describe('ChannelMessageHandler', () => {
     })
 
     // Now send a message — should use the tracked session
-    vi.mocked(sessionService.getSession).mockResolvedValueOnce(newSession as any)
+    vi.mocked(sessionService.getById).mockResolvedValueOnce(newSession as any)
     simulateStream([{ type: 'text-delta', text: 'OK' }])
 
     await handleIncomingAndFlush(adapter, {
@@ -327,7 +337,7 @@ describe('ChannelMessageHandler', () => {
       text: 'test'
     })
 
-    expect(sessionService.getSession).toHaveBeenCalledWith('agent-1', 'new-session')
+    expect(sessionService.getById).toHaveBeenCalledWith('new-session')
   })
 
   it('clearSessionTracker causes fresh session resolution', async () => {
@@ -361,7 +371,7 @@ describe('ChannelMessageHandler', () => {
       sessionId: 'session-1',
       permissionMode: null
     } as any)
-    vi.mocked(sessionService.getSession).mockResolvedValueOnce(session1 as any)
+    vi.mocked(sessionService.getById).mockResolvedValueOnce(session1 as any)
     simulateStream([{ type: 'text-delta', text: 'R2' }])
 
     await handleIncomingAndFlush(adapter, {

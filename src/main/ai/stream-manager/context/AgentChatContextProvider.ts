@@ -2,16 +2,17 @@
  * AgentChatContextProvider — owns `agent-session:{id}` topics.
  *
  * Unlike the persistent provider, agent sessions:
- *  - read their state from the agents DB (via agentSessionService)
+ *  - read their state from the agents DB (via sessionService + agentService)
  *  - persist messages through agentSessionMessageService, not MessageService
- *  - resolve the model from the session record, not the assistant
+ *  - resolve the model from the parent agent (session is a pure instance)
  *  - always submit a single model (no `@mention` fan-out) and pass a
  *    `userMessage` so `manager.send` injects it into any in-flight
  *    session on this topic.
  */
 
+import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { agentSessionService } from '@data/services/AgentSessionService'
+import { sessionService } from '@data/services/SessionService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { Message } from '@shared/data/types/message'
 
@@ -40,10 +41,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const sessionId = extractAgentSessionId(req.topicId)
 
-    const session = await agentSessionService.getById(sessionId)
-    if (!session) throw new Error(`Agent session not found: ${sessionId}`)
+    const session = await sessionService.getById(sessionId)
+    const agent = await agentService.getAgent(session.agentId)
+    if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${session.agentId}`)
+    if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
 
-    const uniqueModelId = parseAgentSessionModel(session.model)
+    const uniqueModelId = parseAgentSessionModel(agent.model)
 
     const userText =
       req.userMessageParts

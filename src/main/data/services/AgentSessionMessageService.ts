@@ -38,17 +38,15 @@ export class AgentSessionMessageService {
   }
 
   async listSessionMessages(
-    agentId: string,
     sessionId: string,
     options: ListOptions = {}
   ): Promise<{ messages: AgentSessionMessageEntity[]; total: number }> {
     const database = application.get('DbService').getDb()
 
-    // Verify session belongs to the given agent (ownership check)
     const [session] = await database
       .select({ id: sessionTable.id })
       .from(sessionTable)
-      .where(and(eq(sessionTable.id, sessionId), eq(sessionTable.agentId, agentId)))
+      .where(eq(sessionTable.id, sessionId))
       .limit(1)
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
@@ -75,17 +73,16 @@ export class AgentSessionMessageService {
     return { messages, total: totalRows[0].count }
   }
 
-  async deleteSessionMessage(agentId: string, sessionId: string, messageId: string): Promise<void> {
+  async deleteSessionMessage(sessionId: string, messageId: string): Promise<void> {
     if (!messageId) {
       throw DataApiErrorFactory.validation({ messageId: ['must not be empty'] })
     }
     const database = application.get('DbService').getDb()
 
-    // Verify session belongs to the given agent (ownership check)
     const [session] = await database
       .select({ id: sessionTable.id })
       .from(sessionTable)
-      .where(and(eq(sessionTable.id, sessionId), eq(sessionTable.agentId, agentId)))
+      .where(eq(sessionTable.id, sessionId))
       .limit(1)
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 

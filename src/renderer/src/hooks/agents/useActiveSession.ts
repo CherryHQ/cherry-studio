@@ -1,6 +1,6 @@
 import { useCache } from '@renderer/data/hooks/useCache'
 
-import { useSession } from './useSession'
+import { useSession } from './useSessionDataApi'
 
 export const useActiveSession = () => {
   const [activeAgentId] = useCache('agent.active_id')

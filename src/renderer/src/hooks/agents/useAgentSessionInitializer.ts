@@ -29,17 +29,13 @@ export const useAgentSessionInitializer = () => {
       // Check if this agent has already been initialized (key exists in map)
       if (agentId in activeSessionIdMapRef.current) return
 
-      const response = await dataApiService.get(`/agents/${agentId}/sessions` as never, {
-        query: { limit: 1 }
-      })
-      const sessions = (response as any).items ?? []
+      const { items: sessions } = await dataApiService.get('/sessions', { query: { agentId, limit: 1 } })
 
       const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
-      if (sessions.length > 0) {
-        cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: sessions[0].id })
-      } else {
-        cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: null })
-      }
+      cacheService.set('agent.session.active_id_map', {
+        ...currentMap,
+        [agentId]: sessions.length > 0 ? sessions[0].id : null
+      })
     } catch (error) {
       logger.error('Failed to initialize agent session:', error as Error)
     }

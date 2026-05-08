@@ -1,3 +1,4 @@
+import { agentService } from '@data/services/AgentService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
@@ -5,7 +6,7 @@ import type { AiGenerateRequest } from '@main/ai/AiService'
 import { parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
-import { agentSessionService as sessionService } from '@main/services/agents'
+import { sessionService } from '@main/services/agents'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Topic } from '@shared/data/types/topic'
@@ -191,15 +192,17 @@ export class TopicNamingService {
 
     agentSessionRenameLocks.add(sessionId)
     try {
-      const session = await sessionService.getSession(agentId, sessionId).catch(() => null)
+      const session = await sessionService.getById(sessionId).catch(() => null)
       if (!session) return
+      const agent = await agentService.getAgent(session.agentId).catch(() => null)
+      if (!agent || !agent.model) return
 
       const structuredConversation: StructuredMessage[] = [
         { role: 'user', mainText: cleanMarkdownImages(userText) },
         { role: finalMessage.role, mainText: cleanMarkdownImages(getMainTextContentFromUiMessage(finalMessage)) }
       ]
 
-      const uniqueModelId = parseAgentSessionModel(session.model)
+      const uniqueModelId = parseAgentSessionModel(agent.model)
       const title = await this.generateSummaryTitle(
         agentId,
         uniqueModelId,
@@ -210,7 +213,7 @@ export class TopicNamingService {
       const nextName = removeSpecialCharactersForTopicName(title)
       if (!nextName || nextName === (session.name ?? '').trim()) return
 
-      const updated = await sessionService.updateSession(agentId, sessionId, { name: nextName })
+      const updated = await sessionService.update(sessionId, { name: nextName })
       if (updated) {
         this.broadcastAgentSessionUpdated()
       }

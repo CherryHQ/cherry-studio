@@ -1,7 +1,7 @@
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
+import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId, parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
@@ -248,18 +248,19 @@ class SchedulerService {
 
       // Try to reuse the session from the last successful run for context continuity
       const lastSessionId = await taskService.getLastRunSessionId(task.id)
-      let session = lastSessionId ? await sessionService.getSession(task.agentId, lastSessionId) : null
+      let session = lastSessionId ? await sessionService.getById(lastSessionId).catch(() => null) : null
 
       if (session) {
         sessionId = session.id
         logger.debug('Reusing session from last run', { taskId: task.id, sessionId })
       } else {
-        session = await sessionService.createSession(task.agentId, {})
-        if (!session) {
-          throw new Error(`Failed to create session for task ${task.id}`)
-        }
+        session = await sessionService.createSession({ agentId: task.agentId, name: task.name || 'Scheduled run' })
         sessionId = session.id
         logger.debug('Created new session for task', { taskId: task.id, sessionId })
+      }
+
+      if (!agent.model) {
+        throw new Error(`Agent ${task.agentId} has no model configured`)
       }
 
       // Build listeners: ChannelAdapterListener per subscribed channel + completion sentinel
@@ -301,7 +302,7 @@ class SchedulerService {
 
       // Start execution via AiStreamManager
       const topicId = buildAgentSessionTopicId(session.id)
-      const uniqueModelId = parseAgentSessionModel(session.model)
+      const uniqueModelId = parseAgentSessionModel(agent.model)
 
       const aiStreamManager = application.get('AiStreamManager') as unknown as AiStreamManager
       aiStreamManager.send({

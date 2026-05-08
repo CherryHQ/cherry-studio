@@ -4,7 +4,7 @@ import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useChannels } from '../useChannels'
-import { useSession } from '../useSession'
+import { useSession } from '../useSessionDataApi'
 import { useTaskLogs, useTasks } from '../useTasks'
 
 describe('identity-scoped agent queries', () => {
@@ -17,7 +17,7 @@ describe('identity-scoped agent queries', () => {
     renderHook(() => useSession('agent-1', 'session-1'))
 
     expect(vi.mocked(useQuery)).toHaveBeenCalledWith(
-      '/agents/:agentId/sessions/:sessionId',
+      '/sessions/:sessionId',
       expect.objectContaining({
         enabled: true,
         swrOptions: { keepPreviousData: false }

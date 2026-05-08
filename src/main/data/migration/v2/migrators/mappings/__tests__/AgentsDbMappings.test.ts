@@ -363,11 +363,6 @@ describe('AgentsDbMappings', () => {
 
     const sessionInsert = find('agent_session')
     expect(sessionInsert).toContain("COALESCE(description, '') AS description")
-    expect(sessionInsert).toContain("COALESCE(accessible_paths, '[]') AS accessible_paths")
-    expect(sessionInsert).toContain("COALESCE(mcps, '[]') AS mcps")
-    expect(sessionInsert).toContain("COALESCE(allowed_tools, '[]') AS allowed_tools")
-    expect(sessionInsert).toContain("COALESCE(slash_commands, '[]') AS slash_commands")
-    expect(sessionInsert).toContain("COALESCE(configuration, '{}') AS configuration")
     expect(sessionInsert).toContain("'' AS order_key")
 
     const skillInsert = find('agent_global_skill')
@@ -402,11 +397,6 @@ describe('AgentsDbMappings', () => {
       },
       agent_session: {
         description: { defaultExpr: "''" },
-        accessible_paths: { defaultExpr: "'[]'" },
-        mcps: { defaultExpr: "'[]'" },
-        allowed_tools: { defaultExpr: "'[]'" },
-        slash_commands: { defaultExpr: "'[]'" },
-        configuration: { defaultExpr: "'{}'" },
         order_key: { defaultExpr: "''" }
       },
       agent_global_skill: {

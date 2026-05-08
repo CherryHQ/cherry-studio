@@ -1,8 +1,6 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
-import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbOrTx } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -179,71 +177,12 @@ export class AgentService {
 
     const database = application.get('DbService').getDb()
 
-    const rawRows = await database
-      .select()
-      .from(agentsTable)
-      .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
-      .limit(1)
-    const rawOldAgent = rawRows[0]
-
     await withSqliteErrors(
-      () =>
-        database.transaction(async (tx) => {
-          await tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
-          if (rawOldAgent) {
-            await this.syncSettingsToSessions(tx, id, rawOldAgent, updates)
-          }
-        }),
+      () => database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id)),
       defaultHandlersFor('Agent', id)
     )
 
     return await this.getAgent(id)
-  }
-
-  /**
-   * Sync agent settings to all sessions that haven't been individually customized.
-   * Must be called inside a transaction so agent update and session sync are atomic.
-   */
-  private async syncSettingsToSessions(
-    tx: DbOrTx,
-    agentId: string,
-    rawOldAgent: Record<string, unknown>,
-    updates: Record<string, unknown>
-  ): Promise<void> {
-    const syncFields = ['model', 'planModel', 'smallModel', 'allowedTools', 'configuration', 'mcps', 'instructions']
-
-    const changedFields = syncFields.filter((field) => {
-      if (!Object.prototype.hasOwnProperty.call(updates, field)) return false
-      return JSON.stringify(updates[field] ?? null) !== JSON.stringify(rawOldAgent[field] ?? null)
-    })
-    if (changedFields.length === 0) return
-
-    const sessions = await tx.select().from(sessionsTable).where(eq(sessionsTable.agentId, agentId))
-    if (sessions.length === 0) return
-
-    for (const session of sessions) {
-      const sessionUpdateData: Partial<Record<string, unknown>> = {}
-
-      for (const field of changedFields) {
-        const oldAgentValue = rawOldAgent[field] ?? null
-        const sessionValue = (session as Record<string, unknown>)[field] ?? null
-
-        if (JSON.stringify(oldAgentValue) === JSON.stringify(sessionValue)) {
-          sessionUpdateData[field] = updates[field] ?? null
-        }
-      }
-
-      if (Object.keys(sessionUpdateData).length > 0) {
-        sessionUpdateData.updatedAt = Date.now()
-        await tx.update(sessionsTable).set(sessionUpdateData).where(eq(sessionsTable.id, session.id))
-      }
-    }
-
-    logger.info('Synced agent settings to sessions', {
-      agentId,
-      changedFields,
-      sessionCount: sessions.length
-    })
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {

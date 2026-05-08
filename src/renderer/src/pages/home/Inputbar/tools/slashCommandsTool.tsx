@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import SlashCommandsButton from '@renderer/pages/home/Inputbar/tools/components/SlashCommandsButton'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
+import { getBuiltinSlashCommands } from '@shared/data/types/agentSlashCommands'
 import { Terminal } from 'lucide-react'
 
 const logger = loggerService.withContext('SlashCommandsTool')
@@ -90,7 +91,7 @@ const slashCommandsTool = defineTool({
     rootMenu: {
       createMenuItems: (context) => {
         const { t, session, actions, quickPanelController } = context
-        const slashCommands = session?.slashCommands || []
+        const slashCommands = getBuiltinSlashCommands(session?.agentType)
 
         // Only show menu item if there are commands
         if (slashCommands.length === 0) {
@@ -136,7 +137,7 @@ const slashCommandsTool = defineTool({
           const { session, actions, quickPanelController, t } = context
 
           return () => {
-            const slashCommands = session?.slashCommands || []
+            const slashCommands = getBuiltinSlashCommands(session?.agentType)
 
             if (slashCommands.length === 0) {
               quickPanelController.open({
@@ -181,7 +182,7 @@ const slashCommandsTool = defineTool({
 
     // Pass the handler function to the button so it can open the panel
     const openPanel = () => {
-      const slashCommands = session?.slashCommands || []
+      const slashCommands = getBuiltinSlashCommands(session?.agentType)
 
       if (slashCommands.length === 0) {
         quickPanelController.open({

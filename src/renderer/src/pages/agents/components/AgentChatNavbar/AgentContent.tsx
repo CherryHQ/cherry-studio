@@ -2,7 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
-import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
+import { useUpdateAgent } from '@renderer/hooks/agents/useAgentDataApi'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { AgentSettingsPopup, SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { AgentLabel, SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
@@ -29,14 +29,14 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { isTopNavbar } = useNavbarPosition()
   const { session: activeSession } = useActiveSession()
-  const { updateModel } = useUpdateSession(activeAgent?.id ?? null)
+  const { updateModel } = useUpdateAgent()
 
   const handleUpdateModel = useCallback(
     async (model: ApiModel) => {
-      if (!activeAgent || !activeSession) return
-      return updateModel(activeSession.id, model.id, { showSuccessToast: false })
+      if (!activeAgent) return
+      return updateModel(activeAgent.id, model.id, { showSuccessToast: false })
     },
-    [activeAgent, activeSession, updateModel]
+    [activeAgent, updateModel]
   )
 
   return (
@@ -103,7 +103,7 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
 
                 {/* Model Button */}
                 <SelectAgentBaseModelButton
-                  agentBase={activeSession}
+                  agentBase={activeAgent}
                   onSelect={async (model) => {
                     await handleUpdateModel(model)
                   }}
@@ -121,8 +121,8 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
       </div>
       <div className="flex items-center">
         {/* Open External Apps */}
-        {activeSession && activeSession.accessiblePaths?.[0] && (
-          <OpenExternalAppButton workdir={activeSession.accessiblePaths[0]} className="mr-2" />
+        {activeSession && activeAgent.accessiblePaths?.[0] && (
+          <OpenExternalAppButton workdir={activeAgent.accessiblePaths[0]} className="mr-2" />
         )}
         <Tools />
       </div>

@@ -61,11 +61,13 @@ export interface ToolContext {
   scope: InputbarScope
   assistant: Assistant
   model: Model
-  // Session data for Agent Session scope (only available when scope is TopicType.Session)
+  // Session data for Agent Session scope (only available when scope is TopicType.Session).
+  // Note: config fields (model/instructions/...) live on the parent agent — fetch via
+  // useAgent(session.agentId). agentType drives builtin slash command lookup.
   session?: {
     agentId?: string
     sessionId?: string
-    slashCommands?: Array<{ command: string; description?: string }>
+    agentType?: string
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
     accessiblePaths?: string[]
     reasoningEffort?: ThinkingOption

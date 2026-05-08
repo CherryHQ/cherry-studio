@@ -14,11 +14,11 @@ vi.mock('node:fs/promises', () => ({
 
 import { readdir, readFile, stat } from 'node:fs/promises'
 
-import type { CherryClawConfiguration } from '@types'
+import type { AgentConfiguration } from '@types'
 
 import { PromptBuilder } from '../prompt'
 
-const baseConfig: CherryClawConfiguration = {
+const baseConfig: AgentConfiguration = {
   permission_mode: 'bypassPermissions',
   max_turns: 100,
   env_vars: {},

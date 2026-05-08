@@ -34,11 +34,8 @@ describe('transformAgentBlocksToParts', () => {
   async function seedSession(id: string): Promise<void> {
     await dbh.db.insert(agentSessionTable).values({
       id,
-      agentType: 'claude_code',
       agentId: 'a1',
       name: id,
-      instructions: '',
-      model: null,
       orderKey: 'a0'
     })
     insertedSessions.push(id)

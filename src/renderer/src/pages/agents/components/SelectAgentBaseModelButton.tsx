@@ -4,7 +4,6 @@ import { agentModelFilter } from '@renderer/config/models'
 import { useApiModel } from '@renderer/hooks/agents/useModel'
 import { getProviderNameById } from '@renderer/services/ProviderService'
 import type { AgentBaseWithId, ApiModel } from '@renderer/types'
-import { isAgentSessionEntity } from '@renderer/types'
 import { isAgentEntity } from '@renderer/types'
 import { getModelFilterByAgentType } from '@renderer/utils/agentSession'
 import { apiModelAdapter } from '@renderer/utils/model'
@@ -49,11 +48,7 @@ const SelectAgentBaseModelButton = ({
   const { t } = useTranslation()
   const model = useApiModel({ id: agent?.model })
 
-  const apiFilter = isAgentEntity(agent)
-    ? getModelFilterByAgentType(agent.type)
-    : isAgentSessionEntity(agent)
-      ? getModelFilterByAgentType(agent.agentType)
-      : undefined
+  const apiFilter = isAgentEntity(agent) ? getModelFilterByAgentType(agent.type) : undefined
 
   if (!agent) return null
 

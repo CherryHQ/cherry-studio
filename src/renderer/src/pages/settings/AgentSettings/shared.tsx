@@ -4,15 +4,13 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import type {
   AgentConfiguration,
   AgentEntity,
-  AgentSessionEntity,
   GetAgentResponse,
-  GetAgentSessionResponse,
   PermissionMode,
   Tool,
-  UpdateAgentFunction,
-  UpdateAgentSessionFunction
+  UpdateAgentFunction
 } from '@renderer/types'
 import { cn } from '@renderer/utils'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { ModalProps } from 'antd'
 import { Menu, Modal } from 'antd'
 import React, { type ReactNode } from 'react'
@@ -36,17 +34,14 @@ export const defaultConfiguration: AgentConfigurationState = {
 }
 
 /**
- * Unified props type for settings components that work with both Agent and Session
+ * Props for settings components. Sessions are pure agent instances and have no
+ * configuration of their own — both agent and session popups now feed the parent
+ * agent here, so the form always reads/writes agent-level fields.
  */
-export type AgentOrSessionSettingsProps =
-  | {
-      agentBase: GetAgentResponse | undefined | null
-      update: UpdateAgentFunction
-    }
-  | {
-      agentBase: GetAgentSessionResponse | undefined | null
-      update: UpdateAgentSessionFunction
-    }
+export type AgentOrSessionSettingsProps = {
+  agentBase: GetAgentResponse | undefined | null
+  update: UpdateAgentFunction
+}
 
 /**
  * Computes the list of tool IDs that should be automatically approved for a given permission mode.

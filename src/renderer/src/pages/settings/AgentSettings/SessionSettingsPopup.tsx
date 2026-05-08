@@ -1,6 +1,7 @@
 import { TopView } from '@renderer/components/TopView'
-import { useSession } from '@renderer/hooks/agents/useSession'
-import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
+import { useAgent } from '@renderer/hooks/agents/useAgentDataApi'
+import { useUpdateAgent } from '@renderer/hooks/agents/useAgentDataApi'
+import { useSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,8 +25,9 @@ interface SessionSettingPopupParams extends SessionSettingPopupShowParams {
 
 const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab, agentId, sessionId, resolve }) => {
   const { t } = useTranslation()
-  const { session, isLoading, error } = useSession(agentId, sessionId)
-  const { updateSession } = useUpdateSession(agentId)
+  const { session, isLoading: sessionLoading, error: sessionError } = useSession(agentId, sessionId)
+  const { agent, isLoading: agentLoading, error: agentError } = useAgent(agentId)
+  const { updateAgent } = useUpdateAgent()
 
   const menuItems: SettingsMenuItem[] = useMemo(
     () => [
@@ -39,19 +41,19 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
   )
 
   const renderTabContent = (currentTab: SettingsPopupTab) => {
-    if (!session) return null
+    if (!agent) return null
 
     switch (currentTab) {
       case 'essential':
-        return <EssentialSettings agentBase={session} update={updateSession} />
+        return <EssentialSettings agentBase={agent} update={updateAgent} />
       case 'prompt':
-        return <PromptSettings agentBase={session} update={updateSession} />
+        return <PromptSettings agentBase={agent} update={updateAgent} />
       case 'permission-mode':
-        return <PermissionModeSettings agentBase={session} update={updateSession} />
+        return <PermissionModeSettings agentBase={agent} update={updateAgent} />
       case 'tools-mcp':
-        return <ToolsSettings agentBase={session} update={updateSession} />
+        return <ToolsSettings agentBase={agent} update={updateAgent} />
       case 'advanced':
-        return <AdvancedSettings agentBase={session} update={updateSession} />
+        return <AdvancedSettings agentBase={agent} update={updateAgent} />
       default:
         return null
     }
@@ -59,8 +61,8 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
 
   return (
     <BaseSettingsPopup
-      isLoading={isLoading}
-      error={error ?? null}
+      isLoading={sessionLoading || agentLoading}
+      error={sessionError ?? agentError ?? null}
       initialTab={tab}
       onClose={resolve}
       titleContent={<SessionLabel session={session} />}

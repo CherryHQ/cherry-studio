@@ -1,6 +1,7 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import type { ToolContext, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
+import { getBuiltinSlashCommands } from '@shared/data/types/agentSlashCommands'
 import { Tooltip } from 'antd'
 import { Terminal } from 'lucide-react'
 import { type FC, type ReactElement, useCallback, useMemo } from 'react'
@@ -21,7 +22,7 @@ interface Props {
 const SlashCommandsButton: FC<Props> = ({ quickPanelController, session, openPanel }): ReactElement => {
   const { t } = useTranslation()
 
-  const slashCommands = useMemo(() => session?.slashCommands || [], [session?.slashCommands])
+  const slashCommands = useMemo(() => getBuiltinSlashCommands(session?.agentType), [session?.agentType])
 
   const handleOpenQuickPanel = useCallback(() => {
     if (quickPanelController.isVisible && quickPanelController.symbol === QuickPanelReservedSymbol.SlashCommands) {

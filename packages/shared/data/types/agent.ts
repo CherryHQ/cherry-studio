@@ -6,21 +6,13 @@
  * backward-compatible consumption across main and renderer.
  */
 
-import type {
-  AgentDetail,
-  AgentSessionEntity,
-  AgentSessionMessageEntity,
-  InstalledSkill,
-  ScheduledTaskEntity
-} from '../api/schemas/agents'
+import type { AgentDetail, AgentSessionMessageEntity, InstalledSkill, ScheduledTaskEntity } from '../api/schemas/agents'
 
 export type {
   AgentBase,
   AgentConfiguration,
   AgentDetail,
   AgentEntity,
-  AgentSessionDetail,
-  AgentSessionEntity,
   AgentSessionMessageEntity,
   InstalledSkill,
   ScheduledTaskEntity,
@@ -47,14 +39,6 @@ export type SessionMessageRole = 'user' | 'assistant' | 'tool' | 'system'
 /** @deprecated Use `OffsetPaginationResponse<AgentDetail>` from `@shared/data/api`. Remove once #14431 rebinds renderer to DataApi. */
 export interface ListAgentsResponse {
   data: AgentDetail[]
-  total: number
-  limit: number
-  offset: number
-}
-
-/** @deprecated Use `OffsetPaginationResponse<AgentSessionEntity>` from `@shared/data/api`. Remove once #14431 rebinds renderer to DataApi. */
-export interface ListAgentSessionsResponse {
-  data: AgentSessionEntity[]
   total: number
   limit: number
   offset: number

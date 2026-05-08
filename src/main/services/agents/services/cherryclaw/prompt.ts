@@ -2,7 +2,7 @@ import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import type { CherryClawConfiguration } from '@types'
+import type { AgentConfiguration } from '@types'
 
 import { BOOTSTRAP_INSTRUCTIONS, SOUL_CONTENT_THRESHOLD } from './seedWorkspace'
 
@@ -155,7 +155,7 @@ ${sections}`
 export class PromptBuilder {
   private cache = new Map<string, CacheEntry>()
 
-  async buildSystemPrompt(workspacePath: string, config?: CherryClawConfiguration): Promise<string> {
+  async buildSystemPrompt(workspacePath: string, config?: AgentConfiguration): Promise<string> {
     const parts: string[] = []
 
     // Basic prompt: workspace system.md (case-insensitive) > embedded default
@@ -232,7 +232,7 @@ ${content}
    * - If SOUL.md has substantial non-template content, skip (legacy agent migration).
    * - Otherwise, run bootstrap.
    */
-  private async shouldRunBootstrap(workspacePath: string, config?: CherryClawConfiguration): Promise<boolean> {
+  private async shouldRunBootstrap(workspacePath: string, config?: AgentConfiguration): Promise<boolean> {
     if (config?.bootstrap_completed === true) {
       return false
     }

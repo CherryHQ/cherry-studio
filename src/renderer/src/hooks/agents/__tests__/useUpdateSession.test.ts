@@ -2,7 +2,7 @@ import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useUpdateSession } from '../useUpdateSession'
+import { useUpdateSession } from '../useSessionDataApi'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -29,28 +29,24 @@ describe('useUpdateSession', () => {
     expect(updated).toBeUndefined()
   })
 
-  it('calls updateTrigger with correct params and returns session with defaults', async () => {
+  it('calls updateTrigger with sessionId-only params and returns session', async () => {
     const mockResult = {
       id: 'session-1',
       agentId: 'agent-1',
-      name: 'Session',
-      model: 'claude-3',
-      agentType: 'claude-code',
-      accessiblePaths: [],
-      allowedTools: [],
-      configuration: { avatar: '🤖' },
+      name: 'New name',
+      orderKey: 'a0',
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId/sessions/:sessionId', mockTrigger)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/sessions/:sessionId', mockTrigger)
 
     const { result } = renderHook(() => useUpdateSession('agent-1'))
-    const updated = await act(async () => result.current.updateSession({ id: 'session-1', model: 'claude-3' }))
+    const updated = await act(async () => result.current.updateSession({ id: 'session-1', name: 'New name' }))
 
     expect(mockTrigger).toHaveBeenCalledWith({
-      params: { agentId: 'agent-1', sessionId: 'session-1' },
-      body: { model: 'claude-3' }
+      params: { sessionId: 'session-1' },
+      body: { name: 'New name' }
     })
     expect(updated).toBeDefined()
     expect(mockToast.success).toHaveBeenCalledWith('common.update_success')
@@ -61,16 +57,12 @@ describe('useUpdateSession', () => {
       id: 's1',
       agentId: 'a1',
       name: 'S',
-      model: 'claude',
-      agentType: 'claude-code',
-      accessiblePaths: [],
-      allowedTools: [],
-      configuration: {},
+      orderKey: 'a0',
       createdAt: '',
       updatedAt: ''
     }
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId/sessions/:sessionId', mockTrigger)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/sessions/:sessionId', mockTrigger)
 
     const { result } = renderHook(() => useUpdateSession('agent-1'))
     await act(async () => result.current.updateSession({ id: 'session-1' }, { showSuccessToast: false }))
@@ -80,39 +72,12 @@ describe('useUpdateSession', () => {
 
   it('shows error toast and returns undefined on failure', async () => {
     const mockTrigger = vi.fn().mockRejectedValue(new Error('Update failed'))
-    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId/sessions/:sessionId', mockTrigger)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/sessions/:sessionId', mockTrigger)
 
     const { result } = renderHook(() => useUpdateSession('agent-1'))
     const updated = await act(async () => result.current.updateSession({ id: 'session-1' }))
 
     expect(updated).toBeUndefined()
     expect(mockToast.error).toHaveBeenCalled()
-  })
-
-  describe('updateModel', () => {
-    it('delegates to updateSession with model field', async () => {
-      const mockResult = {
-        id: 's1',
-        agentId: 'a1',
-        name: 'S',
-        model: 'new-model',
-        agentType: 'claude-code',
-        accessiblePaths: [],
-        allowedTools: [],
-        configuration: {},
-        createdAt: '',
-        updatedAt: ''
-      }
-      const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId/sessions/:sessionId', mockTrigger)
-
-      const { result } = renderHook(() => useUpdateSession('agent-1'))
-      await act(async () => result.current.updateModel('session-1', 'new-model'))
-
-      expect(mockTrigger).toHaveBeenCalledWith({
-        params: { agentId: 'agent-1', sessionId: 'session-1' },
-        body: { model: 'new-model' }
-      })
-    })
   })
 })

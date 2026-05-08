@@ -27,6 +27,7 @@ import { modelHandlers } from './models'
 import { pinHandlers } from './pins'
 import { promptHandlers } from './prompts'
 import { providerHandlers } from './providers'
+import { sessionHandlers } from './sessions'
 import { tagHandlers } from './tags'
 import { temporaryChatHandlers } from './temporaryChats'
 import { topicHandlers } from './topics'
@@ -49,6 +50,7 @@ export const apiHandlers: ApiImplementation = {
   ...temporaryChatHandlers,
   ...modelHandlers,
   ...providerHandlers,
+  ...sessionHandlers,
   ...knowledgeHandlers,
   ...translateHandlers,
   ...mcpServerHandlers,

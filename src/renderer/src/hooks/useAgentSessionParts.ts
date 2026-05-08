@@ -1,9 +1,9 @@
 /**
  * Agent session history data source — returns CherryUIMessage[] for useChatWithHistory.
  *
- * Backed by DataApi (`/agents/:agentId/sessions/:sessionId/messages`) so
- * reads go through the shared SWR cache (dedup, revalidation, cross-window
- * consistency) instead of ad-hoc IPC + local state.
+ * Backed by DataApi (`/sessions/:sessionId/messages`) so reads go through the
+ * shared SWR cache (dedup, revalidation, cross-window consistency) instead of
+ * ad-hoc IPC + local state.
  *
  * After the blocks→parts migration each message row's `content` carries
  * `{ message: { id, role, data: { parts }, status, createdAt }, blocks }` —
@@ -53,11 +53,11 @@ function toUIMessage(row: AgentSessionMessageEntity): CherryUIMessage | null {
   } as CherryUIMessage
 }
 
-export function useAgentSessionParts(agentId: string, sessionId: string) {
-  const { data, isLoading, mutate } = useQuery('/agents/:agentId/sessions/:sessionId/messages', {
-    params: { agentId, sessionId },
+export function useAgentSessionParts(_agentId: string, sessionId: string) {
+  const { data, isLoading, mutate } = useQuery('/sessions/:sessionId/messages', {
+    params: { sessionId },
     query: { limit: FETCH_LIMIT },
-    enabled: !!agentId && !!sessionId
+    enabled: !!sessionId
   })
 
   const messages = useMemo<CherryUIMessage[]>(() => {

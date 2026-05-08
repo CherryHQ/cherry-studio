@@ -13,10 +13,9 @@ vi.mock('@data/services/AgentService', () => ({
   }
 }))
 
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    listSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
-    getSession: vi.fn(),
+vi.mock('@data/services/SessionService', () => ({
+  sessionService: {
+    getById: vi.fn(),
     createSession: vi.fn().mockResolvedValue({ id: 'session-1' })
   }
 }))
@@ -143,7 +142,7 @@ describe('SchedulerService', () => {
   it('tick processes due tasks', async () => {
     const { agentTaskService: taskService } = await import('@data/services/AgentTaskService')
     const { agentService } = await import('@data/services/AgentService')
-    const { agentSessionService: sessionService } = await import('@data/services/AgentSessionService')
+    const { sessionService } = await import('@data/services/SessionService')
 
     const mockTask = {
       id: 'task-1',
@@ -162,24 +161,20 @@ describe('SchedulerService', () => {
     }
 
     vi.mocked(taskService.getDueTasks).mockResolvedValueOnce([mockTask])
-    vi.mocked(agentService.getAgent).mockResolvedValueOnce({
+    vi.mocked(agentService.getAgent).mockResolvedValue({
       id: 'agent-1',
       type: 'claude-code',
       name: 'Test',
-      model: 'claude-3',
+      model: 'anthropic::claude-3',
       accessiblePaths: ['/tmp/test'],
       configuration: { heartbeat_enabled: true },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     } as any)
-    vi.mocked(sessionService.listSessions).mockResolvedValueOnce({
-      sessions: [{ id: 'session-1' }] as any,
-      total: 1
-    })
     vi.mocked(sessionService.createSession).mockResolvedValueOnce({
       id: 'session-1',
       agentId: 'agent-1',
-      model: 'openai::gpt-4'
+      name: 'Scheduled run'
     } as any)
 
     // Simulate AiStreamManager completing the execution so the scheduler's

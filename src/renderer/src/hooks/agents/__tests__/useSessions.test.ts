@@ -1,22 +1,19 @@
-import { MockUseDataApiUtils, mockUsePaginatedQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useSessions } from '../useSessions'
+import { useSessions } from '../useSessionDataApi'
 
-const buildPaginatedReturn = (overrides: Record<string, unknown> = {}) => ({
-  items: [],
-  total: 0,
-  page: 1,
+const buildInfiniteReturn = (overrides: Record<string, unknown> = {}) => ({
+  pages: [] as Array<{ items: Array<{ id: string; name: string }>; nextCursor?: string }>,
   isLoading: false,
   isRefreshing: false,
   error: undefined,
   hasNext: false,
-  hasPrev: false,
-  prevPage: vi.fn(),
-  nextPage: vi.fn(),
-  refresh: vi.fn(),
+  loadNext: vi.fn(),
+  refresh: vi.fn().mockResolvedValue(undefined),
   reset: vi.fn(),
+  mutate: vi.fn().mockResolvedValue(undefined),
   ...overrides
 })
 
@@ -47,11 +44,10 @@ describe('useSessions', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
-    mockUsePaginatedQuery.mockReset()
   })
 
   it('returns empty sessions when agentId is null', () => {
-    MockUseDataApiUtils.mockPaginatedData('/agents/:agentId/sessions', [])
+    mockUseInfiniteQuery.mockReturnValueOnce(buildInfiniteReturn() as never)
 
     const { result } = renderHook(() => useSessions(null))
 
@@ -59,62 +55,41 @@ describe('useSessions', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
-  it('returns sessions from page 1 results', async () => {
-    const mockSessions = [
+  it('flattens items from a single page', async () => {
+    const items = [
       { id: 's-1', name: 'Session 1' },
       { id: 's-2', name: 'Session 2' }
     ]
-    MockUseDataApiUtils.mockPaginatedData('/agents/:agentId/sessions', mockSessions, { page: 1 })
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ pages: [{ items }] }) as never)
 
     const { result } = renderHook(() => useSessions('agent-1'))
-
     await act(async () => {})
 
-    expect(result.current.sessions).toEqual(mockSessions)
+    expect(result.current.sessions.map((s: any) => s.id)).toEqual(['s-1', 's-2'])
+    expect(result.current.total).toBe(2)
   })
 
-  it('deduplicates and appends on page 2', async () => {
-    const page1 = [
-      { id: 's-1', name: 'Session 1' },
-      { id: 's-2', name: 'Session 2' }
-    ]
-    const page2 = [
-      { id: 's-2', name: 'Session 2' }, // duplicate — must be filtered
-      { id: 's-3', name: 'Session 3' }
-    ]
+  it('flattens items across pages preserving page order', async () => {
+    const page1 = [{ id: 's-1', name: 'Session 1' }]
+    const page2 = [{ id: 's-2', name: 'Session 2' }]
+    mockUseInfiniteQuery.mockReturnValue(
+      buildInfiniteReturn({ pages: [{ items: page1, nextCursor: 'c1' }, { items: page2 }] }) as never
+    )
 
-    MockUseDataApiUtils.mockPaginatedData('/agents/:agentId/sessions', page1, { page: 1 })
-    const { result, rerender } = renderHook(() => useSessions('agent-1'))
-    await act(async () => {})
-    expect(result.current.sessions).toEqual(page1)
-
-    // Simulate loading page 2
-    MockUseDataApiUtils.mockPaginatedData('/agents/:agentId/sessions', page2, { page: 2 })
-    rerender()
+    const { result } = renderHook(() => useSessions('agent-1'))
     await act(async () => {})
 
-    const ids = result.current.sessions.map((s: any) => s.id)
-    expect(ids).toContain('s-1')
-    expect(ids).toContain('s-2')
-    expect(ids).toContain('s-3')
-    // s-2 should appear only once
-    expect(ids.filter((id: string) => id === 's-2').length).toBe(1)
+    expect(result.current.sessions.map((s: any) => s.id)).toEqual(['s-1', 's-2'])
   })
 
-  it('loadMore drives nextPage when hasMore is true', async () => {
-    // Stable references across re-renders to avoid the [agentId, items, page]
-    // effect re-firing on every render and triggering an infinite loop.
-    const stableItems = [{ id: 's-1', name: 'Session 1' }]
-    const nextPage = vi.fn()
-    const stableReturn = buildPaginatedReturn({
-      items: stableItems,
-      total: 5,
-      hasNext: true,
-      nextPage
-    })
-    const emptyReturn = buildPaginatedReturn()
-    mockUsePaginatedQuery.mockImplementation((queryPath: string) =>
-      queryPath === '/agents/:agentId/sessions' ? stableReturn : emptyReturn
+  it('loadMore drives loadNext when hasMore is true', async () => {
+    const loadNext = vi.fn()
+    mockUseInfiniteQuery.mockReturnValue(
+      buildInfiniteReturn({
+        pages: [{ items: [{ id: 's-1', name: 'Session 1' }], nextCursor: 'c1' }],
+        hasNext: true,
+        loadNext
+      }) as never
     )
 
     const { result } = renderHook(() => useSessions('agent-1'))
@@ -124,53 +99,35 @@ describe('useSessions', () => {
     act(() => {
       result.current.loadMore()
     })
-    expect(nextPage).toHaveBeenCalledTimes(1)
+    expect(loadNext).toHaveBeenCalledTimes(1)
   })
 
   it('loadMore is a no-op when hasMore is false', async () => {
-    const stableItems = [{ id: 's-1', name: 'Session 1' }]
-    const nextPage = vi.fn()
-    const stableReturn = buildPaginatedReturn({
-      items: stableItems,
-      total: 1,
-      hasNext: false,
-      nextPage
-    })
-    const emptyReturn = buildPaginatedReturn()
-    mockUsePaginatedQuery.mockImplementation((queryPath: string) =>
-      queryPath === '/agents/:agentId/sessions' ? stableReturn : emptyReturn
+    const loadNext = vi.fn()
+    mockUseInfiniteQuery.mockReturnValue(
+      buildInfiniteReturn({
+        pages: [{ items: [{ id: 's-1', name: 'Session 1' }] }],
+        hasNext: false,
+        loadNext
+      }) as never
     )
 
     const { result } = renderHook(() => useSessions('agent-1'))
     await act(async () => {})
+
     act(() => {
       result.current.loadMore()
     })
-    expect(nextPage).not.toHaveBeenCalled()
-  })
-
-  it('resets loadedSessions when agentId changes', async () => {
-    const sessions = [{ id: 's-1', name: 'Session 1' }]
-    MockUseDataApiUtils.mockPaginatedData('/agents/:agentId/sessions', sessions, { page: 1 })
-
-    const { result, rerender } = renderHook(({ agentId }) => useSessions(agentId), {
-      initialProps: { agentId: 'agent-1' }
-    })
-    await act(async () => {})
-    expect(result.current.sessions).toEqual(sessions)
-
-    // Switch to a different agent with no sessions
-    MockUseDataApiUtils.mockPaginatedData('/agents/:agentId/sessions', [])
-    rerender({ agentId: 'agent-2' })
-    await act(async () => {})
-
-    expect(result.current.sessions).toEqual([])
+    expect(loadNext).not.toHaveBeenCalled()
   })
 
   it('exposes hasMore from pagination', () => {
-    MockUseDataApiUtils.mockPaginatedData('/agents/:agentId/sessions', [], {
-      hasNext: true
-    })
+    mockUseInfiniteQuery.mockReturnValueOnce(
+      buildInfiniteReturn({
+        pages: [{ items: [], nextCursor: 'c1' }],
+        hasNext: true
+      }) as never
+    )
 
     const { result } = renderHook(() => useSessions('agent-1'))
 

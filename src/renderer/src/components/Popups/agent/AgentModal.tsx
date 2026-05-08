@@ -7,8 +7,8 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
 import { permissionModeCards } from '@renderer/config/agent'
 import { isWin } from '@renderer/config/constant'
-import { useAgents } from '@renderer/hooks/agents/useAgents'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
+import { useUpdateAgent } from '@renderer/hooks/agents/useAgentDataApi'
 import SelectAgentBaseModelButton from '@renderer/pages/agents/components/SelectAgentBaseModelButton'
 import type {
   AddAgentForm,
