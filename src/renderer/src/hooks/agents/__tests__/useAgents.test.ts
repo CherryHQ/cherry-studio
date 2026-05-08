@@ -16,11 +16,6 @@ vi.mock('@data/hooks/useCache', () => ({
   useCache: vi.fn().mockReturnValue(['agent-1', vi.fn()])
 }))
 
-const applyReorderedListMock = vi.fn().mockResolvedValue(undefined)
-vi.mock('@renderer/data/hooks/useReorder', () => ({
-  useReorder: vi.fn(() => ({ applyReorderedList: applyReorderedListMock, move: vi.fn(), isPending: false }))
-}))
-
 const mockToast = {
   success: vi.fn(),
   error: vi.fn()
@@ -140,18 +135,6 @@ describe('useAgents', () => {
       await act(async () => result.current.deleteAgent('agent-1'))
 
       expect(mockToast.error).toHaveBeenCalled()
-    })
-  })
-
-  describe('reorderAgents', () => {
-    it('forwards the reordered list to useReorder.applyReorderedList', async () => {
-      MockUseDataApiUtils.mockQueryResult('/agents', { data: { items: [], total: 0, page: 1 } as any })
-
-      const { result } = renderHook(() => useAgents())
-      const list = [{ id: 'a1' }, { id: 'a2' }] as any
-      await act(async () => result.current.reorderAgents(list))
-
-      expect(applyReorderedListMock).toHaveBeenCalledWith(list)
     })
   })
 })

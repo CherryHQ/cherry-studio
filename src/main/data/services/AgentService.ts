@@ -5,7 +5,6 @@ import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AGENT_MUTABLE_FIELDS,
   type AgentConfiguration,
@@ -18,7 +17,7 @@ import type { AgentType, ListOptions } from '@types'
 import { and, asc, count, desc, eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
-import { applyMoves, insertWithOrderKey } from './utils/orderKey'
+import { insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('AgentService')
 
@@ -183,17 +182,6 @@ export class AgentService {
     )
 
     return await this.getAgent(id)
-  }
-
-  async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    const database = application.get('DbService').getDb()
-    await database.transaction((tx) => applyMoves(tx, agentsTable, [{ id, anchor }], { pkColumn: agentsTable.id }))
-  }
-
-  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
-    if (moves.length === 0) return
-    const database = application.get('DbService').getDb()
-    await database.transaction((tx) => applyMoves(tx, agentsTable, moves, { pkColumn: agentsTable.id }))
   }
 
   async deleteAgent(id: string): Promise<boolean> {

@@ -14,7 +14,6 @@
 import { cacheService } from '@renderer/data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import { useReorder } from '@renderer/data/hooks/useReorder'
 import type { AddAgentForm, AgentEntity, CreateAgentResponse, GetAgentResponse, UpdateAgentForm } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -57,8 +56,7 @@ export const useAgent = (id: string | null) => {
 }
 
 /**
- * List + mutate all agents. Reorder is wired through the canonical
- * fractional-indexing helper; delete clears the corresponding active-session
+ * List + mutate all agents. Delete clears the corresponding active-session
  * pointer so stale cache entries don't leak after the agent is gone.
  */
 export const useAgents = () => {
@@ -66,7 +64,6 @@ export const useAgents = () => {
   const { data, isLoading, error } = useQuery('/agents')
   const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
   const [activeAgentId] = useCache('agent.active_id')
-  const { applyReorderedList } = useReorder('/agents')
 
   const { trigger: createTrigger } = useMutation('POST', '/agents', { refresh: ['/agents'] })
   const addAgent = useCallback(
@@ -103,18 +100,7 @@ export const useAgents = () => {
     [deleteTrigger, activeAgentId, agents, t]
   )
 
-  const reorderAgents = useCallback(
-    async (reorderedList: AgentEntity[]) => {
-      try {
-        await applyReorderedList(reorderedList as unknown as Array<Record<string, unknown>>)
-      } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.reorder.error.failed')))
-      }
-    },
-    [applyReorderedList, t]
-  )
-
-  return { agents, error, isLoading, addAgent, deleteAgent, reorderAgents }
+  return { agents, error, isLoading, addAgent, deleteAgent }
 }
 
 /**
