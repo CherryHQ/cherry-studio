@@ -1,5 +1,4 @@
 import { configureStore } from '@reduxjs/toolkit'
-import type * as VirtualListModule from '@renderer/components/VirtualList'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React, { useEffect } from 'react'
@@ -11,7 +10,8 @@ import { QuickPanelProvider, QuickPanelView, useQuickPanel } from '../QuickPanel
 
 // Mock the DynamicVirtualList component
 vi.mock('@renderer/components/VirtualList', async (importOriginal) => {
-  const mod = (await importOriginal()) as typeof VirtualListModule
+  // oxlint-disable-next-line consistent-type-imports
+  const mod = await importOriginal<typeof import('@renderer/components/VirtualList')>()
   return {
     ...mod,
     DynamicVirtualList: ({ ref, list, children, scrollerStyle }: any & { ref?: React.RefObject<any | null> }) => {
