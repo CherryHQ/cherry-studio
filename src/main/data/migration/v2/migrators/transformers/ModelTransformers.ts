@@ -73,19 +73,6 @@ export function legacyModelToUniqueId(
   return null
 }
 
-export function legacyModelJsonToUniqueId(value: unknown): UniqueModelId | null {
-  if (typeof value !== 'string') {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(value) as unknown
-    return parsed != null && typeof parsed === 'object' ? legacyModelToUniqueId(parsed as LegacyModelRef) : null
-  } catch {
-    return null
-  }
-}
-
 export type ModelReferenceResolution =
   | { kind: 'resolved'; modelId: UniqueModelId }
   | { kind: 'missing' }

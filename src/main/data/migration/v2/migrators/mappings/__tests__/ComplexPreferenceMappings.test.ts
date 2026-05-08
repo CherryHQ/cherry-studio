@@ -233,6 +233,24 @@ describe('ComplexPreferenceMappings', () => {
       })
     })
 
+    it.each([
+      ['', null],
+      ['null', null],
+      ['"some-string"', null],
+      ['[{"id":"x","provider":"y"}]', null],
+      ['{"id":"openai::gpt-4","provider":"openai"}', 'openai::gpt-4'],
+      ['openai::gpt-4', null]
+    ])('should handle legacy selected model value %s', (selectedModelUniqId, expected) => {
+      const mapping = getComplexMappingById('openclaw_preferences')!
+
+      expect(
+        mapping.transform({
+          gatewayPort: 18790,
+          selectedModelUniqId
+        })['feature.openclaw.selected_model_id']
+      ).toBe(expected)
+    })
+
     it('should skip invalid gateway ports so schema default applies', () => {
       const mapping = getComplexMappingById('openclaw_preferences')!
 

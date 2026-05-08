@@ -123,11 +123,7 @@ const OpenClawPage: FC = () => {
 
   const selectedModelUniqId = useMemo(() => {
     if (!selectedModelId || !isUniqueModelId(selectedModelId)) return null
-    try {
-      return toLegacyModelSelectorValue(selectedModelId)
-    } catch {
-      return null
-    }
+    return toLegacyModelSelectorValue(selectedModelId)
   }, [selectedModelId])
 
   const selectedProvider = selectedModelInfo?.provider ?? null

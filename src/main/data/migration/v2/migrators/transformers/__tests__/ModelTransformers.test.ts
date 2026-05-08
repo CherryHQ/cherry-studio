@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  legacyModelJsonToUniqueId,
-  legacyModelToUniqueId,
-  resolveLegacyModelReference,
-  resolveModelReference
-} from '../ModelTransformers'
+import { legacyModelToUniqueId, resolveLegacyModelReference, resolveModelReference } from '../ModelTransformers'
 
 describe('legacyModelToUniqueId', () => {
   describe('happy path', () => {
@@ -123,18 +118,6 @@ describe('legacyModelToUniqueId', () => {
     it('should return null when no fallback provided', () => {
       expect(legacyModelToUniqueId(null)).toBeNull()
     })
-  })
-})
-
-describe('legacyModelJsonToUniqueId', () => {
-  it('converts a legacy model JSON string to UniqueModelId', () => {
-    expect(legacyModelJsonToUniqueId('{"id":"gpt-4","provider":"openai"}')).toBe('openai::gpt-4')
-  })
-
-  it('returns null for invalid JSON or incomplete model objects', () => {
-    expect(legacyModelJsonToUniqueId('not-json')).toBeNull()
-    expect(legacyModelJsonToUniqueId('{"id":"gpt-4"}')).toBeNull()
-    expect(legacyModelJsonToUniqueId(42)).toBeNull()
   })
 })
 

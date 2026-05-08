@@ -110,6 +110,14 @@ describe('OpenClawService gateway status state machine', () => {
       const url = service.getDashboardUrl()
       expect(url).toBe(`http://127.0.0.1:18790#token=${encodeURIComponent('a b+c')}`)
     })
+
+    it('throws when dashboard auth token cannot be recovered', () => {
+      // @ts-expect-error -- accessing private field for testing
+      service.gatewayAuthToken = ''
+      vi.spyOn(service as any, 'loadAuthTokenFromConfig').mockImplementation(() => undefined)
+
+      expect(() => service.getDashboardUrl()).toThrow('OpenClaw dashboard auth token is missing')
+    })
   })
 
   // ─── getStatus ───────────────────────────────────────────────
