@@ -1,5 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { useMutation, usePaginatedQuery } from '@renderer/data/hooks/useDataApi'
+import { useReorder } from '@renderer/data/hooks/useReorder'
 import type {
   AgentSessionEntity,
   CreateAgentSessionResponse,
@@ -11,8 +12,6 @@ import type { AgentSessionEntity as DataApiSessionEntity } from '@shared/data/ap
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useLegacyAgentReorderClient } from './useLegacyAgentReorderClient'
-
 const DEFAULT_SESSION_PAGE_SIZE = 20
 
 const toRendererSession = (session: DataApiSessionEntity): AgentSessionEntity =>
@@ -20,7 +19,7 @@ const toRendererSession = (session: DataApiSessionEntity): AgentSessionEntity =>
 
 export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_PAGE_SIZE) => {
   const { t } = useTranslation()
-  const legacyReorderClient = useLegacyAgentReorderClient()
+  const { applyReorderedList } = useReorder(`/agents/${agentId ?? ''}/sessions` as `/agents/${string}/sessions`)
   const [loadedSessions, setLoadedSessions] = useState<AgentSessionEntity[]>([])
 
   const { items, total, page, error, isLoading, isRefreshing, hasNext, nextPage, refresh, reset } = usePaginatedQuery(
@@ -127,20 +126,15 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
   const reorderSessions = useCallback(
     async (reorderedList: AgentSessionEntity[]) => {
       if (!agentId) return
-      if (!legacyReorderClient) {
-        window.toast.error(t('apiServer.messages.notEnabled'))
-        return
-      }
-
-      const orderedIds = reorderedList.map((session) => session.id)
       try {
-        await legacyReorderClient.reorderSessions(agentId, orderedIds)
-        await reload()
+        await applyReorderedList(reorderedList as unknown as Array<Record<string, unknown>>)
+        // Sync the local cumulative buffer with the new order so the UI matches the cache.
+        setLoadedSessions(reorderedList)
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
       }
     },
-    [agentId, legacyReorderClient, reload, t]
+    [agentId, applyReorderedList, t]
   )
 
   return {

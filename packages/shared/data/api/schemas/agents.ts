@@ -9,6 +9,7 @@
 import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OrderBatchRequest, OrderEndpoints, OrderRequest } from './_endpointHelpers'
 
 // ============================================================================
 // Field atoms (shared validators reused across entity and DTO schemas)
@@ -137,6 +138,7 @@ export const SESSION_MUTABLE_FIELDS = {
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   type: z.enum(['claude-code']),
+  model: ModelIdAtomSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string()
 })
@@ -151,6 +153,7 @@ export const AgentSessionEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   agentId: z.string(),
   agentType: z.enum(['claude-code']),
+  model: ModelIdAtomSchema.optional(),
   slashCommands: z.array(SlashCommandSchema).optional(),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -237,8 +240,10 @@ export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 
 // accessiblePaths is optional at create time — AgentService.computeWorkspacePaths()
 // fills the default from the agent's workspace path, which is the single runtime source.
+// `model` re-required because the picked entity field is optional (FK SET NULL).
 export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
-  accessiblePaths: z.array(z.string()).optional()
+  accessiblePaths: z.array(z.string()).optional(),
+  model: ModelIdAtomSchema
 })
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
@@ -421,4 +426,13 @@ export type AgentSchemas = {
       response: OffsetPaginationResponse<TaskRunLogEntity>
     }
   }
-}
+
+  // Session reorder endpoints inlined (not via `OrderEndpoints<>`) so the
+  // parent `:agentId` propagates into `params`.
+  '/agents/:agentId/sessions/:id/order': {
+    PATCH: { params: { agentId: string; id: string }; body: OrderRequest; response: void }
+  }
+  '/agents/:agentId/sessions/order:batch': {
+    PATCH: { params: { agentId: string }; body: OrderBatchRequest; response: void }
+  }
+} & OrderEndpoints<'/agents'>

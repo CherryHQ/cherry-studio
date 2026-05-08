@@ -5,7 +5,6 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAgents } from '../useAgents'
-import { useLegacyAgentReorderClient } from '../useLegacyAgentReorderClient'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -17,8 +16,9 @@ vi.mock('@data/hooks/useCache', () => ({
   useCache: vi.fn().mockReturnValue(['agent-1', vi.fn()])
 }))
 
-vi.mock('../useLegacyAgentReorderClient', () => ({
-  useLegacyAgentReorderClient: vi.fn()
+const applyReorderedListMock = vi.fn().mockResolvedValue(undefined)
+vi.mock('@renderer/data/hooks/useReorder', () => ({
+  useReorder: vi.fn(() => ({ applyReorderedList: applyReorderedListMock, move: vi.fn(), isPending: false }))
 }))
 
 const mockToast = {
@@ -35,10 +35,6 @@ describe('useAgents', () => {
     MockUseDataApiUtils.resetMocks()
     MockCacheUtils.resetMocks()
     vi.clearAllMocks()
-    vi.mocked(useLegacyAgentReorderClient).mockReturnValue({
-      reorderAgents: vi.fn().mockResolvedValue(undefined),
-      reorderSessions: vi.fn().mockResolvedValue(undefined)
-    })
   })
 
   describe('agents list', () => {
@@ -148,23 +144,14 @@ describe('useAgents', () => {
   })
 
   describe('reorderAgents', () => {
-    it('calls legacy HTTP reorder client and refetches', async () => {
-      const mockRefetch = vi.fn().mockResolvedValue(undefined)
-      const reorderAgents = vi.fn().mockResolvedValue(undefined)
-      vi.mocked(useLegacyAgentReorderClient).mockReturnValue({
-        reorderAgents,
-        reorderSessions: vi.fn().mockResolvedValue(undefined)
-      })
-      MockUseDataApiUtils.mockQueryResult('/agents', {
-        data: { items: [], total: 0, page: 1 } as any,
-        refetch: mockRefetch
-      })
+    it('forwards the reordered list to useReorder.applyReorderedList', async () => {
+      MockUseDataApiUtils.mockQueryResult('/agents', { data: { items: [], total: 0, page: 1 } as any })
 
       const { result } = renderHook(() => useAgents())
-      await act(async () => result.current.reorderAgents([{ id: 'a1' } as any, { id: 'a2' } as any]))
+      const list = [{ id: 'a1' }, { id: 'a2' }] as any
+      await act(async () => result.current.reorderAgents(list))
 
-      expect(reorderAgents).toHaveBeenCalledWith(['a1', 'a2'])
-      expect(mockRefetch).toHaveBeenCalled()
+      expect(applyReorderedListMock).toHaveBeenCalledWith(list)
     })
   })
 })

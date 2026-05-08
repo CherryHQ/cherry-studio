@@ -1,4 +1,6 @@
 import { agentTable } from '@data/db/schemas/agent'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionService, buildSessionUpdateData } from '@data/services/AgentSessionService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
@@ -41,39 +43,49 @@ describe('buildSessionUpdateData', () => {
 describe('AgentSessionService', () => {
   const dbh = setupTestDatabase()
 
-  async function insertAgent(id: string) {
+  async function seedUserModel(providerId: string, modelId: string): Promise<string> {
+    await dbh.db.insert(userProviderTable).values({ providerId, name: providerId }).onConflictDoNothing()
+    const id = `${providerId}::${modelId}`
+    await dbh.db.insert(userModelTable).values({ id, providerId, modelId }).onConflictDoNothing()
+    return id
+  }
+
+  async function insertAgent(id: string, opts: { model?: string | null } = {}) {
     await dbh.db.insert(agentTable).values({
       id,
       type: 'claude-code',
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
-      model: 'claude-3-5-sonnet',
-      sortOrder: 0
+      model: opts.model ?? null,
+      orderKey: 'a0'
     })
     return id
   }
 
   describe('createSession', () => {
     it('creates a session inheriting agent defaults', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_create`)
+      const modelId = await seedUserModel('anthropic', 'claude-3-5-sonnet')
+      const agentId = await insertAgent(`agent_${Date.now()}_create`, { model: modelId })
       const session = await agentSessionService.createSession(agentId)
 
       expect(session).not.toBeNull()
       expect(session!.agentId).toBe(agentId)
       expect(session!.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
-      expect(session!.model).toBe('claude-3-5-sonnet')
+      expect(session!.model).toBe(modelId)
       expect(session!.agentType).toBe('claude-code')
     })
 
     it('overrides agent defaults with provided fields', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_override`)
+      const agentModel = await seedUserModel('anthropic', 'claude-3-5-sonnet')
+      const overrideModel = await seedUserModel('anthropic', 'claude-3-opus')
+      const agentId = await insertAgent(`agent_${Date.now()}_override`, { model: agentModel })
       const session = await agentSessionService.createSession(agentId, {
         name: 'Custom Session',
-        model: 'claude-3-opus'
+        model: overrideModel
       })
 
       expect(session!.name).toBe('Custom Session')
-      expect(session!.model).toBe('claude-3-opus')
+      expect(session!.model).toBe(overrideModel)
     })
 
     it('throws NOT_FOUND when agent does not exist', async () => {

@@ -1,9 +1,10 @@
 import type { AgentConfiguration, SlashCommand } from '@shared/data/api/schemas/agents'
 import { sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateTimestamps, orderKeyColumns, scopedOrderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
+import { userModelTable } from './userModel'
 
 export const agentSessionTable = sqliteTable(
   'agent_session',
@@ -17,21 +18,17 @@ export const agentSessionTable = sqliteTable(
     description: text().notNull().default(''),
     accessiblePaths: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
     instructions: text().notNull(),
-    model: text().notNull(),
-    planModel: text(),
-    smallModel: text(),
+    model: text().references(() => userModelTable.id, { onDelete: 'set null' }),
+    planModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),
+    smallModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     mcps: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
     allowedTools: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
     slashCommands: text({ mode: 'json' }).$type<SlashCommand[]>().notNull().default(sql`'[]'`),
     configuration: text({ mode: 'json' }).$type<AgentConfiguration>().notNull().default(sql`'{}'`),
-    sortOrder: integer().notNull().default(0),
+    ...orderKeyColumns,
     ...createUpdateTimestamps
   },
-  (t) => [
-    index('agent_session_agent_id_idx').on(t.agentId),
-    index('agent_session_model_idx').on(t.model),
-    index('agent_session_sort_order_idx').on(t.sortOrder)
-  ]
+  (t) => [index('agent_session_model_idx').on(t.model), scopedOrderKeyIndex('agent_session', 'agentId')(t)]
 )
 
 export type AgentSessionRow = typeof agentSessionTable.$inferSelect

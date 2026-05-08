@@ -7,6 +7,7 @@ import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AGENT_MUTABLE_FIELDS,
   type AgentConfiguration,
@@ -16,8 +17,10 @@ import {
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
 import type { AgentType, ListOptions } from '@types'
-import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+
+import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('AgentService')
 
@@ -56,9 +59,11 @@ export class AgentService {
     // Compute workspace paths (pure — directory creation is the caller's responsibility).
     const resolvedPaths = computeWorkspacePaths(req.accessiblePaths)
 
+    const database = application.get('DbService').getDb()
+
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
-    const insertData: Omit<InsertAgentRow, 'sortOrder'> = {
+    const insertData: Omit<InsertAgentRow, 'orderKey'> = {
       id,
       type: req.type,
       name: req.name || 'New Agent',
@@ -73,27 +78,19 @@ export class AgentService {
       accessiblePaths: resolvedPaths
     }
 
-    const database = application.get('DbService').getDb()
-    await withSqliteErrors(
+    const row = await withSqliteErrors(
       () =>
-        database.transaction(async (tx) => {
-          // Prepend: place new agent ahead of existing rows under asc(sortOrder).
-          // Avoids the prior O(N) `sort_order = sort_order + 1` rewrite while
-          // preserving the user-visible "newest at top" ordering.
-          const [minRow] = await tx
-            .select({ min: sql<number>`COALESCE(MIN(${agentsTable.sortOrder}), 0)` })
-            .from(agentsTable)
-          const sortOrder = (minRow?.min ?? 0) - 1
-          await tx.insert(agentsTable).values({ ...insertData, sortOrder })
-        }),
+        database.transaction((tx) =>
+          // Prepend: place new agent at the head of asc(orderKey) listings.
+          insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id, position: 'first' })
+        ),
       defaultHandlersFor('Agent', id)
     )
-    const result = await database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
-    if (!result[0]) {
+    if (!row) {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    return rowToAgent(result[0])
+    return rowToAgent(row as AgentRow)
   }
 
   private async findAgentRow(id: string, options: { includeDeleted?: boolean } = {}): Promise<AgentRow | undefined> {
@@ -118,32 +115,25 @@ export class AgentService {
     const visibleAgents = isNull(agentsTable.deletedAt)
     const totalResult = await database.select({ count: count() }).from(agentsTable).where(visibleAgents)
 
-    const sortBy = options.sortBy || 'sortOrder'
-    const orderBy = options.orderBy || (sortBy === 'sortOrder' ? 'asc' : 'desc')
+    const sortBy = options.sortBy ?? 'orderKey'
+    const orderBy = options.orderBy ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
 
     const sortByToColumn: Record<
       string,
-      | typeof agentsTable.sortOrder
+      | typeof agentsTable.orderKey
       | typeof agentsTable.createdAt
       | typeof agentsTable.name
       | typeof agentsTable.updatedAt
     > = {
-      sortOrder: agentsTable.sortOrder,
+      orderKey: agentsTable.orderKey,
       createdAt: agentsTable.createdAt,
       updatedAt: agentsTable.updatedAt,
       name: agentsTable.name
     }
-    const sortField = sortByToColumn[sortBy] ?? agentsTable.sortOrder
+    const sortField = sortByToColumn[sortBy] ?? agentsTable.orderKey
     const orderFn = orderBy === 'asc' ? asc : desc
 
-    const baseQuery =
-      sortBy === 'sortOrder'
-        ? database
-            .select()
-            .from(agentsTable)
-            .where(visibleAgents)
-            .orderBy(orderFn(sortField), desc(agentsTable.createdAt))
-        : database.select().from(agentsTable).where(visibleAgents).orderBy(orderFn(sortField))
+    const baseQuery = database.select().from(agentsTable).where(visibleAgents).orderBy(orderFn(sortField))
 
     const result =
       options.limit !== undefined
@@ -256,14 +246,15 @@ export class AgentService {
     })
   }
 
-  async reorderAgents(orderedIds: string[]): Promise<void> {
+  async reorder(id: string, anchor: OrderRequest): Promise<void> {
     const database = application.get('DbService').getDb()
-    await database.transaction(async (tx) => {
-      for (let i = 0; i < orderedIds.length; i++) {
-        await tx.update(agentsTable).set({ sortOrder: i }).where(eq(agentsTable.id, orderedIds[i]))
-      }
-    })
-    logger.info('Agents reordered', { count: orderedIds.length })
+    await database.transaction((tx) => applyMoves(tx, agentsTable, [{ id, anchor }], { pkColumn: agentsTable.id }))
+  }
+
+  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    if (moves.length === 0) return
+    const database = application.get('DbService').getDb()
+    await database.transaction((tx) => applyMoves(tx, agentsTable, moves, { pkColumn: agentsTable.id }))
   }
 
   async deleteAgent(id: string): Promise<boolean> {

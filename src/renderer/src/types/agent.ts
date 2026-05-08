@@ -133,7 +133,8 @@ export const isAgentBase = (value: unknown): value is AgentBase => {
 }
 
 export const AgentBaseWithIdSchema = AgentBaseSchema.extend({
-  id: z.string()
+  id: z.string(),
+  model: z.string().optional()
 })
 
 export type AgentBaseWithId = z.infer<typeof AgentBaseWithIdSchema>
@@ -144,10 +145,11 @@ export const isAgentBaseWithId = (value: unknown): value is AgentBaseWithId => {
 
 // ------------------ Persistence entities ------------------
 
-// Agent entity representing an autonomous agent configuration
+// Agent entity. `model` is optional because the DB FK is ON DELETE SET NULL.
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   type: AgentTypeSchema,
+  model: z.string().optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
@@ -161,15 +163,16 @@ export const isAgentEntity = (value: unknown): value is AgentEntity => {
 export interface ListOptions {
   limit?: number
   offset?: number
-  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'sortOrder'
+  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'orderKey'
   orderBy?: 'asc' | 'desc'
 }
 
-// AgentSession entity representing a conversation session with one or more agents
+// AgentSession entity. `model` is optional for the same reason as AgentEntity.
 export const AgentSessionEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   agentId: z.string(),
   agentType: AgentTypeSchema,
+  model: z.string().optional(),
   slashCommands: z.array(SlashCommandSchema).optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()

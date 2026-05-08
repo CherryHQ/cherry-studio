@@ -1,5 +1,6 @@
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import type { DbType } from '@data/db/types'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { asc, eq, sql } from 'drizzle-orm'
@@ -123,6 +124,11 @@ export class AgentsMigrator extends BaseMigrator {
       committed = true
       logger.info('Agents migration transaction committed successfully')
 
+      // Backfill orderKey ordered by source `sort_order` BEFORE remapAgentPrefixIds
+      // rewrites target ids — joining target.id ↔ agents_legacy.id is only
+      // valid while ids match.
+      await backfillAgentOrderKeys(ctx.db)
+
       // Remap old prefix IDs after the import transaction commits. Must run after COMMIT
       // so the imported rows are visible; remapAgentPrefixIds is idempotent, so a retry
       // after a previous partial failure is safe.
@@ -136,7 +142,6 @@ export class AgentsMigrator extends BaseMigrator {
       // rows are in legacy shape" from "migrator succeeded", and silencing
       // these would hide the former.
       await transformAgentBlocksToParts(ctx.db)
-      await transformAgentModelIdFormat(ctx.db)
     } catch (error) {
       if (!committed) {
         try {
@@ -384,44 +389,55 @@ export async function transformAgentBlocksToParts(db: DbType): Promise<BlocksToP
   return result
 }
 
-export interface ModelIdFormatTransformResult {
-  agentsUpdated: number
-  sessionsUpdated: number
-}
-
 /**
- * Raw-SQL rewrite from legacy `providerId:modelId` to `UniqueModelId`
- * `providerId::modelId` on agent / agent_session model columns. The
- * `LIKE '%:%' AND NOT LIKE '%::%'` filter makes the UPDATE a no-op on
- * already-migrated rows, so the transform is safe to re-run.
+ * Replace `''` placeholder orderKeys (set by INSERT...SELECT) with real
+ * fractional-indexing keys, ordered by the source `sort_order`. Joins target
+ * rows to `agents_legacy.{agents,sessions}` so this MUST run while the source
+ * DB is attached AND before remapAgentPrefixIds rewrites target ids.
+ *
+ * Sessions are scoped per agentId.
  */
-export async function transformAgentModelIdFormat(db: DbType): Promise<ModelIdFormatTransformResult> {
-  const result: ModelIdFormatTransformResult = { agentsUpdated: 0, sessionsUpdated: 0 }
+export async function backfillAgentOrderKeys(db: DbType): Promise<void> {
+  type Row = { id: string }
 
-  for (const col of ['model', 'plan_model', 'small_model']) {
-    const migrateColumnSql = (table: string) =>
-      sql.raw(
-        `UPDATE ${table}
-         SET ${col} = SUBSTR(${col}, 1, INSTR(${col}, ':') - 1) || '::' || SUBSTR(${col}, INSTR(${col}, ':') + 1)
-         WHERE ${col} IS NOT NULL
-           AND ${col} != ''
-           AND ${col} LIKE '%:%'
-           AND ${col} NOT LIKE '%::%'`
-      )
-
-    const agentRes = await db.run(migrateColumnSql('agent'))
-    if (agentRes.rowsAffected > 0) {
-      logger.info(`Migrated ${agentRes.rowsAffected} agent.${col} values`)
-      result.agentsUpdated += agentRes.rowsAffected
+  const agents = (await db.all(
+    sql.raw(
+      `SELECT a.id AS id FROM agent a
+       LEFT JOIN agents_legacy.agents s ON a.id = s.id
+       WHERE a.order_key = ''
+       ORDER BY COALESCE(s.sort_order, 0) ASC, a.id ASC`
+    )
+  )) as Row[]
+  if (agents.length > 0) {
+    const keys = generateOrderKeySequence(agents.length)
+    for (let i = 0; i < agents.length; i++) {
+      await db.run(sql`UPDATE agent SET order_key = ${keys[i]} WHERE id = ${agents[i].id}`)
     }
-
-    const sessionRes = await db.run(migrateColumnSql('agent_session'))
-    if (sessionRes.rowsAffected > 0) {
-      logger.info(`Migrated ${sessionRes.rowsAffected} agent_session.${col} values`)
-      result.sessionsUpdated += sessionRes.rowsAffected
-    }
+    logger.info(`Backfilled ${agents.length} agent order keys`)
   }
 
-  logger.info('Model ID format transform complete', result)
-  return result
+  const sessions = (await db.all(
+    sql.raw(
+      `SELECT a.id AS id, a.agent_id AS agent_id FROM agent_session a
+       LEFT JOIN agents_legacy.sessions s ON a.id = s.id
+       WHERE a.order_key = ''
+       ORDER BY a.agent_id ASC, COALESCE(s.sort_order, 0) ASC, a.id ASC`
+    )
+  )) as Array<Row & { agent_id: string }>
+  if (sessions.length === 0) return
+
+  // Group by agentId and assign keys per group.
+  const buckets = new Map<string, Row[]>()
+  for (const row of sessions) {
+    const list = buckets.get(row.agent_id) ?? []
+    list.push({ id: row.id })
+    buckets.set(row.agent_id, list)
+  }
+  for (const [, group] of buckets) {
+    const keys = generateOrderKeySequence(group.length)
+    for (let i = 0; i < group.length; i++) {
+      await db.run(sql`UPDATE agent_session SET order_key = ${keys[i]} WHERE id = ${group[i].id}`)
+    }
+  }
+  logger.info(`Backfilled ${sessions.length} session order keys across ${buckets.size} agents`)
 }

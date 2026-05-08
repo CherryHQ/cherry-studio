@@ -17,6 +17,7 @@ import { agentTaskWorkflowService } from '@data/services/AgentTaskWorkflowServic
 import { skillService } from '@main/services/agents/skills/SkillService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   type AgentSchemas,
   CreateAgentSchema,
@@ -205,6 +206,38 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
       const { logs, total } = await taskService.getTaskLogs(params.taskId, { limit, offset })
       return { items: logs, total, page }
+    }
+  },
+
+  '/agents/:id/order': {
+    PATCH: async ({ params, body }) => {
+      const parsed = OrderRequestSchema.parse(body)
+      await agentService.reorder(params.id, parsed)
+      return undefined
+    }
+  },
+
+  '/agents/order:batch': {
+    PATCH: async ({ body }) => {
+      const parsed = OrderBatchRequestSchema.parse(body)
+      await agentService.reorderBatch(parsed.moves)
+      return undefined
+    }
+  },
+
+  '/agents/:agentId/sessions/:id/order': {
+    PATCH: async ({ params, body }) => {
+      const parsed = OrderRequestSchema.parse(body)
+      await sessionService.reorder(params.agentId, params.id, parsed)
+      return undefined
+    }
+  },
+
+  '/agents/:agentId/sessions/order:batch': {
+    PATCH: async ({ params, body }) => {
+      const parsed = OrderBatchRequestSchema.parse(body)
+      await sessionService.reorderBatch(params.agentId, parsed.moves)
+      return undefined
     }
   }
 }

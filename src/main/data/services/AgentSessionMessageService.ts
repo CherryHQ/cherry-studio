@@ -272,7 +272,7 @@ export class AgentSessionMessageService {
   async persistHeadlessExchange(
     sessionId: string,
     agentId: string,
-    modelId: string,
+    modelId: string | undefined,
     agentSessionId: string,
     userContent: string,
     assistantContent: string,

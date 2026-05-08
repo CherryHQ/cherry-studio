@@ -9,6 +9,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   type AgentConfiguration,
   type AgentSessionEntity,
@@ -18,8 +19,10 @@ import {
   type UpdateSessionDto
 } from '@shared/data/api/schemas/agents'
 import type { AgentType, ListOptions } from '@types'
-import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, eq, isNull, type SQL } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+
+import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('SessionService')
 
@@ -33,7 +36,7 @@ function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
 
 function agentRowToSessionDefaults(row: Record<string, unknown>): {
   type: AgentType
-  model: string
+  model: string | undefined
   name: string
   accessiblePaths: string[]
   mcps?: string[]
@@ -49,7 +52,7 @@ function agentRowToSessionDefaults(row: Record<string, unknown>): {
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     name: (row.name as string) || '',
-    model: row.model as string,
+    model: (row.model as string | null) ?? undefined,
     accessiblePaths: row.accessiblePaths as string[],
     configuration: parseConfiguration(row.configuration)
   }
@@ -101,11 +104,13 @@ export class AgentSessionService {
       ...req
     }
 
+    const db = application.get('DbService').getDb()
+
     // Omit undefined fields so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — supply the same product-strategic default
     // AgentService.createAgent uses, so a session created from an agent missing
     // instructions still satisfies NOT NULL.
-    const insertData: Omit<InsertSessionRow, 'sortOrder'> = {
+    const insertData: Omit<InsertSessionRow, 'orderKey'> = {
       id,
       agentId,
       agentType: agent.type,
@@ -113,42 +118,37 @@ export class AgentSessionService {
       description: sessionData.description,
       accessiblePaths: sessionData.accessiblePaths,
       instructions: sessionData.instructions || 'You are a helpful assistant.',
+      // `||` over `??` so empty-string never reaches the FK column.
       model: sessionData.model || agent.model,
-      planModel: sessionData.planModel,
-      smallModel: sessionData.smallModel,
+      planModel: sessionData.planModel || agent.planModel,
+      smallModel: sessionData.smallModel || agent.smallModel,
       mcps: sessionData.mcps,
       allowedTools: sessionData.allowedTools,
       slashCommands: sessionData.slashCommands,
       configuration: sessionData.configuration
     }
 
-    const db = application.get('DbService').getDb()
-    await withSqliteErrors(
+    const row = await withSqliteErrors(
       () =>
-        db.transaction(async (tx) => {
-          // Prepend: place new session ahead of existing rows for this agent.
-          // Avoids the prior O(N) `sort_order = sort_order + 1` rewrite while
-          // preserving the user-visible "newest at top" ordering.
-          const [minRow] = await tx
-            .select({ min: sql<number>`COALESCE(MIN(${sessionsTable.sortOrder}), 0)` })
-            .from(sessionsTable)
-            .where(eq(sessionsTable.agentId, agentId))
-          const sortOrder = (minRow?.min ?? 0) - 1
-          await tx.insert(sessionsTable).values({ ...insertData, sortOrder })
-        }),
+        db.transaction((tx) =>
+          // Prepend within this agent's session bucket.
+          insertWithOrderKey(tx, sessionsTable, insertData, {
+            pkColumn: sessionsTable.id,
+            position: 'first',
+            scope: eq(sessionsTable.agentId, agentId)
+          })
+        ),
       {
         ...defaultHandlersFor('Session', id),
         foreignKey: () => DataApiErrorFactory.notFound('Agent', agentId)
       }
     )
 
-    const result = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
-
-    if (!result[0]) {
+    if (!row) {
       throw DataApiErrorFactory.invalidOperation('create session', 'insert succeeded but select returned no row')
     }
 
-    return rowToSession(result[0])
+    return rowToSession(row as SessionRow)
   }
 
   async getSession(agentId: string, id: string): Promise<AgentSessionEntity | null> {
@@ -197,11 +197,7 @@ export class AgentSessionService {
 
     const total = totalResult[0].count
 
-    const baseQuery = database
-      .select()
-      .from(sessionsTable)
-      .where(whereClause)
-      .orderBy(asc(sessionsTable.sortOrder), desc(sessionsTable.createdAt))
+    const baseQuery = database.select().from(sessionsTable).where(whereClause).orderBy(asc(sessionsTable.orderKey))
 
     const result =
       options.limit !== undefined
@@ -226,6 +222,7 @@ export class AgentSessionService {
     const updateData = buildSessionUpdateData(updates)
 
     const database = application.get('DbService').getDb()
+
     await withSqliteErrors(
       () => database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id)),
       defaultHandlersFor('Session', id)
@@ -243,17 +240,41 @@ export class AgentSessionService {
     return result.rowsAffected > 0
   }
 
-  async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
+  async reorder(agentId: string, id: string, anchor: OrderRequest): Promise<void> {
     const database = application.get('DbService').getDb()
     await database.transaction(async (tx) => {
-      for (let i = 0; i < orderedIds.length; i++) {
-        await tx
-          .update(sessionsTable)
-          .set({ sortOrder: i })
-          .where(and(eq(sessionsTable.id, orderedIds[i]), eq(sessionsTable.agentId, agentId)))
-      }
+      const [target] = await tx
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agentId, agentId)))
+        .limit(1)
+      if (!target) throw DataApiErrorFactory.notFound('Session', id)
+
+      await applyMoves(tx, sessionsTable, [{ id, anchor }], {
+        pkColumn: sessionsTable.id,
+        scope: eq(sessionsTable.agentId, agentId)
+      })
     })
-    logger.info('Sessions reordered', { agentId, count: orderedIds.length })
+  }
+
+  async reorderBatch(agentId: string, moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    if (moves.length === 0) return
+    const database = application.get('DbService').getDb()
+    await database.transaction(async (tx) => {
+      const ids = moves.map((m) => m.id)
+      const targets = await tx
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(and(eq(sessionsTable.agentId, agentId)))
+      const owned = new Set(targets.map((t) => t.id))
+      const stranger = ids.find((id) => !owned.has(id))
+      if (stranger) throw DataApiErrorFactory.notFound('Session', stranger)
+
+      await applyMoves(tx, sessionsTable, moves, {
+        pkColumn: sessionsTable.id,
+        scope: eq(sessionsTable.agentId, agentId)
+      })
+    })
   }
 
   async sessionExists(agentId: string, id: string): Promise<boolean> {

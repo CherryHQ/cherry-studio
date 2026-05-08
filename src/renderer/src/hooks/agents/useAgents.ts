@@ -1,12 +1,12 @@
 import { cacheService } from '@renderer/data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useReorder } from '@renderer/data/hooks/useReorder'
 import type { AddAgentForm, AgentEntity, CreateAgentResponse } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useLegacyAgentReorderClient } from './useLegacyAgentReorderClient'
 type Result<T> =
   | {
       success: true
@@ -19,10 +19,10 @@ type Result<T> =
 
 export const useAgents = () => {
   const { t } = useTranslation()
-  const { data, isLoading, error, refetch, mutate } = useQuery('/agents')
+  const { data, isLoading, error } = useQuery('/agents')
   const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
   const [activeAgentId] = useCache('agent.active_id')
-  const legacyReorderClient = useLegacyAgentReorderClient()
+  const { applyReorderedList } = useReorder('/agents')
 
   const { trigger: createTrigger } = useMutation('POST', '/agents', { refresh: ['/agents'] })
   const addAgent = useCallback(
@@ -61,22 +61,13 @@ export const useAgents = () => {
 
   const reorderAgents = useCallback(
     async (reorderedList: AgentEntity[]) => {
-      const orderedIds = reorderedList.map((a) => a.id)
       try {
-        if (!legacyReorderClient) {
-          throw new Error(t('apiServer.messages.notEnabled'))
-        }
-        if (data) {
-          await mutate({ ...data, items: reorderedList } as never, { revalidate: false })
-        }
-        await legacyReorderClient.reorderAgents(orderedIds)
-        await refetch()
+        await applyReorderedList(reorderedList as unknown as Array<Record<string, unknown>>)
       } catch (error) {
-        await refetch()
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.reorder.error.failed')))
       }
     },
-    [legacyReorderClient, refetch, mutate, data, t]
+    [applyReorderedList, t]
   )
 
   return { agents, error, isLoading, addAgent, deleteAgent, reorderAgents }

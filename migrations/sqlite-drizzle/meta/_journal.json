@@ -154,6 +154,13 @@
       "when": 1778156840137,
       "tag": "0021_vengeful_green_goblin",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1778235504803,
+      "tag": "0022_tiny_sunspot",
+      "breakpoints": true
     }
   ],
   "version": "7"

@@ -1,21 +1,3 @@
-/**
- * Unit coverage for the two shape transforms AgentsMigrator runs after the
- * legacy INSERT...SELECT copy:
- *   - `transformAgentModelIdFormat` rewrites `providerId:modelId` to the
- *     `UniqueModelId` `providerId::modelId` format on agent / agent_session
- *     model columns.
- *   - `transformAgentBlocksToParts` reshapes agent_session_message.content
- *     from legacy `{ blocks: [...] }` to current `{ data: { parts: [...] } }`.
- *
- * Both helpers need to be idempotent — the migrator is allowed to re-run if
- * an earlier attempt partially completed, so second runs must not churn rows.
- *
- * These tests were ported from the retired
- * src/main/services/agents/database/__tests__/migrateModelIdFormat.test.ts
- * and extended with blocks→parts cases after the two helpers moved into
- * AgentsMigrator.ts.
- */
-
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -23,107 +5,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { transformAgentBlocksToParts, transformAgentModelIdFormat } from '../AgentsMigrator'
-
-describe('transformAgentModelIdFormat', () => {
-  const dbh = setupTestDatabase()
-
-  // agent_session FK-references agent(id); sessions must be cleaned before
-  // their parent agent and every test must start from a seeded parent so
-  // session inserts don't trip the FK.
-  beforeEach(async () => {
-    await dbh.db.delete(agentSessionTable)
-    await dbh.db.delete(agentTable)
-    await dbh.db.insert(agentTable).values({
-      id: 'a1',
-      type: 'claude_code',
-      name: 'a1',
-      instructions: '',
-      model: 'anchor::model'
-    })
-  })
-
-  it('converts single-colon model IDs to double-colon on agent and agent_session', async () => {
-    await dbh.db.update(agentTable).set({ model: 'cherryin:agent/glm-4.6v' }).where(eq(agentTable.id, 'a1'))
-    await dbh.db.insert(agentSessionTable).values({
-      id: 's1',
-      agentType: 'claude_code',
-      agentId: 'a1',
-      name: 'test',
-      instructions: '',
-      model: 'openrouter:stepfun/step-3.5-flash:free'
-    })
-
-    const result = await transformAgentModelIdFormat(dbh.db)
-    expect(result.agentsUpdated).toBe(1)
-    expect(result.sessionsUpdated).toBe(1)
-
-    const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'a1'))
-    expect(agent.model).toBe('cherryin::agent/glm-4.6v')
-
-    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 's1'))
-    // Note: the SQL replaces the FIRST `:` only, so a trailing segment like
-    // `:free` is preserved verbatim.
-    expect(session.model).toBe('openrouter::stepfun/step-3.5-flash:free')
-  })
-
-  it('skips already-migrated values with "::"', async () => {
-    await dbh.db.update(agentTable).set({ model: 'cherryin::agent/glm-4.6v' }).where(eq(agentTable.id, 'a1'))
-
-    const result = await transformAgentModelIdFormat(dbh.db)
-    expect(result.agentsUpdated).toBe(0)
-
-    const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'a1'))
-    expect(agent.model).toBe('cherryin::agent/glm-4.6v')
-  })
-
-  it('handles null and empty fields on plan_model / small_model', async () => {
-    await dbh.db
-      .update(agentTable)
-      .set({ model: 'minimax:MiniMax-M2.7', planModel: null, smallModel: '' })
-      .where(eq(agentTable.id, 'a1'))
-
-    const result = await transformAgentModelIdFormat(dbh.db)
-    expect(result.agentsUpdated).toBe(1)
-
-    const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'a1'))
-    expect(agent.model).toBe('minimax::MiniMax-M2.7')
-    expect(agent.planModel).toBeNull()
-    expect(agent.smallModel).toBe('')
-  })
-
-  it('migrates plan_model and small_model alongside model', async () => {
-    await dbh.db.insert(agentSessionTable).values({
-      id: 's1',
-      agentType: 'claude_code',
-      agentId: 'a1',
-      name: 'test',
-      instructions: '',
-      model: 'anthropic:claude-4',
-      planModel: 'anthropic:claude-4-haiku',
-      smallModel: 'anthropic:claude-4-haiku'
-    })
-
-    const result = await transformAgentModelIdFormat(dbh.db)
-    expect(result.sessionsUpdated).toBe(3)
-
-    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 's1'))
-    expect(session.model).toBe('anthropic::claude-4')
-    expect(session.planModel).toBe('anthropic::claude-4-haiku')
-    expect(session.smallModel).toBe('anthropic::claude-4-haiku')
-  })
-
-  it('is idempotent — the second run is a no-op', async () => {
-    await dbh.db.update(agentTable).set({ model: 'cherryin:agent/kimi' }).where(eq(agentTable.id, 'a1'))
-
-    await transformAgentModelIdFormat(dbh.db)
-    const second = await transformAgentModelIdFormat(dbh.db)
-    expect(second.agentsUpdated).toBe(0)
-
-    const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'a1'))
-    expect(agent.model).toBe('cherryin::agent/kimi')
-  })
-})
+import { transformAgentBlocksToParts } from '../AgentsMigrator'
 
 describe('transformAgentBlocksToParts', () => {
   const dbh = setupTestDatabase()
@@ -144,7 +26,8 @@ describe('transformAgentBlocksToParts', () => {
       type: 'claude_code',
       name: 'a1',
       instructions: '',
-      model: 'cherryin::agent/kimi'
+      model: null,
+      orderKey: 'a0'
     })
   })
 
@@ -155,7 +38,8 @@ describe('transformAgentBlocksToParts', () => {
       agentId: 'a1',
       name: id,
       instructions: '',
-      model: 'cherryin::agent/kimi'
+      model: null,
+      orderKey: 'a0'
     })
     insertedSessions.push(id)
   }

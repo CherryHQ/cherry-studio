@@ -1,10 +1,12 @@
 import path from 'node:path'
 
 import { agentTable } from '@data/db/schemas/agent'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { pinService } from '@data/services/PinService'
 import { setupTestDatabase } from '@test-helpers/db'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/apiServer/services/mcp', () => ({
   mcpApiService: {
@@ -47,14 +49,26 @@ describe('AgentService', () => {
   const dbh = setupTestDatabase()
   const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
+  // Seed a user_model row whose id is the canonical FK form, so createAgent
+  // calls with `model: <canonical id>` satisfy the FK.
+  const TEST_MODEL_ID = 'anthropic::claude-3-5-sonnet'
+  beforeEach(async () => {
+    await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'anthropic' }).onConflictDoNothing()
+    await dbh.db
+      .insert(userModelTable)
+      .values({ id: TEST_MODEL_ID, providerId: 'anthropic', modelId: 'claude-3-5-sonnet' })
+      .onConflictDoNothing()
+  })
+
   async function insertAgent(overrides: Partial<typeof agentTable.$inferInsert> = {}): Promise<{ id: string }> {
     const id = overrides.id ?? `agent_test_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
     const base: typeof agentTable.$inferInsert = {
       type: 'claude-code',
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
-      model: 'claude-3-5-sonnet',
-      sortOrder: 0,
+      // FK to user_model.id; tests insert NULL since they don't exercise model behavior.
+      model: null,
+      orderKey: 'a0',
       ...overrides,
       id
     }
@@ -67,7 +81,7 @@ describe('AgentService', () => {
       const agent = await agentService.createAgent({
         type: 'claude-code',
         name: 'UUID ID Test',
-        model: 'claude-3-5-sonnet'
+        model: TEST_MODEL_ID
       })
 
       expect(agent.id).toMatch(uuidV4Pattern)
@@ -77,7 +91,7 @@ describe('AgentService', () => {
       const agent = await agentService.createAgent({
         type: 'claude-code',
         name: 'Workspace Test',
-        model: 'claude-3-5-sonnet'
+        model: TEST_MODEL_ID
       })
 
       expect(agent.accessiblePaths).toHaveLength(1)
@@ -87,14 +101,14 @@ describe('AgentService', () => {
       expect(path.basename(workspace)).not.toBe(agent.id.slice(-9))
     })
 
-    it('places newly created agents at the top of asc(sortOrder) listings', async () => {
-      await insertAgent({ id: 'agent_existing_a', sortOrder: 0 })
-      await insertAgent({ id: 'agent_existing_b', sortOrder: 1 })
+    it('places newly created agents at the top of asc(orderKey) listings', async () => {
+      await insertAgent({ id: 'agent_existing_a', orderKey: 'a1' })
+      await insertAgent({ id: 'agent_existing_b', orderKey: 'a2' })
 
       const created = await agentService.createAgent({
         type: 'claude-code',
         name: 'Newest',
-        model: 'claude-3-5-sonnet'
+        model: TEST_MODEL_ID
       })
 
       const { agents } = await agentService.listAgents()
@@ -129,7 +143,7 @@ describe('AgentService', () => {
   describe('listAgents', () => {
     it('respects limit and offset', async () => {
       for (let i = 0; i < 5; i++) {
-        await insertAgent({ name: `Agent ${i}`, sortOrder: i })
+        await insertAgent({ name: `Agent ${i}`, orderKey: `a${i}` })
       }
 
       const page1 = await agentService.listAgents({ limit: 2, offset: 0 })
@@ -145,9 +159,9 @@ describe('AgentService', () => {
     })
 
     it('sorts by name ascending when sortBy=name and orderBy=asc', async () => {
-      await insertAgent({ name: 'Zebra', sortOrder: 0 })
-      await insertAgent({ name: 'Alpha', sortOrder: 1 })
-      await insertAgent({ name: 'Mango', sortOrder: 2 })
+      await insertAgent({ name: 'Zebra', orderKey: 'a0' })
+      await insertAgent({ name: 'Alpha', orderKey: 'a1' })
+      await insertAgent({ name: 'Mango', orderKey: 'a2' })
 
       const { agents } = await agentService.listAgents({ sortBy: 'name', orderBy: 'asc' })
 

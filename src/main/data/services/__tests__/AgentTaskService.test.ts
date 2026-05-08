@@ -15,8 +15,8 @@ describe('TaskService', () => {
       type: 'claude-code',
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
-      model: 'claude-3-5-sonnet',
-      sortOrder: 0,
+      model: null,
+      orderKey: 'a0',
       // Soul mode required for createTask to pass assertAutonomous
       configuration: { soul_enabled: true },
       ...overrides,

@@ -24,11 +24,12 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('../useLegacyAgentReorderClient', () => ({
-  useLegacyAgentReorderClient: vi.fn().mockReturnValue({
-    reorderAgents: vi.fn(),
-    reorderSessions: vi.fn()
-  })
+vi.mock('@renderer/data/hooks/useReorder', () => ({
+  useReorder: vi.fn(() => ({
+    applyReorderedList: vi.fn().mockResolvedValue(undefined),
+    move: vi.fn(),
+    isPending: false
+  }))
 }))
 
 vi.mock('../useSessionChanged', () => ({
