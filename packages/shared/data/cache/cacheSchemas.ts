@@ -244,6 +244,7 @@ export const DefaultUseCache: UseCacheSchema = {
  */
 export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
+  'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
   'ocr.provider.last_used_key.${providerId}': string
@@ -251,6 +252,7 @@ export type SharedCacheSchema = {
 
 export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
+  'feature.openclaw.gateway_status': 'stopped',
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': ''
 }

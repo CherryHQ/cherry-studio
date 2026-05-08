@@ -741,20 +741,19 @@ export class OpenClawService extends BaseService {
 
   /**
    * Get OpenClaw Dashboard URL (for opening in miniapp).
-   * The Control UI uses ?token= to auto-authenticate the WebSocket connection.
+   * The Control UI uses #token= to bootstrap WebSocket authentication while
+   * keeping the token client-side instead of sending it in HTTP requests.
    */
   public getDashboardUrl(): string {
     // Ensure we have the token (may have been lost after app restart)
     if (!this.gatewayAuthToken) {
       this.loadAuthTokenFromConfig()
     }
-    let url = `http://127.0.0.1:${this.gatewayPort}`
-    if (this.gatewayAuthToken) {
-      // Use query string (not URL fragment) so dashboard app state can persist correctly.
-      // Fragment (#...) is often used by SPAs for transient client-side state.
-      url += `?token=${encodeURIComponent(this.gatewayAuthToken)}`
+    if (!this.gatewayAuthToken) {
+      throw new Error('OpenClaw dashboard auth token is missing')
     }
-    return url
+    const url = `http://127.0.0.1:${this.gatewayPort}`
+    return `${url}#token=${encodeURIComponent(this.gatewayAuthToken)}`
   }
 
   /**
@@ -771,8 +770,8 @@ export class OpenClawService extends BaseService {
           logger.info('Recovered auth token from config file')
         }
       }
-    } catch {
-      logger.debug('Failed to load auth token from config file')
+    } catch (error) {
+      logger.warn('Failed to load auth token from config file', error as Error)
     }
   }
 
