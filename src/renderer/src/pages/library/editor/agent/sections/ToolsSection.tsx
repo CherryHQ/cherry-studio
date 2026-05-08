@@ -191,7 +191,7 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
-                className="group relative h-auto rounded-none border-0 bg-transparent px-3 py-1.5 font-normal text-muted-foreground/55 text-sm shadow-none transition-colors hover:text-foreground/70 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent">
+                className="group relative h-auto rounded-lg border-0 bg-transparent px-3 py-1.5 font-normal text-muted-foreground/55 text-sm shadow-none transition-colors hover:bg-accent/30 hover:text-foreground/70 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent">
                 {tab.label}
                 <span className="ml-1.5 text-muted-foreground/40 text-xs group-data-[state=active]:text-muted-foreground/50">
                   {tab.enabled}/{tab.total}

@@ -81,7 +81,7 @@ function AssistantPresetGridCard({ preset, index, adding, onAdd, onPreview }: As
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, delay: index * 0.02 }}
-      className="group flex min-h-[178px] flex-col rounded-xs border border-border/40 bg-card p-4 transition-all duration-200 hover:border-border/60 hover:shadow-black/[0.035] hover:shadow-lg"
+      className="group flex min-h-[178px] flex-col rounded-lg border border-border/40 bg-card p-4 transition-all duration-200 hover:border-border/60 hover:shadow-black/[0.035] hover:shadow-lg"
       onClick={() => onPreview(preset)}>
       <div className="mb-3 flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xs bg-accent/55 text-base">
@@ -147,7 +147,7 @@ export function ResourceCard({ resource: r, index, onEdit, onOpenMenu }: Resourc
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, delay: index * 0.02 }}
       whileHover={{ y: -2 }}
-      className="group relative cursor-pointer rounded-xs border border-border/40 bg-card transition-all duration-200 hover:border-border/60 hover:shadow-black/[0.04] hover:shadow-lg"
+      className="group relative cursor-pointer rounded-lg border border-border/40 bg-card transition-all duration-200 hover:border-border/60 hover:shadow-black/[0.04] hover:shadow-lg"
       onClick={() => onEdit(r)}>
       <div className="p-4">
         <div className="mb-3 flex items-start gap-3">

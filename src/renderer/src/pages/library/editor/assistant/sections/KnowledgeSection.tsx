@@ -105,7 +105,7 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
           <PopoverContent
             align="start"
             sideOffset={4}
-            className="w-60 rounded-xs border-border/30 p-1 shadow-black/[0.06] shadow-lg">
+            className="w-60 rounded-lg border-border/30 p-1 shadow-black/[0.06] shadow-lg">
             <div className="relative mb-1">
               <Search
                 size={14}
@@ -115,7 +115,7 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t('library.config.knowledge.search')}
-                className="h-8 rounded-2xs border-0 bg-transparent pr-2 pl-7 text-xs shadow-none transition-colors placeholder:text-muted-foreground/40 focus-visible:bg-accent/30 focus-visible:ring-0"
+                className="h-8 rounded-lg border-0 bg-transparent pr-2 pl-7 text-xs shadow-none transition-colors placeholder:text-muted-foreground/40 focus-visible:bg-accent/30 focus-visible:ring-0"
               />
             </div>
             {unlinkedItems.length === 0 ? (
@@ -130,7 +130,7 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
                       key={kb.id}
                       size="sm"
                       variant="ghost"
-                      className="rounded-[10px] px-2 py-1.5 font-normal text-foreground/80 hover:text-foreground"
+                      className="rounded-lg px-2 py-1.5 font-normal text-foreground/80 hover:text-foreground"
                       icon={<Database size={12} strokeWidth={1.4} />}
                       label={kb.name}
                       description={t('library.config.knowledge.doc_count', { count: kb.documentCount ?? 0 })}

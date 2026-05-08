@@ -172,7 +172,7 @@ describe('ComplexPreferenceMappings', () => {
   })
 
   describe('sidebar_icons_rename', () => {
-    it("should rewrite 'minapp' to 'mini_app' in both visible and disabled arrays", () => {
+    it("should rewrite 'minapp' to 'mini_app' in both visible and disabled arrays and add library", () => {
       const mapping = getComplexMappingById('sidebar_icons_rename')
       expect(mapping).toBeDefined()
 
@@ -182,12 +182,12 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.icons.visible': ['assistants', 'mini_app', 'translate'],
+        'ui.sidebar.icons.visible': ['assistants', 'mini_app', 'translate', 'library'],
         'ui.sidebar.icons.invisible': ['mini_app', 'files']
       })
     })
 
-    it('should pass through other literals unchanged', () => {
+    it('should pass through other literals unchanged while adding library', () => {
       const mapping = getComplexMappingById('sidebar_icons_rename')!
       const result = mapping.transform({
         visible: ['assistants', 'translate', 'paintings'],
@@ -195,8 +195,21 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.icons.visible': ['assistants', 'translate', 'paintings'],
+        'ui.sidebar.icons.visible': ['assistants', 'translate', 'paintings', 'library'],
         'ui.sidebar.icons.invisible': ['files', 'knowledge']
+      })
+    })
+
+    it('should insert library after store when the legacy store icon is visible', () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')!
+      const result = mapping.transform({
+        visible: ['assistants', 'store', 'translate'],
+        disabled: []
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.icons.visible': ['assistants', 'store', 'library', 'translate'],
+        'ui.sidebar.icons.invisible': []
       })
     })
 

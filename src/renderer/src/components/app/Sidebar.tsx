@@ -8,6 +8,7 @@ import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
 import {
+  BookMarked,
   Code,
   FileSearch,
   Folder,
@@ -37,6 +38,7 @@ const routePrefixMap: Record<SidebarIconType, string> = {
   assistants: '/app/chat',
   agents: '/app/agents',
   store: '/app/assistant',
+  library: '/app/library',
   paintings: '/app/paintings',
   translate: '/app/translate',
   mini_app: '/app/mini-app',
@@ -51,6 +53,7 @@ const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
   assistants: MessageSquare,
   agents: MousePointerClick,
   store: Sparkle,
+  library: BookMarked,
   paintings: Palette,
   translate: Languages,
   mini_app: LayoutGrid,

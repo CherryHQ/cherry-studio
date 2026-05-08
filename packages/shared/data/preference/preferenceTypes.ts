@@ -82,6 +82,7 @@ export type SidebarIcon =
   | 'assistants'
   | 'agents'
   | 'store'
+  | 'library'
   | 'paintings'
   | 'translate'
   | 'mini_app'

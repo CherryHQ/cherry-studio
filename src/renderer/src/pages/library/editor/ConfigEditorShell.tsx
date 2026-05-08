@@ -191,7 +191,7 @@ export function ConfigEditorShell<Id extends string>({
                 label={t(s.labelKey)}
                 description={t(s.descKey)}
                 descriptionClassName="mt-px text-xs text-sidebar-foreground/55 group-data-[active=true]:text-sidebar-foreground/50"
-                className={`mb-1 items-start gap-2.5 rounded-xs border-0 px-3 py-2.5 text-left font-normal transition-all focus-visible:ring-0 ${
+                className={`mb-1 items-start gap-2.5 rounded-lg border-0 px-3 py-2.5 text-left font-normal transition-all focus-visible:ring-0 ${
                   active
                     ? 'bg-sidebar-accent text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground'
                     : 'text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground'

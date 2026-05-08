@@ -160,40 +160,44 @@ export const AddCatalogPopover: FC<{
           disabled={disabled}
           className={`${
             triggerPosition === 'end' ? 'ml-auto' : ''
-          } flex h-auto min-h-0 items-center gap-1 rounded-2xs px-2 py-1 font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-30 ${
+          } flex h-auto min-h-0 items-center gap-1 rounded-lg px-2 py-1 font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-30 ${
             triggerClassName ?? ''
           }`}>
           <Plus size={10} />
           <span>{triggerLabel}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align={align} sideOffset={4} className="w-64 rounded-xs p-2">
-        <div className="relative mb-2">
+      <PopoverContent
+        align={align}
+        sideOffset={4}
+        className="w-64 rounded-lg border-border/30 p-1 shadow-black/[0.06] shadow-lg">
+        <div className="relative mb-1">
           <Search
-            size={10}
-            className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 text-muted-foreground/50"
+            size={14}
+            className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2.5 text-muted-foreground/40"
           />
           <Input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder={searchPlaceholder}
-            className="h-auto rounded-2xs border border-border/20 bg-accent/15 py-1.5 pr-2 pl-6 text-xs shadow-none transition-all focus-visible:border-border/40 focus-visible:ring-0"
+            className="h-8 rounded-lg border-0 bg-transparent pr-2 pl-7 text-xs shadow-none transition-colors placeholder:text-muted-foreground/40 focus-visible:bg-accent/30 focus-visible:ring-0"
           />
         </div>
         {available.length === 0 ? (
-          <p className="px-2 py-3 text-center text-muted-foreground/50 text-xs">{emptyLabel}</p>
+          <p className="px-2 py-5 text-center font-normal text-muted-foreground/45 text-xs">{emptyLabel}</p>
         ) : (
           <Scrollbar className="max-h-60">
-            <MenuList>
+            <MenuList className="gap-0.5">
               {available.map((it) => (
                 <MenuItem
                   key={it.id}
                   size="sm"
                   variant="ghost"
-                  className="rounded-2xs"
+                  className="rounded-lg px-2 py-1.5 font-normal text-foreground/80 hover:text-foreground"
                   icon={it.icon}
                   label={it.name}
                   description={it.description || undefined}
+                  descriptionClassName="text-muted-foreground/45"
                   descriptionLines={1}
                   onClick={() => {
                     onAdd(it.id)
