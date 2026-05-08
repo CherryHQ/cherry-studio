@@ -5241,14 +5241,6 @@
           "placeholder": "例如 ChatGPT",
           "tooltip": "例如 ChatGPT"
         },
-        "model_id": {
-          "label": "模型 ID",
-          "placeholder": "必填 例如 gpt-3.5-turbo",
-          "select": {
-            "placeholder": "选择模型"
-          },
-          "tooltip": "例如 gpt-3.5-turbo"
-        },
         "max_input_tokens": {
           "label": "上下文窗口（最大输入）",
           "placeholder": "例如 128000"
@@ -5256,6 +5248,14 @@
         "max_output_tokens": {
           "label": "上下文窗口（最大输出）",
           "placeholder": "例如 4096"
+        },
+        "model_id": {
+          "label": "模型 ID",
+          "placeholder": "必填 例如 gpt-3.5-turbo",
+          "select": {
+            "placeholder": "选择模型"
+          },
+          "tooltip": "例如 gpt-3.5-turbo"
         },
         "model_name": {
           "label": "模型名称",

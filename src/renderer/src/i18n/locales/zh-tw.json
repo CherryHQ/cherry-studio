@@ -5240,6 +5240,14 @@
           "placeholder": "選填，例如 ChatGPT",
           "tooltip": "選填，例如 ChatGPT"
         },
+        "max_input_tokens": {
+          "label": "上下文視窗（最大輸入）",
+          "placeholder": "例如 128000"
+        },
+        "max_output_tokens": {
+          "label": "上下文視窗（最大輸出）",
+          "placeholder": "例如 4096"
+        },
         "model_id": {
           "label": "模型 ID",
           "placeholder": "必填，例如 gpt-3.5-turbo",

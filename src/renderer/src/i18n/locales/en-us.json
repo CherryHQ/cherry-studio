@@ -5241,14 +5241,6 @@
           "placeholder": "Optional e.g. ChatGPT",
           "tooltip": "Optional e.g. ChatGPT"
         },
-        "model_id": {
-          "label": "Model ID",
-          "placeholder": "Required e.g. gpt-3.5-turbo",
-          "select": {
-            "placeholder": "Select Model"
-          },
-          "tooltip": "Example: gpt-3.5-turbo"
-        },
         "max_input_tokens": {
           "label": "Context window (max input)",
           "placeholder": "e.g. 128000"
@@ -5256,6 +5248,14 @@
         "max_output_tokens": {
           "label": "Context window (max output)",
           "placeholder": "e.g. 4096"
+        },
+        "model_id": {
+          "label": "Model ID",
+          "placeholder": "Required e.g. gpt-3.5-turbo",
+          "select": {
+            "placeholder": "Select Model"
+          },
+          "tooltip": "Example: gpt-3.5-turbo"
         },
         "model_name": {
           "label": "Model Name",
