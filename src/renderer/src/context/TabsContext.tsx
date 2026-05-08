@@ -11,9 +11,9 @@ import { createContext, use, useCallback, useEffect, useMemo, useRef, useState }
 const logger = loggerService.withContext('TabsContext')
 
 const DEFAULT_TAB: Tab = {
-  id: 'home',
+  id: 'chat',
   type: 'route',
-  url: '/home',
+  url: '/app/chat',
   title: '',
   lastAccessTime: Date.now(),
   isDormant: false
@@ -104,8 +104,8 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     [setPinnedTabsRaw]
   )
 
-  // Normal tabs - in-memory storage (cleared on restart), excludes home tab
-  const [normalTabs, setNormalTabs] = useState<Tab[]>([])
+  // Normal tabs - in-memory storage (cleared on restart), includes the non-closeable default tab
+  const [normalTabs, setNormalTabs] = useState<Tab[]>(() => [DEFAULT_TAB])
 
   // Active tab ID - in-memory storage
   const [activeTabId, setActiveTabIdState] = useState<string>(DEFAULT_TAB.id)
@@ -133,10 +133,9 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  // Merge tabs: home + pinned + normal (route titles follow current i18n language)
+  // Merge tabs: pinned + normal (route titles follow current i18n language)
   const tabs = useMemo(() => {
-    const home = withLocalizedRouteTitle({ ...DEFAULT_TAB })
-    return [home, ...(pinnedTabs || []).map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
+    return [...(pinnedTabs || []).map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
   }, [pinnedTabs, normalTabs])
 
   /**

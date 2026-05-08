@@ -31,7 +31,7 @@ export type TabLimits = typeof TAB_LIMITS
  * 功能：
  * - 当活跃标签数超过软上限时，选择 LRU 候选进行休眠
  * - 硬保险丝作为极端兜底，防止内存失控
- * - 支持豁免机制：当前标签、首页、置顶标签不参与休眠
+ * - 支持豁免机制：当前标签、默认聊天标签、置顶标签不参与休眠
  */
 export class TabLRUManager {
   private softCap: number
@@ -47,7 +47,7 @@ export class TabLRUManager {
    *
    * 策略：
    * - 超过 softCap：休眠到 softCap
-   * - 超过 hardCap：强制休眠到 softCap（忽略部分豁免，仅保留当前+首页）
+   * - 超过 hardCap：强制休眠到 softCap（忽略部分豁免，仅保留当前+默认聊天标签）
    *
    * @param tabs 所有标签
    * @param activeTabId 当前活动标签 ID
@@ -65,7 +65,7 @@ export class TabLRUManager {
     const isHardCapTriggered = activeCount > this.hardCap
 
     // 获取候选列表
-    // 硬保险丝触发时，使用更宽松的豁免规则（仅保留当前+首页）
+    // 硬保险丝触发时，使用更宽松的豁免规则（仅保留当前+默认聊天标签）
     const candidates = isHardCapTriggered
       ? this.getHardCapCandidates(activeTabs, activeTabId)
       : this.getLRUCandidates(activeTabs, activeTabId)
@@ -123,7 +123,7 @@ export class TabLRUManager {
   }
 
   /**
-   * 硬保险丝候选列表（仅豁免当前标签和首页）
+   * 硬保险丝候选列表（仅豁免当前标签和默认聊天标签）
    */
   private getHardCapCandidates(tabs: Tab[], activeTabId: string): Tab[] {
     return tabs
@@ -132,12 +132,12 @@ export class TabLRUManager {
   }
 
   /**
-   * 硬保险丝豁免判断（更严格，仅保留当前+首页）
+   * 硬保险丝豁免判断（更严格，仅保留当前+默认聊天标签）
    */
   private isHardExempt(tab: Tab, activeTabId: string): boolean {
     return (
       tab.id === activeTabId || // 当前活动标签
-      tab.id === 'home' || // 首页
+      tab.id === 'chat' || // 默认聊天标签
       tab.isDormant === true // 已休眠的不再参与
     )
     // 注意：isPinned 在硬保险丝触发时不再豁免
@@ -157,14 +157,14 @@ export class TabLRUManager {
    *
    * 豁免条件：
    * - 当前活动标签
-   * - 首页标签 (id === 'home')
+   * - 默认聊天标签 (id === 'chat')
    * - 置顶标签 (isPinned)
    * - 已休眠的标签（不重复处理）
    */
   private isExempt(tab: Tab, activeTabId: string): boolean {
     return (
       tab.id === activeTabId || // 当前活动标签
-      tab.id === 'home' || // 首页
+      tab.id === 'chat' || // 默认聊天标签
       tab.isPinned === true || // 置顶标签
       tab.isDormant === true // 已休眠的不再参与
     )

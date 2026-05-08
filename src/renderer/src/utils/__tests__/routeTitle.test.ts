@@ -5,8 +5,8 @@ vi.mock('@renderer/i18n', () => ({
   default: {
     t: vi.fn((key: string) => {
       const translations: Record<string, string> = {
-        'title.home': '首页',
         'common.chat': '聊天',
+        'title.launchpad': '启动台',
         'common.agent_one': '智能体',
         'title.store': '助手库',
         'title.paintings': '绘画',
@@ -33,9 +33,8 @@ describe('routeTitle', () => {
   describe('getDefaultRouteTitle', () => {
     describe('exact route matches', () => {
       it.each([
-        ['/', '首页'],
-        ['/home', '首页'],
         ['/app/chat', '聊天'],
+        ['/app/launchpad', '启动台'],
         ['/app/agents', '智能体'],
         ['/app/assistant', '助手库'],
         ['/app/paintings', '绘画'],
@@ -54,6 +53,7 @@ describe('routeTitle', () => {
     describe('nested route matches', () => {
       it('should match base path for nested routes', () => {
         expect(getDefaultRouteTitle('/app/chat/topic-123')).toBe('聊天')
+        expect(getDefaultRouteTitle('/app/launchpad/pinned')).toBe('启动台')
         expect(getDefaultRouteTitle('/app/agents/session-123')).toBe('智能体')
         expect(getDefaultRouteTitle('/settings/provider')).toBe('设置')
         expect(getDefaultRouteTitle('/settings/mcp/servers')).toBe('设置')
@@ -96,7 +96,7 @@ describe('routeTitle', () => {
       it('should handle double slashes (protocol-relative URL)', () => {
         // '//chat' is a protocol-relative URL, so 'chat' becomes the hostname
         // This is expected behavior per URL standard
-        expect(getDefaultRouteTitle('//chat')).toBe('首页')
+        expect(getDefaultRouteTitle('//chat')).toBe('/')
       })
 
       it('should handle relative-like paths', () => {
@@ -110,8 +110,8 @@ describe('routeTitle', () => {
   describe('getRouteTitleKey', () => {
     describe('exact matches', () => {
       it.each([
-        ['/', 'title.home'],
         ['/app/chat', 'common.chat'],
+        ['/app/launchpad', 'title.launchpad'],
         ['/app/agents', 'common.agent_one'],
         ['/app/assistant', 'title.store'],
         ['/settings', 'title.settings']
@@ -123,6 +123,7 @@ describe('routeTitle', () => {
     describe('base path matches', () => {
       it('should return base path key for nested routes', () => {
         expect(getRouteTitleKey('/app/chat/topic-123')).toBe('common.chat')
+        expect(getRouteTitleKey('/app/launchpad/pinned')).toBe('title.launchpad')
         expect(getRouteTitleKey('/app/agents/session-123')).toBe('common.agent_one')
         expect(getRouteTitleKey('/settings/provider')).toBe('title.settings')
       })
