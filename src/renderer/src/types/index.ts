@@ -11,12 +11,10 @@
 import type { LanguageModelV3Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
-import type { GroundingMetadata, PersonGeneration } from '@google/genai'
-export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import type { CSSProperties } from 'react'
-
+import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 export * from './file'
 export * from './note'
+export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 
 import type { TranslateLanguageCode } from '@shared/data/preference/preferenceTypes'
 import type { MCPServer } from '@shared/data/types/mcpServer'
@@ -40,6 +38,7 @@ export * from './plugin'
 export * from './provider'
 export * from './serialize'
 export * from './skill'
+export * from './websearch'
 
 export type McpMode = 'disabled' | 'auto' | 'manual'
 
@@ -343,26 +342,179 @@ export type Suggestion = {
   content: string
 }
 
-export type MinAppType = {
+export type PaintingParams = {
   id: string
-  name: string
-  /** i18n key for translatable names */
-  nameKey?: string
-  /** Regions where this app is available. If includes 'Global', shown to international users. */
-  supportedRegions?: MinAppRegion[]
-  logo?: string
-  url: string
-  bordered?: boolean
-  background?: string
-  style?: CSSProperties
-  addTime?: string
-  type?: 'Custom' | 'Default' // Added the 'type' property
+  urls: string[]
+  files: FileMetadata[]
+  // provider that this painting belongs to (for new-api family separation)
+  providerId?: string
 }
 
-/** Region types for miniapps visibility */
-export type MinAppRegion = 'CN' | 'Global'
+export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api' | 'ovms' | 'cherryin' | 'ppio'
 
-export type MinAppRegionFilter = 'auto' | MinAppRegion
+export interface Painting extends PaintingParams {
+  model?: string
+  prompt?: string
+  negativePrompt?: string
+  imageSize?: string
+  numImages?: number
+  seed?: string
+  steps?: number
+  guidanceScale?: number
+  promptEnhancement?: boolean
+}
+
+export interface GeneratePainting extends PaintingParams {
+  model: string
+  prompt: string
+  aspectRatio?: string
+  numImages?: number
+  styleType?: string
+  seed?: string
+  negativePrompt?: string
+  magicPromptOption?: boolean
+  renderingSpeed?: string
+  quality?: string
+  moderation?: string
+  n?: number
+  size?: string
+  background?: string
+  personGeneration?: GenerateImagesConfig['personGeneration']
+  numberOfImages?: number
+  safetyTolerance?: number
+  width?: number
+  height?: number
+  imageSize?: string
+}
+
+export interface EditPainting extends PaintingParams {
+  imageFile: string
+  mask: FileMetadata
+  model: string
+  prompt: string
+  numImages?: number
+  styleType?: string
+  seed?: string
+  magicPromptOption?: boolean
+  renderingSpeed?: string
+}
+
+export interface RemixPainting extends PaintingParams {
+  imageFile: string
+  model: string
+  prompt: string
+  aspectRatio?: string
+  imageWeight: number
+  numImages?: number
+  styleType?: string
+  seed?: string
+  negativePrompt?: string
+  magicPromptOption?: boolean
+  renderingSpeed?: string
+}
+
+export interface ScalePainting extends PaintingParams {
+  imageFile: string
+  prompt: string
+  resemblance?: number
+  detail?: number
+  numImages?: number
+  seed?: string
+  magicPromptOption?: boolean
+  renderingSpeed?: string
+}
+
+export enum generationModeType {
+  GENERATION = 'generation',
+  EDIT = 'edit',
+  MERGE = 'merge'
+}
+
+export interface DmxapiPainting extends PaintingParams {
+  model?: string
+  prompt?: string
+  n?: number
+  aspect_ratio?: string
+  image_size?: string
+  seed?: string
+  style_type?: string
+  autoCreate?: boolean
+  generationMode?: generationModeType
+  priceModel?: string
+  extend_params?: Record<string, unknown>
+}
+
+export interface TokenFluxPainting extends PaintingParams {
+  generationId?: string
+  model?: string
+  prompt?: string
+  inputParams?: Record<string, any>
+  status?: 'starting' | 'processing' | 'succeeded' | 'failed' | 'cancelled'
+}
+
+export interface OvmsPainting extends PaintingParams {
+  model?: string
+  prompt?: string
+  size?: string
+  num_inference_steps?: number
+  rng_seed?: number
+  safety_check?: boolean
+  response_format?: 'url' | 'b64_json'
+}
+
+export interface PpioPainting extends PaintingParams {
+  model?: string
+  prompt?: string
+  size?: string
+  width?: number
+  height?: number
+  ppioSeed?: number // 使用 ppioSeed 避免与其他 Painting 类型的 seed (string) 冲突
+  usePreLlm?: boolean
+  addWatermark?: boolean
+  taskId?: string
+  ppioStatus?: 'pending' | 'processing' | 'succeeded' | 'failed'
+  // Edit 模式相关
+  imageFile?: string // 输入图像 URL 或 base64
+  ppioMask?: string // 遮罩图像 URL 或 base64（用于擦除功能）
+  resolution?: string // 高清化分辨率
+  outputFormat?: string // 输出格式
+}
+
+export type PaintingAction = Partial<
+  GeneratePainting &
+    RemixPainting &
+    EditPainting &
+    ScalePainting &
+    DmxapiPainting &
+    TokenFluxPainting &
+    OvmsPainting &
+    PpioPainting
+> &
+  PaintingParams
+
+export interface PaintingsState {
+  // SiliconFlow
+  siliconflow_paintings: Painting[]
+  // DMXAPI
+  dmxapi_paintings: DmxapiPainting[]
+  // TokenFlux
+  tokenflux_paintings: TokenFluxPainting[]
+  // Zhipu
+  zhipu_paintings: Painting[]
+  // Aihubmix
+  aihubmix_image_generate: Partial<GeneratePainting> & PaintingParams[]
+  aihubmix_image_remix: Partial<RemixPainting> & PaintingParams[]
+  aihubmix_image_edit: Partial<EditPainting> & PaintingParams[]
+  aihubmix_image_upscale: Partial<ScalePainting> & PaintingParams[]
+  // OpenAI
+  openai_image_generate: Partial<GeneratePainting> & PaintingParams[]
+  openai_image_edit: Partial<EditPainting> & PaintingParams[]
+  // OVMS
+  ovms_paintings: OvmsPainting[]
+  // PPIO
+  ppio_draw: PpioPainting[]
+  ppio_edit: PpioPainting[]
+}
 
 export enum ThemeMode {
   light = 'light',
@@ -508,20 +660,6 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
   return Object.hasOwn(AutoDetectionMethods, method)
 }
 
-// by fullex @ data refactor
-// export type SidebarIcon =
-//   | 'assistants'
-//   | 'agents'
-//   | 'store'
-//   | 'paintings'
-//   | 'translate'
-//   | 'minapp'
-//   | 'knowledge'
-//   | 'files'
-//   | 'code_tools'
-//   | 'notes'
-// | 'openclaw'
-
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]
   toolUse?: MCPToolResponse[]
@@ -537,10 +675,7 @@ export const WebSearchProviderIds = {
   exa: 'exa',
   'exa-mcp': 'exa-mcp',
   bocha: 'bocha',
-  querit: 'querit',
-  'local-google': 'local-google',
-  'local-bing': 'local-bing',
-  'local-baidu': 'local-baidu'
+  querit: 'querit'
 } as const
 
 export type WebSearchProviderId = keyof typeof WebSearchProviderIds
@@ -611,13 +746,7 @@ export type WebSearchResponse = {
   source: WebSearchSource
 }
 
-export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
-
-export type WebSearchStatus = {
-  phase: WebSearchPhase
-  countBefore?: number
-  countAfter?: number
-}
+export type { WebSearchPhase, WebSearchStatus } from '@shared/data/types/webSearch'
 
 // TODO: 把 mcp 相关类型定义迁移到独立文件中
 export type MCPArgType = 'string' | 'list' | 'number'

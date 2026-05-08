@@ -957,17 +957,6 @@
         "xhigh": "Extra ridicat",
         "xhigh_description": "Raționament de nivel extra ridicat"
       },
-      "regular_phrases": {
-        "add": "Adaugă expresie",
-        "contentLabel": "Conținut",
-        "contentPlaceholder": "Te rugăm să introduci conținutul expresiei; poți folosi variabile și poți apăsa Tab pentru a localiza rapid variabila de modificat. De exemplu: \nAjută-mă să planific o rută de la ${from} până la ${to} și trimite-o la ${email}.",
-        "delete": "Șterge expresia",
-        "deleteConfirm": "Ești sigur că vrei să ștergi această expresie?",
-        "edit": "Editează expresia",
-        "title": "Expresie uzuală",
-        "titleLabel": "Titlu",
-        "titlePlaceholder": "Introdu titlul"
-      },
       "title": "Setări asistent",
       "tool_use_mode": {
         "function": "Funcție",
@@ -2148,7 +2137,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
-    "minapps": "Mini-aplicații"
+    "miniApps": "Mini-aplicații"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2498,20 +2487,23 @@
     "websearch": {
       "cutoff": "Se trunchiază conținutul căutării...",
       "fetch_complete": "{{count}} rezultat(e) căutare",
-      "rag": "Se execută RAG...",
-      "rag_complete": "Se păstrează {{countAfter}} din {{countBefore}} rezultate...",
-      "rag_failed": "RAG a eșuat, se returnează rezultate goale..."
+      "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Adaugă în Launchpad",
     "add_to_sidebar": "Adaugă în bara laterală",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
-      "close": "Închide MinApp",
+      "close": "Închide MiniApp",
       "devtools": "Instrumente dezvoltator",
       "goBack": "Mergi înapoi",
       "goForward": "Mergi înainte",
-      "minimize": "Minimizează MinApp",
       "openExternal": "Deschide în browser",
       "open_link_external_off": "Curent: Deschide linkurile în fereastra implicită",
       "open_link_external_on": "Curent: Deschide linkurile în browser",
@@ -2520,6 +2512,13 @@
     },
     "remove_from_launchpad": "Elimină din Launchpad",
     "remove_from_sidebar": "Elimină din bara laterală",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Închide"
@@ -2534,9 +2533,11 @@
         "title": "Șterge aplicația personalizată"
       }
     },
-    "title": "MinApp"
+    "title": "MiniApp",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -2555,6 +2556,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -4034,7 +4036,7 @@
       },
       "clear_cache": {
         "button": "Golește memoria cache",
-        "confirm": "Golirea memoriei cache va șterge datele cache ale aplicației, inclusiv datele minapp. Această acțiune este ireversibilă, continui?",
+        "confirm": "Golirea memoriei cache va șterge datele cache ale aplicației, inclusiv datele miniapp. Această acțiune este ireversibilă, continui?",
         "error": "Eroare la golirea memoriei cache",
         "success": "Memoria cache a fost golită",
         "title": "Golește memoria cache"
@@ -4651,8 +4653,8 @@
         "knowledge": {
           "icon": "Afișează pictograma Cunoștințe"
         },
-        "minapp": {
-          "icon": "Afișează pictograma MinApp"
+        "miniApp": {
+          "icon": "Afișează pictograma MiniApp"
         },
         "painting": {
           "icon": "Afișează pictograma Imagini"
@@ -5053,7 +5055,7 @@
       "title": "Setări mesaje",
       "use_serif_font": "Folosește font serif"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise atinge valoarea setată",
       "cache_description": "Setează numărul maxim de mini-aplicații active de păstrat în memorie",
       "cache_settings": "Setări cache",
@@ -5103,8 +5105,6 @@
         "title": "Filtru zonă aplicație miniatură"
       },
       "reset_tooltip": "Resetează la implicit",
-      "sidebar_description": "Afișează mini-aplicațiile active în bara laterală",
-      "sidebar_title": "Afișare mini-aplicații active în bara laterală",
       "title": "Setări mini-aplicații",
       "visible": "Mini-aplicații vizibile"
     },
@@ -5266,6 +5266,24 @@
     "privacy": {
       "enable_privacy_mode": "Raportare anonimă a erorilor și statisticilor",
       "title": "Setări confidențialitate"
+    },
+    "prompts": {
+      "add": "[to be translated]:Add Prompt",
+      "contentLabel": "[to be translated]:Content",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "[to be translated]:Delete Prompt",
+      "deleteConfirm": "[to be translated]:The prompt will be permanently deleted. Continue?",
+      "edit": "[to be translated]:Edit Prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "[to be translated]:Prompt Management",
+      "titleLabel": "[to be translated]:Title",
+      "titlePlaceholder": "[to be translated]:Enter prompt title"
     },
     "provider": {
       "add": {
@@ -5560,20 +5578,6 @@
       "select": "Selectează",
       "title": "Meniu rapid"
     },
-    "quickPhrase": {
-      "add": "Adaugă expresie",
-      "assistant": "Expresii asistent",
-      "contentLabel": "Conținut",
-      "contentPlaceholder": "Te rugăm să introduci conținutul expresiei, poți folosi variabile și poți apăsa Tab pentru a localiza rapid variabila de modificat. De exemplu: \nAjută-mă să planific o rută de la ${from} la ${to} și trimite-o la ${email}.",
-      "delete": "Șterge expresia",
-      "deleteConfirm": "Expresia nu poate fi recuperată după ștergere, continui?",
-      "edit": "Editează expresia",
-      "global": "Expresii globale",
-      "locationLabel": "Adaugă locație",
-      "title": "Expresii rapide",
-      "titleLabel": "Titlu",
-      "titlePlaceholder": "Te rugăm să introduci titlul expresiei"
-    },
     "scheduledTasks": {
       "description": "Gestionați sarcinile programate pentru toți agenții. Sarcinile rulează automat conform programului configurat.",
       "noAgents": "Niciun agent găsit. Creează mai întâi un agent pentru a adăuga sarcini programate.",
@@ -5743,23 +5747,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG eșuat"
-          },
-          "info": {
-            "dimensions_auto_success": "Dimensiuni obținute automat cu succes, dimensiuni: {{dimensions}}"
-          },
           "method": {
             "cutoff": "Trunchiere",
             "label": "Metodă compresie",
-            "none": "Niciuna",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Număr fragmente document",
-              "tooltip": "Numărul așteptat de fragmente de document de extras din fiecare rezultat al căutării; numărul total real de fragmente extrase este această valoare înmulțită cu numărul de rezultate ale căutării."
-            }
+            "none": "Niciuna"
           },
           "title": "Compresie rezultate căutare"
         },

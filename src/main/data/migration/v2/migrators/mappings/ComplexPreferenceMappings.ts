@@ -18,7 +18,11 @@
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
 
-import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
+import {
+  flattenCompressionConfig,
+  migrateWebSearchProviders,
+  normalizeWebSearchDefaultProvider
+} from '../transformers/PreferenceTransformers'
 import { transformCodeCli } from './CodeCliTransforms'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 import { transformLlmModelIds } from './LlmModelTransforms'
@@ -84,6 +88,17 @@ export interface ComplexMapping {
  * Remember to also define the target keys in target-key-definitions.json!
  */
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
+  // WebSearch default provider normalization
+  {
+    id: 'websearch_default_provider_migrate',
+    description: 'Normalize legacy websearch default provider into the curated preset-backed preference key',
+    sources: {
+      defaultProvider: { source: 'redux', category: 'websearch', key: 'defaultProvider' }
+    },
+    targetKeys: ['chat.web_search.default_provider'],
+    transform: normalizeWebSearchDefaultProvider
+  },
+
   // WebSearch provider overrides migration
   {
     id: 'websearch_providers_migrate',
@@ -105,11 +120,7 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     targetKeys: [
       'chat.web_search.compression.method',
       'chat.web_search.compression.cutoff_limit',
-      'chat.web_search.compression.cutoff_unit',
-      'chat.web_search.compression.rag_document_count',
-      'chat.web_search.compression.rag_embedding_model_id',
-      'chat.web_search.compression.rag_embedding_dimensions',
-      'chat.web_search.compression.rag_rerank_model_id'
+      'chat.web_search.compression.cutoff_unit'
     ],
     transform: flattenCompressionConfig
   },
@@ -139,6 +150,25 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: [...SHORTCUT_TARGET_KEYS],
     transform: transformShortcuts
+  },
+
+  // Sidebar icons: rewrite 'minapp' → 'mini_app' (v1→v2 rename)
+  {
+    id: 'sidebar_icons_rename',
+    description: "Rewrite legacy 'minapp' icon key to 'mini_app' in sidebar icon arrays",
+    sources: {
+      visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
+      disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }
+    },
+    targetKeys: ['ui.sidebar.icons.visible', 'ui.sidebar.icons.invisible'],
+    transform: (sources) => {
+      const rewrite = (arr: unknown): unknown =>
+        Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : arr
+      return {
+        'ui.sidebar.icons.visible': rewrite(sources.visible),
+        'ui.sidebar.icons.invisible': rewrite(sources.disabled)
+      }
+    }
   },
 
   // File processing overrides merging

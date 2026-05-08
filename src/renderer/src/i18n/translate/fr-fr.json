@@ -957,17 +957,6 @@
         "xhigh": "Très élevée",
         "xhigh_description": "Raisonnement de très haut niveau"
       },
-      "regular_phrases": {
-        "add": "Добавить фразу",
-        "contentLabel": "Содержание",
-        "contentPlaceholder": "Введите содержание фразы. Поддерживаются переменные, после этого нажмите Tab для быстрого перехода к переменной и изменения её значения. Например:\\n Планируй маршрут из ${from} в ${to}, а затем отправь его на ${email}.",
-        "delete": "Удалить фразу",
-        "deleteConfirm": "Вы уверены, что хотите удалить эту фразу?",
-        "edit": "Редактировать фразу",
-        "title": "Популярные фразы",
-        "titleLabel": "Заголовок",
-        "titlePlaceholder": "Введите заголовок"
-      },
       "title": "Paramètres de l'assistant",
       "tool_use_mode": {
         "function": "Fonction",
@@ -2148,7 +2137,7 @@
   },
   "launchpad": {
     "apps": "Applications",
-    "minapps": "Mini-applications"
+    "miniApps": "Mini-applications"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2498,20 +2487,23 @@
     "websearch": {
       "cutoff": "Troncature du contenu de recherche en cours...",
       "fetch_complete": "{{count}} résultats de recherche",
-      "rag": "Exécution de la RAG en cours...",
-      "rag_complete": "Conserver {{countAfter}} résultats sur {{countBefore}}...",
-      "rag_failed": "Échec de la RAG, retour d'un résultat vide..."
+      "partial_failure": "{{count}} résultats de recherche, certaines recherches ont échoué"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Ajouter au tableau de bord",
     "add_to_sidebar": "Ajouter à la barre latérale",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Закрыть мини-программу",
       "devtools": "Инструменты разработчика",
       "goBack": "Reculer",
       "goForward": "Avancer",
-      "minimize": "Свернуть мини-программу",
       "openExternal": "Открыть в браузере",
       "open_link_external_off": "Текущий: открывать ссылки в окне по умолчанию",
       "open_link_external_on": "Текущий: открывать ссылки в браузере",
@@ -2520,6 +2512,13 @@
     },
     "remove_from_launchpad": "Supprimer du tableau de bord",
     "remove_from_sidebar": "Supprimer de la barre latérale",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Fermer"
@@ -2534,9 +2533,11 @@
         "title": "Supprimer l'application personnalisée"
       }
     },
-    "title": "Mini-programme"
+    "title": "Mini-programme",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -2555,6 +2556,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -4651,7 +4653,7 @@
         "knowledge": {
           "icon": "Afficher l'icône des connaissances"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "Afficher l'icône des applications minimisées"
         },
         "painting": {
@@ -5053,7 +5055,7 @@
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Les modifications prendront effet après l'ajout ou la suppression d'applications ouvertes jusqu'à atteindre la valeur définie",
       "cache_description": "Définir le nombre maximum d'applications pouvant rester actives simultanément",
       "cache_settings": "Paramètres du cache",
@@ -5103,8 +5105,6 @@
         "title": "Filtrage par zone de la mini-application"
       },
       "reset_tooltip": "Réinitialiser aux valeurs par défaut",
-      "sidebar_description": "Définir si les applications actives doivent s'afficher dans la barre latérale",
-      "sidebar_title": "Affichage des applications actives dans la barre latérale",
       "title": "Paramètres de l'application",
       "visible": "Applications visibles"
     },
@@ -5266,6 +5266,24 @@
     "privacy": {
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",
       "title": "Настройки конфиденциальности"
+    },
+    "prompts": {
+      "add": "Ajouter un prompt",
+      "contentLabel": "Contenu",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Supprimer le prompt",
+      "deleteConfirm": "Le prompt sera définitivement supprimé. Continuer ?",
+      "edit": "Modifier le prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Gestion des prompts",
+      "titleLabel": "Titre",
+      "titlePlaceholder": "Saisissez le titre du prompt"
     },
     "provider": {
       "add": {
@@ -5560,20 +5578,6 @@
       "select": "Выбрать",
       "title": "Быстрое меню"
     },
-    "quickPhrase": {
-      "add": "Добавить фразу",
-      "assistant": "Фразы помощника",
-      "contentLabel": "Содержание",
-      "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, после этого нажмите Tab, чтобы быстро перейти к переменной для редактирования. Например: \\n Запланируй маршрут от ${from} до ${to}, а затем отправь его на ${email}.",
-      "delete": "Удалить фразу",
-      "deleteConfirm": "После удаления фразы её невозможно восстановить. Продолжить?",
-      "edit": "Редактировать фразу",
-      "global": "Глобальные фразы",
-      "locationLabel": "Добавить местоположение",
-      "title": "Быстрые фразы",
-      "titleLabel": "Заголовок",
-      "titlePlaceholder": "Введите заголовок фразы"
-    },
     "scheduledTasks": {
       "description": "Gérez les tâches planifiées sur tous les agents. Les tâches s'exécutent automatiquement selon le planning configuré.",
       "noAgents": "Aucun agent trouvé. Créez d'abord un agent pour ajouter des tâches planifiées.",
@@ -5743,23 +5747,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "Échec du RAG"
-          },
-          "info": {
-            "dimensions_auto_success": "L'obtention automatique des dimensions a réussi, les dimensions sont {{dimensions}}"
-          },
           "method": {
             "cutoff": "Troncature",
             "label": "Méthode de compression",
-            "none": "Pas de compression",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Nombre de fragments de document",
-              "tooltip": "Nombre prévu de fragments de document à extraire d'un seul résultat de recherche. Le nombre total réellement extrait est ce nombre multiplié par le nombre de résultats de recherche."
-            }
+            "none": "Pas de compression"
           },
           "title": "Compression des résultats de recherche"
         },

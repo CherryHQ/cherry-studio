@@ -957,17 +957,6 @@
         "xhigh": "Εξαιρετικά Υψηλή",
         "xhigh_description": "Εξαιρετικά υψηλού επιπέδου συλλογισμός"
       },
-      "regular_phrases": {
-        "add": "Προσθήκη φράσης",
-        "contentLabel": "Περιεχόμενο",
-        "contentPlaceholder": "Παρακαλώ εισάγετε το περιεχόμενο της φράσης. Υποστηρίζονται μεταβλητές, και στη συνέχεια πατήστε Tab για να μεταβείτε γρήγορα στη μεταβλητή και να την επεξεργαστείτε. Για παράδειγμα: \\nΒοήθησέ με να σχεδιάσω μια διαδρομή από το ${from} στο ${to}, και στη συνέχεια στείλε την στο ${email}.",
-        "delete": "Διαγραφή φράσης",
-        "deleteConfirm": "Είστε βέβαιος ότι θέλετε να διαγράψετε αυτήν τη φράση;",
-        "edit": "Επεξεργασία φράσης",
-        "title": "Δημοφιλείς φράσεις",
-        "titleLabel": "Τίτλος",
-        "titlePlaceholder": "Εισαγάγετε τίτλο"
-      },
       "title": "Ρυθμίσεις Βοηθού",
       "tool_use_mode": {
         "function": "Συνάρτηση",
@@ -2148,7 +2137,7 @@
   },
   "launchpad": {
     "apps": "Εφαρμογές",
-    "minapps": "Μικρές εφαρμογές"
+    "miniApps": "Μικρές εφαρμογές"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2498,20 +2487,23 @@
     "websearch": {
       "cutoff": "Περικόπτεται η αναζήτηση...",
       "fetch_complete": "{{count}} αποτελέσματα αναζήτησης",
-      "rag": "Εκτελείται RAG...",
-      "rag_complete": "Διατηρούνται {{countAfter}} από τα {{countBefore}} αποτελέσματα...",
-      "rag_failed": "Το RAG απέτυχε, επιστρέφεται κενό αποτέλεσμα..."
+      "partial_failure": "{{count}} αποτελέσματα αναζήτησης, ορισμένες αναζητήσεις απέτυχαν"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Προσθήκη στο Launchpad",
     "add_to_sidebar": "Προσθήκη στην πλευρική μπάρα",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Κλείσιμο της εφαρμογής",
       "devtools": "Εργαλεία προγραμματιστή",
       "goBack": "Πίσω",
       "goForward": "Μπροστά",
-      "minimize": "Ελαχιστοποίηση της εφαρμογής",
       "openExternal": "Άνοιγμα στον περιηγητή",
       "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμου χρησιμοποιώντας το προεπιλεγμένο παράθυρο",
       "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμου στον περιηγητή",
@@ -2520,6 +2512,13 @@
     },
     "remove_from_launchpad": "Κατάργηση από το Launchpad",
     "remove_from_sidebar": "Κατάργηση από την πλευρική μπάρα",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Κλείσιμο"
@@ -2534,9 +2533,11 @@
         "title": "Διαγραφή προσαρμοσμένης εφαρμογής"
       }
     },
-    "title": "Μικρόπρογραμμα"
+    "title": "Μικρόπρογραμμα",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -2555,6 +2556,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -4651,7 +4653,7 @@
         "knowledge": {
           "icon": "Εμφάνιση εικονιδίου γνώσης"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "Εμφάνιση εικονιδίου μικροπρογραμμάτων"
         },
         "painting": {
@@ -5053,7 +5055,7 @@
       "title": "Ρυθμίσεις μηνυμάτων",
       "use_serif_font": "Χρήση μορφής Serif"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Η αλλαγή θα τεθεί σε ισχύ αφού το πλήθος των ανοιχτών μικροπρογραμμάτων φτάσει τη ρυθμισμένη τιμή",
       "cache_description": "Ορίστε τον μέγιστο αριθμό των μικροπρογραμμάτων που μπορούν να είναι ενεργά ταυτόχρονα",
       "cache_settings": "Ρυθμίσεις Προσωρινής Μνήμης",
@@ -5103,8 +5105,6 @@
         "title": "Φίλτραρισμα περιοχής για μικρές εφαρμογές"
       },
       "reset_tooltip": "Επαναφορά στις προεπιλεγμένες τιμές",
-      "sidebar_description": "Καθορίστε εάν το ενεργό μικροπρόγραμμα θα εμφανίζεται στην πλευρική γραμμή",
-      "sidebar_title": "Ρυθμίσεις Εμφάνισης Ενεργού Μικροπρογράμματος στην Πλευρική Γραμμή",
       "title": "Ρυθμίσεις Μικροπρογράμματος",
       "visible": "Εμφανιζόμενα μικροπρογράμματα"
     },
@@ -5266,6 +5266,24 @@
     "privacy": {
       "enable_privacy_mode": "Αποστολή ανώνυμων αναφορών σφαλμάτων και στατιστικών δεδομένων",
       "title": "Ρυθμίσεις Απορρήτου"
+    },
+    "prompts": {
+      "add": "Προσθήκη Prompt",
+      "contentLabel": "Περιεχόμενο",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Διαγραφή Prompt",
+      "deleteConfirm": "Το prompt θα διαγραφεί οριστικά. Συνέχεια;",
+      "edit": "Επεξεργασία Prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Διαχείριση Prompts",
+      "titleLabel": "Τίτλος",
+      "titlePlaceholder": "Εισαγάγετε τίτλο prompt"
     },
     "provider": {
       "add": {
@@ -5560,20 +5578,6 @@
       "select": "Επιλογή",
       "title": "Γρήγορη Πρόσβαση"
     },
-    "quickPhrase": {
-      "add": "Προσθήκη Φράσης",
-      "assistant": "Φράσεις Βοηθού",
-      "contentLabel": "Περιεχόμενο",
-      "contentPlaceholder": "Παρακαλώ εισάγετε περιεχόμενο φράσης. Υποστηρίζεται η χρήση μεταβλητών, και στη συνέχεια πατήστε Tab για να μεταβείτε γρήγορα στη μεταβλητή και να την τροποποιήσετε. Για παράδειγμα: \\\\n Βοήθησέ με να σχεδιάσω μια διαδρομή από το ${from} στο ${to}, και στη συνέχεια να τη στείλεις στο ${email}.",
-      "delete": "Διαγραφή Φράσης",
-      "deleteConfirm": "Η διαγραφή της φράσης δεν μπορεί να αναιρεθεί. Θέλετε να συνεχίσετε;",
-      "edit": "Επεξεργασία Φράσης",
-      "global": "Κοινές Φράσεις",
-      "locationLabel": "Προσθήκη Τοποθεσίας",
-      "title": "Γρήγορες Φράσεις",
-      "titleLabel": "Τίτλος",
-      "titlePlaceholder": "Παρακαλώ εισάγετε τίτλο φράσης"
-    },
     "scheduledTasks": {
       "description": "Διαχειριστείτε προγραμματισμένες εργασίες σε όλους τους πράκτορες. Οι εργασίες εκτελούνται αυτόματα σύμφωνα με το διαμορφωμένο πρόγραμμα.",
       "noAgents": "Δεν βρέθηκαν πράκτορες. Δημιουργήστε πρώτα έναν πράκτορα για να προσθέσετε προγραμματισμένες εργασίες.",
@@ -5743,23 +5747,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "Το RAG απέτυχε"
-          },
-          "info": {
-            "dimensions_auto_success": "Η αυτόματη λήψη διαστάσεων ήταν επιτυχής, οι διαστάσεις είναι {{dimensions}}"
-          },
           "method": {
             "cutoff": "Αποκοπή",
             "label": "Μέθοδος συμπίεσης",
-            "none": "Χωρίς συμπίεση",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Αριθμός αποσπασμάτων εγγράφου",
-              "tooltip": "Ο αναμενόμενος αριθμός αποσπασμάτων εγγράφου που θα εξαχθούν από κάθε αποτέλεσμα αναζήτησης· ο πραγματικός συνολικός αριθμός είναι αυτή η τιμή επί τον αριθμό των αποτελεσμάτων αναζήτησης"
-            }
+            "none": "Χωρίς συμπίεση"
           },
           "title": "Συμπίεση αποτελεσμάτων αναζήτησης"
         },

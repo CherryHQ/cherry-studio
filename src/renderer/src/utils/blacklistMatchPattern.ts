@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
-import type { WebSearchState } from '@renderer/store/websearch'
-import type { WebSearchProviderResponse } from '@renderer/types'
+import type { WebSearchProviderResponse, WebSearchState } from '@renderer/types'
 
 const logger = loggerService.withContext('BlacklistMatchPattern')
 
@@ -241,7 +240,7 @@ export function mapRegexToPatterns(patterns: string[]): string[] {
 
 export async function filterResultWithBlacklist(
   response: WebSearchProviderResponse,
-  websearch: WebSearchState
+  websearch: Pick<WebSearchState, 'excludeDomains' | 'subscribeSources'>
 ): Promise<WebSearchProviderResponse> {
   logger.debug('[filterResultWithBlacklist]', response)
 

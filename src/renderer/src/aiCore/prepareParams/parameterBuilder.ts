@@ -6,6 +6,7 @@
 import { combineHeaders } from '@ai-sdk/provider-utils'
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type { AppProviderId } from '@renderer/aiCore/types'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@renderer/config/constant'
@@ -24,9 +25,8 @@ import {
 } from '@renderer/config/models'
 import { getHubModeSystemPrompt } from '@renderer/config/prompts-code-mode'
 import { DEFAULT_ASSISTANT_SETTINGS, getDefaultModel } from '@renderer/services/AssistantService'
-import store from '@renderer/store'
-import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
+import type { WebSearchState } from '@renderer/types'
 import { type Assistant, getEffectiveMcpMode, type MCPTool, type Provider, SystemProviderIds } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { IdleTimeoutController, type IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
@@ -98,7 +98,7 @@ export async function buildStreamTextParams(
     mcpTools?: MCPTool[]
     allowedTools?: string[]
     webSearchProviderId?: string
-    webSearchConfig?: CherryWebSearchConfig
+    webSearchConfig?: Pick<WebSearchState, 'maxResults' | 'excludeDomains'>
     requestOptions?: {
       signal?: AbortSignal
       timeout?: number
@@ -158,11 +158,12 @@ export async function buildStreamTextParams(
   const tools = setupToolsConfig(mcpTools, options.allowedTools)
 
   // 构建真正的 providerOptions
-  const webSearchConfig: CherryWebSearchConfig = {
-    maxResults: store.getState().websearch.maxResults,
-    excludeDomains: store.getState().websearch.excludeDomains,
-    searchWithTime: store.getState().websearch.searchWithTime
-  }
+  const webSearchConfig = options.webSearchConfig
+    ? options.webSearchConfig
+    : await preferenceService.getMultiple({
+        maxResults: 'chat.web_search.max_results',
+        excludeDomains: 'chat.web_search.exclude_domains'
+      })
 
   const { providerOptions, standardParams } = buildProviderOptions(assistant, model, provider, {
     enableReasoning,
