@@ -53,6 +53,7 @@ const UI_DEFAULT_TOP_P = 1
 const UI_DEFAULT_MAX_TOKENS = 4096
 const UI_DEFAULT_CONTEXT_COUNT = 5
 const UI_DEFAULT_MAX_TOOL_CALLS = 20
+export const ASSISTANT_CONTEXT_COUNT_MIN = 1
 
 /**
  * Flat form state shared by all four Assistant editor sections. Every
@@ -106,7 +107,7 @@ function buildAssistantSettingsFromForm(
     enableTopP: form.enableTopP,
     maxTokens: form.maxTokens,
     enableMaxTokens: form.enableMaxTokens,
-    contextCount: form.contextCount,
+    contextCount: normalizeContextCount(form.contextCount),
     streamOutput: form.streamOutput,
     toolUseMode: form.toolUseMode,
     maxToolCalls: form.maxToolCalls,
@@ -130,7 +131,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     enableTopP: settings.enableTopP ?? false,
     maxTokens: settings.maxTokens ?? UI_DEFAULT_MAX_TOKENS,
     enableMaxTokens: settings.enableMaxTokens ?? false,
-    contextCount: settings.contextCount ?? UI_DEFAULT_CONTEXT_COUNT,
+    contextCount: normalizeContextCount(settings.contextCount ?? UI_DEFAULT_CONTEXT_COUNT),
     streamOutput: settings.streamOutput ?? true,
     toolUseMode: settings.toolUseMode ?? 'function',
     maxToolCalls: settings.maxToolCalls ?? UI_DEFAULT_MAX_TOOL_CALLS,
@@ -338,4 +339,9 @@ function sameStringSet(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   const set = new Set(a)
   return b.every((v) => set.has(v))
+}
+
+function normalizeContextCount(value: number): number {
+  if (!Number.isFinite(value)) return UI_DEFAULT_CONTEXT_COUNT
+  return Math.max(ASSISTANT_CONTEXT_COUNT_MIN, Math.trunc(value))
 }

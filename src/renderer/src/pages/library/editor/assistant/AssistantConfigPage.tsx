@@ -124,6 +124,7 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack, onCreated }) => {
       {activeSection === 'prompt' && (
         <PromptSection
           assistant={assistant}
+          assistantName={form.name}
           prompt={form.prompt}
           promptError={createValidation?.promptMissing ? requiredFieldMessage : undefined}
           onChange={(prompt) => onChange({ prompt })}

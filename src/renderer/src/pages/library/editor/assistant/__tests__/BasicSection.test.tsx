@@ -200,3 +200,13 @@ describe('BasicSection model selector', () => {
     expect(onChange).toHaveBeenCalledWith({ modelId: null })
   })
 })
+
+describe('BasicSection model settings', () => {
+  it('does not expose zero as a context count slider value', () => {
+    render(<BasicSection form={createForm()} onChange={vi.fn()} tagColorByName={new Map()} allTagNames={[]} />)
+
+    const contextSlider = screen.getAllByRole('slider').find((slider) => slider.getAttribute('aria-valuemax') === '20')
+
+    expect(contextSlider).toHaveAttribute('aria-valuemin', '1')
+  })
+})

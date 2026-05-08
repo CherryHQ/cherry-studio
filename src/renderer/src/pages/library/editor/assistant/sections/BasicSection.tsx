@@ -34,7 +34,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TagSelector } from '../../../TagSelector'
-import type { AssistantFormState } from '../descriptor'
+import { ASSISTANT_CONTEXT_COUNT_MIN, type AssistantFormState } from '../descriptor'
 import { isSelectableAssistantModel } from '../modelFilter'
 
 type CustomParameter = AssistantSettings['customParameters'][number]
@@ -307,11 +307,11 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
         <FieldContent>
           <Slider
             size="sm"
-            min={0}
+            min={ASSISTANT_CONTEXT_COUNT_MIN}
             max={UI_MAX_CONTEXT_COUNT}
             step={1}
             value={[form.contextCount]}
-            onValueChange={([v]) => onChange({ contextCount: v })}
+            onValueChange={([v]) => onChange({ contextCount: Math.max(ASSISTANT_CONTEXT_COUNT_MIN, v) })}
             className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
           />
         </FieldContent>

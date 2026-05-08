@@ -2446,6 +2446,7 @@
             "too_long": "名称不能超过 {{max}} 个字符"
           }
         },
+        "generate": "生成提示词",
         "insert_variable": "插入变量",
         "label": "系统提示词",
         "placeholder": "在这里输入系统提示词,支持 {{date}} / {{model_name}} 等变量...",

@@ -243,6 +243,25 @@ describe('LibraryPage create flow', () => {
     expect(screen.getByTestId('agent-edit-page')).toBeInTheDocument()
   })
 
+  it('opens the assistant editor from route search after resources load', () => {
+    allResourcesMock.push({
+      id: 'assistant-from-selector',
+      type: 'assistant',
+      name: 'Selector Assistant',
+      description: '',
+      avatar: '💬',
+      tags: [],
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      raw: { id: 'assistant-from-selector' }
+    })
+    routeSearchMock.mockReturnValue({ resourceType: 'assistant', action: 'edit', id: 'assistant-from-selector' })
+
+    render(<LibraryPage />)
+
+    expect(screen.getByTestId('assistant-edit-page')).toBeInTheDocument()
+  })
+
   it('opens the prompt editor from route search after resources load', () => {
     allResourcesMock.push({
       id: 'prompt-from-selector',

@@ -2446,6 +2446,7 @@
             "too_long": "[to be translated]:Name must be {{max}} characters or fewer"
           }
         },
+        "generate": "[to be translated]:Generate prompt",
         "insert_variable": "[to be translated]:Insert variable",
         "label": "[to be translated]:System prompt",
         "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
