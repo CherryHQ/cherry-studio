@@ -3,6 +3,7 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
@@ -58,9 +59,11 @@ describe('KnowledgeOrchestrationService integration', () => {
       }
     })
 
+    const [providerOrderKey] = generateOrderKeySequence(1)
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai',
-      name: 'OpenAI'
+      name: 'OpenAI',
+      orderKey: providerOrderKey
     })
     await dbh.db.insert(userModelTable).values({
       id: embeddingModelId,

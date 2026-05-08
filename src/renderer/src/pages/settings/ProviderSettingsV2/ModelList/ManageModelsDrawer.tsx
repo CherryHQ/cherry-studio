@@ -149,7 +149,7 @@ export default function ManageModelsDrawer({ open, providerId, onClose }: Manage
         }
       }
 
-      refetchExistingModels()
+      void refetchExistingModels()
       await loadModels(provider)
       setCustomAddExpanded(false)
       setCustomAddModelId('')
@@ -214,7 +214,7 @@ export default function ManageModelsDrawer({ open, providerId, onClose }: Manage
           return updateModel(providerId, modelId, { isEnabled: true })
         })
       )
-      refetchExistingModels()
+      void refetchExistingModels()
     } catch (error) {
       logger.error('Failed to enable all models for provider', { providerId, error })
     }
@@ -231,7 +231,7 @@ export default function ManageModelsDrawer({ open, providerId, onClose }: Manage
           return updateModel(providerId, modelId, { isEnabled: false })
         })
       )
-      refetchExistingModels()
+      void refetchExistingModels()
     } catch (error) {
       logger.error('Failed to disable all models for provider', { providerId, error })
     }
@@ -241,7 +241,7 @@ export default function ManageModelsDrawer({ open, providerId, onClose }: Manage
     async (model: Model, enabled: boolean) => {
       const { modelId } = parseUniqueModelId(model.id)
       await updateModel(providerId, modelId, { isEnabled: enabled })
-      refetchExistingModels()
+      void refetchExistingModels()
     },
     [providerId, refetchExistingModels, updateModel]
   )
