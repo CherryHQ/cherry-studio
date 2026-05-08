@@ -1,12 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`GraphvizPreview > basic rendering > should match snapshot 1`] = `
-.c0 {
-  --shadow-host-background-color: white;
-  --shadow-host-border: 0.5px solid var(--color-code-background);
-  --shadow-host-border-radius: 8px;
-}
-
 <div>
   <div
     data-source="graphviz"
@@ -21,7 +15,8 @@ exports[`GraphvizPreview > basic rendering > should match snapshot 1`] = `
       data-testid="preview-content"
     >
       <div
-        class="c0 graphviz special-preview"
+        class="graphviz special-preview"
+        style="--shadow-host-background-color: white; --shadow-host-border: 0.5px solid var(--color-code-background); --shadow-host-border-radius: 8px;"
       />
     </div>
   </div>

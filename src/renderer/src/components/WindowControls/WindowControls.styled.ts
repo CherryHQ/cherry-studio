@@ -1,44 +1,25 @@
-import styled from 'styled-components'
+import { cn } from '@renderer/utils'
+import { type ButtonHTMLAttributes, createElement, type HTMLAttributes } from 'react'
 
-export const WindowControlsContainer = styled.div`
-  display: flex;
-  align-items: stretch;
-  height: 100%;
-  min-height: 0;
-  -webkit-app-region: no-drag;
-  user-select: none;
-  z-index: 9999;
-`
+export const WindowControlsContainer = ({ className, ...props }: HTMLAttributes<HTMLDivElement>) =>
+  createElement('div', {
+    ...props,
+    className: cn('z-[9999] flex h-full min-h-0 select-none items-stretch [-webkit-app-region:no-drag]', className)
+  })
 
-export const ControlButton = styled.button<{ $isClose?: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 46px;
-  height: 100%;
-  border: none;
-  background: transparent;
-  color: var(--color-text);
-  cursor: pointer;
-  outline: none;
-  transition:
-    background 0.15s,
-    color 0.15s;
-  padding: 0;
-  position: relative;
-  border-radius: 0;
-
-  &:hover {
-    background: ${(props) => (props.$isClose ? '#e81123' : 'rgba(128, 128, 128, 0.3)')};
-    color: ${(props) => (props.$isClose ? '#ffffff' : 'var(--color-text)')};
-  }
-
-  &:active {
-    background: ${(props) => (props.$isClose ? '#c50e1f' : 'rgba(128, 128, 128, 0.4)')};
-    color: ${(props) => (props.$isClose ? '#ffffff' : 'var(--color-text)')};
-  }
-
-  svg {
-    pointer-events: none;
-  }
-`
+export const ControlButton = ({
+  $isClose,
+  className,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { $isClose?: boolean }) =>
+  createElement('button', {
+    ...props,
+    className: cn(
+      'relative flex h-full w-[46px] cursor-pointer items-center justify-center rounded-none border-none bg-transparent p-0',
+      'text-[var(--color-text)] outline-none transition-[background,color] duration-150 [&_svg]:pointer-events-none',
+      $isClose
+        ? 'hover:bg-[#e81123] hover:text-white active:bg-[#c50e1f] active:text-white'
+        : 'hover:bg-[rgba(128,128,128,0.3)] hover:text-[var(--color-text)] active:bg-[rgba(128,128,128,0.4)] active:text-[var(--color-text)]',
+      className
+    )
+  })

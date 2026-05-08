@@ -4,7 +4,6 @@ import type { ComponentType, ReactNode } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
   const { t } = useTranslation()
   const { error } = props
@@ -15,7 +14,7 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
     await window.api.reload()
   }
   return (
-    <ErrorContainer>
+    <div className="flex w-full items-center justify-center p-2">
       <Alert
         message={t('error.boundary.default.message')}
         showIcon
@@ -32,7 +31,7 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
           </div>
         }
       />
-    </ErrorContainer>
+    </div>
   )
 }
 
@@ -45,13 +44,5 @@ const ErrorBoundaryCustomized = ({
 }) => {
   return <ErrorBoundary FallbackComponent={fallbackComponent ?? DefaultFallback}>{children}</ErrorBoundary>
 }
-
-const ErrorContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  padding: 8px;
-`
 
 export { ErrorBoundaryCustomized as ErrorBoundary }

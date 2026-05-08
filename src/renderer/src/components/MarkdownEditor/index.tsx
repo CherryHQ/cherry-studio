@@ -9,7 +9,6 @@ import rehypeRaw from 'rehype-raw'
 import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
-import styled from 'styled-components'
 
 interface MarkdownEditorProps {
   value: string
@@ -40,54 +39,23 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({
   }
 
   return (
-    <EditorContainer style={{ height }}>
-      <InputArea value={inputValue} onChange={handleChange} placeholder={placeholder} autoFocus={autoFocus} />
-      <PreviewArea className="markdown">
+    <div className="flex w-full overflow-hidden rounded-lg border border-[var(--color-border)]" style={{ height }}>
+      <textarea
+        className="flex-1 resize-none border-0 border-[var(--color-border)] border-r bg-[var(--color-bg-1)] p-3 font-[var(--font-family)] text-[var(--color-text)] text-sm leading-[1.5] outline-none placeholder:text-[var(--color-text-3)] focus:outline-none"
+        value={inputValue}
+        onChange={handleChange}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+      />
+      <div className="markdown flex-1 overflow-auto bg-[var(--color-bg-1)] p-3">
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkCjkFriendly, remarkMath]}
           rehypePlugins={[rehypeRaw, rehypeKatex]}>
           {inputValue || t('settings.provider.notes.markdown_editor_default_value')}
         </ReactMarkdown>
-      </PreviewArea>
-    </EditorContainer>
+      </div>
+    </div>
   )
 }
-
-const EditorContainer = styled.div`
-  display: flex;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  overflow: hidden;
-  width: 100%;
-`
-
-const InputArea = styled.textarea`
-  flex: 1;
-  padding: 12px;
-  border: none;
-  resize: none;
-  font-family: var(--font-family);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--color-text);
-  background-color: var(--color-bg-1);
-  border-right: 1px solid var(--color-border);
-  outline: none;
-
-  &:focus {
-    outline: none;
-  }
-
-  &::placeholder {
-    color: var(--color-text-3);
-  }
-`
-
-const PreviewArea = styled.div`
-  flex: 1;
-  padding: 12px;
-  overflow: auto;
-  background-color: var(--color-bg-1);
-`
 
 export default MarkdownEditor

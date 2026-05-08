@@ -2,10 +2,10 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { CopyIcon, DeleteIcon } from '@renderer/components/Icons'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import type { Topic } from '@renderer/types'
+import { cn } from '@renderer/utils'
 import { Save, X } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, HTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   topic: Topic
@@ -71,39 +71,27 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
   )
 }
 
-const Container = styled.div`
-  position: fixed;
-  inset: auto 0 0 0;
-  z-index: 1000;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 16px;
-`
+const Container: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div className={cn('fixed inset-x-0 bottom-0 z-[1000] flex items-center justify-center p-4', className)} {...props} />
+)
 
-const ActionBar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background-color: var(--color-background);
-  padding: 4px 4px;
-  border-radius: 99px;
-  box-shadow: 0 2px 8px 0 rgb(128 128 128 / 20%);
-  border: 0.5px solid var(--color-border);
-  gap: 16px;
-`
+const ActionBar: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div
+    className={cn(
+      'flex items-center justify-between gap-4 rounded-[99px] border-[0.5px] border-[var(--color-border)]',
+      'bg-[var(--color-background)] p-1 shadow-[0_2px_8px_0_rgb(128_128_128_/_20%)]',
+      className
+    )}
+    {...props}
+  />
+)
 
-const ActionButtons = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
+const ActionButtons: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div className={cn('flex items-center gap-2', className)} {...props} />
+)
 
-const SelectionCount = styled.div`
-  color: var(--color-text-2);
-  font-size: 14px;
-  padding-left: 8px;
-  flex-shrink: 0;
-`
+const SelectionCount: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div className={cn('shrink-0 pl-2 text-[14px] text-[var(--color-text-2)]', className)} {...props} />
+)
 
 export default MultiSelectActionPopup

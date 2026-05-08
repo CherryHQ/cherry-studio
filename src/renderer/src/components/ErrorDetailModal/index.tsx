@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -34,7 +35,6 @@ import { parseDataUrl } from '@shared/utils'
 import { CheckCircle, Copy, Loader2, Stethoscope } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import Scrollbar from '../Scrollbar'
 import AIDiagnosisSectionWithStatus from './AIDiagnosisSection'
@@ -72,68 +72,52 @@ const truncateLargeData = (
   }
 }
 
-// --- Styled Components ---
+const ErrorDetailContainer = ({ className, ...props }: React.ComponentProps<typeof Scrollbar>) => (
+  <Scrollbar className={cn('max-h-[60vh] pr-[5px]', className)} {...props} />
+)
 
-const ErrorDetailContainer = styled(Scrollbar)`
-  max-height: 60vh;
-  padding-right: 5px;
-`
+const ErrorDetailList = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('flex flex-col gap-4', className)} {...props} />
+)
 
-const ErrorDetailList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-`
+const ErrorDetailItem = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('flex flex-col gap-2', className)} {...props} />
+)
 
-const ErrorDetailItem = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
+const ErrorDetailLabel = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('font-semibold text-[14px] text-[var(--color-text)]', className)} {...props} />
+)
 
-const ErrorDetailLabel = styled.div`
-  font-weight: 600;
-  color: var(--color-text);
-  font-size: 14px;
-`
+const ErrorDetailValue = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      'rounded-[4px] border border-[var(--color-border)] bg-[var(--color-code-background)] p-2 font-[var(--code-font-family)] text-[12px] text-[var(--color-text)] [word-break:break-word]',
+      className
+    )}
+    {...props}
+  />
+)
 
-const ErrorDetailValue = styled.div`
-  font-family: var(--code-font-family);
-  font-size: 12px;
-  padding: 8px;
-  background: var(--color-code-background);
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  word-break: break-word;
-  color: var(--color-text);
-`
+const StackTrace = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      'rounded-[6px] border border-[var(--color-error)] bg-[var(--color-background-soft)] p-3 [&_pre]:m-0 [&_pre]:whitespace-pre-wrap [&_pre]:font-[var(--code-font-family)] [&_pre]:text-[12px] [&_pre]:text-[var(--color-error)] [&_pre]:leading-[1.4] [&_pre]:[word-break:break-word]',
+      className
+    )}
+    {...props}
+  />
+)
 
-const StackTrace = styled.div`
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-error);
-  border-radius: 6px;
-  padding: 12px;
-
-  pre {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-family: var(--code-font-family);
-    font-size: 12px;
-    line-height: 1.4;
-    color: var(--color-error);
-  }
-`
-
-const TruncatedBadge = styled.span`
-  margin-left: 8px;
-  padding: 2px 6px;
-  font-size: 10px;
-  font-weight: normal;
-  color: var(--color-warning);
-  background: var(--color-warning-bg, rgba(250, 173, 20, 0.1));
-  border-radius: 4px;
-`
+const TruncatedBadge = ({ className, style, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
+  <span
+    className={cn('ml-2 rounded-[4px] px-1.5 py-0.5 font-normal text-[10px] text-[var(--color-warning)]', className)}
+    style={{
+      background: 'var(--color-warning-bg, rgba(250, 173, 20, 0.1))',
+      ...style
+    }}
+    {...props}
+  />
+)
 
 // --- Sub-Components ---
 

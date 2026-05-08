@@ -1,12 +1,11 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
-import { scrollElementIntoView } from '@renderer/utils'
+import { classNames, scrollElementIntoView } from '@renderer/utils'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   children?: React.ReactNode
@@ -348,9 +347,9 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
       <Container
         ref={containerRef}
         style={enableContentSearch ? {} : { display: 'none' }}
-        $overlayPosition={positionMode === 'absolute' ? 'absolute' : 'static'}>
+        overlayPosition={positionMode === 'absolute' ? 'absolute' : 'static'}>
         <NarrowLayout style={{ width: '100%' }}>
-          <SearchBarContainer $position={positionMode}>
+          <SearchBarContainer position={positionMode}>
             <InputWrapper>
               <Input
                 ref={searchInputRef}
@@ -426,96 +425,104 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
 
 ContentSearch.displayName = 'ContentSearch'
 
-const Container = styled.div<{ $overlayPosition: 'static' | 'absolute' }>`
-  display: flex;
-  flex-direction: row;
-  position: ${({ $overlayPosition }) => $overlayPosition};
-  top: ${({ $overlayPosition }) => ($overlayPosition === 'absolute' ? '0' : 'auto')};
-  left: ${({ $overlayPosition }) => ($overlayPosition === 'absolute' ? '0' : 'auto')};
-  right: ${({ $overlayPosition }) => ($overlayPosition === 'absolute' ? '0' : 'auto')};
-  z-index: 999;
-`
+const Container = ({
+  ref,
+  overlayPosition,
+  className,
+  style,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { overlayPosition: 'static' | 'absolute' } & {
+  ref?: React.RefObject<HTMLDivElement | null>
+}) => (
+  <div
+    ref={ref}
+    className={classNames('z-[999] flex flex-row', className)}
+    style={{
+      position: overlayPosition,
+      top: overlayPosition === 'absolute' ? '0' : 'auto',
+      left: overlayPosition === 'absolute' ? '0' : 'auto',
+      right: overlayPosition === 'absolute' ? '0' : 'auto',
+      ...style
+    }}
+    {...props}
+  />
+)
+Container.displayName = 'ContentSearchContainer'
 
-const SearchBarContainer = styled.div<{ $position: 'fixed' | 'absolute' | 'sticky' }>`
-  border: 1px solid var(--color-primary);
-  border-radius: 10px;
-  transition: all 0.2s ease;
-  position: ${({ $position }) => $position};
-  top: 15px;
-  left: 20px;
-  right: 20px;
-  margin-bottom: 5px;
-  padding: 5px 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--color-background);
-  flex: 1 1 auto; /* Take up input's previous space */
-`
+const SearchBarContainer = ({
+  position,
+  className,
+  style,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { position: 'fixed' | 'absolute' | 'sticky' }) => (
+  <div
+    className={classNames(
+      'mb-[5px] flex flex-[1_1_auto] items-center justify-center rounded-[10px] border border-[var(--color-primary)]',
+      'bg-[var(--color-background)] px-[15px] py-[5px] transition-all duration-200 ease-in-out',
+      className
+    )}
+    style={{ position, top: '15px', left: '20px', right: '20px', ...style }}
+    {...props}
+  />
+)
 
-const Placeholder = styled.div`
-  width: 5px;
-`
+const Placeholder = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={classNames('w-[5px]', className)} {...props} />
+)
 
-const InputWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  flex: 1 1 auto; /* Take up input's previous space */
-`
+const InputWrapper = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={classNames('flex flex-[1_1_auto] items-center', className)} {...props} />
+)
 
-const Input = styled.input`
-  border: none;
-  color: var(--color-text);
-  background-color: transparent;
-  outline: none;
-  width: 100%;
-  padding: 0 5px; /* Adjust padding, wrapper will handle spacing */
-  flex: 1; /* Allow input to grow */
-  font-size: 14px;
-  font-family: Ubuntu;
-`
+const Input = ({
+  ref,
+  className,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { ref?: React.RefObject<HTMLInputElement | null> }) => (
+  <input
+    ref={ref}
+    className={classNames(
+      'w-full flex-1 border-none bg-transparent px-[5px] py-0 font-[Ubuntu] text-[14px] text-[var(--color-text)] outline-none',
+      className
+    )}
+    {...props}
+  />
+)
+Input.displayName = 'ContentSearchInput'
 
-const ToolBar = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: tpx;
-`
+const ToolBar = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={classNames('flex flex-row items-center', className)} {...props} />
+)
 
-const Separator = styled.div`
-  width: 1px;
-  height: 1.5em;
-  background-color: var(--color-border);
-  margin-left: 2px;
-  margin-right: 2px;
-  flex: 0 0 auto;
-`
+const Separator = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={classNames('mx-[2px] h-[1.5em] w-px flex-[0_0_auto] bg-[var(--color-border)]', className)}
+    {...props}
+  />
+)
 
-const SearchResults = styled.div`
-  display: flex;
-  justify-content: center;
-  width: 80px;
-  margin: 0 2px;
-  flex: 0 0 auto;
-  color: var(--color-text-1);
-  font-size: 14px;
-  font-family: Ubuntu;
-`
+const SearchResults = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={classNames(
+      'mx-[2px] flex w-20 flex-[0_0_auto] justify-center font-[Ubuntu] text-[14px] text-[var(--color-text-1)]',
+      className
+    )}
+    {...props}
+  />
+)
 
-const SearchResultsPlaceholder = styled.span`
-  color: var(--color-text-1);
-  opacity: 0.5;
-`
+const SearchResultsPlaceholder = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
+  <span className={classNames('text-[var(--color-text-1)] opacity-50', className)} {...props} />
+)
 
-const SearchResultCount = styled.span`
-  color: var(--color-text);
-`
+const SearchResultCount = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
+  <span className={classNames('text-[var(--color-text)]', className)} {...props} />
+)
 
-const SearchResultSeparator = styled.span`
-  color: var(--color-text);
-  margin: 0 4px;
-`
+const SearchResultSeparator = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
+  <span className={classNames('mx-1 text-[var(--color-text)]', className)} {...props} />
+)
 
-const SearchResultTotalCount = styled.span`
-  color: var(--color-text);
-`
+const SearchResultTotalCount = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
+  <span className={classNames('text-[var(--color-text)]', className)} {...props} />
+)
