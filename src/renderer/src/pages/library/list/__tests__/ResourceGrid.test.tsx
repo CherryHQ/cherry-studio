@@ -4,7 +4,8 @@ import type { ComponentProps, ComponentType, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResourceItem } from '../../types'
-import { FixedCardMenu, ResourceGrid } from '../ResourceGrid'
+import { FixedCardMenu } from '../ResourceCardMenu'
+import { ResourceGrid } from '../ResourceGrid'
 
 const { ensureTagsMock, updateAssistantMock } = vi.hoisted(() => ({
   ensureTagsMock: vi.fn(),
@@ -20,15 +21,15 @@ vi.mock('react-i18next', () => ({
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
   motion: {
-    div: ({
-      children,
-      initial: _initial,
-      animate: _animate,
-      exit: _exit,
-      transition: _transition,
-      whileHover: _whileHover,
-      ...props
-    }: ComponentProps<'div'> & Record<string, unknown>) => <div {...props}>{children}</div>,
+    div: (props: ComponentProps<'div'> & Record<string, unknown>) => {
+      const { children, initial, animate, exit, transition, whileHover, ...divProps } = props
+      void initial
+      void animate
+      void exit
+      void transition
+      void whileHover
+      return <div {...divProps}>{children}</div>
+    },
     create: (Component: ComponentType<Record<string, unknown>>) => Component
   }
 }))
@@ -41,44 +42,48 @@ vi.mock('@cherrystudio/ui', () => ({
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,
-    className: _className,
-    loading: _loading,
-    size: _size,
-    variant: _variant,
+    loading,
+    size,
+    variant,
     ...props
-  }: ComponentProps<'button'> & { loading?: boolean; size?: string; variant?: string }) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
+  }: ComponentProps<'button'> & { loading?: boolean; size?: string; variant?: string }) => {
+    void loading
+    void size
+    void variant
+    return (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    )
+  },
   Checkbox: ({
     checked = false,
-    className: _className,
     onCheckedChange,
-    size: _size,
+    size,
     ...props
   }: Omit<ComponentProps<'button'>, 'onChange'> & {
     checked?: boolean
     onCheckedChange?: (checked: boolean) => void
     size?: string
-  }) => (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      onClick={() => onCheckedChange?.(!checked)}
-      {...props}
-    />
-  ),
+  }) => {
+    void size
+    return (
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={checked}
+        onClick={() => onCheckedChange?.(!checked)}
+        {...props}
+      />
+    )
+  },
   EmptyState: ({ description, title }: { description?: string; title?: string }) => (
     <div data-testid="empty-state">
       {title && <div>{title}</div>}
       {description && <div>{description}</div>}
     </div>
   ),
-  Input: ({ className: _className, ...props }: ComponentProps<'input'> & { className?: string }) => (
-    <input {...props} />
-  ),
+  Input: (props: ComponentProps<'input'> & { className?: string }) => <input {...props} />,
   MenuDivider: () => <div />,
   MenuItem: ({
     icon,

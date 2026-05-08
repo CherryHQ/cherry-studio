@@ -2,9 +2,9 @@ import { Field, FieldContent, Textarea } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { FieldHeader } from '../../FieldHeader'
 import { PromptVariablesTooltip } from '../../PromptVariablesTooltip'
 import type { AgentFormState } from '../descriptor'
-import { FieldHeader } from './FieldHeader'
 
 interface Props {
   form: AgentFormState

@@ -36,7 +36,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
   })
 }))
 
-vi.mock('../sections/catalogComponents', () => ({
+vi.mock('../../components/CatalogPicker', () => ({
   AddCatalogPopover: ({
     triggerLabel,
     disabled,
@@ -47,7 +47,7 @@ vi.mock('../sections/catalogComponents', () => ({
     triggerLabel: string
     disabled?: boolean
     items: Array<{ id: string; name: string }>
-    enabledIds: Set<string>
+    enabledIds: ReadonlySet<string>
     onAdd: (id: string) => void
   }) => (
     <button

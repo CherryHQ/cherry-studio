@@ -23,9 +23,9 @@ import type { FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { FieldHeader } from '../../FieldHeader'
 import { ModelSelectorField } from '../../ModelSelectorField'
 import type { AgentFormState } from '../descriptor'
-import { FieldHeader } from './FieldHeader'
 
 const logger = loggerService.withContext('AgentConfig:BasicSection')
 

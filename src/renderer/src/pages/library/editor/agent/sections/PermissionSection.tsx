@@ -2,8 +2,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { FieldHeader } from '../../FieldHeader'
 import type { AgentFormState } from '../descriptor'
-import { FieldHeader } from './FieldHeader'
 
 interface Props {
   form: AgentFormState

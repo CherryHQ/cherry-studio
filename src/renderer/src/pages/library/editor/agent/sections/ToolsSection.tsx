@@ -17,8 +17,9 @@ import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { AddCatalogPopover, BoundCatalogList, type CatalogItem } from '../../components/CatalogPicker'
+import { McpServerAvatar } from '../../components/McpServerAvatar'
 import type { AgentFormState } from '../descriptor'
-import { AddCatalogPopover, BoundCatalogList, type CatalogItem } from './catalogComponents'
 
 interface Props {
   agent: AgentDetail
@@ -104,7 +105,15 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
         id: s.id,
         name: s.name,
         description: s.description || s.baseUrl || s.command,
-        icon: <MCPIcon server={s} size={28} />,
+        icon: (
+          <McpServerAvatar
+            server={s}
+            size={28}
+            fallbackIcon={Network}
+            fallbackIconClassName="text-blue-500/60"
+            fallbackIconScale={0.5}
+          />
+        ),
         inactiveBadge: s.isActive ? undefined : t('library.config.tools.inactive_badge'),
         // Hide inactive servers from the picker — same rule as assistant MCP.
         pickable: s.isActive
@@ -271,26 +280,6 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
           />
         )}
       </div>
-    </div>
-  )
-}
-
-function MCPIcon({ server, size }: { server: MCPServer; size: number }) {
-  if (server.logoUrl) {
-    return (
-      <img
-        src={server.logoUrl}
-        alt=""
-        className="shrink-0 rounded-2xs bg-accent/40 object-cover"
-        style={{ width: size, height: size }}
-      />
-    )
-  }
-  return (
-    <div
-      className="flex shrink-0 items-center justify-center rounded-2xs bg-accent/50"
-      style={{ width: size, height: size }}>
-      <Network size={Math.round(size * 0.5)} strokeWidth={1.5} className="text-blue-500/60" />
     </div>
   )
 }

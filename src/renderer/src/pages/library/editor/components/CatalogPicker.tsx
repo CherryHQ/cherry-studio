@@ -15,38 +15,20 @@ import type { FC, ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-/**
- * Shape expected by both the bound list and the add popover. Each tab in
- * `ToolsSection` maps its own domain type (built-in Tool, MCPServer,
- * InstalledSkill) into a `CatalogItem` before passing it in. Keeping the
- * shape generic lets us share the render + add-popover logic across all
- * three tabs — the interaction pattern (bound cards with switch-off + add
- * popover listing pickable items) is identical.
- */
 export interface CatalogItem {
   id: string
   name: string
   description?: string | null
   icon?: ReactNode
-  /** Shown in the bound card when truthy (e.g. MCP "未启用" for inactive servers). */
   inactiveBadge?: string
-  /** When false, this item is excluded from the add popover even when not
-   * bound. Used by MCP to hide inactive servers from the picker. */
   pickable?: boolean
-  /** Optional secondary badge, e.g. "Added by mode" for auto-approved tools. */
   statusBadge?: ReactNode
   statusBadgeClassName?: string
-  /** Lock the enabled switch while keeping the row visible and checked. */
   disableToggle?: boolean
   disabledReason?: ReactNode
 }
 
-/**
- * Single bound-item card. Visual: icon tile + name + description + Switch.
- * The switch is always "checked" while the item is rendered here (presence
- * in the bound list == enabled); flipping it off calls `onDisable`.
- */
-export function BoundRow({ item, onDisable }: { item: CatalogItem; onDisable: () => void }) {
+export function BoundCatalogRow({ item, onDisable }: { item: CatalogItem; onDisable: () => void }) {
   return (
     <div className="flex items-center gap-3 rounded-xs border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20">
       {item.icon ? (
@@ -54,7 +36,9 @@ export function BoundRow({ item, onDisable }: { item: CatalogItem; onDisable: ()
       ) : null}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-foreground text-sm">{item.name}</span>
+          <span className="truncate text-foreground text-sm" title={item.name}>
+            {item.name}
+          </span>
           {item.inactiveBadge ? (
             <span className="shrink-0 rounded-3xs bg-warning/10 px-1 py-px text-warning text-xs">
               {item.inactiveBadge}
@@ -70,7 +54,9 @@ export function BoundRow({ item, onDisable }: { item: CatalogItem; onDisable: ()
           ) : null}
         </div>
         {item.description ? (
-          <div className="mt-0.5 truncate text-muted-foreground/55 text-xs">{item.description}</div>
+          <div className="mt-0.5 truncate text-muted-foreground/55 text-xs" title={item.description}>
+            {item.description}
+          </div>
         ) : null}
       </div>
       <Tooltip content={item.disabledReason} isDisabled={!item.disabledReason}>
@@ -89,20 +75,15 @@ export function BoundRow({ item, onDisable }: { item: CatalogItem; onDisable: ()
   )
 }
 
-/**
- * List of currently-bound items. Handles loading + empty states and keeps
- * the parent tab's render code short.
- */
 export const BoundCatalogList: FC<{
   items: CatalogItem[]
   loading?: boolean
-  /** Search keyword (outer search bar in `ToolsSection`). Filters by name
-   * and description, case-insensitive. Empty string = show everything. */
   search?: string
   onDisable: (id: string) => void
   emptyLabel: ReactNode
   noMatchLabel: ReactNode
-}> = ({ items, loading, search, onDisable, emptyLabel, noMatchLabel }) => {
+  emptyContent?: ReactNode
+}> = ({ items, loading, search, onDisable, emptyLabel, noMatchLabel, emptyContent }) => {
   const { t } = useTranslation()
 
   const filtered = useMemo(() => {
@@ -112,43 +93,46 @@ export const BoundCatalogList: FC<{
   }, [items, search])
 
   if (loading) {
-    return <EmptyPlaceholder>{t('common.loading')}</EmptyPlaceholder>
+    return <CatalogEmptyPlaceholder>{t('common.loading')}</CatalogEmptyPlaceholder>
   }
   if (items.length === 0) {
-    return <EmptyPlaceholder>{emptyLabel}</EmptyPlaceholder>
+    return emptyContent ?? <CatalogEmptyPlaceholder>{emptyLabel}</CatalogEmptyPlaceholder>
   }
   if (filtered.length === 0) {
-    return <EmptyPlaceholder>{noMatchLabel}</EmptyPlaceholder>
+    return <CatalogEmptyPlaceholder>{noMatchLabel}</CatalogEmptyPlaceholder>
   }
   return (
     <div className="flex flex-col gap-1.5">
       {filtered.map((it) => (
-        <BoundRow key={it.id} item={it} onDisable={() => onDisable(it.id)} />
+        <BoundCatalogRow key={it.id} item={it} onDisable={() => onDisable(it.id)} />
       ))}
     </div>
   )
 }
 
-/**
- * Popover trigger + content for "+ 添加". Lists currently-unbound items
- * (optionally filtered by `item.pickable !== false`) with an internal
- * search input — mirrors the `AssistantConfig` MCP picker interaction.
- *
- * `onAdd` receives the picked id; the popover closes itself afterwards.
- */
 export const AddCatalogPopover: FC<{
   items: CatalogItem[]
-  /** Set of ids already bound/enabled — excluded from the picker. */
   enabledIds: ReadonlySet<string>
   onAdd: (id: string) => void
   triggerLabel: string
   searchPlaceholder: string
   emptyLabel: string
   disabled?: boolean
-  /** Popover alignment; defaults to end so it anchors off the tab-bar
-   * right edge (where "+ 添加" lives). */
   align?: 'start' | 'end'
-}> = ({ items, enabledIds, onAdd, triggerLabel, searchPlaceholder, emptyLabel, disabled, align = 'end' }) => {
+  triggerClassName?: string
+  triggerPosition?: 'start' | 'end'
+}> = ({
+  items,
+  enabledIds,
+  onAdd,
+  triggerLabel,
+  searchPlaceholder,
+  emptyLabel,
+  disabled,
+  align = 'end',
+  triggerClassName,
+  triggerPosition = 'end'
+}) => {
   const [open, setOpen] = useState(false)
   const [keyword, setKeyword] = useState('')
 
@@ -174,7 +158,11 @@ export const AddCatalogPopover: FC<{
           type="button"
           variant="ghost"
           disabled={disabled}
-          className="ml-auto flex h-auto min-h-0 items-center gap-1 rounded-2xs px-2 py-1 font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-30">
+          className={`${
+            triggerPosition === 'end' ? 'ml-auto' : ''
+          } flex h-auto min-h-0 items-center gap-1 rounded-2xs px-2 py-1 font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-30 ${
+            triggerClassName ?? ''
+          }`}>
           <Plus size={10} />
           <span>{triggerLabel}</span>
         </Button>
@@ -222,6 +210,6 @@ export const AddCatalogPopover: FC<{
   )
 }
 
-export function EmptyPlaceholder({ children }: { children: ReactNode }) {
+export function CatalogEmptyPlaceholder({ children }: { children: ReactNode }) {
   return <div className="py-14 text-center text-muted-foreground/55 text-xs">{children}</div>
 }
