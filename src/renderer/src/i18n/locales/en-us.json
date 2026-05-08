@@ -2394,6 +2394,49 @@
         "default_value": "Model default",
         "desc": "Configure the assistant's identity and model parameters",
         "description_label": "Description",
+        "field": {
+          "avatar": {
+            "hint": "Used to identify the assistant in the library and chats"
+          },
+          "context_count": {
+            "hint": "Number of recent messages kept as context"
+          },
+          "custom_params": {
+            "hint": "Extra provider parameters sent with requests"
+          },
+          "description": {
+            "hint": "Helps distinguish what this assistant is for",
+            "placeholder": "What this assistant is for..."
+          },
+          "max_tokens": {
+            "hint": "Caps response length when enabled"
+          },
+          "max_tool_calls": {
+            "hint": "Limits tool-call loops when enabled"
+          },
+          "model": {
+            "hint": "Overrides the global default model for this assistant"
+          },
+          "name": {
+            "hint": "Shown in the library and assistant selectors",
+            "placeholder": "Give the assistant a name"
+          },
+          "stream_output": {
+            "hint": "Shows responses as they are generated"
+          },
+          "tags": {
+            "hint": "Used for filtering and organizing assistants"
+          },
+          "temperature": {
+            "hint": "Controls randomness when enabled"
+          },
+          "tool_use_mode": {
+            "hint": "Controls how tools are exposed to the model"
+          },
+          "top_p": {
+            "hint": "Limits token sampling range when enabled"
+          }
+        },
         "json_invalid": "Invalid JSON format",
         "max_tokens": "Max tokens",
         "max_tool_calls": "Max tool calls",
@@ -2426,6 +2469,7 @@
         "empty_title": "No knowledge bases linked",
         "invalid_suffix": "... (unavailable)",
         "linked": "Linked knowledge bases",
+        "linked_hint": "Controls which knowledge bases this assistant can retrieve from",
         "no_more": "No more knowledge bases available",
         "remove_aria": "Remove",
         "search": "Search knowledge bases...",
@@ -2487,6 +2531,7 @@
       "tools": {
         "add_mcp": "Add MCP server",
         "added": "Added MCP servers",
+        "added_hint": "Manual mode exposes only the servers in this list",
         "desc": "Configure the MCP servers this assistant can call during chat",
         "empty_desc": "Once added, the assistant can invoke external tools",
         "empty_title": "No MCP servers added",

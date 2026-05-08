@@ -1,19 +1,11 @@
-import {
-  Button,
-  FieldLabel,
-  Input,
-  MenuItem,
-  MenuList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Scrollbar
-} from '@cherrystudio/ui'
+import { Button, Input, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { Database, Plus, Search, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { FieldHeader } from '../../FieldHeader'
 
 interface Props {
   value: string[]
@@ -62,9 +54,11 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
       </div>
 
       <div>
-        <FieldLabel className="mb-2 block font-normal text-muted-foreground/80 text-sm">
-          {t('library.config.knowledge.linked')}
-        </FieldLabel>
+        <FieldHeader
+          label={t('library.config.knowledge.linked')}
+          hint={t('library.config.knowledge.linked_hint')}
+          className="mb-2"
+        />
         {linkedItems.length === 0 ? (
           <div className="flex flex-col items-center rounded-xs border border-border/20 border-dashed p-6">
             <Database size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/40" />

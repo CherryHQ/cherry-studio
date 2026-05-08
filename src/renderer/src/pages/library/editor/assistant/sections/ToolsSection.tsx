@@ -1,6 +1,5 @@
 import {
   Button,
-  FieldLabel,
   Input,
   MenuItem,
   MenuList,
@@ -19,6 +18,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type AssistantConfigMcpMode, MCP_MODE_OPTIONS } from '../../../constants'
+import { FieldHeader } from '../../FieldHeader'
 
 interface Props {
   mcpMode: AssistantConfigMcpMode
@@ -82,9 +82,11 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
 
       {mcpMode === 'manual' && (
         <div>
-          <FieldLabel className="mb-2 block font-normal text-muted-foreground/80 text-sm">
-            {t('library.config.tools.added')}
-          </FieldLabel>
+          <FieldHeader
+            label={t('library.config.tools.added')}
+            hint={t('library.config.tools.added_hint')}
+            className="mb-2"
+          />
 
           {isLoading ? (
             <p className="px-3 py-2 text-muted-foreground/50 text-xs">{t('common.loading')}</p>

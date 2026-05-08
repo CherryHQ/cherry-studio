@@ -52,9 +52,10 @@ vi.mock('react-markdown', () => ({
 }))
 
 vi.mock('lucide-react', () => ({
+  CircleHelp: (props: ComponentProps<'span'>) => <span {...props} />,
   Edit: () => <span />,
   Eye: () => <span />,
-  HelpCircle: () => <span />,
+  HelpCircle: (props: ComponentProps<'span'>) => <span {...props} />,
   Loader2: () => <span />,
   Sparkles: () => <span />,
   Undo2: () => <span />
@@ -106,6 +107,13 @@ describe('PromptSection prompt generation', () => {
     fetchGenerateMock.mockReset()
     loggerErrorMock.mockReset()
     fetchGenerateMock.mockResolvedValue('Generated prompt')
+  })
+
+  it('keeps only the system variable tooltip entry point on the prompt label', () => {
+    render(<PromptHarness initialPrompt="Existing prompt" />)
+
+    expect(screen.getByLabelText('library.config.prompt.variables_title')).toBeInTheDocument()
+    expect(screen.queryByLabelText('library.config.prompt.hint')).not.toBeInTheDocument()
   })
 
   it('generates from the assistant name when the prompt is empty and can undo the generated prompt', async () => {

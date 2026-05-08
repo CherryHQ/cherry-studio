@@ -2,6 +2,7 @@ import { Field, FieldContent, Textarea } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { PromptVariablesTooltip } from '../../PromptVariablesTooltip'
 import type { AgentFormState } from '../descriptor'
 import { FieldHeader } from './FieldHeader'
 
@@ -26,8 +27,12 @@ const PromptSection: FC<Props> = ({ form, onChange }) => {
 
       <Field className="gap-1.5">
         <FieldHeader
-          label={t('library.config.agent.field.instructions.label')}
-          hint={t('library.config.agent.field.instructions.hint')}
+          label={
+            <span className="flex items-center gap-1.5">
+              <span>{t('library.config.agent.field.instructions.label')}</span>
+              <PromptVariablesTooltip />
+            </span>
+          }
         />
         <FieldContent>
           <Textarea.Input

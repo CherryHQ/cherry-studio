@@ -202,6 +202,21 @@ describe('BasicSection model selector', () => {
 })
 
 describe('BasicSection model settings', () => {
+  it('renders icon tooltip entry points for assistant identity fields', () => {
+    render(<BasicSection form={createForm()} onChange={vi.fn()} tagColorByName={new Map()} allTagNames={[]} />)
+
+    expect(
+      screen.getByLabelText(
+        /展示在资源库和助手选择器中|Shown in the library and assistant selectors|library\.config\.basic\.field\.name\.hint/
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByPlaceholderText(
+        /给助手起个名字|Give the assistant a name|library\.config\.basic\.field\.name\.placeholder/
+      )
+    ).toBeInTheDocument()
+  })
+
   it('does not expose zero as a context count slider value', () => {
     render(<BasicSection form={createForm()} onChange={vi.fn()} tagColorByName={new Map()} allTagNames={[]} />)
 

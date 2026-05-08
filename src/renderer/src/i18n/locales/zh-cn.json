@@ -2394,6 +2394,49 @@
         "default_value": "模型默认",
         "desc": "配置助手的身份信息和模型参数",
         "description_label": "简介",
+        "field": {
+          "avatar": {
+            "hint": "用于在资源库和对话中识别助手"
+          },
+          "context_count": {
+            "hint": "保留为上下文的最近消息数量"
+          },
+          "custom_params": {
+            "hint": "随请求发送给模型服务商的额外参数"
+          },
+          "description": {
+            "hint": "帮助快速区分这个助手的用途",
+            "placeholder": "这个助手的用途..."
+          },
+          "max_tokens": {
+            "hint": "启用后限制回复长度"
+          },
+          "max_tool_calls": {
+            "hint": "启用后限制工具调用轮次"
+          },
+          "model": {
+            "hint": "覆盖该助手使用的全局默认模型"
+          },
+          "name": {
+            "hint": "展示在资源库和助手选择器中",
+            "placeholder": "给助手起个名字"
+          },
+          "stream_output": {
+            "hint": "生成时逐步显示回复内容"
+          },
+          "tags": {
+            "hint": "用于筛选和整理助手"
+          },
+          "temperature": {
+            "hint": "启用后控制回复随机性"
+          },
+          "tool_use_mode": {
+            "hint": "控制工具如何暴露给模型"
+          },
+          "top_p": {
+            "hint": "启用后限制采样范围"
+          }
+        },
         "json_invalid": "JSON 格式错误",
         "max_tokens": "最大 Token 数",
         "max_tool_calls": "最大工具调用次数",
@@ -2426,6 +2469,7 @@
         "empty_title": "暂未关联知识库",
         "invalid_suffix": "... (已失效)",
         "linked": "已关联知识库",
+        "linked_hint": "控制该助手可以检索哪些知识库",
         "no_more": "没有更多可用的知识库",
         "remove_aria": "移除",
         "search": "搜索知识库...",
@@ -2487,6 +2531,7 @@
       "tools": {
         "add_mcp": "添加 MCP 服务",
         "added": "已添加的 MCP 服务",
+        "added_hint": "手动模式只会暴露这里添加的服务",
         "desc": "配置该助手在对话中可以调用的 MCP 服务",
         "empty_desc": "添加 MCP 服务后,助手可以调用外部工具",
         "empty_title": "暂未添加 MCP 服务",

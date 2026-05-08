@@ -7,7 +7,6 @@ import {
   FieldContent,
   FieldDescription,
   FieldError,
-  FieldLabel,
   Input,
   Popover,
   PopoverContent,
@@ -34,6 +33,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TagSelector } from '../../../TagSelector'
+import { FieldHeader } from '../../FieldHeader'
 import { ASSISTANT_CONTEXT_COUNT_MIN, type AssistantFormState } from '../descriptor'
 import { isSelectableAssistantModel } from '../modelFilter'
 
@@ -109,7 +109,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       </div>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">{t('common.avatar')}</FieldLabel>
+        <FieldHeader label={t('common.avatar')} hint={t('library.config.basic.field.avatar.hint')} />
         <FieldContent>
           <div className="flex items-center gap-2">
             <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
@@ -152,11 +152,12 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       </Field>
 
       <Field data-invalid={nameInvalid || undefined} className="gap-1.5">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">{t('common.name')}</FieldLabel>
+        <FieldHeader label={t('common.name')} hint={t('library.config.basic.field.name.hint')} />
         <FieldContent>
           <Input
             value={form.name}
             onChange={(e) => onChange({ name: e.target.value })}
+            placeholder={t('library.config.basic.field.name.placeholder')}
             aria-invalid={nameInvalid || undefined}
             className="h-auto w-full rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0 aria-invalid:border-destructive/50"
           />
@@ -165,23 +166,23 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       </Field>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-          {t('library.config.basic.description_label')}
-        </FieldLabel>
+        <FieldHeader
+          label={t('library.config.basic.description_label')}
+          hint={t('library.config.basic.field.description.hint')}
+        />
         <FieldContent>
           <Textarea.Input
             value={form.description}
             onValueChange={(description) => onChange({ description })}
             rows={3}
+            placeholder={t('library.config.basic.field.description.placeholder')}
             className="min-h-0 w-full resize-none rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
           />
         </FieldContent>
       </Field>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-          {t('library.config.basic.tags')}
-        </FieldLabel>
+        <FieldHeader label={t('library.config.basic.tags')} hint={t('library.config.basic.field.tags.hint')} />
         <FieldContent>
           <TagSelector
             value={form.tags}
@@ -199,10 +200,8 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
 
       {/* 默认模型 */}
       <Field className="gap-1.5">
-        <div className="flex items-center justify-between gap-3">
-          <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-            {t('library.config.basic.model')}
-          </FieldLabel>
+        <FieldHeader label={t('library.config.basic.model')} hint={t('library.config.basic.field.model.hint')} />
+        <FieldContent>
           {form.modelId ? (
             <div className="flex items-center gap-2">
               <ModelSelector
@@ -248,18 +247,19 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
               }
             />
           )}
-        </div>
-        {form.modelId && !selectedModel ? (
-          <FieldDescription className="text-muted-foreground/50 text-xs">
-            {t('library.config.basic.model_not_found', { id: form.modelId })}
-          </FieldDescription>
-        ) : null}
+          {form.modelId && !selectedModel ? (
+            <FieldDescription className="text-muted-foreground/50 text-xs">
+              {t('library.config.basic.model_not_found', { id: form.modelId })}
+            </FieldDescription>
+          ) : null}
+        </FieldContent>
       </Field>
 
       {/* 模型温度 */}
       <ToggleFieldGroup
         label={t('library.config.basic.temperature')}
         valueLabel={form.enableTemperature ? form.temperature.toFixed(1) : t('library.config.basic.default_value')}
+        hint={t('library.config.basic.field.temperature.hint')}
         enabled={form.enableTemperature}
         onEnabledChange={(v) => onChange({ enableTemperature: v })}>
         <Slider
@@ -281,6 +281,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       <ToggleFieldGroup
         label={t('library.config.basic.top_p')}
         valueLabel={form.enableTopP ? form.topP.toFixed(2) : t('library.config.basic.default_value')}
+        hint={t('library.config.basic.field.top_p.hint')}
         enabled={form.enableTopP}
         onEnabledChange={(v) => onChange({ enableTopP: v })}>
         <Slider
@@ -296,14 +297,17 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
 
       {/* 上下文数 */}
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-          <div className="flex items-center justify-between">
-            <span>{t('library.config.basic.context_count')}</span>
-            <span className="text-muted-foreground/50">
-              {form.contextCount >= UI_MAX_CONTEXT_COUNT ? t('library.config.basic.unlimited') : form.contextCount}
+        <FieldHeader
+          label={
+            <span className="flex items-center gap-1.5">
+              <span>{t('library.config.basic.context_count')}</span>
+              <span className="text-muted-foreground/50">
+                {form.contextCount >= UI_MAX_CONTEXT_COUNT ? t('library.config.basic.unlimited') : form.contextCount}
+              </span>
             </span>
-          </div>
-        </FieldLabel>
+          }
+          hint={t('library.config.basic.field.context_count.hint')}
+        />
         <FieldContent>
           <Slider
             size="sm"
@@ -323,6 +327,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       <ToggleFieldGroup
         label={t('library.config.basic.max_tokens')}
         valueLabel={form.enableMaxTokens ? form.maxTokens.toLocaleString() : t('library.config.basic.default_value')}
+        hint={t('library.config.basic.field.max_tokens.hint')}
         enabled={form.enableMaxTokens}
         onEnabledChange={(v) => onChange({ enableMaxTokens: v })}>
         <EditableNumber
@@ -343,17 +348,20 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
 
       {/* 流式输出 */}
       <div className="flex items-center justify-between">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-          {t('library.config.basic.stream_output')}
-        </FieldLabel>
+        <FieldHeader
+          label={t('library.config.basic.stream_output')}
+          hint={t('library.config.basic.field.stream_output.hint')}
+          className="min-w-0 flex-1"
+        />
         <Switch checked={form.streamOutput} onCheckedChange={(v) => onChange({ streamOutput: v })} />
       </div>
 
       {/* 工具调用方式 */}
-      <div className="flex items-center justify-between">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-          {t('library.config.basic.tool_use_mode')}
-        </FieldLabel>
+      <div className="space-y-1.5">
+        <FieldHeader
+          label={t('library.config.basic.tool_use_mode')}
+          hint={t('library.config.basic.field.tool_use_mode.hint')}
+        />
         <ButtonGroup className="overflow-hidden rounded-2xs border border-border/30">
           {(['function', 'prompt'] as const).map((mode) => (
             <Button
@@ -378,6 +386,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       <ToggleFieldGroup
         label={t('library.config.basic.max_tool_calls')}
         valueLabel={form.enableMaxToolCalls ? form.maxToolCalls.toString() : t('library.config.basic.unlimited')}
+        hint={t('library.config.basic.field.max_tool_calls.hint')}
         enabled={form.enableMaxToolCalls}
         onEnabledChange={(v) => onChange({ enableMaxToolCalls: v })}>
         <EditableNumber
@@ -457,9 +466,11 @@ function CustomParametersField({ value, onChange }: CustomParametersFieldProps) 
   return (
     <div>
       <div className="flex items-center justify-between">
-        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
-          {t('library.config.basic.custom_params')}
-        </FieldLabel>
+        <FieldHeader
+          label={t('library.config.basic.custom_params')}
+          hint={t('library.config.basic.field.custom_params.hint')}
+          className="min-w-0 flex-1"
+        />
         <Button type="button" variant="secondary" size="sm" onClick={add} className="h-7 gap-1 px-2.5 text-xs">
           <Plus size={11} />
           {t('library.config.basic.custom_params_add')}
@@ -603,12 +614,14 @@ function CustomParameterRow({
 function ToggleFieldGroup({
   label,
   valueLabel,
+  hint,
   enabled,
   onEnabledChange,
   children
 }: {
   label: ReactNode
   valueLabel: ReactNode
+  hint?: ReactNode
   enabled: boolean
   onEnabledChange: (v: boolean) => void
   children: ReactNode
@@ -616,10 +629,16 @@ function ToggleFieldGroup({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <FieldLabel className="flex items-center gap-1.5 font-normal text-muted-foreground/80 text-sm">
-          <span>{label}</span>
-          <span className="text-muted-foreground/50">{valueLabel}</span>
-        </FieldLabel>
+        <FieldHeader
+          label={
+            <span className="flex items-center gap-1.5">
+              <span>{label}</span>
+              <span className="text-muted-foreground/50">{valueLabel}</span>
+            </span>
+          }
+          hint={hint}
+          className="min-w-0 flex-1"
+        />
         <Switch checked={enabled} onCheckedChange={onEnabledChange} />
       </div>
       {enabled && <div className="mt-2">{children}</div>}
