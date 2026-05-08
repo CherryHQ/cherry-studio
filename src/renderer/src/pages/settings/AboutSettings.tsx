@@ -6,7 +6,7 @@ import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import i18n from '@renderer/i18n'
 import { cn, runAsyncFunction } from '@renderer/utils'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
@@ -28,7 +28,7 @@ const AboutSettings: FC = () => {
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { openSmartMinapp } = useMinappPopup()
+  const { openSmartMiniApp } = useMiniAppPopup()
 
   const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
 
@@ -81,8 +81,8 @@ const AboutSettings: FC = () => {
 
   const showReleases = async () => {
     const { appPath } = await window.api.getAppInfo()
-    openSmartMinapp({
-      id: 'cherrystudio-releases',
+    openSmartMiniApp({
+      appId: 'cherrystudio-releases',
       name: t('settings.about.releases.title'),
       url: `file://${appPath}/resources/cherry-studio/releases.html?theme=${theme === ThemeMode.dark ? 'dark' : 'light'}`,
       logo: AppLogo

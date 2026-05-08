@@ -36,6 +36,7 @@ import { usePasteHandler } from '../hooks/usePasteHandler'
 import { getInputbarConfig } from '../registry'
 import SendMessageButton from '../SendMessageButton'
 import type { InputbarScope } from '../types'
+import { findNextPromptVariableRange } from './promptVariableNavigation'
 
 const logger = loggerService.withContext('InputbarCore')
 
@@ -126,7 +127,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const { setFiles, setIsExpanded, toolsRegistry, triggers } = useInputbarToolsDispatch()
   const { setExtensions } = useInputbarToolsInternalDispatch()
   const isEmpty = text.trim().length === 0
-  const [inputFocus, setInputFocus] = useState(false)
   const [targetLanguage] = usePreference('feature.translate.chat.target_language')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
@@ -264,32 +264,18 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (event.key === 'Tab' && inputFocus) {
-        event.preventDefault()
-        const textArea = textareaRef.current?.resizableTextArea?.textArea
-        if (!textArea) {
-          return
-        }
-        const cursorPosition = textArea.selectionStart
+      if (event.key === 'Tab') {
+        const textArea = textareaRef.current?.resizableTextArea?.textArea ?? event.currentTarget
         const selectionLength = textArea.selectionEnd - textArea.selectionStart
-        const text = textArea.value
+        const variableRange = findNextPromptVariableRange(textArea.value, textArea.selectionStart, selectionLength)
 
-        let match = text.slice(cursorPosition + selectionLength).match(/\$\{[^}]+\}/)
-        let startIndex: number
-
-        if (!match) {
-          match = text.match(/\$\{[^}]+\}/)
-          startIndex = match?.index ?? -1
-        } else {
-          startIndex = cursorPosition + selectionLength + match.index!
-        }
-
-        if (startIndex !== -1) {
-          const endIndex = startIndex + match![0].length
-          textArea.setSelectionRange(startIndex, endIndex)
+        if (variableRange) {
+          event.preventDefault()
+          textArea.setSelectionRange(variableRange.start, variableRange.end)
           return
         }
       }
+
       if (autoTranslateWithSpace && event.key === ' ') {
         setSpaceClickCount((prev) => prev + 1)
         if (spaceClickTimer.current) {
@@ -332,19 +318,18 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       }
     },
     [
-      inputFocus,
       autoTranslateWithSpace,
       isExpanded,
       text.length,
       files.length,
-      textareaRef,
       spaceClickCount,
       translate,
       handleToggleExpanded,
       sendMessageShortcut,
       isSendDisabled,
       handleSendMessage,
-      setFiles
+      setFiles,
+      textareaRef
     ]
   )
 
@@ -503,7 +488,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   )
 
   const handleFocus = useCallback(() => {
-    setInputFocus(true)
     setSearching(false)
     // Don't close panel in multiple selection mode, or if triggered by input
     if (quickPanel.isVisible && quickPanel.triggerInfo?.type !== 'input' && !quickPanel.multiple) {
@@ -657,7 +641,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
             onKeyDown={handleKeyDown}
             onPaste={(e) => handlePaste(e.nativeEvent)}
             onFocus={handleFocus}
-            onBlur={() => setInputFocus(false)}
             placeholder={isTranslating ? t('chat.input.translating') : placeholder}
             autoFocus
             variant="borderless"

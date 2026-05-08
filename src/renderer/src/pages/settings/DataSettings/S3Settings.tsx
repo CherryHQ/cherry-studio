@@ -6,7 +6,7 @@ import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
 import Selector from '@renderer/components/Selector'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
 import dayjs from 'dayjs'
@@ -33,7 +33,7 @@ const S3Settings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
 
-  const { openSmartMinapp } = useMinappPopup()
+  const { openSmartMiniApp } = useMiniAppPopup()
 
   const { s3Sync } = useAppSelector((state) => state.backup)
 
@@ -49,8 +49,8 @@ const S3Settings: FC = () => {
   }
 
   const handleTitleClick = () => {
-    openSmartMinapp({
-      id: 's3-help',
+    openSmartMiniApp({
+      appId: 's3-help',
       name: 'S3 Compatible Storage Help',
       url: 'https://docs.cherry-ai.com/data-settings/s3-compatible',
       logo: AppLogo

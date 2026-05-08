@@ -2,7 +2,6 @@
 import { Box } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppModalProvider from '@renderer/components/AppModal'
-import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { message } from 'antd'
 import type { PropsWithChildren } from 'react'
@@ -104,7 +103,6 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
           window.modal = modal
         }}
       />
-      <TopViewMinappContainer />
       {elements.map(({ element: Element, id }) => (
         <FullScreenContainer key={`TOPVIEW_${id}`}>
           {typeof Element === 'function' ? <Element /> : Element}

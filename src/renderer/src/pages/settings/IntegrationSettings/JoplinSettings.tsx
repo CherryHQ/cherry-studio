@@ -3,7 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,7 +24,7 @@ const JoplinSettings: FC = () => {
     void setJoplinToken(e.target.value)
   }
 
-  const { openSmartMinapp } = useMinappPopup()
+  const { openSmartMiniApp } = useMiniAppPopup()
 
   const handleJoplinUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     void setJoplinUrl(e.target.value)
@@ -70,8 +70,8 @@ const JoplinSettings: FC = () => {
   }
 
   const handleJoplinHelpClick = () => {
-    openSmartMinapp({
-      id: 'joplin-help',
+    openSmartMiniApp({
+      appId: 'joplin-help',
       name: 'Joplin Help',
       url: 'https://joplinapp.org/help/apps/clipper',
       logo: AppLogo

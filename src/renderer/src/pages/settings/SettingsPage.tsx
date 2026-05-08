@@ -21,7 +21,9 @@ import {
   Search,
   Server,
   Settings2,
-  TextCursorInput
+  Sparkles,
+  TextCursorInput,
+  Zap
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -87,6 +89,13 @@ const SettingsPage: FC = () => {
               />
               <MenuItem
                 className={menuItemClassName}
+                icon={<Sparkles />}
+                label={t('settings.skills.title')}
+                active={isActive('/settings/skills')}
+                onClick={() => go('/settings/skills')}
+              />
+              <MenuItem
+                className={menuItemClassName}
                 icon={<Search />}
                 label={t('settings.tool.websearch.title')}
                 active={isActive('/settings/websearch')}
@@ -144,6 +153,13 @@ const SettingsPage: FC = () => {
                 label={t('settings.scheduledTasks.title')}
                 active={isActive('/settings/scheduled-tasks')}
                 onClick={() => go('/settings/scheduled-tasks')}
+              />
+              <MenuItem
+                className={menuItemClassName}
+                icon={<Zap />}
+                label={t('settings.prompts.title')}
+                active={isActive('/settings/prompts')}
+                onClick={() => go('/settings/prompts')}
               />
               <MenuItem
                 className={menuItemClassName}

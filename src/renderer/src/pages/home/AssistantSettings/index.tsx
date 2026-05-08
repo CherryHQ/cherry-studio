@@ -12,14 +12,13 @@ import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
 import AssistantMCPSettings from './AssistantMCPSettings'
 import AssistantModelSettings from './AssistantModelSettings'
 import AssistantPromptSettings from './AssistantPromptSettings'
-import AssistantRegularPromptsSettings from './AssistantRegularPromptsSettings'
 
 interface AssistantSettingPopupShowParams {
   assistant: Assistant
   tab?: AssistantSettingPopupTab
 }
 
-type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base' | 'mcp' | 'regular_phrases'
+type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base' | 'mcp'
 
 interface Props extends AssistantSettingPopupShowParams {
   resolve: (assistant: Assistant) => void
@@ -70,10 +69,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     {
       key: 'mcp',
       label: t('assistants.settings.mcp.label')
-    },
-    {
-      key: 'regular_phrases',
-      label: t('assistants.settings.regular_phrases.title', 'Regular Prompts')
     }
   ].filter(Boolean) as { key: string; label: string }[]
 
@@ -138,9 +133,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
             />
           )}
           {menu === 'mcp' && <AssistantMCPSettings assistant={assistant} updateAssistant={updateAssistant} />}
-          {menu === 'regular_phrases' && (
-            <AssistantRegularPromptsSettings assistant={assistant} updateAssistant={updateAssistant} />
-          )}
         </div>
       </RowFlex>
     </Modal>

@@ -3,7 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,7 +17,7 @@ const SiyuanSettings: FC = () => {
   const [siyuanBoxId, setSiyuanBoxId] = usePreference('data.integration.siyuan.box_id')
   const [siyuanRootPath, setSiyuanRootPath] = usePreference('data.integration.siyuan.root_path')
 
-  const { openSmartMinapp } = useMinappPopup()
+  const { openSmartMiniApp } = useMiniAppPopup()
   const { t } = useTranslation()
   const { theme } = useTheme()
 
@@ -38,8 +38,8 @@ const SiyuanSettings: FC = () => {
   }
 
   const handleSiyuanHelpClick = () => {
-    openSmartMinapp({
-      id: 'siyuan-help',
+    openSmartMiniApp({
+      appId: 'siyuan-help',
       name: 'Siyuan Help',
       url: 'https://docs.cherry-ai.com/advanced-basic/siyuan',
       logo: AppLogo

@@ -33,18 +33,36 @@ export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolea
   const { t } = useTranslation()
   const { settedTheme, toggleTheme } = useTheme()
   const { hasWindowControls } = useShellTabBarLayout(isDetached)
-  const { openTab } = useTabs()
+  const { tabs, activeTabId, openTab, updateTab } = useTabs()
   const [settingsOpenTarget] = usePreference('app.settings.open_target')
 
   const ThemeIcon = settedTheme === 'dark' ? Moon : settedTheme === 'light' ? Sun : Monitor
 
   const handleSettingsClick = () => {
+    const settingsPath = '/settings/provider'
+
     if (settingsOpenTarget === 'app') {
-      openTab('/settings/provider', { title: getDefaultRouteTitle('/settings/provider') })
+      const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
+
+      if (!hasUserTabsInTabBar) {
+        openTab(settingsPath, {
+          forceNew: true,
+          title: getDefaultRouteTitle(settingsPath)
+        })
+        return
+      }
+
+      if (activeTabId) {
+        updateTab(activeTabId, {
+          url: settingsPath,
+          title: getDefaultRouteTitle(settingsPath),
+          icon: undefined
+        })
+      }
       return
     }
 
-    void openSettingsWindow('/settings/provider')
+    void openSettingsWindow(settingsPath)
   }
 
   return (
