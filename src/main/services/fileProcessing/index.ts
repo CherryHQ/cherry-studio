@@ -7,5 +7,7 @@ export type {
   FileProcessingTaskResult,
   FileProcessingTaskStartResult,
   GetFileProcessingTaskInput,
-  StartFileProcessingTaskInput
+  GetFileProcessingTaskOptions,
+  StartFileProcessingTaskInput,
+  StartFileProcessingTaskOptions
 } from './types'

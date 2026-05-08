@@ -4,11 +4,30 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
+import { loggerService } from '@logger'
 import { pathExists } from '@main/utils/file'
 import StreamZip from 'node-stream-zip'
 
 export const OUTPUT_MARKDOWN_FILE = 'output.md'
+const logger = loggerService.withContext('FileProcessingResultPersistence')
 const resultsDirWriteQueues = new Map<string, Promise<void>>()
+
+type PersistenceCleanupContext = {
+  resultsDir?: string
+  tempDir?: string
+  backupDir?: string
+  tempDownloadDir?: string
+  zipFilePath?: string
+  step: string
+}
+
+async function warnIfCleanupFails(action: () => Promise<void>, context: PersistenceCleanupContext): Promise<void> {
+  try {
+    await action()
+  } catch (error) {
+    logger.warn('File processing result persistence cleanup failed', error as Error, context)
+  }
+}
 
 function normalizeEntryPath(entryName: string): string {
   const posixPath = entryName.replace(/\\/g, '/')
@@ -97,20 +116,39 @@ async function replaceResultsDirAtomically(
         const tempDirStillExists = await pathExists(tempDir)
 
         if (hadExistingResults && !(await pathExists(resultsDir))) {
-          await fs.rename(backupDir, resultsDir).catch(() => undefined)
+          await warnIfCleanupFails(() => fs.rename(backupDir, resultsDir), {
+            resultsDir,
+            tempDir,
+            backupDir,
+            step: 'restore-backup'
+          })
         } else if (hadExistingResults) {
-          await fs.rm(backupDir, { recursive: true, force: true }).catch(() => undefined)
+          await warnIfCleanupFails(() => fs.rm(backupDir, { recursive: true, force: true }), {
+            resultsDir,
+            tempDir,
+            backupDir,
+            step: 'remove-backup'
+          })
         }
 
         if (tempDirStillExists) {
-          await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined)
+          await warnIfCleanupFails(() => fs.rm(tempDir, { recursive: true, force: true }), {
+            resultsDir,
+            tempDir,
+            backupDir,
+            step: 'remove-temp'
+          })
         }
 
         throw error
       }
     })
   } catch (error) {
-    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined)
+    await warnIfCleanupFails(() => fs.rm(tempDir, { recursive: true, force: true }), {
+      resultsDir,
+      tempDir,
+      step: 'remove-temp-after-error'
+    })
     throw error
   }
 }
@@ -158,7 +196,11 @@ export async function persistZipResult(options: { zipFilePath: string; resultsDi
 
     return getPersistedMarkdownPath(options.resultsDir)
   } finally {
-    await zip.close().catch(() => undefined)
+    await warnIfCleanupFails(() => zip.close(), {
+      resultsDir: options.resultsDir,
+      zipFilePath: options.zipFilePath,
+      step: 'close-zip'
+    })
   }
 }
 
@@ -188,7 +230,12 @@ export async function persistResponseZipResult(options: {
       resultsDir: options.resultsDir
     })
   } finally {
-    await fs.rm(tempDownloadDir, { recursive: true, force: true }).catch(() => undefined)
+    await warnIfCleanupFails(() => fs.rm(tempDownloadDir, { recursive: true, force: true }), {
+      resultsDir: options.resultsDir,
+      tempDownloadDir,
+      zipFilePath,
+      step: 'remove-temp-download'
+    })
   }
 }
 

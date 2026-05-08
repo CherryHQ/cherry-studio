@@ -10,17 +10,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 
-const { processorRegistryMock, resolveProcessorConfigByFeatureMock, persistResultMock } = vi.hoisted(() => ({
-  processorRegistryMock: {} as Record<string, { capabilities: Record<string, unknown> }>,
-  resolveProcessorConfigByFeatureMock: vi.fn(),
-  persistResultMock: vi.fn()
-}))
+const { processorRegistryMock, resolveProcessorConfigByFeatureMock, persistResultMock, cleanupResultsDirMock } =
+  vi.hoisted(() => ({
+    processorRegistryMock: {} as Record<string, { capabilities: Record<string, unknown> }>,
+    resolveProcessorConfigByFeatureMock: vi.fn(),
+    persistResultMock: vi.fn(),
+    cleanupResultsDirMock: vi.fn()
+  }))
 
 vi.mock('../../config/resolveProcessorConfig', () => ({
   resolveProcessorConfigByFeature: resolveProcessorConfigByFeatureMock
 }))
 
 vi.mock('../../persistence/MarkdownResultStore', () => ({
+  cleanupFileProcessingResultsDir: cleanupResultsDirMock,
   markdownResultStore: {
     persistResult: persistResultMock
   }
@@ -31,6 +34,20 @@ vi.mock('../../processors/registry', () => ({
 }))
 
 const { FileProcessingTaskService, FILE_PROCESSING_TASK_TTL_MS } = await import('../FileProcessingTaskService')
+
+type TestRemoteProcessingSnapshot = {
+  status: 'processing'
+  progress: number
+  remoteContext: {
+    apiHost: string
+    stage: 'exporting'
+  }
+}
+
+type TestRemoteFailedSnapshot = {
+  status: 'failed'
+  error: string
+}
 
 const imageFile: FileMetadata = {
   id: 'image-file-1',
@@ -175,6 +192,7 @@ describe('FileProcessingTaskService', () => {
     vi.clearAllMocks()
     BaseService.resetInstances()
     resetProcessorRegistryMock()
+    cleanupResultsDirMock.mockResolvedValue(true)
   })
 
   it('uses WhenReady phase', () => {
@@ -355,6 +373,12 @@ describe('FileProcessingTaskService', () => {
       signal: expect.any(AbortSignal)
     })
     expect(persistResultMock.mock.calls[0][0]).not.toHaveProperty('fileId')
+
+    await vi.waitFor(async () => {
+      await expect(service.getTask({ taskId: started.taskId })).resolves.toMatchObject({
+        status: 'completed'
+      })
+    })
 
     await service._doStop()
   })
@@ -583,6 +607,78 @@ describe('FileProcessingTaskService', () => {
     await service._doStop()
   })
 
+  it('keeps pruned background tasks cancelled and cleans up artifacts when persistence finishes later', async () => {
+    vi.useFakeTimers()
+
+    const persistence = createDeferred<string>()
+    const execute = vi.fn().mockResolvedValue({
+      kind: 'markdown',
+      markdownContent: '# expired'
+    })
+    const handler = {
+      prepare: vi.fn().mockReturnValue({
+        mode: 'background' as const,
+        execute
+      })
+    }
+    processorRegistryMock['open-mineru'] = {
+      capabilities: {
+        document_to_markdown: handler
+      }
+    }
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('open-mineru', 'document_to_markdown', ['document'])
+    )
+    persistResultMock.mockReturnValueOnce(persistence.promise)
+
+    const service = new FileProcessingTaskService()
+
+    try {
+      await service._doInit()
+      const taskEvents = recordTaskEvents(service)
+
+      const started = await service.startTask({
+        feature: 'document_to_markdown',
+        file: documentFile,
+        processorId: 'open-mineru'
+      })
+
+      await vi.waitFor(() => {
+        expect(persistResultMock).toHaveBeenCalledOnce()
+      })
+
+      await vi.advanceTimersByTimeAsync(FILE_PROCESSING_TASK_TTL_MS)
+
+      expect(taskEvents.events).toContainEqual(
+        expect.objectContaining({
+          taskId: started.taskId,
+          status: 'cancelled',
+          reason: 'File processing task expired'
+        })
+      )
+
+      persistence.resolve('/tmp/file-processing/expired.md')
+      await vi.waitFor(() => {
+        expect(cleanupResultsDirMock).toHaveBeenCalledWith(started.taskId)
+      })
+
+      await expect(service.getTask({ taskId: started.taskId })).rejects.toThrow(
+        `File processing task not found: ${started.taskId}`
+      )
+      expect(taskEvents.events).not.toContainEqual(
+        expect.objectContaining({
+          taskId: started.taskId,
+          status: 'completed'
+        })
+      )
+
+      taskEvents.dispose()
+    } finally {
+      await service._doStop()
+      vi.useRealTimers()
+    }
+  })
+
   it('preserves cancelled background task state when execution later fails or succeeds', async () => {
     const firstExecuteSignal = createDeferred<AbortSignal>()
     const secondExecuteSignal = createDeferred<AbortSignal>()
@@ -661,6 +757,122 @@ describe('FileProcessingTaskService', () => {
     })
 
     await service._doStop()
+  })
+
+  it('does not cancel background execution when the start caller signal aborts after task creation', async () => {
+    const executeDeferred = createDeferred<{
+      kind: 'text'
+      text: string
+    }>()
+    const executeSignal = createDeferred<AbortSignal>()
+    const execute = vi.fn().mockImplementation(async (executionContext) => {
+      executeSignal.resolve(executionContext.signal)
+      return await executeDeferred.promise
+    })
+    const handler = {
+      prepare: vi.fn().mockReturnValue({
+        mode: 'background' as const,
+        execute
+      })
+    }
+    processorRegistryMock.tesseract = {
+      capabilities: {
+        image_to_text: handler
+      }
+    }
+    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('tesseract', 'image_to_text', ['image']))
+
+    const service = new FileProcessingTaskService()
+    await service._doInit()
+    const callerController = new AbortController()
+
+    const started = await service.startTask(
+      {
+        feature: 'image_to_text',
+        file: imageFile,
+        processorId: 'tesseract'
+      },
+      {
+        signal: callerController.signal
+      }
+    )
+    const backgroundSignal = await executeSignal.promise
+
+    callerController.abort(new DOMException('caller aborted after start', 'AbortError'))
+    expect(backgroundSignal.aborted).toBe(false)
+
+    executeDeferred.resolve({
+      kind: 'text',
+      text: 'still completed'
+    })
+
+    await vi.waitFor(async () => {
+      await expect(service.getTask({ taskId: started.taskId })).resolves.toMatchObject({
+        status: 'completed',
+        artifacts: [
+          {
+            kind: 'text',
+            text: 'still completed'
+          }
+        ]
+      })
+    })
+
+    await service._doStop()
+  })
+
+  it('removes the remote start caller abort listener after start settles', async () => {
+    const pollRemote = vi.fn()
+    const startRemote = vi.fn().mockResolvedValue({
+      providerTaskId: 'provider-task-1',
+      status: 'processing',
+      progress: 0,
+      remoteContext: {
+        apiHost: 'https://example.com',
+        stage: 'parsing'
+      }
+    })
+    const handler = {
+      prepare: vi.fn().mockReturnValue({
+        mode: 'remote-poll' as const,
+        startRemote,
+        pollRemote
+      })
+    }
+    processorRegistryMock.doc2x = {
+      capabilities: {
+        document_to_markdown: handler
+      }
+    }
+    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+
+    const callerController = new AbortController()
+    const removeListenerSpy = vi.spyOn(callerController.signal, 'removeEventListener')
+    const service = new FileProcessingTaskService()
+
+    await service._doInit()
+    const taskEvents = recordTaskEvents(service)
+    const started = await service.startTask(
+      {
+        feature: 'document_to_markdown',
+        file: documentFile,
+        processorId: 'doc2x'
+      },
+      {
+        signal: callerController.signal
+      }
+    )
+
+    await waitForTaskEvent(taskEvents.events, started.taskId, {
+      status: 'processing',
+      progress: 0
+    })
+
+    expect(removeListenerSpy).toHaveBeenCalledWith('abort', expect.any(Function))
+
+    taskEvents.dispose()
+    await service._doStop()
+    removeListenerSpy.mockRestore()
   })
 
   it('logs structured task ops for background create, progress, complete, fail, and cancel', async () => {
@@ -816,6 +1028,7 @@ describe('FileProcessingTaskService', () => {
     persistResultMock.mockResolvedValue('/tmp/file-processing/remote-log.md')
 
     const debugSpy = vi.spyOn(mockMainLoggerService, 'debug').mockImplementation(() => {})
+    const infoSpy = vi.spyOn(mockMainLoggerService, 'info').mockImplementation(() => {})
     const service = new FileProcessingTaskService()
 
     try {
@@ -925,10 +1138,24 @@ describe('FileProcessingTaskService', () => {
       expectTaskLog(debugSpy, prunedTask.taskId, 'prune', {
         status: 'processing'
       })
+      expect(taskEvents.events).toContainEqual(
+        expect.objectContaining({
+          taskId: prunedTask.taskId,
+          status: 'cancelled',
+          reason: 'File processing task expired'
+        })
+      )
+      expect(infoSpy).toHaveBeenCalledWith(
+        'Pruned expired file processing tasks',
+        expect.objectContaining({
+          expiredTaskIds: expect.arrayContaining([prunedTask.taskId])
+        })
+      )
 
       taskEvents.dispose()
     } finally {
       await service._doStop()
+      infoSpy.mockRestore()
       debugSpy.mockRestore()
       vi.useRealTimers()
     }
@@ -1075,6 +1302,78 @@ describe('FileProcessingTaskService', () => {
 
     taskEvents.dispose()
     await service._doStop()
+  })
+
+  it('logs remote poll rejections, keeps the task active, and clears the in-flight query', async () => {
+    const pollError = new Error('temporary provider outage')
+    const pollRemote = vi
+      .fn()
+      .mockRejectedValueOnce(pollError)
+      .mockResolvedValueOnce({
+        status: 'processing',
+        progress: 33,
+        remoteContext: {
+          apiHost: 'https://example.com',
+          stage: 'retrying'
+        }
+      })
+    const startRemote = vi.fn().mockResolvedValue({
+      providerTaskId: 'provider-task-1',
+      status: 'processing',
+      progress: 0,
+      remoteContext: {
+        apiHost: 'https://example.com',
+        stage: 'parsing'
+      }
+    })
+    const handler = {
+      prepare: vi.fn().mockReturnValue({
+        mode: 'remote-poll' as const,
+        startRemote,
+        pollRemote
+      })
+    }
+    processorRegistryMock.doc2x = {
+      capabilities: {
+        document_to_markdown: handler
+      }
+    }
+    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
+
+    const service = new FileProcessingTaskService()
+
+    try {
+      await service._doInit()
+      const taskEvents = recordTaskEvents(service)
+
+      const started = await service.startTask({
+        feature: 'document_to_markdown',
+        file: documentFile,
+        processorId: 'doc2x'
+      })
+
+      await waitForTaskEvent(taskEvents.events, started.taskId, {
+        status: 'processing',
+        progress: 0
+      })
+      await expect(service.getTask({ taskId: started.taskId })).rejects.toBe(pollError)
+      expect(warnSpy).toHaveBeenCalledWith('File processing remote poll failed', pollError, {
+        taskId: started.taskId,
+        processorId: 'doc2x',
+        providerTaskId: 'provider-task-1'
+      })
+      await expect(service.getTask({ taskId: started.taskId })).resolves.toMatchObject({
+        status: 'processing',
+        progress: 33
+      })
+      expect(pollRemote).toHaveBeenCalledTimes(2)
+
+      taskEvents.dispose()
+    } finally {
+      await service._doStop()
+      warnSpy.mockRestore()
+    }
   })
 
   it('does not poll provider for terminal remote-poll tasks', async () => {
@@ -1335,6 +1634,197 @@ describe('FileProcessingTaskService', () => {
     await service._doStop()
   })
 
+  it('preserves cancelled remote-poll tasks when provider later returns processing or failed snapshots', async () => {
+    const pollRemote = vi.fn()
+    const startRemote = vi.fn().mockResolvedValue({
+      providerTaskId: 'provider-task-1',
+      status: 'processing',
+      progress: 0,
+      remoteContext: {
+        apiHost: 'https://example.com',
+        stage: 'parsing'
+      }
+    })
+    const handler = {
+      prepare: vi.fn().mockReturnValue({
+        mode: 'remote-poll' as const,
+        startRemote,
+        pollRemote
+      })
+    }
+    processorRegistryMock.doc2x = {
+      capabilities: {
+        document_to_markdown: handler
+      }
+    }
+    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+
+    const service = new FileProcessingTaskService()
+    await service._doInit()
+    const taskEvents = recordTaskEvents(service)
+    const applyRemoteSnapshot = (taskId: string, snapshot: TestRemoteProcessingSnapshot | TestRemoteFailedSnapshot) =>
+      (
+        service as unknown as {
+          applyRemoteSnapshot(
+            taskId: string,
+            snapshot: TestRemoteProcessingSnapshot | TestRemoteFailedSnapshot,
+            signal: AbortSignal
+          ): Promise<FileProcessingTaskResult>
+        }
+      ).applyRemoteSnapshot(taskId, snapshot, new AbortController().signal)
+
+    const processingTask = await service.startTask({
+      feature: 'document_to_markdown',
+      file: documentFile,
+      processorId: 'doc2x'
+    })
+
+    await waitForTaskEvent(taskEvents.events, processingTask.taskId, {
+      status: 'processing',
+      progress: 0
+    })
+    await expect(service.cancelTask({ taskId: processingTask.taskId })).resolves.toMatchObject({
+      status: 'cancelled',
+      reason: 'cancelled'
+    })
+    await expect(
+      applyRemoteSnapshot(processingTask.taskId, {
+        status: 'processing',
+        progress: 80,
+        remoteContext: {
+          apiHost: 'https://example.com',
+          stage: 'exporting'
+        }
+      })
+    ).resolves.toMatchObject({
+      taskId: processingTask.taskId,
+      status: 'cancelled',
+      reason: 'cancelled'
+    })
+    expect(taskEvents.events).not.toContainEqual(
+      expect.objectContaining({
+        taskId: processingTask.taskId,
+        status: 'processing',
+        progress: 80
+      })
+    )
+
+    const failedTask = await service.startTask({
+      feature: 'document_to_markdown',
+      file: documentFile,
+      processorId: 'doc2x'
+    })
+
+    await waitForTaskEvent(taskEvents.events, failedTask.taskId, {
+      status: 'processing',
+      progress: 0
+    })
+    await expect(service.cancelTask({ taskId: failedTask.taskId })).resolves.toMatchObject({
+      status: 'cancelled',
+      reason: 'cancelled'
+    })
+    await expect(
+      applyRemoteSnapshot(failedTask.taskId, {
+        status: 'failed',
+        error: 'provider failed late'
+      })
+    ).resolves.toMatchObject({
+      taskId: failedTask.taskId,
+      status: 'cancelled',
+      reason: 'cancelled'
+    })
+    expect(taskEvents.events).not.toContainEqual(
+      expect.objectContaining({
+        taskId: failedTask.taskId,
+        status: 'failed',
+        error: 'provider failed late'
+      })
+    )
+
+    taskEvents.dispose()
+    await service._doStop()
+  })
+
+  it('preserves failed remote-poll tasks when provider later returns processing snapshots', async () => {
+    const pollRemote = vi.fn()
+    const startRemote = vi.fn().mockResolvedValue({
+      providerTaskId: 'provider-task-1',
+      status: 'processing',
+      progress: 0,
+      remoteContext: {
+        apiHost: 'https://example.com',
+        stage: 'parsing'
+      }
+    })
+    const handler = {
+      prepare: vi.fn().mockReturnValue({
+        mode: 'remote-poll' as const,
+        startRemote,
+        pollRemote
+      })
+    }
+    processorRegistryMock.doc2x = {
+      capabilities: {
+        document_to_markdown: handler
+      }
+    }
+    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+
+    const service = new FileProcessingTaskService()
+    await service._doInit()
+    const taskEvents = recordTaskEvents(service)
+    const applyRemoteSnapshot = (taskId: string, snapshot: TestRemoteProcessingSnapshot) =>
+      (
+        service as unknown as {
+          applyRemoteSnapshot(
+            taskId: string,
+            snapshot: TestRemoteProcessingSnapshot,
+            signal: AbortSignal
+          ): Promise<FileProcessingTaskResult>
+        }
+      ).applyRemoteSnapshot(taskId, snapshot, new AbortController().signal)
+
+    const started = await service.startTask({
+      feature: 'document_to_markdown',
+      file: documentFile,
+      processorId: 'doc2x'
+    })
+
+    await waitForTaskEvent(taskEvents.events, started.taskId, {
+      status: 'processing',
+      progress: 0
+    })
+    ;(service as unknown as { markFailed(taskId: string, error: unknown): unknown }).markFailed(
+      started.taskId,
+      new Error('already failed')
+    )
+
+    await expect(
+      applyRemoteSnapshot(started.taskId, {
+        status: 'processing',
+        progress: 80,
+        remoteContext: {
+          apiHost: 'https://example.com',
+          stage: 'exporting'
+        }
+      })
+    ).resolves.toMatchObject({
+      taskId: started.taskId,
+      status: 'failed',
+      error: 'already failed'
+    })
+    expect(taskEvents.events).not.toContainEqual(
+      expect.objectContaining({
+        taskId: started.taskId,
+        status: 'processing',
+        progress: 80
+      })
+    )
+
+    taskEvents.dispose()
+    await service._doStop()
+  })
+
   it('keeps remote-poll tasks cancelled when artifact persistence finishes after cancellation', async () => {
     const successPersistence = createDeferred<string>()
     const failedPersistence = createDeferred<string>()
@@ -1437,6 +1927,96 @@ describe('FileProcessingTaskService', () => {
 
     taskEvents.dispose()
     await service._doStop()
+  })
+
+  it('keeps pruned remote-poll tasks cancelled and cleans up artifacts when persistence finishes later', async () => {
+    vi.useFakeTimers()
+
+    const persistence = createDeferred<string>()
+    const pollRemote = vi.fn().mockResolvedValue({
+      status: 'completed',
+      output: {
+        kind: 'markdown',
+        markdownContent: '# remote expired'
+      }
+    })
+    const startRemote = vi.fn().mockResolvedValue({
+      providerTaskId: 'provider-task-1',
+      status: 'processing',
+      progress: 0,
+      remoteContext: {
+        apiHost: 'https://example.com',
+        stage: 'parsing'
+      }
+    })
+    const handler = {
+      prepare: vi.fn().mockReturnValue({
+        mode: 'remote-poll' as const,
+        startRemote,
+        pollRemote
+      })
+    }
+    processorRegistryMock.doc2x = {
+      capabilities: {
+        document_to_markdown: handler
+      }
+    }
+    resolveProcessorConfigByFeatureMock.mockReturnValue(createConfig('doc2x', 'document_to_markdown', ['document']))
+    persistResultMock.mockReturnValueOnce(persistence.promise)
+
+    const service = new FileProcessingTaskService()
+
+    try {
+      await service._doInit()
+      const taskEvents = recordTaskEvents(service)
+
+      const started = await service.startTask({
+        feature: 'document_to_markdown',
+        file: documentFile,
+        processorId: 'doc2x'
+      })
+
+      await flushMicrotasks()
+      expect(taskEvents.events).toContainEqual(
+        expect.objectContaining({
+          taskId: started.taskId,
+          status: 'processing',
+          progress: 0
+        })
+      )
+      const query = service.getTask({ taskId: started.taskId })
+
+      await flushMicrotasks()
+      expect(persistResultMock).toHaveBeenCalledOnce()
+
+      await vi.advanceTimersByTimeAsync(FILE_PROCESSING_TASK_TTL_MS)
+
+      expect(taskEvents.events).toContainEqual(
+        expect.objectContaining({
+          taskId: started.taskId,
+          status: 'cancelled',
+          reason: 'File processing task expired'
+        })
+      )
+
+      persistence.resolve('/tmp/file-processing/remote-expired.md')
+      await expect(query).rejects.toMatchObject({
+        name: 'AbortError',
+        message: 'File processing task expired'
+      })
+      expect(cleanupResultsDirMock).toHaveBeenCalledWith(started.taskId)
+      expect(taskEvents.events).not.toContainEqual(
+        expect.objectContaining({
+          taskId: started.taskId,
+          status: 'completed'
+        })
+      )
+
+      taskEvents.dispose()
+    } finally {
+      await service._doStop()
+      vi.useRealTimers()
+    }
   })
 
   it('stores remote-poll tasks before remote start completes and allows cancellation', async () => {

@@ -1,11 +1,6 @@
 import * as z from 'zod'
 
-import {
-  FILE_PROCESSOR_FEATURES,
-  FILE_PROCESSOR_IDS,
-  type FileProcessorFeature,
-  type FileProcessorId
-} from '../preference/preferenceTypes'
+import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '../preference/preferenceTypes'
 
 export const FileProcessingTaskStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed', 'cancelled'])
 export type FileProcessingTaskStatus = z.infer<typeof FileProcessingTaskStatusSchema>
@@ -84,11 +79,3 @@ export const FileProcessingTaskResultSchema = z.discriminatedUnion('status', [
   FileProcessingTaskCancelledResultSchema
 ])
 export type FileProcessingTaskResult = z.infer<typeof FileProcessingTaskResultSchema>
-
-export type FileProcessingTaskBase = {
-  taskId: string
-  feature: FileProcessorFeature
-  processorId: FileProcessorId
-  status: FileProcessingTaskStatus
-  progress: number
-}

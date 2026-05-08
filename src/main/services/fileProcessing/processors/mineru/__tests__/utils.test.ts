@@ -26,6 +26,7 @@ vi.mock('node:fs', async () => {
   }
 })
 
+import { buildPollResult } from '../document-to-markdown/handler'
 import { uploadFile } from '../utils'
 
 describe('mineru utils', () => {
@@ -134,5 +135,68 @@ describe('mineru utils', () => {
         signal: undefined
       })
     )
+  })
+
+  it('maps batch poll results and rejects completed results without full_zip_url', () => {
+    expect(buildPollResult(undefined, 'https://mineru.net')).toEqual({
+      status: 'processing',
+      progress: 0
+    })
+
+    expect(
+      buildPollResult(
+        {
+          state: 'running',
+          extract_progress: {
+            extracted_pages: 1,
+            total_pages: 4,
+            start_time: '2026-03-31T00:00:00.000Z'
+          }
+        },
+        'https://mineru.net'
+      )
+    ).toEqual({
+      status: 'processing',
+      progress: 25
+    })
+
+    expect(
+      buildPollResult(
+        {
+          state: 'failed',
+          err_msg: 'provider failed'
+        },
+        'https://mineru.net'
+      )
+    ).toEqual({
+      status: 'failed',
+      error: 'provider failed'
+    })
+
+    expect(() =>
+      buildPollResult(
+        {
+          state: 'done'
+        },
+        'https://mineru.net'
+      )
+    ).toThrow('Mineru task completed without full_zip_url')
+
+    expect(
+      buildPollResult(
+        {
+          state: 'done',
+          full_zip_url: 'https://cdn.example.com/result.zip'
+        },
+        'https://mineru.net'
+      )
+    ).toEqual({
+      status: 'completed',
+      output: {
+        kind: 'remote-zip-url',
+        downloadUrl: 'https://cdn.example.com/result.zip',
+        configuredApiHost: 'https://mineru.net'
+      }
+    })
   })
 })

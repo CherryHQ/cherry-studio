@@ -14,27 +14,8 @@ import {
   type FileProcessorType
 } from '../preference/preferenceTypes'
 
-/**
- * File Processing Presets
- *
- * Templates are read-only metadata about processors.
- * User overrides are stored separately in preferences.
- *
- * i18n: Display names use `processor.${id}.name`
- */
-
-// ============================================================================
-// Type Definitions
-// ============================================================================
-
-/**
- * Processor service type
- */
 export const FileProcessorTypeSchema = z.enum(FILE_PROCESSOR_TYPES)
 
-/**
- * Feature type
- */
 export const FileProcessorFeatureSchema = z.enum(FILE_PROCESSOR_FEATURES)
 
 export const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
@@ -52,8 +33,6 @@ export const ImageToTextCapabilitySchema = z
     output: z.literal('text'),
     apiHost: z.url().optional(),
     modelId: z.string().min(1).optional()
-    // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
-    // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
   })
   .strict()
 export type ImageToTextCapability = z.infer<typeof ImageToTextCapabilitySchema>
@@ -65,8 +44,6 @@ export const DocumentToMarkdownCapabilitySchema = z
     output: z.literal('markdown'),
     apiHost: z.url().optional(),
     modelId: z.string().min(1).optional()
-    // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
-    // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
   })
   .strict()
 export type DocumentToMarkdownCapability = z.infer<typeof DocumentToMarkdownCapabilitySchema>
@@ -127,10 +104,6 @@ type FileProcessorPresetConfig = {
 export interface FileProcessorPreset extends FileProcessorPresetConfig {
   id: FileProcessorId
 }
-
-// ============================================================================
-// Override Types (for user customization)
-// ============================================================================
 
 /**
  * Processor-specific configuration
@@ -202,15 +175,7 @@ export const FileProcessorMergedSchema = FileProcessorTemplateSchema.extend({
 })
 export type FileProcessorMerged = z.infer<typeof FileProcessorMergedSchema>
 
-// ============================================================================
-// Processor Presets
-// ============================================================================
-
-/**
- * Built-in processor presets
- */
 export const FILE_PROCESSOR_PRESET_MAP = {
-  // === Image Processors (former OCR) ===
   tesseract: {
     type: 'builtin',
     capabilities: [
@@ -249,7 +214,6 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
   },
 
-  // === Document Processors (former Preprocess) ===
   mineru: {
     type: 'api',
     capabilities: [

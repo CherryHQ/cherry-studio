@@ -11,7 +11,9 @@ import type {
   FileProcessingTaskResult,
   FileProcessingTaskStartResult,
   GetFileProcessingTaskInput,
-  StartFileProcessingTaskInput
+  GetFileProcessingTaskOptions,
+  StartFileProcessingTaskInput,
+  StartFileProcessingTaskOptions
 } from './types'
 
 const logger = loggerService.withContext('FileProcessingOrchestrationService')
@@ -48,22 +50,28 @@ export class FileProcessingOrchestrationService extends BaseService {
     logger.info('File processing service initialized')
   }
 
-  async startTask(input: StartFileProcessingTaskInput): Promise<FileProcessingTaskStartResult> {
+  async startTask(
+    input: StartFileProcessingTaskInput,
+    options?: StartFileProcessingTaskOptions
+  ): Promise<FileProcessingTaskStartResult> {
     logger.debug('Dispatching file processing task start request', {
       feature: input.feature,
       requestedProcessorId: input.processorId,
       fileId: input.file.id
     })
 
-    return application.get('FileProcessingTaskService').startTask(input)
+    return application.get('FileProcessingTaskService').startTask(input, options)
   }
 
-  async getTask(input: GetFileProcessingTaskInput): Promise<FileProcessingTaskResult> {
+  async getTask(
+    input: GetFileProcessingTaskInput,
+    options?: GetFileProcessingTaskOptions
+  ): Promise<FileProcessingTaskResult> {
     logger.debug('Dispatching file processing task query request', {
       taskId: input.taskId
     })
 
-    return application.get('FileProcessingTaskService').getTask(input)
+    return application.get('FileProcessingTaskService').getTask(input, options)
   }
 
   async cancelTask(input: CancelFileProcessingTaskInput): Promise<FileProcessingTaskResult> {

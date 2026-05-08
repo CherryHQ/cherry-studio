@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 import { persistMarkdownResult, persistZipResult } from '../resultPersistence'
 
 const { entriesMock, extractMock, closeMock, pathExistsMock } = vi.hoisted(() => ({
@@ -164,5 +165,64 @@ describe('fileProcessing result persistence utils', () => {
 
     expect(renameSpy).toHaveBeenNthCalledWith(1, '/tmp/file-processing/task-4.tmp-a', '/tmp/file-processing/task-4')
     expect(renameSpy).toHaveBeenNthCalledWith(2, '/tmp/file-processing/task-4.tmp-b', '/tmp/file-processing/task-4')
+  })
+
+  it('logs rollback cleanup failures while preserving the original atomic swap error', async () => {
+    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
+    const swapError = new Error('swap failed')
+    const restoreError = new Error('restore failed')
+    const removeTempError = new Error('remove temp failed')
+
+    vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
+    vi.spyOn(fs, 'mkdtemp').mockResolvedValue('/tmp/file-processing/task-5.tmp-abc')
+    vi.spyOn(fs, 'writeFile').mockResolvedValue(undefined)
+    vi.spyOn(fs, 'rename')
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(swapError)
+      .mockRejectedValueOnce(restoreError)
+    vi.spyOn(fs, 'rm').mockRejectedValue(removeTempError)
+    pathExistsMock
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+
+    await expect(
+      persistMarkdownResult({
+        resultsDir: '/tmp/file-processing/task-5',
+        markdownContent: '# output'
+      })
+    ).rejects.toBe(swapError)
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'File processing result persistence cleanup failed',
+      restoreError,
+      expect.objectContaining({
+        resultsDir: '/tmp/file-processing/task-5',
+        tempDir: '/tmp/file-processing/task-5.tmp-abc',
+        backupDir: expect.stringContaining('/tmp/file-processing/task-5.bak-'),
+        step: 'restore-backup'
+      })
+    )
+    expect(warnSpy).toHaveBeenCalledWith(
+      'File processing result persistence cleanup failed',
+      removeTempError,
+      expect.objectContaining({
+        resultsDir: '/tmp/file-processing/task-5',
+        tempDir: '/tmp/file-processing/task-5.tmp-abc',
+        step: 'remove-temp'
+      })
+    )
+    expect(warnSpy).toHaveBeenCalledWith(
+      'File processing result persistence cleanup failed',
+      removeTempError,
+      expect.objectContaining({
+        resultsDir: '/tmp/file-processing/task-5',
+        tempDir: '/tmp/file-processing/task-5.tmp-abc',
+        step: 'remove-temp-after-error'
+      })
+    )
+
+    warnSpy.mockRestore()
   })
 })

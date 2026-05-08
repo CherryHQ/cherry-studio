@@ -176,11 +176,14 @@ describe('FileProcessingOrchestrationService', () => {
       reason: 'cancelled'
     })
 
-    expect(startTaskMock).toHaveBeenCalledWith({
-      feature: 'image_to_text',
-      file: imageFile
-    })
-    expect(getTaskMock).toHaveBeenCalledWith({ taskId: 'task-1' })
+    expect(startTaskMock).toHaveBeenCalledWith(
+      {
+        feature: 'image_to_text',
+        file: imageFile
+      },
+      undefined
+    )
+    expect(getTaskMock).toHaveBeenCalledWith({ taskId: 'task-1' }, undefined)
     expect(cancelTaskMock).toHaveBeenCalledWith({ taskId: 'task-1' })
   })
 })

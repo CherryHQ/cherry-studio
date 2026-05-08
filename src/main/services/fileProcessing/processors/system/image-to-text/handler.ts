@@ -61,6 +61,12 @@ function prepareContext(
   }
 
   const parsedOptions = SystemOcrOptionsSchema.safeParse(config.options ?? {})
+  if (!parsedOptions.success) {
+    logger.warn('Invalid system OCR options; falling back to platform defaults', parsedOptions.error, {
+      processorId: config.id
+    })
+  }
+
   const langs = parsedOptions.success ? parsedOptions.data.langs?.filter(Boolean) : undefined
 
   return {

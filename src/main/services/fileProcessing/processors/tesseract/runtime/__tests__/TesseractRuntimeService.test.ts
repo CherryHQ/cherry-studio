@@ -42,6 +42,11 @@ type RuntimeStateProbe = {
 
 const getRuntimeState = (value: TesseractRuntimeService): RuntimeStateProbe => value as unknown as RuntimeStateProbe
 
+async function flushPromises(): Promise<void> {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
 const cleanupCases = [
   {
     lifecycle: 'stop',
@@ -547,5 +552,169 @@ describe('TesseractRuntimeService', () => {
     await vi.advanceTimersByTimeAsync(1_000)
 
     expect(terminateMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects images larger than 50MB before loading OCR image data', async () => {
+    createWorkerMock.mockResolvedValue({
+      recognize: vi.fn().mockResolvedValue({
+        data: {
+          text: 'hello'
+        }
+      }),
+      terminate: vi.fn().mockResolvedValue(undefined)
+    })
+    vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 51 * 1024 * 1024 } as never)
+
+    service = new TesseractRuntimeService()
+    await service._doInit()
+
+    await expect(
+      service.extract({
+        file: {
+          id: 'file-1',
+          name: 'large.png',
+          origin_name: 'large.png',
+          path: '/tmp/large.png',
+          size: 51 * 1024 * 1024,
+          ext: '.png',
+          type: 'image',
+          created_at: '2026-03-31T00:00:00.000Z',
+          count: 1
+        },
+        langs: ['eng']
+      })
+    ).rejects.toThrow('This image is too large (max 50MB)')
+    expect(loadOcrImageMock).not.toHaveBeenCalled()
+  })
+
+  it('recreates the shared worker when requested languages change', async () => {
+    const firstTerminateMock = vi.fn().mockResolvedValue(undefined)
+    const secondTerminateMock = vi.fn().mockResolvedValue(undefined)
+    createWorkerMock
+      .mockResolvedValueOnce({
+        recognize: vi.fn().mockResolvedValue({
+          data: {
+            text: 'english'
+          }
+        }),
+        terminate: firstTerminateMock
+      })
+      .mockResolvedValueOnce({
+        recognize: vi.fn().mockResolvedValue({
+          data: {
+            text: 'chinese'
+          }
+        }),
+        terminate: secondTerminateMock
+      })
+
+    service = new TesseractRuntimeService()
+    await service._doInit()
+
+    const file = {
+      id: 'file-1',
+      name: 'scan.png',
+      origin_name: 'scan.png',
+      path: '/tmp/scan.png',
+      size: 1024,
+      ext: '.png',
+      type: 'image',
+      created_at: '2026-03-31T00:00:00.000Z',
+      count: 1
+    } as const
+
+    await service.extract({
+      file,
+      langs: ['eng']
+    })
+    await service.extract({
+      file,
+      langs: ['chi_sim']
+    })
+
+    expect(createWorkerMock).toHaveBeenNthCalledWith(
+      1,
+      ['eng'],
+      undefined,
+      expect.objectContaining({
+        cachePath: '/tmp/tesseract-cache'
+      })
+    )
+    expect(createWorkerMock).toHaveBeenNthCalledWith(
+      2,
+      ['chi_sim'],
+      undefined,
+      expect.objectContaining({
+        cachePath: '/tmp/tesseract-cache'
+      })
+    )
+    expect(firstTerminateMock).toHaveBeenCalledTimes(1)
+    expect(secondTerminateMock).not.toHaveBeenCalled()
+  })
+
+  it('runs extraction requests serially', async () => {
+    let resolveFirstRecognize!: (value: { data: { text: string } }) => void
+    const recognizeMock = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ data: { text: string } }>((resolve) => {
+            resolveFirstRecognize = resolve
+          })
+      )
+      .mockResolvedValueOnce({
+        data: {
+          text: 'second'
+        }
+      })
+    createWorkerMock.mockResolvedValue({
+      recognize: recognizeMock,
+      terminate: vi.fn().mockResolvedValue(undefined)
+    })
+
+    service = new TesseractRuntimeService()
+    await service._doInit()
+
+    const file = {
+      id: 'file-1',
+      name: 'scan.png',
+      origin_name: 'scan.png',
+      path: '/tmp/scan.png',
+      size: 1024,
+      ext: '.png',
+      type: 'image',
+      created_at: '2026-03-31T00:00:00.000Z',
+      count: 1
+    } as const
+    const first = service.extract({
+      file,
+      langs: ['eng']
+    })
+    const second = service.extract({
+      file,
+      langs: ['eng']
+    })
+
+    await vi.waitFor(() => {
+      expect(recognizeMock).toHaveBeenCalledTimes(1)
+    })
+    await flushPromises()
+    expect(recognizeMock).toHaveBeenCalledTimes(1)
+
+    resolveFirstRecognize({
+      data: {
+        text: 'first'
+      }
+    })
+
+    await expect(first).resolves.toEqual({
+      kind: 'text',
+      text: 'first'
+    })
+    await expect(second).resolves.toEqual({
+      kind: 'text',
+      text: 'second'
+    })
+    expect(recognizeMock).toHaveBeenCalledTimes(2)
   })
 })

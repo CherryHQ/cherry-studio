@@ -3,6 +3,8 @@ import fs from 'node:fs'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as Doc2xUtils from '../utils'
+
 const { createReadStreamMock, destroyMock, fetchMock } = vi.hoisted(() => ({
   createReadStreamMock: vi.fn(() => ({
     destroy: vi.fn()
@@ -26,7 +28,25 @@ vi.mock('node:fs', async () => {
   }
 })
 
+import { handleExportStage, handleParseStage } from '../document-to-markdown/handler'
 import { uploadFile } from '../utils'
+
+const { getExportResultMock, getParseStatusMock, triggerExportTaskMock } = vi.hoisted(() => ({
+  getExportResultMock: vi.fn(),
+  getParseStatusMock: vi.fn(),
+  triggerExportTaskMock: vi.fn()
+}))
+
+vi.mock('../utils', async () => {
+  const actual = await vi.importActual<typeof Doc2xUtils>('../utils')
+
+  return {
+    ...actual,
+    getExportResult: getExportResultMock,
+    getParseStatus: getParseStatusMock,
+    triggerExportTask: triggerExportTaskMock
+  }
+})
 
 describe('doc2x utils', () => {
   beforeEach(() => {
@@ -88,5 +108,134 @@ describe('doc2x utils', () => {
     ).rejects.toThrow('Unsafe remote url: local or private addresses are not allowed (127.0.0.1)')
 
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('maps document-to-markdown parse and export poll states', async () => {
+    getParseStatusMock.mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'processing',
+        progress: 42
+      }
+    })
+
+    await expect(
+      handleParseStage(
+        'uid-1',
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret',
+          stage: 'parsing'
+        },
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret'
+        }
+      )
+    ).resolves.toEqual({
+      status: 'processing',
+      progress: 42
+    })
+
+    getParseStatusMock.mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'failed',
+        detail: 'parse failed'
+      }
+    })
+
+    await expect(
+      handleParseStage(
+        'uid-1',
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret',
+          stage: 'parsing'
+        },
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret'
+        }
+      )
+    ).resolves.toEqual({
+      status: 'failed',
+      error: 'parse failed'
+    })
+
+    getParseStatusMock.mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'success'
+      }
+    })
+    triggerExportTaskMock.mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'processing'
+      }
+    })
+
+    await expect(
+      handleParseStage(
+        'uid-1',
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret',
+          stage: 'parsing'
+        },
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret'
+        }
+      )
+    ).resolves.toEqual({
+      status: 'processing',
+      progress: 99,
+      remoteContext: {
+        apiHost: 'https://doc2x.example.com',
+        apiKey: 'secret',
+        stage: 'exporting'
+      }
+    })
+
+    getExportResultMock.mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'failed'
+      }
+    })
+
+    await expect(
+      handleExportStage('uid-1', {
+        apiHost: 'https://doc2x.example.com',
+        apiKey: 'secret'
+      })
+    ).resolves.toEqual({
+      status: 'failed',
+      error: 'Doc2x markdown export failed'
+    })
+
+    getExportResultMock.mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'success',
+        url: 'https://download.example.com/result.zip'
+      }
+    })
+
+    await expect(
+      handleExportStage('uid-1', {
+        apiHost: 'https://doc2x.example.com',
+        apiKey: 'secret'
+      })
+    ).resolves.toEqual({
+      status: 'completed',
+      output: {
+        kind: 'remote-zip-url',
+        downloadUrl: 'https://download.example.com/result.zip',
+        configuredApiHost: 'https://doc2x.example.com'
+      }
+    })
   })
 })

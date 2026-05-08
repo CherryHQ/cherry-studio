@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { assertHasFilePath, getRequiredApiHost, getRequiredApiKey } from '../provider'
+import { assertHasFilePath, getApiKey, getRequiredApiHost, getRequiredApiKey } from '../provider'
 
 describe('file processing provider utils', () => {
   it('rejects files without a path', () => {
@@ -45,5 +45,19 @@ describe('file processing provider utils', () => {
         'doc2x'
       )
     ).toThrowError('API key is required')
+  })
+
+  it('rotates multiple api keys per processor and skips blank entries', () => {
+    const config = {
+      apiKeys: [' key-a ', '', 'key-b']
+    } as never
+
+    expect(getApiKey(config, 'doc2x')).toBe('key-a')
+    expect(getApiKey(config, 'doc2x')).toBe('key-b')
+    expect(getApiKey(config, 'doc2x')).toBe('key-a')
+
+    expect(getApiKey(config, 'mineru')).toBe('key-a')
+    expect(getApiKey(config, 'doc2x')).toBe('key-b')
+    expect(getApiKey(config, 'mineru')).toBe('key-b')
   })
 })

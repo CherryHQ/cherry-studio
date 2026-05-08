@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileMetadata } from '@types'
 import { isImageFileMetadata } from '@types'
@@ -6,6 +7,7 @@ import type { LanguageCode } from 'tesseract.js'
 import { type PreparedTesseractContext, TesseractProcessorOptionsSchema } from '../types'
 
 const DEFAULT_LANGS = ['chi_sim', 'chi_tra', 'eng'] satisfies LanguageCode[]
+const logger = loggerService.withContext('FileProcessing:TesseractPrepare')
 
 export function prepareContext(
   file: FileMetadata,
@@ -19,6 +21,12 @@ export function prepareContext(
   }
 
   const optionsResult = TesseractProcessorOptionsSchema.safeParse(config.options ?? {})
+  if (!optionsResult.success) {
+    logger.warn('Invalid Tesseract OCR options; falling back to default languages', optionsResult.error, {
+      processorId: config.id
+    })
+  }
+
   const enabledLangs = optionsResult.success
     ? (optionsResult.data.langs ?? [])
         .map((lang) => lang.trim())

@@ -82,7 +82,7 @@ function prepareStartContext(
   }
 }
 
-function buildPollResult(
+export function buildPollResult(
   fileResult: MineruExtractFileResult | undefined,
   apiHost: string
 ): FileProcessingRemotePollResult<'document_to_markdown', MineruQueryContext> {

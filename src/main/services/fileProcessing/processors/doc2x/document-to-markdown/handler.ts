@@ -82,7 +82,7 @@ function prepareStartContext(
   }
 }
 
-async function handleParseStage(
+export async function handleParseStage(
   providerTaskId: string,
   queryContext: Doc2xQueryContext,
   context: PreparedDoc2xQueryContext
@@ -144,7 +144,7 @@ async function handleParseStage(
   }
 }
 
-async function handleExportStage(
+export async function handleExportStage(
   providerTaskId: string,
   context: PreparedDoc2xQueryContext
 ): Promise<FileProcessingRemotePollResult<'document_to_markdown', Doc2xQueryContext>> {

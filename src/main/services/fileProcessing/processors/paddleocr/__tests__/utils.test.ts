@@ -29,6 +29,7 @@ vi.mock('form-data', () => ({
   }
 }))
 
+import { buildPollResult } from '../document-to-markdown/handler'
 import type { PaddleJobResultData } from '../types'
 import { createJob, resolveJsonlResult } from '../utils'
 
@@ -226,5 +227,81 @@ describe('paddle utils', () => {
         filename: 'file.pdf'
       })
     )
+  })
+
+  it('maps document-to-markdown poll states', async () => {
+    await expect(
+      buildPollResult(
+        'job-1',
+        {
+          jobId: 'job-1',
+          state: 'pending'
+        },
+        'https://paddleocr.aistudio-app.com'
+      )
+    ).resolves.toEqual({
+      status: 'pending',
+      progress: 0
+    })
+
+    await expect(
+      buildPollResult(
+        'job-1',
+        {
+          jobId: 'job-1',
+          state: 'running',
+          extractProgress: {
+            totalPages: 4,
+            extractedPages: 1
+          }
+        },
+        'https://paddleocr.aistudio-app.com'
+      )
+    ).resolves.toEqual({
+      status: 'processing',
+      progress: 25
+    })
+
+    await expect(
+      buildPollResult(
+        'job-1',
+        {
+          jobId: 'job-1',
+          state: 'failed',
+          errorMsg: 'provider failed'
+        },
+        'https://paddleocr.aistudio-app.com'
+      )
+    ).resolves.toEqual({
+      status: 'failed',
+      error: 'provider failed'
+    })
+
+    fetchMock.mockResolvedValueOnce(
+      new Response('{"result":{"layoutParsingResults":[{"markdown":{"text":"# output"}}]}}', {
+        status: 200,
+        statusText: 'OK'
+      })
+    )
+
+    await expect(
+      buildPollResult(
+        'job-1',
+        {
+          jobId: 'job-1',
+          state: 'done',
+          resultUrl: {
+            jsonUrl: 'https://download.example.com/output.jsonl'
+          }
+        },
+        'https://paddleocr.aistudio-app.com'
+      )
+    ).resolves.toEqual({
+      status: 'completed',
+      output: {
+        kind: 'markdown',
+        markdownContent: '# output'
+      }
+    })
   })
 })

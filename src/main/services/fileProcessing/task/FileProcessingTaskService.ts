@@ -2,6 +2,8 @@ import { loggerService } from '@logger'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import type { FileProcessorInput } from '@shared/data/presets/file-processing'
+import type { FileType } from '@shared/data/types/file'
 import type {
   FileProcessingArtifact,
   FileProcessingTaskResult,
@@ -12,17 +14,24 @@ import type { FileMetadata } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { resolveProcessorConfigByFeature } from '../config/resolveProcessorConfig'
-import { markdownResultStore } from '../persistence/MarkdownResultStore'
+import { cleanupFileProcessingResultsDir, markdownResultStore } from '../persistence/MarkdownResultStore'
 import { processorRegistry } from '../processors/registry'
 import type {
   FileProcessingCapabilityHandler,
   FileProcessingHandlerOutput,
+  FileProcessingProcessorCapabilities,
   FileProcessingRemoteContext,
   FileProcessingRemotePollResult,
   PreparedBackgroundTask,
   PreparedRemoteTask
 } from '../processors/types'
-import type { CancelFileProcessingTaskInput, GetFileProcessingTaskInput, StartFileProcessingTaskInput } from '../types'
+import type {
+  CancelFileProcessingTaskInput,
+  GetFileProcessingTaskInput,
+  GetFileProcessingTaskOptions,
+  StartFileProcessingTaskInput,
+  StartFileProcessingTaskOptions
+} from '../types'
 
 const logger = loggerService.withContext('FileProcessingTaskService')
 
@@ -142,12 +151,12 @@ export class FileProcessingTaskService extends BaseService {
     this._onTaskChanged.dispose()
   }
 
-  async startTask({
-    feature,
-    file,
-    processorId,
-    signal
-  }: StartFileProcessingTaskInput): Promise<FileProcessingTaskStartResult> {
+  async startTask(
+    { feature, file, processorId }: StartFileProcessingTaskInput,
+    options: StartFileProcessingTaskOptions = {}
+  ): Promise<FileProcessingTaskStartResult> {
+    const { signal } = options
+
     signal?.throwIfAborted()
 
     const config = resolveProcessorConfigByFeature(feature, processorId)
@@ -176,7 +185,7 @@ export class FileProcessingTaskService extends BaseService {
         remoteTask: preparedTask
       }
       this.setTask(taskRecord, 'create-remote')
-      this.startRemoteExecution(taskRecord.taskId, preparedTask, signal)
+      this.startRemoteExecution(taskRecord.taskId, preparedTask, taskRecord.processorId, signal)
     } else {
       signal?.throwIfAborted()
       const taskRecord: FileProcessingTaskRecord = {
@@ -200,7 +209,12 @@ export class FileProcessingTaskService extends BaseService {
     return toTaskStartResult(currentTask)
   }
 
-  async getTask({ taskId, signal }: GetFileProcessingTaskInput): Promise<FileProcessingTaskResult> {
+  async getTask(
+    { taskId }: GetFileProcessingTaskInput,
+    options: GetFileProcessingTaskOptions = {}
+  ): Promise<FileProcessingTaskResult> {
+    const { signal } = options
+
     signal?.throwIfAborted()
 
     const task = this.getRequiredTask(taskId)
@@ -230,11 +244,12 @@ export class FileProcessingTaskService extends BaseService {
     return toTaskResult(this.getRequiredTask(taskId))
   }
 
-  private getCapabilityHandler(
+  private getCapabilityHandler<Feature extends FileProcessorFeature>(
     processorId: FileProcessorId,
-    feature: FileProcessorFeature
-  ): FileProcessingCapabilityHandler {
-    const handler = processorRegistry[processorId]?.capabilities[feature]
+    feature: Feature
+  ): FileProcessingCapabilityHandler<Feature> {
+    const capabilities: FileProcessingProcessorCapabilities = processorRegistry[processorId].capabilities
+    const handler = capabilities[feature]
 
     if (!handler) {
       throw new Error(`File processor ${processorId} does not support ${feature}`)
@@ -254,7 +269,7 @@ export class FileProcessingTaskService extends BaseService {
       throw new Error(`File processor ${config.id} does not support ${feature}`)
     }
 
-    if (!presetCapability.inputs.includes(file.type as never)) {
+    if (!isSupportedFileType(file.type, presetCapability.inputs)) {
       throw new Error(`File processor ${config.id} ${feature} does not support ${file.type} files`)
     }
   }
@@ -327,13 +342,27 @@ export class FileProcessingTaskService extends BaseService {
       throw new Error(`File processing task ${taskId} is missing remote context`)
     }
 
-    const pollResult = await task.remoteTask.pollRemote(
-      {
-        providerTaskId: task.providerTaskId,
-        remoteContext: task.remoteContext
-      },
-      signal
-    )
+    let pollResult: FileProcessingRemotePollResult
+
+    try {
+      pollResult = await task.remoteTask.pollRemote(
+        {
+          providerTaskId: task.providerTaskId,
+          remoteContext: task.remoteContext
+        },
+        signal
+      )
+    } catch (error) {
+      if (!isAbortError(error)) {
+        logger.warn('File processing remote poll failed', error as Error, {
+          taskId,
+          processorId: task.processorId,
+          providerTaskId: task.providerTaskId
+        })
+      }
+      throw error
+    }
+
     signal.throwIfAborted()
 
     return this.applyRemoteSnapshot(taskId, pollResult, signal)
@@ -389,6 +418,14 @@ export class FileProcessingTaskService extends BaseService {
           return toTaskResult(terminalTask)
         }
 
+        if (!this.getTaskRecord(taskId)) {
+          logger.warn('File processing task vanished after remote poll completed', {
+            taskId
+          })
+          await this.cleanupOrphanedArtifacts(taskId)
+          throw this.createAbortError(signal.reason ?? 'File processing task expired')
+        }
+
         const task = this.getRequiredTask(taskId)
         let artifacts: FileProcessingArtifact[]
 
@@ -398,10 +435,18 @@ export class FileProcessingTaskService extends BaseService {
           const preservedTask = this.preserveTerminalTask(taskId, signal, error)
 
           if (preservedTask) {
+            if (preservedTask.status !== 'completed') {
+              await this.cleanupOrphanedArtifacts(taskId)
+            }
             this.logTaskOp(preservedTask, 'cancel-preserved', {
               status: preservedTask.status
             })
             return toTaskResult(preservedTask)
+          }
+
+          if (!this.getTaskRecord(taskId)) {
+            await this.cleanupOrphanedArtifacts(taskId)
+            throw this.createAbortError(signal.reason ?? 'File processing task expired')
           }
 
           this.markFailed(taskId, error, {
@@ -414,10 +459,18 @@ export class FileProcessingTaskService extends BaseService {
         const preservedTask = this.preserveTerminalTask(taskId, signal)
 
         if (preservedTask) {
+          if (preservedTask.status !== 'completed') {
+            await this.cleanupOrphanedArtifacts(taskId)
+          }
           this.logTaskOp(preservedTask, 'cancel-preserved', {
             status: preservedTask.status
           })
           return toTaskResult(preservedTask)
+        }
+
+        if (!this.getTaskRecord(taskId)) {
+          await this.cleanupOrphanedArtifacts(taskId)
+          throw this.createAbortError(signal.reason ?? 'File processing task expired')
         }
 
         this.markCompleted(taskId, artifacts, {
@@ -429,15 +482,22 @@ export class FileProcessingTaskService extends BaseService {
     }
   }
 
-  private startRemoteExecution(taskId: string, preparedTask: PreparedRemoteTask, callerSignal?: AbortSignal): void {
+  private startRemoteExecution(
+    taskId: string,
+    preparedTask: PreparedRemoteTask,
+    processorId: FileProcessorId,
+    callerSignal?: AbortSignal
+  ): void {
     const controller = new AbortController()
-    const promise = this.runRemoteExecutionStart(taskId, preparedTask, controller.signal)
+    let removeCallerAbortListener: (() => void) | undefined
+    const promise = this.runRemoteExecutionStart(taskId, preparedTask, processorId, controller.signal)
       .catch((error) => {
         logger.error('File processing remote start failed', error as Error, {
           taskId
         })
       })
       .finally(() => {
+        removeCallerAbortListener?.()
         const current = this.inFlightStarts.get(taskId)
 
         if (current?.promise === promise) {
@@ -454,9 +514,9 @@ export class FileProcessingTaskService extends BaseService {
       if (callerSignal.aborted) {
         controller.abort(this.createAbortError(callerSignal.reason))
       } else {
-        callerSignal.addEventListener('abort', () => controller.abort(this.createAbortError(callerSignal.reason)), {
-          once: true
-        })
+        const abortHandler = () => controller.abort(this.createAbortError(callerSignal.reason))
+        callerSignal.addEventListener('abort', abortHandler, { once: true })
+        removeCallerAbortListener = () => callerSignal.removeEventListener('abort', abortHandler)
       }
     }
   }
@@ -464,6 +524,7 @@ export class FileProcessingTaskService extends BaseService {
   private async runRemoteExecutionStart(
     taskId: string,
     preparedTask: PreparedRemoteTask,
+    processorId: FileProcessorId,
     signal: AbortSignal
   ): Promise<void> {
     try {
@@ -483,6 +544,11 @@ export class FileProcessingTaskService extends BaseService {
       })
 
       if (!task) {
+        logger.warn('Remote start succeeded but local task vanished', {
+          taskId,
+          processorId,
+          providerTaskId: remoteStart.providerTaskId
+        })
         return
       }
 
@@ -535,6 +601,8 @@ export class FileProcessingTaskService extends BaseService {
     preparedTask: PreparedBackgroundTask,
     signal: AbortSignal
   ): Promise<void> {
+    let artifactsMayExist = false
+
     try {
       const output = await preparedTask.execute({
         signal,
@@ -549,13 +617,32 @@ export class FileProcessingTaskService extends BaseService {
 
       const currentTask = this.getTaskRecord(taskId)
 
-      if (!currentTask || this.preserveTerminalTask(taskId, signal)) {
+      if (!currentTask) {
+        logger.warn('File processing task vanished after background execution finished', {
+          taskId
+        })
+        await this.cleanupOrphanedArtifacts(taskId)
         return
       }
 
+      if (this.preserveTerminalTask(taskId, signal)) {
+        return
+      }
+
+      artifactsMayExist = true
       const artifacts = await this.createArtifacts(currentTask, output, signal)
 
-      if (this.preserveTerminalTask(taskId, signal)) {
+      const preservedTask = this.preserveTerminalTask(taskId, signal)
+
+      if (preservedTask) {
+        if (preservedTask.status !== 'completed') {
+          await this.cleanupOrphanedArtifacts(taskId)
+        }
+        return
+      }
+
+      if (!this.getTaskRecord(taskId)) {
+        await this.cleanupOrphanedArtifacts(taskId)
         return
       }
 
@@ -564,11 +651,25 @@ export class FileProcessingTaskService extends BaseService {
       })
     } catch (error) {
       if (isAbortError(error) || signal.aborted) {
-        this.markCancelled(taskId, error)
+        const cancelledTask = this.markCancelled(taskId, error)
+
+        if (artifactsMayExist && (!cancelledTask || cancelledTask.status !== 'completed')) {
+          await this.cleanupOrphanedArtifacts(taskId)
+        }
         return
       }
 
-      if (this.preserveTerminalTask(taskId, signal, error)) {
+      const preservedTask = this.preserveTerminalTask(taskId, signal, error)
+
+      if (preservedTask) {
+        if (artifactsMayExist && preservedTask.status !== 'completed') {
+          await this.cleanupOrphanedArtifacts(taskId)
+        }
+        return
+      }
+
+      if (artifactsMayExist && !this.getTaskRecord(taskId)) {
+        await this.cleanupOrphanedArtifacts(taskId)
         return
       }
 
@@ -743,13 +844,14 @@ export class FileProcessingTaskService extends BaseService {
           expiredTaskId: taskId
         })
         this.abortTask(taskId, 'File processing task expired')
+        this.markCancelled(taskId, this.createAbortError('File processing task expired'))
         tasks.delete(taskId)
         expiredTaskIds.push(taskId)
       }
     }
 
     if (expiredTaskIds.length > 0) {
-      logger.debug('Pruned expired file processing tasks', {
+      logger.info('Pruned expired file processing tasks', {
         expiredTaskCount: expiredTaskIds.length,
         expiredTaskIds
       })
@@ -811,6 +913,10 @@ export class FileProcessingTaskService extends BaseService {
     const current = this.getTaskRecord(taskId)
 
     if (!current) {
+      logger.warn('File processing task transition skipped because task record is missing', {
+        taskId,
+        op
+      })
       return undefined
     }
 
@@ -822,6 +928,16 @@ export class FileProcessingTaskService extends BaseService {
 
     this.setTask(next, op, extra)
     return next
+  }
+
+  private async cleanupOrphanedArtifacts(taskId: string): Promise<void> {
+    const cleaned = await cleanupFileProcessingResultsDir(taskId)
+
+    if (cleaned) {
+      logger.warn('Cleaned up orphaned file processing artifacts after terminal state changed', {
+        taskId
+      })
+    }
   }
 
   private touchTask(taskId: string): void {
@@ -940,6 +1056,13 @@ function clampProgress(progress: number): number {
 
 function isTerminalStatus(status: FileProcessingTaskStatus): boolean {
   return status === 'completed' || status === 'failed' || status === 'cancelled'
+}
+
+function isSupportedFileType(
+  fileType: FileType,
+  inputs: readonly FileProcessorInput[]
+): fileType is FileProcessorInput {
+  return inputs.includes(fileType as FileProcessorInput)
 }
 
 function isAbortError(error: unknown): boolean {

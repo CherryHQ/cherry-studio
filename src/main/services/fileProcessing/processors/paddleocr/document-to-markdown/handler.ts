@@ -7,8 +7,8 @@ import {
   getRequiredApiKey,
   getRequiredCapability
 } from '../../../utils/provider'
-import type { FileProcessingCapabilityHandler } from '../../types'
-import type { PreparedPaddleQueryContext, PreparedPaddleStartContext } from '../types'
+import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
+import type { PaddleJobResultData, PreparedPaddleQueryContext, PreparedPaddleStartContext } from '../types'
 import { createJob, getJobResult, mapProgress, resolveJsonlResult } from '../utils'
 
 type PaddleQueryContext = Omit<PreparedPaddleQueryContext, 'signal'>
@@ -47,27 +47,7 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
         }
         const jobResult = await getJobResult(task.providerTaskId, context)
 
-        if (jobResult.state === 'failed') {
-          return {
-            status: 'failed',
-            error: jobResult.errorMsg || 'PaddleOCR markdown conversion failed'
-          }
-        }
-
-        if (jobResult.state !== 'done') {
-          return {
-            status: jobResult.state === 'pending' ? 'pending' : 'processing',
-            progress: mapProgress(jobResult)
-          }
-        }
-
-        return {
-          status: 'completed',
-          output: {
-            kind: 'markdown',
-            markdownContent: await resolveJsonlResult(task.providerTaskId, jobResult, context.apiHost, context.signal)
-          }
-        }
+        return buildPollResult(task.providerTaskId, jobResult, context.apiHost, context.signal)
       }
     }
   }
@@ -95,5 +75,34 @@ function prepareStartContext(
     file,
     model,
     feature: 'document_to_markdown'
+  }
+}
+
+export async function buildPollResult(
+  providerTaskId: string,
+  jobResult: PaddleJobResultData,
+  apiHost: string,
+  signal?: AbortSignal
+): Promise<FileProcessingRemotePollResult<'document_to_markdown', PaddleQueryContext>> {
+  if (jobResult.state === 'failed') {
+    return {
+      status: 'failed',
+      error: jobResult.errorMsg || 'PaddleOCR markdown conversion failed'
+    }
+  }
+
+  if (jobResult.state !== 'done') {
+    return {
+      status: jobResult.state === 'pending' ? 'pending' : 'processing',
+      progress: mapProgress(jobResult)
+    }
+  }
+
+  return {
+    status: 'completed',
+    output: {
+      kind: 'markdown',
+      markdownContent: await resolveJsonlResult(providerTaskId, jobResult, apiHost, signal)
+    }
   }
 }
