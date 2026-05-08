@@ -5,13 +5,13 @@ import { DefaultPreferences } from '../data/preference/preferenceSchemas'
 
 describe('DefaultPreferences', () => {
   it('uses flat file processing default keys', () => {
-    const markdownConversionDefault: PreferenceSchemas['default']['feature.file_processing.default_markdown_conversion'] =
+    const markdownConversionDefault: PreferenceSchemas['default']['feature.file_processing.default_document_to_markdown'] =
       null
 
     expect(markdownConversionDefault).toBeNull()
-    expect(DefaultPreferences.default['feature.file_processing.default_markdown_conversion']).toBeNull()
-    expect(DefaultPreferences.default['feature.file_processing.default_text_extraction']).toBeNull()
-    expect('feature.file_processing.default.markdown_conversion' in DefaultPreferences.default).toBe(false)
-    expect('feature.file_processing.default.text_extraction' in DefaultPreferences.default).toBe(false)
+    expect(DefaultPreferences.default['feature.file_processing.default_document_to_markdown']).toBeNull()
+    expect(DefaultPreferences.default['feature.file_processing.default_image_to_text']).toBeNull()
+    expect('feature.file_processing.default.document_to_markdown' in DefaultPreferences.default).toBe(false)
+    expect('feature.file_processing.default.image_to_text' in DefaultPreferences.default).toBe(false)
   })
 })
