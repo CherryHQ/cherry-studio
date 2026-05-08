@@ -1,4 +1,4 @@
-import { cacheService } from '@data/CacheService'
+import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -149,18 +149,20 @@ export function toCreateAssistantDtoFromCatalogPreset(preset: AssistantCatalogPr
   return dto
 }
 
-async function readLocalPresets(language: string) {
-  const resourcesPath = cacheService.get('app.path.resources')
-  if (!resourcesPath) return []
+async function readLocalPresets(language: string, resourcesPath: string) {
+  if (!resourcesPath) {
+    logger.warn('resourcesPath not ready yet, returning empty catalog')
+    return []
+  }
 
   const fileName = language === 'zh-CN' ? 'agents-zh.json' : 'agents-en.json'
   const content = await window.api.fs.read(`${resourcesPath}/data/${fileName}`, 'utf-8')
   return normalizePresets(JSON.parse(content))
 }
 
-async function loadCatalogPresets(language: string) {
+async function loadCatalogPresets(language: string, resourcesPath: string) {
   try {
-    return await readLocalPresets(language)
+    return await readLocalPresets(language, resourcesPath)
   } catch (error) {
     logger.error('Failed to load local assistant presets', toLogContext(error))
     return []
@@ -170,6 +172,7 @@ async function loadCatalogPresets(language: string) {
 export function useAssistantPresetCatalog({ activeTab, search, mineCount, enabled }: UseAssistantPresetCatalogOptions) {
   const { i18n, t } = useTranslation()
   const language = i18n?.language ?? 'en-US'
+  const [resourcesPath] = useCache('app.path.resources')
   const [presets, setPresets] = useState<AssistantCatalogPreset[]>([])
 
   useEffect(() => {
@@ -177,7 +180,7 @@ export function useAssistantPresetCatalog({ activeTab, search, mineCount, enable
 
     let cancelled = false
 
-    void loadCatalogPresets(language)
+    void loadCatalogPresets(language, resourcesPath)
       .then((loadedPresets) => {
         if (!cancelled) setPresets(loadedPresets)
       })
@@ -188,7 +191,7 @@ export function useAssistantPresetCatalog({ activeTab, search, mineCount, enable
     return () => {
       cancelled = true
     }
-  }, [enabled, language])
+  }, [enabled, language, resourcesPath])
 
   const tabs = useMemo(
     () => buildAssistantCatalogTabs(presets, mineCount, t('library.assistant_catalog.mine')),

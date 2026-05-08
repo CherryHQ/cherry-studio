@@ -1,18 +1,14 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
-import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import {
+  ASSISTANTS_MAX_LIMIT,
+  type CreateAssistantDto,
+  type UpdateAssistantDto
+} from '@shared/data/api/schemas/assistants'
 import type { Assistant } from '@shared/data/types/assistant'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
-
-/**
- * Default page size for the library list view. Matches the backend schema's
- * `limit` max (`packages/shared/data/api/schemas/assistants.ts` caps at 500)
- * so the library grid surfaces every assistant without a pagination UI.
- * If total assistant count ever exceeds 500 we'll need to add paging here.
- */
-const DEFAULT_LIST_LIMIT = 500
 
 /**
  * Server-backed list hook. `search` / `tagIds` are forwarded to
@@ -22,7 +18,7 @@ const DEFAULT_LIST_LIMIT = 500
 function useAssistantList(query?: ResourceListQuery): ResourceListResult<Assistant> {
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/assistants', {
     query: {
-      limit: query?.limit ?? DEFAULT_LIST_LIMIT,
+      limit: query?.limit ?? ASSISTANTS_MAX_LIMIT,
       ...(query?.search ? { search: query.search } : {}),
       ...(query?.tagIds && query.tagIds.length > 0 ? { tagIds: query.tagIds } : {})
     }

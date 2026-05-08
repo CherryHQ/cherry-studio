@@ -21,8 +21,8 @@ export interface ResourceListResult<TDto> {
 
 /**
  * List-only contract for resource adapters.
- * Write operations (create/update/remove/duplicate/toggleEnabled) are added
- * in later tasks once the corresponding v2 DataApi endpoints land for each resource.
+ * Per-adapter mutation hooks live alongside their list hook and are not part of
+ * ResourceAdapter<TDto>.
  */
 export interface ResourceAdapter<TDto> {
   readonly resource: ResourceType

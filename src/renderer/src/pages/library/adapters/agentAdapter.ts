@@ -1,16 +1,9 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
-import type { CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import { AGENTS_MAX_LIMIT, type CreateAgentDto, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentDetail } from '@shared/data/types/agent'
 import { useCallback } from 'react'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
-
-/**
- * Default page size for the library list view. Matches the backend schema's
- * `limit` max (`packages/shared/data/api/schemas/agents.ts`'s `AGENTS_MAX_LIMIT`)
- * so the library grid surfaces every agent without a pagination UI.
- */
-const DEFAULT_LIST_LIMIT = 500
 
 /**
  * List hook for agent resources — mirrors `assistantAdapter.useAssistantList`.
@@ -22,7 +15,7 @@ const DEFAULT_LIST_LIMIT = 500
 function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail> {
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/agents', {
     query: {
-      limit: query?.limit ?? DEFAULT_LIST_LIMIT,
+      limit: query?.limit ?? AGENTS_MAX_LIMIT,
       ...(query?.search ? { search: query.search } : {})
     }
   })

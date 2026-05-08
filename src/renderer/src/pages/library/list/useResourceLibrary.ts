@@ -275,15 +275,15 @@ export function useResourceLibrary({
     filteredPrompts.refetch()
     tagList.refetch()
   }, [
-    baseAssistants,
-    filteredAssistants,
-    baseAgents,
-    filteredAgents,
-    skills,
-    filteredSkills,
-    basePrompts,
-    filteredPrompts,
-    tagList
+    baseAssistants.refetch,
+    filteredAssistants.refetch,
+    baseAgents.refetch,
+    filteredAgents.refetch,
+    skills.refetch,
+    filteredSkills.refetch,
+    basePrompts.refetch,
+    filteredPrompts.refetch,
+    tagList.refetch
   ])
 
   return {
