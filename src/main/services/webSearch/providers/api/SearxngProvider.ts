@@ -55,7 +55,7 @@ export class SearxngProvider extends BaseWebSearchProvider {
       return this.provider.engines
     }
 
-    const requestUrl = this.resolveApiUrl('/config')
+    const requestUrl = this.resolveApiUrl('searchKeywords', '/config')
     const response = await net.fetch(requestUrl, {
       method: 'GET',
       headers: {
@@ -85,12 +85,16 @@ export class SearxngProvider extends BaseWebSearchProvider {
     return engines
   }
 
-  async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+  async searchKeywords(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchResponse> {
     const context = await this.prepareSearchContext(query, config, httpOptions)
     const searchPayload = await this.executeSearch(context)
     const fetchedResults = await this.fetchResultContents(context, searchPayload)
 
-    return this.buildFinalResponse(context, searchPayload, fetchedResults)
+    return this.buildFinalResponse(context, fetchedResults)
   }
 
   private async prepareSearchContext(
@@ -110,7 +114,7 @@ export class SearxngProvider extends BaseWebSearchProvider {
     return {
       query,
       maxResults: config.maxResults,
-      searchUrl: `${this.resolveApiUrl('/search')}?${searchParams.toString()}`,
+      searchUrl: `${this.resolveApiUrl('searchKeywords', '/search')}?${searchParams.toString()}`,
       signal
     }
   }
@@ -171,14 +175,16 @@ export class SearxngProvider extends BaseWebSearchProvider {
     return fulfilledResults.map((item) => item.value).filter((item) => item.content.trim().length > 0)
   }
 
-  private buildFinalResponse(
-    context: SearxngSearchContext,
-    searchPayload: z.infer<typeof SearxngSearchResponseSchema>,
-    fetchedResults: WebSearchResult[]
-  ): WebSearchResponse {
+  private buildFinalResponse(context: SearxngSearchContext, fetchedResults: WebSearchResult[]): WebSearchResponse {
     return {
-      query: searchPayload.query || context.query,
-      results: fetchedResults
+      query: context.query,
+      providerId: this.provider.id,
+      capability: 'searchKeywords',
+      inputs: [context.query],
+      results: fetchedResults.map((result) => ({
+        ...result,
+        sourceInput: context.query
+      }))
     }
   }
 }

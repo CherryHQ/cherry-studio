@@ -24,7 +24,7 @@ import type {
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
-import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
+import { findWebSearchCapability, PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 import dayjs from 'dayjs'
 import { sliceByTokens } from 'tokenx'
@@ -35,7 +35,7 @@ export type WebSearchAvailability = boolean | 'unknown'
 
 type WebSearchPreferenceSnapshot = Pick<
   PreferenceDefaultScopeType,
-  | 'chat.web_search.default_provider'
+  | 'chat.web_search.default_search_keywords_provider'
   | 'chat.web_search.exclude_domains'
   | 'chat.web_search.max_results'
   | 'chat.web_search.provider_overrides'
@@ -47,7 +47,7 @@ type WebSearchPreferenceSnapshot = Pick<
 >
 
 export const WEB_SEARCH_PREFERENCE_KEYS = {
-  defaultProvider: 'chat.web_search.default_provider',
+  defaultProvider: 'chat.web_search.default_search_keywords_provider',
   excludeDomains: 'chat.web_search.exclude_domains',
   maxResults: 'chat.web_search.max_results',
   providerOverrides: 'chat.web_search.provider_overrides',
@@ -458,12 +458,14 @@ export function stringifyApiKeys(apiKeys?: string[]): string {
 export function resolveWebSearchProviders(overrides: WebSearchProviderOverrides): WebSearchProvider[] {
   return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
     const override = overrides[preset.id]
+    const searchKeywordsCapability = findWebSearchCapability(preset, 'searchKeywords')
 
     return {
       id: preset.id,
       name: preset.name,
       apiKey: stringifyApiKeys(override?.apiKeys),
-      apiHost: override?.apiHost?.trim() || preset.defaultApiHost,
+      apiHost:
+        override?.capabilities?.searchKeywords?.apiHost?.trim() ?? searchKeywordsCapability?.apiHost?.trim() ?? '',
       engines: override?.engines || [],
       basicAuthUsername: override?.basicAuthUsername?.trim() || '',
       basicAuthPassword: override?.basicAuthPassword ?? ''
@@ -475,7 +477,14 @@ export function buildWebSearchProviderOverrides(providers: WebSearchProvider[]):
   return providers.reduce<WebSearchProviderOverrides>((acc, provider) => {
     const normalizedOverride = normalizeWebSearchProviderOverride({
       apiKeys: parseApiKeys(provider.apiKey),
-      apiHost: provider.apiHost,
+      capabilities:
+        provider.apiHost !== undefined
+          ? {
+              searchKeywords: {
+                apiHost: provider.apiHost
+              }
+            }
+          : undefined,
       engines: provider.engines,
       basicAuthUsername: provider.basicAuthUsername,
       basicAuthPassword: provider.basicAuthPassword
@@ -498,7 +507,16 @@ export function updateWebSearchProviderOverride(
   const nextOverride: WebSearchProviderOverride = {
     ...currentOverride,
     apiKeys: updates.apiKey !== undefined ? parseApiKeys(updates.apiKey) : currentOverride.apiKeys,
-    apiHost: updates.apiHost !== undefined ? updates.apiHost : currentOverride.apiHost,
+    capabilities:
+      updates.apiHost !== undefined
+        ? {
+            ...currentOverride.capabilities,
+            searchKeywords: {
+              ...currentOverride.capabilities?.searchKeywords,
+              apiHost: updates.apiHost
+            }
+          }
+        : currentOverride.capabilities,
     engines: updates.engines !== undefined ? updates.engines : currentOverride.engines,
     basicAuthUsername:
       updates.basicAuthUsername !== undefined ? updates.basicAuthUsername : currentOverride.basicAuthUsername,
@@ -624,8 +642,20 @@ function normalizeWebSearchProviderOverride(override: WebSearchProviderOverride)
     normalizedOverride.apiKeys = override.apiKeys.map((key) => key.trim()).filter(Boolean)
   }
 
-  if (override.apiHost !== undefined) {
-    normalizedOverride.apiHost = override.apiHost.trim()
+  if (override.capabilities !== undefined) {
+    const capabilities: WebSearchProviderOverride['capabilities'] = {}
+
+    for (const [feature, capabilityOverride] of Object.entries(override.capabilities)) {
+      if (!capabilityOverride) {
+        continue
+      }
+
+      capabilities[feature] = {
+        ...(capabilityOverride.apiHost !== undefined ? { apiHost: capabilityOverride.apiHost.trim() } : {})
+      }
+    }
+
+    normalizedOverride.capabilities = capabilities
   }
 
   if (override.engines !== undefined) {

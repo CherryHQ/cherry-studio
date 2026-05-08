@@ -90,6 +90,7 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
     isGrokReasoningModel: vi.fn(() => false),
     isOpenAIReasoningModel: vi.fn(() => false),
     isQwenAlwaysThinkModel: vi.fn(() => false),
+    isHostedGemma4ThinkingModel: vi.fn(() => false),
     isSupportedThinkingTokenHunyuanModel: vi.fn(() => false),
     isSupportedThinkingTokenModel: vi.fn(() => false),
     isGPT51SeriesModel: vi.fn(() => false),
@@ -964,6 +965,55 @@ describe('reasoning utils', () => {
       })
     })
 
+    it('should use adaptive thinking with native xhigh effort and summarized display for Claude Opus 4.7', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'claude-opus-4-7',
+        name: 'Claude Opus 4.7',
+        provider: SystemProviderIds.anthropic
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'xhigh' }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'adaptive', display: 'summarized' },
+        effort: 'xhigh'
+      })
+    })
+
+    it('should use adaptive thinking with summarized display even without explicit effort for Claude Opus 4.7', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'claude-opus-4-7',
+        name: 'Claude Opus 4.7',
+        provider: SystemProviderIds.anthropic
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'auto' }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'adaptive', display: 'summarized' }
+      })
+    })
+
     it('should use fallback budgetTokens when findTokenLimit returns undefined for Claude model', async () => {
       const { isReasoningModel, isSupportedThinkingTokenClaudeModel, findTokenLimit } = await import(
         '@renderer/config/models'
@@ -1513,6 +1563,58 @@ describe('reasoning utils', () => {
         thinkingConfig: {
           includeThoughts: true,
           thinkingLevel: 'minimal'
+        }
+      })
+    })
+
+    it('should map hosted Gemma 4 minimal effort to minimal thinkingLevel without thoughts', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      vi.mocked(mockModels.isHostedGemma4ThinkingModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'gemma-4-31b-it',
+        name: 'Gemma 4 31B',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'minimal' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinkingConfig: {
+          includeThoughts: false,
+          thinkingLevel: 'minimal'
+        }
+      })
+    })
+
+    it('should map hosted Gemma 4 high effort to high thinkingLevel with thoughts', () => {
+      vi.mocked(mockModels.isReasoningModel).mockReturnValue(true)
+      vi.mocked(mockModels.isSupportedThinkingTokenGeminiModel).mockReturnValue(true)
+      vi.mocked(mockModels.isHostedGemma4ThinkingModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'gemma-4-31b-it',
+        name: 'Gemma 4 31B',
+        provider: SystemProviderIds.gemini
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'high' }
+      } as Assistant
+
+      const result = getGeminiReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingLevel: 'high'
         }
       })
     })
