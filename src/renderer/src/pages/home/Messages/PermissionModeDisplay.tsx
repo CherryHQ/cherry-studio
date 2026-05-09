@@ -1,15 +1,13 @@
 import { permissionModeCards } from '@renderer/config/agent'
 import { useAgent } from '@renderer/hooks/agents/useAgentDataApi'
-import SessionSettingsPopup from '@renderer/pages/agents/AgentSettings/SessionSettingsPopup'
+import { AgentSettingsPopup } from '@renderer/pages/agents/AgentSettings'
 import type { PermissionMode } from '@renderer/types'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { FileEdit, Lightbulb, Shield, ShieldOff } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
-  session: AgentSessionEntity
   agentId: string
 }
 
@@ -38,7 +36,7 @@ const getPermissionModeConfig = (mode: PermissionMode) => {
   }
 }
 
-const PermissionModeDisplay: FC<Props> = ({ session, agentId }) => {
+const PermissionModeDisplay: FC<Props> = ({ agentId }) => {
   const { t } = useTranslation()
   const { agent } = useAgent(agentId)
 
@@ -51,11 +49,7 @@ const PermissionModeDisplay: FC<Props> = ({ session, agentId }) => {
   const modeConfig = useMemo(() => getPermissionModeConfig(permissionMode), [permissionMode])
 
   const handleClick = () => {
-    void SessionSettingsPopup.show({
-      agentId,
-      sessionId: session.id,
-      tab: 'permission-mode'
-    })
+    void AgentSettingsPopup.show({ agentId, tab: 'permission-mode' })
   }
 
   if (!modeCard) {

@@ -4,7 +4,7 @@ import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateAgent } from '@renderer/hooks/agents/useAgentDataApi'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { AgentSettingsPopup, SessionSettingsPopup } from '@renderer/pages/agents/AgentSettings'
+import { AgentSettingsPopup } from '@renderer/pages/agents/AgentSettings'
 import { AgentLabel, SessionLabel } from '@renderer/pages/agents/AgentSettings/shared'
 import type { ApiModel } from '@renderer/types'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -90,12 +90,7 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
                 {/* Session Label */}
                 <div
                   className="flex h-full cursor-pointer items-center"
-                  onClick={() =>
-                    SessionSettingsPopup.show({
-                      agentId: activeAgent.id,
-                      sessionId: activeSession.id
-                    })
-                  }>
+                  onClick={() => AgentSettingsPopup.show({ agentId: activeAgent.id })}>
                   <SessionLabel session={activeSession} className="max-w-40 text-xs" />
                 </div>
 

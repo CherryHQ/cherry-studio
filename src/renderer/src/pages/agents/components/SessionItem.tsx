@@ -8,7 +8,6 @@ import { useUpdateSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { SessionSettingsPopup } from '@renderer/pages/agents/AgentSettings'
 import { SessionLabel } from '@renderer/pages/agents/AgentSettings/shared'
 import { classNames } from '@renderer/utils'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
@@ -17,7 +16,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
 import { MenuIcon, PinIcon, PinOffIcon, XIcon } from 'lucide-react'
-import React, { memo, startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import React, { memo, startTransition, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -38,8 +37,6 @@ const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPr
   const { updateSession } = useUpdateSession(session.agentId)
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const { setTimeoutTimer } = useTimer()
-  const [_targetSession, setTargetSession] = useState<AgentSessionEntity>(session)
-  const targetSession = useDeferredValue(_targetSession)
 
   const { isEditing, isSaving, startEdit, inputProps } = useInPlaceEdit({
     onSave: async (value) => {
@@ -115,21 +112,12 @@ const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPr
 
   const menuItems: MenuProps['items'] = useMemo(
     () => [
-      ...(session.agentId
-        ? [
-            {
-              label: t('common.edit'),
-              key: 'edit',
-              icon: <EditIcon size={14} />,
-              onClick: () => {
-                void SessionSettingsPopup.show({
-                  agentId: session.agentId!,
-                  sessionId: session.id
-                })
-              }
-            }
-          ]
-        : []),
+      {
+        label: t('common.rename'),
+        key: 'rename',
+        icon: <EditIcon size={14} />,
+        onClick: () => startEdit(session.name ?? '')
+      },
       ...(onTogglePin
         ? [
             {
@@ -167,7 +155,7 @@ const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPr
         }
       }
     ],
-    [onDelete, onTogglePin, pinned, session.agentId, session.id, sessionTopicId, setTopicPosition, t, targetSession.id]
+    [onDelete, onTogglePin, pinned, session.name, setTopicPosition, startEdit, t]
   )
 
   return (
@@ -180,7 +168,6 @@ const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPr
         onClick={isEditing ? undefined : onPress}
         onDoubleClick={() => startEdit(session.name ?? '')}
         title={session.name ?? session.id}
-        onContextMenu={() => setTargetSession(session)}
         style={{
           borderRadius: 'var(--list-item-border-radius)',
           cursor: isEditing ? 'default' : 'pointer'
