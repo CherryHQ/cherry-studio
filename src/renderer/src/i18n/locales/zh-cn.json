@@ -576,6 +576,13 @@
         }
       }
     },
+    "shell": {
+      "enablePowerShell": "启用 PowerShell 工具",
+      "enablePowerShellTooltip": "在 Bash 之外添加 PowerShell 作为额外的 Shell 工具。智能体可以同时使用两者。",
+      "ps5": "Windows PowerShell（内置）",
+      "ps7": "PowerShell 7",
+      "ps7NotDetected": "未检测到 PowerShell 7。请从 github.com/PowerShell/PowerShell 安装，或选择 Windows PowerShell。"
+    },
     "sidebar_title": "智能体",
     "todo": {
       "mock": {

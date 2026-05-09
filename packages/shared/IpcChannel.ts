@@ -312,6 +312,7 @@ export enum IpcChannel {
   System_GetGitBashPath = 'system:getGitBashPath',
   System_GetGitBashPathInfo = 'system:getGitBashPathInfo',
   System_SetGitBashPath = 'system:setGitBashPath',
+  System_CheckPwshAvailable = 'system:checkPwshAvailable',
 
   // DevTools
   System_ToggleDevTools = 'system:toggleDevTools',

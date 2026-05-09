@@ -576,6 +576,13 @@
         }
       }
     },
+    "shell": {
+      "enablePowerShell": "Enable PowerShell tool",
+      "enablePowerShellTooltip": "Adds PowerShell as an additional shell tool alongside Bash. The agent can use both.",
+      "ps5": "Windows PowerShell (Built-in)",
+      "ps7": "PowerShell 7",
+      "ps7NotDetected": "PowerShell 7 not detected. Install from github.com/PowerShell/PowerShell or select Windows PowerShell."
+    },
     "sidebar_title": "Agents",
     "todo": {
       "mock": {

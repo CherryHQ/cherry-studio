@@ -576,8 +576,107 @@
         }
       }
     },
+    "shell": {
+      "enablePowerShell": "[to be translated]:Enable PowerShell tool",
+      "enablePowerShellTooltip": "[to be translated]:Adds PowerShell as an additional shell tool alongside Bash. The agent can use both.",
+      "ps5": "[to be translated]:Windows PowerShell (Built-in)",
+      "ps7": "[to be translated]:PowerShell 7",
+      "ps7NotDetected": "[to be translated]:PowerShell 7 not detected. Install from github.com/PowerShell/PowerShell or select Windows PowerShell."
+    },
     "sidebar_title": "Agentes",
     "todo": {
+      "mock": {
+        "actions": {
+          "complete": "[to be translated]:Complete",
+          "dismiss": "[to be translated]:Dismiss"
+        },
+        "details": {
+          "addRouter": {
+            "summary": "[to be translated]:Configuring client routing with react-router-dom v6...",
+            "title": "[to be translated]:Add React Router"
+          },
+          "configureProject": {
+            "resources": {
+              "createdMeta": "[to be translated]:created",
+              "postcssConfig": "[to be translated]:postcss.config.js",
+              "tailwindConfig": "[to be translated]:tailwind.config.js",
+              "updatedMeta": "[to be translated]:updated",
+              "viteConfig": "[to be translated]:vite.config.ts - port 3001"
+            },
+            "title": "[to be translated]:Configure project"
+          },
+          "installDependencies": {
+            "resources": {
+              "dependenciesMeta": "[to be translated]:dependencies",
+              "devDependenciesMeta": "[to be translated]:devDependencies",
+              "reactDeps": "[to be translated]:react@18.3.1, react-dom@18.3.1",
+              "tailwindDeps": "[to be translated]:tailwindcss@3.4.4, postcss@8.4.38",
+              "typescriptDeps": "[to be translated]:typescript@5.4.5, vite@5.3.0"
+            },
+            "summary": "[to be translated]:Installed react, react-dom, tailwindcss, postcss, autoprefixer, and TypeScript.",
+            "title": "[to be translated]:Install dependencies"
+          },
+          "reviewReferences": {
+            "collectionTitle": "[to be translated]:Reviewed references",
+            "resources": {
+              "npmCreateVite": "[to be translated]:npm create vite - Official Scaffolding",
+              "npmMeta": "[to be translated]:npmjs.com",
+              "reactDocs": "[to be translated]:React Documentation - Quick Start",
+              "reactMeta": "[to be translated]:react.dev",
+              "tailwindDocs": "[to be translated]:Tailwind CSS - Installation Guide",
+              "tailwindMeta": "[to be translated]:tailwindcss.com",
+              "viteDocs": "[to be translated]:Vite - Next Generation Frontend Tooling",
+              "viteMeta": "[to be translated]:vitejs.dev"
+            },
+            "title": "[to be translated]:Review references"
+          },
+          "searchWeb": {
+            "resources": {
+              "reactViteQuery": "[to be translated]:React Vite TypeScript starter 2025 best practices"
+            },
+            "summary": "[to be translated]:Collected current references for React + Vite scaffolding and best practices.",
+            "title": "[to be translated]:Search web references"
+          },
+          "title": "[to be translated]:Execution details",
+          "writeComponents": {
+            "collectionTitle": "[to be translated]:Created files",
+            "resources": {
+              "app": "[to be translated]:src/App.tsx",
+              "button": "[to be translated]:src/components/Button.tsx",
+              "card": "[to be translated]:src/components/Card.tsx",
+              "footer": "[to be translated]:src/components/Footer.tsx",
+              "header": "[to be translated]:src/components/Header.tsx",
+              "layout": "[to be translated]:src/components/Layout.tsx",
+              "modifiedMeta": "[to be translated]:modified",
+              "newMeta": "[to be translated]:new",
+              "updatedMeta": "[to be translated]:updated"
+            },
+            "title": "[to be translated]:Write components"
+          },
+          "writePages": {
+            "resources": {
+              "about": "[to be translated]:src/pages/About.tsx",
+              "home": "[to be translated]:src/pages/Home.tsx",
+              "newMeta": "[to be translated]:new"
+            },
+            "title": "[to be translated]:Write pages"
+          }
+        },
+        "progress": "[to be translated]:{{completed}}/{{total}} tasks completed",
+        "tasks": {
+          "addLinting": "[to be translated]:Add ESLint + Prettier",
+          "addRouter": "[to be translated]:Add React Router",
+          "buildDeploy": "[to be translated]:Build and deploy",
+          "configureProject": "[to be translated]:Configure project",
+          "finish": "[to be translated]:Finish",
+          "installDependencies": "[to be translated]:Install dependencies",
+          "reviewReferences": "[to be translated]:Review references",
+          "searchWeb": "[to be translated]:Search web references",
+          "writeComponents": "[to be translated]:Write components",
+          "writePages": "[to be translated]:Write pages"
+        },
+        "title": "[to be translated]:Tasks"
+      },
       "panel": {
         "title": "{{completed}}/{{total}} tarefas concluídas"
       },
@@ -3931,6 +4030,9 @@
         "title": "Seletor de Agente",
         "triggerPlaceholder": "Selecione um agente",
         "valueProp": "Valor atual"
+      },
+      "agentTodoList": {
+        "title": "[to be translated]:Agent Todo List"
       },
       "assistantSelector": {
         "clearSelection": "Limpo",

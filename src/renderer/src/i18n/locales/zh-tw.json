@@ -576,6 +576,13 @@
         }
       }
     },
+    "shell": {
+      "enablePowerShell": "啟用 PowerShell 工具",
+      "enablePowerShellTooltip": "在 Bash 之外新增 PowerShell 作為額外的 Shell 工具。智慧體可以同時使用兩者。",
+      "ps5": "Windows PowerShell（內建）",
+      "ps7": "PowerShell 7",
+      "ps7NotDetected": "未偵測到 PowerShell 7。請從 github.com/PowerShell/PowerShell 安裝，或選擇 Windows PowerShell。"
+    },
     "sidebar_title": "Agents",
     "todo": {
       "mock": {

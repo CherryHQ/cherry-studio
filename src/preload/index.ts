@@ -180,7 +180,8 @@ const api = {
     getGitBashPath: (): Promise<string | null> => ipcRenderer.invoke(IpcChannel.System_GetGitBashPath),
     getGitBashPathInfo: (): Promise<GitBashPathInfo> => ipcRenderer.invoke(IpcChannel.System_GetGitBashPathInfo),
     setGitBashPath: (newPath: string | null): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.System_SetGitBashPath, newPath)
+      ipcRenderer.invoke(IpcChannel.System_SetGitBashPath, newPath),
+    checkPwshAvailable: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.System_CheckPwshAvailable)
   },
   devTools: {
     toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)
