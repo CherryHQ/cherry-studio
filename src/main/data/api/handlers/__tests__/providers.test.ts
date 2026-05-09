@@ -76,8 +76,21 @@ describe('providerHandlers', () => {
         params: { providerId: 'openai' }
       } as never)
 
-      expect(getApiKeysMock).toHaveBeenCalledWith('openai')
+      expect(getApiKeysMock).toHaveBeenCalledWith('openai', {})
       expect(result).toEqual({ keys })
+    })
+
+    it('forwards ?enabled=true to the service so callers can request enabled keys only', async () => {
+      const enabledKeys = [{ id: 'enabled-key', key: 'sk-enabled', isEnabled: true }]
+      getApiKeysMock.mockResolvedValueOnce(enabledKeys)
+
+      const result = await providerHandlers['/providers/:providerId/api-keys'].GET({
+        params: { providerId: 'openai' },
+        query: { enabled: true }
+      } as never)
+
+      expect(getApiKeysMock).toHaveBeenCalledWith('openai', { enabled: true })
+      expect(result).toEqual({ keys: enabledKeys })
     })
   })
 })

@@ -247,10 +247,13 @@ class ProviderService {
   }
 
   /**
-   * Get all API keys for a provider.
-   * Used by settings management UIs.
+   * Get API keys for a provider.
+   *
+   * Pass `{ enabled: true }` to filter to enabled keys only (e.g. health check
+   * iteration, rotation consumers); omit it to get all keys (settings management
+   * UI that needs to preserve disabled entries).
    */
-  async getApiKeys(providerId: string): Promise<ApiKeyEntry[]> {
+  async getApiKeys(providerId: string, options: { enabled?: boolean } = {}): Promise<ApiKeyEntry[]> {
     const db = application.get('DbService').getDb()
     const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
 
@@ -258,22 +261,8 @@ class ProviderService {
       throw DataApiErrorFactory.notFound('Provider', providerId)
     }
 
-    return row.apiKeys ?? []
-  }
-
-  /**
-   * Get all enabled API key values for a provider.
-   * Used by health check to test each key individually.
-   */
-  async getEnabledApiKeys(providerId: string): Promise<ApiKeyEntry[]> {
-    const db = application.get('DbService').getDb()
-    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
-
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
-
-    return (row.apiKeys ?? []).filter((k) => k.isEnabled)
+    const apiKeys = row.apiKeys ?? []
+    return options.enabled ? apiKeys.filter((k) => k.isEnabled) : apiKeys
   }
 
   /**

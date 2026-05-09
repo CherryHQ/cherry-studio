@@ -88,6 +88,13 @@ export const ListProvidersQuerySchema = z.strictObject({
 })
 export type ListProvidersQuery = z.infer<typeof ListProvidersQuerySchema>
 
+/** Query parameters for GET /providers/:providerId/api-keys */
+export const ListProviderApiKeysQuerySchema = z.strictObject({
+  /** When `true`, only enabled keys are returned. */
+  enabled: z.boolean().optional()
+})
+export type ListProviderApiKeysQuery = z.infer<typeof ListProviderApiKeysQuerySchema>
+
 /** POST /providers/:providerId/api-keys body */
 export const AddProviderApiKeySchema = z.strictObject({
   key: z.string().min(1),
@@ -169,14 +176,18 @@ export type ProviderSchemas = {
   }
 
   /**
-   * Get all API key values for a provider settings editor.
-   * Consumers that only need enabled keys should filter by `isEnabled` or use `/rotated-key`.
+   * Get API key values for a provider settings editor.
+   * Pass `?enabled=true` to get only enabled keys (e.g. for runtime / rotation
+   * consumers); omit it to get all keys (for the management UI that needs to
+   * preserve disabled entries).
    * @example GET /providers/openai-main/api-keys
+   * @example GET /providers/openai-main/api-keys?enabled=true
    * @example POST /providers/openai-main/api-keys { "key": "sk-xxx", "label": "From URL import" }
    */
   '/providers/:providerId/api-keys': {
     GET: {
       params: { providerId: string }
+      query: ListProviderApiKeysQuery
       response: { keys: ApiKeyEntry[] }
     }
     /** Add an API key to a provider */

@@ -13,6 +13,7 @@ import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/sc
 import {
   AddProviderApiKeySchema,
   CreateProviderSchema,
+  ListProviderApiKeysQuerySchema,
   ListProvidersQuerySchema,
   type ProviderSchemas,
   UpdateApiKeySchema,
@@ -56,8 +57,9 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   },
 
   '/providers/:providerId/api-keys': {
-    GET: async ({ params }) => {
-      const keys = await providerService.getApiKeys(params.providerId)
+    GET: async ({ params, query }) => {
+      const parsed = ListProviderApiKeysQuerySchema.parse(query ?? {})
+      const keys = await providerService.getApiKeys(params.providerId, parsed)
       return { keys }
     },
 
