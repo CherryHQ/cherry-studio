@@ -175,6 +175,32 @@ export const FileProcessorMergedSchema = FileProcessorTemplateSchema.extend({
 })
 export type FileProcessorMerged = z.infer<typeof FileProcessorMergedSchema>
 
+function mergeCapabilityConfig<T extends { apiHost?: string; modelId?: string }>(
+  capability: T,
+  override?: FileProcessorCapabilityOverride
+): T {
+  return {
+    ...capability,
+    ...(override?.apiHost !== undefined ? { apiHost: override.apiHost } : {}),
+    ...(override?.modelId !== undefined ? { modelId: override.modelId } : {})
+  }
+}
+
+export function mergeFileProcessorPreset(
+  preset: FileProcessorPreset,
+  override?: FileProcessorOverride
+): FileProcessorMerged {
+  return {
+    id: preset.id,
+    type: preset.type,
+    capabilities: preset.capabilities.map((capability) =>
+      mergeCapabilityConfig(capability, override?.capabilities?.[capability.feature])
+    ),
+    apiKeys: override?.apiKeys,
+    options: override?.options
+  }
+}
+
 export const FILE_PROCESSOR_PRESET_MAP = {
   tesseract: {
     type: 'builtin',
@@ -274,3 +300,17 @@ export const PRESETS_FILE_PROCESSORS: readonly FileProcessorPreset[] = FILE_PROC
   id,
   ...FILE_PROCESSOR_PRESET_MAP[id]
 }))
+
+export function getFileProcessorPresetById(processorId: FileProcessorId): FileProcessorPreset | undefined {
+  return PRESETS_FILE_PROCESSORS.find((item) => item.id === processorId)
+}
+
+export function fileProcessorSupportsFeature(processorId: FileProcessorId, feature: FileProcessorFeature): boolean {
+  return Boolean(
+    getFileProcessorPresetById(processorId)?.capabilities.some((capability) => capability.feature === feature)
+  )
+}
+
+export function mergeFileProcessorPresets(overrides: FileProcessorOverrides): FileProcessorMerged[] {
+  return PRESETS_FILE_PROCESSORS.map((preset) => mergeFileProcessorPreset(preset, overrides[preset.id]))
+}

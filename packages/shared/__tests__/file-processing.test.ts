@@ -6,9 +6,12 @@ import {
   FileProcessorIdSchema,
   FileProcessorOverrideSchema,
   FileProcessorPresetDefinitionSchema,
+  fileProcessorSupportsFeature,
   FileProcessorTemplateSchema,
   FileProcessorTemplatesSchema,
   FileProcessorTypeSchema,
+  getFileProcessorPresetById,
+  mergeFileProcessorPreset,
   PRESETS_FILE_PROCESSORS
 } from '../data/presets/file-processing'
 import { FILE_TYPE } from '../data/types/file'
@@ -131,6 +134,97 @@ describe('FileProcessorOverrideSchema', () => {
     })
 
     expect(result.success).toBe(false)
+  })
+})
+
+describe('file processor preset lookup', () => {
+  it('looks up presets by id and checks feature support', () => {
+    expect(getFileProcessorPresetById('paddleocr')?.id).toBe('paddleocr')
+    expect(fileProcessorSupportsFeature('paddleocr', 'image_to_text')).toBe(true)
+    expect(fileProcessorSupportsFeature('doc2x', 'image_to_text')).toBe(false)
+  })
+})
+
+describe('mergeFileProcessorPreset', () => {
+  it('returns preset capabilities unchanged when override is missing', () => {
+    const preset = getFileProcessorPresetById('tesseract')
+
+    expect(preset).toBeDefined()
+    expect(mergeFileProcessorPreset(preset!)).toEqual({
+      id: 'tesseract',
+      type: 'builtin',
+      capabilities: [
+        {
+          feature: 'image_to_text',
+          inputs: ['image'],
+          output: 'text'
+        }
+      ],
+      apiKeys: undefined,
+      options: undefined
+    })
+  })
+
+  it('merges processor-level apiKeys and options from override', () => {
+    const preset = getFileProcessorPresetById('doc2x')
+
+    expect(preset).toBeDefined()
+    expect(
+      mergeFileProcessorPreset(preset!, {
+        apiKeys: ['key-1', 'key-2'],
+        options: {
+          mode: 'fast'
+        }
+      })
+    ).toEqual({
+      id: 'doc2x',
+      type: 'api',
+      capabilities: [
+        {
+          feature: 'document_to_markdown',
+          inputs: ['document'],
+          output: 'markdown',
+          apiHost: 'https://v2.doc2x.noedgeai.com',
+          modelId: 'v3-2026'
+        }
+      ],
+      apiKeys: ['key-1', 'key-2'],
+      options: {
+        mode: 'fast'
+      }
+    })
+  })
+
+  it('merges capability override only into the targeted feature', () => {
+    const preset = getFileProcessorPresetById('paddleocr')
+
+    expect(preset).toBeDefined()
+
+    const merged = mergeFileProcessorPreset(preset!, {
+      capabilities: {
+        document_to_markdown: {
+          apiHost: 'https://custom.example.com',
+          modelId: 'custom-model'
+        }
+      }
+    })
+
+    expect(merged.capabilities).toEqual([
+      {
+        feature: 'image_to_text',
+        inputs: ['image'],
+        output: 'text',
+        apiHost: 'https://paddleocr.aistudio-app.com/',
+        modelId: 'PaddleOCR-VL-1.5'
+      },
+      {
+        feature: 'document_to_markdown',
+        inputs: ['document'],
+        output: 'markdown',
+        apiHost: 'https://custom.example.com',
+        modelId: 'custom-model'
+      }
+    ])
   })
 })
 

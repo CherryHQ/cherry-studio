@@ -5,9 +5,12 @@ import type {
   FileProcessorOverrides,
   PreferenceKeyType
 } from '@shared/data/preference/preferenceTypes'
-import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
-
-import { mergeProcessorPreset } from './mergeProcessorPreset'
+import {
+  type FileProcessorMerged,
+  fileProcessorSupportsFeature,
+  getFileProcessorPresetById,
+  mergeFileProcessorPreset
+} from '@shared/data/presets/file-processing'
 
 const DEFAULT_PROCESSOR_KEY_BY_FEATURE = {
   document_to_markdown: 'feature.file_processing.default_document_to_markdown',
@@ -19,7 +22,7 @@ function getOverrides(): FileProcessorOverrides {
 }
 
 function getPresetById(processorId: FileProcessorId) {
-  const preset = PRESETS_FILE_PROCESSORS.find((item) => item.id === processorId)
+  const preset = getFileProcessorPresetById(processorId)
 
   if (!preset) {
     throw new Error(`File processor not found: ${processorId}`)
@@ -29,15 +32,14 @@ function getPresetById(processorId: FileProcessorId) {
 }
 
 function supportsFeature(processorId: FileProcessorId, feature: FileProcessorFeature): boolean {
-  const preset = PRESETS_FILE_PROCESSORS.find((item) => item.id === processorId)
-  return Boolean(preset?.capabilities.some((capability) => capability.feature === feature))
+  return fileProcessorSupportsFeature(processorId, feature)
 }
 
 export function getProcessorConfigById(processorId: FileProcessorId): FileProcessorMerged {
   const preset = getPresetById(processorId)
   const overrides = getOverrides()
 
-  return mergeProcessorPreset(preset, overrides[processorId])
+  return mergeFileProcessorPreset(preset, overrides[processorId])
 }
 
 export function resolveProcessorConfigByFeature(

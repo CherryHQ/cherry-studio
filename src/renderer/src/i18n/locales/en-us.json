@@ -5809,6 +5809,67 @@
     },
     "title": "Settings",
     "tool": {
+      "file_processing": {
+        "api_base_url": "API Base URL",
+        "api_key_label": "API Key",
+        "feature_descriptions": {
+          "document_to_markdown": "Convert documents into Markdown for retrieval, editing, and downstream processing.",
+          "image_to_text": "Extract plain text from images, screenshots, and scanned content."
+        },
+        "features": {
+          "document_to_markdown": "Document Processing",
+          "image_to_text": "OCR"
+        },
+        "hide_api_key": "Hide API key",
+        "model_id": "Model ID",
+        "paddleocr": {
+          "deployment_description": "You can deploy PaddleOCR locally with the officially supported Docker image, then enter the API address here.",
+          "docker_deployment_docs": "View Docker deployment docs",
+          "parse_model": "Parse Model"
+        },
+        "placeholders": {
+          "api_keys": "Separate multiple keys with commas"
+        },
+        "processors": {
+          "doc2x": "Doc2x",
+          "mineru": "MinerU",
+          "mistral": "Mistral",
+          "open_mineru": "Open MinerU",
+          "ovocr": "Intel OV OCR",
+          "paddleocr": "PaddleOCR",
+          "system": "System OCR",
+          "tesseract": "Tesseract OCR"
+        },
+        "provider_descriptions": {
+          "doc2x": "Advanced document restoration engine.",
+          "mineru": "OpenDataLab's open-source high-quality PDF extraction tool.",
+          "mistral": "Document parsing and understanding.",
+          "ovocr": "Intel OpenVINO OCR engine that runs locally with NPU acceleration.",
+          "paddleocr": "Baidu Paddle OCR recognition system.",
+          "system": "Native operating system OCR engine.",
+          "tesseract": "Google's open-source OCR engine that runs fully locally."
+        },
+        "sections": {
+          "authentication": "Authentication",
+          "connection": "Connection Settings",
+          "description": "Description",
+          "language_packs": "Language Packs",
+          "languages": "Languages",
+          "model_parameters": "Model Parameters",
+          "status": "Status"
+        },
+        "service": "File services",
+        "show_api_key": "Show API key",
+        "system": {
+          "no_configuration": "System OCR requires no configuration and calls the native system engine directly. It is fastest, but accuracy depends on the OS version.",
+          "status_available": "Detected available macOS Live Text / Windows OCR engine."
+        },
+        "tesseract": {
+          "add_language": "Add language",
+          "remove_language": "Remove {{language}}"
+        },
+        "title": "File Processing"
+      },
       "ocr": {
         "common": {
           "langs": "Supported languages"

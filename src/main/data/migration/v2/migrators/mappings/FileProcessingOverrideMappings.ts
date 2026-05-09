@@ -7,7 +7,7 @@ import {
   type FileProcessorOverride,
   type FileProcessorOverrides
 } from '@shared/data/preference/preferenceTypes'
-import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
+import { getFileProcessorPresetById } from '@shared/data/presets/file-processing'
 
 import type { TransformResult } from './ComplexPreferenceMappings'
 
@@ -69,7 +69,7 @@ function addApiKey(override: FileProcessorOverride, apiKey: unknown) {
 }
 
 function getPresetCapability(processorId: FileProcessorId, feature: FileProcessorFeature) {
-  const processor = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === processorId)
+  const processor = getFileProcessorPresetById(processorId)
   const capability = processor?.capabilities.find((item) => item.feature === feature)
 
   return {
@@ -79,7 +79,7 @@ function getPresetCapability(processorId: FileProcessorId, feature: FileProcesso
 }
 
 function resolvePreprocessFeature(processorId: FileProcessorId): FileProcessorFeature {
-  const processor = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === processorId)!
+  const processor = getFileProcessorPresetById(processorId)!
 
   if (processor.capabilities.some((capability) => capability.feature === 'document_to_markdown')) {
     return 'document_to_markdown'

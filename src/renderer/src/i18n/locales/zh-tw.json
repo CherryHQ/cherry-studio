@@ -5809,6 +5809,67 @@
     },
     "title": "設定",
     "tool": {
+      "file_processing": {
+        "api_base_url": "API 位址 (Base URL)",
+        "api_key_label": "API 金鑰 (API Key)",
+        "feature_descriptions": {
+          "document_to_markdown": "將文件轉換為 Markdown，便於檢索、編輯和後續處理。",
+          "image_to_text": "從圖片、截圖和掃描內容中提取純文字。"
+        },
+        "features": {
+          "document_to_markdown": "文件處理",
+          "image_to_text": "OCR"
+        },
+        "hide_api_key": "隱藏 API 金鑰",
+        "model_id": "模型 ID",
+        "paddleocr": {
+          "deployment_description": "您可以使用 PaddleOCR 官方支援的 Docker 映像本機部署，部署後填入 API 位址即可。",
+          "docker_deployment_docs": "查看 Docker 部署文件",
+          "parse_model": "解析模型"
+        },
+        "placeholders": {
+          "api_keys": "多個金鑰可用逗號分隔"
+        },
+        "processors": {
+          "doc2x": "Doc2x",
+          "mineru": "MinerU",
+          "mistral": "Mistral",
+          "open_mineru": "Open MinerU",
+          "ovocr": "Intel OV OCR",
+          "paddleocr": "PaddleOCR",
+          "system": "System OCR",
+          "tesseract": "Tesseract OCR"
+        },
+        "provider_descriptions": {
+          "doc2x": "高級文件還原引擎",
+          "mineru": "OpenDataLab 開源的高品質 PDF 提取工具。",
+          "mistral": "文件解析與理解",
+          "ovocr": "使用 Intel OpenVINO 在本機執行的 OCR 引擎，支援 NPU 加速。",
+          "paddleocr": "百度飛槳 OCR 識別系統",
+          "system": "原生作業系統 OCR 引擎",
+          "tesseract": "Google 開源的光學字元辨識引擎，完全本機執行。"
+        },
+        "sections": {
+          "authentication": "認證",
+          "connection": "連線設定",
+          "description": "說明",
+          "language_packs": "語言套件",
+          "languages": "語言",
+          "model_parameters": "模型參數",
+          "status": "狀態"
+        },
+        "service": "檔案服務",
+        "show_api_key": "顯示 API 金鑰",
+        "system": {
+          "no_configuration": "系統 OCR 無需設定，直接呼叫系統底層能力。速度最快但準確率受系統版本影響。",
+          "status_available": "偵測到 macOS Live Text / Windows OCR 引擎可用。"
+        },
+        "tesseract": {
+          "add_language": "新增語言",
+          "remove_language": "移除 {{language}}"
+        },
+        "title": "檔案處理"
+      },
       "ocr": {
         "common": {
           "langs": "支援的語言"

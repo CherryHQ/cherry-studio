@@ -27,7 +27,7 @@ import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsIntegrationsRouteImport } from './routes/settings/integrations'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
-import { Route as SettingsDocprocessRouteImport } from './routes/settings/docprocess'
+import { Route as SettingsFileProcessingRouteImport } from './routes/settings/file-processing'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsComponentLabRouteImport } from './routes/settings/component-lab'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
@@ -149,9 +149,9 @@ const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
   path: '/general',
   getParentRoute: () => SettingsRoute,
 } as any)
-const SettingsDocprocessRoute = SettingsDocprocessRouteImport.update({
-  id: '/docprocess',
-  path: '/docprocess',
+const SettingsFileProcessingRoute = SettingsFileProcessingRouteImport.update({
+  id: '/file-processing',
+  path: '/file-processing',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsDataRoute = SettingsDataRouteImport.update({
@@ -322,7 +322,7 @@ export interface FileRoutesByFullPath {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/docprocess': typeof SettingsDocprocessRoute
+  '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
@@ -371,7 +371,7 @@ export interface FileRoutesByTo {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/docprocess': typeof SettingsDocprocessRoute
+  '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/model': typeof SettingsModelRoute
@@ -420,7 +420,7 @@ export interface FileRoutesById {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/docprocess': typeof SettingsDocprocessRoute
+  '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
@@ -472,7 +472,7 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/docprocess'
+    | '/settings/file-processing'
     | '/settings/general'
     | '/settings/integrations'
     | '/settings/mcp'
@@ -521,7 +521,7 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/docprocess'
+    | '/settings/file-processing'
     | '/settings/general'
     | '/settings/integrations'
     | '/settings/model'
@@ -569,7 +569,7 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/docprocess'
+    | '/settings/file-processing'
     | '/settings/general'
     | '/settings/integrations'
     | '/settings/mcp'
@@ -736,11 +736,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsGeneralRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/docprocess': {
-      id: '/settings/docprocess'
-      path: '/docprocess'
-      fullPath: '/settings/docprocess'
-      preLoaderRoute: typeof SettingsDocprocessRouteImport
+    '/settings/file-processing': {
+      id: '/settings/file-processing'
+      path: '/file-processing'
+      fullPath: '/settings/file-processing'
+      preLoaderRoute: typeof SettingsFileProcessingRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/data': {
@@ -1031,7 +1031,7 @@ interface SettingsRouteChildren {
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsComponentLabRoute: typeof SettingsComponentLabRoute
   SettingsDataRoute: typeof SettingsDataRoute
-  SettingsDocprocessRoute: typeof SettingsDocprocessRoute
+  SettingsFileProcessingRoute: typeof SettingsFileProcessingRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
   SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
@@ -1054,7 +1054,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsComponentLabRoute: SettingsComponentLabRoute,
   SettingsDataRoute: SettingsDataRoute,
-  SettingsDocprocessRoute: SettingsDocprocessRoute,
+  SettingsFileProcessingRoute: SettingsFileProcessingRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsIntegrationsRoute: SettingsIntegrationsRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,

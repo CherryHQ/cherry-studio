@@ -6,6 +6,7 @@ import {
   getTrailingApiVersion,
   hasAPIVersion,
   isWithTrailingSharp,
+  splitApiKeyString,
   withoutTrailingApiVersion,
   withoutTrailingSharp
 } from '..'
@@ -88,6 +89,20 @@ describe('api', () => {
 
     it('returns empty string unchanged', () => {
       expect(formatApiKeys('')).toBe('')
+    })
+  })
+
+  describe('splitApiKeyString', () => {
+    it('splits comma-separated keys and trims spaces', () => {
+      expect(splitApiKeyString(' key1 , key2 ,key3 ')).toEqual(['key1', 'key2', 'key3'])
+    })
+
+    it('handles escaped commas inside keys', () => {
+      expect(splitApiKeyString('key1,key2\\,withcomma,key3')).toEqual(['key1', 'key2,withcomma', 'key3'])
+    })
+
+    it('ignores empty keys', () => {
+      expect(splitApiKeyString('key1,,key2, ,key3')).toEqual(['key1', 'key2', 'key3'])
     })
   })
 
