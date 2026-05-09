@@ -1,4 +1,4 @@
-/* oxlint-disable no-unused-vars -- TODO(phase-1b): Phase 1a stub exports; parameters shape the public signature but are unused until implementations land. */
+/* oxlint-disable no-unused-vars -- TODO(phase-1b): write/copy/move/etc. remain Phase 1a stubs; their parameters shape the public signature but are unused until implementations land in Phase 1b.2. */
 
 /**
  * Core filesystem operations — the ONLY module that imports `node:fs`.
@@ -25,24 +25,45 @@
  * See `docs/references/file/architecture.md §5.2` for the full rationale.
  */
 
+import { createReadStream } from 'node:fs'
+import { access, constants, readFile, stat as fsStat } from 'node:fs/promises'
+
 import type { FilePath } from '@shared/file/types'
+import md5 from 'md5'
+import mime from 'mime'
 
 const notImplemented = (op: string): never => {
   throw new Error(`@main/utils/file/fs.${op}: not implemented (Phase 1a stub, implementation lands in Phase 1b)`)
 }
 
 /** Read file content as text with optional encoding detection. */
-export async function read(_path: FilePath, _options?: { encoding?: 'text'; detectEncoding?: boolean }): Promise<string>
-export async function read(_path: FilePath, _options: { encoding: 'base64' }): Promise<{ data: string; mime: string }>
+export async function read(path: FilePath, options?: { encoding?: 'text'; detectEncoding?: boolean }): Promise<string>
+export async function read(path: FilePath, options: { encoding: 'base64' }): Promise<{ data: string; mime: string }>
+export async function read(path: FilePath, options: { encoding: 'binary' }): Promise<{ data: Uint8Array; mime: string }>
 export async function read(
-  _path: FilePath,
-  _options: { encoding: 'binary' }
-): Promise<{ data: Uint8Array; mime: string }>
-export async function read(
-  _path: FilePath,
-  _options?: { encoding?: string; detectEncoding?: boolean }
+  path: FilePath,
+  options?: { encoding?: 'text' | 'base64' | 'binary'; detectEncoding?: boolean }
 ): Promise<unknown> {
-  return notImplemented('read')
+  const encoding = options?.encoding ?? 'text'
+  if (encoding === 'text') {
+    return readFile(path, 'utf-8')
+  }
+  const buf = await readFile(path)
+  const inferredMime = mime.getType(path) ?? 'application/octet-stream'
+  if (encoding === 'base64') {
+    return { data: buf.toString('base64'), mime: inferredMime }
+  }
+  return { data: new Uint8Array(buf), mime: inferredMime }
+}
+
+/** Returns true iff the path exists and is readable by the current process. */
+export async function exists(path: FilePath): Promise<boolean> {
+  try {
+    await access(path, constants.R_OK)
+    return true
+  } catch {
+    return false
+  }
 }
 
 /** Write content to a file path. Creates parent directories if needed. */
@@ -52,9 +73,15 @@ export async function write(_path: FilePath, _data: string | Uint8Array): Promis
 
 /** Get file/directory stats. */
 export async function stat(
-  _path: FilePath
+  path: FilePath
 ): Promise<{ size: number; createdAt: number; modifiedAt: number; isDirectory: boolean }> {
-  return notImplemented('stat')
+  const s = await fsStat(path)
+  return {
+    size: s.size,
+    createdAt: Math.floor(s.birthtimeMs),
+    modifiedAt: Math.floor(s.mtimeMs),
+    isDirectory: s.isDirectory()
+  }
 }
 
 /** Copy a file from source to destination. */
@@ -97,7 +124,18 @@ export async function download(_url: string, _dest: FilePath): Promise<void> {
   return notImplemented('download')
 }
 
-/** Compute MD5 hash of file content. */
-export async function hash(_path: FilePath): Promise<string> {
-  return notImplemented('hash')
+/**
+ * Compute MD5 hash of file content (streaming).
+ *
+ * MD5 is the Phase 1a contract algorithm. Migration to xxhash-128 is deferred
+ * to Phase 1b.2 (versionCache content-hash fallback) where dep-add can be
+ * scoped together with the actual consumer.
+ */
+export async function hash(path: FilePath): Promise<string> {
+  const chunks: Buffer[] = []
+  const stream = createReadStream(path)
+  for await (const chunk of stream) {
+    chunks.push(chunk as Buffer)
+  }
+  return md5(Buffer.concat(chunks))
 }
