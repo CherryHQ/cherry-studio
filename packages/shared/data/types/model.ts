@@ -85,36 +85,39 @@ const RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS = ['?', '#'] as const
 /** UniqueModelId type: "providerId::modelId" */
 export type UniqueModelId = `${string}${typeof UNIQUE_MODEL_ID_SEPARATOR}${string}`
 
+/**
+ * Single source of truth for whether a value is a valid encoded UniqueModelId.
+ * `createUniqueModelId`, `parseUniqueModelId`, and `UniqueModelIdSchema` all
+ * delegate here so their accept/reject sets stay aligned.
+ */
+export function isUniqueModelId(value: unknown): value is UniqueModelId {
+  if (typeof value !== 'string') return false
+  const idx = value.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
+  if (idx <= 0) return false
+  const modelId = value.slice(idx + UNIQUE_MODEL_ID_SEPARATOR.length)
+  if (modelId.length === 0) return false
+  return !RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.some((char) => modelId.includes(char))
+}
+
 /** Zod schema for UniqueModelId with runtime validation */
-export const UniqueModelIdSchema = z.string().refine(
-  (value) => {
-    const separatorIndex = value.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
-    if (separatorIndex <= 0) {
-      return false
-    }
-    const modelIdStart = separatorIndex + UNIQUE_MODEL_ID_SEPARATOR.length
-    if (modelIdStart >= value.length) {
-      return false
-    }
-    const providerId = value.slice(0, separatorIndex)
-    const modelId = value.slice(modelIdStart)
-    return (
-      !providerId.includes(UNIQUE_MODEL_ID_SEPARATOR) &&
-      !RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.some((char) => modelId.includes(char))
-    )
-  },
-  {
-    message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)`
-  }
-) as z.ZodType<UniqueModelId>
+export const UniqueModelIdSchema = z.custom<UniqueModelId>(isUniqueModelId, {
+  message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)`
+})
 
 /**
- * Create a UniqueModelId from provider and model IDs
- * @throws Error if providerId contains the separator
+ * Create a UniqueModelId from provider and model IDs.
+ * @throws Error with a per-field reason when either id is empty, providerId
+ * contains the separator, or modelId contains a reserved route character.
  */
 export function createUniqueModelId(providerId: string, modelId: string): UniqueModelId {
+  if (providerId.length === 0) {
+    throw new Error('providerId cannot be empty')
+  }
   if (providerId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
     throw new Error(`providerId cannot contain "${UNIQUE_MODEL_ID_SEPARATOR}": ${providerId}`)
+  }
+  if (modelId.length === 0) {
+    throw new Error('modelId cannot be empty')
   }
   const reservedChar = RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.find((char) => modelId.includes(char))
   if (reservedChar) {
@@ -124,28 +127,21 @@ export function createUniqueModelId(providerId: string, modelId: string): Unique
 }
 
 /**
- * Parse a UniqueModelId into its components
- * @throws Error if the format is invalid
+ * Parse a UniqueModelId into its components.
+ * @throws Error if the value does not satisfy `isUniqueModelId`.
  */
 export function parseUniqueModelId(uniqueId: UniqueModelId): {
   providerId: string
   modelId: string
 } {
-  const idx = uniqueId.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
-  if (idx === -1) {
+  if (!isUniqueModelId(uniqueId)) {
     throw new Error(`Invalid UniqueModelId format: ${uniqueId}`)
   }
+  const idx = uniqueId.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
   return {
     providerId: uniqueId.slice(0, idx),
     modelId: uniqueId.slice(idx + UNIQUE_MODEL_ID_SEPARATOR.length)
   }
-}
-
-/**
- * Check if a string is a valid UniqueModelId
- */
-export function isUniqueModelId(value: string): value is UniqueModelId {
-  return value.includes(UNIQUE_MODEL_ID_SEPARATOR)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
