@@ -103,6 +103,22 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
     }
   }, [handleScroll])
 
+  // Auto-load more when the loaded page doesn't overflow the viewport.
+  // Without this, scroll-based loadMore can never fire if content fits the container,
+  // leaving older sessions unreachable (e.g. 21st session past a page size of 20).
+  useEffect(() => {
+    if (!hasMore || isLoadingMore) return
+    const raf = requestAnimationFrame(() => {
+      const scrollElement = listRef.current?.scrollElement()
+      if (!scrollElement) return
+      if (scrollElement.clientHeight === 0) return
+      if (scrollElement.scrollHeight - scrollElement.clientHeight < LOAD_MORE_THRESHOLD) {
+        loadMore()
+      }
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [sessions.length, hasMore, isLoadingMore, loadMore])
+
   const setActiveSessionId = useCallback(
     (agentId: string, sessionId: string | null) => {
       dispatch(setActiveSessionIdAction({ agentId, sessionId }))
