@@ -3513,8 +3513,8 @@
             "en-us"
           ],
           "status": "classified",
-          "category": "preferences",
-          "targetKey": "feature.translate.page.bidirectional_pair"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "translate:model",
@@ -3537,16 +3537,16 @@
           "type": "PreferenceTypes.TranslateSourceLanguage",
           "defaultValue": "auto",
           "status": "classified",
-          "category": "preferences",
-          "targetKey": "feature.translate.page.source_language"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "translate:target:language",
           "type": "PreferenceTypes.TranslateLangCode",
           "defaultValue": "zh-cn",
           "status": "classified",
-          "category": "preferences",
-          "targetKey": "feature.translate.page.target_language"
+          "category": null,
+          "targetKey": null
         }
       ]
     },

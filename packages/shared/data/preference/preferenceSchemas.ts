@@ -420,15 +420,15 @@ export interface PreferenceSchemas {
     'feature.translate.page.auto_copy': boolean
     // dexieSettings/settings/translate:bidirectional:enabled
     'feature.translate.page.bidirectional_enabled': boolean
-    // dexieSettings/settings/translate:bidirectional:pair
+    // target-key-definitions/complex/complex
     'feature.translate.page.bidirectional_pair': PreferenceTypes.TranslateBidirectionalPair
     // dexieSettings/settings/translate:markdown:enabled
     'feature.translate.page.enable_markdown': boolean
     // dexieSettings/settings/translate:scroll:sync
     'feature.translate.page.scroll_sync': boolean
-    // dexieSettings/settings/translate:source:language
+    // target-key-definitions/complex/complex
     'feature.translate.page.source_language': PreferenceTypes.TranslateSourceLanguage
-    // dexieSettings/settings/translate:target:language
+    // target-key-definitions/complex/complex
     'feature.translate.page.target_language': PreferenceTypes.TranslateLangCode
     // redux/shortcuts/shortcuts.clear_topic
     'shortcut.chat.clear': PreferenceTypes.PreferenceShortcutType
@@ -789,5 +789,5 @@ export const DefaultPreferences: PreferenceSchemas = {
  * - electronStore项: 1
  * - redux项: 202
  * - localStorage项: 0
- * - dexieSettings项: 7
+ * - dexieSettings项: 4
  */

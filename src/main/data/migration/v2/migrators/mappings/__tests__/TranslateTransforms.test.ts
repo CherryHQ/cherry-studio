@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { copyTargetLanguageForMiniWindow, splitBidirectionalPairForAction } from '../TranslateTransforms'
+import {
+  copyTargetLanguageForMiniWindow,
+  copyTranslatePageLanguages,
+  splitBidirectionalPairForAction
+} from '../TranslateTransforms'
 
 describe('splitBidirectionalPairForAction', () => {
   it('should split a valid pair into preferred and alter languages', () => {
@@ -129,5 +133,27 @@ describe('copyTargetLanguageForMiniWindow', () => {
 
   it('rejects overlong strings that do not match the lang code regex', () => {
     expect(copyTargetLanguageForMiniWindow({ targetLanguage: 'a'.repeat(50) })).toEqual({})
+  })
+})
+
+describe('copyTranslatePageLanguages', () => {
+  it('canonicalizes legacy Arabic code "ar-ar" to "ar-sa" for page language preferences', () => {
+    expect(
+      copyTranslatePageLanguages({
+        bidirectionalPair: ['AR-AR', 'en-us'],
+        sourceLanguage: 'AR-AR',
+        targetLanguage: 'AR-AR'
+      })
+    ).toEqual({
+      'feature.translate.page.bidirectional_pair': ['ar-sa', 'en-us'],
+      'feature.translate.page.source_language': 'ar-sa',
+      'feature.translate.page.target_language': 'ar-sa'
+    })
+  })
+
+  it('preserves the auto source language sentinel', () => {
+    expect(copyTranslatePageLanguages({ sourceLanguage: 'auto' })).toEqual({
+      'feature.translate.page.source_language': 'auto'
+    })
   })
 })

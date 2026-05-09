@@ -30,7 +30,11 @@ import { transformCodeCli } from './CodeCliTransforms'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 import { transformLlmModelIds } from './LlmModelTransforms'
 import { SHORTCUT_TARGET_KEYS, transformShortcuts } from './ShortcutMappings'
-import { copyTargetLanguageForMiniWindow, splitBidirectionalPairForAction } from './TranslateTransforms'
+import {
+  copyTargetLanguageForMiniWindow,
+  copyTranslatePageLanguages,
+  splitBidirectionalPairForAction
+} from './TranslateTransforms'
 
 const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
 
@@ -266,6 +270,22 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['feature.translate.mini_window.target_lang'],
     transform: copyTargetLanguageForMiniWindow
+  },
+
+  {
+    id: 'translate_page_languages',
+    description: 'Copy legacy translate page languages with canonicalized lang codes',
+    sources: {
+      bidirectionalPair: { source: 'dexie-settings', key: 'translate:bidirectional:pair' },
+      sourceLanguage: { source: 'dexie-settings', key: 'translate:source:language' },
+      targetLanguage: { source: 'dexie-settings', key: 'translate:target:language' }
+    },
+    targetKeys: [
+      'feature.translate.page.bidirectional_pair',
+      'feature.translate.page.source_language',
+      'feature.translate.page.target_language'
+    ],
+    transform: copyTranslatePageLanguages
   }
 ]
 

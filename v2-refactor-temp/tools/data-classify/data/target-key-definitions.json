@@ -193,6 +193,27 @@
       "defaultValue": "zh-cn",
       "status": "classified",
       "description": "TranslateWindow target language"
+    },
+    {
+      "targetKey": "feature.translate.page.bidirectional_pair",
+      "type": "PreferenceTypes.TranslateBidirectionalPair",
+      "defaultValue": ["zh-cn", "en-us"],
+      "status": "classified",
+      "description": "Translate page bidirectional language pair (from complex migration)"
+    },
+    {
+      "targetKey": "feature.translate.page.source_language",
+      "type": "PreferenceTypes.TranslateSourceLanguage",
+      "defaultValue": "auto",
+      "status": "classified",
+      "description": "Translate page source language (from complex migration)"
+    },
+    {
+      "targetKey": "feature.translate.page.target_language",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "zh-cn",
+      "status": "classified",
+      "description": "Translate page target language (from complex migration)"
     }
   ]
 }
