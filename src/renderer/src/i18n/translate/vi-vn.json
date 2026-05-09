@@ -5637,6 +5637,7 @@
       "remove_invalid_keys": "Xóa các khóa không hợp lệ",
       "request_configuration": "[to be translated]:Request configuration",
       "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
+      "save_failed": "[to be translated]:Failed to save provider settings",
       "search": "Nhà cung cấp tìm kiếm...",
       "search_placeholder": "Tìm kiếm mã hoặc tên mô hình",
       "title": "Nhà cung cấp mô hình",

@@ -68,4 +68,24 @@ describe('useProviderEnable', () => {
     expect(updateProviderMock).not.toHaveBeenCalled()
     expect(moveMock).not.toHaveBeenCalled()
   })
+
+  it('rolls the enable state back when pin-to-top fails after enabling', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', isEnabled: false }
+    })
+    const moveError = new Error('move failed')
+    moveMock.mockRejectedValueOnce(moveError)
+
+    const { result } = renderHook(() => useProviderEnable('openai'))
+
+    await expect(
+      act(async () => {
+        await result.current.toggleProviderEnabled(true)
+      })
+    ).rejects.toThrow('move failed')
+
+    expect(updateProviderMock).toHaveBeenNthCalledWith(1, { isEnabled: true })
+    expect(moveMock).toHaveBeenCalledWith('openai', { position: 'first' })
+    expect(updateProviderMock).toHaveBeenNthCalledWith(2, { isEnabled: false })
+  })
 })

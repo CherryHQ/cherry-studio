@@ -2,7 +2,7 @@ import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderAvatar'
 import { Bolt } from 'lucide-react'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useProviderEnable } from '../hooks/providerSetting/useProviderEnable'
@@ -19,6 +19,24 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
   const meta = useProviderMeta(providerId)
   const { toggleProviderEnabled } = useProviderEnable(providerId)
   const [apiOptionsOpen, setApiOptionsOpen] = useState(false)
+  const [isTogglingEnabled, setIsTogglingEnabled] = useState(false)
+
+  const handleToggleEnabled = useCallback(
+    async (enabled: boolean) => {
+      if (isTogglingEnabled) {
+        return
+      }
+      setIsTogglingEnabled(true)
+      try {
+        await toggleProviderEnabled(enabled)
+      } catch {
+        window.toast.error(t('settings.provider.save_failed'))
+      } finally {
+        setIsTogglingEnabled(false)
+      }
+    },
+    [isTogglingEnabled, t, toggleProviderEnabled]
+  )
 
   if (!provider) {
     return null
@@ -59,7 +77,11 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
             </div>
           </div>
         </div>
-        <Switch checked={provider.isEnabled} onCheckedChange={(enabled) => void toggleProviderEnabled(enabled)} />
+        <Switch
+          checked={provider.isEnabled}
+          disabled={isTogglingEnabled}
+          onCheckedChange={(enabled) => void handleToggleEnabled(enabled)}
+        />
       </div>
       <ProviderApiOptionsDrawer
         providerId={providerId}

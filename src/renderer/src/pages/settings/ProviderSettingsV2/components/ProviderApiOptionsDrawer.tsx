@@ -131,19 +131,23 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     return items
   }, [openAIOptions, provider, t])
 
+  const handleSaveError = useCallback(() => {
+    window.toast.error(t('settings.provider.save_failed'))
+  }, [t])
+
   const updateApiFeature = useCallback(
     (key: ApiFeatureKey, checked: boolean) => {
       if (!provider) {
         return
       }
-      void updateProvider({
+      updateProvider({
         apiFeatures: {
           ...provider.apiFeatures,
           [key]: checked
         }
-      })
+      }).catch(handleSaveError)
     },
-    [provider, updateProvider]
+    [handleSaveError, provider, updateProvider]
   )
 
   const updateCacheSettings = useCallback(
@@ -160,7 +164,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
         ...updates
       }
 
-      void updateProvider({
+      updateProvider({
         providerSettings: {
           ...provider.settings,
           cacheControl: {
@@ -168,9 +172,9 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
             enabled: (next.tokenThreshold ?? 0) > 0
           }
         }
-      })
+      }).catch(handleSaveError)
     },
-    [provider, updateProvider]
+    [handleSaveError, provider, updateProvider]
   )
 
   const commitTokenThreshold = useCallback(() => {
@@ -200,8 +204,15 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     </ProviderActions>
   )
 
-  if (!open || !provider) {
-    return null
+  if (!provider) {
+    return (
+      <ProviderSettingsDrawer
+        open={open}
+        onClose={onClose}
+        title={t('settings.provider.api.options.label')}
+        size="form"
+      />
+    )
   }
 
   const isSupportAnthropicPromptCache = isAnthropicSupportedProvider(provider)

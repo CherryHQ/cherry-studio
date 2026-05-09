@@ -7,7 +7,7 @@ import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, ChevronUp, SaveIcon } from 'lucide-react'
 import type { FormEvent } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderActions from '../../shared/primitives/ProviderActions'
@@ -64,10 +64,17 @@ const currencyToSymbol = (currency: string): ModelDrawerCurrencySymbol | undefin
 
 const drawerFieldTitleClassName = 'text-[13px] text-foreground/85'
 
-export default function EditModelDrawer({ providerId, open, model, onClose }: EditModelDrawerProps) {
+export default function EditModelDrawer({ providerId, open, model: modelProp, onClose }: EditModelDrawerProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const { deleteModel, updateModel } = useModelMutations()
+  // Keep the last opened model around so `PageSidePanel`'s exit animation has stable content
+  // after the parent clears its `editingModel` selection on close.
+  const previousModelRef = useRef<Model | null>(modelProp)
+  if (modelProp) {
+    previousModelRef.current = modelProp
+  }
+  const model = modelProp ?? previousModelRef.current
   const [name, setName] = useState('')
   const [group, setGroup] = useState('')
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
@@ -268,7 +275,7 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
   }, [deleteModel, model, onClose, providerId, t])
 
   if (!provider || !model) {
-    return null
+    return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
   }
 
   const footer = (

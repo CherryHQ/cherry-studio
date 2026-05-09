@@ -5637,6 +5637,7 @@
       "remove_invalid_keys": "Διαγραφή Ακυρωμένων Κλειδιών",
       "request_configuration": "[to be translated]:Request configuration",
       "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
+      "save_failed": "[to be translated]:Failed to save provider settings",
       "search": "Αναζήτηση πλατφόρμας μονάδων...",
       "search_placeholder": "Αναζήτηση ID ή ονόματος μονάδας",
       "title": "Υπηρεσία μονάδων",

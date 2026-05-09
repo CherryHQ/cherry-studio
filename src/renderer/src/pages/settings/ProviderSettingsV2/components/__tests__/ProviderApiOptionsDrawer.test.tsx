@@ -85,6 +85,7 @@ const provider = {
 describe('ProviderApiOptionsDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    updateProviderMock.mockResolvedValue(undefined)
     useProviderMock.mockReturnValue({
       provider,
       updateProvider: updateProviderMock

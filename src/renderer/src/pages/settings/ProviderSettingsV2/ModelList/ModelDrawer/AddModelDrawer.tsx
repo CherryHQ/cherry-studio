@@ -11,13 +11,13 @@ interface AddModelDrawerProps {
   onClose: () => void
 }
 
-/** Optional wrapper around `AddModelFormPanel` (full form) for tests or non-inline flows. Inline add lives in `ManageModelsDrawer`. */
+/**
+ * Optional wrapper around `AddModelFormPanel` (full form) for tests or non-inline flows. Inline add lives in `ManageModelsDrawer`.
+ *
+ * The wrapper stays mounted so `PageSidePanel`'s `AnimatePresence` can play its exit animation when `open` flips to `false`.
+ */
 export default function AddModelDrawer({ providerId, open, prefill, onClose }: AddModelDrawerProps) {
   const { t } = useTranslation()
-
-  if (!open) {
-    return null
-  }
 
   return (
     <ProviderSettingsDrawer open={open} onClose={onClose} title={t('settings.models.add.add_model')}>

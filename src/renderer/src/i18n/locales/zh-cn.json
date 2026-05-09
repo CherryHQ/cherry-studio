@@ -5758,6 +5758,7 @@
       "remove_invalid_keys": "删除无效密钥",
       "request_configuration": "请求配置",
       "request_configuration_tooltip": "配置 API Host 与自定义请求头",
+      "save_failed": "服务商设置保存失败",
       "search": "搜索模型平台...",
       "search_placeholder": "搜索模型 ID 或名称",
       "title": "模型服务",

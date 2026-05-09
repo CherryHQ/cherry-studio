@@ -63,11 +63,20 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
   const handlePlatformChange = useCallback(
     async (domain: string) => {
       const next = domain as PlatformDomain
+      const previous = resolveDmxPlatformFromProvider(provider)
+      if (next === previous) {
+        return
+      }
       setSelectedPlatform(next)
       const newEndpointConfigs = replaceEndpointConfigDomain(provider?.endpointConfigs, next)
-      await updateProvider({ endpointConfigs: newEndpointConfigs })
+      try {
+        await updateProvider({ endpointConfigs: newEndpointConfigs })
+      } catch {
+        setSelectedPlatform(previous)
+        window.toast.error(t('settings.provider.save_failed'))
+      }
     },
-    [provider?.endpointConfigs, provider, updateProvider]
+    [provider, t, updateProvider]
   )
 
   return (

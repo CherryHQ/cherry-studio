@@ -5758,6 +5758,7 @@
       "remove_invalid_keys": "Remove Invalid Keys",
       "request_configuration": "Request configuration",
       "request_configuration_tooltip": "Configure API Host and custom request headers",
+      "save_failed": "Failed to save provider settings",
       "search": "Search Providers...",
       "search_placeholder": "Search model id or name",
       "title": "Model Provider",
