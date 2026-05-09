@@ -8,6 +8,8 @@
  * data would be written twice.
  */
 
+import { application } from '@application'
+import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -20,7 +22,12 @@ import { eq, sql } from 'drizzle-orm'
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
-import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
+import {
+  getProviderRegistryContext,
+  type OldLlmSettings,
+  transformModel,
+  transformProvider
+} from './mappings/ProviderModelMappings'
 
 const logger = loggerService.withContext('ProviderModelMigrator')
 
@@ -105,12 +112,29 @@ export class ProviderModelMigrator extends BaseMigrator {
   private settings: OldLlmSettings = {}
   private totalModelCount = 0
   private pinnedModelIds: UniqueModelId[] = []
+  private _loader?: RegistryLoader
+  private _loaderWarned = false
 
   override reset(): void {
     this.providers = []
     this.settings = {}
     this.totalModelCount = 0
     this.pinnedModelIds = []
+    this._loaderWarned = false
+  }
+
+  /** Lazily construct a RegistryLoader so transformModel can fall back to
+   *  catalog capabilities when legacy carries none — v1 stored capabilities
+   *  only on user-toggled overrides, so most rows arrive empty. */
+  private getRegistryLoader(): RegistryLoader {
+    if (!this._loader) {
+      this._loader = new RegistryLoader({
+        models: application.getPath('feature.provider_registry.data', 'models.json'),
+        providers: application.getPath('feature.provider_registry.data', 'providers.json'),
+        providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
+      })
+    }
+    return this._loader
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -198,11 +222,37 @@ export class ProviderModelMigrator extends BaseMigrator {
           processedProviders++
 
           const uniqueModels = Array.from(new Map((provider.models ?? []).map((model) => [model.id, model])).values())
+          // Registry files may be missing in test/dev environments — swallow load
+          // errors so the migration can still proceed with legacy-only data.
+          const loader = this.getRegistryLoader()
+          const safeFindModel = (modelId: string) => {
+            try {
+              return loader.findModel(modelId)
+            } catch (error) {
+              if (!this._loaderWarned) {
+                logger.warn('Registry catalog unavailable; skipping preset enrichment', error as Error)
+                this._loaderWarned = true
+              }
+              return null
+            }
+          }
+          const safeFindOverride = (pid: string, mid: string) => {
+            try {
+              return loader.findOverride(pid, mid)
+            } catch {
+              return null
+            }
+          }
+          const registry = {
+            preset: safeFindModel,
+            override: safeFindOverride,
+            ...getProviderRegistryContext(provider)
+          }
 
           for (let modelIndex = 0; modelIndex < uniqueModels.length; modelIndex += BATCH_SIZE) {
             const batch = uniqueModels
               .slice(modelIndex, modelIndex + BATCH_SIZE)
-              .map((model, batchIndex) => transformModel(model, provider.id, modelIndex + batchIndex))
+              .map((model, batchIndex) => transformModel(model, provider.id, modelIndex + batchIndex, registry))
 
             if (batch.length > 0) {
               await tx.insert(userModelTable).values(batch)
