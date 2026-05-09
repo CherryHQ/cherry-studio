@@ -7,13 +7,11 @@
 
 import * as z from 'zod'
 
-import { EntityIdSchema } from '../../types/entityType'
+import { EntityIdSchema, type EntityType, EntityTypeSchema } from '../../types/entityType'
 import { type Tag, TagIdSchema as SharedTagIdSchema, TagSchema } from '../../types/tag'
 
 export const TAG_ASSOCIATION_MAX_ITEMS = 100
 export const TagIdSchema = SharedTagIdSchema
-export const TaggableEntityTypeSchema = z.enum(['assistant', 'topic', 'model', 'knowledge'])
-export type TaggableEntityType = z.infer<typeof TaggableEntityTypeSchema>
 
 // ============================================================================
 // DTO Derivation
@@ -37,7 +35,7 @@ export type UpdateTagDto = z.infer<typeof UpdateTagSchema>
  * Body for syncing tags on an entity (replace all tag associations)
  */
 export const TagEntityRefSchema = z.object({
-  entityType: TaggableEntityTypeSchema,
+  entityType: EntityTypeSchema,
   entityId: EntityIdSchema
 })
 
@@ -136,12 +134,12 @@ export type TagSchemas = {
   '/tags/entities/:entityType/:entityId': {
     /** Get all tags for an entity */
     GET: {
-      params: { entityType: TaggableEntityType; entityId: string }
+      params: { entityType: EntityType; entityId: string }
       response: Tag[]
     }
     /** Replace all tag associations for an entity */
     PUT: {
-      params: { entityType: TaggableEntityType; entityId: string }
+      params: { entityType: EntityType; entityId: string }
       body: SyncEntityTagsDto
       response: void
     }
