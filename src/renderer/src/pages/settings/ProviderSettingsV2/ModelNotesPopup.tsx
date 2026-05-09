@@ -3,7 +3,7 @@ import MarkdownEditor from '@renderer/components/MarkdownEditor'
 import { TopView } from '@renderer/components/TopView'
 import { useProvider } from '@renderer/hooks/useProviders'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from './components/ProviderSettingsDrawer'
@@ -22,11 +22,28 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
   const [open, setOpen] = useState(true)
   const { provider, updateProvider } = useProvider(providerId)
   const [notes, setNotes] = useState<string>(provider?.settings?.notes || '')
+  const [edited, setEdited] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (edited) {
+      return
+    }
+
+    setNotes(provider?.settings?.notes || '')
+  }, [edited, provider?.settings?.notes])
 
   const handleSave = async () => {
-    await updateProvider({ providerSettings: { ...provider?.settings, notes } })
-    setOpen(false)
-    resolve({})
+    setSaving(true)
+    try {
+      await updateProvider({ providerSettings: { ...provider?.settings, notes } })
+      setOpen(false)
+      resolve({})
+    } catch {
+      window.toast.error(t('blocks.edit.save.failed.label'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const onCancel = () => {
@@ -39,7 +56,9 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
       <Button variant="outline" onClick={onCancel}>
         {t('common.cancel')}
       </Button>
-      <Button onClick={() => void handleSave()}>{t('common.save')}</Button>
+      <Button loading={saving} disabled={saving} onClick={() => void handleSave()}>
+        {t('common.save')}
+      </Button>
     </div>
   )
 
@@ -54,7 +73,10 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
       <div className="min-h-0 flex-1">
         <MarkdownEditor
           value={notes}
-          onChange={setNotes}
+          onChange={(value) => {
+            setEdited(true)
+            setNotes(value)
+          }}
           placeholder={t('settings.provider.notes.placeholder')}
           height="400px"
         />

@@ -3,7 +3,7 @@ import { useProviderActions, useProviders } from '@renderer/hooks/useProviders'
 import { uuid } from '@renderer/utils'
 import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 import { clearProviderLogo, saveProviderLogo, useProviderLogo } from '../hooks/useProviderLogo'
 
@@ -30,21 +30,25 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   const { updateProviderById } = useProviderActions()
   const [addingProvider, setAddingProvider] = useState(false)
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
+  const editingProviderRef = useRef<Provider | null>(null)
   const { logo: initialLogo } = useProviderLogo(editingProvider?.id)
 
   const cancel = useCallback(() => {
     setAddingProvider(false)
     setEditingProvider(null)
+    editingProviderRef.current = null
   }, [])
 
   const startAdd = useCallback(() => {
     setAddingProvider(true)
     setEditingProvider(null)
+    editingProviderRef.current = null
   }, [])
 
   const startEdit = useCallback((provider: Provider) => {
     setAddingProvider(false)
     setEditingProvider(provider)
+    editingProviderRef.current = provider
   }, [])
 
   const submit = useCallback(
@@ -55,27 +59,30 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
       }
 
       if (editingProvider) {
-        await updateProviderById(editingProvider.id, { name: trimmedName, defaultChatEndpoint })
+        const originalEditingId = editingProvider.id
+        await updateProviderById(originalEditingId, { name: trimmedName, defaultChatEndpoint })
         let notice: ProviderEditorSubmitNotice | undefined
 
         if (logo !== undefined) {
           if (logo) {
             try {
-              await saveProviderLogo(editingProvider.id, logo)
+              await saveProviderLogo(originalEditingId, logo)
             } catch (error) {
               logger.error('Failed to save logo', error as Error)
               notice = 'update-logo-save-failed'
             }
           } else {
             try {
-              await clearProviderLogo(editingProvider.id)
+              await clearProviderLogo(originalEditingId)
             } catch (error) {
               logger.error('Failed to reset logo', error as Error)
             }
           }
         }
 
-        cancel()
+        if (editingProviderRef.current?.id === originalEditingId) {
+          cancel()
+        }
         return notice ? { notice } : {}
       }
 

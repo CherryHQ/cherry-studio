@@ -47,20 +47,31 @@ export default function ProviderEditorDrawer({
   const [logoDirty, setLogoDirty] = useState(false)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const previousOpenRef = useRef(false)
 
   const isEditing = provider != null
 
   useEffect(() => {
-    if (!open) {
+    const wasOpen = previousOpenRef.current
+    previousOpenRef.current = open
+
+    if (!open || wasOpen) {
       return
     }
 
     setName(provider?.name ?? '')
     setSelectedEndpoint(provider?.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
-    setLogo(initialLogo ?? null)
     setLogoDirty(false)
     setLogoPickerOpen(false)
-  }, [initialLogo, open, provider])
+  }, [open, provider])
+
+  useEffect(() => {
+    if (!open || logoDirty) {
+      return
+    }
+
+    setLogo(initialLogo ?? null)
+  }, [initialLogo, logoDirty, open])
 
   const previewName = name.trim()
   const avatarBackgroundColor = useMemo(
@@ -101,6 +112,8 @@ export default function ProviderEditorDrawer({
         defaultChatEndpoint: selectedEndpoint,
         logo: isEditing ? (logoDirty ? logo : undefined) : (logo ?? undefined)
       })
+    } catch {
+      window.toast.error(t('blocks.edit.save.failed.label'))
     } finally {
       setIsSubmitting(false)
     }
@@ -111,7 +124,7 @@ export default function ProviderEditorDrawer({
       <Button variant="outline" onClick={onClose}>
         {t('common.cancel')}
       </Button>
-      <Button disabled={!name.trim()} loading={isSubmitting} onClick={() => void handleSubmit()}>
+      <Button disabled={!name.trim() || isSubmitting} loading={isSubmitting} onClick={() => void handleSubmit()}>
         {isEditing ? t('common.save') : t('button.add')}
       </Button>
     </div>
@@ -190,7 +203,7 @@ export default function ProviderEditorDrawer({
             maxLength={32}
             onChange={(event) => setName(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing && !isSubmitting) {
                 void handleSubmit()
               }
             }}

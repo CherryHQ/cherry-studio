@@ -5281,6 +5281,7 @@
         "enable_concurrent": "並行檢查",
         "enabled": "已啟用",
         "failed": "失敗",
+        "failed_to_start": "健康檢查啟動失敗",
         "keys_status_count": "成功：{{count_passed}} 個金鑰，失敗：{{count_failed}} 個金鑰",
         "model_status_failed": "{{count}} 個模型完全無法存取",
         "model_status_partial": "其中 {{count}} 個模型用某些金鑰無法存取",
@@ -5640,6 +5641,13 @@
       "check": "檢查",
       "check_all_keys": "檢查所有金鑰",
       "check_multiple_keys": "檢查多個 API 金鑰",
+      "cherryin": {
+        "api_host": {
+          "acceleration": "加速網域",
+          "backup": "備用網域",
+          "international": "國際網域"
+        }
+      },
       "copilot": {
         "add_request_header": "新增請求標頭",
         "auth_failed": "GitHub Copilot 認證失敗",

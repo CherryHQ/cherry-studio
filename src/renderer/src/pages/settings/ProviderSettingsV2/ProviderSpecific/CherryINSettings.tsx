@@ -12,17 +12,17 @@ interface CherryINSettingsProps {
 const API_HOST_OPTIONS = [
   {
     value: 'open.cherryin.cc',
-    labelKey: '加速域名',
+    labelKey: 'settings.provider.cherryin.api_host.acceleration',
     description: 'open.cherryin.cc'
   },
   {
     value: 'open.cherryin.net',
-    labelKey: '国际域名',
+    labelKey: 'settings.provider.cherryin.api_host.international',
     description: 'open.cherryin.net'
   },
   {
     value: 'open.cherryin.ai',
-    labelKey: '备用域名',
+    labelKey: 'settings.provider.cherryin.api_host.backup',
     description: 'open.cherryin.ai'
   }
 ]
@@ -61,12 +61,12 @@ const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId }) => {
       API_HOST_OPTIONS.map((option) => ({
         id: option.value,
         value: option.value,
-        label: option.labelKey,
+        label: t(option.labelKey),
         description: option.description,
         content: (
           <div className="flex flex-col gap-0.5">
-            <span>{option.labelKey}</span>
-            <span className="text-muted-foreground/70 text-xs">{t(option.description)}</span>
+            <span>{t(option.labelKey)}</span>
+            <span className="text-muted-foreground/70 text-xs">{option.description}</span>
           </div>
         )
       })),

@@ -75,30 +75,34 @@ export const useHealthCheck = (providerId: string) => {
       setModelStatuses(initialStatuses)
       setIsChecking(true)
 
-      await checkModelsHealth(
-        {
-          provider,
-          models: modelsToCheck,
-          apiKeys: keys,
-          isConcurrent,
-          timeout
-        },
-        (checkResult, index) => {
-          setModelStatuses((current) => {
-            const updated = [...current]
-            if (updated[index]) {
-              updated[index] = {
-                ...updated[index],
-                ...checkResult,
-                checking: false
+      try {
+        await checkModelsHealth(
+          {
+            provider,
+            models: modelsToCheck,
+            apiKeys: keys,
+            isConcurrent,
+            timeout
+          },
+          (checkResult, index) => {
+            setModelStatuses((current) => {
+              const updated = [...current]
+              if (updated[index]) {
+                updated[index] = {
+                  ...updated[index],
+                  ...checkResult,
+                  checking: false
+                }
               }
-            }
-            return updated
-          })
-        }
-      )
-
-      setIsChecking(false)
+              return updated
+            })
+          }
+        )
+      } catch {
+        window.toast.error(i18n.t('settings.models.check.failed_to_start'))
+      } finally {
+        setIsChecking(false)
+      }
     },
     [models, provider]
   )

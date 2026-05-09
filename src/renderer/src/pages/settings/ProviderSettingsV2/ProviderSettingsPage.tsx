@@ -1,8 +1,9 @@
 import './assets/styles/tailwind-default-scope.css'
 
+import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProviders'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useProviderDeepLinkImport } from './coordination/useProviderDeepLinkImport'
 import ProviderList from './ProviderList'
@@ -12,41 +13,40 @@ interface ProviderSettingsPageProps {
   isOnboarding?: boolean
 }
 
-const LAST_SELECTED_PROVIDER_ID_KEY = 'provider-settings-v2:last-selected-provider-id'
-
-function readLastSelectedProviderId(): string | undefined {
-  try {
-    return window.sessionStorage.getItem(LAST_SELECTED_PROVIDER_ID_KEY) ?? undefined
-  } catch {
-    return undefined
-  }
-}
-
-function rememberLastSelectedProviderId(providerId: string | undefined) {
-  try {
-    if (providerId) {
-      window.sessionStorage.setItem(LAST_SELECTED_PROVIDER_ID_KEY, providerId)
-    } else {
-      window.sessionStorage.removeItem(LAST_SELECTED_PROVIDER_ID_KEY)
-    }
-  } catch {
-    // Session storage is a convenience for this page-level UI state; ignore unavailable storage.
-  }
+interface ProviderSettingsSearch {
+  addProviderData?: string
+  filter?: string
+  id?: string
 }
 
 export default function ProviderSettingsPage({ isOnboarding = false }: ProviderSettingsPageProps) {
-  const search = useSearch({ strict: false }) as Record<string, string | undefined>
+  const search = useSearch({ from: '/settings/provider-v2' }) as ProviderSettingsSearch
   const navigate = useNavigate()
   const { providers: rawProviders } = useProviders()
-  const [selectedProviderId, setSelectedProviderIdState] = useState<string | undefined>(() =>
-    readLastSelectedProviderId()
+  const [lastSelectedProviderId, setLastSelectedProviderId] = usePersistCache(
+    'ui.provider_settings.last_selected_provider_id'
   )
+  const [selectedProviderId, setSelectedProviderIdState] = useState<string | undefined>(
+    () => lastSelectedProviderId ?? undefined
+  )
+  const setLastSelectedProviderIdRef = useRef(setLastSelectedProviderId)
 
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
   const filterModeHint = search.filter === 'agent' ? 'agent' : undefined
 
+  useEffect(() => {
+    setLastSelectedProviderIdRef.current = setLastSelectedProviderId
+  }, [setLastSelectedProviderId])
+
+  useEffect(() => {
+    const persistedProviderId = lastSelectedProviderId ?? undefined
+    setSelectedProviderIdState((currentProviderId) =>
+      currentProviderId === persistedProviderId ? currentProviderId : persistedProviderId
+    )
+  }, [lastSelectedProviderId])
+
   const setSelectedProviderId = useCallback((providerId: string | undefined) => {
-    rememberLastSelectedProviderId(providerId)
+    setLastSelectedProviderIdRef.current(providerId ?? null)
     startTransition(() => setSelectedProviderIdState(providerId))
   }, [])
 

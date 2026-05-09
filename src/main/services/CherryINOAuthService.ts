@@ -96,7 +96,8 @@ export interface OAuthFlowParams {
 class CherryINOAuthServiceError extends Error {
   constructor(
     message: string,
-    public readonly cause?: unknown
+    public readonly cause?: unknown,
+    public readonly code?: string
   ) {
     super(message)
     this.name = 'CherryINOAuthServiceError'
@@ -117,6 +118,11 @@ interface PendingOAuthFlow {
 
 const pendingOAuthFlows = new Map<string, PendingOAuthFlow>()
 
+interface TokenRefreshResult {
+  accessToken: string | null
+  attempted: boolean
+}
+
 // Clean up expired flows (older than 10 minutes)
 function cleanupExpiredFlows(): void {
   const now = Date.now()
@@ -128,7 +134,7 @@ function cleanupExpiredFlows(): void {
 }
 
 class CherryINOAuthService {
-  private refreshAccessTokenPromise: Promise<string | null> | null = null
+  private refreshAccessTokenPromise: Promise<TokenRefreshResult> | null = null
 
   private getOAuthAuthConfig = async (): Promise<Extract<AuthConfig, { type: 'oauth' }> | null> => {
     const authConfig = await providerService.getAuthConfig(CHERRYIN_PROVIDER_ID)
@@ -411,12 +417,12 @@ class CherryINOAuthService {
   /**
    * Refresh access token using refresh token
    */
-  private doRefreshAccessToken = async (apiHost: string): Promise<string | null> => {
+  private doRefreshAccessToken = async (apiHost: string): Promise<TokenRefreshResult> => {
     try {
       const refreshToken = await this.getRefreshToken()
       if (!refreshToken) {
         logger.warn('No refresh token available')
-        return null
+        return { accessToken: null, attempted: false }
       }
 
       logger.info('Attempting to refresh access token')
@@ -436,7 +442,7 @@ class CherryINOAuthService {
       if (!response.ok) {
         const errorText = await response.text()
         logger.error(`Token refresh failed: ${response.status} ${errorText}`)
-        return null
+        return { accessToken: null, attempted: true }
       }
 
       const tokenJson = await response.json()
@@ -446,18 +452,18 @@ class CherryINOAuthService {
       // Save new tokens using internal method
       await this.saveTokenInternal(newAccessToken, newRefreshToken)
       logger.info('Successfully refreshed access token')
-      return newAccessToken
+      return { accessToken: newAccessToken, attempted: true }
     } catch (error) {
       if (error instanceof z.ZodError) {
         logger.error('Invalid token refresh response format:', error.issues)
-        return null
+        return { accessToken: null, attempted: true }
       }
       logger.error('Failed to refresh token:', error as Error)
-      return null
+      return { accessToken: null, attempted: true }
     }
   }
 
-  private refreshAccessToken = async (apiHost: string): Promise<string | null> => {
+  private refreshAccessToken = async (apiHost: string): Promise<TokenRefreshResult> => {
     if (this.refreshAccessTokenPromise) {
       logger.debug('Joining in-flight CherryIN OAuth token refresh')
       return this.refreshAccessTokenPromise
@@ -571,9 +577,15 @@ class CherryINOAuthService {
     // If 401, try to refresh token and retry once
     if (response.status === 401) {
       logger.info('Got 401, attempting token refresh')
-      const newToken = await this.refreshAccessToken(apiHost)
-      if (newToken) {
-        response = await makeRequest(newToken)
+      const refreshResult = await this.refreshAccessToken(apiHost)
+      if (refreshResult.accessToken) {
+        response = await makeRequest(refreshResult.accessToken)
+      } else if (refreshResult.attempted) {
+        throw new CherryINOAuthServiceError(
+          'OAuth session expired: failed to refresh access token',
+          undefined,
+          'OAuthSessionExpired'
+        )
       }
     }
 

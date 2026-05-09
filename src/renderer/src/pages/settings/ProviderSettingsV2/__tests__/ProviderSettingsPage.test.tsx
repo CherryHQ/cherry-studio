@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -47,7 +48,7 @@ describe('ProviderSettingsPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    window.sessionStorage.clear()
+    MockUseCacheUtils.resetMocks()
     searchMock = {}
     useProvidersMock.mockReturnValue({ providers })
   })
@@ -66,7 +67,7 @@ describe('ProviderSettingsPage', () => {
   })
 
   it('lets an explicit search id override the remembered provider', async () => {
-    window.sessionStorage.setItem('provider-settings-v2:last-selected-provider-id', 'openai')
+    MockUseCacheUtils.setPersistCacheValue('ui.provider_settings.last_selected_provider_id', 'openai')
     searchMock = { id: 'anthropic' }
 
     render(<ProviderSettingsPage />)

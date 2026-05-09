@@ -5281,6 +5281,7 @@
         "enable_concurrent": "Concurrent",
         "enabled": "Enabled",
         "failed": "Failed",
+        "failed_to_start": "Failed to start health check",
         "keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
         "model_status_failed": "{{count}} models completely inaccessible",
         "model_status_partial": "{{count}} models had inaccessible keys",
@@ -5640,6 +5641,13 @@
       "check": "Check",
       "check_all_keys": "Check All Keys",
       "check_multiple_keys": "Check Multiple API Keys",
+      "cherryin": {
+        "api_host": {
+          "acceleration": "Acceleration domain",
+          "backup": "Backup domain",
+          "international": "International domain"
+        }
+      },
       "copilot": {
         "add_request_header": "Add header",
         "auth_failed": "Github Copilot authentication failed.",

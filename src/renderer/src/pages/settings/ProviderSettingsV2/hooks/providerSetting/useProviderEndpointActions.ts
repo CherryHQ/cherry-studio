@@ -130,40 +130,45 @@ export function useProviderEndpointActions({
   const commitApiHost = useCallback(
     (explicitNext?: string) => {
       void (async () => {
-        if (!provider) {
+        try {
+          if (!provider) {
+            return
+          }
+
+          debouncedPersistApiHost.cancel()
+
+          const raw = explicitNext !== undefined ? explicitNext : apiHost
+          const trimmedApiHost = trim(raw)
+          if (!validateApiHost(trimmedApiHost)) {
+            setApiHost(providerApiHost)
+            window.toast.error(t('settings.provider.api_host_no_valid'))
+            return
+          }
+
+          if (!isVertexProvider(provider) && !trimmedApiHost) {
+            setApiHost(providerApiHost)
+            return
+          }
+
+          const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
+          if (!nextEndpointConfigs) {
+            return
+          }
+
+          if (trimmedApiHost !== trim(apiHost)) {
+            setApiHost(trimmedApiHost)
+          }
+
+          if (trimmedApiHost !== lastPersistedApiHostRef.current) {
+            await patchProvider({ endpointConfigs: nextEndpointConfigs })
+            lastPersistedApiHostRef.current = trimmedApiHost
+          }
+
+          await syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs })
+        } catch {
+          window.toast.error(t('blocks.edit.save.failed.label'))
           return
         }
-
-        debouncedPersistApiHost.cancel()
-
-        const raw = explicitNext !== undefined ? explicitNext : apiHost
-        const trimmedApiHost = trim(raw)
-        if (!validateApiHost(trimmedApiHost)) {
-          setApiHost(providerApiHost)
-          window.toast.error(t('settings.provider.api_host_no_valid'))
-          return
-        }
-
-        if (!isVertexProvider(provider) && !trimmedApiHost) {
-          setApiHost(providerApiHost)
-          return
-        }
-
-        const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
-        if (!nextEndpointConfigs) {
-          return
-        }
-
-        if (trimmedApiHost !== trim(apiHost)) {
-          setApiHost(trimmedApiHost)
-        }
-
-        if (trimmedApiHost !== lastPersistedApiHostRef.current) {
-          await patchProvider({ endpointConfigs: nextEndpointConfigs })
-          lastPersistedApiHostRef.current = trimmedApiHost
-        }
-
-        await syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs })
       })()
     },
     [
@@ -187,31 +192,33 @@ export function useProviderEndpointActions({
 
       const rawHost = explicitNext !== undefined ? explicitNext : anthropicApiHost
       const trimmedHost = trim(rawHost)
-      if (trimmedHost) {
-        const nextEndpointConfigs = {
-          ...provider.endpointConfigs,
-          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
-            ...provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
-            baseUrl: trimmedHost
-          }
-        }
-        void (async () => {
-          await patchProvider({ endpointConfigs: nextEndpointConfigs })
-          await syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs })
-        })()
-        setAnthropicApiHost(trimmedHost)
-        return
-      }
-
-      const nextConfigs = { ...provider.endpointConfigs }
-      delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
       void (async () => {
-        await patchProvider({ endpointConfigs: nextConfigs })
-        await syncProviderModels({ ...provider, endpointConfigs: nextConfigs })
+        try {
+          if (trimmedHost) {
+            const nextEndpointConfigs = {
+              ...provider.endpointConfigs,
+              [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+                ...provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+                baseUrl: trimmedHost
+              }
+            }
+            await patchProvider({ endpointConfigs: nextEndpointConfigs })
+            await syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs })
+            setAnthropicApiHost(trimmedHost)
+            return
+          }
+
+          const nextConfigs = { ...provider.endpointConfigs }
+          delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+          await patchProvider({ endpointConfigs: nextConfigs })
+          await syncProviderModels({ ...provider, endpointConfigs: nextConfigs })
+          setAnthropicApiHost('')
+        } catch {
+          window.toast.error(t('blocks.edit.save.failed.label'))
+        }
       })()
-      setAnthropicApiHost('')
     },
-    [anthropicApiHost, patchProvider, provider, setAnthropicApiHost, syncProviderModels]
+    [anthropicApiHost, patchProvider, provider, setAnthropicApiHost, syncProviderModels, t]
   )
 
   const commitApiVersion = useCallback(() => {
@@ -219,13 +226,19 @@ export function useProviderEndpointActions({
       return
     }
 
-    void patchProvider({
-      providerSettings: {
-        ...provider.settings,
-        apiVersion
+    void (async () => {
+      try {
+        await patchProvider({
+          providerSettings: {
+            ...provider.settings,
+            apiVersion
+          }
+        })
+      } catch {
+        window.toast.error(t('blocks.edit.save.failed.label'))
       }
-    })
-  }, [apiVersion, patchProvider, provider])
+    })()
+  }, [apiVersion, patchProvider, provider, t])
 
   const resetApiHost = useCallback(() => {
     if (!provider) {
@@ -243,10 +256,14 @@ export function useProviderEndpointActions({
 
     setApiHost(nextBaseUrl)
     void (async () => {
-      await patchProvider({ endpointConfigs: nextEndpointConfigs })
-      await syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs })
+      try {
+        await patchProvider({ endpointConfigs: nextEndpointConfigs })
+        await syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs })
+      } catch {
+        window.toast.error(t('blocks.edit.save.failed.label'))
+      }
     })()
-  }, [patchProvider, primaryEndpoint, provider, providerConfig?.api?.url, setApiHost, syncProviderModels])
+  }, [patchProvider, primaryEndpoint, provider, providerConfig?.api?.url, setApiHost, syncProviderModels, t])
 
   return {
     commitApiHost,

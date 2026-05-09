@@ -1,7 +1,7 @@
 import { useModelMutations, useModels } from '@renderer/hooks/useModels'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 import {
@@ -135,19 +135,14 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS }
   )
   const { updateModel, updateModels } = useModelMutations()
-  const [searchText, setSearchTextState] = useState('')
+  const [searchInputText, setSearchInputText] = useState('')
+  const searchText = useDeferredValue(searchInputText)
   const [selectedCapabilityFilter, setSelectedCapabilityFilterState] = useState<ModelListCapabilityFilter>('all')
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [isBulkUpdating, setIsBulkUpdating] = useState(false)
   const [optimisticEnabledByModelId, setOptimisticEnabledByModelId] = useState<Record<string, boolean>>({})
   const [sessionPlacementByModelId, setSessionPlacementByModelId] = useState<Record<string, SessionPlacement>>({})
   const [pendingModelIdMap, setPendingModelIdMap] = useState<Record<string, true>>({})
-
-  const setSearchText = useCallback((text: string) => {
-    startTransition(() => {
-      setSearchTextState(text)
-    })
-  }, [])
 
   const setSelectedCapabilityFilter = useCallback((filter: ModelListCapabilityFilter) => {
     startTransition(() => {
@@ -396,8 +391,8 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     hasVisibleModels: derivedState.hasVisibleModels,
     allEnabled: derivedState.allEnabled,
     hasNoModels: derivedState.hasNoModels,
-    searchText,
-    setSearchText,
+    searchText: searchInputText,
+    setSearchText: setSearchInputText,
     selectedCapabilityFilter,
     setSelectedCapabilityFilter,
     capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,

@@ -180,8 +180,10 @@ describe('ProviderModelMappings', () => {
 
       expect(result.defaultChatEndpoint).toBeNull()
       expect(result.authConfig).toEqual({ type: 'api-key' })
-      expect(result.apiKeys).toHaveLength(1)
-      expect(result.apiKeys[0]).toMatchObject({
+      expect(result.apiKeys).toBeDefined()
+      const apiKeys = result.apiKeys!
+      expect(apiKeys).toHaveLength(1)
+      expect(apiKeys[0]).toMatchObject({
         key: 'bedrock-api-key',
         isEnabled: true
       })

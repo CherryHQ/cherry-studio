@@ -1,5 +1,5 @@
 import { useProvider, useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProviders'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface UseProviderOnboardingAutoEnableParams {
   providerId: string
@@ -25,9 +25,14 @@ export function useProviderOnboardingAutoEnable({ providerId, isOnboarding }: Us
   const { provider } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const { updateProvider } = useProviderMutations(providerId)
+  const autoEnableDispatchedProviderIdRef = useRef<string | null>(null)
   const hasServerApiKey = (apiKeysData?.keys?.some((item) => item.isEnabled && item.key.trim()) ?? false) === true
 
   useEffect(() => {
+    if (provider?.isEnabled && autoEnableDispatchedProviderIdRef.current === provider.id) {
+      autoEnableDispatchedProviderIdRef.current = null
+    }
+
     if (!isOnboarding || !provider || provider.isEnabled) {
       return
     }
@@ -36,6 +41,11 @@ export function useProviderOnboardingAutoEnable({ providerId, isOnboarding }: Us
       return
     }
 
+    if (autoEnableDispatchedProviderIdRef.current === provider.id) {
+      return
+    }
+
+    autoEnableDispatchedProviderIdRef.current = provider.id
     void updateProvider({ isEnabled: true })
   }, [hasServerApiKey, isOnboarding, provider, updateProvider])
 }

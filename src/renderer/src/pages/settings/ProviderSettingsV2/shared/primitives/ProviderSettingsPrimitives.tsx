@@ -521,7 +521,6 @@ export const fieldClasses = {
 } as const
 
 export function ProviderSettingsContainer({
-  theme,
   className,
   children
 }: {
@@ -533,7 +532,7 @@ export function ProviderSettingsContainer({
     <div
       className={cn(
         'flex min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-        theme === 'dark' ? 'bg-(--color-background)' : 'bg-(--color-background)',
+        'bg-(--color-background)',
         className
       )}>
       {children}
