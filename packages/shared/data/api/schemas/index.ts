@@ -23,7 +23,6 @@ import type { AssertValidSchemas } from '../apiTypes'
 import type { AgentChannelSchemas } from './agentChannels'
 import type { AgentSchemas } from './agents'
 import type { AssistantSchemas } from './assistants'
-import type { FileProcessingSchemas } from './fileProcessing'
 import type { FileSchemas } from './files'
 import type { GroupSchemas } from './groups'
 import type { KnowledgeSchemas } from './knowledges'
@@ -58,7 +57,6 @@ export type ApiSchemas = AssertValidSchemas<
     ModelSchemas &
     ProviderSchemas &
     TranslateSchemas &
-    FileProcessingSchemas &
     FileSchemas &
     MCPServerSchemas &
     KnowledgeSchemas &
