@@ -1,8 +1,8 @@
 import { Button, EmptyState, Input } from '@cherrystudio/ui'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Plus, Search, Tag, Upload, X } from 'lucide-react'
-import { AnimatePresence } from 'motion/react'
-import type { FC, MouseEvent } from 'react'
-import { useCallback, useState } from 'react'
+import type { FC, MouseEvent, RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { RESOURCE_TYPE_META } from '../constants'
@@ -16,6 +16,10 @@ import {
   type AssistantCatalogTab,
   getAssistantPresetCatalogKey
 } from './useAssistantPresetCatalog'
+
+const GRID_GAP_PX = 12
+const RESOURCE_CARD_ROW_ESTIMATE_PX = 164
+const ASSISTANT_PRESET_ROW_ESTIMATE_PX = 190
 
 interface AssistantCatalogGridState {
   activeTab: string
@@ -48,6 +52,41 @@ interface Props {
   assistantCatalog?: AssistantCatalogGridState
 }
 
+function getGridColumnCount(width: number) {
+  if (width >= 1024) return 3
+  if (width >= 640) return 2
+  return 1
+}
+
+function useGridColumnCount(scrollRef: RefObject<HTMLDivElement | null>) {
+  const [gridState, setGridState] = useState({ columnCount: 1, measured: false })
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const update = () => {
+      const columnCount = getGridColumnCount(el.clientWidth)
+      setGridState((prev) =>
+        prev.measured && prev.columnCount === columnCount ? prev : { columnCount, measured: true }
+      )
+    }
+
+    update()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', update)
+      return () => window.removeEventListener('resize', update)
+    }
+
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [scrollRef])
+
+  return gridState.columnCount
+}
+
 export const ResourceGrid: FC<Props> = ({
   resources,
   activeResourceType,
@@ -68,6 +107,8 @@ export const ResourceGrid: FC<Props> = ({
   assistantCatalog
 }) => {
   const { t } = useTranslation()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const columnCount = useGridColumnCount(scrollRef)
   const [menuState, setMenuState] = useState<{ id: string; x: number; y: number } | null>(null)
   const [showAddTag, setShowAddTag] = useState(false)
   const [newTagName, setNewTagName] = useState('')
@@ -248,9 +289,13 @@ export const ResourceGrid: FC<Props> = ({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
         {showingAssistantCatalogPresets && assistantCatalog ? (
-          <AssistantCatalogPresetContent
+          <VirtualizedAssistantPresetGrid
+            scrollRef={scrollRef}
+            columnCount={columnCount}
             presets={assistantCatalog.presets}
             search={search}
             addingPresetKeys={addingPresetKeys}
@@ -265,37 +310,145 @@ export const ResourceGrid: FC<Props> = ({
             className="py-20"
           />
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {resources.map((resource) => (
-              <ResourceCard key={resource.id} resource={resource} onEdit={onEdit} onOpenMenu={openMenu} />
-            ))}
-          </div>
+          <VirtualizedResourceGrid
+            scrollRef={scrollRef}
+            columnCount={columnCount}
+            resources={resources}
+            onEdit={onEdit}
+            onOpenMenu={openMenu}
+          />
         )}
       </div>
 
-      <AnimatePresence>
-        {menuState &&
-          (() => {
-            const resource = resources.find((item) => item.id === menuState.id)
-            if (!resource) return null
-            return (
-              <FixedCardMenu
-                key={menuState.id}
-                x={menuState.x}
-                y={menuState.y}
-                resource={resource}
-                onClose={closeMenu}
-                onEdit={onEdit}
-                onDuplicate={onDuplicate}
-                onDelete={onDelete}
-                onExport={onExport}
-                onUpdateResourceTags={onUpdateResourceTags}
-                allTagNames={allTagNames}
-              />
-            )
-          })()}
-      </AnimatePresence>
+      {menuState &&
+        (() => {
+          const resource = resources.find((item) => item.id === menuState.id)
+          if (!resource) return null
+          return (
+            <FixedCardMenu
+              key={menuState.id}
+              x={menuState.x}
+              y={menuState.y}
+              resource={resource}
+              onClose={closeMenu}
+              onEdit={onEdit}
+              onDuplicate={onDuplicate}
+              onDelete={onDelete}
+              onExport={onExport}
+              onUpdateResourceTags={onUpdateResourceTags}
+              allTagNames={allTagNames}
+            />
+          )
+        })()}
     </div>
+  )
+}
+
+interface VirtualizedResourceGridProps {
+  scrollRef: RefObject<HTMLDivElement | null>
+  columnCount: number
+  resources: ResourceItem[]
+  onEdit: (r: ResourceItem) => void
+  onOpenMenu: (id: string, event: MouseEvent) => void
+}
+
+function VirtualizedResourceGrid({
+  scrollRef,
+  columnCount,
+  resources,
+  onEdit,
+  onOpenMenu
+}: VirtualizedResourceGridProps) {
+  const rows = useMemo(() => {
+    const nextRows: ResourceItem[][] = []
+    for (let i = 0; i < resources.length; i += columnCount) {
+      nextRows.push(resources.slice(i, i + columnCount))
+    }
+    return nextRows
+  }, [columnCount, resources])
+
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => RESOURCE_CARD_ROW_ESTIMATE_PX + GRID_GAP_PX,
+    overscan: 4
+  })
+
+  return (
+    <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
+      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+        const row = rows[virtualRow.index] ?? []
+        return (
+          <div
+            key={virtualRow.key}
+            ref={rowVirtualizer.measureElement}
+            data-index={virtualRow.index}
+            className="grid gap-3"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+              transform: `translateY(${virtualRow.start}px)`
+            }}>
+            {row.map((resource) => (
+              <ResourceCard key={resource.id} resource={resource} onEdit={onEdit} onOpenMenu={onOpenMenu} />
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+interface VirtualizedAssistantPresetGridProps {
+  scrollRef: RefObject<HTMLDivElement | null>
+  columnCount: number
+  presets: AssistantCatalogPreset[]
+  search: string
+  addingPresetKeys: ReadonlySet<string>
+  onAddPreset: (preset: AssistantCatalogPreset) => void
+  onPreviewPreset: (preset: AssistantCatalogPreset) => void
+}
+
+function VirtualizedAssistantPresetGrid({
+  scrollRef,
+  columnCount,
+  presets,
+  search,
+  addingPresetKeys,
+  onAddPreset,
+  onPreviewPreset
+}: VirtualizedAssistantPresetGridProps) {
+  const rows = useMemo(() => {
+    const nextRows: AssistantCatalogPreset[][] = []
+    for (let i = 0; i < presets.length; i += columnCount) {
+      nextRows.push(presets.slice(i, i + columnCount))
+    }
+    return nextRows
+  }, [columnCount, presets])
+
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ASSISTANT_PRESET_ROW_ESTIMATE_PX + GRID_GAP_PX,
+    overscan: 4
+  })
+
+  return (
+    <AssistantCatalogPresetContent
+      presets={presets}
+      search={search}
+      addingPresetKeys={addingPresetKeys}
+      onAddPreset={onAddPreset}
+      onPreviewPreset={onPreviewPreset}
+      virtualRows={rowVirtualizer.getVirtualItems()}
+      totalHeight={rowVirtualizer.getTotalSize()}
+      measureRow={rowVirtualizer.measureElement}
+      rows={rows}
+      columnCount={columnCount}
+    />
   )
 }
 

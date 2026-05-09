@@ -1,6 +1,5 @@
 import { Button, Checkbox, Input, MenuDivider, MenuItem, Separator } from '@cherrystudio/ui'
 import { ChevronDown, Copy, Download, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
-import { motion } from 'motion/react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -116,11 +115,7 @@ export function FixedCardMenu({
   return (
     <div>
       <div className="fixed inset-0 z-[500]" onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ duration: 0.1 }}
+      <div
         className="fixed z-[501] min-w-[140px] rounded-xs border border-border/30 bg-popover p-1 shadow-xl"
         style={{ left: clampX, top: clampY }}>
         <MenuItem
@@ -252,7 +247,7 @@ export function FixedCardMenu({
           }}
           className="text-destructive/70 hover:bg-destructive/10 hover:text-destructive data-[active=true]:bg-destructive/10 data-[active=true]:text-destructive"
         />
-      </motion.div>
+      </div>
     </div>
   )
 }

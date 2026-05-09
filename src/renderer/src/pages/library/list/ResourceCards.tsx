@@ -1,4 +1,5 @@
 import { Badge, Button, EmptyState } from '@cherrystudio/ui'
+import type { VirtualItem } from '@tanstack/react-virtual'
 import { MoreHorizontal } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +18,11 @@ interface AssistantCatalogPresetContentProps {
   addingPresetKeys: ReadonlySet<string>
   onAddPreset: (preset: AssistantCatalogPreset) => void
   onPreviewPreset: (preset: AssistantCatalogPreset) => void
+  rows?: AssistantCatalogPreset[][]
+  columnCount?: number
+  virtualRows?: VirtualItem[]
+  totalHeight?: number
+  measureRow?: (node: Element | null) => void
 }
 
 export function AssistantCatalogPresetContent({
@@ -24,7 +30,12 @@ export function AssistantCatalogPresetContent({
   search,
   addingPresetKeys,
   onAddPreset,
-  onPreviewPreset
+  onPreviewPreset,
+  rows,
+  columnCount,
+  virtualRows,
+  totalHeight,
+  measureRow
 }: AssistantCatalogPresetContentProps) {
   const { t } = useTranslation()
 
@@ -40,6 +51,44 @@ export function AssistantCatalogPresetContent({
         }
         className="py-20"
       />
+    )
+  }
+
+  if (rows && columnCount && virtualRows && typeof totalHeight === 'number' && measureRow) {
+    return (
+      <div style={{ height: totalHeight, position: 'relative' }}>
+        {virtualRows.map((virtualRow) => {
+          const row = rows[virtualRow.index] ?? []
+          return (
+            <div
+              key={virtualRow.key}
+              ref={measureRow}
+              data-index={virtualRow.index}
+              className="grid gap-3"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+                transform: `translateY(${virtualRow.start}px)`
+              }}>
+              {row.map((preset, index) => {
+                const presetKey = getAssistantPresetCatalogKey(preset)
+                return (
+                  <AssistantPresetGridCard
+                    key={`${presetKey}-${virtualRow.index}-${index}`}
+                    preset={preset}
+                    adding={addingPresetKeys.has(presetKey)}
+                    onAdd={onAddPreset}
+                    onPreview={onPreviewPreset}
+                  />
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
     )
   }
 
