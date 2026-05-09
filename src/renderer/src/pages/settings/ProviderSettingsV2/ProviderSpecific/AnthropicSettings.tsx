@@ -60,11 +60,11 @@ const StatusBlock = ({
         <StatusIcon type={type} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] font-[weight:var(--font-weight-medium)] text-foreground/85">
+        <div className="font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-md)] text-foreground/85 leading-[var(--line-height-body-md)]">
           {title}
         </div>
         {description ? (
-          <div className="mt-1 text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-muted-foreground/80">
+          <div className="mt-1 text-[length:var(--font-size-body-sm)] text-muted-foreground/80 leading-[var(--line-height-body-sm)]">
             {description}
           </div>
         ) : null}
@@ -170,7 +170,7 @@ const AnthropicSettings = () => {
             <Dialog open={codeModalVisible} onOpenChange={(open) => !open && handleCancelAuth()}>
               <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-[color:var(--color-border-fg-muted)] bg-(--color-background) p-5 sm:max-w-md">
                 <DialogHeader className="gap-1.5 pr-6">
-                  <DialogTitle className="text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] text-foreground/90">
+                  <DialogTitle className="text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
                     {t('settings.provider.anthropic.enter_auth_code')}
                   </DialogTitle>
                 </DialogHeader>

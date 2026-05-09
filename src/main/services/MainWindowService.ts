@@ -115,6 +115,32 @@ export class MainWindowService extends BaseService {
     return mainWindow
   }
 
+  /**
+   * Saves the current main-window page as **HTMLComplete** (`.html` plus a `*_files/` resource directory
+   * next to it) under `application.getPath('feature.devtools.page_snapshots')`.
+   * On disk that is `${app.getPath('temp')}/CherryStudio/page-snapshots` (e.g. `%TEMP%\\CherryStudio\\page-snapshots` on Windows).
+   * Shortcut: **Ctrl+Shift+H** (macOS: **Cmd+Shift+H**) when the main window is focused.
+   * Opens the file location in the system file manager on success.
+   */
+  private async saveMainWindowPageSnapshot(): Promise<{ ok: true; htmlPath: string } | { ok: false; error: string }> {
+    try {
+      const mainWindow = this.mainWindow
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return { ok: false, error: 'main_window_unavailable' }
+      }
+      const dir = application.getPath('feature.devtools.page_snapshots')
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const htmlPath = join(dir, `snapshot-${stamp}.html`)
+      await mainWindow.webContents.savePage(htmlPath, 'HTMLComplete')
+      logger.info('Main window page snapshot saved', { htmlPath })
+      shell.showItemInFolder(htmlPath)
+      return { ok: true, htmlPath }
+    } catch (error) {
+      logger.error('savePage snapshot failed', error as Error)
+      return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
   private registerActivateHandler() {
     // showMainWindow's fallback re-opens via WindowManager when the previous window
     // has been destroyed; reuse path falls through to focus + restore.
@@ -163,13 +189,15 @@ export class MainWindowService extends BaseService {
         this.mainWindow?.webContents.forcefullyCrashRenderer()
       })
     }
+
+    this.ipcHandle(IpcChannel.MainWindow_SavePageSnapshot, async () => this.saveMainWindowPageSnapshot())
   }
 
   /**
    * Open the main window via WindowManager.
    * Singleton lifecycle: reuses an existing main window if present (show + focus),
    * otherwise constructs a fresh one. Dynamic options (windowStateKeeper bounds,
-   * theme-driven backgroundColor / titleBarOverlay / backgroundMaterial / Linux
+   * theme-driven backgroundColor / titleBarOverlay / backgroundMaterial / Win+Linux
    * frame and icon, zoom factor) are injected here at the call site, since the
    * registry only carries static defaults.
    */
@@ -207,9 +235,9 @@ export class MainWindowService extends BaseService {
         ...(isMac && {
           titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight
         }),
-        ...(isLinux && {
+        ...((isWin || isLinux) && {
           frame: preferenceService.get('app.use_system_title_bar'),
-          icon: linuxIcon
+          ...(isLinux ? { icon: linuxIcon } : {})
         }),
         ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
         ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
@@ -368,6 +396,27 @@ export class MainWindowService extends BaseService {
         logger.warn(`Blocked navigation to untrusted URL scheme: ${url}`)
       }
     })
+
+    const pageSnapshotShortcutHandler = (_event: Electron.Event, input: Electron.Input) => {
+      if (input.type !== 'keyDown') {
+        return
+      }
+      const primary = isMac ? input.meta : input.control
+      if (!primary || !input.shift || input.alt) {
+        return
+      }
+      const k = input.key?.toLowerCase() ?? ''
+      if (k !== 'h' && input.code !== 'KeyH') {
+        return
+      }
+      _event.preventDefault()
+      void this.saveMainWindowPageSnapshot().then((result) => {
+        if (!result.ok) {
+          logger.warn('Page snapshot shortcut: save failed', { error: result.error })
+        }
+      })
+    }
+    mainWindow.webContents.on('before-input-event', pageSnapshotShortcutHandler)
 
     mainWindow.webContents.setWindowOpenHandler((details) => {
       const { url } = details

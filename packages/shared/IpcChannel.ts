@@ -168,6 +168,7 @@ export enum IpcChannel {
   MainWindow_CrashRenderProcess = 'main-window:crash-render-process',
   MainWindow_ResetMinimumSize = 'main-window:reset-minimum-size',
   MainWindow_SetMinimumSize = 'main-window:set-minimum-size',
+  MainWindow_SavePageSnapshot = 'main-window:save-page-snapshot',
   /**
    * @deprecated Point-to-point navigation IPC.
    * Slated for removal in v2 — planned replacement is a unified

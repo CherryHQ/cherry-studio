@@ -9,6 +9,22 @@ import * as z from 'zod'
 
 const logger = loggerService.withContext('CherryINOAuthService')
 const CHERRYIN_PROVIDER_ID = 'cherryin'
+const SENSITIVE_FIELD_NAMES = new Set([
+  'authorization',
+  'proxy-authorization',
+  'api-key',
+  'api_key',
+  'apikey',
+  'x-api-key',
+  'key',
+  'token',
+  'access_token',
+  'refresh_token',
+  'code',
+  'code_verifier',
+  'client_secret',
+  'password'
+])
 
 // Zod schemas for API response validation
 const BalanceDataSchema = z.object({
@@ -98,6 +114,230 @@ class CherryINOAuthServiceError extends Error {
     super(message)
     this.name = 'CherryINOAuthServiceError'
   }
+}
+
+class CherryINHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly statusText: string,
+    public readonly endpoint: string
+  ) {
+    super(`HTTP ${status}${statusText ? ` ${statusText}` : ''} from ${endpoint}`)
+    this.name = 'CherryINHttpError'
+  }
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : String(error)
+}
+
+function isSensitiveFieldName(name: string): boolean {
+  const normalized = name.toLowerCase()
+  return (
+    SENSITIVE_FIELD_NAMES.has(normalized) ||
+    normalized.includes('authorization') ||
+    normalized.includes('token') ||
+    normalized.includes('secret') ||
+    normalized.includes('api-key') ||
+    normalized.includes('api_key')
+  )
+}
+
+function redactSensitiveValue(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value
+  }
+
+  if (!value) {
+    return '<empty>'
+  }
+
+  const prefix = value.slice(0, Math.min(6, value.length))
+  const suffix = value.length > 10 ? value.slice(-4) : ''
+  return suffix
+    ? `${prefix}...${suffix} (redacted, length=${value.length})`
+    : `${prefix}... (redacted, length=${value.length})`
+}
+
+function sanitizeStructuredValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeStructuredValue(item))
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        isSensitiveFieldName(key) ? redactSensitiveValue(item) : sanitizeStructuredValue(item)
+      ])
+    )
+  }
+
+  return value
+}
+
+function serializeHeaders(headers?: HeadersInit): Record<string, unknown> {
+  if (!headers) {
+    return {}
+  }
+
+  const entries: [string, unknown][] = []
+
+  if (typeof Headers !== 'undefined' && headers instanceof Headers) {
+    headers.forEach((value, key) => entries.push([key, value]))
+  } else if (Array.isArray(headers)) {
+    entries.push(...headers)
+  } else {
+    entries.push(...Object.entries(headers))
+  }
+
+  return Object.fromEntries(
+    entries.map(([key, value]) => [key, isSensitiveFieldName(key) ? redactSensitiveValue(value) : value])
+  )
+}
+
+function serializeRequestBody(body: RequestInit['body']): unknown {
+  if (body == null) {
+    return null
+  }
+
+  if (typeof body === 'string') {
+    const trimmed = body.trim()
+
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        return sanitizeStructuredValue(JSON.parse(trimmed))
+      } catch {
+        return body
+      }
+    }
+
+    if (body.includes('=')) {
+      const params = new URLSearchParams(body)
+      return Object.fromEntries(
+        Array.from(params.entries()).map(([key, value]) => [
+          key,
+          isSensitiveFieldName(key) ? redactSensitiveValue(value) : value
+        ])
+      )
+    }
+
+    return body
+  }
+
+  if (body instanceof URLSearchParams) {
+    return Object.fromEntries(
+      Array.from(body.entries()).map(([key, value]) => [
+        key,
+        isSensitiveFieldName(key) ? redactSensitiveValue(value) : value
+      ])
+    )
+  }
+
+  if (typeof FormData !== 'undefined' && body instanceof FormData) {
+    return Object.fromEntries(
+      Array.from(body.entries()).map(([key, value]) => [
+        key,
+        isSensitiveFieldName(key)
+          ? redactSensitiveValue(value)
+          : typeof File !== 'undefined' && value instanceof File
+            ? `[File: ${value.name}]`
+            : value
+      ])
+    )
+  }
+
+  if (body instanceof ArrayBuffer) {
+    return `[ArrayBuffer: ${body.byteLength} bytes]`
+  }
+
+  if (ArrayBuffer.isView(body)) {
+    return `[${body.constructor.name}: ${body.byteLength} bytes]`
+  }
+
+  if (typeof Blob !== 'undefined' && body instanceof Blob) {
+    return `[Blob: ${body.size} bytes${body.type ? `, ${body.type}` : ''}]`
+  }
+
+  return `[${body.constructor.name}]`
+}
+
+function createRequestLogContext(url: string, options: RequestInit): Record<string, unknown> {
+  const requestUrl = new URL(url)
+  const sanitizedUrl = new URL(url)
+  const query = Object.fromEntries(
+    Array.from(requestUrl.searchParams.entries()).map(([key, value]) => [
+      key,
+      isSensitiveFieldName(key) ? redactSensitiveValue(value) : value
+    ])
+  )
+
+  for (const [key, value] of Object.entries(query)) {
+    sanitizedUrl.searchParams.set(key, String(value))
+  }
+
+  return {
+    url: sanitizedUrl.toString(),
+    method: options.method ?? 'GET',
+    query,
+    headers: serializeHeaders(options.headers),
+    body: serializeRequestBody(options.body)
+  }
+}
+
+function serializeResponseBodyForLog(body: string | null): unknown {
+  if (body == null || body === '') {
+    return body
+  }
+
+  const trimmed = body.trim()
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return sanitizeStructuredValue(JSON.parse(trimmed))
+    } catch {
+      return body
+    }
+  }
+
+  return body
+}
+
+async function readResponseTextForLog(response: Response, fallback?: string): Promise<string | null> {
+  if (fallback !== undefined) {
+    return fallback
+  }
+
+  try {
+    if (typeof response.clone === 'function') {
+      return await response.clone().text()
+    }
+  } catch (error) {
+    logger.warn('Failed to read cloned 401 response body for logging:', error as Error)
+  }
+
+  return null
+}
+
+async function logUnauthorizedResponse(
+  stage: string,
+  request: Record<string, unknown>,
+  response: Response,
+  responseBody?: string
+): Promise<void> {
+  const body = await readResponseTextForLog(response, responseBody)
+  const diagnostic = {
+    stage,
+    request,
+    response: {
+      status: response.status,
+      statusText: response.statusText,
+      headers: serializeHeaders(response.headers),
+      body: serializeResponseBodyForLog(body)
+    }
+  }
+
+  logger.error('CherryIN request returned 401 Unauthorized', diagnostic)
+  console.error('[CherryINOAuthService] CherryIN request returned 401 Unauthorized', diagnostic)
 }
 
 // Store pending OAuth flows with PKCE verifiers (keyed by state parameter).
@@ -288,7 +528,8 @@ class CherryINOAuthService {
     logger.debug('Exchanging code for token')
 
     try {
-      const tokenResponse = await net.fetch(`${oauthServer}/oauth2/token`, {
+      const tokenRequestUrl = `${oauthServer}/oauth2/token`
+      const tokenRequestOptions: RequestInit = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
@@ -300,10 +541,19 @@ class CherryINOAuthService {
           redirect_uri: CHERRYIN_CONFIG.REDIRECT_URI,
           code_verifier: codeVerifier
         }).toString()
-      })
+      }
+      const tokenResponse = await net.fetch(tokenRequestUrl, tokenRequestOptions)
 
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text()
+        if (tokenResponse.status === 401) {
+          await logUnauthorizedResponse(
+            'performTokenExchange.token',
+            createRequestLogContext(tokenRequestUrl, tokenRequestOptions),
+            tokenResponse,
+            errorText
+          )
+        }
         logger.error(`Token exchange failed: ${tokenResponse.status} ${errorText}`)
         throw new CherryINOAuthServiceError(`Failed to exchange code for token: ${tokenResponse.status}`)
       }
@@ -316,15 +566,25 @@ class CherryINOAuthService {
       await this.saveTokenInternal(accessToken, refreshToken)
       logger.debug('Successfully obtained access token, fetching API keys')
 
-      const apiKeysResponse = await net.fetch(`${apiHost}/api/v1/oauth/tokens`, {
+      const apiKeysRequestUrl = `${apiHost}/api/v1/oauth/tokens`
+      const apiKeysRequestOptions: RequestInit = {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`
         }
-      })
+      }
+      const apiKeysResponse = await net.fetch(apiKeysRequestUrl, apiKeysRequestOptions)
 
       if (!apiKeysResponse.ok) {
         const errorText = await apiKeysResponse.text()
+        if (apiKeysResponse.status === 401) {
+          await logUnauthorizedResponse(
+            'performTokenExchange.apiKeys',
+            createRequestLogContext(apiKeysRequestUrl, apiKeysRequestOptions),
+            apiKeysResponse,
+            errorText
+          )
+        }
         logger.error(`Failed to fetch API keys: ${apiKeysResponse.status} ${errorText}`)
         throw new CherryINOAuthServiceError(`Failed to fetch API keys: ${apiKeysResponse.status}`)
       }
@@ -421,7 +681,8 @@ class CherryINOAuthService {
 
       logger.info('Attempting to refresh access token')
 
-      const response = await net.fetch(`${apiHost}/oauth2/token`, {
+      const requestUrl = `${apiHost}/oauth2/token`
+      const requestOptions: RequestInit = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
@@ -431,10 +692,19 @@ class CherryINOAuthService {
           refresh_token: refreshToken,
           client_id: CHERRYIN_CONFIG.CLIENT_ID
         }).toString()
-      })
+      }
+      const response = await net.fetch(requestUrl, requestOptions)
 
       if (!response.ok) {
         const errorText = await response.text()
+        if (response.status === 401) {
+          await logUnauthorizedResponse(
+            'refreshAccessToken',
+            createRequestLogContext(requestUrl, requestOptions),
+            response,
+            errorText
+          )
+        }
         logger.error(`Token refresh failed: ${response.status} ${errorText}`)
         return null
       }
@@ -471,14 +741,23 @@ class CherryINOAuthService {
     }
 
     const makeRequest = async (accessToken: string): Promise<Response> => {
-      return net.fetch(`${apiHost}${endpoint}`, {
+      const requestUrl = `${apiHost}${endpoint}`
+      const requestOptions: RequestInit = {
         ...options,
         headers: {
           ...options.headers,
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         }
-      })
+      }
+
+      const response = await net.fetch(requestUrl, requestOptions)
+
+      if (response.status === 401) {
+        await logUnauthorizedResponse(endpoint, createRequestLogContext(requestUrl, requestOptions), response)
+      }
+
+      return response
     }
 
     let response = await makeRequest(token)
@@ -526,7 +805,7 @@ class CherryINOAuthService {
       const response = await this.authenticatedFetch(apiHost, '/api/v1/oauth/balance')
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        throw new CherryINHttpError(response.status, response.statusText, '/api/v1/oauth/balance')
       }
 
       const json = await response.json()
@@ -556,7 +835,7 @@ class CherryINOAuthService {
         throw new CherryINOAuthServiceError('Invalid response format from server', error)
       }
       logger.error('Failed to get balance:', error as Error)
-      throw new CherryINOAuthServiceError('Failed to get balance', error)
+      throw new CherryINOAuthServiceError(`Failed to get balance: ${getErrorMessage(error)}`, error)
     }
   }
 

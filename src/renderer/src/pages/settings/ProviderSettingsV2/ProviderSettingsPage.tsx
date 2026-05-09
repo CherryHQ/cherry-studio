@@ -12,16 +12,41 @@ interface ProviderSettingsPageProps {
   isOnboarding?: boolean
 }
 
+const LAST_SELECTED_PROVIDER_ID_KEY = 'provider-settings-v2:last-selected-provider-id'
+
+function readLastSelectedProviderId(): string | undefined {
+  try {
+    return window.sessionStorage.getItem(LAST_SELECTED_PROVIDER_ID_KEY) ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
+function rememberLastSelectedProviderId(providerId: string | undefined) {
+  try {
+    if (providerId) {
+      window.sessionStorage.setItem(LAST_SELECTED_PROVIDER_ID_KEY, providerId)
+    } else {
+      window.sessionStorage.removeItem(LAST_SELECTED_PROVIDER_ID_KEY)
+    }
+  } catch {
+    // Session storage is a convenience for this page-level UI state; ignore unavailable storage.
+  }
+}
+
 export default function ProviderSettingsPage({ isOnboarding = false }: ProviderSettingsPageProps) {
   const search = useSearch({ strict: false }) as Record<string, string | undefined>
   const navigate = useNavigate()
   const { providers: rawProviders } = useProviders()
-  const [selectedProviderId, setSelectedProviderIdState] = useState<string>()
+  const [selectedProviderId, setSelectedProviderIdState] = useState<string | undefined>(() =>
+    readLastSelectedProviderId()
+  )
 
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
   const filterModeHint = search.filter === 'agent' ? 'agent' : undefined
 
   const setSelectedProviderId = useCallback((providerId: string | undefined) => {
+    rememberLastSelectedProviderId(providerId)
     startTransition(() => setSelectedProviderIdState(providerId))
   }, [])
 

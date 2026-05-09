@@ -151,10 +151,10 @@ vi.stubGlobal('api', {
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
   return {
-    Button: ({ children, onPress, disabled, isDisabled, startContent, ...props }) =>
+    Button: ({ children, onPress, onClick, disabled, isDisabled, startContent, ...props }) =>
       React.createElement(
         'button',
-        { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled },
+        { ...props, onClick: onPress ?? onClick, disabled: disabled || isDisabled },
         startContent,
         children
       ),

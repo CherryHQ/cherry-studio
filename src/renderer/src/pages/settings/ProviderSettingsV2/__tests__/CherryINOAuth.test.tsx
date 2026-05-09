@@ -96,6 +96,39 @@ describe('CherryINOAuth', () => {
     expect(screen.getByText(/open\.cherryin\.ai/)).toBeInTheDocument()
   })
 
+  it('shows the balance fetch error returned by IPC', async () => {
+    window.api.cherryin.getBalance = vi
+      .fn()
+      .mockRejectedValue(new Error('Failed to get balance: HTTP 401 Unauthorized'))
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'cherryin',
+        name: 'CherryIN',
+        apiKeys: [{ id: 'oauth-1', label: 'OAuth', isEnabled: true }],
+        isEnabled: true
+      },
+      updateProvider: vi.fn(),
+      addApiKey: vi.fn(),
+      deleteApiKey: vi.fn()
+    })
+    useProviderAuthConfigMock.mockReturnValue({
+      data: {
+        type: 'oauth',
+        clientId: 'client-id',
+        accessToken: 'oauth-access',
+        refreshToken: 'oauth-refresh'
+      },
+      isLoading: false,
+      refetch: vi.fn()
+    })
+
+    render(<CherryINOAuth providerId="cherryin" />)
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith(expect.stringContaining('HTTP 401 Unauthorized'))
+    })
+  })
+
   it('renders the logged-out card when there is no OAuth token', () => {
     useProviderMock.mockReturnValue({
       provider: {

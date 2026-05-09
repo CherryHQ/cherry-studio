@@ -47,7 +47,7 @@ export default function ModelSyncReferenceImpact({ summary }: ModelSyncReference
           ))}
         </div>
       ) : (
-        <div className="mt-3 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/75">
+        <div className="mt-3 text-[length:var(--font-size-caption)] text-muted-foreground/75 leading-[var(--line-height-caption)]">
           {t('settings.models.manage.sync_no_references')}
         </div>
       )}

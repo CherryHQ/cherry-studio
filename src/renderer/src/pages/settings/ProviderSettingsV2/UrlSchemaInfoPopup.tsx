@@ -133,10 +133,10 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
       }}>
       <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-[color:var(--color-border-fg-muted)] bg-(--color-background) p-5 sm:max-w-md">
         <DialogHeader className="gap-1.5 pr-6">
-          <DialogTitle className="text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] text-foreground/90">
+          <DialogTitle className="text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
             {t('settings.models.provider_key_confirm_title', { provider: displayName })}
           </DialogTitle>
-          <DialogDescription className="text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-muted-foreground/80">
+          <DialogDescription className="text-[length:var(--font-size-body-sm)] text-muted-foreground/80 leading-[var(--line-height-body-sm)]">
             {confirmMessage}
           </DialogDescription>
         </DialogHeader>

@@ -1,0 +1,1 @@
+import '@vitest/web-worker'

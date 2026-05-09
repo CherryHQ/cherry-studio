@@ -5712,6 +5712,7 @@
       },
       "oauth": {
         "balance": "Balance",
+        "balance_error": "Failed to fetch balance",
         "button": "Login with {{provider}}",
         "cherryIn": {
           "account_title": "Cherry IN account",

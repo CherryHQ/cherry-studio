@@ -1,29 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock } = vi.hoisted(() => {
-  const appMock = {
-    on: vi.fn(),
-    removeListener: vi.fn(),
-    setAsDefaultProtocolClient: vi.fn()
-  }
-  const loggerMock = {
-    debug: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn()
-  }
-  const handlersMock = {
-    handleMcpProtocolUrl: vi.fn(),
-    handleNavigateProtocolUrl: vi.fn(),
-    handleProvidersProtocolUrl: vi.fn()
-  }
-  const windowManagerMock = {
-    broadcast: vi.fn()
-  }
-  const mainWindowServiceMock = {
-    showMainWindow: vi.fn()
-  }
-  return { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock }
-})
+const { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock, cherryINOAuthServiceMock } =
+  vi.hoisted(() => {
+    const appMock = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      setAsDefaultProtocolClient: vi.fn()
+    }
+    const loggerMock = {
+      debug: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn()
+    }
+    const handlersMock = {
+      handleMcpProtocolUrl: vi.fn(),
+      handleNavigateProtocolUrl: vi.fn(),
+      handleProvidersProtocolUrl: vi.fn()
+    }
+    const windowManagerMock = {
+      broadcast: vi.fn()
+    }
+    const mainWindowServiceMock = {
+      showMainWindow: vi.fn()
+    }
+    const cherryINOAuthServiceMock = {
+      handleOAuthCallback: vi.fn()
+    }
+    return { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock, cherryINOAuthServiceMock }
+  })
 
 vi.mock('electron', () => ({ app: appMock }))
 
@@ -42,6 +46,10 @@ vi.mock('@application', () => ({
     },
     getPath: (key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)
   }
+}))
+
+vi.mock('@main/services/CherryINOAuthService', () => ({
+  cherryINOAuthService: cherryINOAuthServiceMock
 }))
 
 vi.mock('@main/core/lifecycle', () => {
@@ -77,6 +85,7 @@ describe('ProtocolService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    cherryINOAuthServiceMock.handleOAuthCallback.mockResolvedValue(undefined)
     service = new ProtocolService()
   })
 
@@ -108,7 +117,7 @@ describe('ProtocolService', () => {
 
   describe('second-instance handler', () => {
     function getSecondInstanceHandler() {
-      const call = appMock.on.mock.calls.find(([event]: [string]) => event === 'second-instance')
+      const call = appMock.on.mock.calls.find((call) => call[0] === 'second-instance')
       if (!call) throw new Error('second-instance listener not registered')
       return call[1] as (event: unknown, argv: string[]) => void
     }
@@ -120,10 +129,10 @@ describe('ProtocolService', () => {
       handler({}, ['/path/to/electron', '.', 'cherrystudio://oauth/callback?code=abc'])
 
       expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
-      expect(windowManagerMock.broadcast).toHaveBeenCalledWith('protocol-data', {
-        url: 'cherrystudio://oauth/callback?code=abc',
-        params: { code: 'abc' }
-      })
+      expect(cherryINOAuthServiceMock.handleOAuthCallback).toHaveBeenCalledTimes(1)
+      const url = cherryINOAuthServiceMock.handleOAuthCallback.mock.calls[0][0] as URL
+      expect(url.href).toBe('cherrystudio://oauth/callback?code=abc')
+      expect(windowManagerMock.broadcast).not.toHaveBeenCalled()
     })
 
     it('surfaces the main window when argv has no protocol URL', async () => {

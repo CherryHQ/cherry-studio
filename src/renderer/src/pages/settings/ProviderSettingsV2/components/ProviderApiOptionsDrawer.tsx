@@ -43,7 +43,7 @@ function apiOptionId(providerId: string, key: string): string {
 function OptionLabel({ id, label, help }: { id: string; label: string; help: string }) {
   return (
     <div className="flex min-w-0 items-center gap-1.5">
-      <label htmlFor={id} className="min-w-0 cursor-pointer truncate text-[13px] leading-[1.35] text-foreground/75">
+      <label htmlFor={id} className="min-w-0 cursor-pointer truncate text-[13px] text-foreground/75 leading-[1.35]">
         {label}
       </label>
       <Tooltip content={help}>

@@ -2,6 +2,7 @@ import { Button, Skeleton } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { getErrorMessage } from '@renderer/utils/error'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
 import { cn } from '@renderer/utils/style'
 import { isEmpty } from 'lodash'
@@ -55,10 +56,11 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     } catch (error) {
       logger.warn('Failed to fetch balance:', error as Error)
       setBalanceInfo(null)
+      window.toast.error(`${t('settings.provider.oauth.balance_error')}: ${getErrorMessage(error)}`)
     } finally {
       setIsLoadingData(false)
     }
-  }, [])
+  }, [t])
 
   // Check if OAuth token exists
   useEffect(() => {

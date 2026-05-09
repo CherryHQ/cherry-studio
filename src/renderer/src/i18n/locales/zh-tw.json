@@ -5712,6 +5712,7 @@
       },
       "oauth": {
         "balance": "餘額",
+        "balance_error": "取得餘額失敗",
         "button": "使用 {{provider}} 帳號登入",
         "cherryIn": {
           "account_title": "Cherry IN 帳戶",

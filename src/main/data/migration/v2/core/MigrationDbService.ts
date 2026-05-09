@@ -8,6 +8,7 @@
  */
 
 import { CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'
+import { reconcileDrizzleJournalOrderKeyDrift } from '@data/db/reconcileDrizzleJournalOrderKeyDrift'
 import type { DbType } from '@data/db/types'
 import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
@@ -54,6 +55,7 @@ export class MigrationDbService {
     }
 
     // Schema migrations
+    await reconcileDrizzleJournalOrderKeyDrift(db, paths.migrationsFolder)
     await migrate(db, { migrationsFolder: paths.migrationsFolder })
 
     // libsql is compiled with SQLITE_DEFAULT_FOREIGN_KEYS=1 (see libsql-ffi/build.rs),

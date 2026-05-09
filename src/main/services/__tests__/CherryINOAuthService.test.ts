@@ -14,6 +14,7 @@ vi.mock('@data/services/ProviderService', () => ({
 
 import { net } from 'electron'
 
+import { mockMainLoggerService } from '../../../../tests/__mocks__/MainLoggerService'
 import { cherryINOAuthService } from '../CherryINOAuthService'
 
 describe('CherryINOAuthService', () => {
@@ -101,6 +102,72 @@ describe('CherryINOAuthService', () => {
       monthlyUsageTokens: null,
       monthlySpend: 6.82
     })
+  })
+
+  it('exposes balance API HTTP failures in the thrown error message', async () => {
+    providerServiceMocks.getAuthConfig.mockResolvedValue({
+      type: 'oauth',
+      clientId: 'client-id',
+      accessToken: 'oauth-access',
+      refreshToken: null
+    })
+    vi.mocked(net.fetch).mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized'
+    } as Response)
+
+    await expect(
+      cherryINOAuthService.getBalance({} as Electron.IpcMainInvokeEvent, 'https://open.cherryin.ai')
+    ).rejects.toThrow('Failed to get balance: HTTP 401 Unauthorized from /api/v1/oauth/balance')
+  })
+
+  it('logs 401 response details with request context', async () => {
+    const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
+    providerServiceMocks.getAuthConfig.mockResolvedValue({
+      type: 'oauth',
+      clientId: 'client-id',
+      accessToken: 'oauth-access-token',
+      refreshToken: null
+    })
+    vi.mocked(net.fetch).mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      clone: () =>
+        ({
+          text: async () => '{"error":"invalid_token","access_token":"server-token"}'
+        }) as Response
+    } as Response)
+
+    await expect(
+      cherryINOAuthService.getBalance({} as Electron.IpcMainInvokeEvent, 'https://open.cherryin.ai')
+    ).rejects.toThrow('Failed to get balance: HTTP 401 Unauthorized from /api/v1/oauth/balance')
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      'CherryIN request returned 401 Unauthorized',
+      expect.objectContaining({
+        stage: '/api/v1/oauth/balance',
+        request: expect.objectContaining({
+          url: 'https://open.cherryin.ai/api/v1/oauth/balance',
+          method: 'GET',
+          headers: expect.objectContaining({
+            Authorization: expect.stringContaining('redacted')
+          }),
+          body: null
+        }),
+        response: expect.objectContaining({
+          status: 401,
+          statusText: 'Unauthorized',
+          headers: {},
+          body: expect.objectContaining({
+            error: 'invalid_token',
+            access_token: expect.stringContaining('redacted')
+          })
+        })
+      })
+    )
+    errorSpy.mockRestore()
   })
 
   it('clears auth config back to api-key mode on logout', async () => {

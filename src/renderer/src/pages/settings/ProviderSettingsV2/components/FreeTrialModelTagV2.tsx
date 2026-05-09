@@ -53,7 +53,7 @@ export const FreeTrialModelTagV2: FC<Props> = ({ modelId, providerId, showLabel 
   return (
     <div className="flex flex-row items-center gap-1">
       <IndicatorLight size={6} color="var(--color-primary)" animation={false} shadow={false} />
-      <span className="text-xs text-muted-foreground">{t('common.powered_by')}</span>
+      <span className="text-muted-foreground text-xs">{t('common.powered_by')}</span>
       <button type="button" className="text-primary text-xs hover:underline" onClick={onSelectProvider}>
         {getProviderLabel(linkedProviderId)}
       </button>
