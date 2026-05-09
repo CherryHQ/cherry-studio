@@ -1,12 +1,30 @@
 import { paintingTable } from '@data/db/schemas/painting'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
-import { asc } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { paintingService } from '../PaintingService'
 
 describe('PaintingService', () => {
   const dbh = setupTestDatabase()
+
+  async function insertModel(providerId = 'aihubmix', modelId = 'gpt-image-1') {
+    const uniqueModelId = createUniqueModelId(providerId, modelId)
+    await dbh.db.insert(userProviderTable).values({
+      providerId,
+      name: providerId
+    })
+    await dbh.db.insert(userModelTable).values({
+      id: uniqueModelId,
+      providerId,
+      modelId,
+      name: modelId
+    })
+    return uniqueModelId
+  }
 
   it('assigns global order keys when creating paintings and inserts new items first', async () => {
     const first = await paintingService.create({
@@ -69,6 +87,33 @@ describe('PaintingService', () => {
     })
 
     expect(painting.mediaType).toBe('image')
+  })
+
+  it('keeps painting history when the referenced model is deleted', async () => {
+    const modelId = await insertModel()
+    const painting = await paintingService.create({
+      providerId: 'aihubmix',
+      modelId,
+      mode: 'generate',
+      prompt: 'with model'
+    })
+
+    await dbh.db.delete(userModelTable).where(eq(userModelTable.id, modelId))
+
+    const stored = await paintingService.getById(painting.id)
+    expect(stored.modelId).toBeNull()
+    expect(stored.prompt).toBe('with model')
+  })
+
+  it('stores null for unknown model ids instead of failing FK insertion', async () => {
+    const painting = await paintingService.create({
+      providerId: 'aihubmix',
+      modelId: createUniqueModelId('aihubmix', 'missing-model'),
+      mode: 'generate',
+      prompt: 'unknown model'
+    })
+
+    expect(painting.modelId).toBeNull()
   })
 
   it('creates, updates, and filters by video media type', async () => {

@@ -17,13 +17,13 @@ export type PaintingMediaType = z.infer<typeof PaintingMediaTypeSchema>
 export const PaintingParamsSchema = z.record(z.string(), z.unknown())
 export type PaintingParams = z.infer<typeof PaintingParamsSchema>
 
-export const PaintingFilesSchema = z.object({
+export const PaintingFilesSchema = z.strictObject({
   output: z.array(z.string()),
   input: z.array(z.string())
 })
 export type PaintingFiles = z.infer<typeof PaintingFilesSchema>
 
-export const PaintingSchema = z.object({
+export const PaintingSchema = z.strictObject({
   id: z.string(),
   providerId: z.string(),
   modelId: z.string().nullable().optional(),

@@ -15,7 +15,8 @@ import { PaintingMigrator } from '../PaintingMigrator'
 
 function createMigrationContext(
   paintingsState: Record<string, unknown>,
-  insertedRows: unknown[]
+  insertedRows: unknown[],
+  validModelIds: string[] = []
 ): Record<string, unknown> {
   return {
     sources: {
@@ -34,9 +35,14 @@ function createMigrationContext(
         })
       ),
       select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          get: vi.fn(async () => ({ count: insertedRows.length }))
-        }))
+        from: vi.fn(() =>
+          Object.assign(
+            validModelIds.map((id) => ({ id })),
+            {
+              get: vi.fn(async () => ({ count: insertedRows.length }))
+            }
+          )
+        )
       }))
     }
   }
@@ -115,5 +121,30 @@ describe('PaintingMigrator', () => {
         skippedCount: 0
       }
     })
+  })
+
+  it('drops dangling model references before inserting paintings', async () => {
+    const migrator = new PaintingMigrator()
+    const insertedRows: unknown[] = []
+    const ctx = createMigrationContext(
+      {
+        openai_image_generate: [
+          { id: 'painting-known', providerId: 'openai', modelId: 'openai::gpt-image-1', prompt: 'known' },
+          { id: 'painting-dangling', providerId: 'openai', modelId: 'openai::missing', prompt: 'dangling' }
+        ]
+      },
+      insertedRows,
+      ['openai::gpt-image-1']
+    )
+
+    await migrator.prepare(ctx as never)
+    await migrator.execute(ctx as never)
+
+    expect(insertedRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'painting-known', modelId: 'openai::gpt-image-1' }),
+        expect.objectContaining({ id: 'painting-dangling', modelId: null })
+      ])
+    )
   })
 })

@@ -34,7 +34,7 @@ describe('paintingMappers', () => {
     providerId: 'silicon',
     mode: 'generate',
     mediaType: 'video',
-    modelId: 'model-1',
+    modelId: 'silicon::model-1',
     prompt: 'draw a cat',
     params: {
       guidanceScale: 4.5,
@@ -118,7 +118,7 @@ describe('paintingMappers', () => {
       }
     })
 
-    expect(paintingDataToCreateDto({ ...paintingData, mediaType: undefined }).mediaType).toBe('image')
+    expect(paintingDataToCreateDto({ ...paintingData, mediaType: undefined }).mediaType).toBeUndefined()
 
     expect(paintingDataToUpdateDto(paintingData)).toEqual({
       providerId: 'silicon',

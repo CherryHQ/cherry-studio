@@ -1,5 +1,6 @@
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Painting as PaintingRecord } from '@shared/data/types/painting'
 
 import type { PaintingData } from '../types/paintingData'
@@ -14,8 +15,8 @@ async function resolveFiles(ids: string[]): Promise<FileMetadata[]> {
 }
 
 export async function recordToPaintingData(record: PaintingRecord): Promise<PaintingData> {
-  const files = await resolveFiles(record.files?.output ?? [])
-  const inputFiles = await resolveFiles(record.files?.input ?? [])
+  const files = await resolveFiles(record.files.output)
+  const inputFiles = await resolveFiles(record.files.input)
 
   let rawParams = { ...record.params }
   const generationFields = readRuntime(rawParams)
@@ -30,7 +31,11 @@ export async function recordToPaintingData(record: PaintingRecord): Promise<Pain
     providerId: record.providerId,
     mode: record.mode,
     mediaType: record.mediaType,
-    model: record.modelId ?? undefined,
+    model: record.modelId
+      ? isUniqueModelId(record.modelId)
+        ? parseUniqueModelId(record.modelId).modelId
+        : record.modelId
+      : undefined,
     prompt: record.prompt,
     files,
     inputFiles,

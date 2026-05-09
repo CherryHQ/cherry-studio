@@ -3,20 +3,23 @@ import { sql } from 'drizzle-orm'
 import { check, index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, uuidPrimaryKey } from './_columnHelpers'
+import { userModelTable } from './userModel'
 
 export const paintingTable = sqliteTable(
   'painting',
   {
     id: uuidPrimaryKey(),
     providerId: text('provider_id').notNull(),
-    modelId: text('model_id'),
+    modelId: text('model_id').references(() => userModelTable.id, { onDelete: 'set null' }),
     // Provider workflow key: keep queryable at the top level, but do not CHECK
     // it so future providers can add modes without a schema migration.
     mode: text().$type<PaintingMode>().notNull(),
-    mediaType: text('media_type').$type<PaintingMediaType>().notNull().default('image'),
-    prompt: text().notNull().default(''),
-    params: text({ mode: 'json' }).$type<PaintingParams>().notNull().default({}),
-    files: text({ mode: 'json' }).$type<PaintingFiles>().notNull().default({ output: [], input: [] }),
+    mediaType: text('media_type').$type<PaintingMediaType>().notNull(),
+    prompt: text().notNull(),
+    params: text({ mode: 'json' }).$type<PaintingParams>().notNull(),
+    // Stores current app file ids. When file metadata moves into SQLite, migrate
+    // these arrays to reference the file table primary key instead.
+    files: text({ mode: 'json' }).$type<PaintingFiles>().notNull(),
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },

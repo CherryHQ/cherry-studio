@@ -2249,32 +2249,28 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'image'"
+          "autoincrement": false
         },
         "prompt": {
           "name": "prompt",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "''"
+          "autoincrement": false
         },
         "params": {
           "name": "params",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'{}'"
+          "autoincrement": false
         },
         "files": {
           "name": "files",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'{\"output\":[],\"input\":[]}'"
+          "autoincrement": false
         },
         "order_key": {
           "name": "order_key",
@@ -2310,7 +2306,17 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "painting_model_id_user_model_id_fk": {
+          "name": "painting_model_id_user_model_id_fk",
+          "tableFrom": "painting",
+          "tableTo": "user_model",
+          "columnsFrom": ["model_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {

@@ -8,6 +8,8 @@
 
 import { application } from '@application'
 import { type NewPainting, type Painting as PaintingRow, paintingTable } from '@data/db/schemas/painting'
+import { userModelTable } from '@data/db/schemas/userModel'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -17,9 +19,10 @@ import type {
   PaintingListResponse,
   UpdatePaintingDto
 } from '@shared/data/api/schemas/paintings'
+import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { Painting } from '@shared/data/types/painting'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
@@ -40,20 +43,66 @@ export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = [
   'files'
 ]
 
-function rowToPainting(row: PaintingRow): Painting {
+function rowToPainting(row: PaintingRow, validModelIds: ReadonlySet<string>): Painting {
   return {
     id: row.id,
     providerId: row.providerId,
-    modelId: row.modelId ?? null,
+    modelId: row.modelId && validModelIds.has(row.modelId) ? row.modelId : null,
     mode: row.mode,
     mediaType: row.mediaType,
-    prompt: row.prompt ?? '',
-    params: row.params ?? {},
-    files: { output: row.files?.output ?? [], input: row.files?.input ?? [] },
+    prompt: row.prompt,
+    params: row.params,
+    files: row.files,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
+}
+
+type ModelLookupDb = Pick<DbType, 'select'>
+
+async function loadValidModelIds(db: ModelLookupDb, rows: PaintingRow[]): Promise<ReadonlySet<string>> {
+  const modelIds = [...new Set(rows.map((row) => row.modelId).filter((id): id is string => Boolean(id)))]
+  if (modelIds.length === 0) {
+    return new Set()
+  }
+
+  const models = await db
+    .select({ id: userModelTable.id })
+    .from(userModelTable)
+    .where(inArray(userModelTable.id, modelIds))
+  return new Set(models.map((model) => model.id))
+}
+
+async function rowsToPaintings(db: ModelLookupDb, rows: PaintingRow[]): Promise<Painting[]> {
+  const validModelIds = await loadValidModelIds(db, rows)
+  return rows.map((row) => rowToPainting(row, validModelIds))
+}
+
+function resolveCandidateModelId(providerId: string, modelId: string | null | undefined): string | null {
+  if (!modelId) {
+    return null
+  }
+
+  return isUniqueModelId(modelId) ? modelId : createUniqueModelId(providerId, modelId)
+}
+
+async function resolveExistingModelId(
+  db: ModelLookupDb,
+  providerId: string,
+  modelId: string | null | undefined
+): Promise<string | null> {
+  const candidate = resolveCandidateModelId(providerId, modelId)
+  if (!candidate) {
+    return null
+  }
+
+  const [model] = await db
+    .select({ id: userModelTable.id })
+    .from(userModelTable)
+    .where(eq(userModelTable.id, candidate))
+    .limit(1)
+  return model?.id ?? null
 }
 
 class PaintingService {
@@ -87,7 +136,7 @@ class PaintingService {
     ])
 
     return {
-      items: rows.map((row) => rowToPainting(row)),
+      items: await rowsToPaintings(db, rows),
       total: countResult[0]?.count ?? 0,
       limit: query.limit,
       offset: query.offset
@@ -102,7 +151,7 @@ class PaintingService {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
 
-    return rowToPainting(row)
+    return (await rowsToPaintings(db, [row]))[0]
   }
 
   async create(dto: CreatePaintingDto): Promise<Painting> {
@@ -115,7 +164,7 @@ class PaintingService {
         {
           id: dto.id,
           providerId: dto.providerId,
-          modelId: dto.modelId ?? null,
+          modelId: await resolveExistingModelId(tx, dto.providerId, dto.modelId),
           mode: dto.mode,
           mediaType: dto.mediaType ?? 'image',
           prompt: dto.prompt ?? '',
@@ -135,12 +184,15 @@ class PaintingService {
       mode: row.mode
     })
 
-    return rowToPainting(row as PaintingRow)
+    return (await rowsToPaintings(db, [row as PaintingRow]))[0]
   }
 
   async update(id: string, dto: UpdatePaintingDto): Promise<Painting> {
     const db = application.get('DbService').getDb()
-    const existing = await this.getById(id)
+    const [existing] = await db.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1)
+    if (!existing) {
+      throw DataApiErrorFactory.notFound('Painting', id)
+    }
 
     const updates: Partial<NewPainting> = {}
     for (const key of UPDATE_PAINTING_FIELD_MAP) {
@@ -149,14 +201,21 @@ class PaintingService {
       }
     }
 
+    if (dto.modelId !== undefined) {
+      updates.modelId = await resolveExistingModelId(db, updates.providerId ?? existing.providerId, dto.modelId)
+    }
+
     if (Object.keys(updates).length === 0) {
-      return existing
+      return (await rowsToPaintings(db, [existing]))[0]
     }
 
     const [row] = await db.update(paintingTable).set(updates).where(eq(paintingTable.id, id)).returning()
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Painting', id)
+    }
 
     logger.info('Updated painting', { id, changes: Object.keys(dto) })
-    return rowToPainting(row)
+    return (await rowsToPaintings(db, [row]))[0]
   }
 
   async delete(id: string): Promise<void> {
