@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -5,7 +6,7 @@ import { CHERRYIN_CONFIG } from '@shared/config/constant'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 import { createHash, randomBytes } from 'crypto'
-import { net, webContents } from 'electron'
+import { net } from 'electron'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('CherryINOAuthService')
@@ -109,15 +110,16 @@ class CherryINOAuthServiceError extends Error {
 }
 
 // Store pending OAuth flows with PKCE verifiers (keyed by state parameter).
-// initiatorWebContentsId is captured at startOAuthFlow time so the protocol
-// callback can be delivered point-to-point to the originating renderer instead
-// of being broadcast to every window.
+// initiatorWindowId is the WindowManager UUID of the renderer that started the
+// flow, captured at startOAuthFlow time so the protocol callback can be
+// delivered point-to-point to the originating window instead of being broadcast
+// to every window.
 interface PendingOAuthFlow {
   codeVerifier: string
   oauthServer: string
   apiHost: string
   timestamp: number
-  initiatorWebContentsId: number
+  initiatorWindowId: string
 }
 
 interface TokenRefreshResult {
@@ -244,6 +246,11 @@ export class CherryINOAuthService extends BaseService implements Activatable {
       this.validateApiHost(apiHost)
     }
 
+    const initiatorWindowId = application.get('WindowManager').getWindowIdByWebContents(event.sender)
+    if (!initiatorWindowId) {
+      throw new CherryINOAuthServiceError('OAuth flow initiator is not a managed window')
+    }
+
     // Generate PKCE parameters
     const codeVerifier = this.generateRandomString(64) // 43-128 chars per RFC 7636
     const codeChallenge = this.generateCodeChallenge(codeVerifier)
@@ -255,7 +262,7 @@ export class CherryINOAuthService extends BaseService implements Activatable {
       oauthServer,
       apiHost: resolvedApiHost,
       timestamp: Date.now(),
-      initiatorWebContentsId: event.sender.id
+      initiatorWindowId
     })
     await this.activate()
 
@@ -308,9 +315,9 @@ export class CherryINOAuthService extends BaseService implements Activatable {
     this.pendingOAuthFlows.delete(state)
 
     try {
-      const initiator = webContents.fromId(flow.initiatorWebContentsId)
-      if (!initiator || initiator.isDestroyed()) {
-        logger.warn('OAuth initiator webContents no longer available; dropping callback')
+      const initiator = this.resolveInitiatorWebContents(flow.initiatorWindowId)
+      if (!initiator) {
+        logger.warn('OAuth initiator window no longer available; dropping callback')
         return
       }
 
@@ -331,13 +338,19 @@ export class CherryINOAuthService extends BaseService implements Activatable {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       logger.error('Token exchange failed during OAuth callback', error as Error)
-      const initiator = webContents.fromId(flow.initiatorWebContentsId)
-      if (initiator && !initiator.isDestroyed()) {
+      const initiator = this.resolveInitiatorWebContents(flow.initiatorWindowId)
+      if (initiator) {
         initiator.send(IpcChannel.CherryIN_OAuthResult, { state, error: message })
       }
     } finally {
       this.deactivateIfIdle()
     }
+  }
+
+  private resolveInitiatorWebContents(windowId: string): Electron.WebContents | null {
+    const window = application.get('WindowManager').getWindow(windowId)
+    if (!window || window.isDestroyed()) return null
+    return window.webContents
   }
 
   /**

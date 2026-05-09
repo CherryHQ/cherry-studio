@@ -14,8 +14,9 @@ const netMocks = vi.hoisted(() => ({
   fetch: vi.fn()
 }))
 
-const webContentsMocks = vi.hoisted(() => ({
-  fromId: vi.fn()
+const windowManagerMocks = vi.hoisted(() => ({
+  getWindowIdByWebContents: vi.fn(),
+  getWindow: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -25,11 +26,26 @@ vi.mock('@data/services/ProviderService', () => ({
   }
 }))
 
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'WindowManager') {
+      return {
+        getWindowIdByWebContents: windowManagerMocks.getWindowIdByWebContents,
+        getWindow: windowManagerMocks.getWindow
+      }
+    }
+    return originalGet(name)
+  })
+  return result
+})
+
 vi.mock('electron', async (importOriginal) => {
   const actual = (await importOriginal()) as {
     ipcMain: Electron.IpcMain
     net: Electron.Net
-    webContents: typeof Electron.webContents
   }
   return {
     ...actual,
@@ -41,10 +57,6 @@ vi.mock('electron', async (importOriginal) => {
     net: {
       ...actual.net,
       fetch: netMocks.fetch
-    },
-    webContents: {
-      ...actual.webContents,
-      fromId: webContentsMocks.fromId
     }
   }
 })
@@ -62,9 +74,12 @@ describe('CherryINOAuthService', () => {
     BaseService.resetInstances()
     vi.clearAllMocks()
     vi.useRealTimers()
-    webContentsMocks.fromId.mockReturnValue({
+    windowManagerMocks.getWindowIdByWebContents.mockReturnValue('mock-window-id')
+    windowManagerMocks.getWindow.mockReturnValue({
       isDestroyed: () => false,
-      send: vi.fn()
+      webContents: {
+        send: vi.fn()
+      }
     })
     cherryINOAuthService = new CherryINOAuthService()
   })
