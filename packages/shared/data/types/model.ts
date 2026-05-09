@@ -128,16 +128,24 @@ export function createUniqueModelId(providerId: string, modelId: string): Unique
 
 /**
  * Parse a UniqueModelId into its components.
- * @throws Error if the value does not satisfy `isUniqueModelId`.
+ *
+ * Permissive on purpose: the only hard requirement is that a separator exists
+ * so the split is well-defined. Empty `providerId` / `modelId` parts are
+ * intentionally allowed through — boundary code (handlers, services) decides
+ * whether to accept or reject them, and several handler contracts pin the
+ * "pass empty parts through to the service" behavior. For strict, fully-formed
+ * validation use `isUniqueModelId` or `UniqueModelIdSchema`.
+ *
+ * @throws Error if the value does not contain `${UNIQUE_MODEL_ID_SEPARATOR}`.
  */
 export function parseUniqueModelId(uniqueId: UniqueModelId): {
   providerId: string
   modelId: string
 } {
-  if (!isUniqueModelId(uniqueId)) {
+  const idx = uniqueId.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
+  if (idx === -1) {
     throw new Error(`Invalid UniqueModelId format: ${uniqueId}`)
   }
-  const idx = uniqueId.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
   return {
     providerId: uniqueId.slice(0, idx),
     modelId: uniqueId.slice(idx + UNIQUE_MODEL_ID_SEPARATOR.length)
