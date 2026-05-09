@@ -142,7 +142,14 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): string {
  * @returns canonical form stored in `file_entry.externalPath`
  * @throws if `raw` contains null bytes
  */
-// oxlint-disable-next-line no-unused-vars -- TODO(phase-1b): drop once cheap-subset impl lands in Phase 1b.
-export function canonicalizeExternalPath(_raw: string): CanonicalExternalPath {
-  throw new Error('canonicalizeExternalPath: not implemented (Phase 1a stub, cheap-subset impl lands in Phase 1b)')
+export function canonicalizeExternalPath(raw: string): CanonicalExternalPath {
+  if (raw.includes('\0')) {
+    throw new Error('canonicalizeExternalPath: input contains null byte')
+  }
+  let normalized = path.resolve(raw)
+  normalized = normalized.normalize('NFC')
+  if (normalized.length > 1 && (normalized.endsWith(path.sep) || normalized.endsWith('/'))) {
+    normalized = normalized.slice(0, -1)
+  }
+  return normalized as CanonicalExternalPath
 }

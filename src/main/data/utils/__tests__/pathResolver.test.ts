@@ -8,8 +8,12 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+import path from 'node:path'
+
+import type { CanonicalExternalPath } from '@shared/data/types/file'
+
 import type { PathResolvableEntry } from '../pathResolver'
-import { getExtSuffix, resolvePhysicalPath } from '../pathResolver'
+import { canonicalizeExternalPath, getExtSuffix, resolvePhysicalPath } from '../pathResolver'
 
 describe('getExtSuffix', () => {
   it('returns dot-prefixed extension for non-null ext', () => {
@@ -107,5 +111,36 @@ describe('resolvePhysicalPath', () => {
       }
       expect(() => resolvePhysicalPath(entry)).toThrow('null bytes')
     })
+  })
+})
+
+describe('canonicalizeExternalPath', () => {
+  it('resolves "." and ".." segments', () => {
+    const input = path.resolve('/foo/./bar/../baz')
+    expect(canonicalizeExternalPath(input) as string).toBe(path.resolve('/foo/baz'))
+  })
+
+  it('NFC-normalizes Unicode (NFD → NFC)', () => {
+    const nfd = '/users/Müller'
+    const nfc = '/users/Müller'
+    expect(canonicalizeExternalPath(nfd) as string).toBe(canonicalizeExternalPath(nfc) as string)
+  })
+
+  it('strips trailing path separator', () => {
+    expect(canonicalizeExternalPath('/foo/bar/') as string).toBe(canonicalizeExternalPath('/foo/bar') as string)
+  })
+
+  it('preserves a path that is already canonical', () => {
+    const canonical = path.resolve('/foo/bar/baz.txt')
+    expect(canonicalizeExternalPath(canonical) as string).toBe(canonical)
+  })
+
+  it('rejects null bytes', () => {
+    expect(() => canonicalizeExternalPath('/foo/bar\0/baz')).toThrow(/null byte/i)
+  })
+
+  it('returns a CanonicalExternalPath brand (compile-time check)', () => {
+    const canonical: CanonicalExternalPath = canonicalizeExternalPath('/foo')
+    expect(typeof canonical).toBe('string')
   })
 })
