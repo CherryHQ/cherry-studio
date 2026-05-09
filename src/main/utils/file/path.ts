@@ -4,6 +4,7 @@
  * Path utilities — validation and resolution helpers.
  */
 
+import { access, constants } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -44,9 +45,14 @@ export function isUnderInternalStorage(target: string): boolean {
   return isPathInside(target, internalRoot)
 }
 
-/** Check if a directory path is writable. */
-export async function canWrite(_path: FilePath): Promise<boolean> {
-  return notImplemented('canWrite')
+/** Check if a path is writable for the current process. */
+export async function canWrite(target: FilePath): Promise<boolean> {
+  try {
+    await access(target, constants.W_OK)
+    return true
+  } catch {
+    return false
+  }
 }
 
 /** Check if a directory is non-empty. */
