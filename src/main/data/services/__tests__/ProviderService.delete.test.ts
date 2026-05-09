@@ -124,8 +124,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
   })
 
   it('purges pins for every model under the provider as part of the delete transaction', async () => {
-    const purgeForEntitySpy = vi.spyOn(pinService, 'purgeForEntity')
-    const purgeForEntitiesSpy = vi.spyOn(pinService, 'purgeForEntities')
+    const purgeForEntityTxSpy = vi.spyOn(pinService, 'purgeForEntityTx')
+    const purgeForEntitiesTxSpy = vi.spyOn(pinService, 'purgeForEntitiesTx')
     const gpt4 = createUniqueModelId('openai-work', 'gpt-4')
     const gpt35 = createUniqueModelId('openai-work', 'gpt-3.5')
     const claude = createUniqueModelId('anthropic', 'claude-3')
@@ -159,12 +159,12 @@ describe('ProviderService.delete — preset protection boundary', () => {
 
     await providerService.delete('openai-work')
 
-    expect(purgeForEntitiesSpy).toHaveBeenCalledTimes(1)
-    const [, entityType, entityIds] = purgeForEntitiesSpy.mock.calls[0]
+    expect(purgeForEntitiesTxSpy).toHaveBeenCalledTimes(1)
+    const [, entityType, entityIds] = purgeForEntitiesTxSpy.mock.calls[0]
     expect(entityType).toBe('model')
     expect(entityIds).toHaveLength(2)
     expect(new Set(entityIds)).toEqual(new Set([gpt4, gpt35]))
-    expect(purgeForEntitySpy).not.toHaveBeenCalled()
+    expect(purgeForEntityTxSpy).not.toHaveBeenCalled()
 
     // Pins for the deleted provider's models are gone.
     const deletedProviderPins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, gpt4))

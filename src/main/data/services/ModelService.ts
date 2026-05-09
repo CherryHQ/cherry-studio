@@ -453,7 +453,7 @@ class ModelService {
         throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
       }
 
-      await pinService.purgeForEntity(tx, 'model', rows[0].id)
+      await pinService.purgeForEntityTx(tx, 'model', rows[0].id)
     })
 
     logger.info('Deleted model', { providerId, modelId })
