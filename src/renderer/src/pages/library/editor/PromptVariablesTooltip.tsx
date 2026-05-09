@@ -19,11 +19,13 @@ export function PromptVariablesTooltip() {
 
   const content = (
     <div className="min-w-[200px]">
-      <div className="mb-1.5 font-medium text-foreground text-xs">{t('library.config.prompt.variables_title')}</div>
-      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-muted-foreground text-xs">
+      <div className="mb-1.5 font-medium text-neutral-50 text-xs dark:text-neutral-900">
+        {t('library.config.prompt.variables_title')}
+      </div>
+      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-neutral-300 text-xs dark:text-neutral-700">
         {PROMPT_VARIABLES.map((v) => (
           <div key={v.name} className="contents">
-            <span className="text-foreground/80">{v.name}</span>
+            <span className="text-neutral-50/90 dark:text-neutral-900/85">{v.name}</span>
             <span>{t(v.i18n)}</span>
           </div>
         ))}
@@ -37,7 +39,7 @@ export function PromptVariablesTooltip() {
         size={11}
         role="img"
         aria-label={t('library.config.prompt.variables_title')}
-        className="cursor-help text-muted-foreground/50 hover:text-foreground"
+        className="cursor-help text-muted-foreground/70 hover:text-foreground"
       />
     </Tooltip>
   )

@@ -160,7 +160,15 @@ describe('BasicSection model selector', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
 
-    render(<BasicSection form={createForm()} onChange={onChange} tagColorByName={new Map()} allTagNames={[]} />)
+    render(
+      <BasicSection
+        form={createForm()}
+        onChange={onChange}
+        mode="optional"
+        tagColorByName={new Map()}
+        allTagNames={[]}
+      />
+    )
 
     await user.click(screen.getByRole('button', { name: 'select claude' }))
 
@@ -171,7 +179,15 @@ describe('BasicSection model selector', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
 
-    render(<BasicSection form={createForm()} onChange={onChange} tagColorByName={new Map()} allTagNames={[]} />)
+    render(
+      <BasicSection
+        form={createForm()}
+        onChange={onChange}
+        mode="optional"
+        tagColorByName={new Map()}
+        allTagNames={[]}
+      />
+    )
 
     await user.click(screen.getByRole('button', { name: 'select moonshot' }))
     await user.click(screen.getByRole('button', { name: 'select kimi' }))
@@ -188,6 +204,7 @@ describe('BasicSection model selector', () => {
       <BasicSection
         form={createForm({ modelId: 'anthropic::claude-sonnet-4-5' })}
         onChange={onChange}
+        mode="optional"
         tagColorByName={new Map()}
         allTagNames={[]}
       />
@@ -215,10 +232,23 @@ describe('BasicSection model settings', () => {
         /给助手起个名字|Give the assistant a name|library\.config\.basic\.field\.name\.placeholder/
       )
     ).toBeInTheDocument()
+    expect(
+      screen.getByPlaceholderText(
+        /这个助手的用途|What this assistant is for|library\.config\.basic\.field\.description\.placeholder/
+      )
+    ).toBeInTheDocument()
   })
 
   it('does not expose zero as a context count slider value', () => {
-    render(<BasicSection form={createForm()} onChange={vi.fn()} tagColorByName={new Map()} allTagNames={[]} />)
+    render(
+      <BasicSection
+        form={createForm()}
+        onChange={vi.fn()}
+        mode="optional"
+        tagColorByName={new Map()}
+        allTagNames={[]}
+      />
+    )
 
     const contextSlider = screen.getAllByRole('slider').find((slider) => slider.getAttribute('aria-valuemax') === '20')
 

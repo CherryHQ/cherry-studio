@@ -20,10 +20,10 @@ const PermissionSection: FC<Props> = ({ form, onChange }) => {
   const { t } = useTranslation()
 
   return (
-    <div className="flex max-w-2xl flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.permission.title')}</h3>
-        <p className="text-muted-foreground/60 text-xs">{t('library.config.agent.section.permission.desc')}</p>
+        <p className="text-muted-foreground/75 text-xs">{t('library.config.agent.section.permission.desc')}</p>
       </div>
 
       <div className="flex flex-col gap-1.5">

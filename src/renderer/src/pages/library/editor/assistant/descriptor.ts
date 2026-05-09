@@ -1,7 +1,7 @@
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { BookOpen, FileText, Settings, Wrench } from 'lucide-react'
+import { BookOpen, Settings, SlidersHorizontal, Wrench } from 'lucide-react'
 
 import type { SectionDescriptor } from '../ConfigEditorShell'
 
@@ -20,9 +20,9 @@ export const ASSISTANT_CONFIG_SECTIONS: readonly SectionDescriptor<AssistantConf
   },
   {
     id: 'prompt',
-    icon: FileText,
-    labelKey: 'library.config.section.prompt.label',
-    descKey: 'library.config.section.prompt.desc'
+    icon: SlidersHorizontal,
+    labelKey: 'library.config.section.more.label',
+    descKey: 'library.config.section.more.desc'
   },
   {
     id: 'knowledge',

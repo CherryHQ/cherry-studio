@@ -2392,7 +2392,7 @@
         "custom_params_add": "添加参数",
         "custom_params_name": "参数名",
         "default_value": "模型默认",
-        "desc": "配置助手的身份信息和模型参数",
+        "desc": "填写头像、名称、简介和系统提示词",
         "description_label": "简介",
         "field": {
           "avatar": {
@@ -2512,12 +2512,16 @@
       "saving": "保存中...",
       "section": {
         "basic": {
-          "desc": "名称、头像、模型参数",
+          "desc": "头像、名称、简介、系统提示词",
           "label": "基础设置"
         },
         "knowledge": {
           "desc": "关联知识库、检索策略",
           "label": "知识库"
+        },
+        "more": {
+          "desc": "模型、标签和参数",
+          "label": "更多设置"
         },
         "prompt": {
           "desc": "系统提示词与变量",

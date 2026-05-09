@@ -2392,7 +2392,7 @@
         "custom_params_add": "Add parameter",
         "custom_params_name": "Parameter name",
         "default_value": "Model default",
-        "desc": "Configure the assistant's identity and model parameters",
+        "desc": "Fill in the avatar, name, description, and system prompt",
         "description_label": "Description",
         "field": {
           "avatar": {
@@ -2512,12 +2512,16 @@
       "saving": "Saving...",
       "section": {
         "basic": {
-          "desc": "Name, avatar, model parameters",
+          "desc": "Avatar, name, description, and system prompt",
           "label": "Basic"
         },
         "knowledge": {
           "desc": "Linked knowledge bases and retrieval",
           "label": "Knowledge"
+        },
+        "more": {
+          "desc": "Model, tags, and parameters",
+          "label": "More settings"
         },
         "prompt": {
           "desc": "System prompt and variables",

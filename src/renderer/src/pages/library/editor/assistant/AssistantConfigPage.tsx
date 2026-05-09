@@ -105,6 +105,7 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack, onCreated }) => {
       sections={ASSISTANT_CONFIG_SECTIONS}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
+      contentWidth={activeSection === 'basic' ? 'wide' : 'default'}
       canSave={canSave}
       saving={saving}
       saved={saved}
@@ -112,22 +113,33 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack, onCreated }) => {
       onSave={handleSave}
       onBack={onBack}>
       {activeSection === 'basic' && (
+        <>
+          <BasicSection
+            assistant={assistant}
+            form={form}
+            onChange={onChange}
+            nameError={createValidation?.nameMissing ? requiredFieldMessage : undefined}
+            tagColorByName={tagColorByName}
+            allTagNames={allTagNames}
+          />
+          <PromptSection
+            assistant={assistant}
+            assistantName={form.name}
+            prompt={form.prompt}
+            promptError={createValidation?.promptMissing ? requiredFieldMessage : undefined}
+            hideHeader
+            onChange={(prompt) => onChange({ prompt })}
+          />
+        </>
+      )}
+      {activeSection === 'prompt' && (
         <BasicSection
           assistant={assistant}
           form={form}
           onChange={onChange}
-          nameError={createValidation?.nameMissing ? requiredFieldMessage : undefined}
+          mode="optional"
           tagColorByName={tagColorByName}
           allTagNames={allTagNames}
-        />
-      )}
-      {activeSection === 'prompt' && (
-        <PromptSection
-          assistant={assistant}
-          assistantName={form.name}
-          prompt={form.prompt}
-          promptError={createValidation?.promptMissing ? requiredFieldMessage : undefined}
-          onChange={(prompt) => onChange({ prompt })}
         />
       )}
       {activeSection === 'knowledge' && (

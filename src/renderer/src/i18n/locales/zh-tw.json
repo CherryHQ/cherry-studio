@@ -2392,7 +2392,7 @@
         "custom_params_add": "[to be translated]:Add parameter",
         "custom_params_name": "[to be translated]:Parameter name",
         "default_value": "[to be translated]:Model default",
-        "desc": "[to be translated]:Configure the assistant's identity and model parameters",
+        "desc": "填寫頭像、名稱、簡介和系統提示詞",
         "description_label": "[to be translated]:Description",
         "field": {
           "avatar": {
@@ -2453,7 +2453,7 @@
         "tag_search": "[to be translated]:Search tags",
         "tags": "[to be translated]:Tags",
         "temperature": "[to be translated]:Temperature",
-        "title": "[to be translated]:Basic settings",
+        "title": "基礎設定",
         "tool_use_function": "[to be translated]:Function",
         "tool_use_mode": "[to be translated]:Tool call mode",
         "tool_use_prompt": "[to be translated]:Prompt",
@@ -2512,12 +2512,16 @@
       "saving": "[to be translated]:Saving...",
       "section": {
         "basic": {
-          "desc": "[to be translated]:Name, avatar, model parameters",
-          "label": "[to be translated]:Basic"
+          "desc": "頭像、名稱、簡介、系統提示詞",
+          "label": "基礎設定"
         },
         "knowledge": {
           "desc": "[to be translated]:Linked knowledge bases and retrieval",
           "label": "[to be translated]:Knowledge"
+        },
+        "more": {
+          "desc": "模型、標籤和參數",
+          "label": "更多設定"
         },
         "prompt": {
           "desc": "[to be translated]:System prompt and variables",

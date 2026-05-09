@@ -136,6 +136,7 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
       sections={visibleSections}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
+      contentWidth={activeSection === 'prompt' ? 'wide' : 'default'}
       canSave={canSave}
       saving={saving}
       saved={saved}

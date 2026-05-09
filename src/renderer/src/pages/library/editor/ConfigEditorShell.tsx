@@ -26,6 +26,7 @@ export interface ConfigEditorShellProps<Id extends string> {
   sections: readonly SectionDescriptor<Id>[]
   activeSection: Id
   onSectionChange: (section: Id) => void
+  contentWidth?: 'default' | 'wide'
 
   canSave: boolean
   saving: boolean
@@ -74,11 +75,11 @@ export function ResourceEditorTopBar({
         size="icon-sm"
         onClick={onBack}
         aria-label={t('common.back')}
-        className="text-muted-foreground/50">
+        className="text-muted-foreground/75">
         <ArrowLeft size={14} />
       </Button>
       <Breadcrumb>
-        <BreadcrumbList className="gap-1 text-muted-foreground/50 text-xs sm:gap-1">
+        <BreadcrumbList className="gap-1 text-muted-foreground/75 text-xs sm:gap-1">
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
               <button type="button" className="cursor-pointer" onClick={onBack}>
@@ -115,7 +116,7 @@ export function ResourceEditorTopBar({
       </AnimatePresence>
       {saveButton && (
         <>
-          <Button variant="outline" size="sm" onClick={onBack} className="text-muted-foreground/60">
+          <Button variant="outline" size="sm" onClick={onBack} className="text-muted-foreground/80">
             {t('common.cancel')}
           </Button>
           <Button
@@ -155,6 +156,7 @@ export function ConfigEditorShell<Id extends string>({
   sections,
   activeSection,
   onSectionChange,
+  contentWidth = 'default',
   canSave,
   saving,
   saved,
@@ -190,11 +192,11 @@ export function ConfigEditorShell<Id extends string>({
                 icon={<Icon size={13} strokeWidth={1.6} className="mt-0.5 shrink-0" />}
                 label={t(s.labelKey)}
                 description={t(s.descKey)}
-                descriptionClassName="mt-px text-xs text-sidebar-foreground/55 group-data-[active=true]:text-sidebar-foreground/50"
+                descriptionClassName="mt-px text-xs text-sidebar-foreground/70 group-data-[active=true]:text-sidebar-foreground/70"
                 className={`mb-1 items-start gap-2.5 rounded-lg border-0 px-3 py-2.5 text-left font-normal transition-all focus-visible:ring-0 ${
                   active
                     ? 'bg-sidebar-accent text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground'
-                    : 'text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                    : 'text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                 }`}
               />
             )
@@ -208,7 +210,8 @@ export function ConfigEditorShell<Id extends string>({
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}>
+              transition={{ duration: 0.2 }}
+              className={`mx-auto w-full ${contentWidth === 'wide' ? 'max-w-[880px]' : 'max-w-[720px]'}`}>
               {children}
             </motion.div>
           </AnimatePresence>

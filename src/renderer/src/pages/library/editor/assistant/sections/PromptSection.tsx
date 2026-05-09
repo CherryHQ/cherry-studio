@@ -21,6 +21,7 @@ interface Props {
   assistantName?: string
   prompt: string
   promptError?: string
+  hideHeader?: boolean
   onChange: (prompt: string) => void
 }
 
@@ -43,7 +44,7 @@ const logger = loggerService.withContext('LibraryAssistantPromptSection')
  * ModelAvatar / SelectChatModelPopup / useProviders — should land together in
  * the same follow-up PR. Kept here so the editor matches legacy UX.
  */
-const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptError, onChange }) => {
+const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptError, hideHeader = false, onChange }) => {
   const { t } = useTranslation()
   const [fontSize] = usePreference('chat.message.font_size')
   const { activeCmTheme } = useCodeStyle()
@@ -99,11 +100,13 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h3 className="mb-1 text-base text-foreground">{t('library.config.prompt.title')}</h3>
-        <p className="text-muted-foreground/60 text-xs">{t('library.config.prompt.desc')}</p>
-      </div>
+    <div className={hideHeader ? 'mt-6 space-y-6' : 'space-y-6'}>
+      {!hideHeader && (
+        <div>
+          <h3 className="mb-1 text-base text-foreground">{t('library.config.prompt.title')}</h3>
+          <p className="text-muted-foreground/75 text-xs">{t('library.config.prompt.desc')}</p>
+        </div>
+      )}
 
       <Field data-invalid={promptInvalid || undefined} className="gap-1.5">
         <div className="flex items-center justify-between gap-3">
@@ -124,7 +127,7 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
                   variant="ghost"
                   aria-label={t('common.undo')}
                   onClick={handleUndoGeneratedPrompt}
-                  className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
+                  className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/75 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
                   <Undo2 size={10} />
                 </Button>
               </Tooltip>
@@ -136,7 +139,7 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
                 aria-label={t('library.config.prompt.generate')}
                 onClick={handleGeneratePrompt}
                 disabled={!generateSource || generating}
-                className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+                className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/75 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
                 {generating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
               </Button>
             </Tooltip>
@@ -144,7 +147,7 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
               variant="ghost"
               onClick={() => setShowPreview((v) => !v)}
               disabled={prompt.length === 0}
-              className="flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2 py-[3px] font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+              className="flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2 py-[3px] font-normal text-muted-foreground/75 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
               {effectiveShowPreview ? <Edit size={10} /> : <Eye size={10} />}
               <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
             </Button>
@@ -180,7 +183,7 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
             )}
           </div>
           <FieldError className="text-xs" errors={promptError ? [{ message: promptError }] : undefined} />
-          <div className="flex justify-between text-muted-foreground/50 text-xs">
+          <div className="flex justify-between text-muted-foreground/75 text-xs">
             <span>{t('library.config.prompt.dblclick_hint')}</span>
             <span className="tabular-nums">
               {t('library.config.prompt.tokens_label')}

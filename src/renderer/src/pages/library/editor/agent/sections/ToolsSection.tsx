@@ -168,19 +168,19 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
   ]
 
   return (
-    <div className="flex max-w-2xl flex-col gap-5">
+    <div className="flex flex-col gap-5">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.tools.title')}</h3>
-        <p className="text-muted-foreground/60 text-xs">{t('library.config.agent.section.tools.desc')}</p>
+        <p className="text-muted-foreground/75 text-xs">{t('library.config.agent.section.tools.desc')}</p>
       </div>
 
       <div className="relative">
-        <Search size={11} className="-translate-y-1/2 absolute top-1/2 left-3 text-muted-foreground/40" />
+        <Search size={11} className="-translate-y-1/2 absolute top-1/2 left-3 text-muted-foreground/70" />
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('library.config.agent.section.tools.search_placeholder')}
-          className="rounded-xs border-border/20 bg-accent/15 pl-8 text-xs placeholder:text-muted-foreground/40 focus:border-border/40 focus:bg-accent/20"
+          className="rounded-xs border-border/20 bg-accent/15 pl-8 text-xs placeholder:text-muted-foreground/70 focus:border-border/40 focus:bg-accent/20"
         />
       </div>
 
@@ -191,9 +191,9 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
-                className="group relative h-auto rounded-lg border-0 bg-transparent px-3 py-1.5 font-normal text-muted-foreground/55 text-sm shadow-none transition-colors hover:bg-accent/30 hover:text-foreground/70 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent">
+                className="group relative h-auto rounded-lg border-0 bg-transparent px-3 py-1.5 font-normal text-muted-foreground/75 text-sm shadow-none transition-colors hover:bg-accent/30 hover:text-foreground/80 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent">
                 {tab.label}
-                <span className="ml-1.5 text-muted-foreground/40 text-xs group-data-[state=active]:text-muted-foreground/50">
+                <span className="ml-1.5 text-muted-foreground/70 text-xs group-data-[state=active]:text-muted-foreground/75">
                   {tab.enabled}/{tab.total}
                 </span>
                 <span className="absolute right-0 bottom-0 left-0 h-[1.5px] rounded-full bg-foreground/60 opacity-0 transition-opacity group-data-[state=active]:opacity-100" />

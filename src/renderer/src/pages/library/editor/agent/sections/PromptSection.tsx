@@ -19,10 +19,10 @@ interface Props {
 const PromptSection: FC<Props> = ({ form, onChange }) => {
   const { t } = useTranslation()
   return (
-    <div className="flex max-w-2xl flex-col gap-5">
+    <div className="flex flex-col gap-5">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.prompt.title')}</h3>
-        <p className="text-muted-foreground/60 text-xs">{t('library.config.agent.section.prompt.desc')}</p>
+        <p className="text-muted-foreground/75 text-xs">{t('library.config.agent.section.prompt.desc')}</p>
       </div>
 
       <Field className="gap-1.5">

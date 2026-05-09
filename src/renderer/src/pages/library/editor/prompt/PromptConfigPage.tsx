@@ -133,7 +133,7 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
       <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-9 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
         <div className="w-full max-w-[760px] space-y-8">
           <label className="block">
-            <span className="mb-3 block font-medium text-muted-foreground/55 text-sm">
+            <span className="mb-3 block font-medium text-muted-foreground/75 text-sm">
               {t('library.config.prompt.field.name.label')}
             </span>
             <Input
@@ -148,7 +148,7 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
 
           <div className="block">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <label htmlFor="library-prompt-content" className="font-medium text-muted-foreground/55 text-sm">
+              <label htmlFor="library-prompt-content" className="font-medium text-muted-foreground/75 text-sm">
                 {t('library.config.prompt.field.content.label')}
               </label>
               <Button

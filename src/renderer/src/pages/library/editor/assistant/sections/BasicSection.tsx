@@ -50,6 +50,7 @@ interface Props {
   assistant?: Assistant
   form: AssistantFormState
   onChange: (patch: Partial<AssistantFormState>) => void
+  mode?: 'required' | 'optional'
   /** Field-level validation owned by the page/descriptor layer. */
   nameError?: string
   /**
@@ -65,7 +66,14 @@ interface Props {
   allTagNames: string[]
 }
 
-export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByName, allTagNames }) => {
+export const BasicSection: FC<Props> = ({
+  form,
+  onChange,
+  mode = 'required',
+  nameError,
+  tagColorByName,
+  allTagNames
+}) => {
   const { t } = useTranslation()
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const nameInvalid = Boolean(nameError)
@@ -94,263 +102,272 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
   }
 
   return (
-    <div className="max-w-lg space-y-6">
+    <div className="space-y-6">
       <div>
-        <h3 className="mb-1 text-base text-foreground">{t('library.config.basic.title')}</h3>
-        <p className="text-muted-foreground/60 text-xs">{t('library.config.basic.desc')}</p>
+        <h3 className="mb-1 text-base text-foreground">
+          {t(mode === 'required' ? 'library.config.basic.title' : 'library.config.section.more.label')}
+        </h3>
+        <p className="text-muted-foreground/75 text-xs">
+          {t(mode === 'required' ? 'library.config.basic.desc' : 'library.config.section.more.desc')}
+        </p>
       </div>
 
-      <Field className="gap-1.5">
-        <FieldHeader label={t('common.avatar')} hint={t('library.config.basic.field.avatar.hint')} />
-        <FieldContent>
-          <div className="flex items-center gap-2">
-            <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
-              <PopoverTrigger asChild>
+      {mode === 'required' ? (
+        <>
+          <Field className="gap-1.5">
+            <FieldHeader label={t('common.avatar')} hint={t('library.config.basic.field.avatar.hint')} />
+            <FieldContent>
+              <div className="flex items-center gap-2">
+                <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-label={t('library.config.basic.pick_avatar')}
+                      className="h-auto min-h-0 rounded-[20%] p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50">
+                      <EmojiAvatar size={48} fontSize={24}>
+                        {form.emoji || '🌟'}
+                      </EmojiAvatar>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <EmojiPicker
+                      onEmojiClick={(emoji) => {
+                        onChange({ emoji })
+                        setEmojiPickerOpen(false)
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <div className="flex flex-wrap gap-1">
+                  {AVATAR_OPTIONS.map((a) => (
+                    <Button
+                      key={a}
+                      type="button"
+                      variant="ghost"
+                      onClick={() => onChange({ emoji: a })}
+                      className={`flex h-7 min-h-0 w-7 items-center justify-center rounded-2xs font-normal text-sm shadow-none transition-all focus-visible:ring-0 ${
+                        form.emoji === a ? 'bg-accent ring-1 ring-primary/20' : 'hover:bg-accent/50'
+                      }`}>
+                      {a}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </FieldContent>
+          </Field>
+
+          <Field data-invalid={nameInvalid || undefined} className="gap-1.5">
+            <FieldHeader label={t('common.name')} hint={t('library.config.basic.field.name.hint')} />
+            <FieldContent>
+              <Input
+                value={form.name}
+                onChange={(e) => onChange({ name: e.target.value })}
+                placeholder={t('library.config.basic.field.name.placeholder')}
+                aria-invalid={nameInvalid || undefined}
+                className="h-auto w-full rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0 aria-invalid:border-destructive/50"
+              />
+              <FieldError className="text-xs" errors={nameError ? [{ message: nameError }] : undefined} />
+            </FieldContent>
+          </Field>
+
+          <Field className="gap-1.5">
+            <FieldHeader
+              label={t('library.config.basic.description_label')}
+              hint={t('library.config.basic.field.description.hint')}
+            />
+            <FieldContent>
+              <Textarea.Input
+                value={form.description}
+                onValueChange={(description) => onChange({ description })}
+                rows={3}
+                placeholder={t('library.config.basic.field.description.placeholder')}
+                className="min-h-0 w-full resize-none rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
+              />
+            </FieldContent>
+          </Field>
+        </>
+      ) : null}
+
+      {mode === 'optional' && (
+        <>
+          <ModelSelectorField
+            label={t('library.config.basic.model')}
+            hint={t('library.config.basic.field.model.hint')}
+            value={form.modelId}
+            allowClear
+            filter={isSelectableAssistantModel}
+            onSelect={handleSelectModel}
+          />
+
+          <Field className="gap-1.5">
+            <FieldHeader label={t('library.config.basic.tags')} hint={t('library.config.basic.field.tags.hint')} />
+            <FieldContent>
+              <TagSelector
+                value={form.tags}
+                onChange={(tags) => onChange({ tags })}
+                tagColorByName={tagColorByName}
+                allTagNames={allTagNames}
+              />
+              <FieldDescription className="text-muted-foreground/75 text-xs">
+                {t('library.config.basic.tag_hint')}
+              </FieldDescription>
+            </FieldContent>
+          </Field>
+
+          <Separator className="bg-border/30" />
+
+          <ToggleFieldGroup
+            label={t('library.config.basic.temperature')}
+            valueLabel={form.enableTemperature ? form.temperature.toFixed(1) : t('library.config.basic.default_value')}
+            hint={t('library.config.basic.field.temperature.hint')}
+            enabled={form.enableTemperature}
+            onEnabledChange={(v) => onChange({ enableTemperature: v })}>
+            <Slider
+              size="sm"
+              min={0}
+              max={2}
+              step={0.1}
+              value={[form.temperature]}
+              onValueChange={([v]) => onChange({ temperature: v })}
+              className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
+            />
+            <div className="mt-1 flex justify-between">
+              <span className="text-muted-foreground/75 text-xs">{t('library.config.basic.precise')}</span>
+              <span className="text-muted-foreground/75 text-xs">{t('library.config.basic.creative')}</span>
+            </div>
+          </ToggleFieldGroup>
+
+          <ToggleFieldGroup
+            label={t('library.config.basic.top_p')}
+            valueLabel={form.enableTopP ? form.topP.toFixed(2) : t('library.config.basic.default_value')}
+            hint={t('library.config.basic.field.top_p.hint')}
+            enabled={form.enableTopP}
+            onEnabledChange={(v) => onChange({ enableTopP: v })}>
+            <Slider
+              size="sm"
+              min={0}
+              max={1}
+              step={0.05}
+              value={[form.topP]}
+              onValueChange={([v]) => onChange({ topP: v })}
+              className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
+            />
+          </ToggleFieldGroup>
+
+          <Field className="gap-1.5">
+            <FieldHeader
+              label={
+                <span className="flex items-center gap-1.5">
+                  <span>{t('library.config.basic.context_count')}</span>
+                  <span className="text-muted-foreground/75">
+                    {form.contextCount >= UI_MAX_CONTEXT_COUNT
+                      ? t('library.config.basic.unlimited')
+                      : form.contextCount}
+                  </span>
+                </span>
+              }
+              hint={t('library.config.basic.field.context_count.hint')}
+            />
+            <FieldContent>
+              <Slider
+                size="sm"
+                min={ASSISTANT_CONTEXT_COUNT_MIN}
+                max={UI_MAX_CONTEXT_COUNT}
+                step={1}
+                value={[form.contextCount]}
+                onValueChange={([v]) => onChange({ contextCount: Math.max(ASSISTANT_CONTEXT_COUNT_MIN, v) })}
+                className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
+              />
+            </FieldContent>
+          </Field>
+
+          <Separator className="bg-border/30" />
+
+          <ToggleFieldGroup
+            label={t('library.config.basic.max_tokens')}
+            valueLabel={
+              form.enableMaxTokens ? form.maxTokens.toLocaleString() : t('library.config.basic.default_value')
+            }
+            hint={t('library.config.basic.field.max_tokens.hint')}
+            enabled={form.enableMaxTokens}
+            onEnabledChange={(v) => onChange({ enableMaxTokens: v })}>
+            <EditableNumber
+              block
+              min={1}
+              step={1}
+              precision={0}
+              align="start"
+              changeOnBlur
+              value={form.maxTokens}
+              onChange={(v) => onChange({ maxTokens: typeof v === 'number' && v > 0 ? v : UI_DEFAULT_MAX_TOKENS })}
+              className="h-auto rounded-xs border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs tabular-nums shadow-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
+            />
+          </ToggleFieldGroup>
+
+          <div className="flex items-center justify-between">
+            <FieldHeader
+              label={t('library.config.basic.stream_output')}
+              hint={t('library.config.basic.field.stream_output.hint')}
+              className="min-w-0 flex-1"
+            />
+            <Switch checked={form.streamOutput} onCheckedChange={(v) => onChange({ streamOutput: v })} />
+          </div>
+
+          <div className="space-y-1.5">
+            <FieldHeader
+              label={t('library.config.basic.tool_use_mode')}
+              hint={t('library.config.basic.field.tool_use_mode.hint')}
+            />
+            <ButtonGroup className="overflow-hidden rounded-2xs border border-border/30">
+              {(['function', 'prompt'] as const).map((mode) => (
                 <Button
+                  key={mode}
                   type="button"
                   variant="ghost"
-                  aria-label={t('library.config.basic.pick_avatar')}
-                  className="h-auto min-h-0 rounded-[20%] p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50">
-                  <EmojiAvatar size={48} fontSize={24}>
-                    {form.emoji || '🌟'}
-                  </EmojiAvatar>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <EmojiPicker
-                  onEmojiClick={(emoji) => {
-                    onChange({ emoji })
-                    setEmojiPickerOpen(false)
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
-            <div className="flex flex-wrap gap-1">
-              {AVATAR_OPTIONS.map((a) => (
-                <Button
-                  key={a}
-                  type="button"
-                  variant="ghost"
-                  onClick={() => onChange({ emoji: a })}
-                  className={`flex h-7 min-h-0 w-7 items-center justify-center rounded-2xs font-normal text-sm shadow-none transition-all focus-visible:ring-0 ${
-                    form.emoji === a ? 'bg-accent ring-1 ring-primary/20' : 'hover:bg-accent/50'
+                  onClick={() => onChange({ toolUseMode: mode })}
+                  className={`h-auto min-h-0 px-2.5 py-1 font-normal text-xs shadow-none transition-colors focus-visible:ring-0 ${
+                    form.toolUseMode === mode
+                      ? 'bg-accent text-foreground'
+                      : 'text-muted-foreground/75 hover:bg-accent/50 hover:text-foreground'
                   }`}>
-                  {a}
+                  {t(
+                    mode === 'function'
+                      ? 'library.config.basic.tool_use_function'
+                      : 'library.config.basic.tool_use_prompt'
+                  )}
                 </Button>
               ))}
-            </div>
+            </ButtonGroup>
           </div>
-        </FieldContent>
-      </Field>
 
-      <Field data-invalid={nameInvalid || undefined} className="gap-1.5">
-        <FieldHeader label={t('common.name')} hint={t('library.config.basic.field.name.hint')} />
-        <FieldContent>
-          <Input
-            value={form.name}
-            onChange={(e) => onChange({ name: e.target.value })}
-            placeholder={t('library.config.basic.field.name.placeholder')}
-            aria-invalid={nameInvalid || undefined}
-            className="h-auto w-full rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0 aria-invalid:border-destructive/50"
+          <ToggleFieldGroup
+            label={t('library.config.basic.max_tool_calls')}
+            valueLabel={form.enableMaxToolCalls ? form.maxToolCalls.toString() : t('library.config.basic.unlimited')}
+            hint={t('library.config.basic.field.max_tool_calls.hint')}
+            enabled={form.enableMaxToolCalls}
+            onEnabledChange={(v) => onChange({ enableMaxToolCalls: v })}>
+            <EditableNumber
+              block
+              min={1}
+              step={1}
+              precision={0}
+              align="start"
+              changeOnBlur
+              value={form.maxToolCalls}
+              onChange={(v) =>
+                onChange({ maxToolCalls: typeof v === 'number' && v > 0 ? v : UI_DEFAULT_MAX_TOOL_CALLS })
+              }
+              className="h-auto rounded-xs border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs tabular-nums shadow-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
+            />
+          </ToggleFieldGroup>
+
+          <CustomParametersField
+            value={form.customParameters}
+            onChange={(customParameters) => onChange({ customParameters })}
           />
-          <FieldError className="text-xs" errors={nameError ? [{ message: nameError }] : undefined} />
-        </FieldContent>
-      </Field>
-
-      <Field className="gap-1.5">
-        <FieldHeader
-          label={t('library.config.basic.description_label')}
-          hint={t('library.config.basic.field.description.hint')}
-        />
-        <FieldContent>
-          <Textarea.Input
-            value={form.description}
-            onValueChange={(description) => onChange({ description })}
-            rows={3}
-            placeholder={t('library.config.basic.field.description.placeholder')}
-            className="min-h-0 w-full resize-none rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
-          />
-        </FieldContent>
-      </Field>
-
-      <Field className="gap-1.5">
-        <FieldHeader label={t('library.config.basic.tags')} hint={t('library.config.basic.field.tags.hint')} />
-        <FieldContent>
-          <TagSelector
-            value={form.tags}
-            onChange={(tags) => onChange({ tags })}
-            tagColorByName={tagColorByName}
-            allTagNames={allTagNames}
-          />
-          <FieldDescription className="text-muted-foreground/50 text-xs">
-            {t('library.config.basic.tag_hint')}
-          </FieldDescription>
-        </FieldContent>
-      </Field>
-
-      <Separator className="bg-border/30" />
-
-      <ModelSelectorField
-        label={t('library.config.basic.model')}
-        hint={t('library.config.basic.field.model.hint')}
-        value={form.modelId}
-        allowClear
-        filter={isSelectableAssistantModel}
-        onSelect={handleSelectModel}
-      />
-
-      {/* 模型温度 */}
-      <ToggleFieldGroup
-        label={t('library.config.basic.temperature')}
-        valueLabel={form.enableTemperature ? form.temperature.toFixed(1) : t('library.config.basic.default_value')}
-        hint={t('library.config.basic.field.temperature.hint')}
-        enabled={form.enableTemperature}
-        onEnabledChange={(v) => onChange({ enableTemperature: v })}>
-        <Slider
-          size="sm"
-          min={0}
-          max={2}
-          step={0.1}
-          value={[form.temperature]}
-          onValueChange={([v]) => onChange({ temperature: v })}
-          className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
-        />
-        <div className="mt-1 flex justify-between">
-          <span className="text-muted-foreground/50 text-xs">{t('library.config.basic.precise')}</span>
-          <span className="text-muted-foreground/50 text-xs">{t('library.config.basic.creative')}</span>
-        </div>
-      </ToggleFieldGroup>
-
-      {/* Top-P */}
-      <ToggleFieldGroup
-        label={t('library.config.basic.top_p')}
-        valueLabel={form.enableTopP ? form.topP.toFixed(2) : t('library.config.basic.default_value')}
-        hint={t('library.config.basic.field.top_p.hint')}
-        enabled={form.enableTopP}
-        onEnabledChange={(v) => onChange({ enableTopP: v })}>
-        <Slider
-          size="sm"
-          min={0}
-          max={1}
-          step={0.05}
-          value={[form.topP]}
-          onValueChange={([v]) => onChange({ topP: v })}
-          className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
-        />
-      </ToggleFieldGroup>
-
-      {/* 上下文数 */}
-      <Field className="gap-1.5">
-        <FieldHeader
-          label={
-            <span className="flex items-center gap-1.5">
-              <span>{t('library.config.basic.context_count')}</span>
-              <span className="text-muted-foreground/50">
-                {form.contextCount >= UI_MAX_CONTEXT_COUNT ? t('library.config.basic.unlimited') : form.contextCount}
-              </span>
-            </span>
-          }
-          hint={t('library.config.basic.field.context_count.hint')}
-        />
-        <FieldContent>
-          <Slider
-            size="sm"
-            min={ASSISTANT_CONTEXT_COUNT_MIN}
-            max={UI_MAX_CONTEXT_COUNT}
-            step={1}
-            value={[form.contextCount]}
-            onValueChange={([v]) => onChange({ contextCount: Math.max(ASSISTANT_CONTEXT_COUNT_MIN, v) })}
-            className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
-          />
-        </FieldContent>
-      </Field>
-
-      <Separator className="bg-border/30" />
-
-      {/* 最大 Token 数 */}
-      <ToggleFieldGroup
-        label={t('library.config.basic.max_tokens')}
-        valueLabel={form.enableMaxTokens ? form.maxTokens.toLocaleString() : t('library.config.basic.default_value')}
-        hint={t('library.config.basic.field.max_tokens.hint')}
-        enabled={form.enableMaxTokens}
-        onEnabledChange={(v) => onChange({ enableMaxTokens: v })}>
-        <EditableNumber
-          block
-          min={1}
-          step={1}
-          precision={0}
-          align="start"
-          changeOnBlur
-          value={form.maxTokens}
-          // Schema requires maxTokens to be a positive int — fall back to the
-          // UI default for null/non-positive on commit. EditableNumber's local
-          // editing state lets the user clear+retype without snapping back.
-          onChange={(v) => onChange({ maxTokens: typeof v === 'number' && v > 0 ? v : UI_DEFAULT_MAX_TOKENS })}
-          className="h-auto rounded-xs border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs tabular-nums shadow-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
-        />
-      </ToggleFieldGroup>
-
-      {/* 流式输出 */}
-      <div className="flex items-center justify-between">
-        <FieldHeader
-          label={t('library.config.basic.stream_output')}
-          hint={t('library.config.basic.field.stream_output.hint')}
-          className="min-w-0 flex-1"
-        />
-        <Switch checked={form.streamOutput} onCheckedChange={(v) => onChange({ streamOutput: v })} />
-      </div>
-
-      {/* 工具调用方式 */}
-      <div className="space-y-1.5">
-        <FieldHeader
-          label={t('library.config.basic.tool_use_mode')}
-          hint={t('library.config.basic.field.tool_use_mode.hint')}
-        />
-        <ButtonGroup className="overflow-hidden rounded-2xs border border-border/30">
-          {(['function', 'prompt'] as const).map((mode) => (
-            <Button
-              key={mode}
-              type="button"
-              variant="ghost"
-              onClick={() => onChange({ toolUseMode: mode })}
-              className={`h-auto min-h-0 px-2.5 py-1 font-normal text-xs shadow-none transition-colors focus-visible:ring-0 ${
-                form.toolUseMode === mode
-                  ? 'bg-accent text-foreground'
-                  : 'text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground'
-              }`}>
-              {t(
-                mode === 'function' ? 'library.config.basic.tool_use_function' : 'library.config.basic.tool_use_prompt'
-              )}
-            </Button>
-          ))}
-        </ButtonGroup>
-      </div>
-
-      {/* 最大工具调用次数 */}
-      <ToggleFieldGroup
-        label={t('library.config.basic.max_tool_calls')}
-        valueLabel={form.enableMaxToolCalls ? form.maxToolCalls.toString() : t('library.config.basic.unlimited')}
-        hint={t('library.config.basic.field.max_tool_calls.hint')}
-        enabled={form.enableMaxToolCalls}
-        onEnabledChange={(v) => onChange({ enableMaxToolCalls: v })}>
-        <EditableNumber
-          block
-          min={1}
-          step={1}
-          precision={0}
-          align="start"
-          changeOnBlur
-          value={form.maxToolCalls}
-          onChange={(v) => onChange({ maxToolCalls: typeof v === 'number' && v > 0 ? v : UI_DEFAULT_MAX_TOOL_CALLS })}
-          className="h-auto rounded-xs border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs tabular-nums shadow-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
-        />
-      </ToggleFieldGroup>
-
-      {/* 自定义参数 */}
-      <CustomParametersField
-        value={form.customParameters}
-        onChange={(customParameters) => onChange({ customParameters })}
-      />
+        </>
+      )}
     </div>
   )
 }
@@ -577,7 +594,7 @@ function ToggleFieldGroup({
           label={
             <span className="flex items-center gap-1.5">
               <span>{label}</span>
-              <span className="text-muted-foreground/50">{valueLabel}</span>
+              <span className="text-muted-foreground/75">{valueLabel}</span>
             </span>
           }
           hint={hint}

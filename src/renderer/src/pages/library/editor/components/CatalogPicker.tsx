@@ -54,7 +54,7 @@ export function BoundCatalogRow({ item, onDisable }: { item: CatalogItem; onDisa
           ) : null}
         </div>
         {item.description ? (
-          <div className="mt-0.5 truncate text-muted-foreground/55 text-xs" title={item.description}>
+          <div className="mt-0.5 truncate text-muted-foreground/75 text-xs" title={item.description}>
             {item.description}
           </div>
         ) : null}
@@ -160,7 +160,7 @@ export const AddCatalogPopover: FC<{
           disabled={disabled}
           className={`${
             triggerPosition === 'end' ? 'ml-auto' : ''
-          } flex h-auto min-h-0 items-center gap-1 rounded-lg px-2 py-1 font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-30 ${
+          } flex h-auto min-h-0 items-center gap-1 rounded-lg px-2 py-1 font-normal text-muted-foreground/75 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-30 ${
             triggerClassName ?? ''
           }`}>
           <Plus size={10} />
@@ -174,17 +174,17 @@ export const AddCatalogPopover: FC<{
         <div className="relative mb-1">
           <Search
             size={14}
-            className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2.5 text-muted-foreground/40"
+            className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2.5 text-muted-foreground/70"
           />
           <Input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder={searchPlaceholder}
-            className="h-8 rounded-lg border-0 bg-transparent pr-2 pl-7 text-xs shadow-none transition-colors placeholder:text-muted-foreground/40 focus-visible:bg-accent/30 focus-visible:ring-0"
+            className="h-8 rounded-lg border-0 bg-transparent pr-2 pl-7 text-xs shadow-none transition-colors placeholder:text-muted-foreground/70 focus-visible:bg-accent/30 focus-visible:ring-0"
           />
         </div>
         {available.length === 0 ? (
-          <p className="px-2 py-5 text-center font-normal text-muted-foreground/45 text-xs">{emptyLabel}</p>
+          <p className="px-2 py-5 text-center font-normal text-muted-foreground/70 text-xs">{emptyLabel}</p>
         ) : (
           <Scrollbar className="max-h-60">
             <MenuList className="gap-0.5">
@@ -197,7 +197,7 @@ export const AddCatalogPopover: FC<{
                   icon={it.icon}
                   label={it.name}
                   description={it.description || undefined}
-                  descriptionClassName="text-muted-foreground/45"
+                  descriptionClassName="text-muted-foreground/70"
                   descriptionLines={1}
                   onClick={() => {
                     onAdd(it.id)
@@ -215,5 +215,5 @@ export const AddCatalogPopover: FC<{
 }
 
 export function CatalogEmptyPlaceholder({ children }: { children: ReactNode }) {
-  return <div className="py-14 text-center text-muted-foreground/55 text-xs">{children}</div>
+  return <div className="py-14 text-center text-muted-foreground/75 text-xs">{children}</div>
 }
