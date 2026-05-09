@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
-import ProviderSettingsDrawer from '../../components/ProviderSettingsDrawer'
+import ProviderSettingsDrawer from '../../shared/primitives/ProviderSettingsDrawer'
 import AddModelFormPanel from './AddModelFormPanel'
 import type { AddModelDrawerPrefill } from './types'
 

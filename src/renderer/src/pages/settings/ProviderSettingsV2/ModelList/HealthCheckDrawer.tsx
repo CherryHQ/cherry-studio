@@ -9,8 +9,8 @@ import { AlertTriangle, CheckCircle2, Loader2, XCircle } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderSettingsDrawer from '../components/ProviderSettingsDrawer'
-import { drawerClasses } from '../components/ProviderSettingsPrimitives'
+import ProviderSettingsDrawer from '../shared/primitives/ProviderSettingsDrawer'
+import { drawerClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import { healthCheckErrorToDisplayString } from '../utils/healthCheck'
 
 interface HealthCheckDrawerProps {

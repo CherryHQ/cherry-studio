@@ -1,5 +1,6 @@
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { CHERRYIN_CONFIG } from '@shared/config/constant'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -116,25 +117,49 @@ interface PendingOAuthFlow {
   initiatorWebContentsId: number
 }
 
-const pendingOAuthFlows = new Map<string, PendingOAuthFlow>()
-
 interface TokenRefreshResult {
   accessToken: string | null
   attempted: boolean
 }
 
-// Clean up expired flows (older than 10 minutes)
-function cleanupExpiredFlows(): void {
-  const now = Date.now()
-  for (const [state, flow] of pendingOAuthFlows.entries()) {
-    if (now - flow.timestamp > 10 * 60 * 1000) {
-      pendingOAuthFlows.delete(state)
+@Injectable('CherryINOAuthService')
+@ServicePhase(Phase.Background)
+export class CherryINOAuthService extends BaseService {
+  private readonly pendingOAuthFlows = new Map<string, PendingOAuthFlow>()
+  private refreshAccessTokenPromise: Promise<TokenRefreshResult> | null = null
+
+  protected onInit(): void {
+    this.registerIpcHandlers()
+    this.registerInterval(() => this.cleanupExpiredFlows(), 60 * 1000)
+  }
+
+  protected onStop(): void {
+    this.pendingOAuthFlows.clear()
+    this.refreshAccessTokenPromise = null
+  }
+
+  protected onDestroy(): void {
+    this.pendingOAuthFlows.clear()
+    this.refreshAccessTokenPromise = null
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.CherryIN_SaveToken, this.saveToken)
+    this.ipcHandle(IpcChannel.CherryIN_HasToken, this.hasToken)
+    this.ipcHandle(IpcChannel.CherryIN_GetBalance, this.getBalance)
+    this.ipcHandle(IpcChannel.CherryIN_Logout, this.logout)
+    this.ipcHandle(IpcChannel.CherryIN_StartOAuthFlow, this.startOAuthFlow)
+  }
+
+  // Clean up expired flows (older than 10 minutes).
+  private cleanupExpiredFlows(): void {
+    const now = Date.now()
+    for (const [state, flow] of this.pendingOAuthFlows.entries()) {
+      if (now - flow.timestamp > 10 * 60 * 1000) {
+        this.pendingOAuthFlows.delete(state)
+      }
     }
   }
-}
-
-class CherryINOAuthService {
-  private refreshAccessTokenPromise: Promise<TokenRefreshResult> | null = null
 
   private getOAuthAuthConfig = async (): Promise<Extract<AuthConfig, { type: 'oauth' }> | null> => {
     const authConfig = await providerService.getAuthConfig(CHERRYIN_PROVIDER_ID)
@@ -185,7 +210,7 @@ class CherryINOAuthService {
     oauthServer: string,
     apiHost?: string
   ): Promise<OAuthFlowParams> => {
-    cleanupExpiredFlows()
+    this.cleanupExpiredFlows()
     this.validateApiHost(oauthServer)
 
     const resolvedApiHost = apiHost ?? oauthServer
@@ -199,7 +224,7 @@ class CherryINOAuthService {
     const state = this.generateRandomString(32)
 
     // Store verifier and config for later use (keyed by state for CSRF protection)
-    pendingOAuthFlows.set(state, {
+    this.pendingOAuthFlows.set(state, {
       codeVerifier,
       oauthServer,
       apiHost: resolvedApiHost,
@@ -248,12 +273,12 @@ class CherryINOAuthService {
       return
     }
 
-    const flow = pendingOAuthFlows.get(state)
+    const flow = this.pendingOAuthFlows.get(state)
     if (!flow) {
       logger.warn('OAuth callback for unknown or expired state, ignoring')
       return
     }
-    pendingOAuthFlows.delete(state)
+    this.pendingOAuthFlows.delete(state)
 
     const initiator = webContents.fromId(flow.initiatorWebContentsId)
     if (!initiator || initiator.isDestroyed()) {
@@ -711,5 +736,3 @@ class CherryINOAuthService {
     }
   }
 }
-
-export const cherryINOAuthService = new CherryINOAuthService()

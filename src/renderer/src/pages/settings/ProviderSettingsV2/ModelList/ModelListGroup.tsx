@@ -4,7 +4,7 @@ import type { Model } from '@shared/data/types/model'
 import React, { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { modelListClasses } from '../components/ProviderSettingsPrimitives'
+import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import { getModelGroupLabel } from './grouping'
 import ModelListItem from './ModelListItem'
 import type { ModelListGroupItem } from './useProviderModelList'

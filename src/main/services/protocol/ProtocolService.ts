@@ -5,7 +5,6 @@ import { promisify } from 'node:util'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { cherryINOAuthService } from '@main/services/CherryINOAuthService'
 import { app } from 'electron'
 
 import { handleMcpProtocolUrl } from './handlers/mcpInstall'
@@ -102,7 +101,8 @@ export class ProtocolService extends BaseService {
           // point-to-point to the renderer that started the flow, so the `code`
           // never reaches unrelated windows. PPIO/Nutstore deep links use
           // different hosts and still go through the broadcast fallback below.
-          cherryINOAuthService
+          application
+            .get('CherryINOAuthService')
             .handleOAuthCallback(urlObj)
             .catch((error) => logger.error('Failed to handle CherryIN OAuth callback', error as Error))
           return

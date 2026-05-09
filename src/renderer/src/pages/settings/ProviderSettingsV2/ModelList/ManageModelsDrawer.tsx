@@ -28,9 +28,9 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderActions from '../components/ProviderActions'
-import ProviderSettingsDrawer from '../components/ProviderSettingsDrawer'
-import { modelListClasses } from '../components/ProviderSettingsPrimitives'
+import ProviderActions from '../shared/primitives/ProviderActions'
+import ProviderSettingsDrawer from '../shared/primitives/ProviderSettingsDrawer'
+import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import ManageModelsList from './ManageModelsList'
 import { getModelApiId, splitModelIds } from './ModelDrawer/helpers'
 import { toCreateModelDto } from './modelSync'
@@ -165,35 +165,45 @@ export default function ManageModelsDrawer({ open, providerId, onClose }: Manage
 
   const onAddModel = useCallback(
     async (model: Model) => {
-      if (isEmpty(model.name) || !provider) {
-        return
-      }
-
-      if (isNewApiProvider(provider)) {
-        const endpointTypes = model.endpointTypes
-        if (endpointTypes && endpointTypes.length > 0) {
-          await createModel(toCreateModelDto(providerId, model, endpointTypes))
-        } else {
-          setCustomAddModelId(getModelApiId(model))
-          setCustomAddExpanded(true)
-          window.setTimeout(() => {
-            customAddInputRef.current?.focus()
-          }, 0)
+      try {
+        if (isEmpty(model.name) || !provider) {
+          return
         }
-        return
-      }
 
-      await createModel(toCreateModelDto(providerId, model))
+        if (isNewApiProvider(provider)) {
+          const endpointTypes = model.endpointTypes
+          if (endpointTypes && endpointTypes.length > 0) {
+            await createModel(toCreateModelDto(providerId, model, endpointTypes))
+          } else {
+            setCustomAddModelId(getModelApiId(model))
+            setCustomAddExpanded(true)
+            window.setTimeout(() => {
+              customAddInputRef.current?.focus()
+            }, 0)
+          }
+          return
+        }
+
+        await createModel(toCreateModelDto(providerId, model))
+      } catch (error) {
+        logger.error('Failed to add model from manage drawer', { providerId, modelId: model.id, error })
+        window.toast.error(t('settings.models.manage.sync_pull_failed'))
+      }
     },
-    [createModel, provider, providerId]
+    [createModel, provider, providerId, t]
   )
 
   const onRemoveModel = useCallback(
     async (model: Model) => {
-      const { modelId } = parseUniqueModelId(model.id)
-      await deleteModel(providerId, modelId)
+      try {
+        const { modelId } = parseUniqueModelId(model.id)
+        await deleteModel(providerId, modelId)
+      } catch (error) {
+        logger.error('Failed to remove model from manage drawer', { providerId, modelId: model.id, error })
+        window.toast.error(t('settings.models.manage.sync_pull_failed'))
+      }
     },
-    [deleteModel, providerId]
+    [deleteModel, providerId, t]
   )
 
   const onEnableAllInProvider = useCallback(async () => {
@@ -207,8 +217,9 @@ export default function ManageModelsDrawer({ open, providerId, onClose }: Manage
       await updateModels(existingModels.map((m) => ({ uniqueModelId: m.id, patch: { isEnabled: true } })))
     } catch (error) {
       logger.error('Failed to enable all models for provider', { providerId, error })
+      window.toast.error(t('settings.models.manage.sync_pull_failed'))
     }
-  }, [existingModels, providerId, updateModels])
+  }, [existingModels, providerId, t, updateModels])
 
   const onDisableAllInProvider = useCallback(async () => {
     if (existingModels.length === 0) {
@@ -218,17 +229,28 @@ export default function ManageModelsDrawer({ open, providerId, onClose }: Manage
       await updateModels(existingModels.map((m) => ({ uniqueModelId: m.id, patch: { isEnabled: false } })))
     } catch (error) {
       logger.error('Failed to disable all models for provider', { providerId, error })
+      window.toast.error(t('settings.models.manage.sync_pull_failed'))
     }
-  }, [existingModels, providerId, updateModels])
+  }, [existingModels, providerId, t, updateModels])
 
   const onToggleModelEnabled = useCallback(
     async (model: Model, enabled: boolean) => {
-      const { modelId } = parseUniqueModelId(model.id)
-      // `updateModel` already invalidates the `/models` SWR cache via its
-      // `refresh: ['/models']` option, so no explicit refetch is needed.
-      await updateModel(providerId, modelId, { isEnabled: enabled })
+      try {
+        const { modelId } = parseUniqueModelId(model.id)
+        // `updateModel` already invalidates the `/models` SWR cache via its
+        // `refresh: ['/models']` option, so no explicit refetch is needed.
+        await updateModel(providerId, modelId, { isEnabled: enabled })
+      } catch (error) {
+        logger.error('Failed to toggle model enabled state from manage drawer', {
+          providerId,
+          modelId: model.id,
+          enabled,
+          error
+        })
+        window.toast.error(t('settings.models.manage.sync_pull_failed'))
+      }
     },
-    [providerId, updateModel]
+    [providerId, t, updateModel]
   )
 
   const enabledInProviderCount = useMemo(() => existingModels.filter((m) => m.isEnabled).length, [existingModels])
@@ -416,9 +438,9 @@ export default function ManageModelsDrawer({ open, providerId, onClose }: Manage
                   provider={provider!}
                   existingModelIds={existingModelIds}
                   existingById={existingById}
-                  onAddModel={(model) => void onAddModel(model)}
-                  onRemoveModel={(model) => void onRemoveModel(model)}
-                  onToggleModelEnabled={(model, enabled) => void onToggleModelEnabled(model, enabled)}
+                  onAddModel={onAddModel}
+                  onRemoveModel={onRemoveModel}
+                  onToggleModelEnabled={onToggleModelEnabled}
                 />
               )}
             </div>

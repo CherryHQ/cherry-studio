@@ -3,18 +3,18 @@ import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { useModelMutations } from '@renderer/hooks/useModels'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { getDefaultGroupName } from '@renderer/utils'
-import { CURRENCY, type EndpointType, type Model, type RuntimeModelPricing } from '@shared/data/types/model'
+import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, ChevronUp, SaveIcon } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderActions from '../../components/ProviderActions'
-import ProviderField from '../../components/ProviderField'
-import ProviderSection from '../../components/ProviderSection'
-import ProviderSettingsDrawer from '../../components/ProviderSettingsDrawer'
-import { drawerClasses, fieldClasses } from '../../components/ProviderSettingsPrimitives'
+import ProviderActions from '../../shared/primitives/ProviderActions'
+import ProviderField from '../../shared/primitives/ProviderField'
+import ProviderSection from '../../shared/primitives/ProviderSection'
+import ProviderSettingsDrawer from '../../shared/primitives/ProviderSettingsDrawer'
+import { drawerClasses, fieldClasses } from '../../shared/primitives/ProviderSettingsPrimitives'
 import { isNewApiProvider } from '../../utils/provider'
 import { ModelBasicFields, ModelCapabilityToggles, ModelContextWindowFields } from './content'
 import {
@@ -36,7 +36,7 @@ interface EditModelDrawerProps {
 interface BuildPatchOverrides {
   caps?: Set<ModelCapabilityToggle>
   supportsStreaming?: boolean
-  currencySymbol?: ModelDrawerCurrency
+  currencySymbol?: ModelDrawerCurrencySymbol
   customCurrencySymbol?: string
   isCustomCurrency?: boolean
   inputPrice?: string
@@ -46,10 +46,21 @@ interface BuildPatchOverrides {
 }
 
 type ModelDrawerCurrencySymbol = (typeof MODEL_DRAWER_CURRENCY_SYMBOLS)[number]
-type ModelDrawerCurrency = NonNullable<RuntimeModelPricing['input']>['currency']
+type ModelDrawerCurrency = Currency
 const isModelDrawerCurrencySymbol = (value: string): value is ModelDrawerCurrencySymbol =>
   MODEL_DRAWER_CURRENCY_SYMBOLS.includes(value as ModelDrawerCurrencySymbol)
-const symbolToCurrency = (symbol: string): ModelDrawerCurrency => (symbol === '¥' ? CURRENCY.CNY : CURRENCY.USD)
+const CURRENCY_SYMBOL_TO_CODE = {
+  $: CURRENCY.USD,
+  '¥': CURRENCY.CNY
+} as const satisfies Record<string, ModelDrawerCurrency>
+const CURRENCY_CODE_TO_SYMBOL = {
+  [CURRENCY.USD]: '$',
+  [CURRENCY.CNY]: '¥'
+} as const satisfies Record<ModelDrawerCurrency, ModelDrawerCurrencySymbol>
+
+const symbolToCurrency = (symbol: string): ModelDrawerCurrency | undefined => CURRENCY_SYMBOL_TO_CODE[symbol]
+const currencyToSymbol = (currency: string): ModelDrawerCurrencySymbol | undefined =>
+  CURRENCY_CODE_TO_SYMBOL[currency as ModelDrawerCurrency]
 
 const drawerFieldTitleClassName = 'text-[13px] text-foreground/85'
 
@@ -86,7 +97,8 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
     }
 
     const nextCurrency = readCurrency(model)
-    const nextIsCustomCurrency = !MODEL_DRAWER_CURRENCY_SYMBOLS.includes(nextCurrency as ModelDrawerCurrencySymbol)
+    const nextCurrencySymbol = currencyToSymbol(nextCurrency)
+    const nextIsCustomCurrency = !nextCurrencySymbol
 
     setName(model.name)
     setGroup(model.group ?? '')
@@ -95,7 +107,7 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
     setSelectedCaps(getInitialSelectedCapabilities(model))
     setHasUserModified(false)
     setSupportsStreaming(model.supportsStreaming)
-    setCurrencySymbol(nextIsCustomCurrency ? '$' : (nextCurrency as ModelDrawerCurrencySymbol))
+    setCurrencySymbol(nextCurrencySymbol ?? '$')
     setCustomCurrencySymbol(nextIsCustomCurrency ? nextCurrency : '')
     setIsCustomCurrency(nextIsCustomCurrency)
     setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
@@ -135,9 +147,10 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
       const nextIsCustomCurrency = overrides?.isCustomCurrency ?? isCustomCurrency
       const nextCurrencySymbol = overrides?.currencySymbol ?? currencySymbol
       const nextCustomCurrencySymbol = overrides?.customCurrencySymbol ?? customCurrencySymbol
-      const finalCurrency = nextIsCustomCurrency
-        ? symbolToCurrency(nextCustomCurrencySymbol)
-        : symbolToCurrency(nextCurrencySymbol)
+      const finalCurrency: ModelDrawerCurrency =
+        symbolToCurrency(nextIsCustomCurrency ? nextCustomCurrencySymbol : nextCurrencySymbol) ??
+        symbolToCurrency(readCurrency(model)) ??
+        CURRENCY.USD
 
       return {
         name: name || model.name,
@@ -182,16 +195,12 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
 
   const autoSave = useCallback(
     (overrides?: BuildPatchOverrides) => {
-      void handleUpdateModel(buildPatch(overrides))
+      void handleUpdateModel(buildPatch(overrides)).catch(() => {
+        window.toast.error(t('common.error'))
+      })
     },
-    [buildPatch, handleUpdateModel]
+    [buildPatch, handleUpdateModel, t]
   )
-
-  useEffect(() => {
-    if (hasUserModified && showMoreSettings) {
-      autoSave({ caps: selectedCaps })
-    }
-  }, [autoSave, hasUserModified, selectedCaps, showMoreSettings])
 
   const handleToggleCapability = useCallback((type: ModelCapabilityToggle) => {
     setHasUserModified(true)
@@ -219,10 +228,15 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
       return
     }
 
+    if (isCustomCurrency && !symbolToCurrency(customCurrencySymbol)) {
+      window.toast.error(t('common.invalid_value'))
+      return
+    }
+
     await handleUpdateModel(buildPatch())
     setShowMoreSettings(false)
     onClose()
-  }, [buildPatch, endpointTypes.length, handleUpdateModel, mode, onClose])
+  }, [buildPatch, customCurrencySymbol, endpointTypes.length, handleUpdateModel, isCustomCurrency, mode, onClose, t])
 
   const handleFormSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -386,11 +400,9 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
                     onValueChange={(nextValue) => {
                       if (nextValue === 'custom') {
                         setIsCustomCurrency(true)
-                        autoSave({
-                          isCustomCurrency: true,
-                          currencySymbol: symbolToCurrency(customCurrencySymbol || currencySymbol),
-                          customCurrencySymbol
-                        })
+                        if (symbolToCurrency(customCurrencySymbol)) {
+                          autoSave({ isCustomCurrency: true, customCurrencySymbol })
+                        }
                         return
                       }
 
@@ -400,7 +412,7 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
 
                       setIsCustomCurrency(false)
                       setCurrencySymbol(nextValue)
-                      autoSave({ isCustomCurrency: false, currencySymbol: symbolToCurrency(nextValue) })
+                      autoSave({ isCustomCurrency: false, currencySymbol: nextValue })
                     }}>
                     <SelectTrigger aria-label={t('models.price.currency')} className={drawerClasses.selectTrigger}>
                       <SelectValue />
@@ -428,11 +440,9 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
                     onChange={(event) => {
                       const nextValue = event.target.value
                       setCustomCurrencySymbol(nextValue)
-                      autoSave({
-                        isCustomCurrency: true,
-                        currencySymbol: symbolToCurrency(nextValue || currencySymbol),
-                        customCurrencySymbol: nextValue
-                      })
+                      if (symbolToCurrency(nextValue)) {
+                        autoSave({ isCustomCurrency: true, customCurrencySymbol: nextValue })
+                      }
                     }}
                   />
                 </ProviderField>

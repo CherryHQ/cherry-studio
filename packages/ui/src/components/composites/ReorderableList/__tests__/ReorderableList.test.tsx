@@ -70,6 +70,28 @@ describe('ReorderableList', () => {
     expect(onReorder).toHaveBeenCalledWith([items[4], items[0], items[1], items[2], items[3]])
   })
 
+  it('reports async reorder failures without throwing away the callback contract', async () => {
+    const onReorderError = vi.fn()
+    const error = new Error('persist failed')
+
+    render(
+      <ReorderableList
+        items={items}
+        visibleItems={visibleItems}
+        getId={(item) => item.id}
+        onReorder={vi.fn().mockRejectedValue(error)}
+        onReorderError={onReorderError}
+        renderItem={(item) => <div>{item.id}</div>}
+      />
+    )
+
+    sortablePropsStore.current.onSortEnd({ oldIndex: 2, newIndex: 0 })
+
+    await vi.waitFor(() => {
+      expect(onReorderError).toHaveBeenCalledWith(error)
+    })
+  })
+
   it('tracks drag state across start, end, and cancel', () => {
     const onDragStateChange = vi.fn()
 

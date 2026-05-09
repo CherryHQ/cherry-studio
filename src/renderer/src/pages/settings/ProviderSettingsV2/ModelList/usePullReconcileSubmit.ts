@@ -29,14 +29,14 @@ export function usePullReconcileSubmit({ providerId, onApplyCommitted }: UsePull
       try {
         const { toAdd, toRemove } = payload
 
-        if (toAdd.length > 0) {
-          const dtos = toAdd.map((m) => toCreateModelDto(providerId, m))
-          await createModels(dtos)
-        }
-
         for (const uniqueModelId of toRemove) {
           const { modelId } = parseUniqueModelId(uniqueModelId)
           await deleteModel(providerId, modelId)
+        }
+
+        if (toAdd.length > 0) {
+          const dtos = toAdd.map((m) => toCreateModelDto(providerId, m))
+          await createModels(dtos)
         }
 
         void refetchModels()

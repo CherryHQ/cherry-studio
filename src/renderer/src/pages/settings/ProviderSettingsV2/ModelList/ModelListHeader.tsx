@@ -5,7 +5,7 @@ import type React from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { modelListClasses } from '../components/ProviderSettingsPrimitives'
+import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import ModelListCapabilityChips from './ModelListCapabilityChips'
 import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
 

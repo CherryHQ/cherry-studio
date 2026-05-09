@@ -11,7 +11,7 @@ import React, { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ModelIdWithTagsV2 from '../components/ModelIdWithTagsV2'
-import { modelListClasses } from '../components/ProviderSettingsPrimitives'
+import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import { getModelGroupLabel } from './grouping'
 import { isValidNewApiModel } from './utils'
 
@@ -35,9 +35,9 @@ interface ManageModelsListProps {
   existingModelIds: Set<string>
   /** Resolved provider models (for isEnabled on Switch) */
   existingById: Map<string, Model>
-  onAddModel: (model: Model) => void
-  onRemoveModel: (model: Model) => void
-  onToggleModelEnabled: (model: Model, enabled: boolean) => void
+  onAddModel: (model: Model) => void | Promise<void>
+  onRemoveModel: (model: Model) => void | Promise<void>
+  onToggleModelEnabled: (model: Model, enabled: boolean) => void | Promise<void>
 }
 
 const ManageModelsList: React.FC<ManageModelsListProps> = ({
@@ -77,15 +77,25 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
     (models: Model[]) => {
       const isAllInProvider = models.every((model) => existingModelIds.has(model.id))
 
-      const handleGroupAction = () => {
+      const handleGroupAction = async () => {
         if (isAllInProvider) {
-          models.filter((model) => existingModelIds.has(model.id)).forEach(onRemoveModel)
+          const results = await Promise.allSettled(
+            models.filter((model) => existingModelIds.has(model.id)).map((model) => onRemoveModel(model))
+          )
+          const failedCount = results.filter((result) => result.status === 'rejected').length
+          if (failedCount > 0) {
+            window.toast.error(t('settings.models.manage.sync_pull_failed'))
+          }
         } else {
           const wouldAddModels = models.filter((model) => !existingModelIds.has(model.id))
 
           if (isNewApiProvider(provider)) {
             if (wouldAddModels.every(isValidNewApiModel)) {
-              wouldAddModels.forEach(onAddModel)
+              const results = await Promise.allSettled(wouldAddModels.map((model) => onAddModel(model)))
+              const failedCount = results.filter((result) => result.status === 'rejected').length
+              if (failedCount > 0) {
+                window.toast.error(t('settings.models.manage.sync_pull_failed'))
+              }
             } else {
               void NewApiBatchAddModelPopup.show({
                 title: t('settings.models.add.batch_add_models'),
@@ -94,7 +104,11 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
               })
             }
           } else {
-            wouldAddModels.forEach(onAddModel)
+            const results = await Promise.allSettled(wouldAddModels.map((model) => onAddModel(model)))
+            const failedCount = results.filter((result) => result.status === 'rejected').length
+            if (failedCount > 0) {
+              window.toast.error(t('settings.models.manage.sync_pull_failed'))
+            }
           }
         }
       }
@@ -112,7 +126,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
             size="icon"
             className="size-7 shrink-0 rounded-md p-0 text-muted-foreground/65 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground"
             onClick={() => {
-              handleGroupAction()
+              void handleGroupAction()
             }}>
             {isAllInProvider ? <Minus size={16} /> : <Plus size={16} />}
           </Button>
@@ -177,9 +191,9 @@ interface ModelListItemProps {
   model: Model
   existingModelIds: Set<string>
   existingById: Map<string, Model>
-  onAddModel: (model: Model) => void
-  onRemoveModel: (model: Model) => void
-  onToggleModelEnabled: (model: Model, enabled: boolean) => void
+  onAddModel: (model: Model) => void | Promise<void>
+  onRemoveModel: (model: Model) => void | Promise<void>
+  onToggleModelEnabled: (model: Model, enabled: boolean) => void | Promise<void>
   last?: boolean
 }
 
@@ -197,7 +211,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
             size="sm"
             checked={isEnabled}
             onCheckedChange={(v) => {
-              onToggleModelEnabled(model, v)
+              void onToggleModelEnabled(model, v)
             }}
           />
         ) : (
@@ -207,7 +221,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
             size="icon"
             className={cn(modelListClasses.rowIconButton, 'size-7 shrink-0 p-0')}
             onClick={() => {
-              onAddModel(model)
+              void onAddModel(model)
             }}>
             <Plus className="size-3.5" />
           </Button>
@@ -239,7 +253,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
               size="icon"
               className="size-7 shrink-0 rounded-lg border border-[color:var(--color-border-fg-muted)] bg-transparent p-0 text-muted-foreground/70 opacity-0 shadow-none transition-opacity hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover:opacity-100"
               onClick={() => {
-                onRemoveModel(model)
+                void onRemoveModel(model)
               }}>
               <Minus className="size-3.5" />
             </Button>

@@ -1,7 +1,7 @@
 import { cn } from '@renderer/utils'
 import { useTranslation } from 'react-i18next'
 
-import { modelListClasses } from '../../components/ProviderSettingsPrimitives'
+import { modelListClasses } from '../../shared/primitives/ProviderSettingsPrimitives'
 import { MODEL_ENDPOINT_OPTIONS } from './helpers'
 import type { ModelDrawerEndpointType } from './types'
 

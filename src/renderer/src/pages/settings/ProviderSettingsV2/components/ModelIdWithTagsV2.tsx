@@ -6,8 +6,8 @@ import { cn } from '@renderer/utils'
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import ModelTagsWithLabelV2 from './ModelTagsWithLabelV2'
-import { modelListClasses } from './ProviderSettingsPrimitives'
 
 const logger = loggerService.withContext('ModelIdWithTagsV2')
 

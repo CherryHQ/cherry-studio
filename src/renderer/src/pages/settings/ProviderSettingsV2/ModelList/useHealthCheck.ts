@@ -7,7 +7,7 @@ import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettingsV
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettingsV2/types/healthCheck'
 import { splitApiKeyString } from '@renderer/utils/api'
 import { isEmpty } from 'lodash'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 
@@ -18,8 +18,10 @@ export const useHealthCheck = (providerId: string) => {
   const [modelStatuses, setModelStatuses] = useState<ModelWithStatus[]>([])
   const [isChecking, setIsChecking] = useState(false)
   const [healthCheckOpen, setHealthCheckOpen] = useState(false)
+  const runIdRef = useRef(0)
 
   useEffect(() => {
+    runIdRef.current += 1
     setModelStatuses([])
     setIsChecking(false)
     setHealthCheckOpen(false)
@@ -41,10 +43,13 @@ export const useHealthCheck = (providerId: string) => {
   }, [])
 
   const closeHealthCheck = useCallback(() => {
+    runIdRef.current += 1
+    setIsChecking(false)
     setHealthCheckOpen(false)
   }, [])
 
   const resetHealthCheckRun = useCallback(() => {
+    runIdRef.current += 1
     setModelStatuses([])
     setIsChecking(false)
   }, [])
@@ -65,6 +70,8 @@ export const useHealthCheck = (providerId: string) => {
       }
 
       const keys = apiKeys.length > 0 ? [...apiKeys] : ['']
+      const runId = runIdRef.current + 1
+      runIdRef.current = runId
 
       const initialStatuses: ModelWithStatus[] = modelsToCheck.map((model) => ({
         model,
@@ -85,6 +92,9 @@ export const useHealthCheck = (providerId: string) => {
             timeout
           },
           (checkResult, index) => {
+            if (runIdRef.current !== runId) {
+              return
+            }
             setModelStatuses((current) => {
               const updated = [...current]
               if (updated[index]) {
@@ -99,9 +109,13 @@ export const useHealthCheck = (providerId: string) => {
           }
         )
       } catch {
-        window.toast.error(i18n.t('settings.models.check.failed_to_start'))
+        if (runIdRef.current === runId) {
+          window.toast.error(i18n.t('settings.models.check.failed_to_start'))
+        }
       } finally {
-        setIsChecking(false)
+        if (runIdRef.current === runId) {
+          setIsChecking(false)
+        }
       }
     },
     [models, provider]

@@ -6,10 +6,9 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ModelTagsWithLabelV2 from '../components/ModelTagsWithLabelV2'
-import { modelSyncClasses } from '../components/ProviderSettingsPrimitives'
 import type { ProviderSettingsDisplayModel } from '../config/models/types'
+import { modelSyncClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import type { ModelSyncPreviewResponse } from './modelSyncPreviewTypes'
-import ModelSyncReferenceImpact from './ModelSyncReferenceImpact'
 import type { ModelPullApplyPayload } from './useModelListSyncSelections'
 import { useModelListSyncSelections } from './useModelListSyncSelections'
 
@@ -212,37 +211,11 @@ export default function ModelSyncPreviewPanel({ preview, isApplying, onApply, on
                           />
                         </div>
                       </div>
-                      {item.strongReferenceCount > 0 || item.replacement || item.preferenceReferences.length > 0 ? (
-                        <div className="mt-1.5 space-y-0.5 ps-8 text-[length:var(--font-size-caption)] text-muted-foreground/70">
-                          <span>
-                            {item.strongReferenceCount > 0
-                              ? t('settings.models.manage.sync_references', { count: item.strongReferenceCount })
-                              : t('settings.models.manage.sync_no_references')}
-                            {` · ${t('common.delete')}`}
-                            {item.replacement
-                              ? ` · ${t('settings.models.manage.sync_replacement', {
-                                  model: parseUniqueModelId(item.replacement).modelId
-                                })}`
-                              : ''}
-                          </span>
-                          {item.preferenceReferences.length > 0 ? (
-                            <div className="break-all text-muted-foreground/60">
-                              {item.preferenceReferences.join(', ')}
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : null}
                     </div>
                   )
                 })}
               </div>
             </div>
-          </div>
-        ) : null}
-
-        {preview.referenceSummary.items.length > 0 ? (
-          <div className="border-[color:var(--section-border)] border-t pt-3">
-            <ModelSyncReferenceImpact summary={preview.referenceSummary} />
           </div>
         ) : null}
       </div>

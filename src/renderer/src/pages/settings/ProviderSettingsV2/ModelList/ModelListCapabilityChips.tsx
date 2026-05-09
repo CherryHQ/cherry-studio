@@ -1,7 +1,7 @@
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { modelListClasses } from '../components/ProviderSettingsPrimitives'
+import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
 
 const CAPABILITY_FILTER_I18N_KEYS: Record<ModelListCapabilityFilter, string> = {

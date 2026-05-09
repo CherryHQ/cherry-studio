@@ -4,7 +4,7 @@ import { useProvider } from '@renderer/hooks/useProviders'
 import { cn, validateApiHost } from '@renderer/utils'
 import { trim } from 'lodash'
 import { Plus, Settings, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { applyProviderCustomHeaderSideEffects } from '../adapters/providerSettingsSideEffects'
@@ -113,11 +113,16 @@ export default function ProviderCustomHeaderDrawer({
   const [draftHost, setDraftHost] = useState('')
   const [headersUiMode, setHeadersUiMode] = useState<HeadersUiMode>('list')
   const [jsonDraft, setJsonDraft] = useState('')
+  const wasOpenRef = useRef(false)
 
   useEffect(() => {
-    if (!open) {
+    const justOpened = open && !wasOpenRef.current
+    wasOpenRef.current = open
+
+    if (!justOpened) {
       return
     }
+
     setRows(headersObjectToRows(sourceHeaders))
     setJsonDraft(JSON.stringify(sourceHeaders, null, 2))
     setHeadersUiMode('list')

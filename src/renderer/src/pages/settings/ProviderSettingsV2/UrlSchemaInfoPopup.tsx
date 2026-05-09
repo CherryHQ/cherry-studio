@@ -54,7 +54,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
 
   const foundProvider = providers.find((p) => p.id === id)
   const existingApiHost = getProviderHostTopology(foundProvider).primaryBaseUrl
-  const { data: apiKeysData } = useQuery('/providers/:providerId/api-keys', {
+  const { data: apiKeysData, isLoading: apiKeysLoading } = useQuery('/providers/:providerId/api-keys', {
     params: { providerId: id },
     enabled: foundProvider !== undefined
   })
@@ -79,13 +79,13 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
   const trimmedNewKey = newApiKey.trim()
   const keyAlreadyExists = existingKeys.includes(trimmedNewKey)
   const baseUrlChanged = Boolean(baseUrl) && baseUrl !== baseProvider.apiHost
-  const okDisabled = keyAlreadyExists && !baseUrlChanged
+  const okDisabled = (foundProvider !== undefined && apiKeysLoading) || (keyAlreadyExists && !baseUrlChanged)
 
   const confirmMessage = keyAlreadyExists
     ? t('settings.models.provider_key_already_exists', { provider: displayName })
     : t('settings.models.provider_key_add_confirm', { provider: displayName })
 
-  const okText = keyAlreadyExists ? t('common.confirm') : t('common.add')
+  const okText = apiKeysLoading ? t('common.loading') : keyAlreadyExists ? t('common.confirm') : t('common.add')
 
   const closeWithResult = (result: PopupResult) => {
     if (resolvedRef.current) {

@@ -42,14 +42,11 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'WindowManager') return windowManagerMock
       if (name === 'MainWindowService') return mainWindowServiceMock
+      if (name === 'CherryINOAuthService') return cherryINOAuthServiceMock
       throw new Error(`unexpected service: ${name}`)
     },
     getPath: (key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)
   }
-}))
-
-vi.mock('@main/services/CherryINOAuthService', () => ({
-  cherryINOAuthService: cherryINOAuthServiceMock
 }))
 
 vi.mock('@main/core/lifecycle', () => {

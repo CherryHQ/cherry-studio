@@ -3,7 +3,11 @@ import { getProviderLabel } from '@renderer/i18n/label'
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ProviderHelpLink, ProviderHelpText, ProviderHelpTextRow } from '../components/ProviderSettingsPrimitives'
+import {
+  ProviderHelpLink,
+  ProviderHelpText,
+  ProviderHelpTextRow
+} from '../shared/primitives/ProviderSettingsPrimitives'
 
 interface ModelListHelpLinksProps {
   providerId: string

@@ -6,8 +6,8 @@ import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderSettingsDrawer from './components/ProviderSettingsDrawer'
-import { drawerClasses } from './components/ProviderSettingsPrimitives'
+import ProviderSettingsDrawer from './shared/primitives/ProviderSettingsDrawer'
+import { drawerClasses } from './shared/primitives/ProviderSettingsPrimitives'
 
 interface ShowParams {
   providerId: string

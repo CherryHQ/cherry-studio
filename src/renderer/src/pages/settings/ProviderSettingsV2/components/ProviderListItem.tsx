@@ -1,5 +1,5 @@
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderAvatar'
-import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderSettingsPrimitives'
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/shared/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
 import { ChevronRight } from 'lucide-react'

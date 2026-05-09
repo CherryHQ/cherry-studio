@@ -25,6 +25,7 @@ export interface ReorderableListProps<T> {
     scrollableAncestor?: boolean
   }
   onDragStateChange?: (dragging: boolean) => void
+  onReorderError?: (error: unknown) => void
 }
 
 export function ReorderableList<T>({
@@ -43,7 +44,8 @@ export function ReorderableList<T>({
   useDragOverlay = true,
   showGhost = true,
   restrictions,
-  onDragStateChange
+  onDragStateChange,
+  onReorderError
 }: ReorderableListProps<T>) {
   const visibleIndexById = useMemo(() => {
     return new Map(visibleItems.map((item, index) => [getId(item), index]))
@@ -64,10 +66,12 @@ export function ReorderableList<T>({
       })
 
       if (nextItems !== items) {
-        void onReorder(nextItems)
+        void Promise.resolve(onReorder(nextItems)).catch((error: unknown) => {
+          onReorderError?.(error)
+        })
       }
     },
-    [disabled, getId, items, onReorder, visibleItems]
+    [disabled, getId, items, onReorder, onReorderError, visibleItems]
   )
 
   const handleDragStart = useCallback(() => {

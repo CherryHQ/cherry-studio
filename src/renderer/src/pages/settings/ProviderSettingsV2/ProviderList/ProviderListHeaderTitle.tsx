@@ -1,4 +1,4 @@
-import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderSettingsPrimitives'
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/shared/primitives/ProviderSettingsPrimitives'
 import { useTranslation } from 'react-i18next'
 
 export default function ProviderListHeaderTitle() {

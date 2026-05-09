@@ -3,48 +3,20 @@
  * No DataApi route; keep out of @shared to avoid implying a main-process contract.
  */
 
-import { ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
+import { ModelSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
 export const ModelSyncPreviewModelSchema = ModelSchema
 export type ModelSyncPreviewModel = z.infer<typeof ModelSyncPreviewModelSchema>
 
-export const ModelSyncReplacementSuggestionSchema = z.strictObject({
-  uniqueModelId: UniqueModelIdSchema,
-  replacement: UniqueModelIdSchema.optional()
-})
-export type ModelSyncReplacementSuggestion = z.infer<typeof ModelSyncReplacementSuggestionSchema>
-
 export const ModelSyncPreviewMissingItemSchema = z.strictObject({
   model: ModelSyncPreviewModelSchema,
-  assistantCount: z.number().int().nonnegative(),
-  knowledgeCount: z.number().int().nonnegative(),
-  preferenceReferences: z.array(z.string()),
-  strongReferenceCount: z.number().int().nonnegative(),
-  replacement: UniqueModelIdSchema.optional()
+  removalReason: z.enum(['missing_from_provider'])
 })
 export type ModelSyncPreviewMissingItem = z.infer<typeof ModelSyncPreviewMissingItemSchema>
 
-export const ModelSyncReferenceImpactSchema = z.strictObject({
-  uniqueModelId: UniqueModelIdSchema,
-  assistantCount: z.number().int().nonnegative(),
-  knowledgeCount: z.number().int().nonnegative(),
-  preferenceReferences: z.array(z.string()),
-  strongReferenceCount: z.number().int().nonnegative()
-})
-export type ModelSyncReferenceImpact = z.infer<typeof ModelSyncReferenceImpactSchema>
-
-export const ModelSyncReferenceSummarySchema = z.strictObject({
-  impactedModelCount: z.number().int().nonnegative(),
-  totalStrongReferences: z.number().int().nonnegative(),
-  items: z.array(ModelSyncReferenceImpactSchema)
-})
-export type ModelSyncReferenceSummary = z.infer<typeof ModelSyncReferenceSummarySchema>
-
 export const ModelSyncPreviewResponseSchema = z.strictObject({
   added: z.array(ModelSyncPreviewModelSchema),
-  missing: z.array(ModelSyncPreviewMissingItemSchema),
-  referenceSummary: ModelSyncReferenceSummarySchema,
-  replacementSuggestions: z.array(ModelSyncReplacementSuggestionSchema)
+  missing: z.array(ModelSyncPreviewMissingItemSchema)
 })
 export type ModelSyncPreviewResponse = z.infer<typeof ModelSyncPreviewResponseSchema>

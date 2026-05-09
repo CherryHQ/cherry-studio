@@ -1,6 +1,6 @@
 import { useReorder } from '@data/hooks/useReorder'
 import { useProviders } from '@renderer/hooks/useProviders'
-import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderSettingsPrimitives'
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/shared/primitives/ProviderSettingsPrimitives'
 import {
   canManageProvider,
   isAnthropicSupportedProvider,
@@ -52,6 +52,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const { deleteProvider } = useProviderDelete()
 
   const itemRefs = useRef(new Map<string, HTMLDivElement | null>())
+  const scrollerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!filterModeHint) {
@@ -105,14 +106,33 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
     itemRefs.current.delete(providerId)
   }, [])
 
+  const setScrollerRef = useCallback((element: HTMLDivElement | null) => {
+    scrollerRef.current = element
+  }, [])
+
   useEffect(() => {
     if (!selectedProviderId) {
       return
     }
 
     const scrollSelectedItem = () => {
-      itemRefs.current.get(selectedProviderId)?.scrollIntoView?.({
-        block: 'center',
+      const selectedItem = itemRefs.current.get(selectedProviderId)
+      const scroller = scrollerRef.current
+
+      if (!selectedItem || !scroller) {
+        return
+      }
+
+      const itemRect = selectedItem.getBoundingClientRect()
+      const scrollerRect = scroller.getBoundingClientRect()
+      const isFullyVisible = itemRect.top >= scrollerRect.top && itemRect.bottom <= scrollerRect.bottom
+
+      if (isFullyVisible) {
+        return
+      }
+
+      selectedItem.scrollIntoView?.({
+        block: 'nearest',
         behavior: 'auto'
       })
     }
@@ -132,6 +152,10 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       setContextProviderId(null)
     }
   }, [])
+
+  const handleReorderError = useCallback(() => {
+    window.toast.error(t('settings.models.manage.sync_pull_failed'))
+  }, [t])
 
   const handleSubmitEditor = useCallback(
     async (providerInput: SubmitProviderEditorParams) => {
@@ -190,8 +214,10 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         providers={providers}
         enabledProviders={enabledProviders}
         disabledProviders={disabledProviders}
+        scrollerRef={setScrollerRef}
         onDragStateChange={handleDragStateChange}
         onReorder={applyReorderedList}
+        onReorderError={handleReorderError}
         renderItem={renderProviderItem}
       />
       <ProviderListAddButton label={t('settings.provider.add.title')} disabled={dragging} onAdd={startAdd} />

@@ -39,11 +39,7 @@ export async function buildModelListSyncPreview(params: {
 
   const missing: ModelSyncPreviewMissingItem[] = missingModels.map((model) => ({
     model,
-    assistantCount: 0,
-    knowledgeCount: 0,
-    preferenceReferences: [],
-    strongReferenceCount: 0,
-    replacement: undefined
+    removalReason: 'missing_from_provider'
   }))
 
   logger.info('Built model list sync preview (renderer)', {
@@ -54,12 +50,6 @@ export async function buildModelListSyncPreview(params: {
 
   return {
     added,
-    missing,
-    referenceSummary: {
-      impactedModelCount: 0,
-      totalStrongReferences: 0,
-      items: []
-    },
-    replacementSuggestions: []
+    missing
   }
 }

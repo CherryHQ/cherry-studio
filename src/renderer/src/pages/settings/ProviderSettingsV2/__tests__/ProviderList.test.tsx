@@ -1,5 +1,5 @@
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderList from '../ProviderList'
@@ -16,12 +16,16 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
   return {
     ...actual,
-    ReorderableList: ({ visibleItems, renderItem, onReorder }: any) => (
-      <div>
+    ReorderableList: ({ visibleItems, renderItem, onReorder, onReorderError }: any) => (
+      <div data-provider-list-scroller>
         {visibleItems.map((item: any, index: number) => (
           <div key={item.id}>{renderItem(item, index, { dragging: false })}</div>
         ))}
-        <button type="button" onClick={() => onReorder([...visibleItems].reverse())}>
+        <button
+          type="button"
+          onClick={() => {
+            void Promise.resolve(onReorder([...visibleItems].reverse())).catch(onReorderError)
+          }}>
           trigger-reorder
         </button>
       </div>
@@ -104,7 +108,12 @@ describe('ProviderList', () => {
     })
     useOvmsSupportMock.mockReturnValue({ isSupported: true })
     deleteProviderMock.mockResolvedValue(undefined)
+    ;(window as any).api = {
+      ...(window as any).api,
+      getAppInfo: vi.fn().mockResolvedValue({ appDataPath: '' })
+    }
     ;(window as any).modal = { confirm: vi.fn() }
+    ;(window as any).toast = { error: vi.fn(), success: vi.fn() }
   })
 
   it('filters providers by search text and forwards selection', () => {
@@ -166,6 +175,18 @@ describe('ProviderList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'trigger-reorder' }))
     expect(reorderSpy).toHaveBeenCalledWith([reorderableProviders[1], reorderableProviders[0]])
+  })
+
+  it('surfaces reorder persistence errors', async () => {
+    reorderSpy.mockRejectedValueOnce(new Error('persist failed'))
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'trigger-reorder' })[0])
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalled()
+    })
   })
 
   it('applies an external filter hint without making the page own list filter state', () => {

@@ -66,5 +66,8 @@ describe('buildModelListSyncPreview', () => {
     expect(dataApiService.get).toHaveBeenCalledWith('/models', { query: { providerId: 'openai' } })
     expect(preview.added.map((model) => model.id)).toEqual(['openai::gpt-5'])
     expect(preview.missing.map((item) => item.model.id)).toEqual(['openai::gpt-4o'])
+    expect(preview.missing.map((item) => item.removalReason)).toEqual(['missing_from_provider'])
+    expect(preview).not.toHaveProperty('referenceSummary')
+    expect(preview).not.toHaveProperty('replacementSuggestions')
   })
 })

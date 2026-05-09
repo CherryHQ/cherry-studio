@@ -14,7 +14,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
-import { useModelMutations } from '@renderer/hooks/useModels'
+import { useModelMutations, useModels } from '@renderer/hooks/useModels'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType, parseUniqueModelId } from '@shared/data/types/model'
@@ -22,7 +22,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { drawerClasses } from '../components/ProviderSettingsPrimitives'
+import { drawerClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import { MODEL_ENDPOINT_OPTIONS } from './ModelDrawer/helpers'
 
 const logger = loggerService.withContext('ProviderSettingsV2:NewApiBatchAddModelPopup')
@@ -49,6 +49,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   const [endpointType, setEndpointType] = useState<EndpointType>(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   const [submitting, setSubmitting] = useState(false)
   const { createModels } = useModelMutations()
+  const { models: existingModels } = useModels({ providerId: provider.id })
   const { t } = useTranslation()
 
   const closeWithResult = (data: any) => {
@@ -65,7 +66,18 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   }
 
   const onAddModel = async (values: FieldType) => {
-    const dtos: CreateModelDto[] = batchModels.map((model) => {
+    const existingModelApiIds = new Set(existingModels.map((model) => parseUniqueModelId(model.id).modelId))
+    const modelsToAdd = batchModels.filter((model) => {
+      const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+      return !existingModelApiIds.has(modelId)
+    })
+
+    if (modelsToAdd.length === 0) {
+      window.toast.error(t('error.model.exists'))
+      return false
+    }
+
+    const dtos: CreateModelDto[] = modelsToAdd.map((model) => {
       const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
       return {
         providerId: provider.id,

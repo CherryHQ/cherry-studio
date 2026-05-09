@@ -1,6 +1,6 @@
 import { MenuItem, MenuList, Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
-import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderSettingsPrimitives'
 import ModelNotesPopup from '@renderer/pages/settings/ProviderSettingsV2/ModelNotesPopup'
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/shared/primitives/ProviderSettingsPrimitives'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
 import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'

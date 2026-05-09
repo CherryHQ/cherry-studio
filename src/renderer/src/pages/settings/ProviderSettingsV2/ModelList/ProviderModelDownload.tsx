@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react'
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { modelListClasses } from '../components/ProviderSettingsPrimitives'
+import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import { useOvmsModelDownloadAction } from './useOvmsModelDownloadAction'
 
 interface ProviderModelDownloadProps {

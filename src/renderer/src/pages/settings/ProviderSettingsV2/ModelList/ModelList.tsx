@@ -1,6 +1,6 @@
 import React, { memo } from 'react'
 
-import { modelListClasses } from '../components/ProviderSettingsPrimitives'
+import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import { ModelListHealthProvider } from './modelListHealthContext'
 import { useModelListHealth } from './modelListHealthContext'
 import ModelListHelpLinks from './ModelListHelpLinks'

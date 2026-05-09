@@ -8,9 +8,9 @@ import type { FormEvent } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderActions from '../../components/ProviderActions'
-import ProviderSection from '../../components/ProviderSection'
-import { drawerClasses } from '../../components/ProviderSettingsPrimitives'
+import ProviderActions from '../../shared/primitives/ProviderActions'
+import ProviderSection from '../../shared/primitives/ProviderSection'
+import { drawerClasses } from '../../shared/primitives/ProviderSettingsPrimitives'
 import { isNewApiProvider } from '../../utils/provider'
 import { ModelBasicFields, ModelContextWindowFields } from './content'
 import { getInitialAddModelFormState, splitModelIds } from './helpers'
@@ -108,18 +108,25 @@ export default function AddModelFormPanel({
     const normalizedId = formState.modelId.trim().replaceAll('，', ',')
 
     if (normalizedId.includes(',')) {
+      let addedCount = 0
       for (const singleId of splitModelIds(normalizedId)) {
-        await addSingleModel({
+        const added = await addSingleModel({
           modelId: singleId,
           name: singleId,
           group: '',
           maxInputTokens: '',
           maxOutputTokens: '',
-          endpointTypes: undefined
+          endpointTypes: formState.endpointTypes
         })
+
+        if (added) {
+          addedCount += 1
+        }
       }
 
-      onSuccess()
+      if (addedCount > 0) {
+        onSuccess()
+      }
       return
     }
 

@@ -1,6 +1,6 @@
 import type React from 'react'
 
-import { modelListClasses } from '../components/ProviderSettingsPrimitives'
+import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import { EditModelDrawer } from './ModelDrawer'
 import ModelListHeader from './ModelListHeader'
 import ModelListSections from './ModelListSections'

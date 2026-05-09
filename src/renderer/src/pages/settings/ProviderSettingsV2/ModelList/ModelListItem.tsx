@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 
 import { FreeTrialModelTagV2 } from '../components/FreeTrialModelTagV2'
 import ModelTagsWithLabelV2 from '../components/ModelTagsWithLabelV2'
-import { modelListClasses } from '../components/ProviderSettingsPrimitives'
+import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 
 interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>

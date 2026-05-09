@@ -2,12 +2,12 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProviders'
 
 import ProviderHeader from './components/ProviderHeader'
-import { providerDetailColumnClasses, ProviderSettingsContainer } from './components/ProviderSettingsPrimitives'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
 import { useProviderAutoModelSync } from './hooks/providerSetting/useProviderAutoModelSync'
 import { useProviderLegacyWebSearchSync } from './hooks/providerSetting/useProviderLegacyWebSearchSync'
 import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
 import { ModelList } from './ModelList'
+import { providerDetailColumnClasses, ProviderSettingsContainer } from './shared/primitives/ProviderSettingsPrimitives'
 
 interface ProviderSettingProps {
   providerId: string

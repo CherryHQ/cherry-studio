@@ -1,4 +1,4 @@
-import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderSettingsPrimitives'
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/shared/primitives/ProviderSettingsPrimitives'
 import { PlusIcon } from 'lucide-react'
 
 interface ProviderListAddButtonProps {

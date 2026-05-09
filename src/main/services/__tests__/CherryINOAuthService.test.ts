@@ -5,6 +5,15 @@ const providerServiceMocks = vi.hoisted(() => ({
   update: vi.fn()
 }))
 
+const ipcMainMocks = vi.hoisted(() => ({
+  handle: vi.fn(),
+  removeHandler: vi.fn()
+}))
+
+const netMocks = vi.hoisted(() => ({
+  fetch: vi.fn()
+}))
+
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
     getAuthConfig: providerServiceMocks.getAuthConfig,
@@ -12,14 +21,60 @@ vi.mock('@data/services/ProviderService', () => ({
   }
 }))
 
+vi.mock('electron', async (importOriginal) => {
+  const actual = (await importOriginal()) as {
+    ipcMain: Electron.IpcMain
+    net: Electron.Net
+  }
+  return {
+    ...actual,
+    ipcMain: {
+      ...actual.ipcMain,
+      handle: ipcMainMocks.handle,
+      removeHandler: ipcMainMocks.removeHandler
+    },
+    net: {
+      ...actual.net,
+      fetch: netMocks.fetch
+    }
+  }
+})
+
+import { BaseService } from '@main/core/lifecycle'
 import { net } from 'electron'
 
 import { mockMainLoggerService } from '../../../../tests/__mocks__/MainLoggerService'
-import { cherryINOAuthService } from '../CherryINOAuthService'
+import { CherryINOAuthService } from '../CherryINOAuthService'
 
 describe('CherryINOAuthService', () => {
+  let cherryINOAuthService: CherryINOAuthService
+
   beforeEach(() => {
+    BaseService.resetInstances()
     vi.clearAllMocks()
+    cherryINOAuthService = new CherryINOAuthService()
+  })
+
+  it('registers CherryIN IPC handlers through BaseService lifecycle and removes them on stop', async () => {
+    await (cherryINOAuthService as any)._doInit()
+
+    expect(ipcMainMocks.handle.mock.calls.map(([channel]) => channel)).toEqual([
+      'cherryin:save-token',
+      'cherryin:has-token',
+      'cherryin:get-balance',
+      'cherryin:logout',
+      'cherryin:start-oauth-flow'
+    ])
+
+    await (cherryINOAuthService as any)._doStop()
+
+    expect(ipcMainMocks.removeHandler.mock.calls.map(([channel]) => channel)).toEqual([
+      'cherryin:save-token',
+      'cherryin:has-token',
+      'cherryin:get-balance',
+      'cherryin:logout',
+      'cherryin:start-oauth-flow'
+    ])
   })
 
   it('saves tokens into provider auth config and preserves the prior refresh token when none is returned', async () => {
