@@ -1,3 +1,4 @@
+import { useTagList } from '@renderer/hooks/useDataTags'
 import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
@@ -8,7 +9,6 @@ import { agentAdapter } from '../adapters/agentAdapter'
 import { assistantAdapter } from '../adapters/assistantAdapter'
 import { promptAdapter } from '../adapters/promptAdapter'
 import { skillAdapter } from '../adapters/skillAdapter'
-import { useTagList } from '../adapters/tagAdapter'
 import type { LibrarySidebarFilter, ResourceItem, ResourceType, SortKey } from '../types'
 
 function compareItems(a: ResourceItem, b: ResourceItem, sort: SortKey): number {

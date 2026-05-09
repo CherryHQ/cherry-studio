@@ -1,4 +1,4 @@
-import type { Tag } from '@shared/data/types/tag'
+import type { TagListResult } from '@renderer/hooks/useDataTags'
 
 import type { ResourceType } from '../types'
 
@@ -27,13 +27,6 @@ export interface ResourceListResult<TDto> {
 export interface ResourceAdapter<TDto> {
   readonly resource: ResourceType
   useList: (query?: ResourceListQuery) => ResourceListResult<TDto>
-}
-
-export interface TagListResult {
-  tags: Tag[]
-  isLoading: boolean
-  error?: Error
-  refetch: () => void
 }
 
 export interface EntityTagsResult extends TagListResult {

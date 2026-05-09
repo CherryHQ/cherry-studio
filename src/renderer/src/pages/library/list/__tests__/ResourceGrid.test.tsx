@@ -95,7 +95,7 @@ vi.mock('../../adapters/assistantAdapter', () => ({
   })
 }))
 
-vi.mock('../../adapters/tagAdapter', () => ({
+vi.mock('@renderer/hooks/useDataTags', () => ({
   useEnsureTags: () => ({
     ensureTags: ensureTagsMock
   }),

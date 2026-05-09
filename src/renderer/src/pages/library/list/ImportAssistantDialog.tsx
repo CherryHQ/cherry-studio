@@ -11,6 +11,7 @@ import {
   TabsTrigger,
   Textarea
 } from '@cherrystudio/ui'
+import { useEnsureTags } from '@renderer/hooks/useDataTags'
 import { Clipboard, FileJson, Link, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -18,7 +19,7 @@ import { useTranslation } from 'react-i18next'
 import { sanitizeUrl } from 'strict-url-sanitise'
 
 import { useAssistantMutations } from '../adapters/assistantAdapter'
-import { useEnsureTags } from '../adapters/tagAdapter'
+import { getRandomTagColor } from '../constants'
 import { AssistantTransferError, parseAssistantImportContent } from '../editor/assistant/transfer'
 
 const ALLOWED_FETCH_PROTOCOLS = new Set(['http:', 'https:'])
@@ -131,7 +132,7 @@ export function summarizeAssistantImportOutcomes(
 export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props) {
   const { t } = useTranslation()
   const { createAssistant } = useAssistantMutations()
-  const { ensureTags } = useEnsureTags()
+  const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
 
   const [tab, setTab] = useState<ImportTab>('file')
   const [clipboardText, setClipboardText] = useState('')

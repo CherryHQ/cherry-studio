@@ -1,4 +1,5 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { useEnsureTags, useTagList } from '@renderer/hooks/useDataTags'
 import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
@@ -9,8 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAssistantMutations } from './adapters/assistantAdapter'
-import { useEnsureTags, useTagList } from './adapters/tagAdapter'
-import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_ORDER } from './constants'
+import { DEFAULT_TAG_COLOR, getRandomTagColor, RESOURCE_TYPE_ORDER } from './constants'
 import SkillDetailPage from './detail/skill/SkillDetailPage'
 import AgentConfigPage from './editor/agent/AgentConfigPage'
 import AssistantConfigPage from './editor/assistant/AssistantConfigPage'
@@ -122,7 +122,7 @@ export default function LibraryPage() {
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
   // The add-tag control uses ensureTags idempotently: existing names are reused,
   // and missing names are created before the card menu / editor binds them.
-  const { ensureTags } = useEnsureTags()
+  const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
   // Single source of truth for "what tags exist anywhere" — backs the selection
   // pools (card menu / BasicSection) and feeds chip colors. Revalidated by the
   // `refresh: ['/tags']` side-effect on createTag / ensureTags.

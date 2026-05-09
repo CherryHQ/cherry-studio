@@ -1,11 +1,11 @@
 import { Button, Checkbox, Input, MenuDivider, MenuItem, Separator } from '@cherrystudio/ui'
+import { useEnsureTags, useTagList } from '@renderer/hooks/useDataTags'
 import { ChevronDown, Copy, Download, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAssistantMutationsById } from '../adapters/assistantAdapter'
-import { useEnsureTags, useTagList } from '../adapters/tagAdapter'
-import { DEFAULT_TAG_COLOR } from '../constants'
+import { DEFAULT_TAG_COLOR, getRandomTagColor } from '../constants'
 import type { ResourceItem } from '../types'
 
 export function canDuplicateResource(resource: ResourceItem) {
@@ -45,7 +45,7 @@ export function FixedCardMenu({
   const [bindingPending, setBindingPending] = useState(false)
   const bindingPendingRef = useRef(false)
 
-  const { ensureTags } = useEnsureTags()
+  const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const canBindTags = resource.type === 'assistant'
 

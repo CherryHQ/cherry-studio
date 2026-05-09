@@ -1,10 +1,11 @@
+import { useEnsureTags, useTagList } from '@renderer/hooks/useDataTags'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAssistantMutations, useAssistantMutationsById } from '../../adapters/assistantAdapter'
-import { useEnsureTags, useTagList } from '../../adapters/tagAdapter'
+import { getRandomTagColor } from '../../constants'
 import { ConfigEditorShell } from '../ConfigEditorShell'
 import { useResourceEditorState } from '../useResourceEditorState'
 import {
@@ -50,7 +51,7 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack, onCreated }) => {
 
   const { createAssistant } = useAssistantMutations()
   const { updateAssistant } = useAssistantMutationsById(assistant?.id ?? '')
-  const { ensureTags } = useEnsureTags()
+  const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
   const tagList = useTagList()
   const tagColorByName = useMemo(
     () => new Map(tagList.tags.map((tag) => [tag.name, tag.color ?? ''] as const).filter(([, color]) => color !== '')),
