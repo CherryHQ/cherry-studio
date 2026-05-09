@@ -1,8 +1,6 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Input, Tooltip } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n'
-import type { InputRef } from 'antd'
-import { Input } from 'antd'
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { motion } from 'motion/react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 
@@ -29,7 +27,7 @@ const CollapsibleSearchBar = ({
 }: CollapsibleSearchBarProps) => {
   const [searchVisible, setSearchVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
-  const inputRef = useRef<InputRef>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const collapsedWidth = 32
 
   const handleTextChange = useCallback(
@@ -78,29 +76,36 @@ const CollapsibleSearchBar = ({
           collapsed: { width: 0, opacity: 0, transition: { duration: 0.3, ease: 'easeInOut' } }
         }}
         style={{ overflow: 'hidden', flexShrink: 1 }}>
-        <Input
-          ref={inputRef}
-          type="text"
-          placeholder={placeholder}
-          size="small"
-          suffix={icon}
-          value={searchText}
-          autoFocus
-          allowClear
-          onChange={(e) => handleTextChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.stopPropagation()
-              handleTextChange('')
+        <div className="relative flex items-center">
+          <Input
+            ref={inputRef}
+            type="text"
+            placeholder={placeholder}
+            value={searchText}
+            autoFocus
+            className="h-8 pr-8 text-sm"
+            onChange={(e) => handleTextChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation()
+                handleTextChange('')
+                if (!searchText) setSearchVisible(false)
+              }
+            }}
+            onBlur={() => {
               if (!searchText) setSearchVisible(false)
-            }
-          }}
-          onBlur={() => {
-            if (!searchText) setSearchVisible(false)
-          }}
-          onClear={handleClear}
-          style={{ width: '100%', height: collapsedWidth, ...style }}
-        />
+            }}
+            style={{ width: '100%', height: collapsedWidth, ...style }}
+          />
+          <button
+            type="button"
+            aria-label={searchText ? i18n.t('common.clear') : tooltip}
+            className="absolute right-2 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={searchText ? handleClear : () => inputRef.current?.focus()}>
+            {searchText ? <X size={14} /> : icon}
+          </button>
+        </div>
       </motion.div>
       <motion.div
         initial={false}

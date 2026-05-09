@@ -1,6 +1,6 @@
+import { Skeleton } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { useMetaDataParser } from '@renderer/hooks/useMetaDataParser'
-import { Skeleton } from 'antd'
 import { type PropsWithChildren, useCallback, useEffect, useMemo } from 'react'
 
 import MarqueeText from './MarqueeText'
@@ -81,19 +81,11 @@ const Container = ({ children }: PropsWithChildren<{}>) => {
 const CardSkeleton = () => {
   return (
     <Container>
-      <Skeleton.Image style={{ width: '100%', height: 192 }} active />
-      <Skeleton
-        style={{
-          padding: 8
-        }}
-        paragraph={{
-          rows: 1,
-          style: {
-            margin: '8px 0'
-          }
-        }}
-        active
-      />
+      <Skeleton className="h-48 w-full rounded-none" />
+      <div className="flex flex-col gap-2 p-2">
+        <Skeleton className="h-4 w-3/5" />
+        <Skeleton className="h-4 w-full" />
+      </div>
     </Container>
   )
 }

@@ -1955,7 +1955,8 @@
     "empty_preview": "Niciun conținut de afișat",
     "generating": "Se generează",
     "preview": "Previzualizare",
-    "split": "Divizat"
+    "split": "Divizat",
+    "view_mode": "Mod de vizualizare"
   },
   "import": {
     "chatgpt": {

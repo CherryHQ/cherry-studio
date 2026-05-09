@@ -1955,7 +1955,8 @@
     "empty_preview": "Aucun contenu à afficher",
     "generating": "Génération",
     "preview": "Aperçu",
-    "split": "Diviser"
+    "split": "Diviser",
+    "view_mode": "Mode d'affichage"
   },
   "import": {
     "chatgpt": {
