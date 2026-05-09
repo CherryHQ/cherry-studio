@@ -349,7 +349,7 @@ export async function processPath(targetPath: string, designSystem: DesignSystem
 }
 
 function printUsage(stderr: Pick<typeof process.stderr, 'write'>): void {
-  stderr.write('Usage: pnpm styles:canonical <path>\\n')
+  stderr.write('Usage: pnpm styles:canonical <path>\n')
 }
 
 export async function runCli(argv = process.argv.slice(2), options: RunCliOptions = {}): Promise<number> {
@@ -366,14 +366,14 @@ export async function runCli(argv = process.argv.slice(2), options: RunCliOption
   try {
     await fs.stat(targetPath)
   } catch {
-    stderr.write(`Path does not exist: ${argv[0]}\\n`)
+    stderr.write(`Path does not exist: ${argv[0]}\n`)
     return 1
   }
 
   const designSystem = await loadTailwindDesignSystem(cwd)
   const summary = await processPath(targetPath, designSystem)
   stdout.write(
-    `Tailwind canonical classes: scanned ${summary.scannedFiles} files, changed ${summary.changedFiles} files, fixed ${summary.replacements} classes.\\n`
+    `Tailwind canonical classes: scanned ${summary.scannedFiles} files, changed ${summary.changedFiles} files, fixed ${summary.replacements} classes.\n`
   )
 
   return 0

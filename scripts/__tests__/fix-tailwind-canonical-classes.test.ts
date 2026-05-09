@@ -88,6 +88,6 @@ describe('fix-tailwind-canonical-classes', () => {
     })
 
     expect(exitCode).toBe(1)
-    expect(stderr).toBe('Usage: pnpm styles:canonical <path>\\n')
+    expect(stderr).toBe('Usage: pnpm styles:canonical <path>\n')
   })
 })
