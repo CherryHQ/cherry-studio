@@ -569,10 +569,10 @@ class ClaudeCodeService implements AgentServiceInterface {
       options.strictMcpConfig = true
     }
 
-    // Inject @cherry/browser MCP for all agents (replaces SDK built-in WebSearch/WebFetch)
     if (!options.mcpServers) options.mcpServers = {}
 
-    // Inject Exa MCP for structured web search (free tier, no API key required)
+    // Inject Exa MCP for structured web search (free tier, no API key required).
+    // Replaces the SDK built-in WebSearch/WebFetch tools disabled via GLOBALLY_DISALLOWED_TOOLS.
     options.mcpServers.exa = {
       type: 'http',
       url: 'https://mcp.exa.ai/mcp'
