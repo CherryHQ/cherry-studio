@@ -1,5 +1,3 @@
-import type { TagListResult } from '@renderer/hooks/useDataTags'
-
 import type { ResourceType } from '../types'
 
 export interface ResourceListQuery {
@@ -27,8 +25,4 @@ export interface ResourceListResult<TDto> {
 export interface ResourceAdapter<TDto> {
   readonly resource: ResourceType
   useList: (query?: ResourceListQuery) => ResourceListResult<TDto>
-}
-
-export interface EntityTagsResult extends TagListResult {
-  supported: boolean
 }
