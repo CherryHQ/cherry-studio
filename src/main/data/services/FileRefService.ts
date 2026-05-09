@@ -1,10 +1,9 @@
 /**
  * FileRefService — pure DB repository for the `file_ref` polymorphic table.
  *
- * Phase status: Phase 1a exports the **interface only**. Concrete Drizzle-backed
- * implementation lands in Phase 1b.1 (queries) and 1b.2 (mutations);
- * `cleanupBySource` is load-bearing for business services and is covered by
- * Phase 1b.2 write path.
+ * Phase status: Phase 1b.1 lands the read methods (findByEntryId / findBySource);
+ * mutation methods (create / createMany / cleanupBySource) remain stubs until
+ * Phase 1b.2 (write path).
  *
  * ## Scope
  *
@@ -24,7 +23,11 @@
  * belt-and-suspenders safety net for missed paths.
  */
 
+import { application } from '@application'
+import { fileRefTable } from '@data/db/schemas/file'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
+import { FileRefSchema } from '@shared/data/types/file'
+import { and, eq } from 'drizzle-orm'
 
 export interface FileRefSourceKey {
   readonly sourceType: FileRefSourceType
@@ -64,14 +67,48 @@ export interface FileRefService {
 }
 
 const notImplemented = (op: string): never => {
-  throw new Error(`fileRefService.${op}: not implemented (Phase 1a skeleton, lands in Phase 1b.1/1b.2)`)
+  throw new Error(`fileRefService.${op}: not implemented (Phase 1a skeleton, lands in Phase 1b.2)`)
 }
 
-export const fileRefService: FileRefService = {
-  findByEntryId: () => notImplemented('findByEntryId'),
-  findBySource: () => notImplemented('findBySource'),
-  create: () => notImplemented('create'),
-  createMany: () => notImplemented('createMany'),
-  cleanupBySource: () => notImplemented('cleanupBySource'),
-  cleanupBySourceBatch: () => notImplemented('cleanupBySourceBatch')
+type FileRefRow = typeof fileRefTable.$inferSelect
+
+function rowToFileRef(row: FileRefRow): FileRef {
+  return FileRefSchema.parse(row)
 }
+
+class FileRefServiceImpl implements FileRefService {
+  private getDb() {
+    return application.get('DbService').getDb()
+  }
+
+  async findByEntryId(fileEntryId: FileEntryId): Promise<FileRef[]> {
+    const rows = await this.getDb().select().from(fileRefTable).where(eq(fileRefTable.fileEntryId, fileEntryId))
+    return rows.map(rowToFileRef)
+  }
+
+  async findBySource(source: FileRefSourceKey): Promise<FileRef[]> {
+    const rows = await this.getDb()
+      .select()
+      .from(fileRefTable)
+      .where(and(eq(fileRefTable.sourceType, source.sourceType), eq(fileRefTable.sourceId, source.sourceId)))
+    return rows.map(rowToFileRef)
+  }
+
+  async create(_values: CreateFileRefRow): Promise<FileRef> {
+    return notImplemented('create')
+  }
+
+  async createMany(_values: readonly CreateFileRefRow[]): Promise<FileRef[]> {
+    return notImplemented('createMany')
+  }
+
+  async cleanupBySource(_source: FileRefSourceKey): Promise<number> {
+    return notImplemented('cleanupBySource')
+  }
+
+  async cleanupBySourceBatch(_sourceType: FileRefSourceType, _sourceIds: readonly string[]): Promise<number> {
+    return notImplemented('cleanupBySourceBatch')
+  }
+}
+
+export const fileRefService: FileRefService = new FileRefServiceImpl()
