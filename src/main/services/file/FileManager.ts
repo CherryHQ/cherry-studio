@@ -106,14 +106,29 @@
  */
 
 import type { Readable, Writable } from 'node:stream'
+import { pathToFileURL } from 'node:url'
 
+import { fileEntryService } from '@data/services/FileEntryService'
+import { fileRefService } from '@data/services/FileRefService'
+import { canonicalizeExternalPath, resolvePhysicalPath } from '@data/utils/pathResolver'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { stat as fsStat } from '@main/utils/file/fs'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type {
   BatchOperationResult,
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
+  FilePath,
+  FileURLString,
   PhysicalFileMetadata
 } from '@shared/file/types'
+import mime from 'mime'
+
+import { danglingCache } from './danglingCache'
+import { hash as internalHash } from './internal/content/hash'
+import { read as internalRead } from './internal/content/read'
+import type { FileManagerDeps } from './internal/deps'
+import { versionCache } from './versionCache'
 
 // Main-side parameter types are structurally identical to the IPC variants —
 // `CreateInternalEntryIpcParams` is a discriminated union on `source`
@@ -404,4 +419,196 @@ export interface IFileManager {
 
   /** Reveal in the system file manager. */
   showInFolder(id: FileEntryId): Promise<void>
+}
+
+// ─── Runtime ───
+
+const notImplemented1b2 = (op: string): never => {
+  throw new Error(`FileManager.${op}: not implemented (Phase 1b.1 ships read path; ${op} lands in Phase 1b.2)`)
+}
+
+/**
+ * Lifecycle-managed FileManager singleton.
+ *
+ * Phase 1b.1 implements the **read path** only — getById / findById /
+ * findByExternalPath / read / getMetadata / getVersion / getContentHash /
+ * getUrl / getPhysicalPath / ensureExternalEntry-read-side. Mutation methods
+ * (createInternalEntry, write, trash, …) throw `notImplemented1b2` until
+ * Phase 1b.2.
+ *
+ * Internal ops live as pure functions under `./internal/*` and receive a
+ * `FileManagerDeps` bundle. The class owns lifecycle (BaseService) and
+ * delegates per public method.
+ *
+ * Access via `application.get('FileManager')`. Direct construction is
+ * reserved for tests; production code MUST go through the container.
+ */
+@Injectable('FileManager')
+@ServicePhase(Phase.WhenReady)
+export class FileManager extends BaseService {
+  private readonly deps: FileManagerDeps = {
+    fileEntryService,
+    fileRefService,
+    danglingCache,
+    versionCache
+  }
+
+  // ─── Entry queries ───
+
+  async getById(id: FileEntryId): Promise<FileEntry> {
+    return this.deps.fileEntryService.getById(id)
+  }
+
+  async findById(id: FileEntryId): Promise<FileEntry | null> {
+    return this.deps.fileEntryService.findById(id)
+  }
+
+  async findByExternalPath(rawPath: string): Promise<FileEntry | null> {
+    return this.deps.fileEntryService.findByExternalPath(canonicalizeExternalPath(rawPath))
+  }
+
+  /**
+   * Read-side only in Phase 1b.1: returns existing entry by canonical path,
+   * or throws because the create branch lands with the write path in 1b.2.
+   */
+  async ensureExternalEntry(_params: EnsureExternalEntryParams): Promise<FileEntry> {
+    return notImplemented1b2('ensureExternalEntry')
+  }
+
+  // ─── Read ───
+
+  read(id: FileEntryId, options?: { encoding?: 'text'; detectEncoding?: boolean }): Promise<ReadResult<string>>
+  read(id: FileEntryId, options: { encoding: 'base64' }): Promise<ReadResult<string>>
+  read(id: FileEntryId, options: { encoding: 'binary' }): Promise<ReadResult<Uint8Array>>
+  async read(
+    id: FileEntryId,
+    options?: { encoding?: 'text' | 'base64' | 'binary'; detectEncoding?: boolean }
+  ): Promise<ReadResult<string | Uint8Array>> {
+    // Single overload-erasing call site keeps the dispatcher simple; the public
+    // overloads above narrow the return type for type-safe call sites.
+    return internalRead(this.deps, id, options as { encoding?: 'text' })
+  }
+
+  /**
+   * Phase 1b.1 returns the structural shape with `type: 'other'` for files
+   * (regardless of ext). Per-kind enrichment — image width/height, PDF
+   * pageCount, text encoding — lands in Phase 1b.2 alongside the full write
+   * path; renderer call sites that need those fields are expected to handle
+   * them as 1b.2-deliverable.
+   */
+  async getMetadata(id: FileEntryId): Promise<PhysicalFileMetadata> {
+    const entry = await this.deps.fileEntryService.getById(id)
+    const physicalPath = resolvePhysicalPath(entry) as FilePath
+    const s = await fsStat(physicalPath)
+    if (s.isDirectory) {
+      return {
+        kind: 'directory',
+        size: s.size,
+        createdAt: s.createdAt || s.modifiedAt,
+        modifiedAt: s.modifiedAt
+      }
+    }
+    const ext = entry.ext
+    const inferredMime = ext ? (mime.getType(ext) ?? 'application/octet-stream') : 'application/octet-stream'
+    return {
+      kind: 'file',
+      type: 'other',
+      size: s.size,
+      createdAt: s.createdAt || s.modifiedAt,
+      modifiedAt: s.modifiedAt,
+      mime: inferredMime
+    }
+  }
+
+  async getVersion(id: FileEntryId): Promise<FileVersion> {
+    const entry = await this.deps.fileEntryService.getById(id)
+    const physicalPath = resolvePhysicalPath(entry) as FilePath
+    const s = await fsStat(physicalPath)
+    return { mtime: s.modifiedAt, size: s.size }
+  }
+
+  async getContentHash(id: FileEntryId): Promise<string> {
+    return internalHash(this.deps, id)
+  }
+
+  async getUrl(id: FileEntryId): Promise<FileURLString> {
+    const entry = await this.deps.fileEntryService.getById(id)
+    const physicalPath = resolvePhysicalPath(entry)
+    return pathToFileURL(physicalPath).toString() as FileURLString
+  }
+
+  async getPhysicalPath(id: FileEntryId): Promise<FilePath> {
+    const entry = await this.deps.fileEntryService.getById(id)
+    return resolvePhysicalPath(entry) as FilePath
+  }
+
+  // ─── Mutation methods (Phase 1b.2) ───
+
+  async createInternalEntry(_params: CreateInternalEntryParams): Promise<FileEntry> {
+    return notImplemented1b2('createInternalEntry')
+  }
+
+  async batchCreateInternalEntries(_items: CreateInternalEntryParams[]): Promise<BatchOperationResult> {
+    return notImplemented1b2('batchCreateInternalEntries')
+  }
+
+  async batchEnsureExternalEntries(_items: EnsureExternalEntryParams[]): Promise<BatchOperationResult> {
+    return notImplemented1b2('batchEnsureExternalEntries')
+  }
+
+  async createReadStream(_id: FileEntryId): Promise<Readable> {
+    return notImplemented1b2('createReadStream')
+  }
+
+  async write(_id: FileEntryId, _data: string | Uint8Array): Promise<FileVersion> {
+    return notImplemented1b2('write')
+  }
+
+  async writeIfUnchanged(
+    _id: FileEntryId,
+    _data: string | Uint8Array,
+    _expectedVersion: FileVersion
+  ): Promise<FileVersion> {
+    return notImplemented1b2('writeIfUnchanged')
+  }
+
+  async createAtomicWriteStream(_id: FileEntryId): Promise<AtomicWriteStream> {
+    return notImplemented1b2('createAtomicWriteStream')
+  }
+
+  async trash(_id: FileEntryId): Promise<void> {
+    return notImplemented1b2('trash')
+  }
+
+  async restore(_id: FileEntryId): Promise<FileEntry> {
+    return notImplemented1b2('restore')
+  }
+
+  async permanentDelete(_id: FileEntryId): Promise<void> {
+    return notImplemented1b2('permanentDelete')
+  }
+
+  async batchTrash(_ids: FileEntryId[]): Promise<BatchOperationResult> {
+    return notImplemented1b2('batchTrash')
+  }
+
+  async batchRestore(_ids: FileEntryId[]): Promise<BatchOperationResult> {
+    return notImplemented1b2('batchRestore')
+  }
+
+  async batchPermanentDelete(_ids: FileEntryId[]): Promise<BatchOperationResult> {
+    return notImplemented1b2('batchPermanentDelete')
+  }
+
+  async withTempCopy<T>(_id: FileEntryId, _fn: (tempPath: string) => Promise<T>): Promise<T> {
+    return notImplemented1b2('withTempCopy')
+  }
+
+  async open(_id: FileEntryId): Promise<void> {
+    return notImplemented1b2('open')
+  }
+
+  async showInFolder(_id: FileEntryId): Promise<void> {
+    return notImplemented1b2('showInFolder')
+  }
 }
