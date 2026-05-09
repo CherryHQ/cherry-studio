@@ -179,7 +179,7 @@ export function supportsApiSettings(processor: FileProcessorMerged): boolean {
 }
 
 export function supportsLanguageOptions(processorId: FileProcessorId): processorId is 'system' | 'tesseract' {
-  return processorId === 'system' || processorId === 'tesseract'
+  return processorId === 'tesseract' || (processorId === 'system' && isWin)
 }
 
 export function getTesseractLanguageCode(languageCode: string): string | undefined {

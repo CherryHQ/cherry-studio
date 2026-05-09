@@ -38,6 +38,26 @@ function omitEmptyOptions(options: FileProcessorOptions | undefined): FileProces
   return entries.length ? Object.fromEntries(entries) : undefined
 }
 
+function omitEmptyCapability(
+  capability: NonNullable<FileProcessorOverride['capabilities']>[FileProcessorFeature] | undefined
+) {
+  if (!capability) {
+    return undefined
+  }
+
+  const apiHost = capability.apiHost?.trim()
+  const modelId = capability.modelId?.trim()
+
+  if (!apiHost && !modelId) {
+    return undefined
+  }
+
+  return {
+    ...(apiHost ? { apiHost } : {}),
+    ...(modelId ? { modelId } : {})
+  }
+}
+
 function omitEmptyOverride(override: FileProcessorOverride): FileProcessorOverride | undefined {
   const apiKeys = override.apiKeys?.map((item) => item.trim()).filter(Boolean)
   const capabilitiesEntries = override.capabilities
@@ -45,9 +65,12 @@ function omitEmptyOverride(override: FileProcessorOverride): FileProcessorOverri
         Object.entries(override.capabilities) as Array<
           [FileProcessorFeature, NonNullable<FileProcessorOverride['capabilities']>[FileProcessorFeature]]
         >
-      ).filter(([, capability]) => {
-        return Boolean(capability?.apiHost?.trim() || capability?.modelId?.trim())
-      })
+      )
+        .map(([feature, capability]) => [feature, omitEmptyCapability(capability)] as const)
+        .filter(
+          (entry): entry is readonly [FileProcessorFeature, NonNullable<ReturnType<typeof omitEmptyCapability>>] =>
+            Boolean(entry[1])
+        )
     : undefined
   const options = omitEmptyOptions(override.options)
 

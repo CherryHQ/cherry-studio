@@ -1,3 +1,5 @@
+import { isMac, isWin } from '@main/constant'
+
 import { doc2xDocumentToMarkdownHandler } from './doc2x/document-to-markdown/handler'
 import { mineruDocumentToMarkdownHandler } from './mineru/document-to-markdown/handler'
 import { mistralDocumentToMarkdownHandler } from './mistral/document-to-markdown/handler'
@@ -19,7 +21,7 @@ export const processorRegistry = {
     }
   },
   system: {
-    isAvailable: true,
+    isAvailable: () => isMac || isWin,
     capabilities: {
       image_to_text: systemImageToTextHandler
     }

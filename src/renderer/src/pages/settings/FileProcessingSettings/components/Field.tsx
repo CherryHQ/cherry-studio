@@ -1,4 +1,4 @@
-import { Input } from '@cherrystudio/ui'
+import { Button, Input } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { Eye, EyeOff } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -13,6 +13,7 @@ type TextFieldProps = {
   readOnly?: boolean
   type?: string
   placeholder?: string
+  labelAction?: ReactNode
   action?: ReactNode
   description?: ReactNode
 }
@@ -25,6 +26,7 @@ export function TextField({
   readOnly,
   type,
   placeholder,
+  labelAction,
   action,
   description
 }: TextFieldProps) {
@@ -32,11 +34,14 @@ export function TextField({
 
   return (
     <div className="block">
-      <div className="mb-1.5">
-        <label htmlFor={inputId} className="text-foreground/55 text-xs leading-tight">
-          {label}
-        </label>
-        {description ? <p className="mt-0.5 text-foreground/25 text-xs leading-tight">{description}</p> : null}
+      <div className="mb-1.5 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <label htmlFor={inputId} className="text-foreground/55 text-xs leading-tight">
+            {label}
+          </label>
+          {description ? <p className="mt-0.5 text-foreground/25 text-xs leading-tight">{description}</p> : null}
+        </div>
+        {labelAction ? <div className="shrink-0">{labelAction}</div> : null}
       </div>
       <div className="flex min-w-0 items-center gap-1.5">
         <div className="flex min-w-0 flex-1 items-center rounded-lg border border-border/30 bg-foreground/[0.03] px-2.5 py-[5px]">
@@ -69,6 +74,7 @@ export function PasswordField({
   onChange,
   onBlur,
   placeholder,
+  labelAction,
   action,
   description
 }: PasswordFieldProps) {
@@ -78,11 +84,14 @@ export function PasswordField({
 
   return (
     <div className="block">
-      <div className="mb-1.5">
-        <label htmlFor={inputId} className="text-foreground/55 text-xs leading-tight">
-          {label}
-        </label>
-        {description ? <p className="mt-0.5 text-foreground/25 text-xs leading-tight">{description}</p> : null}
+      <div className="mb-1.5 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <label htmlFor={inputId} className="text-foreground/55 text-xs leading-tight">
+            {label}
+          </label>
+          {description ? <p className="mt-0.5 text-foreground/25 text-xs leading-tight">{description}</p> : null}
+        </div>
+        {labelAction ? <div className="shrink-0">{labelAction}</div> : null}
       </div>
       <div className="flex min-w-0 items-center gap-1.5">
         <div className="flex min-w-0 flex-1 items-center rounded-lg border border-border/30 bg-foreground/[0.03] px-2.5 py-[5px]">
@@ -99,9 +108,11 @@ export function PasswordField({
               'placeholder:text-foreground/20 focus-visible:ring-0 focus-visible:ring-offset-0'
             )}
           />
-          <button
+          <Button
             type="button"
-            className="ml-1.5 shrink-0 text-foreground/20 transition-colors hover:text-foreground/40"
+            variant="ghost"
+            size="icon-sm"
+            className="ml-1.5 size-5 shrink-0 text-foreground/20 shadow-none hover:text-foreground/40"
             aria-label={
               visible
                 ? t('settings.tool.file_processing.actions.hide_api_key')
@@ -112,10 +123,10 @@ export function PasswordField({
               setVisible((current) => !current)
             }}>
             {visible ? <EyeOff size={10} /> : <Eye size={10} />}
-          </button>
+          </Button>
         </div>
+        {action}
       </div>
-      {action ? <div className="mt-1">{action}</div> : null}
     </div>
   )
 }

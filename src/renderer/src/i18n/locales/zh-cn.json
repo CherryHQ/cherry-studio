@@ -5908,7 +5908,7 @@
             "name": "System OCR",
             "status": {
               "available": "检测到 macOS Live Text / Windows OCR 引擎可用。",
-              "no_configuration": "系统 OCR 无需配置，直接调用系统底层能力。速度最快但准确率受系统版本影响。"
+              "no_configuration": "系统 OCR 直接调用系统底层能力。速度最快，但准确率受系统版本影响。"
             }
           },
           "tesseract": {

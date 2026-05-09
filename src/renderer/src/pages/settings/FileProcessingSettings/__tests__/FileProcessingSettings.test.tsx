@@ -7,6 +7,8 @@ import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOCRDeploymentInfo'
 
 const setPreferencesMock = vi.hoisted(() => vi.fn())
 const listAvailableProcessorsMock = vi.hoisted(() => vi.fn())
+const topViewShowMock = vi.hoisted(() => vi.fn())
+const topViewHideMock = vi.hoisted(() => vi.fn())
 const selectMockState = vi.hoisted(() => ({
   onValueChange: undefined as ((value: string) => void) | undefined,
   value: undefined as string | undefined
@@ -61,6 +63,13 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
 }))
 
+vi.mock('@renderer/components/TopView', () => ({
+  TopView: {
+    show: topViewShowMock,
+    hide: topViewHideMock
+  }
+}))
+
 vi.mock('@cherrystudio/ui', () => ({
   Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
   Button: ({ asChild, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) => {
@@ -87,6 +96,15 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   CommandList: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+  Dialog: ({ children, open }: React.HTMLAttributes<HTMLDivElement> & { open?: boolean }) =>
+    open === false ? null : <>{children}</>,
+  DialogContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+    <div role="dialog" {...props}>
+      {children}
+    </div>
+  ),
+  DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+  DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Popover: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>,
   PopoverContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
@@ -125,7 +143,10 @@ vi.mock('@cherrystudio/ui', () => ({
     }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { onValueChange?: (value: string) => void }) => (
       <textarea {...props} onChange={(event) => onValueChange?.(event.target.value)} />
     )
-  }
+  },
+  Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement> & { content?: React.ReactNode; delay?: number }) => (
+    <>{children}</>
+  )
 }))
 
 describe('FileProcessingSettings', () => {
@@ -137,6 +158,8 @@ describe('FileProcessingSettings', () => {
     selectMockState.value = undefined
     setPreferencesMock.mockReset()
     setPreferencesMock.mockResolvedValue(undefined)
+    topViewShowMock.mockReset()
+    topViewHideMock.mockReset()
     listAvailableProcessorsMock.mockReset()
     listAvailableProcessorsMock.mockResolvedValue({
       processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru']
@@ -147,6 +170,20 @@ describe('FileProcessingSettings', () => {
         fileProcessing: {
           listAvailableProcessors: listAvailableProcessorsMock
         }
+      }
+    })
+    Object.defineProperty(window, 'modal', {
+      configurable: true,
+      value: {
+        confirm: vi.fn().mockResolvedValue(true)
+      }
+    })
+    Object.defineProperty(window, 'toast', {
+      configurable: true,
+      value: {
+        error: vi.fn(),
+        success: vi.fn(),
+        warning: vi.fn()
       }
     })
   })
@@ -218,6 +255,48 @@ describe('FileProcessingSettings', () => {
         overrides: {
           mistral: {
             apiKeys: ['key-1', 'key-2']
+          }
+        }
+      })
+    })
+  })
+
+  it('opens the file processing API key list popup from the API key field', async () => {
+    render(<FileProcessingSettings />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })[0])
+    fireEvent.change(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'), {
+      target: { value: ' key-1, key-2 ' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+
+    await waitFor(() => {
+      expect(topViewShowMock).toHaveBeenCalled()
+    })
+
+    const popup = topViewShowMock.mock.calls[0][0]
+    expect(popup.props.processorId).toBe('mistral')
+    expect(popup.props.apiKeys).toEqual(['key-1', 'key-2'])
+    expect(popup.props.title).toBe(
+      'settings.tool.file_processing.processors.mistral.name settings.provider.api.key.list.title'
+    )
+  })
+
+  it('stores System OCR language options on Windows', async () => {
+    render(<FileProcessingSettings />)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'settings.tool.file_processing.processors.tesseract.actions.add_language' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: /English \(en-us\)/ }))
+
+    await waitFor(() => {
+      expect(setPreferencesMock).toHaveBeenCalledWith({
+        overrides: {
+          system: {
+            options: {
+              langs: ['en-us']
+            }
           }
         }
       })

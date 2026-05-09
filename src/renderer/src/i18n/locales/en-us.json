@@ -5908,7 +5908,7 @@
             "name": "System OCR",
             "status": {
               "available": "Detected available macOS Live Text / Windows OCR engine.",
-              "no_configuration": "System OCR requires no configuration and calls the native system engine directly. It is fastest, but accuracy depends on the OS version."
+              "no_configuration": "System OCR calls the native system engine directly. It is fastest, but accuracy depends on the OS version."
             }
           },
           "tesseract": {

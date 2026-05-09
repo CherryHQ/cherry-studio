@@ -1,8 +1,8 @@
-import { Badge, Button, type ComboboxOption } from '@cherrystudio/ui'
+import { Badge, Button, type ComboboxOption, Tooltip } from '@cherrystudio/ui'
 import useTranslate from '@renderer/hooks/useTranslate'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { splitApiKeyString } from '@shared/utils/api'
-import { SquareCheckBig } from 'lucide-react'
+import { List, SquareCheckBig } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,10 +12,12 @@ import {
   getProcessorDescriptionKey,
   getProcessorNameKey,
   getTesseractLanguageCode,
-  supportsApiSettings
+  supportsApiSettings,
+  supportsLanguageOptions
 } from '../utils/fileProcessingMeta'
 import { getProcessorLanguageOptions } from '../utils/fileProcessingPreferences'
 import { PasswordField, TextField } from './Field'
+import { FileProcessingApiKeyListPopup } from './FileProcessingApiKeyList'
 import { PaddleOCRDeploymentInfo } from './PaddleOCRDeploymentInfo'
 import { PaddleOCRModelSettings } from './PaddleOCRModelSettings'
 import { ProcessorAvatar } from './ProcessorAvatar'
@@ -100,6 +102,15 @@ export function ProcessorPanel({
     void onSetApiKeys(processor.id, splitApiKeyString(apiKeysInput))
   }, [apiKeysInput, onSetApiKeys, processor.id])
 
+  const openApiKeyList = useCallback(async () => {
+    await FileProcessingApiKeyListPopup.show({
+      processorId: processor.id,
+      apiKeys: splitApiKeyString(apiKeysInput),
+      onSetApiKeys,
+      title: `${processorName} ${t('settings.provider.api.key.list.title')}`
+    })
+  }, [apiKeysInput, onSetApiKeys, processor.id, processorName, t])
+
   const handleApiHostBlur = useCallback(() => {
     void onSetCapabilityField(processor.id, entry.feature, 'apiHost', apiHostInput)
   }, [apiHostInput, entry.feature, onSetCapabilityField, processor.id])
@@ -120,7 +131,7 @@ export function ProcessorPanel({
 
   const handleLanguagesChange = useCallback(
     (value: string | string[]) => {
-      if (processor.id !== 'tesseract') {
+      if (!supportsLanguageOptions(processor.id)) {
         return
       }
 
@@ -157,18 +168,31 @@ export function ProcessorPanel({
             onChange={setApiKeysInput}
             onBlur={handleApiKeysBlur}
             placeholder={t('settings.tool.file_processing.fields.api_keys_placeholder')}
-            action={
-              apiKeyWebsite ? (
-                <a
-                  href={apiKeyWebsite}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-block text-primary/70 text-xs leading-tight transition-colors hover:text-primary">
-                  {t('settings.provider.get_api_key')}
-                </a>
-              ) : undefined
+            labelAction={
+              <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-6 shrink-0 text-foreground/40 shadow-none hover:text-foreground/70"
+                  aria-label={t('settings.provider.api.key.list.open')}
+                  onClick={() => void openApiKeyList()}>
+                  <List size={13} />
+                </Button>
+              </Tooltip>
             }
           />
+          {apiKeyWebsite ? (
+            <div className="-mt-1">
+              <a
+                href={apiKeyWebsite}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-block text-primary/70 text-xs leading-tight transition-colors hover:text-primary">
+                {t('settings.provider.get_api_key')}
+              </a>
+            </div>
+          ) : null}
           {entry.capability.apiHost !== undefined ? (
             <TextField
               label={t('settings.tool.file_processing.fields.api_base_url')}
@@ -203,7 +227,7 @@ export function ProcessorPanel({
         </SettingsSection>
       ) : null}
 
-      {processor.id === 'tesseract' ? (
+      {supportsLanguageOptions(processor.id) ? (
         <TesseractLanguagePacks
           options={languageOptions}
           selectedLanguages={selectedLanguages}

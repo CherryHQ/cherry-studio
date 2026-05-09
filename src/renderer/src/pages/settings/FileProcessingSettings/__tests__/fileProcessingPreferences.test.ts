@@ -59,6 +59,55 @@ describe('fileProcessingPreferences', () => {
     })
   })
 
+  it('removes an empty capability field while preserving populated sibling fields', () => {
+    const result = updateProcessorCapabilityOverride(
+      {
+        paddleocr: {
+          capabilities: {
+            image_to_text: {
+              apiHost: 'https://ocr.example.com',
+              modelId: 'PP-OCRv5'
+            }
+          }
+        }
+      },
+      'paddleocr',
+      'image_to_text',
+      'apiHost',
+      ' '
+    )
+
+    expect(result).toEqual({
+      paddleocr: {
+        capabilities: {
+          image_to_text: {
+            modelId: 'PP-OCRv5'
+          }
+        }
+      }
+    })
+  })
+
+  it('removes empty capability overrides to keep preset defaults active', () => {
+    const result = updateProcessorCapabilityOverride(
+      {
+        paddleocr: {
+          capabilities: {
+            image_to_text: {
+              apiHost: 'https://ocr.example.com'
+            }
+          }
+        }
+      },
+      'paddleocr',
+      'image_to_text',
+      'apiHost',
+      ''
+    )
+
+    expect(result).toEqual({})
+  })
+
   it('stores processor language options', () => {
     const result = updateProcessorLanguageOptions({}, 'tesseract', ['eng', 'chi_sim'])
 

@@ -97,6 +97,10 @@ describe('api', () => {
       expect(splitApiKeyString(' key1 , key2 ,key3 ')).toEqual(['key1', 'key2', 'key3'])
     })
 
+    it('normalizes chinese commas and new lines before splitting', () => {
+      expect(splitApiKeyString('key1，key2\nkey3')).toEqual(['key1', 'key2', 'key3'])
+    })
+
     it('handles escaped commas inside keys', () => {
       expect(splitApiKeyString('key1,key2\\,withcomma,key3')).toEqual(['key1', 'key2,withcomma', 'key3'])
     })

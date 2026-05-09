@@ -32,4 +32,13 @@ describe('processorRegistry', () => {
       }
     }
   })
+
+  it('marks System OCR available only on macOS and Windows', () => {
+    const availability = processorRegistry.system.isAvailable
+
+    expect(typeof availability).toBe('function')
+    expect(typeof availability === 'function' ? availability() : availability).toBe(
+      process.platform === 'darwin' || process.platform === 'win32'
+    )
+  })
 })
