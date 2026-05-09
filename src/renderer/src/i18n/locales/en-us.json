@@ -2246,7 +2246,7 @@
         "sitemap": {
           "description": "Enter a sitemap URL:",
           "help": "Pages listed in the sitemap will be read and indexed",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
+          "placeholder": "https://example.com/sitemap.xml"
         },
         "sources": {
           "directory": "Folder",
@@ -2264,7 +2264,7 @@
           "description": "Enter a webpage URL:",
           "help": "Page text will be fetched, chunked, and indexed automatically",
           "input_label": "Webpage URL",
-          "placeholder": "https://docs.cherry-ai.com/",
+          "placeholder": "https://example.com",
           "title": "Import a single webpage"
         }
       },

@@ -2246,7 +2246,7 @@
         "sitemap": {
           "description": "输入 Sitemap 地址：",
           "help": "将读取 Sitemap 中包含的页面并建立索引",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
+          "placeholder": "https://example.com/sitemap.xml"
         },
         "sources": {
           "directory": "目录",
@@ -2264,7 +2264,7 @@
           "description": "输入网页链接：",
           "help": "将自动抓取页面文本并分块索引",
           "input_label": "网页地址",
-          "placeholder": "https://docs.cherry-ai.com/",
+          "placeholder": "https://example.com",
           "title": "导入单个网页"
         }
       },

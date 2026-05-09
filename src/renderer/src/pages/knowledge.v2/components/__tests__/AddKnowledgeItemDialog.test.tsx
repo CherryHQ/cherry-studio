@@ -190,7 +190,7 @@ vi.mock('react-i18next', () => ({
         'knowledge_v2.data_source.add_dialog.placeholder.title': '点击选择文件或拖拽到此处',
         'knowledge_v2.data_source.add_dialog.sitemap.description': '输入 Sitemap 地址：',
         'knowledge_v2.data_source.add_dialog.sitemap.help': '将读取 Sitemap 中包含的页面并建立索引',
-        'knowledge_v2.data_source.add_dialog.sitemap.placeholder': 'https://docs.cherry-ai.com/sitemap-pages.xml',
+        'knowledge_v2.data_source.add_dialog.sitemap.placeholder': 'https://example.com/sitemap.xml',
         'knowledge_v2.data_source.add_dialog.sources.directory': '目录',
         'knowledge_v2.data_source.add_dialog.sources.file': '文件',
         'knowledge_v2.data_source.add_dialog.sources.note': '笔记',
@@ -201,7 +201,7 @@ vi.mock('react-i18next', () => ({
         'knowledge_v2.data_source.add_dialog.title': '添加数据源',
         'knowledge_v2.data_source.add_dialog.url.description': '输入网页链接：',
         'knowledge_v2.data_source.add_dialog.url.help': '将自动抓取页面文本并分块索引',
-        'knowledge_v2.data_source.add_dialog.url.placeholder': 'https://example.com/article'
+        'knowledge_v2.data_source.add_dialog.url.placeholder': 'https://example.com'
       } satisfies Record<string, string>
 
       return translations[key] ?? options?.defaultValue ?? key
@@ -345,15 +345,15 @@ describe('AddKnowledgeItemDialog', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: '网址' }))
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
-    fireEvent.change(screen.getByPlaceholderText('https://example.com/article'), {
-      target: { value: 'https://example.com/article' }
+    fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
+      target: { value: 'https://example.com' }
     })
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
 
     fireEvent.click(screen.getByRole('tab', { name: '网站' }))
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
-    fireEvent.change(screen.getByPlaceholderText('https://docs.cherry-ai.com/sitemap-pages.xml'), {
-      target: { value: 'https://docs.cherry-ai.com/sitemap-pages.xml' }
+    fireEvent.change(screen.getByPlaceholderText('https://example.com/sitemap.xml'), {
+      target: { value: 'https://example.com/sitemap.xml' }
     })
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
   })
@@ -410,8 +410,8 @@ describe('AddKnowledgeItemDialog', () => {
     })
 
     fireEvent.click(screen.getByRole('tab', { name: '网址' }))
-    fireEvent.change(screen.getByPlaceholderText('https://example.com/article'), {
-      target: { value: ' https://example.com/article ' }
+    fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
+      target: { value: ' https://example.com ' }
     })
     fireEvent.click(screen.getByRole('button', { name: '添加' }))
     await waitFor(() => {
@@ -419,16 +419,16 @@ describe('AddKnowledgeItemDialog', () => {
         {
           type: 'url',
           data: {
-            source: 'https://example.com/article',
-            url: 'https://example.com/article'
+            source: 'https://example.com',
+            url: 'https://example.com'
           }
         }
       ])
     })
 
     fireEvent.click(screen.getByRole('tab', { name: '网站' }))
-    fireEvent.change(screen.getByPlaceholderText('https://docs.cherry-ai.com/sitemap-pages.xml'), {
-      target: { value: ' https://docs.cherry-ai.com/sitemap-pages.xml ' }
+    fireEvent.change(screen.getByPlaceholderText('https://example.com/sitemap.xml'), {
+      target: { value: ' https://example.com/sitemap.xml ' }
     })
     fireEvent.click(screen.getByRole('button', { name: '添加' }))
     await waitFor(() => {
@@ -436,8 +436,8 @@ describe('AddKnowledgeItemDialog', () => {
         {
           type: 'sitemap',
           data: {
-            source: 'https://docs.cherry-ai.com/sitemap-pages.xml',
-            url: 'https://docs.cherry-ai.com/sitemap-pages.xml'
+            source: 'https://example.com/sitemap.xml',
+            url: 'https://example.com/sitemap.xml'
           }
         }
       ])
@@ -534,8 +534,8 @@ describe('AddKnowledgeItemDialog', () => {
     await screen.findByText('docs')
 
     fireEvent.click(screen.getByRole('tab', { name: '网址' }))
-    fireEvent.change(screen.getByPlaceholderText('https://example.com/article'), {
-      target: { value: 'https://example.com/article' }
+    fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
+      target: { value: 'https://example.com' }
     })
 
     rerender(<AddKnowledgeItemDialog open={false} onOpenChange={vi.fn()} />)
@@ -548,6 +548,6 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.queryByText('docs')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: '网址' }))
-    expect(screen.getByPlaceholderText('https://example.com/article')).toHaveValue('')
+    expect(screen.getByPlaceholderText('https://example.com')).toHaveValue('')
   })
 })
