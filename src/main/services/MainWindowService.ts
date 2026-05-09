@@ -76,6 +76,7 @@ export class MainWindowService extends BaseService {
     this.registerWindowShortcuts()
     this.registerIpcHandlers()
     this.registerActivateHandler()
+    this.registerSecondInstanceHandler()
   }
 
   private registerWindowShortcuts() {
@@ -121,6 +122,15 @@ export class MainWindowService extends BaseService {
     const handler = () => this.showMainWindow()
     app.on('activate', handler)
     this.registerDisposable(() => app.removeListener('activate', handler))
+  }
+
+  private registerSecondInstanceHandler() {
+    // Protocol URL dispatch is handled by ProtocolService on the same event.
+    // Multiple listeners on 'second-instance' are intentional: ProtocolService
+    // dispatches the URL, MainWindowService restores the window.
+    const handler = () => this.showMainWindow()
+    app.on('second-instance', handler)
+    this.registerDisposable(() => app.removeListener('second-instance', handler))
   }
 
   private registerIpcHandlers() {
