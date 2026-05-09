@@ -286,7 +286,7 @@ describe('TagService', () => {
     })
   })
 
-  describe('purgeForEntity', () => {
+  describe('purgeForEntityTx', () => {
     it('should remove only tag rows for the target entity', async () => {
       await seedTags()
       await dbh.db.insert(entityTagTable).values([
@@ -295,7 +295,7 @@ describe('TagService', () => {
         { entityType: 'topic', entityId: TOPIC_1, tagId: TAG_2, createdAt: 1, updatedAt: 1 }
       ])
 
-      await tagService.purgeForEntity(dbh.db, 'assistant', ASSISTANT_1)
+      await tagService.purgeForEntityTx(dbh.db, 'assistant', ASSISTANT_1)
 
       const rows = await dbh.db.select().from(entityTagTable)
       expect(rows).toEqual([
@@ -305,27 +305,27 @@ describe('TagService', () => {
     })
   })
 
-  describe('purgeForEntities', () => {
+  describe('purgeForEntitiesTx', () => {
     it('should be a no-op when entityIds is empty', async () => {
       await seedTags()
       await dbh.db
         .insert(entityTagTable)
         .values([{ entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 }])
 
-      await expect(tagService.purgeForEntities(dbh.db, 'assistant', [])).resolves.toBeUndefined()
+      await expect(tagService.purgeForEntitiesTx(dbh.db, 'assistant', [])).resolves.toBeUndefined()
 
       const rows = await dbh.db.select().from(entityTagTable)
       expect(rows).toHaveLength(1)
     })
 
-    it('should be equivalent to purgeForEntity for a single id', async () => {
+    it('should be equivalent to purgeForEntityTx for a single id', async () => {
       await seedTags()
       await dbh.db.insert(entityTagTable).values([
         { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 },
         { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_2, createdAt: 1, updatedAt: 1 }
       ])
 
-      await tagService.purgeForEntities(dbh.db, 'assistant', [ASSISTANT_1])
+      await tagService.purgeForEntitiesTx(dbh.db, 'assistant', [ASSISTANT_1])
 
       const rows = await dbh.db.select().from(entityTagTable)
       expect(rows).toEqual([expect.objectContaining({ entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_2 })])
@@ -340,7 +340,7 @@ describe('TagService', () => {
         { entityType: 'topic', entityId: TOPIC_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 }
       ])
 
-      await tagService.purgeForEntities(dbh.db, 'assistant', [ASSISTANT_1, ASSISTANT_2])
+      await tagService.purgeForEntitiesTx(dbh.db, 'assistant', [ASSISTANT_1, ASSISTANT_2])
 
       const rows = await dbh.db.select().from(entityTagTable)
       expect(rows).toEqual([expect.objectContaining({ entityType: 'topic', entityId: TOPIC_1, tagId: TAG_1 })])
@@ -355,7 +355,7 @@ describe('TagService', () => {
         { entityType: 'topic', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 1, updatedAt: 1 }
       ])
 
-      await tagService.purgeForEntities(dbh.db, 'assistant', [ASSISTANT_1])
+      await tagService.purgeForEntitiesTx(dbh.db, 'assistant', [ASSISTANT_1])
 
       const rows = await dbh.db.select().from(entityTagTable)
       expect(rows).toEqual([expect.objectContaining({ entityType: 'topic', entityId: ASSISTANT_1, tagId: TAG_2 })])
