@@ -34,6 +34,9 @@ vi.mock('@main/core/lifecycle', () => ({
     protected registerDisposable(d: unknown) {
       return d
     }
+    protected registerInterval() {
+      return { dispose: () => {} }
+    }
     get isReady() {
       return true
     }

@@ -144,8 +144,11 @@ When a lifecycle service registers IPC handlers, it should use BaseService's bui
 |--------|-------|------------------|---------|
 | `this.ipcHandle(channel, listener)` | `ipcMain.handle()` | `ipcMain.removeHandler()` | `Disposable` |
 | `this.ipcOn(channel, listener)` | `ipcMain.on()` | `ipcMain.removeListener()` | `Disposable` |
+| `this.registerInterval(callback, intervalMs)` | `setInterval()` + `unref()` | `clearInterval()` | `Disposable` |
 
 > `ipcOnce()` is intentionally not provided — once-listeners fire once and auto-remove, so they do not need lifecycle tracking.
+
+> `registerTimeout()` is intentionally not provided — single-shot timers fire once and auto-clear, so they do not need lifecycle tracking.
 
 ### Convention
 
@@ -185,6 +188,27 @@ export class MainWindowService extends BaseService {
 ### Phase Behavior
 
 `this.ipcHandle()` and `this.ipcOn()` work in any phase (`BeforeReady`, `WhenReady`, `Background`). The helpers are thin wrappers around `ipcMain` — the phase system controls *when* `onInit()` runs (and thus when handlers get registered), not whether the registration API is available.
+
+## Recurring Timers
+
+`this.registerInterval(callback, intervalMs)` for periodic work scoped to the service lifecycle (GC, polls, heartbeats). Started immediately, `unref`'d, exception-isolated, auto-cleared on `onStop()`. Returns a `Disposable`.
+
+```typescript
+private gcInterval: Disposable | null = null
+
+protected async onStop() {
+  this.gcInterval = null // auto-disposed; null'd so a restart re-arms it
+}
+
+private startGc() {
+  if (this.gcInterval) return
+  this.gcInterval = this.registerInterval(() => this.gc(), 10 * 60 * 1000)
+}
+```
+
+If the field is never read (e.g., fire-and-forget from `onInit`), drop it entirely.
+
+**Do not use for**: activation-scoped timers (manage manually in `onActivate`/`onDeactivate`), one-shot delays (use `setTimeout`), connection-scoped heartbeats (manage in the connection).
 
 ## Service Events (Emitter / Event)
 
@@ -407,7 +431,7 @@ class SelectionService extends BaseService implements Activatable {
 
 | Hook | Responsibility | Example |
 |------|---------------|---------|
-| `onInit()` | Infrastructure: IPC handlers, event subscriptions, trigger setup | `registerIpcHandlers()`, `registerDisposable(...)` |
+| `onInit()` | Infrastructure: IPC handlers, event subscriptions, trigger setup, recurring timers | `registerIpcHandlers()`, `registerDisposable(...)`, `registerInterval(...)` |
 | `onReady()` | Initial activation check (state = Ready, `activate()` works) | `if (enabled) await this.activate()` |
 | `onActivate()` | Load heavy resources | Native modules, windows, caches |
 | `onDeactivate()` | Release heavy resources | Close windows, clear caches |

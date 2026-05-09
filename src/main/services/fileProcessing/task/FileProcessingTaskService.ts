@@ -1,5 +1,13 @@
 import { loggerService } from '@logger'
-import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  type Disposable,
+  Emitter,
+  type Event,
+  Injectable,
+  Phase,
+  ServicePhase
+} from '@main/core/lifecycle'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileProcessorInput } from '@shared/data/presets/file-processing'
@@ -97,7 +105,7 @@ interface MarkProcessingTaskInput {
 @ServicePhase(Phase.WhenReady)
 export class FileProcessingTaskService extends BaseService {
   private tasks: Map<string, FileProcessingTaskRecord> | null = null
-  private pruneTimer: NodeJS.Timeout | null = null
+  private pruneTimer: Disposable | null = null
   private readonly inFlightQueries = new Map<string, InFlightQuery>()
   private readonly backgroundExecutions = new Map<string, BackgroundExecution>()
   private readonly inFlightStarts = new Map<string, RemoteStart>()
@@ -139,6 +147,9 @@ export class FileProcessingTaskService extends BaseService {
     this.backgroundExecutions.clear()
     this.tasks?.clear()
     this.tasks = null
+    // Prune timer is auto-disposed via registerInterval; drop the reference so
+    // a restart re-arms it (startPruneTimer's early-return checks this field).
+    this.pruneTimer = null
 
     logger.debug('FileProcessingTaskService cleanup completed', {
       abortedQueryCount: inFlightQueries.length,
@@ -279,20 +290,7 @@ export class FileProcessingTaskService extends BaseService {
       return
     }
 
-    const pruneTimer = setInterval(() => {
-      this.pruneExpiredTasks()
-    }, FILE_PROCESSING_TASK_PRUNE_INTERVAL_MS)
-
-    pruneTimer.unref?.()
-    this.pruneTimer = pruneTimer
-
-    this.registerDisposable(() => {
-      clearInterval(pruneTimer)
-
-      if (this.pruneTimer === pruneTimer) {
-        this.pruneTimer = null
-      }
-    })
+    this.pruneTimer = this.registerInterval(() => this.pruneExpiredTasks(), FILE_PROCESSING_TASK_PRUNE_INTERVAL_MS)
   }
 
   private pollRemoteExecution(taskId: string, callerSignal?: AbortSignal): Promise<FileProcessingTaskResult> {
