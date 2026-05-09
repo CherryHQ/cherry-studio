@@ -12,10 +12,24 @@
 
 import * as z from 'zod'
 
-import type { CursorPaginationResponse, OffsetPaginationResponse } from '../apiTypes'
+import type { CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
 import type { AgentSessionMessageEntitySchema } from './agents'
-import { AgentNameAtomSchema, type ListQuery } from './agents'
+import { AgentNameAtomSchema } from './agents'
+
+/** Cursor-paginated query for `/sessions/:sessionId/messages`. Walks history
+ *  newest-first; an absent `cursor` returns the most recent page, then each
+ *  `nextCursor` walks one page older. Limit caps at 200 — the renderer
+ *  flattens with `useInfiniteFlatItems` and the virtualizer scrolls older
+ *  pages in on demand, so per-page size never has to cover a whole session. */
+export const SESSION_MESSAGES_MAX_LIMIT = 200
+export const SESSION_MESSAGES_DEFAULT_LIMIT = 50
+
+export const SessionMessagesListQuerySchema = z.strictObject({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().positive().max(SESSION_MESSAGES_MAX_LIMIT).optional()
+})
+export type SessionMessagesListQuery = z.infer<typeof SessionMessagesListQuerySchema>
 
 // ============================================================================
 // Entity & DTOs (Rule C: derive DTOs via .pick())
@@ -95,8 +109,8 @@ export type SessionSchemas = {
   '/sessions/:sessionId/messages': {
     GET: {
       params: { sessionId: string }
-      query?: ListQuery
-      response: OffsetPaginationResponse<z.infer<typeof AgentSessionMessageEntitySchema>>
+      query?: SessionMessagesListQuery
+      response: CursorPaginationResponse<z.infer<typeof AgentSessionMessageEntitySchema>>
     }
   }
 

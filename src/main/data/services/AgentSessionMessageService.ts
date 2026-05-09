@@ -8,20 +8,35 @@ import {
   type InsertAgentSessionMessageRow as InsertSessionMessageRow
 } from '@data/db/schemas/agentSessionMessage'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbOrTx, ListOptions } from '@data/db/types'
+import type { DbOrTx } from '@data/db/types'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agents'
+import { SESSION_MESSAGES_DEFAULT_LIMIT, SESSION_MESSAGES_MAX_LIMIT } from '@shared/data/api/schemas/sessions'
 import type {
   AgentMessageExchangeInput,
   AgentMessageExchangeOutput,
   AgentMessagePersistInput,
   AgentPersistedMessage
 } from '@shared/data/types/agentMessage'
-import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, lt, or, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('SessionMessageService')
+
+function encodeMessageCursor(createdAt: number, id: string): string {
+  return `${createdAt}:${id}`
+}
+
+function decodeMessageCursor(raw: string): { createdAt: number; id: string } | null {
+  const sep = raw.indexOf(':')
+  if (sep < 0) return null
+  const createdAt = Number(raw.slice(0, sep))
+  const id = raw.slice(sep + 1)
+  if (!Number.isFinite(createdAt) || !id) return null
+  return { createdAt, id }
+}
 
 export class AgentSessionMessageService {
   async sessionMessageExists(id: string): Promise<boolean> {
@@ -35,10 +50,16 @@ export class AgentSessionMessageService {
     return result.length > 0
   }
 
+  /**
+   * Cursor-paginated message read. Walks newest-first; an absent cursor
+   * returns the most recent page, each `nextCursor` walks one page older.
+   * Cursor wire format: `<createdAtMs>:<id>` — composite (createdAt, id) so
+   * the secondary key tiebreaks ties from the ms-precision timestamp.
+   */
   async listSessionMessages(
     sessionId: string,
-    options: ListOptions = {}
-  ): Promise<{ messages: AgentSessionMessageEntity[]; total: number }> {
+    options: { cursor?: string; limit?: number } = {}
+  ): Promise<CursorPaginationResponse<AgentSessionMessageEntity>> {
     const database = application.get('DbService').getDb()
 
     const [session] = await database
@@ -48,27 +69,34 @@ export class AgentSessionMessageService {
       .limit(1)
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
-    const whereClause = eq(sessionMessagesTable.sessionId, sessionId)
+    const limit = Math.min(options.limit ?? SESSION_MESSAGES_DEFAULT_LIMIT, SESSION_MESSAGES_MAX_LIMIT)
+    const cursor = options.cursor ? decodeMessageCursor(options.cursor) : null
 
-    const [totalRows, rows] = await Promise.all([
-      database.select({ count: sql<number>`count(*)` }).from(sessionMessagesTable).where(whereClause),
-      (async () => {
-        const baseQuery = database
-          .select()
-          .from(sessionMessagesTable)
-          .where(whereClause)
-          .orderBy(sessionMessagesTable.createdAt)
-        if (options.limit !== undefined) {
-          return options.offset !== undefined
-            ? baseQuery.limit(options.limit).offset(options.offset)
-            : baseQuery.limit(options.limit)
-        }
-        return baseQuery
-      })()
-    ])
+    const filters = [eq(sessionMessagesTable.sessionId, sessionId)]
+    if (cursor) {
+      // Walk older: (createdAt, id) < (cursor.createdAt, cursor.id)
+      filters.push(
+        or(
+          lt(sessionMessagesTable.createdAt, cursor.createdAt),
+          and(eq(sessionMessagesTable.createdAt, cursor.createdAt), lt(sessionMessagesTable.id, cursor.id))
+        )!
+      )
+    }
 
-    const messages = rows.map((row) => this.rowToEntity(row))
-    return { messages, total: totalRows[0].count }
+    const rows = await database
+      .select()
+      .from(sessionMessagesTable)
+      .where(and(...filters))
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .limit(limit + 1)
+
+    const hasNext = rows.length > limit
+    const pageRows = hasNext ? rows.slice(0, limit) : rows
+    const items = pageRows.map((row) => this.rowToEntity(row))
+    const tail = pageRows[pageRows.length - 1]
+    const nextCursor = hasNext && tail ? encodeMessageCursor(tail.createdAt, tail.id) : undefined
+
+    return { items, nextCursor }
   }
 
   async deleteSessionMessage(sessionId: string, messageId: string): Promise<void> {

@@ -1,29 +1,25 @@
 /**
  * Agent session history data source — returns CherryUIMessage[] for useChatWithHistory.
  *
- * Backed by DataApi (`/sessions/:sessionId/messages`) so reads go through the
- * shared SWR cache (dedup, revalidation, cross-window consistency) instead of
- * ad-hoc IPC + local state.
+ * Backed by DataApi (`/sessions/:sessionId/messages`) with cursor-based
+ * infinite pagination so chat-style transcripts of arbitrary length load
+ * incrementally as the virtual list scrolls up. Reads go through SWR's
+ * shared cache (dedup, revalidation, cross-window consistency).
  *
  * After the blocks→parts migration each message row's `content` carries
  * `{ message: { id, role, data: { parts }, status, createdAt }, blocks }` —
  * we unwrap that shape and project to `CherryUIMessage`.
  */
 
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageStatus } from '@shared/data/types/message'
 import { useCallback, useMemo } from 'react'
 
-const FETCH_LIMIT = 999
+const PAGE_SIZE = 50
 
 const VALID_STATUS: ReadonlySet<MessageStatus> = new Set(['pending', 'success', 'error', 'paused'])
 
-/**
- * Minimal shape the renderer needs from `row.content`. The schema stores it
- * as `z.unknown()` so it stays generic on the service layer; every field is
- * optional because un-migrated rows or future writers may omit any of them.
- */
 interface AgentMessageContent {
   message?: {
     id?: string
@@ -54,32 +50,49 @@ function toUIMessage(row: AgentSessionMessageEntity): CherryUIMessage | null {
 }
 
 export function useAgentSessionParts(_agentId: string, sessionId: string) {
-  const { data, isLoading, mutate } = useQuery('/sessions/:sessionId/messages', {
+  const { pages, isLoading, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/sessions/:sessionId/messages', {
     params: { sessionId },
-    query: { limit: FETCH_LIMIT },
+    limit: PAGE_SIZE,
     enabled: !!sessionId
   })
 
+  // Server returns each page newest-first (DESC) and the cursor walks older.
+  // ChatVirtualList expects chronological-asc (oldest first), so reverse both
+  // axes: oldest page first, and within each page reverse to ASC.
+  const rows = useInfiniteFlatItems(pages, { reversePages: true, reverseItems: true })
+
   const messages = useMemo<CherryUIMessage[]>(() => {
-    const rows = data?.items ?? []
     const out: CherryUIMessage[] = []
     for (const row of rows) {
       const ui = toUIMessage(row)
       if (ui) out.push(ui)
     }
     return out
-  }, [data])
+  }, [rows])
 
-  const refresh = useCallback(async (): Promise<CherryUIMessage[]> => {
-    const refreshed = await mutate()
-    const rows = refreshed?.items ?? []
+  const refreshMessages = useCallback(async (): Promise<CherryUIMessage[]> => {
+    const refreshedPages = await mutate()
+    const flat: AgentSessionMessageEntity[] = []
+    if (refreshedPages) {
+      for (let i = refreshedPages.length - 1; i >= 0; i--) {
+        const page = refreshedPages[i]
+        for (let j = page.items.length - 1; j >= 0; j--) flat.push(page.items[j])
+      }
+    }
     const out: CherryUIMessage[] = []
-    for (const row of rows) {
+    for (const row of flat) {
       const ui = toUIMessage(row)
       if (ui) out.push(ui)
     }
     return out
   }, [mutate])
 
-  return { messages, isLoading, refresh }
+  void refresh
+  return {
+    messages,
+    isLoading,
+    hasOlder: hasNext,
+    loadOlder: loadNext,
+    refresh: refreshMessages
+  }
 }

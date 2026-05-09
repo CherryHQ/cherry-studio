@@ -12,10 +12,10 @@ import { sessionService } from '@data/services/SessionService'
 import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
-import { ListQuerySchema } from '@shared/data/api/schemas/agents'
 import {
   CreateSessionSchema,
   ListSessionsQuerySchema,
+  SessionMessagesListQuerySchema,
   type SessionSchemas,
   UpdateSessionSchema
 } from '@shared/data/api/schemas/sessions'
@@ -54,14 +54,9 @@ export const sessionHandlers: HandlersFor<SessionSchemas> = {
 
   '/sessions/:sessionId/messages': {
     GET: async ({ params, query }) => {
-      const parsed = ListQuerySchema.safeParse(query ?? {})
+      const parsed = SessionMessagesListQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const { page, limit } = parsed.data
-      const { messages, total } = await sessionMessageService.listSessionMessages(params.sessionId, {
-        limit,
-        offset: (page - 1) * limit
-      })
-      return { items: messages, total, page }
+      return await sessionMessageService.listSessionMessages(params.sessionId, parsed.data)
     }
   },
 

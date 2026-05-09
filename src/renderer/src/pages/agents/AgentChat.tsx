@@ -114,7 +114,7 @@ const AgentChatInner = ({
   isMultiSelectMode
 }: InnerProps) => {
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  const { messages: uiMessages, isLoading, refresh } = useAgentSessionParts(agentId, sessionId)
+  const { messages: uiMessages, isLoading, hasOlder, loadOlder, refresh } = useAgentSessionParts(agentId, sessionId)
   const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
 
   // ── Rendering pipeline ────────────────────────────────────────────
@@ -198,6 +198,8 @@ const AgentChatInner = ({
               adaptedMessages={projectedMessages}
               partsMap={mergedPartsMap}
               isLoading={isLoading}
+              hasOlder={hasOlder}
+              loadOlder={loadOlder}
             />
             <div className="mt-auto px-4.5 pb-2">
               <NarrowLayout>
