@@ -10,10 +10,11 @@ import {
 import { getRestoreProgressLabel } from '@renderer/i18n/label'
 import { restore } from '@renderer/services/BackupService'
 import { IpcChannel } from '@shared/IpcChannel'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
+import { useTopViewClose } from './useTopViewClose'
 
 interface Props {
   resolve: (data: any) => void
@@ -28,8 +29,8 @@ interface ProgressData {
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [progressData, setProgressData] = useState<ProgressData>()
-  const resolvedRef = useRef(false)
   const { t } = useTranslation()
+  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(IpcChannel.RestoreProgress, (_, data: ProgressData) => {
@@ -41,20 +42,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
   }, [])
 
-  useEffect(() => {
-    if (open || resolvedRef.current) return
-
-    resolvedRef.current = true
-    resolve({})
-  }, [open, resolve])
-
   const onOk = async () => {
     await restore()
-    setOpen(false)
+    close({})
   }
 
   const onCancel = () => {
-    setOpen(false)
+    close({})
   }
 
   const getProgressText = () => {
@@ -113,15 +107,7 @@ export default class RestorePopup {
   }
   static show() {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer resolve={resolve} />, TopViewKey)
     })
   }
 }
