@@ -254,6 +254,7 @@ export default function ModelSyncPreviewPanel({ preview, isApplying, onApply, on
             <Button
               type="button"
               disabled={isApplying || totalSelected === 0}
+              loading={isApplying}
               className={modelSyncClasses.fetchFooterPrimary}
               onClick={handleApply}>
               {t('settings.models.manage.sync_apply_changes')}

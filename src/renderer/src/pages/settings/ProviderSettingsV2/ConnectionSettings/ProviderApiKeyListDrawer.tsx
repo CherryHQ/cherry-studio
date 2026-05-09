@@ -3,11 +3,12 @@ import { useProviderApiKeys, useProviderMutations } from '@renderer/hooks/usePro
 import { maskApiKey } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { Check, Copy, Edit3, Minus, Plus, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../shared/primitives/ProviderSettingsDrawer'
 import { apiKeyListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
 
 interface ProviderApiKeyListDrawerProps {
   providerId: string
@@ -62,6 +63,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<DraftState | null>(null)
   const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
 
   useEffect(() => {
     if (!open) {
@@ -74,14 +76,24 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
 
   const persist = useCallback(
     async (nextKeys: ApiKeyEntry[]) => {
+      if (savingRef.current) {
+        return false
+      }
+
+      savingRef.current = true
       setSaving(true)
       try {
         await updateApiKeys(nextKeys)
+        return true
+      } catch {
+        window.toast.error(t('settings.provider.api_key.save_failed'))
+        return false
       } finally {
+        savingRef.current = false
         setSaving(false)
       }
     },
-    [updateApiKeys]
+    [t, updateApiKeys]
   )
 
   const validateDraft = useCallback(
@@ -131,14 +143,14 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
     }
 
     const nextKeys = draft.isNew ? [...apiKeys, entry] : apiKeys.map((item) => (item.id === entry.id ? entry : item))
-    await persist(nextKeys)
-    cancelEdit()
+    if (await persist(nextKeys)) {
+      cancelEdit()
+    }
   }, [apiKeys, cancelEdit, draft, persist, validateDraft])
 
   const removeKey = useCallback(
     async (id: string) => {
-      await persist(apiKeys.filter((item) => item.id !== id))
-      if (editingId === id) {
+      if ((await persist(apiKeys.filter((item) => item.id !== id))) && editingId === id) {
         cancelEdit()
       }
     },
@@ -232,7 +244,7 @@ interface ApiKeyDraftRowProps {
   draft: DraftState
   saving: boolean
   onChange: (draft: DraftState) => void
-  onSave: () => void
+  onSave: () => void | Promise<void>
   onCancel: () => void
 }
 
@@ -260,7 +272,7 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault()
-              onSave()
+              void onSave()
             }
             if (event.key === 'Escape') {
               event.preventDefault()
@@ -301,44 +313,41 @@ interface ApiKeyDisplayRowProps {
 
 function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: ApiKeyDisplayRowProps) {
   const { t } = useTranslation()
+  const handleCopy = useCallback(() => {
+    void copyApiKeyToClipboard(entry.key, t)
+  }, [entry.key, t])
 
   return (
     <>
       <div className={apiKeyListClasses.keyRowHeader}>
         <div className="min-w-0 flex-1">
           <div className={apiKeyListClasses.keyLabel}>{entry.label || t('settings.provider.api_key.unnamed')}</div>
-          <div className={apiKeyListClasses.keyValue}>{maskApiKey(entry.key)}</div>
+          <button
+            type="button"
+            title={t('settings.provider.api_key.copy')}
+            className={`${apiKeyListClasses.keyValue} block cursor-pointer text-left transition-colors hover:text-foreground/85`}
+            onClick={handleCopy}>
+            {maskApiKey(entry.key)}
+          </button>
         </div>
         <Switch checked={entry.isEnabled} disabled={saving} onCheckedChange={onToggleEnabled} />
       </div>
-      <div className={apiKeyListClasses.actionRow}>
-        <button
-          type="button"
-          className="truncate font-mono text-[length:var(--font-size-body-xs)] text-muted-foreground/60 hover:text-foreground"
-          onClick={() => void navigator.clipboard.writeText(entry.key)}>
-          {entry.key}
-        </button>
-        <div className={apiKeyListClasses.actionCluster}>
-          <Tooltip content={t('settings.provider.api_key.copy')}>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              disabled={saving}
-              onClick={() => void navigator.clipboard.writeText(entry.key)}>
-              <Copy size={14} />
-            </Button>
-          </Tooltip>
-          <Tooltip content={t('common.edit')}>
-            <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onEdit}>
-              <Edit3 size={14} />
-            </Button>
-          </Tooltip>
-          <Tooltip content={t('common.delete')}>
-            <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onRemove}>
-              <Minus size={14} />
-            </Button>
-          </Tooltip>
-        </div>
+      <div className="flex items-center justify-end gap-1">
+        <Tooltip content={t('settings.provider.api_key.copy')}>
+          <Button variant="ghost" size="icon-sm" disabled={saving} onClick={handleCopy}>
+            <Copy size={14} />
+          </Button>
+        </Tooltip>
+        <Tooltip content={t('common.edit')}>
+          <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onEdit}>
+            <Edit3 size={14} />
+          </Button>
+        </Tooltip>
+        <Tooltip content={t('common.delete')}>
+          <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onRemove}>
+            <Minus size={14} />
+          </Button>
+        </Tooltip>
       </div>
     </>
   )

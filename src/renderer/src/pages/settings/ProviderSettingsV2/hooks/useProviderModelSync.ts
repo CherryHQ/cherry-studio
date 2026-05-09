@@ -7,17 +7,10 @@ import type { Provider } from '@shared/data/types/provider'
 import { useCallback } from 'react'
 
 import { fetchResolvedProviderModels, toCreateModelDto } from '../ModelList/modelSync'
+import { chunkArray } from '../utils/chunkArray'
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './providerSetting/constants'
 
 const logger = loggerService.withContext('ProviderSettings:ModelSync')
-
-function chunkArray<T>(items: T[], chunkSize: number): T[][] {
-  const chunks: T[][] = []
-  for (let index = 0; index < items.length; index += chunkSize) {
-    chunks.push(items.slice(index, index + chunkSize))
-  }
-  return chunks
-}
 
 interface UseProviderModelSyncOptions {
   existingModels?: Model[]

@@ -10,6 +10,7 @@ import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import ProviderField from '../shared/primitives/ProviderField'
 import ProviderSection from '../shared/primitives/ProviderSection'
 import { fieldClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
 import ProviderApiKeyListDrawer from './ProviderApiKeyListDrawer'
 
 interface ApiKeyProps {
@@ -89,7 +90,7 @@ export default function ApiKey({
                     if (!inputApiKey) {
                       return
                     }
-                    void navigator.clipboard.writeText(inputApiKey)
+                    void copyApiKeyToClipboard(inputApiKey, t)
                   }}>
                   <Copy size={12} />
                 </button>

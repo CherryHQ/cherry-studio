@@ -1,6 +1,8 @@
 import { loggerService } from '@logger'
 import { useModelMutations, useModels } from '@renderer/hooks/useModels'
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '@renderer/pages/settings/ProviderSettingsV2/hooks/providerSetting/constants'
+import { chunkArray } from '@renderer/pages/settings/ProviderSettingsV2/utils/chunkArray'
+import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,7 +38,9 @@ export function usePullReconcileSubmit({ providerId, onApplyCommitted }: UsePull
 
         if (toAdd.length > 0) {
           const dtos = toAdd.map((m) => toCreateModelDto(providerId, m))
-          await createModels(dtos)
+          for (const chunk of chunkArray(dtos, MODELS_BATCH_MAX_ITEMS)) {
+            await createModels(chunk)
+          }
         }
 
         void refetchModels()

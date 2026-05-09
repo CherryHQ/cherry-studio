@@ -25,6 +25,7 @@ const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
         size="sm"
         className={cn(modelListClasses.fetchOutline, 'gap-1 px-2 py-[3px] text-xs')}
         disabled={disabled || pullReconcile.isBusy}
+        loading={pullReconcile.isBusy}
         onClick={pullReconcile.openPullReconcile}>
         <Download className={modelListClasses.toolbarDesignIcon} />
         <span>{t('settings.models.toolbar.pull_short')}</span>

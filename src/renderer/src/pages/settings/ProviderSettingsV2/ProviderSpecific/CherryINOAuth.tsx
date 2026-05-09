@@ -15,7 +15,6 @@ const logger = loggerService.withContext('CherryINOAuth')
 
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_TOPUP_URL = 'https://open.cherryin.ai/console/topup'
-const CHERRYIN_REGISTER_URL = 'https://open.cherryin.ai'
 
 export const getAvatarInitials = (name: string): string => {
   if (!name) return '??'
@@ -164,10 +163,6 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     window.open(CHERRYIN_TOPUP_URL, '_blank')
   }, [])
 
-  const scrollToApiKeySection = useCallback(() => {
-    document.getElementById('cherryin-api-key-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [])
-
   if (!provider) {
     return null
   }
@@ -201,25 +196,6 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
             <ExternalLink className="size-[11px] shrink-0" />
             {t('settings.provider.oauth.cherryIn.login_button')}
           </Button>
-          <div className={oauthCardClasses.loginFooterRow}>
-            <Button
-              className={oauthCardClasses.loginFooterLink}
-              type="button"
-              variant="ghost"
-              onClick={scrollToApiKeySection}>
-              {t('settings.provider.oauth.cherryIn.use_api_key')}
-            </Button>
-            <span className={oauthCardClasses.loginFooterDivider} aria-hidden>
-              |
-            </span>
-            <a
-              className={oauthCardClasses.loginFooterLink}
-              href={CHERRYIN_REGISTER_URL}
-              rel="noreferrer"
-              target="_blank">
-              {t('settings.provider.oauth.cherryIn.register_account')}
-            </a>
-          </div>
         </div>
       </div>
     )
