@@ -3,9 +3,9 @@ import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { cn } from '@renderer/utils'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
-import styled from 'styled-components'
 
 import WindowControls from '../WindowControls'
 
@@ -22,7 +22,7 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
   }
 
   return (
-    <NavbarContainer {...props} style={{ backgroundColor }} $isFullScreen={isFullscreen}>
+    <NavbarContainer {...props} style={{ ...props.style, backgroundColor }} isFullScreen={isFullscreen}>
       {children}
       {!miniAppShow && <WindowControls />}
     </NavbarContainer>
@@ -38,18 +38,13 @@ export const NavbarCenter: FC<Props> = ({ children, ...props }) => {
 }
 
 export const NavbarRight: FC<Props> = ({ children, ...props }) => {
-  const isFullscreen = useFullscreen()
-  return (
-    <NavbarRightContainer {...props} $isFullscreen={isFullscreen}>
-      {children}
-    </NavbarRightContainer>
-  )
+  return <NavbarRightContainer {...props}>{children}</NavbarRightContainer>
 }
 
 export const NavbarMain: FC<Props> = ({ children, ...props }) => {
   const isFullscreen = useFullscreen()
   return (
-    <NavbarMainContainer {...props} $isFullscreen={isFullscreen}>
+    <NavbarMainContainer {...props} isFullscreen={isFullscreen}>
       {children}
     </NavbarMainContainer>
   )
@@ -59,68 +54,53 @@ export const NavbarHeader: FC<Props> = ({ children, ...props }) => {
   return <NavbarHeaderContent {...props}>{children}</NavbarHeaderContent>
 }
 
-const NavbarContainer = styled.div<{ $isFullScreen: boolean }>`
-  min-width: 100%;
-  display: flex;
-  flex-direction: row;
-  min-height: ${({ $isFullScreen }) => (!$isFullScreen && isMac ? 'env(titlebar-area-height)' : 'var(--navbar-height)')};
-  max-height: var(--navbar-height);
-  margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1 + 2px)' : 0};
-  padding-left: ${({ $isFullScreen }) =>
-    isMac ? ($isFullScreen ? 'var(--sidebar-width)' : 'env(titlebar-area-x)') : 0};
-  -webkit-app-region: drag;
-`
+const NavbarContainer: FC<Props & { isFullScreen: boolean }> = ({ isFullScreen, className, style, ...props }) => (
+  <div
+    className={cn('flex min-w-full flex-row [-webkit-app-region:drag]', className)}
+    style={{
+      minHeight: !isFullScreen && isMac ? 'env(titlebar-area-height)' : 'var(--navbar-height)',
+      maxHeight: 'var(--navbar-height)',
+      marginLeft: isMac ? 'calc(var(--sidebar-width) * -1 + 2px)' : 0,
+      paddingLeft: isMac ? (isFullScreen ? 'var(--sidebar-width)' : 'env(titlebar-area-x)') : 0,
+      ...style
+    }}
+    {...props}
+  />
+)
 
-const NavbarLeftContainer = styled.div`
-  /* min-width: ${isMac ? 'calc(var(--assistants-width) - 20px)' : 'var(--assistants-width)'}; */
-  padding: 0 10px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  font-weight: bold;
-  color: var(--color-text-1);
-`
+const NavbarLeftContainer: FC<Props> = ({ className, ...props }) => (
+  <div className={cn('flex flex-row items-center px-2.5 font-bold text-foreground', className)} {...props} />
+)
 
-const NavbarCenterContainer = styled.div`
-  flex: 1;
-  display: flex;
-  align-items: center;
-  padding: 0 ${isMac ? '20px' : 0};
-  padding-left: 10px;
-  font-weight: bold;
-  color: var(--color-text-1);
-  position: relative;
-`
+const NavbarCenterContainer: FC<Props> = ({ className, style, ...props }) => (
+  <div
+    className={cn('relative flex flex-1 items-center pl-2.5 font-bold text-foreground', className)}
+    style={{ paddingRight: isMac ? '20px' : 0, ...style }}
+    {...props}
+  />
+)
 
-const NavbarRightContainer = styled.div<{ $isFullscreen: boolean }>`
-  min-width: var(--topic-list-width);
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  justify-content: flex-end;
-  flex: 1;
-`
+const NavbarRightContainer: FC<Props> = ({ className, ...props }) => (
+  <div className={cn('flex min-w-(--topic-list-width) flex-1 items-center justify-end px-3', className)} {...props} />
+)
 
-const NavbarMainContainer = styled.div<{ $isFullscreen: boolean }>`
-  flex: 1;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  padding-right: ${isMac ? '20px' : 0};
-  padding-left: 10px;
-  font-weight: bold;
-  color: var(--color-text-1);
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
-`
+const NavbarMainContainer: FC<Props & { isFullscreen: boolean }> = ({ isFullscreen, className, style, ...props }) => (
+  <div
+    className={cn('flex flex-1 flex-row items-center justify-between pl-2.5 font-bold text-foreground', className)}
+    style={{
+      paddingRight: isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px',
+      ...style
+    }}
+    {...props}
+  />
+)
 
-const NavbarHeaderContent = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  min-height: var(--navbar-height);
-  max-height: var(--navbar-height);
-`
+const NavbarHeaderContent: FC<Props> = ({ className, ...props }) => (
+  <div
+    className={cn(
+      'flex max-h-(--navbar-height) min-h-(--navbar-height) flex-1 flex-row items-center justify-between px-3',
+      className
+    )}
+    {...props}
+  />
+)
