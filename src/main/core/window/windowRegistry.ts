@@ -69,8 +69,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
           trafficLightPosition: { x: 13, y: 16 }
           // titleBarOverlay is theme-dependent → injected via args.options
         }
-        // win|linux: frame depends on `app.use_system_title_bar` preference; linux icon is nativeImage
-        //        → both injected via args.options (MainWindowService)
+        // win: backgroundMaterial is runtime-computed (may be undefined) → args.options
+        // linux: frame depends on `app.use_system_title_bar` preference, icon is nativeImage
+        //        → both injected via args.options
       },
       webPreferences: {
         contextIsolation: true,

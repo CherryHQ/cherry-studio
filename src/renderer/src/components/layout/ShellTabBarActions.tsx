@@ -15,7 +15,7 @@ const logger = loggerService.withContext('ShellTabBarActions')
 
 export function useShellTabBarLayout(isDetached: boolean) {
   const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
-  const hasWindowControls = (isWin || isLinux) && !useSystemTitleBar
+  const hasWindowControls = isWin || (isLinux && !useSystemTitleBar)
 
   const rightPaddingClass = isDetached
     ? hasWindowControls

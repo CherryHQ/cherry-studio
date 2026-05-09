@@ -69,8 +69,8 @@ const WindowControls: React.FC = () => {
     return null
   }
 
-  // Hide custom controls when native title bar is shown (avoid duplicate chrome)
-  if ((isWin || isLinux) && useSystemTitleBar) {
+  // Hide on Linux if using system title bar
+  if (isLinux && useSystemTitleBar) {
     return null
   }
 

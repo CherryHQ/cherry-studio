@@ -1,6 +1,5 @@
 import { exec } from 'node:child_process'
 import fs from 'node:fs/promises'
-import path from 'node:path'
 import { promisify } from 'node:util'
 
 import { application } from '@application'
@@ -70,21 +69,13 @@ export class ProtocolService extends BaseService {
   }
 
   private registerProtocolScheme() {
-    // Windows/Linux: dev must register `electron.exe <main-script> %1`. A bare
-    // `setAsDefaultProtocolClient(protocol)` makes the OS run `electron.exe %1`,
-    // so the callback URL is mistaken for the app path ("Unable to find Electron app").
-    //
-    // electron-vite preview/dev often spawns with argv[1] === "." ; protocol launches use
-    // a different cwd (e.g. System32), so "." must be stored as an absolute path.
     if (process.defaultApp) {
       if (process.argv.length >= 2) {
-        const entry = process.argv[1]
-        const absoluteEntry = path.isAbsolute(entry) ? entry : path.resolve(process.cwd(), entry)
-        app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL, process.execPath, [absoluteEntry])
+        app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL, process.execPath, [process.argv[1]])
       }
-    } else {
-      app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL)
     }
+
+    app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL)
   }
 
   private handleProtocolUrl(url: string) {

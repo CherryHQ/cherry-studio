@@ -12,7 +12,6 @@ import path from 'path'
 import { pathToFileURL } from 'url'
 
 import { CUSTOM_SQL_STATEMENTS } from './customSqls'
-import { reconcileDrizzleJournalOrderKeyDrift } from './reconcileDrizzleJournalOrderKeyDrift'
 import { seeders } from './seeding'
 import { SeedRunner } from './seeding/SeedRunner'
 import type { DbType } from './types'
@@ -122,7 +121,6 @@ export class DbService extends BaseService {
   private async migrateDb(): Promise<void> {
     try {
       const migrationsFolder = application.getPath('app.database.migrations')
-      await reconcileDrizzleJournalOrderKeyDrift(this.db, migrationsFolder)
       await migrate(this.db, { migrationsFolder })
 
       // Run custom SQL that Drizzle cannot manage (triggers, virtual tables, etc.)
