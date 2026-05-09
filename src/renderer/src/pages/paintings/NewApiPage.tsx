@@ -76,7 +76,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
-  const [autoTranslateWithSpace] = usePreference('feature.translate.chat.auto_translate_with_space')
+  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const newApiProvider = newApiProviders.find((p) => p.id === routeName) || newApiProviders[0]
 

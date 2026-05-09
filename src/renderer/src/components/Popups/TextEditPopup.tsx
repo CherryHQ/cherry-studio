@@ -43,8 +43,8 @@ const PopupContainer: React.FC<Props> = ({
   const [textValue, setTextValue] = useState(text)
   const [isTranslating, setIsTranslating] = useState(false)
   const textareaRef = useRef<TextAreaRef>(null)
-  const [targetLanguage] = usePreference('feature.translate.chat.target_language')
-  const [showTranslateConfirm] = usePreference('feature.translate.chat.show_confirm')
+  const [targetLanguage] = usePreference('chat.input.translate.target_language')
+  const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const isMounted = useRef(true)
 
   useEffect(() => {

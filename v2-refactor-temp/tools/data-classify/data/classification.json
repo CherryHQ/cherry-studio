@@ -872,7 +872,7 @@
           "defaultValue": "en-us",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.translate.chat.target_language"
+          "targetKey": "chat.input.translate.target_language"
         },
         {
           "originalKey": "proxyMode",
@@ -1522,7 +1522,7 @@
           "defaultValue": false,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.translate.chat.auto_translate_with_space"
+          "targetKey": "chat.input.translate.auto_translate_with_space"
         },
         {
           "originalKey": "showTranslateConfirm",
@@ -1530,7 +1530,7 @@
           "defaultValue": true,
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.translate.chat.show_confirm"
+          "targetKey": "chat.input.translate.show_confirm"
         },
         {
           "originalKey": "enableTopicNaming",

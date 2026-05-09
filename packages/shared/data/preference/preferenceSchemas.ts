@@ -136,6 +136,12 @@ export interface PreferenceSchemas {
     'chat.input.send_message_shortcut': PreferenceTypes.SendMessageShortcut
     // redux/settings/showInputEstimatedTokens
     'chat.input.show_estimated_tokens': boolean
+    // redux/settings/autoTranslateWithSpace
+    'chat.input.translate.auto_translate_with_space': boolean
+    // redux/settings/showTranslateConfirm
+    'chat.input.translate.show_confirm': boolean
+    // redux/settings/targetLanguage
+    'chat.input.translate.target_language': PreferenceTypes.TranslateLangCode
     // redux/settings/confirmDeleteMessage
     'chat.message.confirm_delete': boolean
     // redux/settings/confirmRegenerateMessage
@@ -404,12 +410,6 @@ export interface PreferenceSchemas {
     'feature.translate.action.preferred_lang': PreferenceTypes.TranslateLangCode
     // dexieSettings/settings/translate:detect:method
     'feature.translate.auto_detection_method': PreferenceTypes.AutoDetectionMethod
-    // redux/settings/autoTranslateWithSpace
-    'feature.translate.chat.auto_translate_with_space': boolean
-    // redux/settings/showTranslateConfirm
-    'feature.translate.chat.show_confirm': boolean
-    // redux/settings/targetLanguage
-    'feature.translate.chat.target_language': PreferenceTypes.TranslateLangCode
     // target-key-definitions/complex/complex
     'feature.translate.mini_window.target_lang': PreferenceTypes.TranslateLangCode
     // target-key-definitions/complex/complex
@@ -558,6 +558,9 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.input.quick_panel.triggers_enabled': false,
     'chat.input.send_message_shortcut': 'Enter',
     'chat.input.show_estimated_tokens': false,
+    'chat.input.translate.auto_translate_with_space': false,
+    'chat.input.translate.show_confirm': true,
+    'chat.input.translate.target_language': 'en-us',
     'chat.message.confirm_delete': true,
     'chat.message.confirm_regenerate': true,
     'chat.message.font': 'system',
@@ -719,9 +722,6 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.translate.action.alter_lang': 'en-us',
     'feature.translate.action.preferred_lang': 'zh-cn',
     'feature.translate.auto_detection_method': 'auto',
-    'feature.translate.chat.auto_translate_with_space': false,
-    'feature.translate.chat.show_confirm': true,
-    'feature.translate.chat.target_language': 'en-us',
     'feature.translate.mini_window.target_lang': 'zh-cn',
     'feature.translate.model_id': null,
     'feature.translate.model_prompt': TRANSLATE_PROMPT,

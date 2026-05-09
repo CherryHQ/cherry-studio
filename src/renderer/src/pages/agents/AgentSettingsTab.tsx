@@ -38,16 +38,16 @@ const AgentSettingsTab = () => {
     'chat.message.render_as_markdown'
   )
   const [autoTranslateWithSpace, setAutoTranslateWithSpace] = usePreference(
-    'feature.translate.chat.auto_translate_with_space'
+    'chat.input.translate.auto_translate_with_space'
   )
-  const [showTranslateConfirm, setShowTranslateConfirm] = usePreference('feature.translate.chat.show_confirm')
+  const [showTranslateConfirm, setShowTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const [enableQuickPanelTriggers, setEnableQuickPanelTriggers] = usePreference(
     'chat.input.quick_panel.triggers_enabled'
   )
   const [confirmDeleteMessage, setConfirmDeleteMessage] = usePreference('chat.message.confirm_delete')
   const [confirmRegenerateMessage, setConfirmRegenerateMessage] = usePreference('chat.message.confirm_regenerate')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.chat.target_language')
+  const [targetLanguage, setTargetLanguage] = usePreference('chat.input.translate.target_language')
 
   const [codeEditor, setCodeEditor] = useMultiplePreferences({
     enabled: 'chat.code.editor.enabled',

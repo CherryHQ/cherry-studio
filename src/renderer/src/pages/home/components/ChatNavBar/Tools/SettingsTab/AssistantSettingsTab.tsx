@@ -54,13 +54,13 @@ const AssistantSettingsTab: FC<Props> = (props) => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [language] = usePreference('app.language')
-  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.chat.target_language')
+  const [targetLanguage, setTargetLanguage] = usePreference('chat.input.translate.target_language')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
   const [showPrompt, setShowPrompt] = usePreference('chat.message.show_prompt')
   const [confirmDeleteMessage, setConfirmDeleteMessage] = usePreference('chat.message.confirm_delete')
   const [confirmRegenerateMessage, setConfirmRegenerateMessage] = usePreference('chat.message.confirm_regenerate')
-  const [showTranslateConfirm, setShowTranslateConfirm] = usePreference('feature.translate.chat.show_confirm')
+  const [showTranslateConfirm, setShowTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const [enableQuickPanelTriggers, setEnableQuickPanelTriggers] = usePreference(
     'chat.input.quick_panel.triggers_enabled'
   )
@@ -76,7 +76,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
     'chat.message.render_as_markdown'
   )
   const [autoTranslateWithSpace, setAutoTranslateWithSpace] = usePreference(
-    'feature.translate.chat.auto_translate_with_space'
+    'chat.input.translate.auto_translate_with_space'
   )
   const [showMessageOutline, setShowMessageOutline] = usePreference('chat.message.show_outline')
   const [codeShowLineNumbers, setCodeShowLineNumbers] = usePreference('chat.code.show_line_numbers')

@@ -13,7 +13,7 @@ import { PersistedLangCodeSchema } from '../preference/preferenceTypes'
 // Translate History
 // ============================================================================
 
-export const TranslateHistorySchema = z.object({
+export const TranslateHistorySchema = z.strictObject({
   /** UUIDv7 (time-ordered), auto-generated */
   id: z.uuidv7(),
   /** Original text, non-empty */
@@ -42,7 +42,7 @@ export type TranslateHistory = z.infer<typeof TranslateHistorySchema>
 // Translate Language
 // ============================================================================
 
-export const TranslateLanguageSchema = z.object({
+export const TranslateLanguageSchema = z.strictObject({
   /** PK, immutable, must match PersistedLangCodeSchema (`/^[a-z]{2,3}(-[a-z]{2,4})?$/`).
    *  Persistence-only schema — the `'unknown'` UI sentinel never has a row here. */
   langCode: PersistedLangCodeSchema,

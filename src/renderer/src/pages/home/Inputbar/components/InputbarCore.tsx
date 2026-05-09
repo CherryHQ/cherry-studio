@@ -127,11 +127,11 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const { setFiles, setIsExpanded, toolsRegistry, triggers } = useInputbarToolsDispatch()
   const { setExtensions } = useInputbarToolsInternalDispatch()
   const isEmpty = text.trim().length === 0
-  const [targetLanguage] = usePreference('feature.translate.chat.target_language')
+  const [targetLanguage] = usePreference('chat.input.translate.target_language')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
-  const [autoTranslateWithSpace] = usePreference('feature.translate.chat.auto_translate_with_space')
+  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')

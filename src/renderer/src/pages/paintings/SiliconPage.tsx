@@ -285,7 +285,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     setCurrentImageIndex(0)
   }
 
-  const [autoTranslateWithSpace] = usePreference('feature.translate.chat.auto_translate_with_space')
+  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)

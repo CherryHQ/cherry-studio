@@ -96,7 +96,7 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'targetLanguage',
-      targetKey: 'feature.translate.chat.target_language'
+      targetKey: 'chat.input.translate.target_language'
     },
     {
       originalKey: 'proxyMode',
@@ -336,11 +336,11 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'autoTranslateWithSpace',
-      targetKey: 'feature.translate.chat.auto_translate_with_space'
+      targetKey: 'chat.input.translate.auto_translate_with_space'
     },
     {
       originalKey: 'showTranslateConfirm',
-      targetKey: 'feature.translate.chat.show_confirm'
+      targetKey: 'chat.input.translate.show_confirm'
     },
     {
       originalKey: 'enableTopicNaming',

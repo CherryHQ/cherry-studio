@@ -8,30 +8,26 @@
  * Entity schemas and types live in `@shared/data/types/translate`.
  */
 
-import { PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
 import * as z from 'zod'
 
-import type { TranslateHistory, TranslateLanguage } from '../../types/translate'
+import {
+  type TranslateHistory,
+  TranslateHistorySchema,
+  type TranslateLanguage,
+  TranslateLanguageSchema
+} from '../../types/translate'
 import type { OffsetPaginationResponse } from '../apiTypes'
 
 // ============================================================================
 // Translate History DTOs & Query
 // ============================================================================
 
-export const CreateTranslateHistorySchema = z
-  .object({
-    /** Non-empty string */
-    sourceText: z.string().min(1),
-    /** Non-empty string */
-    targetText: z.string().min(1),
-    /** Must match PersistedLangCodeSchema; `null` is allowed when detection
-     *  degrades to UNKNOWN. The `'unknown'` UI sentinel is still rejected. */
-    sourceLanguage: PersistedLangCodeSchema.nullable(),
-    /** Must match PersistedLangCodeSchema; `null` is allowed when the target
-     *  is unknown. The `'unknown'` UI sentinel is still rejected. */
-    targetLanguage: PersistedLangCodeSchema.nullable()
-  })
-  .strict()
+export const CreateTranslateHistorySchema = TranslateHistorySchema.pick({
+  sourceText: true,
+  targetText: true,
+  sourceLanguage: true,
+  targetLanguage: true
+})
 /**
  * DTO for creating a translate history record. Uses `.strict()` — unknown
  * fields (including server-managed `id`/`createdAt`/`updatedAt`/`star`) are
@@ -39,22 +35,13 @@ export const CreateTranslateHistorySchema = z
  */
 export type CreateTranslateHistoryDto = z.infer<typeof CreateTranslateHistorySchema>
 
-export const UpdateTranslateHistorySchema = z
-  .object({
-    /** Non-empty string if provided */
-    sourceText: z.string().min(1).optional(),
-    /** Non-empty string if provided */
-    targetText: z.string().min(1).optional(),
-    /** Must match PersistedLangCodeSchema or be `null` if provided.
-     *  The `'unknown'` UI sentinel is rejected. */
-    sourceLanguage: PersistedLangCodeSchema.nullable().optional(),
-    /** Must match PersistedLangCodeSchema or be `null` if provided.
-     *  The `'unknown'` UI sentinel is rejected. */
-    targetLanguage: PersistedLangCodeSchema.nullable().optional(),
-    /** Boolean if provided */
-    star: z.boolean().optional()
-  })
-  .strict()
+export const UpdateTranslateHistorySchema = TranslateHistorySchema.pick({
+  sourceText: true,
+  targetText: true,
+  sourceLanguage: true,
+  targetLanguage: true,
+  star: true
+}).partial()
 /**
  * DTO for updating a translate history record. All fields optional. Uses
  * `.strict()` — unknown fields (including `id`/`createdAt`) are rejected
@@ -89,30 +76,21 @@ export type TranslateHistoryQuery = z.infer<typeof TranslateHistoryQuerySchema>
 // Translate Language DTOs
 // ============================================================================
 
-export const CreateTranslateLanguageSchema = z
-  .object({
-    /** Becomes the PK, immutable after creation. Normalized to lowercase before insert. */
-    langCode: PersistedLangCodeSchema,
-    /** Display name, non-empty */
-    value: z.string().min(1),
-    /** Flag emoji */
-    emoji: z.emoji()
-  })
-  .strict()
+export const CreateTranslateLanguageSchema = TranslateLanguageSchema.pick({
+  langCode: true,
+  value: true,
+  emoji: true
+})
 /**
  * DTO for creating a translate language. Uses `.strict()` — unknown fields
  * are rejected rather than silently stripped, matching `UpdateTranslateLanguageSchema`.
  */
 export type CreateTranslateLanguageDto = z.infer<typeof CreateTranslateLanguageSchema>
 
-export const UpdateTranslateLanguageSchema = z
-  .object({
-    /** Display name, non-empty if provided */
-    value: z.string().min(1).optional(),
-    /** Flag emoji if provided */
-    emoji: z.emoji().optional()
-  })
-  .strict()
+export const UpdateTranslateLanguageSchema = TranslateLanguageSchema.pick({
+  value: true,
+  emoji: true
+}).partial()
 /**
  * DTO for updating a translate language. Uses `.strict()` — unknown fields
  * (including `langCode`) are rejected, not silently stripped.

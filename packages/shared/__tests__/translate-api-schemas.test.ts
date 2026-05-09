@@ -6,6 +6,7 @@ import {
   UpdateTranslateHistorySchema
 } from '../data/api/schemas/translate'
 import { PersistedLangCodeSchema, TranslateLangCodeSchema } from '../data/preference/preferenceTypes'
+import { TranslateHistorySchema, TranslateLanguageSchema } from '../data/types/translate'
 
 describe('PersistedLangCodeSchema', () => {
   it.each(['en-us', 'zh-cn', 'ja', 'ja-jp', 'zh-tw', 'fr-fr'])('accepts %s', (code) => {
@@ -77,6 +78,17 @@ describe('Translate API DTOs reject the "unknown" sentinel at the persistence bo
     expect(UpdateTranslateHistorySchema.safeParse({ createdAt: '2026-01-01', star: true }).success).toBe(false)
   })
 
+  it('CreateTranslateHistorySchema rejects server-managed fields from picked entity schema', () => {
+    expect(
+      CreateTranslateHistorySchema.safeParse({
+        ...baseHistory,
+        sourceLanguage: 'en-us',
+        targetLanguage: 'zh-cn',
+        star: true
+      }).success
+    ).toBe(false)
+  })
+
   it('UpdateTranslateHistorySchema accepts an empty patch', () => {
     expect(UpdateTranslateHistorySchema.safeParse({}).success).toBe(true)
   })
@@ -91,5 +103,47 @@ describe('Translate API DTOs reject the "unknown" sentinel at the persistence bo
     expect(CreateTranslateLanguageSchema.safeParse({ langCode: 'xx-yy', value: 'Custom', emoji: '🌐' }).success).toBe(
       true
     )
+  })
+
+  it('CreateTranslateLanguageSchema rejects server-managed fields from picked entity schema', () => {
+    expect(
+      CreateTranslateLanguageSchema.safeParse({
+        langCode: 'xx-yy',
+        value: 'Custom',
+        emoji: '🌐',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      }).success
+    ).toBe(false)
+  })
+})
+
+describe('Translate entity schemas are strict', () => {
+  it('TranslateHistorySchema rejects unknown fields', () => {
+    expect(
+      TranslateHistorySchema.safeParse({
+        id: '019b0830-2e52-7000-8000-000000000001',
+        sourceText: 'Hello',
+        targetText: '你好',
+        sourceLanguage: 'en-us',
+        targetLanguage: 'zh-cn',
+        star: false,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        extra: true
+      }).success
+    ).toBe(false)
+  })
+
+  it('TranslateLanguageSchema rejects unknown fields', () => {
+    expect(
+      TranslateLanguageSchema.safeParse({
+        langCode: 'en-us',
+        value: 'English',
+        emoji: '🇺🇸',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        extra: true
+      }).success
+    ).toBe(false)
   })
 })
