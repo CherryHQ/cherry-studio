@@ -1,7 +1,6 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderAvatar'
-import { isSystemProvider } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
 import { Bolt } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,9 +27,9 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
   return (
     <>
       <div className="flex items-center gap-3">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <ProviderAvatar provider={provider} size={32} className="shrink-0 rounded-xl" />
-          <div className="min-w-0">
+          <div className="min-w-0 self-center">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h1 className="truncate font-semibold text-(--color-foreground) text-[16px] leading-[1.25]">
                 {meta.fancyProviderName}
@@ -58,9 +57,6 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                 </Tooltip>
               )}
             </div>
-            {isSystemProvider(provider) && (
-              <p className="mt-0.5 text-(--color-muted-foreground) text-[13px] leading-[1.35]">{provider.id}</p>
-            )}
           </div>
         </div>
         <Switch checked={provider.isEnabled} onCheckedChange={(enabled) => void toggleProviderEnabled(enabled)} />

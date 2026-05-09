@@ -106,10 +106,10 @@ export const providerListClasses = {
   addWrap: 'shrink-0 border-t border-[color:var(--section-border)] px-2.5 py-2',
   addButton:
     'flex w-full items-center justify-center gap-1.5 rounded-lg border border-[color:var(--section-border)] border-dashed bg-transparent py-[5px] text-xs text-muted-foreground shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
-  item: 'relative flex w-full items-center justify-between rounded-xl border border-transparent px-2 py-2 text-left shadow-none outline-none transition-all focus-visible:ring-0',
+  item: 'relative flex w-full items-center justify-between rounded-xl border border-transparent px-2 py-2 text-left shadow-none outline-none transition-colors focus-visible:ring-0',
   itemSelected: 'bg-muted/55 dark:bg-muted/40',
   itemIdle: 'hover:bg-accent/50',
-  itemAvatar: 'shrink-0 rounded-md',
+  itemAvatar: 'shrink-0 rounded-lg',
   itemLabel: 'truncate text-sm leading-[1.35]',
   itemMenuContent:
     'provider-settings-default-scope rounded-2xl border-[color:var(--color-border-fg-muted)] bg-(--color-background) p-1.5 shadow-2xl',

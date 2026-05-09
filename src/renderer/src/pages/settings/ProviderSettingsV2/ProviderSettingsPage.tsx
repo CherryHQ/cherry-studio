@@ -8,6 +8,7 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useProviderDeepLinkImport } from './coordination/useProviderDeepLinkImport'
 import ProviderList from './ProviderList'
 import ProviderSetting from './ProviderSetting'
+import { isProviderSettingsListVisibleProvider } from './utils/provider'
 
 interface ProviderSettingsPageProps {
   isOnboarding?: boolean
@@ -32,6 +33,7 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
   const setLastSelectedProviderIdRef = useRef(setLastSelectedProviderId)
 
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
+  const visibleProviders = useMemo(() => providers.filter(isProviderSettingsListVisibleProvider), [providers])
   const filterModeHint = search.filter === 'agent' ? 'agent' : undefined
 
   useEffect(() => {
@@ -60,8 +62,8 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
     }
 
     if (search.id) {
-      const provider = providers.find((item) => item.id === search.id)
-      setSelectedProviderId(provider?.id ?? providers[0]?.id)
+      const provider = visibleProviders.find((item) => item.id === search.id)
+      setSelectedProviderId(provider?.id ?? visibleProviders[0]?.id)
       shouldConsume = true
     }
 
@@ -69,22 +71,22 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
       const restSearch = Object.fromEntries(Object.entries(search).filter(([key]) => key !== 'filter' && key !== 'id'))
       void navigate({ to: '/settings/provider-v2', search: restSearch as Record<string, string>, replace: true })
     }
-  }, [navigate, providers, search, setSelectedProviderId])
+  }, [navigate, search, setSelectedProviderId, visibleProviders])
 
   useEffect(() => {
-    if (!selectedProviderId && providers[0]) {
-      setSelectedProviderId(providers[0].id)
+    if (!selectedProviderId && visibleProviders[0]) {
+      setSelectedProviderId(visibleProviders[0].id)
       return
     }
 
-    if (selectedProviderId && !providers.some((provider) => provider.id === selectedProviderId)) {
-      setSelectedProviderId(providers[0]?.id)
+    if (selectedProviderId && !visibleProviders.some((provider) => provider.id === selectedProviderId)) {
+      setSelectedProviderId(visibleProviders[0]?.id)
     }
-  }, [providers, selectedProviderId, setSelectedProviderId])
+  }, [selectedProviderId, setSelectedProviderId, visibleProviders])
 
   const selectedProvider = useMemo(
-    () => providers.find((provider) => provider.id === selectedProviderId),
-    [providers, selectedProviderId]
+    () => visibleProviders.find((provider) => provider.id === selectedProviderId),
+    [selectedProviderId, visibleProviders]
   )
 
   return (

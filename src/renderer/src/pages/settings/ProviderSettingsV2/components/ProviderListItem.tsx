@@ -25,14 +25,14 @@ export default function ProviderListItem({ provider, selected, dragging, onClick
         dragging && 'opacity-65'
       )}>
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <ProviderAvatar provider={provider} size={14} className={providerListClasses.itemAvatar} />
+        <ProviderAvatar provider={provider} size={18} className={providerListClasses.itemAvatar} />
         <span
           className={cn(providerListClasses.itemLabel, selected ? 'font-medium text-foreground' : 'text-foreground')}>
           {provider.name}
         </span>
       </div>
       <div className={cn('shrink-0', selected ? 'text-muted-foreground/60' : 'text-muted-foreground/40')}>
-        <ChevronRight size={9} />
+        <ChevronRight size={10} />
       </div>
     </button>
   )

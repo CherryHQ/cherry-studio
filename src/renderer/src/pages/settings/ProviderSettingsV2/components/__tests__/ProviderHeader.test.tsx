@@ -6,8 +6,6 @@ import ProviderHeader from '../ProviderHeader'
 const useProviderMock = vi.fn()
 const useProviderMetaMock = vi.fn()
 const useProviderEnableMock = vi.fn()
-const isSystemProviderMock = vi.fn()
-
 vi.mock('@cherrystudio/ui', () => {
   return {
     Switch: ({ checked, onCheckedChange }: any) => (
@@ -49,10 +47,6 @@ vi.mock('../../hooks/providerSetting/useProviderEnable', () => ({
   useProviderEnable: (...args: any[]) => useProviderEnableMock(...args)
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettingsV2/utils/provider', () => ({
-  isSystemProvider: (...args: any[]) => isSystemProviderMock(...args)
-}))
-
 describe('ProviderHeader', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -74,16 +68,14 @@ describe('ProviderHeader', () => {
     })
   })
 
-  it('shows the provider id for system providers', () => {
-    isSystemProviderMock.mockReturnValue(true)
-
+  it('does not show the provider id subtitle', () => {
     render(<ProviderHeader providerId="openai" />)
 
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
-    expect(screen.getByText('openai')).toBeInTheDocument()
+    expect(screen.queryByText('openai')).not.toBeInTheDocument()
   })
 
-  it('hides the provider id for custom providers', () => {
+  it('shows the custom provider name without the provider id subtitle', () => {
     useProviderMock.mockReturnValue({
       provider: {
         id: '35836b32-9bc1-40ab-9195-8b0b4ea3f342',
@@ -97,7 +89,6 @@ describe('ProviderHeader', () => {
       docsWebsite: undefined,
       showApiOptionsButton: false
     })
-    isSystemProviderMock.mockReturnValue(false)
 
     render(<ProviderHeader providerId="35836b32-9bc1-40ab-9195-8b0b4ea3f342" />)
 
@@ -106,7 +97,6 @@ describe('ProviderHeader', () => {
   })
 
   it('opens the api options drawer when the meta enables the entry', () => {
-    isSystemProviderMock.mockReturnValue(true)
     useProviderMetaMock.mockReturnValue({
       fancyProviderName: 'OpenAI',
       docsWebsite: undefined,

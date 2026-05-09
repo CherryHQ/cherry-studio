@@ -52,6 +52,10 @@ export function isPerplexityProvider(provider: Provider): boolean {
   return provider.id === 'perplexity'
 }
 
+export function isProviderSettingsListVisibleProvider(provider: Provider): boolean {
+  return !isCherryAIProvider(provider)
+}
+
 export function isNewApiProvider(provider: Provider): boolean {
   return ['new-api', 'cherryin', 'aionly'].includes(provider.id) || provider.presetProviderId === 'new-api'
 }

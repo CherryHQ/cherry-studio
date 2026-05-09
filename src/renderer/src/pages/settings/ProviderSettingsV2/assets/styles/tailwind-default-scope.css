@@ -15,11 +15,11 @@
  */
 .provider-settings-default-scope {
   --font-size: 16px;
-  --background: #ffffff;
+  --background: var(--cs-background);
   --foreground: oklch(0.145 0 0);
-  --card: #ffffff;
+  --card: var(--cs-card);
   --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
+  --popover: var(--cs-popover);
   --popover-foreground: oklch(0.145 0 0);
   --primary: #00b96b;
   --primary-foreground: #ffffff;
@@ -164,11 +164,11 @@
 
 /* Dark: same scope node; only semantic palette overrides (atoms above inherit unless reset here). */
 .dark .provider-settings-default-scope {
-  --background: oklch(0.145 0 0);
+  --background: var(--cs-background);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
+  --card: var(--cs-card);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
+  --popover: var(--cs-popover);
   --popover-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);

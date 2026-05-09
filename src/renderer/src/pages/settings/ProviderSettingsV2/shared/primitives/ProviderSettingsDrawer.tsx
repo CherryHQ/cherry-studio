@@ -75,7 +75,7 @@ export default function ProviderSettingsDrawer({
           ? 'ml-1 shrink-0 text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground'
           : undefined
       }
-      backdropClassName="bg-black/10 backdrop-blur-[1px]"
+      backdropClassName="!bottom-[-16px] bg-black/10 backdrop-blur-[1px]"
       contentClassName={cn(
         'provider-settings-default-scope top-3 right-3 bottom-3 rounded-2xl bg-(--color-background)',
         isManageLayout ? 'border-[color:var(--section-border)] shadow-2xl' : 'border-(--color-border) shadow-xl',

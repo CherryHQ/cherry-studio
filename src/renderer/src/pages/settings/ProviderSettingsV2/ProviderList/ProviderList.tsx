@@ -4,6 +4,7 @@ import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2
 import {
   canManageProvider,
   isAnthropicSupportedProvider,
+  isProviderSettingsListVisibleProvider,
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
 import type { Provider } from '@shared/data/types/provider'
@@ -62,6 +63,9 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const filteredProviders = useMemo(() => {
     return providers.filter((provider) => {
+      if (!isProviderSettingsListVisibleProvider(provider)) {
+        return false
+      }
       if (provider.id === 'ovms' && !isOvmsSupported) {
         return false
       }
@@ -109,7 +113,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
     const scrollSelectedItem = () => {
       itemRefs.current.get(selectedProviderId)?.scrollIntoView?.({
         block: 'center',
-        behavior: 'smooth'
+        behavior: 'auto'
       })
     }
 
