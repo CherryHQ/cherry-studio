@@ -3422,6 +3422,31 @@ const migrateConfig = {
       logger.error('migrate 207 error', error as Error)
       return state
     }
+  },
+  '208': (state: RootState) => {
+    try {
+      addProvider(state, 'omlx')
+
+      const cherryinIndex = state.llm.providers.findIndex((provider) => provider.id === 'cherryin')
+      const omlxIndex = state.llm.providers.findIndex((provider) => provider.id === 'omlx')
+
+      if (cherryinIndex >= 0 && omlxIndex >= 0) {
+        const [omlxProvider] = state.llm.providers.splice(omlxIndex, 1)
+        const nextCherryinIndex = state.llm.providers.findIndex((provider) => provider.id === 'cherryin')
+
+        if (nextCherryinIndex >= 0) {
+          state.llm.providers.splice(nextCherryinIndex + 1, 0, omlxProvider)
+        } else {
+          state.llm.providers.push(omlxProvider)
+        }
+      }
+
+      logger.info('migrate 208 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 208 error', error as Error)
+      return state
+    }
   }
 }
 
