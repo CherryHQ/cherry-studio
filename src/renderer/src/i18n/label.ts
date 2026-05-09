@@ -382,5 +382,7 @@ export const getBuiltinOcrProviderLabel = (key: BuiltinOcrProviderId) => {
 
 // oxlint-disable-next-line no-unused-vars -- placeholder for future agent type labels
 export const getAgentTypeLabel = (_key: AgentType) => {
+  if (_key === 'local-omlx') return 'Local oMLX'
+
   return 'Agent'
 }
