@@ -947,6 +947,10 @@
         },
         "file_filter": "JSON 文件",
         "select_file": "选择文件",
+        "subscribe": {
+          "title": "助手订阅",
+          "url_placeholder": "订阅地址"
+        },
         "title": "从外部导入",
         "type": {
           "file": "文件",
@@ -5928,19 +5932,6 @@
         "search_provider": "搜索服务商",
         "search_provider_placeholder": "选择一个搜索服务商",
         "set_as_default": "设为默认",
-        "subscribe": "黑名单订阅",
-        "subscribe_add": "添加订阅",
-        "subscribe_add_failed": "订阅源添加失败",
-        "subscribe_add_success": "订阅源添加成功!",
-        "subscribe_delete": "删除订阅源",
-        "subscribe_name": {
-          "label": "替代名字",
-          "placeholder": "当下载的订阅源没有名称时所使用的替代名称"
-        },
-        "subscribe_update": "立即更新",
-        "subscribe_update_failed": "订阅源更新失败",
-        "subscribe_update_success": "订阅源更新成功",
-        "subscribe_url": "订阅源地址",
         "tavily": {
           "api_key": {
             "label": "Tavily API 密钥",

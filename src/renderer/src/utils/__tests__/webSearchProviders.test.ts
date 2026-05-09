@@ -176,14 +176,6 @@ describe('webSearchProviders', () => {
           apiKeys: ['key-1']
         }
       },
-      subscribeSources: [
-        {
-          key: 1,
-          url: 'https://example.com/list.txt',
-          name: 'Example',
-          blacklist: ['blocked.com']
-        }
-      ],
       compressionMethod: 'cutoff',
       cutoffLimit: 2000,
       cutoffUnit: 'token'
@@ -193,7 +185,6 @@ describe('webSearchProviders', () => {
     expect(state.defaultFetchUrlsProvider).toBe('fetch')
     expect(state.maxResults).toBe(12)
     expect(state.excludeDomains).toEqual(['example.com'])
-    expect(state.subscribeSources).toHaveLength(1)
     expect(state.compressionConfig).toEqual(
       expect.objectContaining({
         method: 'cutoff',
@@ -210,7 +201,6 @@ describe('webSearchProviders', () => {
       excludeDomains: [],
       maxResults: 10,
       providerOverrides: {},
-      subscribeSources: [],
       compressionMethod: 'cutoff',
       cutoffLimit: null as any,
       cutoffUnit: 'char'

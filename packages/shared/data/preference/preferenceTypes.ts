@@ -168,13 +168,6 @@ export type WebSearchProviderOverride = {
 
 export type WebSearchProviderOverrides = Partial<Record<WebSearchProviderId, WebSearchProviderOverride>>
 
-export type WebSearchSubscribeSource = {
-  key: number
-  url: string
-  name: string
-  blacklist?: string[]
-}
-
 /**
  * Full WebSearch Provider configuration
  * Generated at runtime by merging preset with user overrides

@@ -1,8 +1,4 @@
-import type {
-  PreferenceDefaultScopeType,
-  WebSearchProviderId,
-  WebSearchSubscribeSource
-} from '@shared/data/preference/preferenceTypes'
+import type { PreferenceDefaultScopeType, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 
 import type { WebSearchProvider } from './index'
 
@@ -17,6 +13,5 @@ export type WebSearchState = {
   providers: WebSearchProvider[]
   maxResults: number
   excludeDomains: string[]
-  subscribeSources: WebSearchSubscribeSource[]
   compressionConfig: RendererCompressionConfig
 }

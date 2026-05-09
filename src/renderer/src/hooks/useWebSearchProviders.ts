@@ -11,7 +11,7 @@ import {
   WEB_SEARCH_PREFERENCE_KEYS,
   type WebSearchPreferenceValues
 } from '@renderer/utils/webSearchProviders'
-import type { UnifiedPreferenceType, WebSearchSubscribeSource } from '@shared/data/preference/preferenceTypes'
+import type { UnifiedPreferenceType } from '@shared/data/preference/preferenceTypes'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 import { t } from 'i18next'
 import { useCallback, useMemo } from 'react'
@@ -124,30 +124,10 @@ export const useUpdateWebSearchProviderOverride = () => {
 
 export const useBlacklist = () => {
   const [excludeDomains, setExcludeDomains] = usePreference('chat.web_search.exclude_domains')
-  const [subscribeSources, setSubscribeSourcesPreference] = usePreference('chat.web_search.subscribe_sources')
-
-  const addSubscribeSource = async ({ url, name, blacklist }: Omit<WebSearchSubscribeSource, 'key'>) => {
-    const newKey = subscribeSources.length > 0 ? Math.max(...subscribeSources.map((item) => item.key)) + 1 : 0
-    await setSubscribeSourcesPreference([...subscribeSources, { key: newKey, url, name, blacklist }])
-  }
-
-  const updateSubscribeBlacklist = async (key: number, blacklist: string[]) => {
-    await setSubscribeSourcesPreference(
-      subscribeSources.map((source) => (source.key === key ? { ...source, blacklist } : source))
-    )
-  }
-
-  const setSubscribeSources = async (sources: WebSearchSubscribeSource[]) => {
-    await setSubscribeSourcesPreference(sources)
-  }
 
   return {
     excludeDomains,
-    subscribeSources,
-    setExcludeDomains,
-    addSubscribeSource,
-    updateSubscribeBlacklist,
-    setSubscribeSources
+    setExcludeDomains
   }
 }
 

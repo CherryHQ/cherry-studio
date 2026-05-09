@@ -25,7 +25,6 @@ type WebSearchPreferenceSnapshot = Pick<
   | 'chat.web_search.exclude_domains'
   | 'chat.web_search.max_results'
   | 'chat.web_search.provider_overrides'
-  | 'chat.web_search.subscribe_sources'
   | 'chat.web_search.compression.method'
   | 'chat.web_search.compression.cutoff_limit'
   | 'chat.web_search.compression.cutoff_unit'
@@ -37,7 +36,6 @@ export const WEB_SEARCH_PREFERENCE_KEYS = {
   excludeDomains: 'chat.web_search.exclude_domains',
   maxResults: 'chat.web_search.max_results',
   providerOverrides: 'chat.web_search.provider_overrides',
-  subscribeSources: 'chat.web_search.subscribe_sources',
   compressionMethod: 'chat.web_search.compression.method',
   cutoffLimit: 'chat.web_search.compression.cutoff_limit',
   cutoffUnit: 'chat.web_search.compression.cutoff_unit'
@@ -59,7 +57,6 @@ export type WebSearchSettingsState = {
   providers: RendererWebSearchProvider[]
   maxResults: number
   excludeDomains: string[]
-  subscribeSources: PreferenceDefaultScopeType['chat.web_search.subscribe_sources']
   compressionConfig: RendererCompressionConfig
 }
 
@@ -221,10 +218,6 @@ export function buildRendererWebSearchState(preferences: WebSearchPreferenceValu
     WEB_SEARCH_PREFERENCE_KEYS.providerOverrides,
     preferences.providerOverrides
   )
-  const subscribeSources = getPreferenceOrDefault(
-    WEB_SEARCH_PREFERENCE_KEYS.subscribeSources,
-    preferences.subscribeSources
-  )
   const compressionMethod = getPreferenceOrDefault(
     WEB_SEARCH_PREFERENCE_KEYS.compressionMethod,
     preferences.compressionMethod
@@ -238,7 +231,6 @@ export function buildRendererWebSearchState(preferences: WebSearchPreferenceValu
     providers: resolveWebSearchProviders(providerOverrides),
     maxResults: Math.max(1, maxResults),
     excludeDomains,
-    subscribeSources,
     compressionConfig: {
       method: compressionMethod,
       cutoffLimit: normalizeWebSearchCutoffLimit(cutoffLimit),

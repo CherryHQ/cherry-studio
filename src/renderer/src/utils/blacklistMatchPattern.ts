@@ -176,32 +176,6 @@ function testPath(pathPattern: string, path: string): boolean {
   return path.slice(pos).endsWith(rest[rest.length - 1])
 }
 
-// 添加新的解析函数
-export async function parseSubscribeContent(url: string): Promise<string[]> {
-  try {
-    // 获取订阅源内容
-    const response = await fetch(url)
-    logger.debug('[parseSubscribeContent] response', response)
-    if (!response.ok) {
-      throw new Error('Failed to fetch subscribe content')
-    }
-
-    const content = await response.text()
-
-    // 按行分割内容
-    const lines = content.split('\n')
-
-    // 过滤出有效的匹配模式
-    return lines
-      .filter((line) => line.trim() !== '' && !line.startsWith('#'))
-      .map((line) => line.trim())
-      .filter((pattern) => parseMatchPattern(pattern) !== null)
-  } catch (error) {
-    logger.error('Error parsing subscribe content:', error as Error)
-    throw error
-  }
-}
-
 export function mapRegexToPatterns(patterns: string[]): string[] {
   const patternSet = new Set<string>()
   const domainMatcher = /[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g
@@ -240,36 +214,23 @@ export function mapRegexToPatterns(patterns: string[]): string[] {
 
 export async function filterResultWithBlacklist(
   response: WebSearchProviderResponse,
-  websearch: Pick<WebSearchState, 'excludeDomains' | 'subscribeSources'>
+  websearch: Pick<WebSearchState, 'excludeDomains'>
 ): Promise<WebSearchProviderResponse> {
   logger.debug('[filterResultWithBlacklist]', response)
 
   // 没有结果或者没有黑名单规则时，直接返回原始结果
-  if (
-    !(response.results as any[])?.length ||
-    (!websearch?.excludeDomains?.length && !websearch?.subscribeSources?.length)
-  ) {
+  if (!(response.results as any[])?.length || !websearch?.excludeDomains?.length) {
     return response
   }
 
   // 创建匹配模式映射实例
   const patternMap = new MatchPatternMap<string>()
 
-  // 合并所有黑名单规则
-  const blacklistPatterns: string[] = [
-    ...websearch.excludeDomains,
-    ...(websearch.subscribeSources?.length
-      ? websearch.subscribeSources.reduce<string[]>((acc, source) => {
-          return acc.concat(source.blacklist || [])
-        }, [])
-      : [])
-  ]
-
   // 正则表达式规则集合
   const regexPatterns: RegExp[] = []
 
   // 分类处理黑名单规则
-  blacklistPatterns.forEach((pattern) => {
+  websearch.excludeDomains.forEach((pattern) => {
     if (pattern.startsWith('/') && pattern.endsWith('/')) {
       // 处理正则表达式格式
       try {

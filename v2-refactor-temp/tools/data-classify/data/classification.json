@@ -2892,7 +2892,7 @@
           "defaultValue": [],
           "status": "classified",
           "category": "preferences",
-          "targetKey": "chat.web_search.subscribe_sources"
+          "targetKey": null
         },
         {
           "originalKey": "overwrite",

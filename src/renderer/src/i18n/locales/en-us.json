@@ -947,6 +947,10 @@
         },
         "file_filter": "JSON Files",
         "select_file": "Select File",
+        "subscribe": {
+          "title": "Agent Subscription",
+          "url_placeholder": "Subscription URL"
+        },
         "title": "Import from External",
         "type": {
           "file": "File",
@@ -5928,19 +5932,6 @@
         "search_provider": "Search service provider",
         "search_provider_placeholder": "Choose a search service provider.",
         "set_as_default": "Set as Default",
-        "subscribe": "Blacklist Subscription",
-        "subscribe_add": "Add Subscription",
-        "subscribe_add_failed": "Failed to add feed source",
-        "subscribe_add_success": "Subscription feed added successfully!",
-        "subscribe_delete": "Delete",
-        "subscribe_name": {
-          "label": "Alternative name",
-          "placeholder": "Alternative name used when the downloaded subscription feed has no name."
-        },
-        "subscribe_update": "Update",
-        "subscribe_update_failed": "Subscription source update failed",
-        "subscribe_update_success": "Subscription source updated successfully",
-        "subscribe_url": "Subscription Url",
         "tavily": {
           "api_key": {
             "label": "Tavily API Key",

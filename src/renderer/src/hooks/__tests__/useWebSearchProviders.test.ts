@@ -51,7 +51,6 @@ describe('useWebSearchProviders', () => {
       'chat.web_search.exclude_domains': [],
       'chat.web_search.max_results': 5,
       'chat.web_search.provider_overrides': {},
-      'chat.web_search.subscribe_sources': [],
       'chat.web_search.compression.method': 'cutoff',
       'chat.web_search.compression.cutoff_limit': 2000,
       'chat.web_search.compression.cutoff_unit': 'char'

@@ -947,6 +947,10 @@
         },
         "file_filter": "JSON 檔案",
         "select_file": "選擇檔案",
+        "subscribe": {
+          "title": "助手訂閱",
+          "url_placeholder": "訂閱網址"
+        },
         "title": "從外部匯入",
         "type": {
           "file": "檔案",
@@ -5928,19 +5932,6 @@
         "search_provider": "搜尋供應商",
         "search_provider_placeholder": "選擇一個搜尋供應商",
         "set_as_default": "設為預設",
-        "subscribe": "黑名單訂閱",
-        "subscribe_add": "新增訂閱",
-        "subscribe_add_failed": "訂閱來源新增失敗",
-        "subscribe_add_success": "訂閱來源新增成功！",
-        "subscribe_delete": "刪除",
-        "subscribe_name": {
-          "label": "替代名稱",
-          "placeholder": "下載的訂閱來源沒有名稱時使用的替代名稱。"
-        },
-        "subscribe_update": "更新",
-        "subscribe_update_failed": "訂閱來源更新失敗",
-        "subscribe_update_success": "訂閱來源更新成功",
-        "subscribe_url": "訂閱網址",
         "tavily": {
           "api_key": {
             "label": "Tavily API 金鑰",
