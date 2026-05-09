@@ -14,6 +14,10 @@ const netMocks = vi.hoisted(() => ({
   fetch: vi.fn()
 }))
 
+const webContentsMocks = vi.hoisted(() => ({
+  fromId: vi.fn()
+}))
+
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
     getAuthConfig: providerServiceMocks.getAuthConfig,
@@ -25,6 +29,7 @@ vi.mock('electron', async (importOriginal) => {
   const actual = (await importOriginal()) as {
     ipcMain: Electron.IpcMain
     net: Electron.Net
+    webContents: typeof Electron.webContents
   }
   return {
     ...actual,
@@ -36,6 +41,10 @@ vi.mock('electron', async (importOriginal) => {
     net: {
       ...actual.net,
       fetch: netMocks.fetch
+    },
+    webContents: {
+      ...actual.webContents,
+      fromId: webContentsMocks.fromId
     }
   }
 })
@@ -52,6 +61,11 @@ describe('CherryINOAuthService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     vi.clearAllMocks()
+    vi.useRealTimers()
+    webContentsMocks.fromId.mockReturnValue({
+      isDestroyed: () => false,
+      send: vi.fn()
+    })
     cherryINOAuthService = new CherryINOAuthService()
   })
 
@@ -75,6 +89,43 @@ describe('CherryINOAuthService', () => {
       'cherryin:logout',
       'cherryin:start-oauth-flow'
     ])
+  })
+
+  it('activates pending-flow cleanup only while an OAuth flow is active', async () => {
+    await (cherryINOAuthService as any)._doInit()
+    expect(cherryINOAuthService.isActivated).toBe(false)
+
+    const { state } = await cherryINOAuthService.startOAuthFlow(
+      { sender: { id: 7 } } as Electron.IpcMainInvokeEvent,
+      'https://open.cherryin.ai'
+    )
+
+    expect(state).toHaveLength(32)
+    expect(cherryINOAuthService.isActivated).toBe(true)
+
+    await cherryINOAuthService.handleOAuthCallback(
+      new URL(`cherrystudio://oauth/callback?state=${state}&error=access_denied`)
+    )
+
+    expect(cherryINOAuthService.isActivated).toBe(false)
+  })
+
+  it('cleans up abandoned OAuth flows on the activation-scoped timer', async () => {
+    vi.useFakeTimers()
+    await (cherryINOAuthService as any)._doInit()
+
+    await cherryINOAuthService.startOAuthFlow(
+      { sender: { id: 7 } } as Electron.IpcMainInvokeEvent,
+      'https://open.cherryin.ai'
+    )
+
+    expect(cherryINOAuthService.isActivated).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 60 * 1000)
+
+    expect(cherryINOAuthService.isActivated).toBe(false)
+
+    vi.useRealTimers()
   })
 
   it('saves tokens into provider auth config and preserves the prior refresh token when none is returned', async () => {

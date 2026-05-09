@@ -1,6 +1,6 @@
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { CHERRYIN_CONFIG } from '@shared/config/constant'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -94,6 +94,9 @@ export interface OAuthFlowParams {
   state: string
 }
 
+const OAUTH_FLOW_TTL_MS = 10 * 60 * 1000
+const OAUTH_FLOW_CLEANUP_INTERVAL_MS = 60 * 1000
+
 class CherryINOAuthServiceError extends Error {
   constructor(
     message: string,
@@ -124,18 +127,31 @@ interface TokenRefreshResult {
 
 @Injectable('CherryINOAuthService')
 @ServicePhase(Phase.Background)
-export class CherryINOAuthService extends BaseService {
+export class CherryINOAuthService extends BaseService implements Activatable {
   private readonly pendingOAuthFlows = new Map<string, PendingOAuthFlow>()
   private refreshAccessTokenPromise: Promise<TokenRefreshResult> | null = null
+  private cleanupTimer: NodeJS.Timeout | null = null
 
   protected onInit(): void {
     this.registerIpcHandlers()
-    this.registerInterval(() => this.cleanupExpiredFlows(), 60 * 1000)
   }
 
   protected onStop(): void {
     this.pendingOAuthFlows.clear()
     this.refreshAccessTokenPromise = null
+  }
+
+  onActivate(): void {
+    this.cleanupTimer = setInterval(() => this.cleanupExpiredFlows(), OAUTH_FLOW_CLEANUP_INTERVAL_MS)
+    this.cleanupTimer.unref?.()
+  }
+
+  onDeactivate(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer)
+      this.cleanupTimer = null
+    }
+    this.pendingOAuthFlows.clear()
   }
 
   protected onDestroy(): void {
@@ -155,10 +171,20 @@ export class CherryINOAuthService extends BaseService {
   private cleanupExpiredFlows(): void {
     const now = Date.now()
     for (const [state, flow] of this.pendingOAuthFlows.entries()) {
-      if (now - flow.timestamp > 10 * 60 * 1000) {
+      if (now - flow.timestamp > OAUTH_FLOW_TTL_MS) {
         this.pendingOAuthFlows.delete(state)
       }
     }
+
+    this.deactivateIfIdle()
+  }
+
+  private deactivateIfIdle(): void {
+    if (this.pendingOAuthFlows.size > 0) {
+      return
+    }
+
+    void this.deactivate()
   }
 
   private getOAuthAuthConfig = async (): Promise<Extract<AuthConfig, { type: 'oauth' }> | null> => {
@@ -231,6 +257,7 @@ export class CherryINOAuthService extends BaseService {
       timestamp: Date.now(),
       initiatorWebContentsId: event.sender.id
     })
+    await this.activate()
 
     // Build authorization URL
     const authUrl = new URL(`${oauthServer}/oauth2/auth`)
@@ -280,31 +307,36 @@ export class CherryINOAuthService extends BaseService {
     }
     this.pendingOAuthFlows.delete(state)
 
-    const initiator = webContents.fromId(flow.initiatorWebContentsId)
-    if (!initiator || initiator.isDestroyed()) {
-      logger.warn('OAuth initiator webContents no longer available; dropping callback')
-      return
-    }
-
-    if (errorParam) {
-      const description = url.searchParams.get('error_description') || errorParam
-      logger.error(`OAuth provider returned error: ${description}`)
-      initiator.send(IpcChannel.CherryIN_OAuthResult, { state, error: description })
-      return
-    }
-
-    if (!code) {
-      initiator.send(IpcChannel.CherryIN_OAuthResult, { state, error: 'No authorization code received' })
-      return
-    }
-
     try {
+      const initiator = webContents.fromId(flow.initiatorWebContentsId)
+      if (!initiator || initiator.isDestroyed()) {
+        logger.warn('OAuth initiator webContents no longer available; dropping callback')
+        return
+      }
+
+      if (errorParam) {
+        const description = url.searchParams.get('error_description') || errorParam
+        logger.error(`OAuth provider returned error: ${description}`)
+        initiator.send(IpcChannel.CherryIN_OAuthResult, { state, error: description })
+        return
+      }
+
+      if (!code) {
+        initiator.send(IpcChannel.CherryIN_OAuthResult, { state, error: 'No authorization code received' })
+        return
+      }
+
       const apiKeys = await this.performTokenExchange(code, flow)
       initiator.send(IpcChannel.CherryIN_OAuthResult, { state, apiKeys })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       logger.error('Token exchange failed during OAuth callback', error as Error)
-      initiator.send(IpcChannel.CherryIN_OAuthResult, { state, error: message })
+      const initiator = webContents.fromId(flow.initiatorWebContentsId)
+      if (initiator && !initiator.isDestroyed()) {
+        initiator.send(IpcChannel.CherryIN_OAuthResult, { state, error: message })
+      }
+    } finally {
+      this.deactivateIfIdle()
     }
   }
 
