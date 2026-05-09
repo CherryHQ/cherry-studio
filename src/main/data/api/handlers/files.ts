@@ -15,7 +15,6 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { FileSchemas } from '@shared/data/api/schemas/files'
-import type { FileEntryId } from '@shared/data/types/file'
 import { FileEntrySchema, FileRefSchema } from '@shared/data/types/file'
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 
@@ -87,7 +86,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
         .from(fileRefTable)
         .where(inArray(fileRefTable.fileEntryId, entryIds))
         .groupBy(fileRefTable.fileEntryId)
-      const counts = new Map(rows.map((r) => [r.entryId as FileEntryId, r.refCount]))
+      const counts = new Map(rows.map((r) => [r.entryId, r.refCount]))
       return entryIds.map((id) => ({ entryId: id, refCount: counts.get(id) ?? 0 }))
     }
   },

@@ -1,3 +1,5 @@
+/* oxlint-disable no-unused-vars -- TODO(phase-1b.2): mutation method stubs (write / trash / batch* / open / showInFolder / withTempCopy / createReadStream / createAtomicWriteStream / createInternalEntry / ensureExternalEntry) keep their parameters to lock the public signature; bodies + parameter use land in Phase 1b.2. */
+
 /**
  * FileManager — contract surface for the planned sole public entry point for
  * all file operations.

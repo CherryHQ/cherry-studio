@@ -1,3 +1,5 @@
+/* oxlint-disable no-unused-vars -- TODO(phase-1b.2): mutation stubs (create / createMany / cleanupBySource / cleanupBySourceBatch) keep their parameters to lock the public signature until 1b.2 lands the impl. */
+
 /**
  * FileRefService — pure DB repository for the `file_ref` polymorphic table.
  *

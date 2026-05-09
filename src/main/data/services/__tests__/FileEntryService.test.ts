@@ -255,7 +255,7 @@ describe('FileEntryService', () => {
     it('respects limit + offset', async () => {
       const now = Date.now()
       const rows = Array.from({ length: 5 }, (_, i) => ({
-        id: `019606a0-0000-7000-8000-00000000006${i}` as FileEntryId,
+        id: `019606a0-0000-7000-8000-00000000006${i}`,
         origin: 'internal' as const,
         name: `n${i}`,
         ext: 'txt',
