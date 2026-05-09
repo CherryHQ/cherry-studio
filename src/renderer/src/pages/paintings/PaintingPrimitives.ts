@@ -19,7 +19,7 @@ export const paintingClasses = {
   panelBody: 'flex min-h-0 flex-1 flex-col px-4 pb-4',
   panelScroll: '-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pr-2',
   historyStrip:
-    'flex h-full w-[68px] shrink-0 flex-col gap-2 overflow-y-auto bg-white px-2 py-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden dark:bg-muted/10',
+    'flex h-full w-[68px] shrink-0 flex-col gap-2 overflow-y-auto border-border/50 border-l bg-white px-2 py-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden dark:bg-muted/10',
   historyAddButton:
     'sticky top-0 z-10 mb-1 flex h-9 w-11 shrink-0 items-center justify-center rounded-full bg-white text-muted-foreground hover:bg-[var(--painting-control-bg-hover)] hover:text-foreground dark:bg-background',
   historyItem:

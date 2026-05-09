@@ -27,6 +27,9 @@
   --painting-control-bg-hover: hsl(var(--muted) / 0.5);
   --painting-choice-bg: hsl(var(--muted) / 0.25);
   --painting-choice-bg-hover: hsl(var(--muted) / 0.4);
+  --painting-choice-active-bg: hsl(var(--muted) / 0.55);
+  --painting-choice-active-fg: hsl(var(--foreground) / 0.82);
+  --painting-choice-active-ring: hsl(var(--border) / 0.95);
   --painting-panel-shadow: none;
   --painting-surface-shadow: 0 22px 52px rgba(0, 0, 0, 0.26);
   --painting-floating-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.38);

@@ -103,6 +103,12 @@ const PaintingPage: FC = () => {
                   <PaintingModeTabs painting={currentPainting} onPaintingChange={patchPainting} />
                 </div>
                 <PaintingArtboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
+                <PaintingPromptBar
+                  painting={currentPainting}
+                  generating={generating}
+                  onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
+                  onGenerate={submit}
+                />
               </div>
 
               <PaintingStrip
@@ -113,13 +119,6 @@ const PaintingPage: FC = () => {
               />
             </div>
           </div>
-
-          <PaintingPromptBar
-            painting={currentPainting}
-            generating={generating}
-            onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
-            onGenerate={submit}
-          />
         </div>
       </div>
     </div>
