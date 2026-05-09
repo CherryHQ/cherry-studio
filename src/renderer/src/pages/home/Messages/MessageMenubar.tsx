@@ -1,5 +1,6 @@
 // import { InfoCircleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import FlagEmoji from '@renderer/components/FlagEmoji'
 import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import InspectMessagePopup from '@renderer/components/Popups/InspectMessagePopup'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
@@ -803,7 +804,11 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
 
     const items: MenuProps['items'] = [
       ...translateLanguages.map((item) => ({
-        label: item.emoji + ' ' + item.label(),
+        label: (
+          <>
+            <FlagEmoji emoji={item.emoji} /> {item.label()}
+          </>
+        ),
         key: item.langCode,
         onClick: () => handleTranslate(item)
       })),
