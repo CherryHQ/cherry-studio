@@ -16,7 +16,7 @@ import { fileRefService } from '@data/services/FileRefService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { FileSchemas } from '@shared/data/api/schemas/files'
 import { FileEntrySchema, FileRefSchema } from '@shared/data/types/file'
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, type SQL } from 'drizzle-orm'
 
 function getDb() {
   return application.get('DbService').getDb()
@@ -26,7 +26,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/entries': {
     GET: async ({ query }) => {
       const { origin, inTrash, sortBy, sortOrder, page, limit } = query ?? {}
-      const conditions = []
+      const conditions: SQL[] = []
       if (origin) {
         conditions.push(eq(fileEntryTable.origin, origin))
       }

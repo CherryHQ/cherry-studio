@@ -28,7 +28,7 @@ import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import { FileEntrySchema } from '@shared/data/types/file'
-import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 
 /** Columns a caller may provide on insert (id defaults to a fresh UUID v7 when omitted). */
 export interface CreateFileEntryRow {
@@ -159,7 +159,7 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   async findMany(query: FindEntriesQuery = {}): Promise<FileEntry[]> {
-    const conditions = []
+    const conditions: SQL[] = []
     if (query.origin) {
       conditions.push(eq(fileEntryTable.origin, query.origin))
     }

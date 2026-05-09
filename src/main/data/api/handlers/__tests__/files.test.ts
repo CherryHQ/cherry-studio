@@ -43,7 +43,11 @@ describe('fileHandlers (DataApi)', () => {
         seedEntry('019606a0-0000-7000-8000-000000000a03', { trashedAt: Date.now() })
       ])
 
-      const result = await fileHandlers['/files/entries'].GET({ query: {} } as never)
+      const result = (await fileHandlers['/files/entries'].GET({ query: {} } as never)) as {
+        items: unknown[]
+        total: number
+        page: number
+      }
       expect(result.items.length).toBe(2)
       expect(result.total).toBe(2)
       expect(result.page).toBe(1)
@@ -61,9 +65,9 @@ describe('fileHandlers (DataApi)', () => {
         })
       ])
 
-      const result = await fileHandlers['/files/entries'].GET({
+      const result = (await fileHandlers['/files/entries'].GET({
         query: { origin: 'external', limit: 10, page: 1 }
-      } as never)
+      } as never)) as { items: Array<{ origin: string }>; total: number; page: number }
       expect(result.items.length).toBe(1)
       expect(result.items[0].origin).toBe('external')
     })
@@ -73,9 +77,9 @@ describe('fileHandlers (DataApi)', () => {
     it('returns the entry by id', async () => {
       const id = '019606a0-0000-7000-8000-000000000b01'
       await seedEntry(id)
-      const entry = await fileHandlers['/files/entries/:id'].GET({
+      const entry = (await fileHandlers['/files/entries/:id'].GET({
         params: { id: id as FileEntryId }
-      } as never)
+      } as never)) as { id: string }
       expect(entry.id).toBe(id)
     })
   })
@@ -108,9 +112,9 @@ describe('fileHandlers (DataApi)', () => {
         }
       ])
 
-      const result = await fileHandlers['/files/entries/ref-counts'].GET({
+      const result = (await fileHandlers['/files/entries/ref-counts'].GET({
         query: { entryIds: [idA, idB] }
-      } as never)
+      } as never)) as Array<{ entryId: string; refCount: number }>
       expect(result.find((r) => r.entryId === idA)?.refCount).toBe(2)
       expect(result.find((r) => r.entryId === idB)?.refCount).toBe(0)
     })
@@ -130,9 +134,9 @@ describe('fileHandlers (DataApi)', () => {
         createdAt: now,
         updatedAt: now
       })
-      const refs = await fileHandlers['/files/entries/:id/refs'].GET({
+      const refs = (await fileHandlers['/files/entries/:id/refs'].GET({
         params: { id }
-      } as never)
+      } as never)) as Array<{ fileEntryId: string }>
       expect(refs.length).toBe(1)
       expect(refs[0].fileEntryId).toBe(id)
     })
@@ -152,9 +156,9 @@ describe('fileHandlers (DataApi)', () => {
         createdAt: now,
         updatedAt: now
       })
-      const refs = await fileHandlers['/files/refs/by-source'].GET({
+      const refs = (await fileHandlers['/files/refs/by-source'].GET({
         query: { sourceType: 'temp_session', sourceId: 'session-Z' }
-      } as never)
+      } as never)) as unknown[]
       expect(refs.length).toBe(1)
     })
   })
