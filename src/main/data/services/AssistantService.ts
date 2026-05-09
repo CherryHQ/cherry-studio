@@ -180,7 +180,7 @@ export class AssistantDataService {
       const [inserted] = await tx.insert(assistantTable).values(insertValues).returning()
 
       // Insert junction table rows
-      await this.syncRelations(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
+      await this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
 
       return inserted
     })
@@ -227,7 +227,7 @@ export class AssistantDataService {
       }
 
       // Sync junction table rows if relation fields are provided
-      await this.syncRelations(tx, id, { mcpServerIds, knowledgeBaseIds })
+      await this.syncRelationsTx(tx, id, { mcpServerIds, knowledgeBaseIds })
 
       return updated
     })
@@ -249,8 +249,8 @@ export class AssistantDataService {
 
     await this.db.transaction(async (tx) => {
       await tx.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
-      await tagService.purgeForEntity(tx, 'assistant', id)
-      await pinService.purgeForEntity(tx, 'assistant', id)
+      await tagService.purgeForEntityTx(tx, 'assistant', id)
+      await pinService.purgeForEntityTx(tx, 'assistant', id)
     })
 
     logger.info('Soft-deleted assistant', { id })
@@ -262,7 +262,7 @@ export class AssistantDataService {
    * If undefined, the existing rows are left unchanged.
    * Runs within the caller's transaction for atomicity.
    */
-  private async syncRelations(
+  private async syncRelationsTx(
     tx: Pick<DbType, 'delete' | 'insert' | 'select'>,
     assistantId: string,
     dto: { mcpServerIds?: string[]; knowledgeBaseIds?: string[] }
