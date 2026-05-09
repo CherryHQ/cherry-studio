@@ -76,7 +76,7 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
 
     expect(azure?.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     expect(azure?.authConfig).toEqual({ type: 'iam-azure', apiVersion: '' })
-    expect(vertex?.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    expect(vertex?.defaultChatEndpoint).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
     expect(vertex?.authConfig).toEqual({ type: 'iam-gcp', project: '', location: '' })
     expect(bedrock?.defaultChatEndpoint).toBeNull()
     expect(bedrock?.authConfig).toEqual({ type: 'iam-aws', region: '' })

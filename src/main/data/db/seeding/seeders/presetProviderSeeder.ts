@@ -8,8 +8,28 @@ import type { AuthConfig } from '@shared/data/types/provider'
 
 import type { DbType, ISeeder } from '../../types'
 
+/**
+ * Registry entries for vertexai/azure-openai are skeletons (no defaultChatEndpoint,
+ * no endpointConfigs) — they need an explicit seed value here.
+ *
+ * Per the v2 invariant in `ProviderSettingsV2/utils/provider.ts` ("Azure/Vertex/Bedrock
+ * reuse other vendors' endpoint protocols, so authType is the only reliable
+ * discriminator"), we deliberately do NOT introduce dedicated endpoint types like
+ * `azure-openai-chat-completions` / `vertex-generate-content`. Vendor URL routing is
+ * driven by `authType` (`iam-azure` → AI SDK `createAzure`, `iam-gcp` → Vertex SDK).
+ *
+ * `defaultChatEndpoint` here only feeds `modelMerger.resolveReasoningEndpointType`,
+ * i.e. it picks the reasoning format (`openai-chat`, `gemini`, `anthropic`, ...).
+ * So the seed must match each provider's wire-format reasoning shape:
+ *   - Vertex AI runs Gemini models → `google-generate-content` (gemini thinking)
+ *   - Azure OpenAI runs OpenAI models → `openai-chat-completions` (openai effort)
+ */
 function getSeedDefaultChatEndpoint(providerId: string, presetDefault: ProtoProviderConfig['defaultChatEndpoint']) {
-  if (providerId === 'vertexai' || providerId === 'azure-openai') {
+  if (providerId === 'vertexai') {
+    return ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+  }
+
+  if (providerId === 'azure-openai') {
     return ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   }
 
