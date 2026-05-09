@@ -34,7 +34,11 @@ import type { EnrichModelsDto } from './models'
  */
 const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 
-const ProviderEndpointConfigsSchema = z.record(EndpointTypeSchema, EndpointConfigSchema) as z.ZodType<
+// `z.record(enum, value)` in zod 4 requires every enum key to be present —
+// `partialRecord` keeps keys optional so PATCH bodies can carry just the
+// endpoints actually configured (e.g. cherryin only sets `openai-chat-completions`
+// and `anthropic-messages`, not the full EndpointType set).
+const ProviderEndpointConfigsSchema = z.partialRecord(EndpointTypeSchema, EndpointConfigSchema) as z.ZodType<
   Partial<Record<EndpointType, EndpointConfig>>
 >
 
