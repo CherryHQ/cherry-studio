@@ -9,7 +9,7 @@ import { AGENT_PROMPT } from '@shared/config/prompts'
 import type { Assistant } from '@shared/data/types/assistant'
 import { Edit, Eye, Loader2, Sparkles, Undo2 } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
@@ -53,6 +53,7 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
   const [originalPrompt, setOriginalPrompt] = useState('')
   const promptInvalid = Boolean(promptError)
   const generateSource = prompt.trim() || assistantName?.trim() || ''
+  const effectiveShowPreview = showPreview && prompt.length > 0
 
   const processedPrompt = usePromptProcessor({
     prompt,
@@ -96,12 +97,6 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
     setShowUndoButton(false)
     setShowPreview(false)
   }
-
-  // Flip back to edit mode when the prompt becomes empty (e.g. cleared in
-  // another window) — there's nothing to preview.
-  useEffect(() => {
-    if (prompt.length === 0 && showPreview) setShowPreview(false)
-  }, [prompt, showPreview])
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -150,8 +145,8 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
               onClick={() => setShowPreview((v) => !v)}
               disabled={prompt.length === 0}
               className="flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2 py-[3px] font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-              {showPreview ? <Edit size={10} /> : <Eye size={10} />}
-              <span>{t(showPreview ? 'common.edit' : 'common.preview')}</span>
+              {effectiveShowPreview ? <Edit size={10} /> : <Eye size={10} />}
+              <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
             </Button>
           </div>
         </div>
@@ -164,7 +159,7 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
                 ? 'border-destructive/50 focus-within:border-destructive/60'
                 : 'border-border/20 focus-within:border-border/40'
             }`}>
-            {showPreview ? (
+            {effectiveShowPreview ? (
               <div
                 className="markdown max-h-[50vh] min-h-[200px] overflow-auto p-3 text-foreground text-xs"
                 onDoubleClick={() => setShowPreview(false)}>

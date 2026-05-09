@@ -1,7 +1,7 @@
 import { useAgentTools } from '@renderer/hooks/agents/useAgentTools'
 import type { AgentDetail } from '@shared/data/types/agent'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentMutations, useAgentMutationsById } from '../../adapters/agentAdapter'
@@ -73,14 +73,10 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
   const { t } = useTranslation()
   const isCreate = !agent
 
-  const [currentAgent, setCurrentAgent] = useState<AgentDetail | undefined>(agent)
+  const [currentAgent, setCurrentAgent] = useState<AgentDetail | undefined>(undefined)
   const [activeSection, setActiveSection] = useState<AgentConfigSection>('basic')
 
-  useEffect(() => {
-    setCurrentAgent(agent)
-  }, [agent])
-
-  const editAgent = agent && currentAgent?.id === agent.id ? currentAgent : agent
+  const editAgent = currentAgent && agent && currentAgent.id === agent.id ? currentAgent : agent
 
   const { createAgent } = useAgentMutations()
   // Safe empty-string id in create mode — `useMutation` builds the path at
@@ -116,20 +112,17 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
   const { tools } = useAgentTools(editAgent?.type ?? 'claude-code', form.mcps)
   const onChange = useCallback(
     (patch: Partial<AgentFormState>) => {
+      if (patch.soulEnabled === true && activeSection === 'permission') {
+        setActiveSection('basic')
+      }
       setForm((prev) => applyAgentFormPatch(prev, patch, tools))
     },
-    [setForm, tools]
+    [activeSection, setForm, tools]
   )
   const visibleSections = useMemo(
     () => AGENT_CONFIG_SECTIONS.filter((section) => !form.soulEnabled || section.id !== 'permission'),
     [form.soulEnabled]
   )
-
-  useEffect(() => {
-    if (form.soulEnabled && activeSection === 'permission') {
-      setActiveSection('basic')
-    }
-  }, [activeSection, form.soulEnabled])
 
   const title = isCreate
     ? form.name.trim() || t('library.config.agent.create_title')

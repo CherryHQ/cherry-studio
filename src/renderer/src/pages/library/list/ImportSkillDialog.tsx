@@ -2,7 +2,7 @@ import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState } fr
 import type { InstalledSkill } from '@types'
 import { FolderOpen, Loader2, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useSkillMutations } from '../adapters/skillAdapter'
@@ -35,14 +35,22 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
 
   const [status, setStatus] = useState<ImportStatus>({ kind: 'idle' })
   const [installing, setInstalling] = useState<InstallingKey>(null)
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearAutoCloseTimer = useCallback(() => {
+    if (!autoCloseTimerRef.current) return
+    clearTimeout(autoCloseTimerRef.current)
+    autoCloseTimerRef.current = null
+  }, [])
 
   // Reset transient state on open / close.
   useEffect(() => {
     if (!open) {
+      clearAutoCloseTimer()
       setStatus({ kind: 'idle' })
       setInstalling(null)
     }
-  }, [open])
+  }, [clearAutoCloseTimer, open])
 
   const close = () => {
     if (installing) return
@@ -52,7 +60,11 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
   const finishInstall = (skill: InstalledSkill) => {
     setStatus({ kind: 'success', message: t('settings.skills.installSuccess', { name: skill.name }) })
     onInstalled?.()
-    setTimeout(() => onOpenChange(false), AUTO_CLOSE_DELAY_MS)
+    clearAutoCloseTimer()
+    autoCloseTimerRef.current = setTimeout(() => {
+      autoCloseTimerRef.current = null
+      onOpenChange(false)
+    }, AUTO_CLOSE_DELAY_MS)
   }
 
   const failInstall = (e: unknown, fallbackName?: string) => {

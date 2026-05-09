@@ -13,7 +13,7 @@ import {
 } from '@cherrystudio/ui'
 import { Clipboard, FileJson, Link, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { sanitizeUrl } from 'strict-url-sanitise'
 
@@ -56,16 +56,24 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
   const [urlText, setUrlText] = useState('')
   const [status, setStatus] = useState<ImportStatus>({ kind: 'idle' })
   const [loading, setLoading] = useState(false)
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearAutoCloseTimer = useCallback(() => {
+    if (!autoCloseTimerRef.current) return
+    clearTimeout(autoCloseTimerRef.current)
+    autoCloseTimerRef.current = null
+  }, [])
 
   useEffect(() => {
     if (!open) {
+      clearAutoCloseTimer()
       setTab('file')
       setClipboardText('')
       setUrlText('')
       setStatus({ kind: 'idle' })
       setLoading(false)
     }
-  }, [open])
+  }, [clearAutoCloseTimer, open])
 
   const close = () => {
     if (loading) return
@@ -137,7 +145,9 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       // File-mode banner stays so the filename echo is visible;
       // clipboard / URL auto-close after a short delay.
       if (source !== 'file') {
-        setTimeout(() => {
+        clearAutoCloseTimer()
+        autoCloseTimerRef.current = setTimeout(() => {
+          autoCloseTimerRef.current = null
           onOpenChange(false)
         }, AUTO_CLOSE_DELAY_MS)
       }

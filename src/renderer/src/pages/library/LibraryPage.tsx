@@ -88,13 +88,11 @@ export default function LibraryPage() {
 
   const activeResourceType = sidebarFilter.resourceType
   const isAssistantLibrary = activeResourceType === 'assistant'
-  const isAssistantCatalogMine = !isAssistantLibrary || activeAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB
-  const assistantTagUiEnabled = isAssistantLibrary && isAssistantCatalogMine
 
   const { resources, allResources, typeCounts, refetch } = useResourceLibrary({
     sidebarFilter,
-    activeTag: assistantTagUiEnabled ? activeTag : null,
-    search: isAssistantCatalogMine ? search : '',
+    activeTag: isAssistantLibrary && activeAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB ? activeTag : null,
+    search: !isAssistantLibrary || activeAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB ? search : '',
     sort: 'name'
   })
 
@@ -104,6 +102,15 @@ export default function LibraryPage() {
     mineCount: typeCounts.assistant,
     enabled: isAssistantLibrary
   })
+
+  const effectiveActiveAssistantCatalogTab = useMemo(() => {
+    if (!isAssistantLibrary) return ASSISTANT_CATALOG_MY_TAB
+    return assistantCatalog.tabs.some((tab) => tab.id === activeAssistantCatalogTab)
+      ? activeAssistantCatalogTab
+      : ASSISTANT_CATALOG_MY_TAB
+  }, [activeAssistantCatalogTab, assistantCatalog.tabs, isAssistantLibrary])
+  const isAssistantCatalogMine = !isAssistantLibrary || effectiveActiveAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB
+  const assistantTagUiEnabled = isAssistantLibrary && isAssistantCatalogMine
 
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
   // Row 2「+ 标签」走 ensureTags 的幂等语义:已存在则静默复用,不存在才 POST。
@@ -195,19 +202,6 @@ export default function LibraryPage() {
       )
     }
   }, [allResources, routeAction, routeResourceId, routeResourceType])
-
-  useEffect(() => {
-    if (!isAssistantLibrary && activeAssistantCatalogTab !== ASSISTANT_CATALOG_MY_TAB) {
-      setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
-    }
-  }, [activeAssistantCatalogTab, isAssistantLibrary])
-
-  useEffect(() => {
-    if (!isAssistantLibrary) return
-    if (assistantCatalog.tabs.some((tab) => tab.id === activeAssistantCatalogTab)) return
-
-    setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
-  }, [activeAssistantCatalogTab, assistantCatalog.tabs, isAssistantLibrary])
 
   const handleEdit = useCallback((r: ResourceItem) => {
     if (r.type === 'assistant') {
@@ -316,6 +310,35 @@ export default function LibraryPage() {
       setConfigView({ type: 'prompt-create' })
     }
   }, [])
+
+  const handleAssistantTabChange = useCallback((tabId: string) => {
+    setActiveAssistantCatalogTab(tabId)
+    setActiveTag(null)
+  }, [])
+
+  const assistantCatalogProp = useMemo(
+    () =>
+      isAssistantLibrary
+        ? {
+            activeTab: effectiveActiveAssistantCatalogTab,
+            tabs: assistantCatalog.tabs,
+            presets: effectiveActiveAssistantCatalogTab === activeAssistantCatalogTab ? assistantCatalog.presets : [],
+            onTabChange: handleAssistantTabChange,
+            onAddPreset: handleAddAssistantPreset,
+            onPreviewPreset: handlePreviewAssistantPreset
+          }
+        : undefined,
+    [
+      activeAssistantCatalogTab,
+      assistantCatalog.presets,
+      assistantCatalog.tabs,
+      effectiveActiveAssistantCatalogTab,
+      handleAddAssistantPreset,
+      handleAssistantTabChange,
+      handlePreviewAssistantPreset,
+      isAssistantLibrary
+    ]
+  )
 
   if (configView.type === 'assistant-create') {
     return (
@@ -474,21 +497,7 @@ export default function LibraryPage() {
           }}
           onUpdateResourceTags={noop /* binding is executed inside FixedCardMenu via the tag hooks */}
           allTagNames={allTagNames}
-          assistantCatalog={
-            isAssistantLibrary
-              ? {
-                  activeTab: activeAssistantCatalogTab,
-                  tabs: assistantCatalog.tabs,
-                  presets: assistantCatalog.presets,
-                  onTabChange: (tabId) => {
-                    setActiveAssistantCatalogTab(tabId)
-                    setActiveTag(null)
-                  },
-                  onAddPreset: handleAddAssistantPreset,
-                  onPreviewPreset: handlePreviewAssistantPreset
-                }
-              : undefined
-          }
+          assistantCatalog={assistantCatalogProp}
         />
       </div>
 
