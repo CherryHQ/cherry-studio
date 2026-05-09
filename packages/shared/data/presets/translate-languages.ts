@@ -6,8 +6,6 @@
  * - Renderer process (identify builtin vs user-created languages)
  */
 
-import * as z from 'zod'
-
 import type { TranslateLangCode } from '../preference/preferenceTypes'
 
 /**
@@ -39,10 +37,6 @@ export const BUILTIN_LANGUAGE = {
 
 /** Flat array of all builtin translate languages, derived from {@link BUILTIN_LANGUAGE}. */
 export const BUILTIN_TRANSLATE_LANGUAGES = Object.values(BUILTIN_LANGUAGE)
-
-/** Zod schema that validates a string is one of the builtin language codes. */
-export const BuiltinLangCodeSchema = z.enum(BUILTIN_TRANSLATE_LANGUAGES.map((l) => l.langCode))
-export type BuiltinLangCode = z.infer<typeof BuiltinLangCodeSchema>
 
 /** Maps each {@link TranslateLangCode} to its corresponding i18n translation key. */
 export const langCodeToI18nKey = new Map(
