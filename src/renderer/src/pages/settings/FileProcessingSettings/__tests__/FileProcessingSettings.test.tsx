@@ -356,6 +356,9 @@ describe('FileProcessingSettings', () => {
         overrides: {
           paddleocr: {
             capabilities: {
+              image_to_text: {
+                modelId: 'PP-OCRv5'
+              },
               document_to_markdown: {
                 modelId: 'PP-StructureV3'
               }

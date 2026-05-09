@@ -1,8 +1,12 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
-import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { KnowledgeBase } from '@renderer/types'
+import {
+  getKnowledgePreprocessProviders,
+  isSelectableKnowledgePreprocessProvider
+} from '@renderer/utils/fileProcessingKnowledge'
 import { nanoid } from 'nanoid'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,7 +43,11 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
   const { t } = useTranslation()
   const [newBase, setNewBase] = useState<KnowledgeBase>(base || createInitialKnowledgeBase())
   const { providers } = useProviders()
-  const { preprocessProviders } = usePreprocessProviders()
+  const [fileProcessingOverrides] = usePreference('feature.file_processing.overrides')
+  const preprocessProviders = useMemo(
+    () => getKnowledgePreprocessProviders(fileProcessingOverrides, t),
+    [fileProcessingOverrides, t]
+  )
 
   useEffect(() => {
     if (base) {
@@ -57,7 +65,7 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
       label: t('settings.tool.file_processing.knowledge.provider'),
       title: t('settings.tool.file_processing.knowledge.provider'),
       options: preprocessProviders
-        .filter((p) => p.apiKey !== '' || ['mineru', 'open-mineru', 'paddleocr'].includes(p.id))
+        .filter(isSelectableKnowledgePreprocessProvider)
         .map((p) => ({ value: p.id, label: p.name }))
     }
     return [preprocessOptions]

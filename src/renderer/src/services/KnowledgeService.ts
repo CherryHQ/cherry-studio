@@ -1,3 +1,4 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type { Span } from '@opentelemetry/api'
 import { AiProvider } from '@renderer/aiCore'
@@ -20,6 +21,7 @@ import { ChunkType } from '@renderer/types/chunk'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { routeToEndpoint } from '@renderer/utils'
 import type { ExtractResults } from '@renderer/utils/extract'
+import { refreshKnowledgePreprocessProvider } from '@renderer/utils/fileProcessingKnowledge'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
 import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils/provider'
 import { REFERENCE_PROMPT } from '@shared/config/prompts'
@@ -37,17 +39,10 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
   const rerankProvider = getProviderByModel(base.rerankModel)
   const aiProvider = new AiProvider(base.model)
   const rerankAiProvider = new AiProvider(rerankProvider)
-
-  // get preprocess provider from store instead of base.preprocessProvider
-  const preprocessProvider = store
-    .getState()
-    .preprocess.providers.find((p) => p.id === base.preprocessProvider?.provider.id)
-  const updatedPreprocessProvider = preprocessProvider
-    ? {
-        type: 'preprocess' as const,
-        provider: preprocessProvider
-      }
-    : base.preprocessProvider
+  const updatedPreprocessProvider = refreshKnowledgePreprocessProvider(
+    base.preprocessProvider,
+    preferenceService.getCachedValue('feature.file_processing.overrides')
+  )
 
   const actualProvider = aiProvider.getActualProvider()
 

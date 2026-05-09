@@ -1,7 +1,11 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
-import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import type {
+  FileProcessorFeature,
+  FileProcessorId,
+  FileProcessorOverrides
+} from '@shared/data/preference/preferenceTypes'
 import { mergeFileProcessorPresets } from '@shared/data/presets/file-processing'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import {
   updateProcessorApiKeys,
@@ -23,6 +27,12 @@ const DEFAULT_KEY_BY_FEATURE = {
 export function useFileProcessingPreferences() {
   const [preferences, setPreferences] = useMultiplePreferences(FILE_PROCESSING_KEYS, { optimistic: false })
   const overrides = preferences.overrides
+  const overridesRef = useRef(overrides)
+  const overridesUpdateQueueRef = useRef(Promise.resolve())
+
+  useEffect(() => {
+    overridesRef.current = overrides
+  }, [overrides])
 
   const processors = useMemo(() => mergeFileProcessorPresets(overrides), [overrides])
 
@@ -35,13 +45,27 @@ export function useFileProcessingPreferences() {
     [setPreferences]
   )
 
+  const updateOverrides = useCallback(
+    (updater: (currentOverrides: FileProcessorOverrides) => FileProcessorOverrides) => {
+      const update = overridesUpdateQueueRef.current.then(async () => {
+        const nextOverrides = updater(overridesRef.current)
+        await setPreferences({
+          overrides: nextOverrides
+        })
+        overridesRef.current = nextOverrides
+      })
+
+      overridesUpdateQueueRef.current = update.catch(() => undefined)
+      return update
+    },
+    [setPreferences]
+  )
+
   const setApiKeys = useCallback(
     async (processorId: FileProcessorId, apiKeys: string[]) => {
-      await setPreferences({
-        overrides: updateProcessorApiKeys(overrides, processorId, apiKeys)
-      })
+      await updateOverrides((currentOverrides) => updateProcessorApiKeys(currentOverrides, processorId, apiKeys))
     },
-    [overrides, setPreferences]
+    [updateOverrides]
   )
 
   const setCapabilityField = useCallback(
@@ -51,20 +75,18 @@ export function useFileProcessingPreferences() {
       field: 'apiHost' | 'modelId',
       value: string
     ) => {
-      await setPreferences({
-        overrides: updateProcessorCapabilityOverride(overrides, processorId, feature, field, value)
-      })
+      await updateOverrides((currentOverrides) =>
+        updateProcessorCapabilityOverride(currentOverrides, processorId, feature, field, value)
+      )
     },
-    [overrides, setPreferences]
+    [updateOverrides]
   )
 
   const setLanguageOptions = useCallback(
     async (processorId: Extract<FileProcessorId, 'system' | 'tesseract'>, langs: string[]) => {
-      await setPreferences({
-        overrides: updateProcessorLanguageOptions(overrides, processorId, langs)
-      })
+      await updateOverrides((currentOverrides) => updateProcessorLanguageOptions(currentOverrides, processorId, langs))
     },
-    [overrides, setPreferences]
+    [updateOverrides]
   )
 
   return {
