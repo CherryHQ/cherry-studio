@@ -78,12 +78,17 @@ describe('useProviderEnable', () => {
 
     const { result } = renderHook(() => useProviderEnable('openai'))
 
-    await expect(
-      act(async () => {
+    let thrown: unknown = null
+    await act(async () => {
+      try {
         await result.current.toggleProviderEnabled(true)
-      })
-    ).rejects.toThrow('move failed')
+      } catch (error) {
+        thrown = error
+      }
+    })
 
+    expect(thrown).toBe(moveError)
+    expect(updateProviderMock).toHaveBeenCalledTimes(2)
     expect(updateProviderMock).toHaveBeenNthCalledWith(1, { isEnabled: true })
     expect(moveMock).toHaveBeenCalledWith('openai', { position: 'first' })
     expect(updateProviderMock).toHaveBeenNthCalledWith(2, { isEnabled: false })
