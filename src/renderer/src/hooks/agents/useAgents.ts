@@ -37,11 +37,19 @@ export const useAgents = () => {
     if (!apiServerRunning) {
       throw new Error(t('agent.server.error.not_running'))
     }
-    // limit: 100 is the API server max — matches the upper bound of PaginationQuerySchema.
-    // Without this, the sidebar would silently cap the agents list at the default page size of 20.
-    const result = await client.listAgents({ sortBy: 'sort_order', orderBy: 'asc', limit: 100 })
+    // The API server caps `limit` at 100 (PaginationQuerySchema). Loop until everything is fetched
+    // so users with more than 100 agents still see the full list in the sidebar.
     // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
-    return result.data
+    const limit = 100
+    const all: GetAgentResponse[] = []
+    let offset = 0
+    while (true) {
+      const page = await client.listAgents({ sortBy: 'sort_order', orderBy: 'asc', limit, offset })
+      all.push(...page.data)
+      if (page.data.length < limit || all.length >= page.total) break
+      offset += limit
+    }
+    return all
   }, [apiServerConfig.enabled, apiServerRunning, client, t])
 
   const { data, error, isLoading, mutate } = useSWR(swrKey, fetcher)
