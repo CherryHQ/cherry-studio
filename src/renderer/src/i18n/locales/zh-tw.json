@@ -2494,10 +2494,8 @@
         "insert_variable": "[to be translated]:Insert variable",
         "label": "[to be translated]:System prompt",
         "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
-        "referenced_variables": "[to be translated]:Referenced variables",
         "title": "[to be translated]:Prompt",
         "tokens_label": "[to be translated]:Tokens: ",
-        "variable_hint": "[to be translated]:Type / or click \"Insert variable\" to open the variable panel",
         "variables_title": "[to be translated]:Available variables",
         "vars": {
           "arch": "[to be translated]:CPU architecture",

@@ -155,7 +155,6 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
             onChange={(e) => onChange({ name: e.target.value })}
             placeholder={t('library.config.agent.field.name.placeholder')}
             aria-invalid={Boolean(nameError) || undefined}
-            className="rounded-md border-border/20 bg-accent/15 text-xs focus:border-border/40 focus:bg-accent/20 aria-invalid:border-destructive/50"
           />
           <FieldError className="text-xs" errors={nameError ? [{ message: nameError }] : undefined} />
         </FieldContent>
@@ -257,7 +256,6 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
               changeOnBlur
               value={form.heartbeatInterval || null}
               onChange={(v) => onChange({ heartbeatInterval: typeof v === 'number' ? v : 0 })}
-              className="rounded-md border-border/20 bg-accent/15 text-xs focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
             />
           </FieldContent>
         </Field>
@@ -273,7 +271,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
             value={form.description}
             onChange={(e) => onChange({ description: e.target.value })}
             placeholder={t('library.config.agent.field.description.placeholder')}
-            className="min-h-18 rounded-md border-border/20 bg-accent/15 px-3 py-2 text-xs focus:border-border/40 focus:bg-accent/20"
+            rows={3}
           />
         </FieldContent>
       </Field>

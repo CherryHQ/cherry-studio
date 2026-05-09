@@ -165,7 +165,6 @@ export const BasicSection: FC<Props> = ({
                 onChange={(e) => onChange({ name: e.target.value })}
                 placeholder={t('library.config.basic.field.name.placeholder')}
                 aria-invalid={nameInvalid || undefined}
-                className="h-auto w-full rounded-md border border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0 aria-invalid:border-destructive/50"
               />
               <FieldError className="text-xs" errors={nameError ? [{ message: nameError }] : undefined} />
             </FieldContent>
@@ -182,7 +181,6 @@ export const BasicSection: FC<Props> = ({
                 onValueChange={(description) => onChange({ description })}
                 rows={3}
                 placeholder={t('library.config.basic.field.description.placeholder')}
-                className="min-h-0 w-full resize-none rounded-md border border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
               />
             </FieldContent>
           </Field>
@@ -297,7 +295,6 @@ export const BasicSection: FC<Props> = ({
               changeOnBlur
               value={form.maxTokens}
               onChange={(v) => onChange({ maxTokens: typeof v === 'number' && v > 0 ? v : UI_DEFAULT_MAX_TOKENS })}
-              className="h-auto rounded-md border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs tabular-nums shadow-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
             />
           </ToggleFieldGroup>
 
@@ -310,12 +307,13 @@ export const BasicSection: FC<Props> = ({
             <Switch checked={form.streamOutput} onCheckedChange={(v) => onChange({ streamOutput: v })} />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-3">
             <FieldHeader
               label={t('library.config.basic.tool_use_mode')}
               hint={t('library.config.basic.field.tool_use_mode.hint')}
+              className="min-w-0 flex-1"
             />
-            <ButtonGroup className="overflow-hidden rounded-2xs border border-border/30">
+            <ButtonGroup className="shrink-0 overflow-hidden rounded-2xs border border-border/30">
               {(['function', 'prompt'] as const).map((mode) => (
                 <Button
                   key={mode}
@@ -354,7 +352,6 @@ export const BasicSection: FC<Props> = ({
               onChange={(v) =>
                 onChange({ maxToolCalls: typeof v === 'number' && v > 0 ? v : UI_DEFAULT_MAX_TOOL_CALLS })
               }
-              className="h-auto rounded-md border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs tabular-nums shadow-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
             />
           </ToggleFieldGroup>
 
@@ -491,10 +488,10 @@ function CustomParameterRow({
           placeholder={t('library.config.basic.custom_params_name')}
           value={param.name}
           onChange={(e) => onNameChange(e.target.value)}
-          className="h-8 flex-1 text-xs"
+          className="flex-1"
         />
         <Select value={param.type} onValueChange={(v) => onTypeChange(v as CustomParameterType)}>
-          <SelectTrigger className="h-8 w-[100px] text-xs">
+          <SelectTrigger size="sm" className="w-[100px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -514,12 +511,11 @@ function CustomParameterRow({
                   const parsed = parseFloat(e.target.value)
                   onValueChange(Number.isFinite(parsed) ? parsed : 0)
                 }}
-                className="h-8 text-xs tabular-nums"
               />
             )}
             {param.type === 'boolean' && (
               <Select value={String(param.value)} onValueChange={(v) => onValueChange(v === 'true')}>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger size="sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -529,11 +525,7 @@ function CustomParameterRow({
               </Select>
             )}
             {param.type === 'string' && (
-              <Input
-                value={String(param.value)}
-                onChange={(e) => onValueChange(e.target.value)}
-                className="h-8 text-xs"
-              />
+              <Input value={String(param.value)} onChange={(e) => onValueChange(e.target.value)} />
             )}
           </div>
         )}
@@ -551,9 +543,7 @@ function CustomParameterRow({
             rows={4}
             spellCheck={false}
             placeholder='{"key": "value"}'
-            className={`min-h-0 w-full resize-y rounded-md border bg-background px-2 py-1.5 font-mono text-foreground text-xs shadow-none outline-none transition-all focus-visible:border-border/60 focus-visible:ring-0 ${
-              jsonInvalid ? 'border-destructive/50 focus-visible:border-destructive/70' : 'border-border/20'
-            }`}
+            hasError={jsonInvalid}
           />
           {jsonInvalid && <p className="mt-1 text-destructive/80 text-xs">{t('library.config.basic.json_invalid')}</p>}
         </div>

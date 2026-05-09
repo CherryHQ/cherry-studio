@@ -180,7 +180,7 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('library.config.agent.section.tools.search_placeholder')}
-          className="rounded-md border-border/20 bg-accent/15 pl-8 text-xs placeholder:text-muted-foreground/80 focus:border-border/40 focus:bg-accent/20"
+          className="pl-8"
         />
       </div>
 

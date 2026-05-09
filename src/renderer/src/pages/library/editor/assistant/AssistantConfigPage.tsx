@@ -105,7 +105,7 @@ const AssistantConfigPage: FC<Props> = ({ assistant, onBack, onCreated }) => {
       sections={ASSISTANT_CONFIG_SECTIONS}
       activeSection={activeSection}
       onSectionChange={setActiveSection}
-      contentWidth={activeSection === 'basic' ? 'wide' : 'default'}
+      contentWidth="wide"
       canSave={canSave}
       saving={saving}
       saved={saved}

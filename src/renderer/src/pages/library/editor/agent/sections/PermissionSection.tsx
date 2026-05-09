@@ -32,7 +32,7 @@ const PermissionSection: FC<Props> = ({ form, onChange }) => {
           hint={t('library.config.agent.field.permission_mode.help')}
         />
         <Select value={form.permissionMode || 'default'} onValueChange={(value) => onChange({ permissionMode: value })}>
-          <SelectTrigger className="rounded-md border-border/20 bg-accent/15 text-xs hover:border-border/40">
+          <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

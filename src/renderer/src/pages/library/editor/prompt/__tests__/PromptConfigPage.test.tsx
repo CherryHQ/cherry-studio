@@ -35,6 +35,12 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
+  Field: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>,
+  FieldContent: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>,
+  FieldError: ({ errors, ...props }: ComponentProps<'div'> & { errors?: Array<{ message?: string }> }) => (
+    <div {...props}>{errors?.map((error) => error.message).join(',')}</div>
+  ),
+  FieldLabel: ({ children, ...props }: ComponentProps<'label'>) => <label {...props}>{children}</label>,
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
   Textarea: {
     Input: ({

@@ -35,7 +35,8 @@ const PromptSection: FC<Props> = ({ form, onChange }) => {
             value={form.instructions}
             onChange={(e) => onChange({ instructions: e.target.value })}
             placeholder={t('library.config.agent.field.instructions.placeholder')}
-            className="min-h-80 rounded-md border border-border/20 bg-accent/15 px-3 py-2 font-mono text-foreground text-xs leading-relaxed transition-all focus:border-border/40 focus:bg-accent/20"
+            className="min-h-80"
+            rows={12}
           />
         </FieldContent>
       </Field>
