@@ -12,7 +12,6 @@ import { useTranslation } from 'react-i18next'
 import { TopView } from '../TopView'
 
 const logger = loggerService.withContext('TextEditPopup')
-const CLOSE_ANIMATION_MS = 200
 
 interface PopupButtonProps {
   className?: string
@@ -88,9 +87,7 @@ const PopupContainer: React.FC<Props> = ({
 
     resolvedRef.current = true
     setOpen(false)
-    window.setTimeout(() => {
-      resolve(result)
-    }, CLOSE_ANIMATION_MS)
+    resolve(result)
   }
 
   const onOk = () => {
@@ -125,7 +122,7 @@ const PopupContainer: React.FC<Props> = ({
         const length = textArea.value.length
         textArea.setSelectionRange(length, length)
       }
-    }, CLOSE_ANIMATION_MS)
+    }, 200)
 
     return () => window.clearTimeout(timer)
   }, [open])

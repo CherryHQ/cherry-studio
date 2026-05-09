@@ -1,9 +1,9 @@
+import { type ColumnDef, DataTable } from '@cherrystudio/ui'
 import ImageViewer from '@renderer/components/ImageViewer'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata, FileType } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Table } from 'antd'
 import React, { memo } from 'react'
 
 interface ContentViewProps {
@@ -12,6 +12,26 @@ interface ContentViewProps {
   dataSource?: any[]
   columns: any[]
 }
+
+type TableRecord = { key: React.Key } & Record<string, unknown>
+
+const toDataTableColumns = (columns: any[]): ColumnDef<TableRecord, unknown>[] =>
+  columns.map((column, index) => {
+    const dataIndex = typeof column.dataIndex === 'string' ? column.dataIndex : undefined
+
+    return {
+      id: String(column.key ?? dataIndex ?? index),
+      header: column.title,
+      cell: ({ row }) => {
+        const value = dataIndex ? row.original[dataIndex] : undefined
+        return column.render ? column.render(value, row.original, row.index) : (value as React.ReactNode)
+      },
+      meta: {
+        align: column.align,
+        width: column.width
+      }
+    }
+  })
 
 const ContentView: React.FC<ContentViewProps> = ({ id, files, dataSource, columns }) => {
   if (id === FILE_TYPE.IMAGE && files?.length && files?.length > 0) {
@@ -53,7 +73,12 @@ const ContentView: React.FC<ContentViewProps> = ({ id, files, dataSource, column
   }
 
   return (
-    <Table className="w-full" dataSource={dataSource} columns={columns} size="small" pagination={{ pageSize: 100 }} />
+    <DataTable
+      className="w-full"
+      data={(dataSource ?? []) as TableRecord[]}
+      columns={toDataTableColumns(columns)}
+      rowKey="key"
+    />
   )
 }
 

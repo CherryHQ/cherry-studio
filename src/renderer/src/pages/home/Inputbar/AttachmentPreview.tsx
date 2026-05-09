@@ -1,17 +1,3 @@
-import {
-  FileExcelFilled,
-  FileImageFilled,
-  FileMarkdownFilled,
-  FilePdfFilled,
-  FilePptFilled,
-  FileTextFilled,
-  FileUnknownFilled,
-  FileWordFilled,
-  FileZipFilled,
-  FolderOpenFilled,
-  GlobalOutlined,
-  LinkOutlined
-} from '@ant-design/icons'
 import { ColFlex, Tooltip } from '@cherrystudio/ui'
 import ConfirmDialog from '@renderer/components/ConfirmDialog'
 import ImageViewer from '@renderer/components/ImageViewer'
@@ -21,6 +7,20 @@ import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { isEmpty } from 'lodash'
+import {
+  FileArchive,
+  FileBadge,
+  FileImage,
+  FileQuestionMark,
+  FileSpreadsheet,
+  FileText,
+  FileType,
+  FolderOpen,
+  Globe,
+  Link,
+  type LucideIcon,
+  Presentation
+} from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,57 +32,61 @@ interface Props {
 }
 
 const MAX_FILENAME_DISPLAY_LENGTH = 20
+const FILE_ICON_SIZE = 12
+
+const fileIcon = (Icon: LucideIcon) => <Icon size={FILE_ICON_SIZE} />
+
 function truncateFileName(name: string, maxLength: number = MAX_FILENAME_DISPLAY_LENGTH) {
   if (name.length <= maxLength) return name
   return name.slice(0, maxLength - 3) + '...'
 }
 
 export const getFileIcon = (type?: string) => {
-  if (!type) return <FileUnknownFilled />
+  if (!type) return fileIcon(FileQuestionMark)
 
   const ext = type.toLowerCase()
 
   if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(ext)) {
-    return <FileImageFilled />
+    return fileIcon(FileImage)
   }
 
   if (['.doc', '.docx'].includes(ext)) {
-    return <FileWordFilled />
+    return fileIcon(FileBadge)
   }
   if (['.xls', '.xlsx'].includes(ext)) {
-    return <FileExcelFilled />
+    return fileIcon(FileSpreadsheet)
   }
   if (['.ppt', '.pptx'].includes(ext)) {
-    return <FilePptFilled />
+    return fileIcon(Presentation)
   }
   if (ext === '.pdf') {
-    return <FilePdfFilled />
+    return fileIcon(FileType)
   }
   if (['.md', '.markdown'].includes(ext)) {
-    return <FileMarkdownFilled />
+    return fileIcon(FileText)
   }
 
   if (['.zip', '.rar', '.7z', '.tar', '.gz'].includes(ext)) {
-    return <FileZipFilled />
+    return fileIcon(FileArchive)
   }
 
   if (['.txt', '.json', '.log', '.yml', '.yaml', '.xml', '.csv', '.tscn', '.gd'].includes(ext)) {
-    return <FileTextFilled />
+    return fileIcon(FileText)
   }
 
   if (['.url'].includes(ext)) {
-    return <LinkOutlined />
+    return fileIcon(Link)
   }
 
   if (['.sitemap'].includes(ext)) {
-    return <GlobalOutlined />
+    return fileIcon(Globe)
   }
 
   if (['.folder'].includes(ext)) {
-    return <FolderOpenFilled />
+    return fileIcon(FolderOpen)
   }
 
-  return <FileUnknownFilled />
+  return fileIcon(FileQuestionMark)
 }
 
 export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {

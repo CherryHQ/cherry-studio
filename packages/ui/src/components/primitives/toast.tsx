@@ -1,6 +1,6 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, LoaderCircle, X } from 'lucide-react'
 import type React from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
 import { cn } from '../../lib/utils'
@@ -51,41 +51,26 @@ const DEFAULT_TOAST_LABELS: ToastLabels = {
 let toastQueue: ToastRecord[] = []
 const listeners = new Set<() => void>()
 const timers = new Map<string, ReturnType<typeof setTimeout>>()
+const loadingTokens = new Map<string, symbol>()
 let mountedViewports = 0
 let standaloneViewportRoot: Root | null = null
 let standaloneViewportContainer: HTMLDivElement | null = null
-let standaloneViewportRequested = false
 
 const notify = () => {
   listeners.forEach((listener) => listener())
 }
 
 const ensureStandaloneViewport = () => {
-  if (
-    typeof document === 'undefined' ||
-    mountedViewports > 0 ||
-    standaloneViewportRoot ||
-    standaloneViewportRequested
-  ) {
+  if (typeof document === 'undefined' || mountedViewports > 0 || standaloneViewportRoot) {
     return
   }
 
-  standaloneViewportRequested = true
+  standaloneViewportContainer = document.createElement('div')
+  standaloneViewportContainer.dataset.cherryToastViewport = 'standalone'
+  document.body.appendChild(standaloneViewportContainer)
 
-  setTimeout(() => {
-    standaloneViewportRequested = false
-
-    if (mountedViewports > 0 || standaloneViewportRoot) {
-      return
-    }
-
-    standaloneViewportContainer = document.createElement('div')
-    standaloneViewportContainer.dataset.cherryToastViewport = 'standalone'
-    document.body.appendChild(standaloneViewportContainer)
-
-    standaloneViewportRoot = createRoot(standaloneViewportContainer)
-    standaloneViewportRoot.render(<ToastViewport standalone />)
-  }, 0)
+  standaloneViewportRoot = createRoot(standaloneViewportContainer)
+  standaloneViewportRoot.render(<ToastViewport standalone />)
 }
 
 const subscribe = (listener: () => void) => {
@@ -113,6 +98,7 @@ const clearTimer = (key: string) => {
 const removeToast = (key: string) => {
   const toast = toastQueue.find((item) => item.key === key)
   clearTimer(key)
+  loadingTokens.delete(key)
   toastQueue = toastQueue.filter((item) => item.key !== key)
   toast?.onClose?.()
   notify()
@@ -189,7 +175,9 @@ const createLoadingToast =
     const toastLabels = getToastLabels(labels)
     const { title, description, icon, promise, timeout, ...restConfig } = args
     const key = getToastKey(args.key)
+    const token = Symbol(key)
 
+    loadingTokens.set(key, token)
     upsertToast({
       ...restConfig,
       description,
@@ -202,6 +190,10 @@ const createLoadingToast =
 
     promise
       .then((result) => {
+        if (loadingTokens.get(key) !== token) {
+          return result
+        }
+        loadingTokens.delete(key)
         upsertToast({
           ...restConfig,
           description,
@@ -213,6 +205,10 @@ const createLoadingToast =
         return result
       })
       .catch((err) => {
+        if (loadingTokens.get(key) !== token) {
+          return
+        }
+        loadingTokens.delete(key)
         upsertToast({
           ...restConfig,
           description: err?.message || description || toastLabels.errorDescription,
@@ -237,6 +233,7 @@ export const closeToast = (key: string) => {
 export const closeAll = () => {
   toastQueue.forEach((toast) => {
     clearTimer(toast.key)
+    loadingTokens.delete(toast.key)
     toast.onClose?.()
   })
   toastQueue = []
@@ -309,7 +306,7 @@ export const ToastViewport = ({
   labels?: Partial<ToastLabels>
   standalone?: boolean
 }) => {
-  const [toasts, setToasts] = useState(getToastSnapshot)
+  const toasts = useSyncExternalStore(subscribe, getToastSnapshot, getToastSnapshot)
   const toastLabels = getToastLabels(labels)
 
   useEffect(() => {
@@ -321,17 +318,12 @@ export const ToastViewport = ({
       standaloneViewportRoot = null
       standaloneViewportContainer = null
 
-      setTimeout(() => {
-        root.unmount()
-        container?.remove()
-      }, 0)
+      root.unmount()
+      container?.remove()
     }
-
-    const unsubscribe = subscribe(() => setToasts(getToastSnapshot()))
 
     return () => {
       mountedViewports = Math.max(0, mountedViewports - 1)
-      unsubscribe()
     }
   }, [standalone])
 

@@ -94,4 +94,17 @@ describe('TreeSelect', () => {
 
     expect(onChange).not.toHaveBeenCalled()
   })
+
+  it('keeps manual expansion state when parent rerenders with new treeData identity', () => {
+    const { rerender } = render(<TreeSelect treeData={[...treeData]} defaultExpandAll />)
+
+    fireEvent.click(screen.getByRole('combobox'))
+    fireEvent.click(screen.getAllByLabelText('Collapse')[0])
+
+    expect(screen.queryByText('Docs')).not.toBeInTheDocument()
+
+    rerender(<TreeSelect treeData={[...treeData]} defaultExpandAll />)
+
+    expect(screen.queryByText('Docs')).not.toBeInTheDocument()
+  })
 })

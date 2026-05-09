@@ -12,14 +12,14 @@ import { Popover, PopoverContent, PopoverTrigger } from './popover'
 const treeSelectTriggerVariants = cva(
   cn(
     'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
-    'bg-zinc-50 dark:bg-zinc-900',
+    'bg-input',
     'text-foreground'
   ),
   {
     variants: {
       state: {
         default: 'border-border aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
-        error: 'border border-destructive! aria-expanded:ring-3 aria-expanded:ring-red-600/20',
+        error: 'border border-destructive aria-expanded:ring-3 aria-expanded:ring-red-600/20',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {
@@ -66,6 +66,7 @@ export interface TreeSelectProps extends Omit<VariantProps<typeof treeSelectTrig
   searchPlaceholder?: string
   emptyText?: string
   filterOption?: (option: TreeSelectOption, search: string) => boolean
+  /** Initial-only default expansion. Use expandedValues for controlled runtime updates. */
   defaultExpandAll?: boolean
   defaultExpandedValues?: string[]
   expandedValues?: string[]
@@ -197,12 +198,6 @@ export function TreeSelect({
     return defaultExpandAll ? collectExpandableValues(treeData) : []
   })
   const searchInputRef = React.useRef<HTMLInputElement>(null)
-
-  React.useEffect(() => {
-    if (controlledExpandedValues === undefined && defaultExpandAll) {
-      setInternalExpandedValues(collectExpandableValues(treeData))
-    }
-  }, [controlledExpandedValues, defaultExpandAll, treeData])
 
   const value = controlledValue ?? internalValue
   const selectedOption = value !== undefined ? findOption(treeData, value) : undefined

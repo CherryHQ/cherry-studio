@@ -1,4 +1,3 @@
-import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { DeleteIcon } from '@renderer/components/Icons'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
@@ -8,6 +7,7 @@ import type { FileMetadata, FileType } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { t } from 'i18next'
+import { CircleAlert } from 'lucide-react'
 import React, { memo, useCallback } from 'react'
 
 import FileItem from './FileItem'
@@ -78,7 +78,7 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
                     onOk: () => {
                       void handleDelete(file.id, t)
                     },
-                    icon: <ExclamationCircleOutlined className="text-red-500" />
+                    icon: <CircleAlert className="size-4 text-red-500" />
                   })
                 }}>
                 <DeleteIcon size={14} className="lucide-custom" />

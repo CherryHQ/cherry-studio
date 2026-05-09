@@ -1,7 +1,8 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { GripVertical } from 'lucide-react'
 import * as React from 'react'
 import * as ResizablePrimitive from 'react-resizable-panels'
+
+import { cn } from '../../lib/utils'
 
 type ResizablePanelGroupProps = React.ComponentProps<typeof ResizablePrimitive.Group> & {
   direction?: 'horizontal' | 'vertical'

@@ -20,16 +20,16 @@ export function ImagePreviewTrigger({
   ...props
 }: ImagePreviewTriggerProps) {
   const [open, setOpen] = React.useState(false)
-  const previewItems = items ?? [item]
-  const initialIndex = Math.max(
-    0,
-    previewItems.findIndex((previewItem) => previewItem.id === item.id)
+  const previewItems = React.useMemo(() => items ?? [item], [item, items])
+  const initialIndex = React.useMemo(
+    () =>
+      Math.max(
+        0,
+        previewItems.findIndex((previewItem) => previewItem.id === item.id)
+      ),
+    [item.id, previewItems]
   )
   const [activeIndex, setActiveIndex] = React.useState(initialIndex)
-
-  React.useEffect(() => {
-    setActiveIndex(initialIndex)
-  }, [initialIndex])
 
   return (
     <>

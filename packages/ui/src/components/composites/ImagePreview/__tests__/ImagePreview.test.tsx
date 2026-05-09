@@ -149,6 +149,23 @@ describe('ImagePreviewTrigger', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
     expect(screen.getByRole('img', { name: 'Two' })).toHaveAttribute('src', ITEMS[1].src)
   })
+
+  it('keeps the active image when parent rerenders with inline items', () => {
+    const { rerender } = render(
+      <ImagePreviewTrigger alt="Open preview" item={ITEMS[0]} items={[...ITEMS]} dialogProps={{ labels: LABELS }} />
+    )
+
+    fireEvent.click(screen.getByRole('img', { name: 'Open preview' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next image' }))
+
+    expect(screen.getByRole('img', { name: 'Two' })).toHaveAttribute('src', ITEMS[1].src)
+
+    rerender(
+      <ImagePreviewTrigger alt="Open preview" item={ITEMS[0]} items={[...ITEMS]} dialogProps={{ labels: LABELS }} />
+    )
+
+    expect(screen.getByRole('img', { name: 'Two' })).toHaveAttribute('src', ITEMS[1].src)
+  })
 })
 
 describe('ImagePreviewContextMenu', () => {

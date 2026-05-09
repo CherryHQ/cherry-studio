@@ -5,8 +5,6 @@ import type { CSSProperties, ReactNode } from 'react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const CLOSE_ANIMATION_MS = 200
-
 interface PopupButtonProps {
   className?: string
   danger?: boolean
@@ -90,15 +88,21 @@ const PopupContainer: React.FC<Props> = ({
 
     resolvedRef.current = true
     setOpen(false)
-    window.setTimeout(() => {
-      resolve(result)
-    }, CLOSE_ANIMATION_MS)
+    resolve(result)
   }
 
   const onOk = async () => {
     if (resolvedRef.current) return
 
-    await handleOk?.()
+    try {
+      const result = await handleOk?.()
+      if (result === false) {
+        return
+      }
+    } catch {
+      return
+    }
+
     settle({})
   }
 

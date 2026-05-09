@@ -8,8 +8,6 @@ import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
 
-const CLOSE_ANIMATION_MS = 200
-
 interface PopupButtonProps {
   className?: string
   disabled?: boolean
@@ -66,9 +64,7 @@ const PopupContainer: React.FC<Props> = ({
 
     resolvedRef.current = true
     setOpen(false)
-    window.setTimeout(() => {
-      resolve(result)
-    }, CLOSE_ANIMATION_MS)
+    resolve(result)
   }
 
   const onOk = () => {

@@ -1,6 +1,7 @@
 import { StyleProvider } from '@ant-design/cssinjs'
 import React, { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { StyleSheetManager } from 'styled-components'
 
 interface Props {
   children: React.ReactNode
@@ -48,9 +49,11 @@ const ShadowDOMRenderer: React.FC<Props> = ({ children }) => {
   return (
     <div ref={hostRef} style={{ display: 'none' }}>
       {createPortal(
-        <StyleProvider container={shadowRoot} layer>
-          {children}
-        </StyleProvider>,
+        <StyleSheetManager target={shadowRoot}>
+          <StyleProvider container={shadowRoot} layer>
+            {children}
+          </StyleProvider>
+        </StyleSheetManager>,
         shadowRoot
       )}
     </div>

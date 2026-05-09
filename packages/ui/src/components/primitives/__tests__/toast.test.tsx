@@ -69,4 +69,30 @@ describe('Toast', () => {
     expect(screen.getByText('Localized success')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument()
   })
+
+  it('does not revive a loading toast after it was closed', async () => {
+    let resolvePromise: () => void = () => {}
+    const promise = new Promise<void>((resolve) => {
+      resolvePromise = resolve
+    })
+
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.loading({ key: 'sync-task', promise, title: 'Syncing' })
+    })
+
+    expect(screen.getByText('Syncing')).toBeInTheDocument()
+
+    act(() => {
+      toast.closeToast('sync-task')
+    })
+
+    await act(async () => {
+      resolvePromise()
+      await promise
+    })
+
+    expect(screen.queryByText('Success')).not.toBeInTheDocument()
+  })
 })
