@@ -38,3 +38,32 @@ export interface VersionCache {
   /** Dev/test helper: drop all cached entries. */
   clear(): void
 }
+
+/**
+ * Minimal Map-backed implementation for Phase 1b.1.
+ *
+ * No size bound, no eviction — sufficient for read-path consumers that only
+ * need stable get/set semantics. The full LRU + writeIfUnchanged integration
+ * lands in Phase 1b.2.
+ */
+class VersionCacheImpl implements VersionCache {
+  private readonly store = new Map<FileEntryId, FileVersion>()
+
+  get(id: FileEntryId): FileVersion | undefined {
+    return this.store.get(id)
+  }
+
+  set(id: FileEntryId, version: FileVersion): void {
+    this.store.set(id, version)
+  }
+
+  invalidate(id: FileEntryId): void {
+    this.store.delete(id)
+  }
+
+  clear(): void {
+    this.store.clear()
+  }
+}
+
+export const versionCache: VersionCache = new VersionCacheImpl()

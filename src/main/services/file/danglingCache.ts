@@ -62,13 +62,27 @@ export interface DanglingCache {
   clear(): void
 }
 
-const notImplemented = (op: string): never => {
-  throw new Error(`danglingCache.${op}: not implemented (Phase 1a skeleton, lands in Phase 1b.3)`)
-}
-
+/**
+ * Minimal no-op implementation for Phase 1b.1.
+ *
+ * `check` returns `'present'` for internal entries (always in `{userData}/files/`)
+ * and `'unknown'` for external (no observation surface yet — watcher integration
+ * lands in Phase 1b.3). `onFsEvent` records nothing. `subscribe` returns a no-op
+ * unsubscriber. The full reverse-index + cold-stat fallback ships in 1b.3.
+ */
 export const danglingCache: DanglingCache = {
-  check: () => notImplemented('check'),
-  onFsEvent: () => notImplemented('onFsEvent'),
-  subscribe: () => notImplemented('subscribe'),
-  clear: () => notImplemented('clear')
+  async check(entry) {
+    return entry.origin === 'internal' ? 'present' : 'unknown'
+  },
+  onFsEvent() {
+    // intentional no-op; full ingestion lands in 1b.3
+  },
+  subscribe() {
+    return () => {
+      // no-op unsubscriber
+    }
+  },
+  clear() {
+    // intentional no-op
+  }
 }
