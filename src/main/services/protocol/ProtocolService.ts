@@ -1,5 +1,6 @@
 import { exec } from 'node:child_process'
 import fs from 'node:fs/promises'
+import path from 'node:path'
 import { promisify } from 'node:util'
 
 import { application } from '@application'
@@ -68,13 +69,18 @@ export class ProtocolService extends BaseService {
   }
 
   private registerProtocolScheme() {
+    // In dev, Electron needs the app entry as an absolute path; launchers often
+    // pass "." as argv[1], which becomes invalid when the OS invokes the
+    // protocol handler from a different cwd.
     if (process.defaultApp) {
       if (process.argv.length >= 2) {
-        app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL, process.execPath, [process.argv[1]])
+        const entry = process.argv[1]
+        const absoluteEntry = path.isAbsolute(entry) ? entry : path.resolve(process.cwd(), entry)
+        app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL, process.execPath, [absoluteEntry])
       }
+    } else {
+      app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL)
     }
-
-    app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL)
   }
 
   private handleProtocolUrl(url: string) {

@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import path from 'node:path'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock, cherryINOAuthServiceMock } =
   vi.hoisted(() => {
@@ -79,17 +81,56 @@ import { ProtocolService } from '../ProtocolService'
 
 describe('ProtocolService', () => {
   let service: ProtocolService
+  let originalArgv: string[]
+  let originalDefaultApp: boolean | undefined
+
+  function setDefaultApp(value: boolean | undefined) {
+    if (value === undefined) {
+      Reflect.deleteProperty(process, 'defaultApp')
+    } else {
+      ;(process as NodeJS.Process & { defaultApp?: boolean }).defaultApp = value
+    }
+  }
 
   beforeEach(() => {
+    originalArgv = process.argv
+    originalDefaultApp = (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp
     vi.clearAllMocks()
     cherryINOAuthServiceMock.handleOAuthCallback.mockResolvedValue(undefined)
     service = new ProtocolService()
+  })
+
+  afterEach(() => {
+    process.argv = originalArgv
+    setDefaultApp(originalDefaultApp)
   })
 
   it('logs malformed protocol URLs instead of throwing', () => {
     expect(() => (service as any).handleProtocolUrl('not a url')).not.toThrow()
 
     expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle protocol URL', expect.any(TypeError))
+  })
+
+  it('registers the packaged protocol handler without dev arguments', async () => {
+    setDefaultApp(false)
+    process.argv = ['Cherry Studio.exe']
+
+    await (service as any).onInit()
+
+    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledTimes(1)
+    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledWith('cherrystudio')
+  })
+
+  it('registers the dev protocol handler with an absolute app entry', async () => {
+    setDefaultApp(true)
+    process.argv = ['electron.exe', '.']
+
+    await (service as any).onInit()
+
+    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledTimes(1)
+    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledWith('cherrystudio', process.execPath, [
+      path.resolve(process.cwd(), '.')
+    ])
   })
 
   it('logs asynchronous providers handler failures', async () => {
