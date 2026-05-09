@@ -23,8 +23,8 @@ export const paintingClasses = {
   historyAddButton:
     'sticky top-0 z-10 mb-1 flex h-9 w-11 shrink-0 items-center justify-center rounded-full bg-white text-muted-foreground hover:bg-[var(--painting-control-bg-hover)] hover:text-foreground dark:bg-background',
   historyItem:
-    'group relative flex h-11 w-11 shrink-0 items-center justify-center overflow-visible rounded-[var(--painting-radius-item)] border border-transparent bg-[var(--painting-control-bg)] transition hover:bg-[var(--painting-control-bg-hover)]',
-  historyItemActive: 'border-border bg-white shadow-sm ring-1 ring-foreground/10 dark:bg-background',
+    'group relative flex h-11 w-11 shrink-0 items-center justify-center overflow-visible rounded-[var(--painting-radius-item)] bg-[var(--painting-control-bg)] p-0 leading-none transition hover:bg-[var(--painting-control-bg-hover)]',
+  historyItemActive: 'bg-white dark:bg-background',
   historyDelete:
     'absolute -top-1 -right-1 z-20 flex size-5 cursor-pointer items-center justify-center rounded-full border border-border/70 bg-white/95 text-destructive opacity-0 shadow-sm transition group-hover:opacity-100 dark:bg-background/95',
   promptModeTabsList: 'h-8 rounded-full border border-border/60 bg-muted/35 p-0.5 shadow-none dark:bg-muted/20',

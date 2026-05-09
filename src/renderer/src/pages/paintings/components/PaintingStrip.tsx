@@ -31,7 +31,7 @@ const PaintingStripItem: FC<{
       type="button"
       className={cn(paintingClasses.historyItem, selected && paintingClasses.historyItemActive)}
       onClick={() => onSelect(painting)}>
-      <span className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-[16px]">
+      <span className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-[var(--painting-radius-item)]">
         {previewFile ? (
           <img src={FileManager.getFileUrl(previewFile)} alt="" className="h-full w-full object-cover" />
         ) : loading ? (
@@ -42,6 +42,13 @@ const PaintingStripItem: FC<{
           <span className="block size-full bg-muted/60" aria-hidden />
         )}
       </span>
+
+      {selected && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-10 rounded-[var(--painting-radius-item)] ring-2 ring-muted-foreground/55 ring-inset"
+        />
+      )}
 
       {loading && previewFile && (
         <span className="pointer-events-none absolute inset-x-1 bottom-1 z-10 h-1 overflow-hidden rounded-full bg-black/10">
