@@ -152,7 +152,7 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
         <FieldContent>
           <div
             aria-invalid={promptInvalid || undefined}
-            className={`overflow-hidden rounded-xs border bg-accent/15 transition-all focus-within:bg-accent/20 ${
+            className={`overflow-hidden rounded-md border bg-accent/15 transition-all focus-within:bg-accent/20 ${
               promptInvalid
                 ? 'border-destructive/50 focus-within:border-destructive/60'
                 : 'border-border/20 focus-within:border-border/40'

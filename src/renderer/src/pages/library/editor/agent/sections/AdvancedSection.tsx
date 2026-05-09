@@ -41,7 +41,7 @@ const AdvancedSection: FC<Props> = ({ form, onChange }) => {
           value={form.maxTurns || null}
           onChange={(v) => onChange({ maxTurns: typeof v === 'number' ? v : 0 })}
           placeholder="0"
-          className="rounded-xs border-border/20 bg-accent/15 text-xs focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
+          className="rounded-md border-border/20 bg-accent/15 text-xs focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
         />
       </div>
 
@@ -54,7 +54,7 @@ const AdvancedSection: FC<Props> = ({ form, onChange }) => {
           value={form.envVarsText}
           onChange={(e) => onChange({ envVarsText: e.target.value })}
           placeholder={'KEY=value\nANOTHER_KEY=another_value'}
-          className="min-h-30 rounded-xs border-border/20 bg-accent/15 px-3 py-2 font-mono text-xs focus:border-border/40 focus:bg-accent/20"
+          className="min-h-30 rounded-md border-border/20 bg-accent/15 px-3 py-2 font-mono text-xs focus:border-border/40 focus:bg-accent/20"
         />
       </div>
     </div>

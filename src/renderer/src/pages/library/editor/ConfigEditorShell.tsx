@@ -211,7 +211,7 @@ export function ConfigEditorShell<Id extends string>({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2 }}
-              className={`mx-auto w-full ${contentWidth === 'wide' ? 'max-w-[880px]' : 'max-w-[720px]'}`}>
+              className={`mx-auto w-full [&_[data-slot=input]]:rounded-md [&_[data-slot=select-trigger]]:rounded-md [&_[data-slot=textarea-input]]:rounded-md ${contentWidth === 'wide' ? 'max-w-[880px]' : 'max-w-[720px]'}`}>
               {children}
             </motion.div>
           </AnimatePresence>

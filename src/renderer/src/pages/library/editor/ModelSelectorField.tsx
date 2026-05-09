@@ -43,7 +43,7 @@ export function ModelSelectorField({ label, hint, value, allowClear = false, err
       <FieldContent>
         <div
           className={cn(
-            'rounded-xs border bg-accent/15 transition-colors',
+            'rounded-md border bg-accent/15 transition-colors',
             invalid ? 'border-destructive/50' : 'border-border/20'
           )}>
           <div className="flex items-center gap-1.5 px-2 py-1">
@@ -58,7 +58,7 @@ export function ModelSelectorField({ label, hint, value, allowClear = false, err
                 <Button
                   type="button"
                   variant="ghost"
-                  className="flex h-auto min-h-0 min-w-0 flex-1 items-center justify-between gap-1.5 rounded-[12px] px-2 py-1 font-normal text-foreground text-xs shadow-none hover:bg-accent/50 focus-visible:ring-0">
+                  className="flex h-auto min-h-0 min-w-0 flex-1 items-center justify-between gap-1.5 rounded-sm px-2 py-1 font-normal text-foreground text-xs shadow-none hover:bg-accent/50 focus-visible:ring-0">
                   <span className="min-w-0 truncate text-left">{triggerLabel}</span>
                   <ChevronsUpDown size={12} className="shrink-0 text-muted-foreground/80" />
                 </Button>
