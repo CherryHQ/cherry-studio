@@ -2691,6 +2691,7 @@
       "prompt": "Prompt",
       "skill": "Skill"
     },
+    "uninstall_failed": "Failed to uninstall",
     "view": {
       "grid": "Grid view",
       "list": "List view"

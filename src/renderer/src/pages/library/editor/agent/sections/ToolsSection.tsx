@@ -141,8 +141,13 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
     () => skillCatalog.filter((it) => enabledSkillIds.has(it.id)),
     [skillCatalog, enabledSkillIds]
   )
-  const flipSkill = (id: string, nextEnabled: boolean) => {
-    void toggleSkill(id, nextEnabled)
+  const flipSkill = async (id: string, nextEnabled: boolean) => {
+    try {
+      await toggleSkill(id, nextEnabled)
+    } catch {
+      // toggleSkill already toasts/logs the failure inside useSkills; nothing
+      // to do here besides keeping the rejection from bubbling as unhandled.
+    }
   }
 
   // --- Tab metadata -----------------------------------------------------------

@@ -77,12 +77,6 @@ export const AssistantSettingsSchema = z.object({
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
-export const AssistantWarningSchema = z.strictObject({
-  code: z.enum(['stale_default_model']),
-  message: z.string().min(1)
-})
-export type AssistantWarning = z.infer<typeof AssistantWarningSchema>
-
 /** Pre-computed default settings object — avoids runtime parse() on every row conversion */
 export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   temperature: 1.0,
@@ -151,8 +145,6 @@ export const AssistantSchema = z.strictObject({
    * `null` when the model row is missing (e.g. user removed the model after
    * binding).
    */
-  modelName: z.string().nullable(),
-  /** Non-fatal diagnostics surfaced by write endpoints. */
-  _warnings: z.array(AssistantWarningSchema).optional()
+  modelName: z.string().nullable()
 })
 export type Assistant = z.infer<typeof AssistantSchema>

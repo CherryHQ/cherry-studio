@@ -1,4 +1,5 @@
 import { Button, Checkbox, Input, MenuDivider, MenuItem, Separator } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useDataTags'
 import { ChevronDown, Copy, Download, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
@@ -7,6 +8,8 @@ import { useTranslation } from 'react-i18next'
 import { useAssistantMutationsById } from '../adapters/assistantAdapter'
 import { DEFAULT_TAG_COLOR, getRandomTagColor } from '../constants'
 import type { ResourceItem } from '../types'
+
+const logger = loggerService.withContext('ResourceCardMenu')
 
 export function canDuplicateResource(resource: ResourceItem) {
   return resource.type === 'assistant'
@@ -77,7 +80,16 @@ export function FixedCardMenu({
       } catch (e) {
         // Roll back optimistic state on failure.
         setLocalTags(previousNames)
-        setBindingError(e instanceof Error ? e.message : t('library.tag_sync_failed'))
+        const message = e instanceof Error ? e.message : t('library.tag_sync_failed')
+        setBindingError(message)
+        // The inline error text only renders while the popup is open. Toast +
+        // log so the failure stays visible after menu close and lands in
+        // diagnostics either way.
+        window.toast.error(message)
+        logger.error('Failed to sync resource tags', e instanceof Error ? e : new Error(String(e)), {
+          resourceId: resource.id,
+          type: resource.type
+        })
       } finally {
         bindingPendingRef.current = false
         setBindingPending(false)

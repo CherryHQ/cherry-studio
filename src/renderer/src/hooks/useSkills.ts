@@ -53,9 +53,7 @@ export function useInstalledSkills(agentId?: string) {
   const toggle = useCallback(
     async (skillId: string, isEnabled: boolean) => {
       if (!agentId) {
-        // Without an agent context there is nothing to toggle — per-agent
-        // enablement has no target. Callers that want to toggle must scope
-        // to an agent.
+        logger.warn('skill.toggle called without agentId; ignoring', { skillId, isEnabled })
         return false
       }
       try {

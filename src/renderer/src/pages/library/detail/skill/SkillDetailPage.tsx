@@ -188,13 +188,17 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
       window.toast.success(t('settings.skills.uninstallSuccess', { name: skill.name }))
       onUninstalled?.()
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
+      const message = error instanceof Error ? error.message : t('library.uninstall_failed')
       window.toast.error(message)
+      logger.error('Failed to uninstall skill', error instanceof Error ? error : new Error(String(error)), {
+        skillId: skill.id,
+        name: skill.name
+      })
       throw error
     } finally {
       setUninstalling(false)
     }
-  }, [uninstallSkill, skill.name, onUninstalled, t])
+  }, [uninstallSkill, skill.id, skill.name, onUninstalled, t])
 
   return (
     <ResourceEditorShell title={skill.name} onBack={onBack}>

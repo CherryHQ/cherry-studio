@@ -2691,6 +2691,7 @@
       "prompt": "提示词",
       "skill": "技能"
     },
+    "uninstall_failed": "卸载失败",
     "view": {
       "grid": "网格视图",
       "list": "列表视图"

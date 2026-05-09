@@ -2691,6 +2691,7 @@
       "prompt": "[to be translated]:Prompt",
       "skill": "技能"
     },
+    "uninstall_failed": "[to be translated]:Failed to uninstall",
     "view": {
       "grid": "網格檢視",
       "list": "列表檢視"

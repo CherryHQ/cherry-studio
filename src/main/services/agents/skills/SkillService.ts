@@ -385,12 +385,21 @@ export class SkillService {
           const skillPath = path.join(skillsDir, entry.name)
           const metadata = await parseSkillMetadata(skillPath, entry.name, 'skills')
           results.push({ name: metadata.name, description: metadata.description, filename: entry.name })
-        } catch {
-          // No SKILL.md or parse error, skip
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
+          logger.warn('Failed to parse skill metadata; skipping', {
+            skillsDir,
+            entry: entry.name,
+            error: error instanceof Error ? error.message : String(error)
+          })
         }
       }
-    } catch {
-      // .claude/skills/ doesn't exist
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return results
+      logger.warn('Failed to enumerate skills directory', {
+        skillsDir,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
 
     return results

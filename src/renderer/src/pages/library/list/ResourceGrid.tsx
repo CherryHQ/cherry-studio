@@ -1,4 +1,5 @@
 import { Button, EmptyState, Input } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Plus, Search, Tag, Upload, X } from 'lucide-react'
 import type { FC, MouseEvent, RefObject } from 'react'
@@ -16,6 +17,8 @@ import {
   type AssistantCatalogTab,
   getAssistantPresetCatalogKey
 } from './useAssistantPresetCatalog'
+
+const logger = loggerService.withContext('ResourceGrid')
 
 const GRID_GAP_PX = 12
 const RESOURCE_CARD_ROW_ESTIMATE_PX = 164
@@ -137,6 +140,12 @@ export const ResourceGrid: FC<Props> = ({
       await onAddTag(trimmed)
       setNewTagName('')
       setShowAddTag(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
+      window.toast.error(message)
+      logger.error('Failed to create tag', error instanceof Error ? error : new Error(String(error)), {
+        name: trimmed
+      })
     } finally {
       setAddingTag(false)
     }

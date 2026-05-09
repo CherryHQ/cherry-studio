@@ -37,13 +37,22 @@ export function useTagList(): TagListResult {
 }
 
 /**
- * Write-side hooks for the Tag collection.
+ * Resolve a list of tag names to Tag records, creating any that don't exist yet.
+ *
+ * Lookup order:
+ *   1. Check the cached `useTagList` result (no extra request in the common path).
+ *   2. Missing names -> POST /tags.
+ *   3. If POST fails due to a unique-constraint race, do a one-shot imperative
+ *      GET /tags and retry the lookup before bubbling up.
+ *
+ * Skips empty / whitespace-only names and de-duplicates input.
  *
  * `getDefaultColor` lets product surfaces keep their own visual defaulting
  * policy without making palette constants part of the generic tag data hook.
  */
-export function useTagMutations(options: UseDataTagsOptions = {}) {
+export function useEnsureTags(options: UseDataTagsOptions = {}) {
   const { getDefaultColor } = options
+  const { tags: cachedTags } = useTagList()
   const { trigger: createTrigger } = useMutation('POST', '/tags', {
     refresh: ['/tags']
   })
@@ -56,24 +65,6 @@ export function useTagMutations(options: UseDataTagsOptions = {}) {
     },
     [createTrigger, getDefaultColor]
   )
-
-  return { createTag }
-}
-
-/**
- * Resolve a list of tag names to Tag records, creating any that don't exist yet.
- *
- * Lookup order:
- *   1. Check the cached `useTagList` result (no extra request in the common path).
- *   2. Missing names -> POST /tags.
- *   3. If POST fails due to a unique-constraint race, do a one-shot imperative
- *      GET /tags and retry the lookup before bubbling up.
- *
- * Skips empty / whitespace-only names and de-duplicates input.
- */
-export function useEnsureTags(options?: UseDataTagsOptions) {
-  const { tags: cachedTags } = useTagList()
-  const { createTag } = useTagMutations(options)
 
   const ensureTags = useCallback(
     async (inputs: EnsureTagInput[]): Promise<Tag[]> => {
