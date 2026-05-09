@@ -1,17 +1,16 @@
 /**
  * FileEntryService — pure DB repository for the `file_entry` table.
  *
- * Phase status: Phase 1a exports the **interface only**. Concrete Drizzle-backed
- * implementation (including UUID v7 generation, Zod brand validation on every
- * returned row, and `findByExternalPath` canonical-key semantics) lands in
- * Phase 1b.1.
+ * Phase status: Phase 1a exported the **interface only**. Phase 1b.1 lands
+ * the read-method implementation; create/update/delete remain stubs until
+ * Phase 1b.2 (write path).
  *
  * ## Scope
  *
  * - **Pure DB.** No FS IO, no path resolution, no canonicalization. Callers
  *   (e.g. `FileManager.ensureExternalEntry`) are responsible for passing a
  *   canonical `externalPath` on write and query.
- * - **Produces branded `FileEntry`.** Every returned row MUST pass
+ * - **Produces branded `FileEntry`.** Every returned row passes
  *   `FileEntrySchema.parse()` so the brand contract holds — downstream
  *   consumers cannot receive a raw object literal that satisfies the shape
  *   but bypasses validation (RFC §4.5.2 runtime brand contract).
@@ -23,7 +22,11 @@
  * RFC §9.3 for the Phase 1b.1 deliverables.
  */
 
+import { application } from '@application'
+import { fileEntryTable } from '@data/db/schemas/file'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
+import { FileEntrySchema } from '@shared/data/types/file'
+import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 
 /** Columns a caller may provide on insert (id defaults to a fresh UUID v7 when omitted). */
 export interface CreateFileEntryRow {
@@ -104,16 +107,95 @@ export interface FileEntryService {
 }
 
 const notImplemented = (op: string): never => {
-  throw new Error(`fileEntryService.${op}: not implemented (Phase 1a skeleton, lands in Phase 1b.1)`)
+  throw new Error(`fileEntryService.${op}: not implemented (Phase 1a skeleton, lands in Phase 1b.2)`)
 }
 
-export const fileEntryService: FileEntryService = {
-  findById: () => notImplemented('findById'),
-  getById: () => notImplemented('getById'),
-  findByExternalPath: () => notImplemented('findByExternalPath'),
-  findCaseInsensitivePeers: () => notImplemented('findCaseInsensitivePeers'),
-  findMany: () => notImplemented('findMany'),
-  create: () => notImplemented('create'),
-  update: () => notImplemented('update'),
-  delete: () => notImplemented('delete')
+type FileEntryRow = typeof fileEntryTable.$inferSelect
+
+function rowToFileEntry(row: FileEntryRow): FileEntry {
+  return FileEntrySchema.parse(row)
 }
+
+class FileEntryServiceImpl implements FileEntryService {
+  private getDb() {
+    return application.get('DbService').getDb()
+  }
+
+  async findById(id: FileEntryId): Promise<FileEntry | null> {
+    const rows = await this.getDb().select().from(fileEntryTable).where(eq(fileEntryTable.id, id)).limit(1)
+    return rows.length === 0 ? null : rowToFileEntry(rows[0])
+  }
+
+  async getById(id: FileEntryId): Promise<FileEntry> {
+    const entry = await this.findById(id)
+    if (!entry) {
+      throw new Error(`FileEntry not found: ${id}`)
+    }
+    return entry
+  }
+
+  async findByExternalPath(canonicalPath: CanonicalExternalPath): Promise<FileEntry | null> {
+    const rows = await this.getDb()
+      .select()
+      .from(fileEntryTable)
+      .where(eq(fileEntryTable.externalPath, canonicalPath))
+      .limit(1)
+    return rows.length === 0 ? null : rowToFileEntry(rows[0])
+  }
+
+  async findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): Promise<FileEntry[]> {
+    const rows = await this.getDb()
+      .select()
+      .from(fileEntryTable)
+      .where(
+        and(
+          isNotNull(fileEntryTable.externalPath),
+          sql`lower(${fileEntryTable.externalPath}) = lower(${canonicalPath})`
+        )
+      )
+    return rows.map(rowToFileEntry)
+  }
+
+  async findMany(query: FindEntriesQuery = {}): Promise<FileEntry[]> {
+    const conditions = []
+    if (query.origin) {
+      conditions.push(eq(fileEntryTable.origin, query.origin))
+    }
+    if (query.inTrash === true) {
+      conditions.push(isNotNull(fileEntryTable.trashedAt))
+    } else {
+      conditions.push(isNull(fileEntryTable.trashedAt))
+    }
+
+    let queryBuilder = this.getDb()
+      .select()
+      .from(fileEntryTable)
+      .where(and(...conditions))
+      .orderBy(asc(fileEntryTable.createdAt))
+      .$dynamic()
+
+    if (query.limit !== undefined) {
+      queryBuilder = queryBuilder.limit(query.limit)
+    }
+    if (query.offset !== undefined) {
+      queryBuilder = queryBuilder.offset(query.offset)
+    }
+
+    const rows = await queryBuilder
+    return rows.map(rowToFileEntry)
+  }
+
+  async create(_values: CreateFileEntryRow): Promise<FileEntry> {
+    return notImplemented('create')
+  }
+
+  async update(_id: FileEntryId, _values: UpdateFileEntryRow): Promise<FileEntry> {
+    return notImplemented('update')
+  }
+
+  async delete(_id: FileEntryId): Promise<void> {
+    return notImplemented('delete')
+  }
+}
+
+export const fileEntryService: FileEntryService = new FileEntryServiceImpl()
