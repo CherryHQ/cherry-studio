@@ -11,6 +11,7 @@ type TaskFormData = {
   prompt: string
   schedule_type: TaskScheduleType
   schedule_value: string
+  timezone: string
   channel_ids: string[]
 }
 
@@ -42,6 +43,7 @@ const TaskFormModal: FC<TaskFormModalProps> = ({
     prompt: '',
     schedule_type: 'interval',
     schedule_value: '',
+    timezone: '',
     channel_ids: []
   })
 
@@ -52,6 +54,7 @@ const TaskFormModal: FC<TaskFormModalProps> = ({
         prompt: initialData.prompt ?? '',
         schedule_type: initialData.schedule_type ?? 'interval',
         schedule_value: initialData.schedule_value ?? '',
+        timezone: initialData.timezone ?? '',
         channel_ids: initialData.channel_ids ?? []
       })
     } else if (open) {
@@ -60,6 +63,7 @@ const TaskFormModal: FC<TaskFormModalProps> = ({
         prompt: '',
         schedule_type: 'interval',
         schedule_value: '',
+        timezone: '',
         channel_ids: []
       })
     }
@@ -161,6 +165,18 @@ const TaskFormModal: FC<TaskFormModalProps> = ({
             {renderScheduleInput()}
           </div>
         </div>
+        {form.schedule_type === 'cron' && (
+          <div>
+            <label className="mb-1 block font-medium text-sm">
+              {t('agent.cherryClaw.tasks.timezone.label', 'Timezone')}
+            </label>
+            <Input
+              value={form.timezone}
+              onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))}
+              placeholder="e.g. Asia/Shanghai, America/New_York (default: UTC)"
+            />
+          </div>
+        )}
 
         {channels.length > 0 && (
           <div>

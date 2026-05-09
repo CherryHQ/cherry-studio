@@ -114,6 +114,7 @@ export const ScheduledTaskEntitySchema = z.object({
   schedule_type: TaskScheduleTypeSchema,
   schedule_value: z.string(),
   timeout_minutes: z.number(),
+  timezone: z.string().nullable().optional(), // IANA timezone, e.g. 'Asia/Shanghai'. null = UTC for cron
   channel_ids: z.array(z.string()).optional(), // populated from channel_task_subscriptions
   next_run: z.string().nullable().optional(),
   last_run: z.string().nullable().optional(),
@@ -407,6 +408,7 @@ export const CreateTaskRequestSchema = z.object({
   schedule_type: TaskScheduleTypeSchema,
   schedule_value: z.string().min(1, 'Schedule value is required'),
   timeout_minutes: z.number().min(1).nullable().optional(),
+  timezone: z.string().nullable().optional(),
   channel_ids: z.array(z.string()).optional()
 })
 
@@ -419,6 +421,7 @@ export const UpdateTaskRequestSchema = z.object({
   schedule_type: TaskScheduleTypeSchema.optional(),
   schedule_value: z.string().min(1).optional(),
   timeout_minutes: z.number().min(1).nullable().optional(),
+  timezone: z.string().nullable().optional(),
   channel_ids: z.array(z.string()).optional(),
   status: TaskStatusSchema.optional()
 })

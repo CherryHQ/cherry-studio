@@ -31,7 +31,7 @@ export class TaskService extends BaseService {
     const id = `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     const now = new Date().toISOString()
 
-    const nextRun = this.computeInitialNextRun(req.schedule_type, req.schedule_value)
+    const nextRun = this.computeInitialNextRun(req.schedule_type, req.schedule_value, req.timezone)
 
     const insertData: InsertTaskRow = {
       id,
@@ -41,6 +41,7 @@ export class TaskService extends BaseService {
       schedule_type: req.schedule_type,
       schedule_value: req.schedule_value,
       ...(req.timeout_minutes != null ? { timeout_minutes: req.timeout_minutes } : {}),
+      timezone: req.timezone ?? null,
       next_run: nextRun,
       status: 'active',
       created_at: now,
@@ -135,19 +136,22 @@ export class TaskService extends BaseService {
     if (updates.agent_id !== undefined) updateData.agent_id = updates.agent_id
     if (updates.timeout_minutes !== undefined) updateData.timeout_minutes = updates.timeout_minutes ?? 2
     if (updates.status !== undefined) updateData.status = updates.status
+    if (updates.timezone !== undefined) updateData.timezone = updates.timezone
 
     if (updates.schedule_type !== undefined || updates.schedule_value !== undefined) {
       const schedType = updates.schedule_type ?? existing.schedule_type
       const schedValue = updates.schedule_value ?? existing.schedule_value
+      const tz = updates.timezone !== undefined ? updates.timezone : existing.timezone
       updateData.schedule_type = schedType
       updateData.schedule_value = schedValue
-      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+      updateData.next_run = this.computeInitialNextRun(schedType, schedValue, tz)
     }
 
     if (updates.status === 'active' && existing.status === 'paused') {
       const schedType = updates.schedule_type ?? existing.schedule_type
       const schedValue = updates.schedule_value ?? existing.schedule_value
-      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+      const tz = updates.timezone !== undefined ? updates.timezone : existing.timezone
+      updateData.next_run = this.computeInitialNextRun(schedType, schedValue, tz)
     }
 
     const database = await this.getDatabase()
@@ -206,21 +210,24 @@ export class TaskService extends BaseService {
     if (updates.prompt !== undefined) updateData.prompt = updates.prompt
     if (updates.timeout_minutes !== undefined) updateData.timeout_minutes = updates.timeout_minutes ?? 2
     if (updates.status !== undefined) updateData.status = updates.status
+    if (updates.timezone !== undefined) updateData.timezone = updates.timezone
 
     // If schedule type or value changed, recompute next_run
     if (updates.schedule_type !== undefined || updates.schedule_value !== undefined) {
       const schedType = updates.schedule_type ?? existing.schedule_type
       const schedValue = updates.schedule_value ?? existing.schedule_value
+      const tz = updates.timezone !== undefined ? updates.timezone : existing.timezone
       updateData.schedule_type = schedType
       updateData.schedule_value = schedValue
-      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+      updateData.next_run = this.computeInitialNextRun(schedType, schedValue, tz)
     }
 
     // If resuming from paused, recompute next_run
     if (updates.status === 'active' && existing.status === 'paused') {
       const schedType = updates.schedule_type ?? existing.schedule_type
       const schedValue = updates.schedule_value ?? existing.schedule_value
-      updateData.next_run = this.computeInitialNextRun(schedType, schedValue)
+      const tz = updates.timezone !== undefined ? updates.timezone : existing.timezone
+      updateData.next_run = this.computeInitialNextRun(schedType, schedValue, tz)
     }
 
     const database = await this.getDatabase()
@@ -403,7 +410,10 @@ export class TaskService extends BaseService {
     if (task.schedule_type === 'cron') {
       try {
         const { CronExpressionParser } = require('cron-parser')
-        const interval = CronExpressionParser.parse(task.schedule_value)
+        const interval = CronExpressionParser.parse(
+          task.schedule_value,
+          task.timezone ? { tz: task.timezone } : undefined
+        )
         return interval.next().toISOString()
       } catch {
         logger.warn('Invalid cron expression', { taskId: task.id, cron: task.schedule_value })
@@ -463,14 +473,14 @@ export class TaskService extends BaseService {
     throw new Error('Scheduled tasks require Soul Mode or Bypass Permissions mode. Update the agent settings first.')
   }
 
-  private computeInitialNextRun(scheduleType: string, scheduleValue: string): string | null {
+  private computeInitialNextRun(scheduleType: string, scheduleValue: string, timezone?: string | null): string | null {
     const now = Date.now()
 
     switch (scheduleType) {
       case 'cron': {
         try {
           const { CronExpressionParser } = require('cron-parser')
-          const interval = CronExpressionParser.parse(scheduleValue)
+          const interval = CronExpressionParser.parse(scheduleValue, timezone ? { tz: timezone } : undefined)
           return interval.next().toISOString()
         } catch {
           return null
