@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appMock, loggerMock, handlersMock, windowManagerMock } = vi.hoisted(() => {
+const { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock } = vi.hoisted(() => {
   const appMock = {
     on: vi.fn(),
     removeListener: vi.fn(),
@@ -17,9 +17,12 @@ const { appMock, loggerMock, handlersMock, windowManagerMock } = vi.hoisted(() =
     handleProvidersProtocolUrl: vi.fn()
   }
   const windowManagerMock = {
-    broadcastToType: vi.fn()
+    broadcast: vi.fn()
   }
-  return { appMock, loggerMock, handlersMock, windowManagerMock }
+  const mainWindowServiceMock = {
+    showMainWindow: vi.fn()
+  }
+  return { appMock, loggerMock, handlersMock, windowManagerMock, mainWindowServiceMock }
 })
 
 vi.mock('electron', () => ({ app: appMock }))
@@ -34,6 +37,7 @@ vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'WindowManager') return windowManagerMock
+      if (name === 'MainWindowService') return mainWindowServiceMock
       throw new Error(`unexpected service: ${name}`)
     },
     getPath: (key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)
@@ -66,8 +70,6 @@ vi.mock('../handlers/providersImport', () => ({
   handleProvidersProtocolUrl: handlersMock.handleProvidersProtocolUrl
 }))
 
-import { WindowType } from '@main/core/window/types'
-
 import { ProtocolService } from '../ProtocolService'
 
 describe('ProtocolService', () => {
@@ -95,12 +97,43 @@ describe('ProtocolService', () => {
     })
   })
 
-  it('broadcasts unknown protocol hosts to main windows', () => {
+  it('broadcasts unknown protocol hosts to all windows', () => {
     ;(service as any).handleProtocolUrl('cherrystudio://unknown/path?foo=bar')
 
-    expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'protocol-data', {
+    expect(windowManagerMock.broadcast).toHaveBeenCalledWith('protocol-data', {
       url: 'cherrystudio://unknown/path?foo=bar',
       params: { foo: 'bar' }
+    })
+  })
+
+  describe('second-instance handler', () => {
+    function getSecondInstanceHandler() {
+      const call = appMock.on.mock.calls.find(([event]: [string]) => event === 'second-instance')
+      if (!call) throw new Error('second-instance listener not registered')
+      return call[1] as (event: unknown, argv: string[]) => void
+    }
+
+    it('dispatches the URL when argv carries a cherrystudio:// deep link', async () => {
+      await (service as any).onInit()
+      const handler = getSecondInstanceHandler()
+
+      handler({}, ['/path/to/electron', '.', 'cherrystudio://oauth/callback?code=abc'])
+
+      expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
+      expect(windowManagerMock.broadcast).toHaveBeenCalledWith('protocol-data', {
+        url: 'cherrystudio://oauth/callback?code=abc',
+        params: { code: 'abc' }
+      })
+    })
+
+    it('surfaces the main window when argv has no protocol URL', async () => {
+      await (service as any).onInit()
+      const handler = getSecondInstanceHandler()
+
+      handler({}, ['/path/to/electron', '.'])
+
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledTimes(1)
+      expect(windowManagerMock.broadcast).not.toHaveBeenCalled()
     })
   })
 })

@@ -1,6 +1,5 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isMac } from '@main/constant'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
 
 const logger = loggerService.withContext('ProtocolService:navigate')
@@ -70,9 +69,10 @@ export function handleNavigateProtocolUrl(url: URL) {
       }
 
       await mainWindow.webContents.executeJavaScript(`window.navigate({ to: ${JSON.stringify(fullPath)} })`)
-      if (isMac) {
-        application.get('MainWindowService').showMainWindow()
-      }
+      // Always raise Main: Win/Linux used to rely on MainWindowService's
+      // `second-instance` listener for this, but that listener now skips
+      // protocol URLs to avoid stealing focus from Settings/OAuth flows.
+      application.get('MainWindowService').showMainWindow()
     } catch (error) {
       logger.error('Failed to navigate:', error as Error)
     }

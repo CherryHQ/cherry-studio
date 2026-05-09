@@ -29,8 +29,19 @@ const logger = loggerService.withContext('SingleInstance')
  *     how v2MigrationGate uses it on its fatal branches.
  *
  * See core/preboot/README.md for the preboot membership criteria.
+ *
+ * **Development:** Uses the same exclusive lock as production so
+ * `cherrystudio://` OAuth callbacks on Windows/Linux forward to the running
+ * process via `second-instance` instead of spawning a second Electron.
+ * To run a second dev instance against the same user data (e.g. parallel
+ * debugging), set env `CHERRY_STUDIO_ALLOW_SECOND_DEV_INSTANCE=1`; OAuth
+ * deep links will then start a separate process again.
  */
 export function requireSingleInstance(): void {
+  if (!app.isPackaged && process.env.CHERRY_STUDIO_ALLOW_SECOND_DEV_INSTANCE === '1') {
+    return
+  }
+
   if (app.requestSingleInstanceLock()) return
 
   logger.info('Another Cherry Studio instance already holds the single-instance lock; exiting')

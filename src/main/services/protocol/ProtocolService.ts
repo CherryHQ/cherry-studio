@@ -5,7 +5,7 @@ import { promisify } from 'node:util'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { WindowType } from '@main/core/window/types'
+import { cherryINOAuthService } from '@main/services/CherryINOAuthService'
 import { app } from 'electron'
 
 import { handleMcpProtocolUrl } from './handlers/mcpInstall'
@@ -41,11 +41,20 @@ export class ProtocolService extends BaseService {
     app.on('open-url', openUrlHandler)
     this.registerDisposable(() => app.removeListener('open-url', openUrlHandler))
 
-    // 3) Windows/Linux second-instance: URL-dispatch only.
-    //    MainWindowService attaches a SEPARATE listener on the same event for showMainWindow().
-    //    Both fire; EventEmitter supports multiple listeners. See MainWindowService.onInit.
+    // 3) Windows/Linux second-instance: sole owner.
+    //    - argv carries `cherrystudio://...` → dispatch to URL handler; each handler
+    //      self-routes focus (mcp / navigate raise Main, providers / oauth do not),
+    //      so we never raise Main behind their backs.
+    //    - argv carries no URL → plain re-launch (user double-clicked the icon while
+    //      the app is running); surface the main window. MainWindowService is
+    //      WhenReady, fully alive by the time any 'second-instance' can fire.
     const secondInstanceHandler = (_event: Electron.Event, argv: string[]) => {
-      this.handleArgvForUrl(argv)
+      const url = argv.find((arg) => arg.startsWith(`${CHERRY_STUDIO_PROTOCOL}://`))
+      if (url) {
+        this.handleProtocolUrl(url)
+      } else {
+        application.get('MainWindowService').showMainWindow()
+      }
     }
     app.on('second-instance', secondInstanceHandler)
     this.registerDisposable(() => app.removeListener('second-instance', secondInstanceHandler))
@@ -88,9 +97,26 @@ export class ProtocolService extends BaseService {
         case 'navigate':
           handleNavigateProtocolUrl(urlObj)
           return
+        case 'oauth':
+          // CherryIN OAuth callback. CherryINOAuthService delivers the result
+          // point-to-point to the renderer that started the flow, so the `code`
+          // never reaches unrelated windows. PPIO/Nutstore deep links use
+          // different hosts and still go through the broadcast fallback below.
+          cherryINOAuthService
+            .handleOAuthCallback(urlObj)
+            .catch((error) => logger.error('Failed to handle CherryIN OAuth callback', error as Error))
+          return
       }
 
-      application.get('WindowManager').broadcastToType(WindowType.Main, 'protocol-data', {
+      // Default branch: deep link with no main-process handler. Fan out to every
+      // managed renderer (Main / Settings / SubWindow / pooled tool surfaces);
+      // consumers (oauth.ts, useNutstoreSSO, ...) filter by urlObj.hostname/pathname.
+      // broadcast() — not broadcastToType(Main) — because the flow-initiating
+      // window is not necessarily Main: the Settings window owns CherryIN OAuth
+      // in v2. Trade-off: the payload reaches renderers that don't need it; if
+      // selective routing is required (e.g. to confine OAuth `code`), promote
+      // that scheme to its own switch case alongside mcp/providers/navigate.
+      application.get('WindowManager').broadcast('protocol-data', {
         url,
         params: Object.fromEntries(params.entries())
       })

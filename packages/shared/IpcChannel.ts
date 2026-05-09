@@ -135,7 +135,9 @@ export enum IpcChannel {
   CherryIN_GetBalance = 'cherryin:get-balance',
   CherryIN_Logout = 'cherryin:logout',
   CherryIN_StartOAuthFlow = 'cherryin:start-oauth-flow',
-  CherryIN_ExchangeToken = 'cherryin:exchange-token',
+  // Main → renderer push: OAuth callback result, addressed to the flow initiator
+  // captured at startOAuthFlow time. Replaces the renderer-pulled exchange-token IPC.
+  CherryIN_OAuthResult = 'cherryin:oauth-result',
 
   // obsidian
   Obsidian_GetVaults = 'obsidian:get-vaults',

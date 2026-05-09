@@ -1,4 +1,4 @@
-import { HelpTooltip, InputGroup, InputGroupInput, Tooltip } from '@cherrystudio/ui'
+import { InputGroup, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils'
 import { RotateCcw, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -70,12 +70,7 @@ export function ApiHostField({
 
   return (
     <ProviderField
-      title={
-        <div className="flex items-center gap-1">
-          <span>{`${t('settings.provider.api_host')} (Endpoint URL)`}</span>
-          <HelpTooltip title={t('settings.provider.api.url.tip')} />
-        </div>
-      }
+      title={`${t('settings.provider.api_host')} (Endpoint URL)`}
       help={
         <div className="space-y-1 pt-1">
           {isVertexAI && (
@@ -152,12 +147,7 @@ export function AnthropicApiHostField({
 
   return (
     <ProviderField
-      title={
-        <div className="flex items-center gap-1">
-          <span>{t('settings.provider.anthropic_api_host')}</span>
-          <HelpTooltip title={t('settings.provider.api.url.tip')} />
-        </div>
-      }
+      title={t('settings.provider.anthropic_api_host')}
       help={
         <div className="break-all pt-1 text-[12px] text-foreground/55 leading-[1.35]">
           {t('settings.provider.anthropic_api_host_preview', { url: anthropicHostPreview || '—' })}

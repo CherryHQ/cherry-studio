@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderHeader from '../ProviderHeader'
@@ -8,18 +8,30 @@ const useProviderMetaMock = vi.fn()
 const useProviderEnableMock = vi.fn()
 const isSystemProviderMock = vi.fn()
 
-vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<any>()
-
+vi.mock('@cherrystudio/ui', () => {
   return {
-    ...actual,
     Switch: ({ checked, onCheckedChange }: any) => (
       <button type="button" data-checked={checked ? 'true' : 'false'} onClick={() => onCheckedChange(!checked)}>
         switch
       </button>
+    ),
+    Tooltip: ({ children, content }: any) => (
+      <div>
+        {children}
+        <span>{content}</span>
+      </div>
+    ),
+    Button: ({ children, onClick, ...props }: any) => (
+      <button type="button" onClick={onClick} {...props}>
+        {children}
+      </button>
     )
   }
 })
+
+vi.mock('../ProviderApiOptionsDrawer', () => ({
+  default: ({ open }: { open: boolean }) => (open ? <div>api-options-drawer</div> : null)
+}))
 
 vi.mock('@renderer/pages/settings/ProviderSettingsV2/components/ProviderAvatar', () => ({
   ProviderAvatar: () => <div>provider-avatar</div>
@@ -54,7 +66,8 @@ describe('ProviderHeader', () => {
     })
     useProviderMetaMock.mockReturnValue({
       fancyProviderName: 'OpenAI',
-      docsWebsite: undefined
+      docsWebsite: undefined,
+      showApiOptionsButton: false
     })
     useProviderEnableMock.mockReturnValue({
       toggleProviderEnabled: vi.fn()
@@ -81,7 +94,8 @@ describe('ProviderHeader', () => {
     })
     useProviderMetaMock.mockReturnValue({
       fancyProviderName: '反反复',
-      docsWebsite: undefined
+      docsWebsite: undefined,
+      showApiOptionsButton: false
     })
     isSystemProviderMock.mockReturnValue(false)
 
@@ -89,5 +103,20 @@ describe('ProviderHeader', () => {
 
     expect(screen.getByText('反反复')).toBeInTheDocument()
     expect(screen.queryByText('35836b32-9bc1-40ab-9195-8b0b4ea3f342')).not.toBeInTheDocument()
+  })
+
+  it('opens the api options drawer when the meta enables the entry', () => {
+    isSystemProviderMock.mockReturnValue(true)
+    useProviderMetaMock.mockReturnValue({
+      fancyProviderName: 'OpenAI',
+      docsWebsite: undefined,
+      showApiOptionsButton: true
+    })
+
+    render(<ProviderHeader providerId="openai" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.options.label' }))
+
+    expect(screen.getByText('api-options-drawer')).toBeInTheDocument()
   })
 })

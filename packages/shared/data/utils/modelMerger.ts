@@ -107,6 +107,7 @@ const UserModelRowSchema = z.object({
   endpointTypes: z.array(z.string()).nullish(),
   customEndpointUrl: z.string().nullish(),
   contextWindow: z.number().nullish(),
+  maxInputTokens: z.number().nullish(),
   maxOutputTokens: z.number().nullish(),
   supportsStreaming: z.boolean().nullish(),
   reasoning: z.record(z.string(), z.unknown()).nullish(),
@@ -238,9 +239,10 @@ export function mergeModelWithUser(
     name,
     description,
     contextWindow,
+    maxInputTokens,
     maxOutputTokens
   } = base
-  const { maxInputTokens, pricing, replaceWith } = base
+  const { pricing, replaceWith } = base
 
   // Apply user override (highest priority)
   if (userModel.capabilities) {
@@ -263,6 +265,9 @@ export function mergeModelWithUser(
   }
   if (userModel.contextWindow != null) {
     contextWindow = userModel.contextWindow
+  }
+  if (userModel.maxInputTokens != null) {
+    maxInputTokens = userModel.maxInputTokens
   }
   if (userModel.maxOutputTokens != null) {
     maxOutputTokens = userModel.maxOutputTokens

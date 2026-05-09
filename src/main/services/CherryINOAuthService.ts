@@ -2,8 +2,9 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { CHERRYIN_CONFIG } from '@shared/config/constant'
 import type { AuthConfig } from '@shared/data/types/provider'
+import { IpcChannel } from '@shared/IpcChannel'
 import { createHash, randomBytes } from 'crypto'
-import { net } from 'electron'
+import { net, webContents } from 'electron'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('CherryINOAuthService')
@@ -89,10 +90,6 @@ export interface OAuthFlowParams {
   state: string
 }
 
-export interface TokenExchangeResult {
-  apiKeys: string
-}
-
 class CherryINOAuthServiceError extends Error {
   constructor(
     message: string,
@@ -103,12 +100,16 @@ class CherryINOAuthServiceError extends Error {
   }
 }
 
-// Store pending OAuth flows with PKCE verifiers (keyed by state parameter)
+// Store pending OAuth flows with PKCE verifiers (keyed by state parameter).
+// initiatorWebContentsId is captured at startOAuthFlow time so the protocol
+// callback can be delivered point-to-point to the originating renderer instead
+// of being broadcast to every window.
 interface PendingOAuthFlow {
   codeVerifier: string
   oauthServer: string
   apiHost: string
   timestamp: number
+  initiatorWebContentsId: number
 }
 
 const pendingOAuthFlows = new Map<string, PendingOAuthFlow>()
@@ -174,7 +175,7 @@ class CherryINOAuthService {
    * @returns authUrl to open in browser and state for later verification
    */
   public startOAuthFlow = async (
-    _: Electron.IpcMainInvokeEvent,
+    event: Electron.IpcMainInvokeEvent,
     oauthServer: string,
     apiHost?: string
   ): Promise<OAuthFlowParams> => {
@@ -196,7 +197,8 @@ class CherryINOAuthService {
       codeVerifier,
       oauthServer,
       apiHost: resolvedApiHost,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      initiatorWebContentsId: event.sender.id
     })
 
     // Build authorization URL
@@ -218,29 +220,74 @@ class CherryINOAuthService {
   }
 
   /**
-   * Exchange authorization code for tokens and fetch API keys
-   * @param code - Authorization code from OAuth callback
-   * @param state - State parameter for CSRF protection and flow lookup
-   * @returns API keys string
+   * Handle the OAuth deep-link callback (cherrystudio://oauth/callback?...).
+   * Routed here from `ProtocolService` for the `oauth` host. Performs the PKCE
+   * token exchange in the main process and pushes the result back to the
+   * webContents that originally invoked `startOAuthFlow` — never broadcast.
+   *
+   * Failure modes (each terminates the flow, removes the pending entry, and
+   * notifies the initiator if still alive):
+   *   - missing/expired `state`     → silently dropped (CSRF / replay defense)
+   *   - `error=...` in the URL      → propagated as `{ state, error }`
+   *   - missing `code`              → propagated as `{ state, error }`
+   *   - token exchange failure      → propagated as `{ state, error: message }`
    */
-  public exchangeToken = async (
-    _: Electron.IpcMainInvokeEvent,
-    code: string,
-    state: string
-  ): Promise<TokenExchangeResult> => {
-    // Retrieve stored code_verifier and config
-    const flowData = pendingOAuthFlows.get(state)
-    if (!flowData) {
-      throw new CherryINOAuthServiceError('OAuth flow expired or not found')
+  public handleOAuthCallback = async (url: URL): Promise<void> => {
+    const state = url.searchParams.get('state')
+    const errorParam = url.searchParams.get('error')
+    const code = url.searchParams.get('code')
+
+    if (!state) {
+      logger.warn('OAuth callback missing state parameter, ignoring')
+      return
+    }
+
+    const flow = pendingOAuthFlows.get(state)
+    if (!flow) {
+      logger.warn('OAuth callback for unknown or expired state, ignoring')
+      return
     }
     pendingOAuthFlows.delete(state)
 
-    const { codeVerifier, oauthServer, apiHost } = flowData
+    const initiator = webContents.fromId(flow.initiatorWebContentsId)
+    if (!initiator || initiator.isDestroyed()) {
+      logger.warn('OAuth initiator webContents no longer available; dropping callback')
+      return
+    }
+
+    if (errorParam) {
+      const description = url.searchParams.get('error_description') || errorParam
+      logger.error(`OAuth provider returned error: ${description}`)
+      initiator.send(IpcChannel.CherryIN_OAuthResult, { state, error: description })
+      return
+    }
+
+    if (!code) {
+      initiator.send(IpcChannel.CherryIN_OAuthResult, { state, error: 'No authorization code received' })
+      return
+    }
+
+    try {
+      const apiKeys = await this.performTokenExchange(code, flow)
+      initiator.send(IpcChannel.CherryIN_OAuthResult, { state, apiKeys })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.error('Token exchange failed during OAuth callback', error as Error)
+      initiator.send(IpcChannel.CherryIN_OAuthResult, { state, error: message })
+    }
+  }
+
+  /**
+   * Exchange an authorization code for tokens and fetch the user's API keys.
+   * Internal helper for `handleOAuthCallback` — renderer no longer drives this
+   * step, so this is no longer an IPC entry point.
+   */
+  private performTokenExchange = async (code: string, flow: PendingOAuthFlow): Promise<string> => {
+    const { codeVerifier, oauthServer, apiHost } = flow
 
     logger.debug('Exchanging code for token')
 
     try {
-      // Exchange authorization code for access token
       const tokenResponse = await net.fetch(`${oauthServer}/oauth2/token`, {
         method: 'POST',
         headers: {
@@ -266,11 +313,9 @@ class CherryINOAuthService {
 
       const { access_token: accessToken, refresh_token: refreshToken } = tokenData
 
-      // Save tokens using internal method
       await this.saveTokenInternal(accessToken, refreshToken)
       logger.debug('Successfully obtained access token, fetching API keys')
 
-      // Fetch API keys using the access token
       const apiKeysResponse = await net.fetch(`${apiHost}/api/v1/oauth/tokens`, {
         method: 'GET',
         headers: {
@@ -285,7 +330,6 @@ class CherryINOAuthService {
       }
 
       const apiKeysJson = await apiKeysResponse.json()
-      // Schema transforms and extracts keys to string array
       const keysArray = ApiKeysResponseSchema.parse(apiKeysJson)
       const apiKeys = keysArray.filter(Boolean).join(',')
 
@@ -294,7 +338,7 @@ class CherryINOAuthService {
       }
 
       logger.debug('Successfully obtained API keys')
-      return { apiKeys }
+      return apiKeys
     } catch (error) {
       if (error instanceof z.ZodError) {
         logger.error('Invalid response format:', error.issues)

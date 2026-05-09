@@ -252,6 +252,41 @@ describe('ModelService.create', () => {
     expect(row.contextWindow).toBe(128_000)
   })
 
+  it('uses DTO maxInputTokens over registry values during merge', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    const [created] = await modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          maxInputTokens: 64_000,
+          maxOutputTokens: 8_192
+        },
+        registryData: {
+          presetModel: {
+            id: 'gpt-4o',
+            name: 'GPT-4o',
+            maxInputTokens: 128_000,
+            maxOutputTokens: 4_096
+          } as any,
+          registryOverride: null
+        }
+      }
+    ])
+
+    expect(created.maxInputTokens).toBe(64_000)
+    expect(created.maxOutputTokens).toBe(8_192)
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+
+    expect(row.maxInputTokens).toBe(64_000)
+    expect(row.maxOutputTokens).toBe(8_192)
+  })
+
   it('logs custom model creation when dto presetModelId is present without a registry match', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
 
