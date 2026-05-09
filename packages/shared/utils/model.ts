@@ -233,15 +233,7 @@ export const isMistralModel = vendorCheck(VENDOR_PATTERNS.mistral)
 export const isOpenAIReasoningModel = (model: Model): boolean => isOpenAIModel(model) && isReasoningModel(model)
 
 /** Check if model only supports chat completion (no responses API) */
-export const isOpenAIChatCompletionOnlyModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return (
-    id.includes('gpt-4o-search-preview') ||
-    id.includes('gpt-4o-mini-search-preview') ||
-    id.includes('o1-mini') ||
-    id.includes('o1-preview')
-  )
-}
+export const isOpenAIChatCompletionOnlyModel = (m: Model) => isOpenAIWebSearchChatCompletionOnlyModel(m)
 
 /** Check if model supports web search in chat completion mode only */
 export const isOpenAIWebSearchChatCompletionOnlyModel = (model: Model): boolean => {

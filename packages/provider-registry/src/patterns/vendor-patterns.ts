@@ -46,10 +46,10 @@ export const VENDOR_PATTERNS = {
   openai: /\bgpt\b|^o[134]/i,
 
   /** Alibaba Qwen family (qwen, qwq, qvq). */
-  qwen: /^qwen|^qwq|^qvq/i,
+  qwen: /^qwen|^qwq|^qvq|^tongyi/i,
 
   /** ByteDance Doubao family. */
-  doubao: /doubao|seedance|seedream|^ep-/i,
+  doubao: /doubao|seed|seedance|seedream|^ep-/i,
 
   /** Tencent Hunyuan family. */
   hunyuan: /^hunyuan|hy-/i,
