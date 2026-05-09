@@ -1,8 +1,5 @@
 import type { NewPainting } from '@data/db/schemas/painting'
-import { loggerService } from '@logger'
 import type { PaintingMediaType, PaintingMode, PaintingParams } from '@shared/data/types/painting'
-
-const logger = loggerService.withContext('PaintingMappings')
 
 export const LEGACY_PAINTING_NAMESPACES = [
   'siliconflow_paintings',
@@ -84,19 +81,11 @@ function getFileIds(value: unknown): string[] {
   }
 
   if (!Array.isArray(value)) {
-    logger.warn('[getFileIds] record.files is not an array', {
-      type: typeof value
-    })
     return []
   }
 
   return value.flatMap((item) => {
     const id = getFileId(item)
-    if (!id) {
-      logger.warn('[getFileIds] item has no extractable id', {
-        type: typeof item
-      })
-    }
     return id ? [id] : []
   })
 }
@@ -254,22 +243,11 @@ export function transformLegacyPaintingRecord(
     }
   }
 
-  logger.info(`[transform] ${namespace} id=${id}`, {
-    filesLength: Array.isArray(record.files) ? (record.files as unknown[]).length : 0
-  })
-
   const outputFileIds = getFileIds(record.files)
   const inputFileIds = buildInputFileIds(namespace, record, warnings)
   const params = buildParams(namespace, record, scope, warnings)
   const prompt = getString(record.prompt) ?? ''
   const hasTaskId = typeof params.taskId === 'string' && params.taskId.trim().length > 0
-
-  logger.info(`[transform] ${namespace} id=${id} result`, {
-    outputFileIdsCount: outputFileIds.length,
-    inputFileIdsCount: inputFileIds.length,
-    promptLength: prompt.length,
-    hasTaskId
-  })
 
   if (!prompt.trim() && outputFileIds.length === 0 && inputFileIds.length === 0 && !hasTaskId) {
     return {

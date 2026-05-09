@@ -1,4 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+const loggerMock = {
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: vi.fn(() => loggerMock)
+  }
+}))
 
 import { getPaintingFilter, transformLegacyPaintingRecord } from '../PaintingMappings'
 
@@ -116,5 +129,16 @@ describe('PaintingMappings', () => {
       ok: false,
       reason: 'empty_placeholder'
     })
+  })
+
+  it('does not log legacy record samples during transform', () => {
+    transformLegacyPaintingRecord('siliconflow_paintings', {
+      id: 'painting-private',
+      prompt: 'private file',
+      files: [{ id: 'file-1', name: 'local-name.png', path: 'C:/private/local-name.png' }]
+    })
+
+    expect(loggerMock.info).not.toHaveBeenCalled()
+    expect(loggerMock.debug).not.toHaveBeenCalled()
   })
 })
