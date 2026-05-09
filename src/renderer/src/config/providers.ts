@@ -79,16 +79,6 @@ export const CHERRYAI_PROVIDER: SystemProvider = {
 }
 
 export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> = {
-  omlx: {
-    id: 'omlx',
-    name: 'oMLX',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'http://127.0.0.1:8000',
-    models: SYSTEM_MODELS.omlx,
-    isSystem: true,
-    enabled: false
-  },
   cherryin: {
     id: 'cherryin',
     name: 'CherryIN',
@@ -99,6 +89,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: [],
     isSystem: true,
     enabled: true
+  },
+  omlx: {
+    id: 'omlx',
+    name: 'oMLX',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'http://127.0.0.1:8000',
+    models: SYSTEM_MODELS.omlx,
+    isSystem: true,
+    enabled: false
   },
   silicon: {
     id: 'silicon',
