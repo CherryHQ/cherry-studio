@@ -154,24 +154,16 @@ After all phases complete:
 
 ### Automatic Resource Cleanup
 
-BaseService uses a single unified Disposable tracking mechanism. All resources — IPC handlers, event subscriptions, signals, cleanup functions — are tracked as Disposables and cleaned up together during the stop lifecycle.
+BaseService uses a single unified Disposable tracking mechanism. All resources — IPC handlers, event subscriptions, recurring timers, signals, cleanup functions — are tracked as Disposables and cleaned up together during the stop lifecycle.
 
-`registerDisposable()` accepts both `Disposable` objects (anything with a `dispose()` method) and plain `() => void` cleanup functions:
-
-```typescript
-// Disposable object (e.g., event subscription)
-this.registerDisposable(someEmitter.on('event', handler))
-
-// Plain cleanup function
-this.registerDisposable(() => clearInterval(timer))
-```
-
-`ipcHandle()` and `ipcOn()` return a `Disposable` and register it through the same mechanism, so IPC handlers are no longer a separate cleanup category:
+`registerDisposable()` accepts both `Disposable` objects and plain `() => void` cleanup functions:
 
 ```typescript
-const d = this.ipcHandle(IpcChannel.MyAction, (_, arg) => this.handle(arg))
-// d is a Disposable — already tracked, removed automatically on stop
+this.registerDisposable(someEmitter.on('event', handler))    // Disposable object
+this.registerDisposable(() => externalBus.off('topic', fn))  // Cleanup function
 ```
+
+`ipcHandle()`, `ipcOn()`, and `registerInterval()` all return a `Disposable` registered through this same channel — IPC handlers and recurring timers are not separate cleanup categories.
 
 Cleanup flow:
 
