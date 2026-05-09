@@ -1,29 +1,29 @@
-/* oxlint-disable no-unused-vars -- TODO(phase-1b): Phase 1a stub exports; parameters shape the public signature but are unused until implementations land. */
-
 /**
  * File type detection and metadata utilities.
  *
  * Primary path: extension-based mapping.
- * Fallback: buffer detection (isBinaryFile + chardet) for unknown extensions.
+ * Fallback: buffer detection (isBinaryFile + chardet) for unknown extensions —
+ * deferred to Phase 1b.2; Phase 1b.1 ships extension-only.
  */
 
-import type { FilePath, FileType } from '@shared/file/types'
+import path from 'node:path'
 
-const notImplemented = (op: string): never => {
-  throw new Error(`@main/utils/file/metadata.${op}: not implemented (Phase 1a stub, implementation lands in Phase 1b)`)
+import { FILE_TYPE, type FilePath, type FileType, getFileTypeByExt } from '@shared/file/types'
+import mime from 'mime'
+
+/** Detect file type from extension. Buffer-sniff fallback deferred to 1b.2. */
+export async function getFileType(target: FilePath): Promise<FileType> {
+  const ext = path.extname(target)
+  return getFileTypeByExt(ext)
 }
 
-/** Detect file type from extension, with fallback to buffer inspection. */
-export async function getFileType(_path: FilePath): Promise<FileType> {
-  return notImplemented('getFileType')
+/** Check if a file is a text file. Extension-based; buffer-sniff fallback deferred to 1b.2. */
+export async function isTextFile(target: FilePath): Promise<boolean> {
+  return (await getFileType(target)) === FILE_TYPE.TEXT
 }
 
-/** Check if a file is a text file (chardet + isBinaryFile). */
-export async function isTextFile(_path: FilePath): Promise<boolean> {
-  return notImplemented('isTextFile')
-}
-
-/** Map MIME type to file extension (without leading dot). */
-export function mimeToExt(_mime: string): string | undefined {
-  return notImplemented('mimeToExt')
+/** Map MIME type to file extension (without leading dot). Returns undefined if unknown. */
+export function mimeToExt(mimeType: string): string | undefined {
+  const ext = mime.getExtension(mimeType)
+  return ext ?? undefined
 }
