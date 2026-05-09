@@ -1,43 +1,107 @@
 /**
- * File API Handlers (Placeholder)
+ * File API Handlers — read-only DataApi surface.
  *
- * Stub handlers for Phase 1a — will be implemented in Phase 1b.
- * All endpoints throw NOT_IMPLEMENTED to satisfy ApiSchemas type requirements.
+ * Phase 1b.1 implements all five read endpoints. Mutations are intentionally
+ * absent: write operations live on File IPC (FileManager); ref writes are
+ * called directly by business services via fileRefService.
  *
- * Note: Only read endpoints are exposed via DataApi. Write operations
- * (create, rename, trash, permanentDelete, etc.) are handled by FileManager IPC.
- * Ref write operations are called directly by business services via fileRefService.
+ * DataApi boundary rule (CLAUDE.md / docs/references/data/api-design-guidelines.md):
+ * pure SQL, no FS IO, no main-side resolvers, no in-memory caches outside the DB.
  */
 
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import { application } from '@application'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryService } from '@data/services/FileEntryService'
+import { fileRefService } from '@data/services/FileRefService'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { FileSchemas } from '@shared/data/api/schemas/files'
+import type { FileEntryId } from '@shared/data/types/file'
+import { FileEntrySchema, FileRefSchema } from '@shared/data/types/file'
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 
-type FileHandler<Path extends keyof FileSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
+function getDb() {
+  return application.get('DbService').getDb()
+}
 
-const notImplemented =
-  (endpoint: string): (() => never) =>
-  (): never => {
-    throw new Error(`Not implemented: ${endpoint} — will be added in Phase 1b`)
-  }
-
-export const fileHandlers: {
-  [Path in keyof FileSchemas]: {
-    [Method in keyof FileSchemas[Path]]: FileHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/entries': {
-    GET: notImplemented('GET /files/entries')
+    GET: async ({ query }) => {
+      const { origin, inTrash, sortBy, sortOrder, page, limit } = query ?? {}
+      const conditions = []
+      if (origin) {
+        conditions.push(eq(fileEntryTable.origin, origin))
+      }
+      if (inTrash === true) {
+        conditions.push(isNotNull(fileEntryTable.trashedAt))
+      } else {
+        conditions.push(isNull(fileEntryTable.trashedAt))
+      }
+      const where = and(...conditions)
+
+      const sortColumn = (() => {
+        switch (sortBy) {
+          case 'name':
+            return fileEntryTable.name
+          case 'updatedAt':
+            return fileEntryTable.updatedAt
+          case 'size':
+            return fileEntryTable.size
+          default:
+            return fileEntryTable.createdAt
+        }
+      })()
+      const order = sortOrder === 'desc' ? desc(sortColumn) : asc(sortColumn)
+
+      const pageNum = page ?? 1
+      const pageSize = limit ?? 50
+      const offset = (pageNum - 1) * pageSize
+
+      const [rows, totalRow] = await Promise.all([
+        getDb().select().from(fileEntryTable).where(where).orderBy(order).limit(pageSize).offset(offset),
+        getDb().select({ value: count() }).from(fileEntryTable).where(where)
+      ])
+
+      return {
+        items: rows.map((r) => FileEntrySchema.parse(r)),
+        total: totalRow[0]?.value ?? 0,
+        page: pageNum
+      }
+    }
   },
+
   '/files/entries/:id': {
-    GET: notImplemented('GET /files/entries/:id')
+    GET: async ({ params }) => {
+      return fileEntryService.getById(params.id)
+    }
   },
+
   '/files/entries/ref-counts': {
-    GET: notImplemented('GET /files/entries/ref-counts')
+    GET: async ({ query }) => {
+      const entryIds = query.entryIds
+      if (entryIds.length === 0) return []
+      const rows = await getDb()
+        .select({
+          entryId: fileRefTable.fileEntryId,
+          refCount: count()
+        })
+        .from(fileRefTable)
+        .where(inArray(fileRefTable.fileEntryId, entryIds))
+        .groupBy(fileRefTable.fileEntryId)
+      const counts = new Map(rows.map((r) => [r.entryId as FileEntryId, r.refCount]))
+      return entryIds.map((id) => ({ entryId: id, refCount: counts.get(id) ?? 0 }))
+    }
   },
+
   '/files/entries/:id/refs': {
-    GET: notImplemented('GET /files/entries/:id/refs')
+    GET: async ({ params }) => {
+      const rows = await getDb().select().from(fileRefTable).where(eq(fileRefTable.fileEntryId, params.id))
+      return rows.map((r) => FileRefSchema.parse(r))
+    }
   },
+
   '/files/refs/by-source': {
-    GET: notImplemented('GET /files/refs/by-source')
+    GET: async ({ query }) => {
+      return fileRefService.findBySource({ sourceType: query.sourceType, sourceId: query.sourceId })
+    }
   }
 }
