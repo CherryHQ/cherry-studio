@@ -22,7 +22,7 @@ const BaseNavigatorContent = ({
   const { t } = useTranslation()
 
   return (
-    <Scrollbar className="min-h-0 flex-1 [scrollbar-gutter:auto]">
+    <Scrollbar className="min-h-0 flex-1 px-1.5 [scrollbar-gutter:auto]">
       {sections.length === 0 ? (
         <div className="flex h-full items-center justify-center px-4 text-center text-muted-foreground/60 text-sm">
           {t('knowledge_v2.empty')}

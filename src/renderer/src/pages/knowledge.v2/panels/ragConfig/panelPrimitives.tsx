@@ -1,13 +1,4 @@
-import {
-  Input,
-  NormalTooltip,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Slider
-} from '@cherrystudio/ui'
+import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Tooltip } from '@cherrystudio/ui'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
 import { Info, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -26,16 +17,11 @@ export const RagFieldLabel = ({ label, hint }: { label: string; hint?: string })
     <div className="mb-1 flex items-center gap-1">
       <span className="text-foreground/75 text-sm leading-5">{label}</span>
       {hint ? (
-        <NormalTooltip
-          content={hint}
-          side="top"
-          contentProps={{
-            className: 'max-w-56 rounded-md px-2.5 py-1.5 text-sm leading-4 text-foreground/75'
-          }}>
+        <Tooltip content={hint} placement="top">
           <span tabIndex={0} aria-label={hint}>
             <Info className="size-2.25 cursor-help text-muted-foreground/40" />
           </span>
-        </NormalTooltip>
+        </Tooltip>
       ) : null}
     </div>
   )

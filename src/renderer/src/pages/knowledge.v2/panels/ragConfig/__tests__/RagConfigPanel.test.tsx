@@ -55,7 +55,7 @@ vi.mock('@cherrystudio/ui', async () => {
         </button>
       )
     },
-    NormalTooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
+    Tooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
       <span>
         {children}
         {content ? <span role="tooltip">{content}</span> : null}

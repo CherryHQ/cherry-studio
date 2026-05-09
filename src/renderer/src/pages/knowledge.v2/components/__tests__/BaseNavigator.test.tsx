@@ -157,7 +157,9 @@ vi.mock('@cherrystudio/ui', () => {
       const open = React.use(PopoverContext)
       return open ? <div>{children}</div> : null
     },
-    Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>
+    Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <div {...props}>{children}</div>
+    )
   }
 })
 
@@ -246,6 +248,28 @@ const getGroupMoreButton = (groupName: string) => {
 }
 
 describe('BaseNavigator', () => {
+  it('keeps horizontal padding around the knowledge base list', () => {
+    const { container } = render(
+      <BaseNavigator
+        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha' })]}
+        groups={[]}
+        width={280}
+        selectedBaseId="base-1"
+        onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
+        onCreateBase={vi.fn()}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onRenameGroup={vi.fn()}
+        onDeleteGroup={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onResizeStart={vi.fn()}
+      />
+    )
+
+    expect(container.querySelector('.min-h-0.flex-1')).toHaveClass('px-1.5')
+  })
+
   it('shows real group names and falls back to raw groupId when the mapping is missing', () => {
     render(
       <BaseNavigator
