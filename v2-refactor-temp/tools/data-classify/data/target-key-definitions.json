@@ -158,6 +158,20 @@
       "defaultValue": null,
       "status": "classified",
       "description": "Translate model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "feature.openclaw.gateway_port",
+      "type": "number",
+      "defaultValue": 18790,
+      "status": "classified",
+      "description": "OpenClaw gateway port"
+    },
+    {
+      "targetKey": "feature.openclaw.selected_model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "OpenClaw selected model UniqueModelId (provider::modelId, from complex mapping openclaw_preferences)"
     }
   ]
 }
