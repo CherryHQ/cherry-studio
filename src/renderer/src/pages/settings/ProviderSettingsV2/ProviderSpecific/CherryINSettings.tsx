@@ -3,7 +3,7 @@ import { useProvider } from '@renderer/hooks/useProviders'
 import { fieldClasses } from '@renderer/pages/settings/ProviderSettingsV2/shared/primitives/ProviderSettingsPrimitives'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
 import { cn } from '@renderer/utils'
-import { ChevronDown } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -95,11 +95,17 @@ const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId }) => {
                 type="button"
                 onClick={() => void handleHostChange(option.value)}
                 className={cn(
-                  'flex w-full flex-col gap-0.5 rounded-sm px-2 py-1.5 text-left text-[length:var(--font-size-body-md)] transition-colors',
-                  isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent/60'
+                  'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-foreground text-sm outline-none transition-colors',
+                  'hover:bg-accent focus-visible:bg-accent',
+                  isSelected && 'bg-accent/70'
                 )}>
-                <span>{t(option.labelKey)}</span>
-                <span className="text-muted-foreground/70 text-xs">{option.description}</span>
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="truncate">{t(option.labelKey)}</span>
+                  <span className="truncate font-mono text-muted-foreground/70 text-xs tabular-nums">
+                    {option.description}
+                  </span>
+                </span>
+                {isSelected && <Check size={14} className="shrink-0 text-foreground/70" aria-hidden />}
               </button>
             )
           })}
