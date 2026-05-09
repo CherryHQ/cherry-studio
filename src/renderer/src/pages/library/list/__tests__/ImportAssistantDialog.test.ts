@@ -4,6 +4,7 @@ import {
   createAssistantImportFetchInit,
   isAssistantImportContentTooLarge,
   isAssistantImportResponseTooLarge,
+  summarizeAssistantImportOutcomes,
   validateAssistantImportUrl
 } from '../ImportAssistantDialog'
 
@@ -43,5 +44,20 @@ describe('ImportAssistantDialog URL guards', () => {
     const init = createAssistantImportFetchInit()
     expect(init.credentials).toBe('omit')
     expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('summarizes partial import success with the first failed draft', () => {
+    const t = (key: string, values?: Record<string, unknown>) => `${key}:${JSON.stringify(values)}`
+
+    expect(
+      summarizeAssistantImportOutcomes(
+        [{ kind: 'ok' }, { kind: 'failed', name: 'Broken assistant', error: 'invalid model' }],
+        t
+      )
+    ).toEqual({
+      kind: 'error',
+      message:
+        'library.import_dialog.partial_success:{"success":1,"failed":1,"first_name":"Broken assistant","first_error":"invalid model"}'
+    })
   })
 })

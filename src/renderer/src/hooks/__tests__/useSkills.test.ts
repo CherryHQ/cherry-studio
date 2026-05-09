@@ -9,6 +9,7 @@ const uninstallSkillMock = vi.hoisted(() => vi.fn())
 const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
+const toastErrorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: useQueryMock,
@@ -67,6 +68,7 @@ describe('useInstalledSkills', () => {
         uninstall: uninstallSkillMock
       }
     })
+    vi.stubGlobal('toast', { error: toastErrorMock })
   })
 
   afterEach(() => {
@@ -132,6 +134,22 @@ describe('useInstalledSkills', () => {
     expect(toggleSkillMock).not.toHaveBeenCalled()
     expect(invalidateMock).not.toHaveBeenCalled()
   })
+
+  it('logs, toasts, and rethrows toggle and uninstall failures', async () => {
+    const { result } = renderHook(() => useInstalledSkills('agent-1'))
+
+    toggleSkillMock.mockRejectedValueOnce(new Error('toggle failed'))
+    await act(async () => {
+      await expect(result.current.toggle('skill-1', true)).rejects.toThrow('toggle failed')
+    })
+    expect(toastErrorMock).toHaveBeenCalledWith('toggle failed')
+
+    uninstallSkillMock.mockResolvedValueOnce({ success: false, error: 'uninstall failed' })
+    await act(async () => {
+      await expect(result.current.uninstall('skill-1')).rejects.toThrow('uninstall failed')
+    })
+    expect(toastErrorMock).toHaveBeenCalledWith('uninstall failed')
+  })
 })
 
 describe('useSkillInstall', () => {
@@ -158,6 +176,7 @@ describe('useSkillInstall', () => {
         installFromDirectory: installSkillFromDirectoryMock
       }
     })
+    vi.stubGlobal('toast', { error: toastErrorMock })
   })
 
   afterEach(() => {
@@ -203,5 +222,21 @@ describe('useSkillInstall', () => {
     expect(installSkillFromDirectoryMock).toHaveBeenCalledWith({ directoryPath: '/tmp/my-skill' })
     expect(invalidateMock).toHaveBeenCalledTimes(2)
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
+  })
+
+  it('logs, toasts, and rethrows local ZIP and directory install failures', async () => {
+    const { result } = renderHook(() => useSkillInstall())
+
+    installSkillFromZipMock.mockRejectedValueOnce(new Error('zip failed'))
+    await act(async () => {
+      await expect(result.current.installFromZip('/tmp/bad.zip')).rejects.toThrow('zip failed')
+    })
+    expect(toastErrorMock).toHaveBeenCalledWith('zip failed')
+
+    installSkillFromDirectoryMock.mockResolvedValueOnce({ success: false, error: 'directory failed' })
+    await act(async () => {
+      await expect(result.current.installFromDirectory('/tmp/bad-dir')).rejects.toThrow('directory failed')
+    })
+    expect(toastErrorMock).toHaveBeenCalledWith('directory failed')
   })
 })

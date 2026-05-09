@@ -35,6 +35,8 @@ interface Props {
 
 type ImportTab = 'file' | 'clipboard' | 'url'
 type ImportStatus = { kind: 'idle' } | { kind: 'success'; message: string } | { kind: 'error'; message: string }
+type CompletedImportStatus = Exclude<ImportStatus, { kind: 'idle' }>
+type DraftOutcome = { kind: 'ok' } | { kind: 'failed'; name: string; error: string }
 const IMPORT_ERROR_I18N_KEYS = {
   invalid_format: 'assistants.presets.import.error.invalid_format'
 } as const
@@ -79,6 +81,42 @@ export function createAssistantImportFetchInit(): RequestInit {
   return {
     credentials: 'omit',
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+  }
+}
+
+export function summarizeAssistantImportOutcomes(
+  outcomes: DraftOutcome[],
+  t: (key: string, values?: Record<string, unknown>) => string,
+  fileName?: string
+): CompletedImportStatus {
+  const successes = outcomes.filter((o) => o.kind === 'ok').length
+  const failures = outcomes.filter((o): o is { kind: 'failed'; name: string; error: string } => o.kind === 'failed')
+
+  if (failures.length === 0) {
+    return {
+      kind: 'success',
+      message: fileName
+        ? t('library.import_dialog.success', { name: fileName })
+        : t('message.agents.imported', { count: successes })
+    }
+  }
+
+  const first = failures[0]
+  if (successes > 0) {
+    return {
+      kind: 'error',
+      message: t('library.import_dialog.partial_success', {
+        success: successes,
+        failed: failures.length,
+        first_name: first.name,
+        first_error: first.error
+      })
+    }
+  }
+
+  return {
+    kind: 'error',
+    message: t('library.import_dialog.failure', { error: first.error })
   }
 }
 
@@ -153,7 +191,6 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       return
     }
 
-    type DraftOutcome = { kind: 'ok' } | { kind: 'failed'; name: string; error: string }
     const outcomes: DraftOutcome[] = []
 
     for (const draft of drafts) {
@@ -177,15 +214,11 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
 
     await onImported?.()
 
-    const successes = outcomes.filter((o) => o.kind === 'ok').length
-    const failures = outcomes.filter((o): o is { kind: 'failed'; name: string; error: string } => o.kind === 'failed')
+    const nextStatus = summarizeAssistantImportOutcomes(outcomes, t, fileName)
+    setStatus(nextStatus)
 
-    if (failures.length === 0) {
-      const successText = fileName
-        ? t('library.import_dialog.success', { name: fileName })
-        : t('message.agents.imported', { count: successes })
-      setStatus({ kind: 'success', message: successText })
-      window.toast.success(successText)
+    if (nextStatus.kind === 'success') {
+      window.toast.success(nextStatus.message)
       // File-mode banner stays so the filename echo is visible;
       // clipboard / URL auto-close after a short delay.
       if (source !== 'file') {
@@ -195,21 +228,8 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
           onOpenChange(false)
         }, AUTO_CLOSE_DELAY_MS)
       }
-    } else if (successes > 0) {
-      const first = failures[0]
-      const summary = t('library.import_dialog.partial_success', {
-        success: successes,
-        failed: failures.length,
-        first_name: first.name,
-        first_error: first.error
-      })
-      setStatus({ kind: 'error', message: summary })
-      window.toast.error(summary)
     } else {
-      const first = failures[0]
-      const message = t('library.import_dialog.failure', { error: first.error })
-      setStatus({ kind: 'error', message })
-      window.toast.error(message)
+      window.toast.error(nextStatus.message)
     }
 
     setLoading(false)

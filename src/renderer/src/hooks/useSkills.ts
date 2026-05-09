@@ -22,6 +22,11 @@ function reportSkillMutationError(action: string, error: unknown): string {
   return message
 }
 
+function reportAndRethrowSkillMutationError(action: string, error: unknown): never {
+  reportSkillMutationError(action, error)
+  throw error instanceof Error ? error : new Error(skillErrorMessage(error))
+}
+
 async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalidateCache>): Promise<void> {
   try {
     await invalidate('/skills')
@@ -55,12 +60,12 @@ export function useInstalledSkills(agentId?: string) {
       }
       try {
         const result = await window.api.skill.toggle({ agentId, skillId, isEnabled })
-        if (!result.success || !result.data) return false
+        const skill = unwrapSkillResult(result)
+        if (!skill) throw new Error('Skill toggle returned no result')
         await refreshSkillsBestEffort(invalidate)
-        return result.data.isEnabled === isEnabled
+        return skill.isEnabled === isEnabled
       } catch (error) {
-        reportSkillMutationError('toggle skill', error)
-        return false
+        reportAndRethrowSkillMutationError('toggle skill', error)
       }
     },
     [agentId, invalidate]
@@ -70,12 +75,11 @@ export function useInstalledSkills(agentId?: string) {
     async (skillId: string) => {
       try {
         const result = await window.api.skill.uninstall(skillId)
-        if (!result.success) return false
+        unwrapSkillResult(result)
         await refreshSkillsBestEffort(invalidate)
         return true
       } catch (error) {
-        reportSkillMutationError('uninstall skill', error)
-        return false
+        reportAndRethrowSkillMutationError('uninstall skill', error)
       }
     },
     [invalidate]
@@ -169,8 +173,7 @@ export function useSkillInstall() {
         await refreshSkillsBestEffort(invalidate)
         return skill
       } catch (error) {
-        reportSkillMutationError('install skill from zip', error)
-        return null
+        reportAndRethrowSkillMutationError('install skill from zip', error)
       } finally {
         setInstallingKey(null)
       }
@@ -186,8 +189,7 @@ export function useSkillInstall() {
         await refreshSkillsBestEffort(invalidate)
         return skill
       } catch (error) {
-        reportSkillMutationError('install skill from directory', error)
-        return null
+        reportAndRethrowSkillMutationError('install skill from directory', error)
       } finally {
         setInstallingKey(null)
       }
