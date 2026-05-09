@@ -41,11 +41,18 @@
       "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
     },
     {
-      "targetKey": "chat.web_search.default_provider",
+      "targetKey": "chat.web_search.default_search_keywords_provider",
       "type": "PreferenceTypes.WebSearchProviderId",
       "defaultValue": null,
       "status": "classified",
-      "description": "Web search default provider id (normalized from legacy defaultProvider, unsupported legacy values collapse to null)"
+      "description": "Default Web Search provider for keyword search capability"
+    },
+    {
+      "targetKey": "chat.web_search.default_fetch_urls_provider",
+      "type": "PreferenceTypes.WebSearchProviderId",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Default Web Search provider for URL fetch capability"
     },
     {
       "targetKey": "chat.web_search.subscribe_sources",
@@ -151,6 +158,20 @@
       "defaultValue": null,
       "status": "classified",
       "description": "Translate model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "feature.openclaw.gateway_port",
+      "type": "number",
+      "defaultValue": 18790,
+      "status": "classified",
+      "description": "OpenClaw gateway port"
+    },
+    {
+      "targetKey": "feature.openclaw.selected_model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "OpenClaw selected model UniqueModelId (provider::modelId, from complex mapping openclaw_preferences)"
     }
   ]
 }

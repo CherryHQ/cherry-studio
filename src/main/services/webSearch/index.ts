@@ -5,4 +5,4 @@ export {
   getRuntimeConfig,
   resolveProviders
 } from './utils/config'
-export { webSearchService } from './WebSearchService'
+export { WebSearchService } from './WebSearchService'

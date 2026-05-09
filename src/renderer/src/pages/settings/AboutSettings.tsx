@@ -1,4 +1,4 @@
-import { Badge, Button, CircularProgress, Divider, RadioGroup, RadioGroupItem, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, CircularProgress, Divider, SegmentedControl, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import LogoAvatar from '@renderer/components/Icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
@@ -16,6 +16,8 @@ import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
+
+import { SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
@@ -163,26 +165,22 @@ const AboutSettings: FC = () => {
   const testChannels = getAvailableTestChannels()
 
   return (
-    <div
-      className={cn(
-        'flex flex-1 flex-col overflow-y-auto px-4.5 py-3.75 [&::-webkit-scrollbar]:hidden',
-        theme === ThemeMode.dark ? 'bg-transparent' : 'bg-(--color-background-soft)'
-      )}>
-      <AboutGroup theme={theme}>
-        <div className="flex select-none items-center justify-between gap-3 font-bold text-sm">
-          <div>{t('settings.about.title')}</div>
+    <div className={cn('flex w-full flex-1 flex-col overflow-y-auto px-5 py-4 [&::-webkit-scrollbar]:hidden')}>
+      <SettingGroup theme={theme}>
+        <SettingTitle className="gap-2">
+          <span className="font-semibold text-[15px]">{t('settings.about.title')}</span>
           <button
             type="button"
             onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
-            className="inline-flex items-center justify-center rounded-md p-1 text-(--color-text) transition-colors hover:bg-(--color-background-mute)">
+            className="inline-flex items-center justify-center rounded-md p-1 text-(--color-foreground) transition-colors hover:bg-(--color-muted)">
             <Github className="size-5" />
           </button>
-        </div>
+        </SettingTitle>
 
-        <Divider className="my-2" />
+        <Divider className="my-1.5" />
 
-        <div className="flex flex-wrap items-center justify-between gap-4 py-1.25">
-          <div className="flex min-w-0 flex-1 items-center gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 py-1">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               type="button"
               onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
@@ -191,7 +189,7 @@ const AboutSettings: FC = () => {
                 <div className="-top-0.5 -left-0.5 pointer-events-none absolute">
                   <CircularProgress
                     value={appUpdateState.downloadProgress}
-                    size={84}
+                    size={76}
                     strokeWidth={4}
                     shape="square"
                     className="stroke-transparent"
@@ -199,17 +197,17 @@ const AboutSettings: FC = () => {
                   />
                 </div>
               )}
-              <LogoAvatar logo={AppLogo} size={80} className="rounded-2xl" />
+              <LogoAvatar logo={AppLogo} size={72} className="rounded-full" />
             </button>
 
-            <div className="flex min-h-20 flex-col items-start justify-center">
-              <div className="mb-1.25 font-bold text-(--color-text-1) text-xl">{APP_NAME}</div>
-              <div className="text-(--color-text-2) text-sm">{t('settings.about.description')}</div>
+            <div className="flex min-h-[72px] flex-col items-start justify-center">
+              <div className="mb-1 font-bold text-(--color-foreground) text-lg">{APP_NAME}</div>
+              <div className="text-(--color-foreground-secondary) text-sm">{t('settings.about.description')}</div>
               <button
                 type="button"
                 onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
-                className="mt-2">
-                <Badge className="cursor-pointer rounded-[10px] border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 font-medium text-cyan-500 text-sm transition-colors hover:bg-cyan-500/15">
+                className="mt-1.5">
+                <Badge className="cursor-pointer rounded-md border-primary/20 bg-primary/10 px-1.5 py-0 font-medium text-[11px] text-primary leading-4 transition-colors hover:bg-primary/15">
                   v{version}
                 </Badge>
               </button>
@@ -220,6 +218,7 @@ const AboutSettings: FC = () => {
             <div className="flex shrink-0 items-center justify-end">
               <Button
                 size="sm"
+                variant="outline"
                 loading={appUpdateState.checking}
                 onClick={onCheckUpdate}
                 disabled={appUpdateState.downloading}
@@ -236,149 +235,120 @@ const AboutSettings: FC = () => {
 
         {!isPortable && (
           <>
-            <Divider className="my-4" />
-            <AboutRow>
-              <AboutRowTitle>{t('settings.general.auto_check_update.title')}</AboutRowTitle>
+            <Divider className="my-3" />
+            <SettingRow className="gap-3">
+              <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
               <Switch checked={autoCheckUpdate} onCheckedChange={(v) => setAutoCheckUpdate(v)} />
-            </AboutRow>
+            </SettingRow>
 
-            <Divider className="my-4" />
-            <AboutRow>
-              <AboutRowTitle>{t('settings.general.test_plan.title')}</AboutRowTitle>
+            <Divider className="my-3" />
+            <SettingRow className="gap-3">
+              <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
               <Tooltip content={t('settings.general.test_plan.tooltip')}>
                 <Switch checked={testPlan} onCheckedChange={(v) => handleSetTestPlan(v)} />
               </Tooltip>
-            </AboutRow>
+            </SettingRow>
 
             {testPlan && (
               <>
-                <Divider className="my-2" />
-                <AboutRow className="items-start">
-                  <AboutRowTitle className="pt-1">{t('settings.general.test_plan.version_options')}</AboutRowTitle>
-                  <RadioGroup
-                    className="flex flex-wrap justify-end gap-3"
+                <Divider className="my-1.5" />
+                <SettingRow className="items-center gap-3">
+                  <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
+                  <SegmentedControl<UpgradeChannel>
                     value={getTestChannel()}
-                    onValueChange={(value) => handleTestChannelChange(value as UpgradeChannel)}>
-                    {testChannels.map((option) => {
-                      const id = `about-test-channel-${option.value}`
-                      return (
-                        <Tooltip key={option.value} content={option.tooltip}>
-                          <label
-                            htmlFor={id}
-                            className="flex cursor-pointer items-center gap-2 rounded-lg border border-(--color-border) px-3 py-2 text-(--color-text-1) text-sm transition-colors hover:bg-(--color-background-soft)">
-                            <RadioGroupItem id={id} value={option.value} />
-                            <span>{option.label}</span>
-                          </label>
+                    onValueChange={handleTestChannelChange}
+                    options={testChannels.map((option) => ({
+                      value: option.value,
+                      label: (
+                        <Tooltip content={option.tooltip}>
+                          <span>{option.label}</span>
                         </Tooltip>
                       )
-                    })}
-                  </RadioGroup>
-                </AboutRow>
+                    }))}
+                    size="sm"
+                  />
+                </SettingRow>
               </>
             )}
           </>
         )}
-      </AboutGroup>
+      </SettingGroup>
 
       {appUpdateState.info && appUpdateState.available && (
-        <AboutGroup theme={theme}>
-          <AboutRow>
-            <AboutRowTitle>
+        <SettingGroup theme={theme}>
+          <SettingRow className="gap-3">
+            <SettingRowTitle className="gap-2.5">
               {t('settings.about.updateAvailable', { version: appUpdateState.info.version })}
               <IndicatorLight color="green" />
-            </AboutRowTitle>
-          </AboutRow>
-          <div className="markdown my-2 rounded-md bg-(--color-bg-2) px-0 py-3 text-(--color-text-2) text-sm [&_p]:m-0">
+            </SettingRowTitle>
+          </SettingRow>
+          <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-(--color-foreground-secondary) text-sm [&_p]:m-0">
             <Markdown>
               {typeof appUpdateState.info.releaseNotes === 'string'
                 ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
                 : appUpdateState.info.releaseNotes?.map((note) => note.note).join('\n')}
             </Markdown>
           </div>
-        </AboutGroup>
+        </SettingGroup>
       )}
 
-      <AboutGroup theme={theme}>
+      <SettingGroup theme={theme}>
         <AboutActionRow
           icon={<BadgeQuestionMark className="size-4.5" />}
           title={t('docs.title')}
           actionLabel={t('settings.about.website.button')}
           onAction={onOpenDocs}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Rss className="size-4.5" />}
           title={t('settings.about.releases.title')}
           actionLabel={t('settings.about.releases.button')}
           onAction={showReleases}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Globe className="size-4.5" />}
           title={t('settings.about.website.title')}
           actionLabel={t('settings.about.website.button')}
           onAction={() => onOpenWebsite('https://cherry-ai.com')}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Github className="size-4.5" />}
           title={t('settings.about.feedback.title')}
           actionLabel={t('settings.about.feedback.button')}
           onAction={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Building2 className="size-4.5" />}
           title={t('settings.about.enterprise.title')}
           actionLabel={t('settings.about.website.button')}
           onAction={showEnterprise}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Mail className="size-4.5" />}
           title={t('settings.about.contact.title')}
           actionLabel={t('settings.about.contact.button')}
           onAction={mailto}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Briefcase className="size-4.5" />}
           title={t('settings.about.careers.title')}
           actionLabel={t('settings.about.careers.button')}
           onAction={() => onOpenWebsite('https://www.cherry-ai.com/careers')}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Bug className="size-4.5" />}
           title={t('settings.about.debug.title')}
           actionLabel={t('settings.about.debug.open')}
           onAction={debug}
         />
-      </AboutGroup>
-    </div>
-  )
-}
-
-function AboutGroup({ children, theme }: { children: ReactNode; theme: ThemeMode }) {
-  return (
-    <div
-      className={cn(
-        'mb-5 rounded-2xs border border-(--color-border) p-4',
-        theme === ThemeMode.dark ? 'bg-black/5' : 'bg-(--color-background)'
-      )}>
-      {children}
-    </div>
-  )
-}
-
-function AboutRow({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('flex min-h-6 items-center justify-between gap-4', className)}>{children}</div>
-}
-
-function AboutRowTitle({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={cn('flex items-center gap-2.5 text-(--color-text-1) text-sm leading-4.5', className)}>
-      {children}
+      </SettingGroup>
     </div>
   )
 }
@@ -395,15 +365,15 @@ function AboutActionRow({
   title: string
 }) {
   return (
-    <AboutRow>
-      <AboutRowTitle>
+    <SettingRow className="gap-3">
+      <SettingRowTitle className="gap-2.5">
         {icon}
         {title}
-      </AboutRowTitle>
-      <Button size="sm" onClick={() => void onAction()}>
+      </SettingRowTitle>
+      <Button size="sm" onClick={() => void onAction()} variant="outline">
         {actionLabel}
       </Button>
-    </AboutRow>
+    </SettingRow>
   )
 }
 

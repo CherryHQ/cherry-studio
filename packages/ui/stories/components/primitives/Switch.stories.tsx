@@ -11,7 +11,7 @@ const meta: Meta<typeof Switch> = {
     docs: {
       description: {
         component:
-          'A switch component based on Radix UI Switch, allowing users to toggle between on/off states. Supports three sizes (sm, md, lg), loading states, and an enhanced DescriptionSwitch variant with label and description. Built with accessibility in mind.'
+          'A switch component based on Radix UI Switch, allowing users to toggle between on/off states. Supports four sizes (xs, sm, md, lg), loading states, and an enhanced DescriptionSwitch variant with label and description. Built with accessibility in mind.'
       }
     }
   },
@@ -27,7 +27,7 @@ const meta: Meta<typeof Switch> = {
     },
     size: {
       control: { type: 'select' },
-      options: ['sm', 'md', 'lg'],
+      options: ['xs', 'sm', 'md', 'lg'],
       description: 'The size of the switch'
     },
     defaultChecked: {
@@ -172,6 +172,30 @@ export const Sizes: Story = {
   render: () => (
     <div className="flex flex-col gap-6">
       <div>
+        <p className="mb-3 text-sm text-muted-foreground">Extra small (xs)</p>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Switch id="size-xs-1" size="xs" />
+            <label htmlFor="size-xs-1" className="cursor-pointer text-sm">
+              Extra small switch
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch id="size-xs-2" size="xs" defaultChecked />
+            <label htmlFor="size-xs-2" className="cursor-pointer text-sm">
+              Extra small switch (on)
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch id="size-xs-3" size="xs" loading defaultChecked />
+            <label htmlFor="size-xs-3" className="cursor-pointer text-sm">
+              Extra small switch (loading)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div>
         <p className="mb-3 text-sm text-muted-foreground">Small (sm)</p>
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
@@ -292,6 +316,7 @@ export const DescriptionSwitchPositions: Story = {
 export const DescriptionSwitchSizes: Story = {
   render: () => (
     <div className="flex w-96 flex-col gap-6">
+      <DescriptionSwitch label="Extra small switch" description="Dense table rows and compact controls" size="xs" />
       <DescriptionSwitch label="Small switch" description="Compact size for dense layouts" size="sm" />
       <DescriptionSwitch label="Medium switch" description="Default size for most use cases" size="md" defaultChecked />
       <DescriptionSwitch label="Large switch" description="Larger size for emphasis" size="lg" />
@@ -320,6 +345,10 @@ export const SizeComparison: Story = {
         <p className="text-xs font-medium text-muted-foreground">Off</p>
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-center gap-2">
+            <Switch id="compare-xs-1" size="xs" />
+            <span className="text-xs text-muted-foreground">xs</span>
+          </div>
+          <div className="flex flex-col items-center gap-2">
             <Switch id="compare-sm-1" size="sm" />
             <span className="text-xs text-muted-foreground">sm</span>
           </div>
@@ -338,6 +367,10 @@ export const SizeComparison: Story = {
         <p className="text-xs font-medium text-muted-foreground">On</p>
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-center gap-2">
+            <Switch id="compare-xs-2" size="xs" defaultChecked />
+            <span className="text-xs text-muted-foreground">xs</span>
+          </div>
+          <div className="flex flex-col items-center gap-2">
             <Switch id="compare-sm-2" size="sm" defaultChecked />
             <span className="text-xs text-muted-foreground">sm</span>
           </div>
@@ -355,6 +388,10 @@ export const SizeComparison: Story = {
       <div className="flex flex-col gap-4">
         <p className="text-xs font-medium text-muted-foreground">Loading</p>
         <div className="flex items-center gap-4">
+          <div className="flex flex-col items-center gap-2">
+            <Switch id="compare-xs-3" size="xs" loading defaultChecked />
+            <span className="text-xs text-muted-foreground">xs</span>
+          </div>
           <div className="flex flex-col items-center gap-2">
             <Switch id="compare-sm-3" size="sm" loading defaultChecked />
             <span className="text-xs text-muted-foreground">sm</span>

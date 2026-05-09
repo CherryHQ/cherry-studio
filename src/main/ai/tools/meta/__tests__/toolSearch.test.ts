@@ -82,7 +82,7 @@ describe('tool_search meta-tool', () => {
       matchedNamespaces: Array<{ namespace: string; tools: Array<{ name: string }> }>
     }
     expect(result.matchedNamespaces).toHaveLength(1)
-    expect(result.matchedNamespaces[0]!.namespace).toBe('mcp:s1')
+    expect(result.matchedNamespaces[0].namespace).toBe('mcp:s1')
   })
 
   it('verbose mode includes inputSchema; default mode omits it', async () => {
@@ -92,11 +92,11 @@ describe('tool_search meta-tool', () => {
     const compact = (await callExecute(tool, {})) as {
       matchedNamespaces: Array<{ tools: Array<{ inputSchema?: unknown }> }>
     }
-    expect(compact.matchedNamespaces[0]!.tools[0]!.inputSchema).toBeUndefined()
+    expect(compact.matchedNamespaces[0].tools[0].inputSchema).toBeUndefined()
 
     const verbose = (await callExecute(tool, { verbose: true })) as {
       matchedNamespaces: Array<{ tools: Array<{ inputSchema?: unknown }> }>
     }
-    expect(verbose.matchedNamespaces[0]!.tools[0]!.inputSchema).toBeDefined()
+    expect(verbose.matchedNamespaces[0].tools[0].inputSchema).toBeDefined()
   })
 })

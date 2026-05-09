@@ -29,12 +29,15 @@ import type {
 } from '@shared/config/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
+  FileProcessorFeature,
+  FileProcessorId,
   SelectionActionItem,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType,
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessingTaskResult, FileProcessingTaskStartResult } from '@shared/data/types/fileProcessing'
 import type {
   CreateKnowledgeBaseDto,
   KnowledgeBase,
@@ -43,6 +46,12 @@ import type {
   KnowledgeSearchResult as KnowledgeVectorSearchResult,
   RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
+import type { SettingsPath } from '@shared/data/types/settingsPath'
+import type {
+  WebSearchFetchUrlsRequest,
+  WebSearchResponse,
+  WebSearchSearchKeywordsRequest
+} from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
@@ -564,6 +573,9 @@ const api = {
     }
   },
   windowManager: {
+    openSettings: (path: SettingsPath = '/settings/provider'): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.SettingsWindow_Open, path),
+
     // Retrieve init data that the main process stored for this window via
     // wm.setInitData() or wm.open({ initData }). Returns null when no data was set or when
     // the sender window is not managed by WindowManager (e.g., detached devtools).
@@ -750,9 +762,26 @@ const api = {
       ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
     listProviders: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_ListProviders)
   },
+  fileProcessing: {
+    startTask: (payload: {
+      feature: FileProcessorFeature
+      file: FileMetadata
+      processorId?: FileProcessorId
+    }): Promise<FileProcessingTaskStartResult> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartTask, payload),
+    getTask: (payload: { taskId: string }): Promise<FileProcessingTaskResult> =>
+      ipcRenderer.invoke(IpcChannel.FileProcessing_GetTask, payload),
+    cancelTask: (payload: { taskId: string }): Promise<FileProcessingTaskResult> =>
+      ipcRenderer.invoke(IpcChannel.FileProcessing_CancelTask, payload)
+  },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Cherryai_GetSignature, params)
+  },
+  webSearch: {
+    searchKeywords: (request: WebSearchSearchKeywordsRequest): Promise<WebSearchResponse> =>
+      ipcRenderer.invoke(IpcChannel.WebSearch_SearchKeywords, request),
+    fetchUrls: (request: WebSearchFetchUrlsRequest): Promise<WebSearchResponse> =>
+      ipcRenderer.invoke(IpcChannel.WebSearch_FetchUrls, request)
   },
   shortcut: {
     onRegistrationConflict: (callback: (payload: ShortcutRegistrationConflictPayload) => void): (() => void) => {

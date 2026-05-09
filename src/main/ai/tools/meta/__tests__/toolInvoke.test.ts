@@ -48,7 +48,7 @@ describe('tool_invoke meta-tool', () => {
     const result = await callInvoke(tool, { name: 'mcp__s1__t', params: { foo: 'bar' } })
     expect(result).toEqual({ ok: true })
     expect(innerExecute).toHaveBeenCalledTimes(1)
-    expect(innerExecute.mock.calls[0]![0]).toEqual({ foo: 'bar' })
+    expect(innerExecute.mock.calls[0][0]).toEqual({ foo: 'bar' })
   })
 
   it('passes empty object when params omitted', async () => {
@@ -56,7 +56,7 @@ describe('tool_invoke meta-tool', () => {
     const reg = makeRegistry()
     const tool = createToolInvokeTool(reg)
     await callInvoke(tool, { name: 'mcp__s1__t' })
-    expect(innerExecute.mock.calls[0]![0]).toEqual({})
+    expect(innerExecute.mock.calls[0][0]).toEqual({})
   })
 
   it('nests the toolCallId so telemetry can rebuild the call tree', async () => {
@@ -64,7 +64,7 @@ describe('tool_invoke meta-tool', () => {
     const reg = makeRegistry()
     const tool = createToolInvokeTool(reg)
     await callInvoke(tool, { name: 'mcp__s1__t', params: {} })
-    const passedOptions = innerExecute.mock.calls[0]![1]
+    const passedOptions = innerExecute.mock.calls[0][1]
     expect(passedOptions.toolCallId).toBe('outer-1::mcp__s1__t')
   })
 

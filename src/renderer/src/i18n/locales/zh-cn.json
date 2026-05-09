@@ -578,6 +578,98 @@
     },
     "sidebar_title": "智能体",
     "todo": {
+      "mock": {
+        "actions": {
+          "complete": "完成",
+          "dismiss": "关闭"
+        },
+        "details": {
+          "addRouter": {
+            "summary": "正在使用 react-router-dom v6 配置客户端路由...",
+            "title": "添加 React Router"
+          },
+          "configureProject": {
+            "resources": {
+              "createdMeta": "created",
+              "postcssConfig": "postcss.config.js",
+              "tailwindConfig": "tailwind.config.js",
+              "updatedMeta": "updated",
+              "viteConfig": "vite.config.ts - port 3001"
+            },
+            "title": "配置项目"
+          },
+          "installDependencies": {
+            "resources": {
+              "dependenciesMeta": "dependencies",
+              "devDependenciesMeta": "devDependencies",
+              "reactDeps": "react@18.3.1, react-dom@18.3.1",
+              "tailwindDeps": "tailwindcss@3.4.4, postcss@8.4.38",
+              "typescriptDeps": "typescript@5.4.5, vite@5.3.0"
+            },
+            "summary": "安装了 react, react-dom, tailwindcss, postcss, autoprefixer 和 TypeScript。",
+            "title": "安装依赖"
+          },
+          "reviewReferences": {
+            "collectionTitle": "审阅参考资料",
+            "resources": {
+              "npmCreateVite": "npm create vite - Official Scaffolding",
+              "npmMeta": "npmjs.com",
+              "reactDocs": "React Documentation - Quick Start",
+              "reactMeta": "react.dev",
+              "tailwindDocs": "Tailwind CSS - Installation Guide",
+              "tailwindMeta": "tailwindcss.com",
+              "viteDocs": "Vite - Next Generation Frontend Tooling",
+              "viteMeta": "vitejs.dev"
+            },
+            "title": "审阅参考资料"
+          },
+          "searchWeb": {
+            "resources": {
+              "reactViteQuery": "React Vite TypeScript starter 2025 best practices"
+            },
+            "summary": "收集了 React + Vite 项目脚手架和最佳实践的最新资料。",
+            "title": "搜索网络资料"
+          },
+          "title": "执行过程详情",
+          "writeComponents": {
+            "collectionTitle": "创建的文件",
+            "resources": {
+              "app": "src/App.tsx",
+              "button": "src/components/Button.tsx",
+              "card": "src/components/Card.tsx",
+              "footer": "src/components/Footer.tsx",
+              "header": "src/components/Header.tsx",
+              "layout": "src/components/Layout.tsx",
+              "modifiedMeta": "modified",
+              "newMeta": "new",
+              "updatedMeta": "updated"
+            },
+            "title": "编写组件"
+          },
+          "writePages": {
+            "resources": {
+              "about": "src/pages/About.tsx",
+              "home": "src/pages/Home.tsx",
+              "newMeta": "new"
+            },
+            "title": "编写页面"
+          }
+        },
+        "progress": "{{completed}}/{{total}} 任务已完成",
+        "tasks": {
+          "addLinting": "添加 ESLint + Prettier",
+          "addRouter": "添加 React Router",
+          "buildDeploy": "构建与部署",
+          "configureProject": "配置项目",
+          "finish": "完成",
+          "installDependencies": "安装依赖",
+          "reviewReferences": "审阅参考资料",
+          "searchWeb": "搜索网络资料",
+          "writeComponents": "编写组件",
+          "writePages": "编写页面"
+        },
+        "title": "任务"
+      },
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 个任务"
       },
@@ -742,7 +834,7 @@
       "running": "运行中",
       "stopped": "已停止"
     },
-    "title": "API 服务器"
+    "title": "API 网关"
   },
   "appMenu": {
     "about": "关于",
@@ -3932,6 +4024,9 @@
         "triggerPlaceholder": "选择智能体",
         "valueProp": "当前 value"
       },
+      "agentTodoList": {
+        "title": "Agent 任务列表"
+      },
       "assistantSelector": {
         "clearSelection": "清空",
         "configDescription": "调整 props 预览组件行为",
@@ -4068,7 +4163,7 @@
         },
         "content": "导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
         "file": {
-          "button": "导出到文件",
+          "button": "导出文件",
           "content": "将数据导出为备份文件，可在手机上通过文件方式导入。",
           "export_failed": "导出失败",
           "export_success": "导出成功",
@@ -4685,6 +4780,15 @@
         "button": "备份",
         "title": "数据备份与恢复"
       },
+      "common": {
+        "sections": {
+          "custom_css": "自定义 CSS",
+          "display_language": "显示与语言",
+          "privacy_advanced": "隐私与高级",
+          "system_startup": "系统与启动"
+        },
+        "title": "通用设置"
+      },
       "display": {
         "title": "显示设置"
       },
@@ -4745,6 +4849,12 @@
         "label": "目标语言",
         "russian": "俄文"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "笔记"
+      },
+      "title": "集成"
     },
     "launch": {
       "onboot": "开机自动启动",
@@ -5015,6 +5125,13 @@
       "url": "URL",
       "user": "用户"
     },
+    "menuGroups": {
+      "appSettings": "应用设置",
+      "integrations": "模型",
+      "productivity": "效率",
+      "services": "插件",
+      "system": "系统"
+    },
     "messages": {
       "divider": {
         "label": "消息分割线",
@@ -5166,7 +5283,7 @@
         "use_all_keys": "使用密钥"
       },
       "default_assistant_model": "默认助手模型",
-      "default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
+      "default_assistant_model_description": "助手未指定模型时使用",
       "empty": "没有模型",
       "manage": {
         "add_listed": {
@@ -5259,6 +5376,14 @@
         "tip": "控制模型输出的详细程度",
         "title": "详细程度"
       }
+    },
+    "plugins": {
+      "bunDescription": "用于 MCP 服务和相关工具链的 JavaScript 运行时。",
+      "description": "管理应用运行所需的二进制工具和运行时依赖。",
+      "installing": "安装中...",
+      "notInstalled": "未安装",
+      "title": "环境依赖",
+      "uvDescription": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
     },
     "privacy": {
       "enable_privacy_mode": "匿名发送错误报告和数据统计",
@@ -5586,12 +5711,22 @@
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
+      "all_disable": "全部禁用",
+      "all_enable": "全部启用",
       "bind_first_to_enable": "请先绑定快捷键，再调整启用状态",
+      "categories": {
+        "assistant": "AI 助手工具",
+        "chat": "消息交互",
+        "general": "全局与窗口",
+        "title": "快捷键分组",
+        "topic": "会话与话题"
+      },
       "clear_shortcut": "清除快捷键",
       "clear_topic": "清空消息",
       "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "复制上一条消息",
       "edit_last_user_message": "编辑最后一条用户消息",
+      "empty": "当前分组下没有可显示的快捷键",
       "enabled": "启用",
       "exit_fullscreen": "退出全屏",
       "label": "按键",
@@ -5600,6 +5735,7 @@
       "press_shortcut": "按下快捷键",
       "quick_assistant": "快捷助手",
       "rename_topic": "重命名话题",
+      "reset": "重置",
       "reset_defaults": "重置默认快捷键",
       "reset_defaults_confirm": "确定要重置所有快捷键吗？",
       "reset_defaults_failed": "重置快捷键失败",
@@ -5680,6 +5816,14 @@
         "error": {
           "not_system": "系统 OCR 仅支持 Windows 与 MacOS"
         },
+        "features": {
+          "paddleocr": "中文识别能力更强，适合票据、扫描件和复杂版式图片的文本提取。",
+          "system": {
+            "macos": "使用 macOS 原生 OCR 引擎，开箱即用，适合截图识别和轻量文本提取。",
+            "windows": "使用 Windows 系统 OCR，引擎集成度高，适合本地基础识别场景。"
+          },
+          "tesseract": "经典本地 OCR 方案，支持自定义语言包，适合离线处理和多语言扩展。"
+        },
         "image": {
           "error": {
             "provider_not_found": "该提供商不存在"
@@ -5706,6 +5850,13 @@
         "title": "OCR 服务"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "适合把 PDF 转成更规整的 Markdown 或可编辑文本，方便后续检索与整理。",
+          "mineru": "偏向高质量版面恢复，适合学术论文、表格和公式较多的 PDF 文档。",
+          "mistral": "云端文档理解能力较强，适合结构化提取、多页文档和复杂版式解析。",
+          "open_mineru": "开源部署方案，更适合希望自建服务并自行控制处理链路的场景。",
+          "paddleocr": "轻量且易接入，适合中文文档、扫描件和常见票据类内容的文本提取。"
+        },
         "paddleocr": {
           "aistudio_access_token": "星河社区访问令牌",
           "api_url": "API URL",

@@ -8,7 +8,8 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModels'
 import { useProviders } from '@renderer/hooks/useProvider'
-import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
+import TranslateSettingsPopup from '@renderer/pages/translate/components/TranslateSettingsPopup/TranslateSettingsPopup'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
@@ -20,7 +21,6 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDescription, SettingGroup, SettingTitle } from '..'
-import TranslateSettingsPopup from '../TranslateSettingsPopup/TranslateSettingsPopup'
 import TopicNamingModalPopup from './QuickModelPopup'
 
 interface ModelSettingsProps {

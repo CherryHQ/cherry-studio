@@ -258,23 +258,21 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       width={800}
       centered
       transitionName="animation-move-down"
-      footer={[
-        <Button key="refresh" onClick={fetchBackupFiles} disabled={loading}>
-          <ReloadOutlined />
-          {t('settings.data.s3.manager.refresh')}
-        </Button>,
-        <Button
-          key="delete"
-          variant="destructive"
-          onClick={handleDeleteSelected}
-          disabled={selectedRowKeys.length === 0 || deleting}>
-          <DeleteOutlined />
-          {t('settings.data.s3.manager.delete.selected', { count: selectedRowKeys.length })}
-        </Button>,
-        <Button key="close" onClick={onClose}>
-          {t('settings.data.s3.manager.close')}
-        </Button>
-      ]}>
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={fetchBackupFiles} disabled={loading}>
+            <ReloadOutlined />
+            {t('settings.data.s3.manager.refresh')}
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleDeleteSelected}
+            disabled={selectedRowKeys.length === 0 || deleting}>
+            <DeleteOutlined />
+            {t('settings.data.s3.manager.delete.selected', { count: selectedRowKeys.length })}
+          </Button>
+        </div>
+      }>
       <Table
         rowKey="fileName"
         columns={columns}

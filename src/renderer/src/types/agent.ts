@@ -306,6 +306,97 @@ export const UpdateTaskRequestSchema = z.object({
 
 export type UpdateTaskRequest = z.infer<typeof UpdateTaskRequestSchema>
 
+export const ListTasksResponseSchema = z.object({
+  data: z.array(ScheduledTaskEntitySchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
+})
+
+export type ListTasksResponse = z.infer<typeof ListTasksResponseSchema>
+
+export const ListTaskLogsResponseSchema = z.object({
+  data: z.array(TaskRunLogEntitySchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
+})
+
+export type ListTaskLogsResponse = z.infer<typeof ListTaskLogsResponseSchema>
+
+export const TaskIdParamSchema = z.object({
+  taskId: z.string().min(1, 'Task ID is required')
+})
+
+// ------------------ API validation schemas ------------------
+
+// Parameter validation schemas
+export const AgentIdParamSchema = z.object({
+  agentId: z.string().min(1, 'Agent ID is required')
+})
+
+export const SessionIdParamSchema = z.object({
+  sessionId: z.string().min(1, 'Session ID is required')
+})
+
+export const SessionMessageIdParamSchema = z.object({
+  messageId: z.string().min(1, 'Message ID is required')
+})
+
+// Query validation schemas
+export const PaginationQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+  status: z.enum(['idle', 'running', 'completed', 'failed', 'stopped']).optional()
+})
+
+// Request body validation schemas derived from shared bases
+const agentCreatableSchema = AgentBaseSchema.extend({
+  name: z.string().min(1, 'Name is required'),
+  model: z.string().min(1, 'Model is required')
+})
+
+export const CreateAgentRequestSchema = agentCreatableSchema.extend({
+  type: AgentTypeSchema
+})
+
+export const UpdateAgentRequestSchema = AgentBaseSchema.partial()
+
+export const ReplaceAgentRequestSchema = AgentBaseSchema
+
+const sessionCreatableSchema = AgentBaseSchema.extend({
+  model: z.string().min(1, 'Model is required'),
+  slashCommands: z.array(SlashCommandSchema).optional()
+})
+
+export const CreateSessionRequestSchema = sessionCreatableSchema
+
+export const UpdateSessionRequestSchema = sessionCreatableSchema.partial()
+
+export const ReplaceSessionRequestSchema = sessionCreatableSchema
+
+export type ReplaceSessionRequest = z.infer<typeof ReplaceSessionRequestSchema>
+
+const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max'])
+
+const AgentThinkingConfigSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('enabled'), budgetTokens: z.number().optional() }),
+  z.object({ type: z.literal('disabled') }),
+  z.object({
+    type: z.literal('adaptive'),
+    display: z.enum(['omitted', 'summarized']).optional()
+  })
+])
+
+export type AgentEffort = z.infer<typeof AgentEffortSchema>
+export type AgentThinkingConfig = z.infer<typeof AgentThinkingConfigSchema>
+
+export const CreateSessionMessageRequestSchema = z.object({
+  content: z.string().min(1, 'Content must be a valid string'),
+  effort: AgentEffortSchema.optional(),
+  thinking: AgentThinkingConfigSchema.optional()
+})
+
 export type PermissionModeCard = {
   mode: PermissionMode
   titleKey: string

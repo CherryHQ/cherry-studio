@@ -30,6 +30,7 @@ import {
   isGeminiReasoningModel as sharedIsGeminiReasoningModel,
   isGrok4FastReasoningModel as sharedIsGrok4FastReasoningModel,
   isGrokReasoningModel as sharedIsGrokReasoningModel,
+  isHostedGemma4ThinkingModel as sharedIsHostedGemma4ThinkingModel,
   isHunyuanReasoningModel as sharedIsHunyuanReasoningModel,
   isKimiReasoningModel as sharedIsKimiReasoningModel,
   isLingReasoningModel as sharedIsLingReasoningModel,
@@ -70,6 +71,7 @@ import {
 import {
   GEMINI_FLASH_MODEL_REGEX,
   isClaude46SeriesModel,
+  isClaude47SeriesModel,
   isGemini3FlashModel,
   isGemini3ProModel,
   isGemini31FlashLiteModel,
@@ -106,6 +108,10 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   gemini3_flash: ['minimal', 'low', 'medium', 'high'] as const,
   gemini3_pro: ['low', 'high'] as const,
   gemini3_1_pro: ['low', 'medium', 'high'] as const,
+  // Google-hosted Gemma 4 documents `minimal` as the closest supported near-off
+  // setting for most requests, but does not guarantee thinking is fully disabled.
+  // Keep the formal UI options aligned with the API guarantee and omit `none`.
+  gemma4_hosted: ['minimal', 'high'] as const,
   qwen: ['low', 'medium', 'high'] as const,
   qwen_thinking: ['low', 'medium', 'high'] as const,
   doubao: ['auto', 'high'] as const,
@@ -144,6 +150,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gemini3_flash: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_flash] as const,
   gemini3_pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_pro] as const,
   gemini3_1_pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_1_pro] as const,
+  gemma4_hosted: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemma4_hosted] as const,
   qwen: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
   qwen_thinking: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking] as const,
   doubao: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
@@ -209,6 +216,9 @@ export const isSupportedReasoningEffortGrokModel = (model?: Model): boolean =>
 
 export const isGrok4FastReasoningModel = (model?: Model): boolean =>
   model ? sharedIsGrok4FastReasoningModel(toSharedCompatModel(model)) : false
+
+export const isHostedGemma4ThinkingModel = (model?: Model): boolean =>
+  model ? sharedIsHostedGemma4ThinkingModel(toSharedCompatModel(model)) : false
 
 export const isHunyuanReasoningModel = (model?: Model): boolean =>
   model ? sharedIsHunyuanReasoningModel(toSharedCompatModel(model)) : false
@@ -320,7 +330,11 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   const modelId = getLowerBaseModelName(model.id)
   if (isClaudeReasoningModel(model)) {
     thinkingModelType = 'claude'
-    if (isClaude46SeriesModel(model)) thinkingModelType = 'claude46'
+    // 4.7 reuses the 4.6 effort list (low/medium/high/xhigh); provider-level
+    // mapping still distinguishes them (4.7 sends native 'xhigh', 4.6 sends 'max').
+    if (isClaude46SeriesModel(model) || isClaude47SeriesModel(model)) {
+      thinkingModelType = 'claude46'
+    }
   } else if (isOpenAIDeepResearchModel(model)) {
     return 'openai_deep_research'
   } else if (isGPT5FamilyModel(model)) {
@@ -351,7 +365,9 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isGrok4FastReasoningModel(model)) {
     thinkingModelType = 'grok4_fast'
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
-    if (isGemini3FlashModel(model) || isGemini31FlashLiteModel(model)) {
+    if (isHostedGemma4ThinkingModel(model)) {
+      thinkingModelType = 'gemma4_hosted'
+    } else if (isGemini3FlashModel(model) || isGemini31FlashLiteModel(model)) {
       thinkingModelType = 'gemini3_flash'
     } else if (isGemini3ProModel(model)) {
       thinkingModelType = 'gemini3_pro'

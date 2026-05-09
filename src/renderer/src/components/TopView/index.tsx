@@ -1,10 +1,11 @@
 // import { loggerService } from '@logger'
 import { Box } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import AppModalProvider from '@renderer/components/AppModal'
 import { useAgentSessionSync } from '@renderer/hooks/agents/useAgentSessionSync'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useTopicSync } from '@renderer/hooks/useTopicDataApi'
-import { message, Modal } from 'antd'
+import { message } from 'antd'
 import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -36,7 +37,6 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   const elementsRef = useRef<ElementItem[]>([])
   elementsRef.current = elements
 
-  const [modal, modalContextHolder] = Modal.useModal()
   const [messageApi, messageContextHolder] = message.useMessage()
   const [exitFullscreenPref] = usePreference('shortcut.general.exit_fullscreen')
   const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
@@ -46,10 +46,9 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   useAgentSessionSync()
 
   useEffect(() => {
-    window.modal = modal
     initMessageApi(messageApi)
     window.toast = getToastUtilities()
-  }, [messageApi, modal])
+  }, [messageApi])
 
   onPop = () => {
     const views = [...elementsRef.current]
@@ -103,7 +102,11 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
     <>
       {children}
       {messageContextHolder}
-      {modalContextHolder}
+      <AppModalProvider
+        onReady={(modal) => {
+          window.modal = modal
+        }}
+      />
       {elements.map(({ element: Element, id }) => (
         <FullScreenContainer key={`TOPVIEW_${id}`}>
           {typeof Element === 'function' ? <Element /> : Element}

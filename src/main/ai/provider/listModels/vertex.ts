@@ -78,7 +78,7 @@ export async function createVertexModelListRequest(provider: Provider): Promise<
   }
 
   const { project, location, credentials } = authConfig
-  const creds = (credentials ?? {}) as Record<string, unknown>
+  const creds = credentials ?? {}
   const privateKey = (creds.privateKey ?? creds.private_key) as string | undefined
   const clientEmail = (creds.clientEmail ?? creds.client_email) as string | undefined
 
@@ -115,7 +115,7 @@ export async function createVertexModelListRequest(provider: Provider): Promise<
     headers: {
       ...defaultAppHeaders(),
       ...authHeaders,
-      ...(provider.settings?.extraHeaders ?? {})
+      ...provider.settings?.extraHeaders
     }
   }
 }

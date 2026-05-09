@@ -11,6 +11,11 @@ import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import {
+  FileProcessingOrchestrationService,
+  FileProcessingTaskService,
+  TesseractRuntimeService
+} from '@main/services/fileProcessing'
 import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/services/knowledge'
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
@@ -27,11 +32,13 @@ import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { SearchService } from '@main/services/SearchService'
 import { SelectionService } from '@main/services/selection/SelectionService'
+import { SettingsWindowService } from '@main/services/SettingsWindowService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
 import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
+import { WebSearchService } from '@main/services/webSearch'
 import { WebviewService } from '@main/services/WebviewService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
@@ -66,12 +73,16 @@ export const services = {
   DataApiService,
   SubWindowService,
   PreferenceService,
+  TesseractRuntimeService,
+  FileProcessingTaskService,
   AnalyticsService,
   AppMenuService,
   CodeCliService,
   LanTransferService,
+  FileProcessingOrchestrationService,
   PowerMonitorService,
   SelectionService,
+  SettingsWindowService,
   ShortcutService,
   ThemeService,
   SpanCacheService,
@@ -82,6 +93,7 @@ export const services = {
   ProxyManager,
   PythonService,
   TrayService,
+  WebSearchService,
   WebviewService,
   MainWindowService,
   QuickAssistantService,

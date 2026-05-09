@@ -743,6 +743,7 @@ const McpSettings: React.FC = () => {
           <MCPToolsSection
             tools={tools}
             server={server}
+            searchText=""
             onToggleTool={handleToggleTool}
             onToggleAutoApprove={handleToggleAutoApprove}
           />

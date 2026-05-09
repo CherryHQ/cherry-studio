@@ -1,7 +1,7 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
-import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
 import type { Topic } from '@renderer/types'
 import { containsSupportedVariables } from '@renderer/utils/prompt'
 import type { FC } from 'react'

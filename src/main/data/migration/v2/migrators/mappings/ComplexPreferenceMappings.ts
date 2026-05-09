@@ -18,6 +18,9 @@
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
 
+import { loggerService } from '@logger'
+
+import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {
   flattenCompressionConfig,
   migrateWebSearchProviders,
@@ -27,6 +30,8 @@ import { transformCodeCli } from './CodeCliTransforms'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 import { transformLlmModelIds } from './LlmModelTransforms'
 import { SHORTCUT_TARGET_KEYS, transformShortcuts } from './ShortcutMappings'
+
+const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
 
 // ============================================================================
 // Type Definitions
@@ -91,11 +96,11 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
   // WebSearch default provider normalization
   {
     id: 'websearch_default_provider_migrate',
-    description: 'Normalize legacy websearch default provider into the curated preset-backed preference key',
+    description: 'Normalize legacy websearch default provider into the v2 keyword-search default provider key',
     sources: {
       defaultProvider: { source: 'redux', category: 'websearch', key: 'defaultProvider' }
     },
-    targetKeys: ['chat.web_search.default_provider'],
+    targetKeys: ['chat.web_search.default_search_keywords_provider'],
     transform: normalizeWebSearchDefaultProvider
   },
 
@@ -200,6 +205,44 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       'feature.translate.model_id'
     ],
     transform: transformLlmModelIds
+  },
+
+  // OpenClaw preferences migration (legacy port + JSON model string → v2 preferences)
+  {
+    id: 'openclaw_preferences',
+    description:
+      'Convert legacy OpenClaw port and selected model JSON string into v2 preferences; invalid ports fall through to schema defaults',
+    sources: {
+      gatewayPort: { source: 'redux', category: 'openclaw', key: 'gatewayPort' },
+      selectedModelUniqId: { source: 'redux', category: 'openclaw', key: 'selectedModelUniqId' }
+    },
+    targetKeys: ['feature.openclaw.gateway_port', 'feature.openclaw.selected_model_id'],
+    transform: (sources) => {
+      let modelRef: LegacyModelRef | null = null
+      const raw = sources.selectedModelUniqId
+
+      if (typeof raw === 'string' && raw.length > 0) {
+        try {
+          const parsed = JSON.parse(raw) as unknown
+          if (parsed != null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            modelRef = parsed as LegacyModelRef
+          }
+        } catch (error) {
+          logger.warn('Legacy openclaw selectedModelUniqId not valid JSON, dropping', {
+            raw,
+            error
+          })
+        }
+      }
+
+      return {
+        'feature.openclaw.gateway_port':
+          typeof sources.gatewayPort === 'number' && Number.isFinite(sources.gatewayPort) && sources.gatewayPort > 0
+            ? sources.gatewayPort
+            : undefined,
+        'feature.openclaw.selected_model_id': legacyModelToUniqueId(modelRef)
+      }
+    }
   }
 ]
 

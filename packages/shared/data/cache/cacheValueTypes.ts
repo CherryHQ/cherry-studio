@@ -67,3 +67,5 @@ export type TranslatingState =
       isTranslating: false
       abortKey: null
     }
+
+export type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'

@@ -99,6 +99,14 @@ vi.mock('uuid', () => ({
   v4: () => 'test-uuid-' + ++uuidCounter
 }))
 
+vi.mock('@iconify/react', () => {
+  const React = require('react')
+  return {
+    Icon: ({ icon, ...props }: { icon?: string }) =>
+      React.createElement('span', { ...props, 'data-icon': icon, 'data-testid': 'iconify-icon' })
+  }
+})
+
 vi.mock('axios', () => {
   const defaultAxiosMock = {
     get: vi.fn().mockResolvedValue({ data: {} }), // Mocking axios GET request
@@ -146,10 +154,33 @@ vi.mock('@cherrystudio/ui', () => {
     Button: ({ children, onPress, disabled, isDisabled, startContent, ...props }) =>
       React.createElement(
         'button',
-        { ...props, onClick: onPress, disabled: disabled || isDisabled },
+        { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled },
         startContent,
         children
       ),
+    Input: ({ hasError, 'aria-invalid': ariaInvalid, className, list, ...props }) =>
+      React.createElement('input', {
+        ...props,
+        list,
+        'aria-invalid': ariaInvalid,
+        className: [
+          className,
+          hasError || ariaInvalid ? 'ant-input-status-error' : undefined,
+          list && ariaInvalid ? 'ant-select-status-error' : undefined
+        ]
+          .filter(Boolean)
+          .join(' ')
+      }),
+    Textarea: {
+      Input: ({ hasError, 'aria-invalid': ariaInvalid, className, ...props }) =>
+        React.createElement('textarea', {
+          ...props,
+          'aria-invalid': ariaInvalid,
+          className: [className, hasError || ariaInvalid ? 'ant-input-status-error' : undefined]
+            .filter(Boolean)
+            .join(' ')
+        })
+    },
     Tooltip: ({ children, title, content, mouseEnterDelay, ...props }) => {
       // Support both old (title) and new (content) API
       const tooltipText = content || title
@@ -180,6 +211,14 @@ vi.mock('@cherrystudio/ui', () => {
     Ellipsis: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'ellipsis' }, children),
     TextBadge: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'text-badge' }, children),
+    Alert: ({ children, message, description, type, ...props }) =>
+      React.createElement(
+        'div',
+        { ...props, role: 'alert', 'data-testid': 'alert', 'data-type': type },
+        message,
+        description,
+        children
+      ),
     HelpTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'help-tooltip' }, children),
     InfoTooltip: ({ children, ...props }) =>

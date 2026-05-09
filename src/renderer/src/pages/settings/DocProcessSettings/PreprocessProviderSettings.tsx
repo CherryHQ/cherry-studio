@@ -1,26 +1,31 @@
 import { ExportOutlined } from '@ant-design/icons'
-import { Button, Flex, Tooltip } from '@cherrystudio/ui'
+import { Button, Divider, Flex, Input, Tooltip } from '@cherrystudio/ui'
 import { LogoAvatar } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import type { PreprocessProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Divider, Input } from 'antd'
-import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
+import {
+  SettingHelpLink,
+  SettingHelpText,
+  SettingHelpTextRow,
+  SettingSubtitle,
+  SettingTitle,
+  SettingTitleExternalLink
+} from '..'
 
 interface Props {
   provider: PreprocessProvider
+  hideHeader?: boolean
 }
 
-const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
+const PreprocessProviderSettings: FC<Props> = ({ provider: _provider, hideHeader = false }) => {
   const { provider: preprocessProvider, updateProvider } = usePreprocessProvider(_provider.id)
   const { t } = useTranslation()
   const [apiKey, setApiKey] = useState(preprocessProvider.apiKey || '')
@@ -71,21 +76,25 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
 
   return (
     <>
-      <SettingTitle>
-        <Flex className="items-center gap-2">
-          <LogoAvatar logo={getPreprocessProviderLogo(preprocessProvider.id)} size={16} />
-          <ProviderName> {preprocessProvider.name}</ProviderName>
-          {officialWebsite && preprocessProviderConfig?.websites && (
-            <Link target="_blank" href={preprocessProviderConfig.websites.official}>
-              <ExportOutlined className="text-[--color-text] text-[12px]" />
-            </Link>
-          )}
-        </Flex>
-      </SettingTitle>
-      <Divider className="my-[10px] w-full" />
+      {!hideHeader && (
+        <>
+          <SettingTitle>
+            <Flex className="items-center gap-2">
+              <LogoAvatar logo={getPreprocessProviderLogo(preprocessProvider.id)} size={16} />
+              <span className="font-medium text-sm">{preprocessProvider.name}</span>
+              {officialWebsite && preprocessProviderConfig?.websites && (
+                <SettingTitleExternalLink href={preprocessProviderConfig.websites.official}>
+                  <ExportOutlined className="text-[--color-foreground] text-[12px]" />
+                </SettingTitleExternalLink>
+              )}
+            </Flex>
+          </SettingTitle>
+          <Divider className="my-2.5 w-full" />
+        </>
+      )}
       {hasObjectKey(preprocessProvider, 'apiKey') && (
         <>
-          <SettingSubtitle className="mt-[5px] mb-[10px] flex items-center justify-between">
+          <SettingSubtitle className="mt-1.25 mb-2.5 flex items-center justify-between">
             {preprocessProvider.id === 'paddleocr'
               ? t('settings.tool.preprocess.paddleocr.aistudio_access_token')
               : t('settings.provider.api_key.label')}
@@ -98,7 +107,8 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
             )}
           </SettingSubtitle>
           <Flex className="gap-2">
-            <Input.Password
+            <Input
+              type="password"
               value={apiKey}
               placeholder={
                 preprocessProvider.id === 'paddleocr'
@@ -108,12 +118,11 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
               onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
               onBlur={onUpdateApiKey}
               spellCheck={false}
-              type="password"
               autoFocus={apiKey === ''}
             />
           </Flex>
           {preprocessProvider.id !== 'paddleocr' && (
-            <SettingHelpTextRow className="mt-[5px] justify-between">
+            <SettingHelpTextRow className="mt-1.25 justify-between">
               <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                 {t('settings.provider.get_api_key')}
               </SettingHelpLink>
@@ -125,7 +134,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
 
       {hasObjectKey(preprocessProvider, 'apiHost') && (
         <>
-          <SettingSubtitle className="mt-[5px] mb-[10px]">
+          <SettingSubtitle className="mt-1.25 mb-2.5">
             {preprocessProvider.id === 'paddleocr'
               ? t('settings.tool.preprocess.paddleocr.api_url')
               : t('settings.provider.api_host')}
@@ -184,7 +193,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
           <SettingDivider style={{ marginTop: 15, marginBottom: 12 }} />
           <SettingRow>
             <SettingRowTitle>{t('settings.tool.preprocess.mac_system_ocr_options.min_confidence')}</SettingRowTitle>
-            <InputNumber
+            <EditableNumber
               value={options.minConfidence}
               onChange={(value) => onUpdateOptions('minConfidence', value)}
               min={0}
@@ -197,10 +206,5 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
     </>
   )
 }
-
-const ProviderName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-`
 
 export default PreprocessProviderSettings

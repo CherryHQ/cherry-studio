@@ -91,7 +91,7 @@ export function SelectDropdown<T extends { id: string }>({
       return (
         <div
           className={cn(
-            'flex items-center gap-1 rounded-3xs pr-1 transition-colors',
+            'flex items-center gap-1 rounded-md pr-1 transition-colors',
             isSelected && 'bg-primary/10 text-primary'
           )}>
           <button
@@ -100,14 +100,14 @@ export function SelectDropdown<T extends { id: string }>({
               onSelect(item.id)
               setOpen(false)
             }}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-3xs px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent/60">
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent/60">
             {renderItem(item, isSelected)}
           </button>
           <button
             type="button"
             aria-label={removeLabel}
             onClick={() => onRemove(item.id)}
-            className="shrink-0 rounded-3xs p-1 text-muted-foreground/30 transition-colors hover:bg-accent/60 hover:text-foreground">
+            className="shrink-0 rounded-md p-1 text-muted-foreground/30 transition-colors hover:bg-accent/60 hover:text-foreground">
             <X size={10} />
           </button>
         </div>
@@ -121,7 +121,7 @@ export function SelectDropdown<T extends { id: string }>({
           setOpen(false)
         }}
         className={cn(
-          'w-full rounded-3xs px-2.5 py-1.5 text-left text-xs transition-colors',
+          'w-full rounded-md px-2.5 py-1.5 text-left text-xs transition-colors',
           isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent/60'
         )}>
         {renderItem(item, isSelected)}
@@ -135,7 +135,7 @@ export function SelectDropdown<T extends { id: string }>({
         <button
           type="button"
           className={cn(
-            'flex w-full items-center justify-between rounded-3xs border bg-transparent px-2.5 py-1.5 text-xs transition-colors hover:bg-muted/30',
+            'flex w-full items-center justify-between rounded-md border bg-transparent px-2.5 py-1.5 text-xs transition-colors hover:bg-muted/30',
             open ? 'border-primary/40 ring-1 ring-primary/15' : 'border-border/40'
           )}>
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
@@ -155,7 +155,7 @@ export function SelectDropdown<T extends { id: string }>({
       <PopoverContent
         align="start"
         sideOffset={4}
-        className="w-(--radix-popover-trigger-width) rounded-3xs border border-border/40 bg-popover p-1 shadow-lg">
+        className="w-(--radix-popover-trigger-width) rounded-md border border-border/40 bg-popover p-1 shadow-lg">
         {items.length === 0 && emptyText ? (
           <div className="px-2.5 py-3 text-muted-foreground/45 text-xs">{emptyText}</div>
         ) : virtualize ? (

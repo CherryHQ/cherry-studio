@@ -1,8 +1,23 @@
-import { UploadOutlined } from '@ant-design/icons'
-import { CodeEditor } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import {
+  Button,
+  CodeEditor,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Dropzone,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  Label
+} from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -11,10 +26,12 @@ import { objectKeys, safeValidateMcpConfig } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
 import { formatZodError } from '@renderer/utils/error'
 import type { CreateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
-import { Form, Modal, Upload } from 'antd'
+import { UploadIcon } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
 
 const logger = loggerService.withContext('AddMcpServerModal')
 
@@ -66,6 +83,11 @@ const initialJsonExample = `// Example JSON (stdio):
 // }
 `
 
+const jsonSchema = z.object({
+  serverConfig: z.string().min(1)
+})
+type JsonFieldType = z.infer<typeof jsonSchema>
+
 const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   visible,
   onClose,
@@ -76,11 +98,19 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   const { t } = useTranslation()
   const [fontSize] = usePreference('chat.message.font_size')
   const { activeCmTheme } = useCodeStyle()
-  const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [importMethod, setImportMethod] = useState<'json' | 'dxt'>(initialImportMethod)
   const [dxtFile, setDxtFile] = useState<File | null>(null)
   const { setTimeoutTimer } = useTimer()
+
+  const form = useForm<JsonFieldType>({
+    resolver: zodResolver(
+      z.object({
+        serverConfig: z.string().min(1, t('settings.mcp.addServer.importFrom.placeholder'))
+      })
+    ),
+    defaultValues: { serverConfig: '' }
+  })
 
   // Update import method when initialImportMethod changes
   useEffect(() => {
@@ -130,7 +160,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
     return { serverToAdd, error: null }
   }
 
-  const handleOk = async () => {
+  const handleOk = async (jsonValues?: JsonFieldType) => {
     try {
       setLoading(true)
 
@@ -201,7 +231,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           }
 
           const createdServer = await onSuccess(serverDto)
-          form.resetFields()
+          form.reset({ serverConfig: '' })
           setDxtFile(null)
           onClose()
 
@@ -235,30 +265,22 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         }
       } else {
         // Original JSON import logic
-        const values = await form.validateFields()
-        const inputValue = values.serverConfig.trim()
+        const inputValue = (jsonValues?.serverConfig ?? form.getValues('serverConfig')).trim()
 
         const { serverToAdd, error } = getServerFromJson(inputValue)
 
         if (error !== null) {
-          form.setFields([
-            {
-              name: 'serverConfig',
-              errors: [error]
-            }
-          ])
+          form.setError('serverConfig', { type: 'manual', message: error })
           setLoading(false)
           return
         }
 
         // 檢查重複名稱
         if (existingServers && existingServers.some((server) => server.name === serverToAdd.name)) {
-          form.setFields([
-            {
-              name: 'serverConfig',
-              errors: [t('settings.mcp.addServer.importFrom.nameExists', { name: serverToAdd.name })]
-            }
-          ])
+          form.setError('serverConfig', {
+            type: 'manual',
+            message: t('settings.mcp.addServer.importFrom.nameExists', { name: serverToAdd.name })
+          })
           setLoading(false)
           return
         }
@@ -277,7 +299,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         }
 
         const createdServer = await onSuccess(serverDto)
-        form.resetFields()
+        form.reset({ serverConfig: '' })
         onClose()
 
         // 在背景非同步檢查伺服器可用性並更新狀態
@@ -299,85 +321,93 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
     }
   }
 
-  // CodeEditor 內容變更時的回呼函式
-  const handleEditorChange = useCallback(
-    (newContent: string) => {
-      form.setFieldsValue({ serverConfig: newContent })
-      // 可選：如果希望即時驗證，可以取消註解下一行
-      // form.validateFields(['serverConfig']);
-    },
-    [form]
-  )
-
-  const serverConfigValue = form.getFieldValue('serverConfig')
+  const handleClose = () => {
+    form.reset({ serverConfig: '' })
+    setDxtFile(null)
+    setImportMethod(initialImportMethod)
+    onClose()
+  }
 
   return (
-    <Modal
-      title={
-        importMethod === 'dxt'
-          ? t('settings.mcp.addServer.importFrom.dxt')
-          : t('settings.mcp.addServer.importFrom.json')
-      }
-      open={visible}
-      onOk={handleOk}
-      onCancel={() => {
-        form.resetFields()
-        setDxtFile(null)
-        setImportMethod(initialImportMethod)
-        onClose()
-      }}
-      confirmLoading={loading}
-      destroyOnHidden
-      centered
-      transitionName="animation-move-down"
-      width={600}>
-      <Form form={form} layout="vertical" name="add_mcp_server_form">
+    <Dialog open={visible} onOpenChange={(next) => !next && handleClose()}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>
+            {importMethod === 'dxt'
+              ? t('settings.mcp.addServer.importFrom.dxt')
+              : t('settings.mcp.addServer.importFrom.json')}
+          </DialogTitle>
+        </DialogHeader>
         {importMethod === 'json' ? (
-          <Form.Item
-            name="serverConfig"
-            label={t('settings.mcp.addServer.importFrom.tooltip')}
-            rules={[{ required: true, message: t('settings.mcp.addServer.importFrom.placeholder') }]}>
-            <CodeEditor
-              theme={activeCmTheme}
-              fontSize={fontSize - 1}
-              value={serverConfigValue}
-              placeholder={initialJsonExample}
-              language="json"
-              onChange={handleEditorChange}
-              height="60vh"
-              expanded={false}
-              wrapped
-              options={{
-                lint: true,
-                lineNumbers: true,
-                foldGutter: true,
-                highlightActiveLine: true,
-                keymap: true
-              }}
-            />
-          </Form.Item>
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit((values) => handleOk(values))}
+              className="flex flex-col gap-4"
+              id="add-mcp-server-form">
+              <FormField
+                control={form.control}
+                name="serverConfig"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('settings.mcp.addServer.importFrom.tooltip')}</FormLabel>
+                    <FormControl>
+                      <CodeEditor
+                        theme={activeCmTheme}
+                        fontSize={fontSize - 1}
+                        value={field.value}
+                        placeholder={initialJsonExample}
+                        language="json"
+                        onChange={(newContent) => field.onChange(newContent)}
+                        height="60vh"
+                        expanded={false}
+                        wrapped
+                        options={{
+                          lint: true,
+                          lineNumbers: true,
+                          foldGutter: true,
+                          highlightActiveLine: true,
+                          keymap: true
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </form>
+          </Form>
         ) : (
-          <Form.Item
-            label={t('settings.mcp.addServer.importFrom.dxtFile')}
-            help={t('settings.mcp.addServer.importFrom.dxtHelp')}>
-            <Upload
-              accept=".dxt"
-              maxCount={1}
-              beforeUpload={(file) => {
-                setDxtFile(file)
-                return false // Prevent automatic upload
-              }}
-              onRemove={() => setDxtFile(null)}
-              fileList={dxtFile ? [{ uid: '-1', name: dxtFile.name, status: 'done' } as any] : []}>
-              <Button>
-                <UploadOutlined />
-                {t('settings.mcp.addServer.importFrom.selectDxtFile')}
-              </Button>
-            </Upload>
-          </Form.Item>
+          <div className="flex flex-col gap-2">
+            <Label>{t('settings.mcp.addServer.importFrom.dxtFile')}</Label>
+            <Dropzone
+              accept={{ 'application/octet-stream': ['.dxt'] }}
+              maxFiles={1}
+              src={dxtFile ? [dxtFile] : undefined}
+              onDrop={(files) => setDxtFile(files[0] ?? null)}>
+              <div className="flex flex-col items-center gap-1 text-sm">
+                <UploadIcon className="size-5 text-muted-foreground" />
+                <span>{dxtFile?.name ?? t('settings.mcp.addServer.importFrom.selectDxtFile')}</span>
+              </div>
+            </Dropzone>
+            <p className="text-muted-foreground text-sm">{t('settings.mcp.addServer.importFrom.dxtHelp')}</p>
+          </div>
         )}
-      </Form>
-    </Modal>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>
+            {t('common.cancel')}
+          </Button>
+          {importMethod === 'json' ? (
+            <Button type="submit" form="add-mcp-server-form" disabled={loading}>
+              {t('common.confirm')}
+            </Button>
+          ) : (
+            <Button onClick={() => handleOk()} disabled={loading || !dxtFile}>
+              {t('common.confirm')}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

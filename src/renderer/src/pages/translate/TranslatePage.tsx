@@ -52,7 +52,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { estimateTokenCount } from 'tokenx'
 
-import TranslateHistoryList from './TranslateHistory'
+import TranslateHistoryList from './components/TranslateHistory'
 import TranslateSettings from './TranslateSettings'
 
 const logger = loggerService.withContext('TranslatePage')

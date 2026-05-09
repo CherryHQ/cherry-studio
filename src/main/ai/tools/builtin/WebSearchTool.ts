@@ -15,7 +15,6 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { getResolvedConfig } from '@main/services/webSearch/utils/config'
-import { webSearchService } from '@main/services/webSearch/WebSearchService'
 import {
   WEB_SEARCH_TOOL_NAME,
   webSearchInputSchema,
@@ -58,7 +57,7 @@ Cite sources by [id] in your final answer.`,
   // (in AiService) handles providers that don't honour `strict`.
   strict: true,
   execute: async ({ query }, options): Promise<WebSearchOutput> => {
-    const { request } = getToolCallContext(options)
+    getToolCallContext(options)
 
     const provider = await pickFirstUsableProvider()
     if (!provider) {
@@ -67,10 +66,10 @@ Cite sources by [id] in your final answer.`,
     }
 
     try {
-      const response = await webSearchService.search({
+      const webSearchService = application.get('WebSearchService')
+      const response = await webSearchService.searchKeywords({
         providerId: provider.id,
-        questions: [query],
-        requestId: request.requestId
+        keywords: [query]
       })
       return response.results.map((r, index) => ({
         id: index + 1,
@@ -97,7 +96,12 @@ Cite sources by [id] in your final answer.`,
 async function pickFirstUsableProvider(): Promise<ResolvedWebSearchProvider | undefined> {
   const prefs = application.get('PreferenceService')
   const config = await getResolvedConfig(prefs)
-  return config.providers.find((p) => p.id.startsWith('local-') || p.apiKeys.length > 0 || p.apiHost.length > 0)
+  return config.providers.find(
+    (p) =>
+      p.id.startsWith('local-') ||
+      p.apiKeys.length > 0 ||
+      p.capabilities.some((cap) => cap.apiHost !== undefined && cap.apiHost.length > 0)
+  )
 }
 
 export function createWebSearchToolEntry(): ToolEntry {

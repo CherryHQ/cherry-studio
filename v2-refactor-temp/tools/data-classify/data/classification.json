@@ -647,7 +647,7 @@
           "defaultValue": "VALUE: null",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.file_processing.default_markdown_conversion"
+          "targetKey": "feature.file_processing.default_document_to_markdown"
         }
       ],
       "runtime": [
@@ -3050,7 +3050,7 @@
           "defaultValue": "VALUE: null",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "feature.file_processing.default_text_extraction"
+          "targetKey": "feature.file_processing.default_image_to_text"
         }
       ],
       "note": [

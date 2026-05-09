@@ -1,7 +1,7 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
 import { getLeadingEmoji } from '@renderer/utils'
 import { ChevronRight } from 'lucide-react'
 import { useMemo } from 'react'

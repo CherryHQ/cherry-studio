@@ -1,208 +1,202 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Github Releases Timeline</title>
-    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet" />
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/markdown-it@13.0.1/dist/markdown-it.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/typography@0.5.10/dist/typography.min.css"></script>
-  </head>
 
-  <body id="app">
-    <div :class="isDark ? 'dark-bg' : 'bg'" class="min-h-screen">
-      <div class="mx-auto max-w-3xl px-4 py-12">
-        <h1 class="mb-8 text-3xl font-bold" :class="isDark ? 'text-white' : 'text-gray-900'">Release Timeline</h1>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Github Releases Timeline</title>
+  <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet" />
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it@13.0.1/dist/markdown-it.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/typography@0.5.10/dist/typography.min.css"></script>
+</head>
 
-        <!-- Loading状态 -->
-        <div v-if="loading" class="py-8 text-center">
-          <div
-            class="inline-block h-8 w-8 animate-spin rounded-full border-4"
-            :class="isDark ? 'border-gray-700 border-t-blue-500' : 'border-gray-300 border-t-blue-500'"></div>
-        </div>
+<body id="app">
+  <div :class="isDark ? 'dark-bg' : 'bg'" class="min-h-screen">
+    <div class="mx-auto max-w-3xl px-4 py-12">
+      <h1 class="mb-8 text-3xl font-bold" :class="isDark ? 'text-white' : 'text-gray-900'">Release Timeline</h1>
 
-        <!-- Error 状态 -->
-        <div v-else-if="error" class="py-8 text-center text-red-500">{{ error }}</div>
+      <!-- Loading状态 -->
+      <div v-if="loading" class="py-8 text-center">
+        <div class="inline-block h-8 w-8 animate-spin rounded-full border-4"
+          :class="isDark ? 'border-gray-700 border-t-blue-500' : 'border-gray-300 border-t-blue-500'"></div>
+      </div>
 
-        <!-- Release 列表 -->
-        <div v-else class="space-y-8">
-          <div
-            v-for="release in releases"
-            :key="release.id"
-            class="relative pl-8"
-            :class="isDark ? 'border-l-2 border-gray-700' : 'border-l-2 border-gray-200'">
-            <div class="absolute top-0 -left-2 h-4 w-4 rounded-full bg-green-500"></div>
-            <div
-              class="rounded-lg p-6 shadow-sm transition-shadow"
-              :class="isDark ? 'bg-black hover:shadow-md hover:shadow-black' : 'bg-white hover:shadow-md'">
-              <div class="mb-4 flex items-start justify-between">
-                <div>
-                  <h2 class="text-xl font-semibold" :class="isDark ? 'text-white' : 'text-gray-900'">
-                    {{ release.name || release.tag_name }}
-                  </h2>
-                  <p class="mt-1 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
-                    {{ formatDate(release.published_at) }}
-                  </p>
-                </div>
-                <span
-                  class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium"
-                  :class="isDark ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-800'">
-                  {{ release.tag_name }}
-                </span>
+      <!-- Error 状态 -->
+      <div v-else-if="error" class="py-8 text-center text-red-500">{{ error }}</div>
+
+      <!-- Release 列表 -->
+      <div v-else class="space-y-8">
+        <div v-for="release in releases" :key="release.id" class="relative pl-8"
+          :class="isDark ? 'border-l-2 border-gray-700' : 'border-l-2 border-gray-200'">
+          <div class="absolute top-0 -left-2 h-4 w-4 rounded-full bg-green-500"></div>
+          <div class="rounded-lg p-6 shadow-sm transition-shadow"
+            :class="isDark ? 'bg-black hover:shadow-md hover:shadow-black' : 'bg-white hover:shadow-md'">
+            <div class="mb-4 flex items-start justify-between">
+              <div>
+                <h2 class="text-xl font-semibold" :class="isDark ? 'text-white' : 'text-gray-900'">
+                  {{ release.name || release.tag_name }}
+                </h2>
+                <p class="mt-1 text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
+                  {{ formatDate(release.published_at) }}
+                </p>
               </div>
-              <div
-                class="prose"
-                :class="isDark ? 'text-gray-300 dark-prose' : 'text-gray-600'"
-                v-html="renderMarkdown(release.body)"></div>
+              <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium"
+                :class="isDark ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-800'">
+                {{ release.tag_name }}
+              </span>
             </div>
+            <div class="prose" :class="isDark ? 'text-gray-300 dark-prose' : 'text-gray-600'"
+              v-html="renderMarkdown(release.body)"></div>
           </div>
         </div>
       </div>
     </div>
+  </div>
 
-    <script>
-      const md = window.markdownit({
-        breaks: true,
-        linkify: true
-      })
+  <script>
+    const md = window.markdownit({
+      breaks: true,
+      linkify: true
+    })
 
-      const { createApp } = Vue
+    const { createApp } = Vue
 
-      createApp({
-        data() {
-          return {
-            releases: [],
-            loading: true,
-            error: null,
-            isDark: false
-          }
-        },
-        methods: {
-          async fetchReleases() {
-            try {
-              this.loading = true
-              this.error = null
-              const response = await fetch('https://api.github.com/repos/kangfenmao/cherry-studio/releases')
-              if (!response.ok) {
-                throw new Error('Failed to fetch releases')
-              }
-              this.releases = await response.json()
-            } catch (err) {
-              this.error = 'Error loading releases: ' + err.message
-            } finally {
-              this.loading = false
-            }
-          },
-          formatDate(dateString) {
-            return new Date(dateString).toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })
-          },
-          renderMarkdown(content) {
-            if (!content) return ''
-            return md.render(content)
-          },
-          initTheme() {
-            // 从 URL 参数获取主题设置
-            const url = new URL(window.location.href)
-            const theme = url.searchParams.get('theme')
-            this.isDark = theme === 'dark'
-          }
-        },
-        mounted() {
-          this.initTheme()
-          this.fetchReleases()
+    createApp({
+      data() {
+        return {
+          releases: [],
+          loading: true,
+          error: null,
+          isDark: false
         }
-      }).mount('#app')
-    </script>
-
-    <style>
-      /* 基础的 Markdown 样式 */
-      .prose {
-        line-height: 1.6;
+      },
+      methods: {
+        async fetchReleases() {
+          try {
+            this.loading = true
+            this.error = null
+            const response = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases')
+            if (!response.ok) {
+              throw new Error('Failed to fetch releases')
+            }
+            this.releases = await response.json()
+          } catch (err) {
+            this.error = 'Error loading releases: ' + err.message
+          } finally {
+            this.loading = false
+          }
+        },
+        formatDate(dateString) {
+          return new Date(dateString).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
+        },
+        renderMarkdown(content) {
+          if (!content) return ''
+          return md.render(content)
+        },
+        initTheme() {
+          // 从 URL 参数获取主题设置
+          const url = new URL(window.location.href)
+          const theme = url.searchParams.get('theme')
+          this.isDark = theme === 'dark'
+        }
+      },
+      mounted() {
+        this.initTheme()
+        this.fetchReleases()
       }
+    }).mount('#app')
+  </script>
 
-      .prose h1 {
-        font-size: 1.5em;
-        margin: 1em 0;
-      }
+  <style>
+    /* 基础的 Markdown 样式 */
+    .prose {
+      line-height: 1.6;
+    }
 
-      .prose h2 {
-        font-size: 1.3em;
-        margin: 0.8em 0;
-      }
+    .prose h1 {
+      font-size: 1.5em;
+      margin: 1em 0;
+    }
 
-      .prose h3 {
-        font-size: 1.1em;
-        margin: 0.6em 0;
-      }
+    .prose h2 {
+      font-size: 1.3em;
+      margin: 0.8em 0;
+    }
 
-      .prose ul {
-        list-style-type: disc;
-        margin-left: 1.5em;
-        margin-bottom: 1em;
-      }
+    .prose h3 {
+      font-size: 1.1em;
+      margin: 0.6em 0;
+    }
 
-      .prose ol {
-        list-style-type: decimal;
-        margin-left: 1.5em;
-        margin-bottom: 1em;
-      }
+    .prose ul {
+      list-style-type: disc;
+      margin-left: 1.5em;
+      margin-bottom: 1em;
+    }
 
-      .prose code {
-        padding: 0.2em 0.4em;
-        border-radius: 0.2em;
-        font-size: 0.9em;
-      }
+    .prose ol {
+      list-style-type: decimal;
+      margin-left: 1.5em;
+      margin-bottom: 1em;
+    }
 
-      .dark .prose code {
-        background-color: #1f2937;
-      }
+    .prose code {
+      padding: 0.2em 0.4em;
+      border-radius: 0.2em;
+      font-size: 0.9em;
+    }
 
-      .prose code {
-        background-color: #f3f4f6;
-      }
+    .dark .prose code {
+      background-color: #1f2937;
+    }
 
-      .prose pre code {
-        display: block;
-        padding: 1em;
-        overflow-x: auto;
-      }
+    .prose code {
+      background-color: #f3f4f6;
+    }
 
-      .prose a {
-        color: #3b82f6;
-        text-decoration: underline;
-      }
+    .prose pre code {
+      display: block;
+      padding: 1em;
+      overflow-x: auto;
+    }
 
-      .dark .prose a {
-        color: #60a5fa;
-      }
+    .prose a {
+      color: #3b82f6;
+      text-decoration: underline;
+    }
 
-      .prose blockquote {
-        border-left: 4px solid #e5e7eb;
-        padding-left: 1em;
-        margin: 1em 0;
-      }
+    .dark .prose a {
+      color: #60a5fa;
+    }
 
-      .dark .prose blockquote {
-        border-left-color: #374151;
-        color: #9ca3af;
-      }
+    .prose blockquote {
+      border-left: 4px solid #e5e7eb;
+      padding-left: 1em;
+      margin: 1em 0;
+    }
 
-      .dark .prose {
-        color: #e5e7eb;
-      }
+    .dark .prose blockquote {
+      border-left-color: #374151;
+      color: #9ca3af;
+    }
 
-      .dark-bg {
-        background-color: #151515;
-      }
+    .dark .prose {
+      color: #e5e7eb;
+    }
 
-      .bg {
-        background-color: #f2f2f2;
-      }
-    </style>
-  </body>
+    .dark-bg {
+      background-color: #151515;
+    }
+
+    .bg {
+      background-color: #f2f2f2;
+    }
+  </style>
+</body>
+
 </html>

@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-05-07T13:42:08.146Z
+ * Generated at: 2026-05-08T18:52:48.255Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -712,7 +712,7 @@ export const REDUX_STORE_MAPPINGS = {
   preprocess: [
     {
       originalKey: 'defaultProvider',
-      targetKey: 'feature.file_processing.default_markdown_conversion'
+      targetKey: 'feature.file_processing.default_document_to_markdown'
     }
   ],
   translate: [
@@ -742,7 +742,7 @@ export const REDUX_STORE_MAPPINGS = {
   ocr: [
     {
       originalKey: 'imageProviderId',
-      targetKey: 'feature.file_processing.default_text_extraction'
+      targetKey: 'feature.file_processing.default_image_to_text'
     }
   ],
   note: [

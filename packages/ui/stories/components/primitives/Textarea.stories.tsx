@@ -1,7 +1,6 @@
+import * as Textarea from '@cherrystudio/ui/components/primitives/textarea'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
-
-import * as Textarea from '../../../src/components/primitives/textarea'
 
 const meta: Meta<typeof Textarea.Input> = {
   title: 'Components/Primitives/Textarea',

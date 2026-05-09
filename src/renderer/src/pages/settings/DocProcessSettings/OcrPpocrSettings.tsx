@@ -1,7 +1,7 @@
+import { Input } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import { BuiltinOcrProviderIds, isOcrPpocrProvider } from '@renderer/types'
-import { Input } from 'antd'
 import { startTransition, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -56,7 +56,8 @@ export const OcrPpocrSettings = () => {
         <SettingRowTitle style={{ width: 150 }}>
           {t('settings.tool.ocr.paddleocr.aistudio_access_token')}
         </SettingRowTitle>
-        <Input.Password
+        <Input
+          type="password"
           value={accessToken}
           onChange={onAccessTokenChange}
           onBlur={onBlur}

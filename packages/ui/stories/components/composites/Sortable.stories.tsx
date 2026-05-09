@@ -73,15 +73,15 @@ function ItemCard({ item, dragging }: { item: ExampleItem; dragging: boolean }) 
 }
 
 export const Vertical: Story = {
-  render: (args) => <VerticalDemo {...(args as any)} />
+  render: (args) => <VerticalDemo {...args} />
 }
 
 export const Horizontal: Story = {
-  render: (args) => <HorizontalDemo {...(args as any)} />
+  render: (args) => <HorizontalDemo {...args} />
 }
 
 export const Grid: Story = {
-  render: (args) => <GridDemo {...(args as any)} />
+  render: (args) => <GridDemo {...args} />
 }
 
 function VerticalDemo(args: any) {

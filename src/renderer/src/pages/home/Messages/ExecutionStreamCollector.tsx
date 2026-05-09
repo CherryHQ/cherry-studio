@@ -1,4 +1,5 @@
-import { Chat, useChat } from '@ai-sdk/react'
+import type { Chat } from '@ai-sdk/react'
+import { useChat } from '@ai-sdk/react'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { useEffect, useRef } from 'react'
 

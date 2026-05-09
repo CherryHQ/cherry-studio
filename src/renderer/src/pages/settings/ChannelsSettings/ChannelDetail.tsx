@@ -1,14 +1,32 @@
-import { DeleteOutlined, EditOutlined, FileTextOutlined, PlusOutlined } from '@ant-design/icons'
-import { Switch } from '@cherrystudio/ui'
+import {
+  Alert,
+  Badge,
+  Button,
+  ConfirmDialog,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  EmptyState,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Spinner,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useChannels } from '@renderer/hooks/agents/useChannels'
-import { isSoulModeEnabled } from '@renderer/pages/settings/AgentSettings/shared'
+import { isSoulModeEnabled } from '@renderer/pages/agents/AgentSettings/shared'
 import type { AgentConfiguration } from '@renderer/types'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
-import { Alert, Button, Empty, Input, Modal, Popconfirm, Select, Spin, Tag, Tooltip } from 'antd'
+import { FileText, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -80,6 +98,8 @@ const LOG_LEVEL_COLORS: Record<string, string> = {
   debug: '#8c8c8c'
 }
 
+const NO_AGENT_VALUE = '__none'
+
 // --------------- Log Modal ---------------
 
 const ChannelLogModal: FC<{
@@ -126,36 +146,33 @@ const ChannelLogModal: FC<{
   )
 
   return (
-    <Modal
-      open={open}
-      title={
-        <div className="flex items-center gap-2">
-          <span>{`${channelName} — ${t('agent.cherryClaw.channels.logs')}`}</span>
-          {logs.length > 0 && <CopyButton textToCopy={logsText} size={14} />}
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <DialogContent className="max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span>{`${channelName} — ${t('agent.cherryClaw.channels.logs')}`}</span>
+            {logs.length > 0 && <CopyButton textToCopy={logsText} size={14} />}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="max-h-100 overflow-y-auto rounded-md bg-background-subtle p-2 font-mono text-[11px] leading-[1.6]">
+          {logs.length === 0 && (
+            <div className="py-8 text-center text-muted-foreground text-xs">
+              {t('agent.cherryClaw.channels.noLogs')}
+            </div>
+          )}
+          {logs.map((entry, i) => (
+            <div key={i} className="flex gap-2 whitespace-pre-wrap py-px">
+              <span className="shrink-0 text-muted-foreground">{formatTime(entry.timestamp)}</span>
+              <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? '#8c8c8c', fontWeight: 500 }}>
+                [{entry.level.toUpperCase()}]
+              </span>
+              <span className="break-all">{entry.message}</span>
+            </div>
+          ))}
+          <div ref={logEndRef} />
         </div>
-      }
-      footer={null}
-      onCancel={onClose}
-      width={600}
-      destroyOnHidden
-      transitionName="animation-move-down"
-      centered>
-      <div className="max-h-100 overflow-y-auto rounded-[6px] bg-(--color-background-soft) p-2 font-mono text-[11px] leading-[1.6]">
-        {logs.length === 0 && (
-          <div className="py-8 text-center text-foreground-400 text-xs">{t('agent.cherryClaw.channels.noLogs')}</div>
-        )}
-        {logs.map((entry, i) => (
-          <div key={i} className="flex gap-2 whitespace-pre-wrap py-px">
-            <span className="shrink-0 text-foreground-400">{formatTime(entry.timestamp)}</span>
-            <span style={{ color: LOG_LEVEL_COLORS[entry.level] ?? '#8c8c8c', fontWeight: 500 }}>
-              [{entry.level.toUpperCase()}]
-            </span>
-            <span className="break-all">{entry.message}</span>
-          </div>
-        ))}
-        <div ref={logEndRef} />
-      </div>
-    </Modal>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -194,10 +211,11 @@ const ChannelEditModal: FC<
   }, [channel, name, onSave])
 
   const handleAgentChange = useCallback(
-    (value: string | null) => {
-      setAgentId(value)
+    (value: string) => {
+      const nextAgentId = value === NO_AGENT_VALUE ? null : value
+      setAgentId(nextAgentId)
       if (channel) {
-        onSave(channel.id, { agentId: value })
+        onSave(channel.id, { agentId: nextAgentId })
       }
     },
     [channel, onSave]
@@ -213,48 +231,55 @@ const ChannelEditModal: FC<
   const FormComponent = channel ? getFormForType(channel.type) : null
 
   return (
-    <Modal
-      open={open}
-      title={channel?.name}
-      footer={null}
-      onCancel={onClose}
-      width={500}
-      destroyOnHidden
-      centered
-      transitionName="animation-move-down">
-      {channel && (
-        <div className="flex flex-col gap-4 py-2">
-          <div>
-            <label className="mb-1 block font-medium text-xs">{t('common.name')}</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={handleNameBlur} size="small" />
-          </div>
-          <div>
-            <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.bindAgent')}</label>
-            <Select
-              value={agentId}
-              onChange={handleAgentChange}
-              size="small"
-              className="w-full"
-              allowClear
-              placeholder={t('agent.cherryClaw.channels.selectAgent')}
-              options={agents.map((a) => ({ value: a.id, label: a.name }))}
-            />
-            {showSoulModeWarning && (
-              <Alert
-                type="warning"
-                showIcon
-                message={t('agent.cherryClaw.channels.soulModeRequired')}
-                className="mt-2"
-                style={{ fontSize: 12 }}
-              />
-            )}
-          </div>
-          {FormComponent && (
-            <FormComponent channel={channel} onConfigChange={handleUpdate} onRemove={() => onDelete(channel.id)} />
-          )}
-        </div>
-      )}
-    </Modal>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <DialogContent className="max-w-[500px]">
+        {channel && (
+          <>
+            <DialogHeader>
+              <DialogTitle>{channel.name}</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="mb-1 block font-medium text-xs">{t('common.name')}</label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onBlur={handleNameBlur}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.bindAgent')}</label>
+                <Select value={agentId ?? NO_AGENT_VALUE} onValueChange={handleAgentChange}>
+                  <SelectTrigger size="sm" className="w-full">
+                    <SelectValue placeholder={t('agent.cherryClaw.channels.selectAgent')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_AGENT_VALUE}>{t('common.none')}</SelectItem>
+                    {agents.map((agent) => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        {agent.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {showSoulModeWarning && (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message={t('agent.cherryClaw.channels.soulModeRequired')}
+                    className="mt-2 text-xs"
+                  />
+                )}
+              </div>
+              {FormComponent && (
+                <FormComponent channel={channel} onConfigChange={handleUpdate} onRemove={() => onDelete(channel.id)} />
+              )}
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -272,6 +297,7 @@ const ChannelInstanceRow: FC<{
   const { t } = useTranslation()
   const summary = getChannelSummary(channel)
   const agentName = agents.find((a) => a.id === channel.agentId)?.name
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const isConnected = connectionStatus?.connected ?? false
   const hasError = connectionStatus?.error
@@ -282,17 +308,17 @@ const ChannelInstanceRow: FC<{
     if (isConnected) {
       statusColor = 'bg-green-500'
       statusTag = (
-        <Tag color="success" className="text-[10px] leading-3.5">
+        <Badge className="border-success/30 bg-success/10 px-1.5 py-0 text-[10px] text-success leading-3.5">
           {t('agent.cherryClaw.channels.connected')}
-        </Tag>
+        </Badge>
       )
     } else if (hasError) {
       statusColor = 'bg-red-500'
       statusTag = (
         <Tooltip title={hasError}>
-          <Tag color="error" className="text-[10px] leading-3.5">
+          <Badge className="border-destructive/30 bg-destructive/10 px-1.5 py-0 text-[10px] text-destructive leading-3.5">
             {t('agent.cherryClaw.channels.error')}
-          </Tag>
+          </Badge>
         </Tooltip>
       )
     }
@@ -312,20 +338,33 @@ const ChannelInstanceRow: FC<{
         </div>
       </div>
       <Tooltip title={t('agent.cherryClaw.channels.logs')}>
-        <Button type="text" size="small" icon={<FileTextOutlined />} onClick={onShowLogs} />
+        <Button variant="ghost" size="icon-sm" onClick={onShowLogs}>
+          <FileText className="size-4" />
+        </Button>
       </Tooltip>
       <Tooltip title={t('common.edit')}>
-        <Button type="text" size="small" icon={<EditOutlined />} onClick={onEdit} />
+        <Button variant="ghost" size="icon-sm" onClick={onEdit}>
+          <Pencil className="size-4" />
+        </Button>
       </Tooltip>
-      <Popconfirm
+      <Tooltip title={t('common.delete')}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="hover:!text-destructive"
+          onClick={() => setDeleteConfirmOpen(true)}>
+          <Trash2 className="size-4" />
+        </Button>
+      </Tooltip>
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
         title={t('agent.cherryClaw.channels.deleteConfirm', { name: channel.name })}
+        confirmText={t('common.confirm')}
+        cancelText={t('common.cancel')}
+        destructive
         onConfirm={onDelete}
-        okText={t('common.confirm')}
-        cancelText={t('common.cancel')}>
-        <Tooltip title={t('common.delete')}>
-          <Button type="text" size="small" icon={<DeleteOutlined />} danger />
-        </Tooltip>
-      </Popconfirm>
+      />
       <Switch checked={channel.isActive} size="sm" onCheckedChange={onToggle} />
     </div>
   )
@@ -452,7 +491,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       <Scrollbar
         className="flex flex-1 flex-col items-center justify-center px-5 py-4"
         style={{ height: 'calc(100vh - var(--navbar-height))' }}>
-        <Spin />
+        <Spinner text={t('common.loading')} />
       </Scrollbar>
     )
   }
@@ -461,31 +500,29 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   return (
     <Scrollbar className="flex flex-1 flex-col px-5 py-4" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
-      <div className="mb-1">
-        <SettingTitle>
-          <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-4 pb-1">
+        <div className="min-w-0">
+          <SettingTitle className="justify-start gap-2">
             {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
-            <span>{channelDef.name}</span>
-          </div>
-          <Button
-            type="primary"
-            size="small"
-            icon={<PlusOutlined />}
-            disabled={!channelDef.available}
-            onClick={handleAdd}>
-            {t('agent.cherryClaw.channels.add')}
-          </Button>
-        </SettingTitle>
-        <p className="mt-1.5 mb-0 text-(--color-text-3) text-xs">
-          {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
-        </p>
+            <span className="truncate">{channelDef.name}</span>
+          </SettingTitle>
+          <p className="mt-1.5 mb-0 text-(--color-foreground-muted) text-xs">
+            {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
+          </p>
+        </div>
+        <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
+          <Plus className="size-4" />
+          {t('agent.cherryClaw.channels.add')}
+        </Button>
       </div>
-      <SettingDivider style={{ margin: '0 0 4px 0' }} />
+      <SettingDivider className="m-0 mt-2" />
       <div className="flex flex-col">
         {channelList.length === 0 && (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          <EmptyState
+            compact
+            preset="no-resource"
             description={t('agent.cherryClaw.channels.noInstances', { type: channelDef.name })}
+            className="py-8"
           />
         )}
         {channelList.map((ch) => (

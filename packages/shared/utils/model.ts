@@ -328,6 +328,19 @@ export const isClaude46SeriesModel = (model: Model): boolean => {
   return /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-]6(?:[@\-:][\w\-:]+)?$/i.test(id)
 }
 
+/** Check if model is Claude Opus 4.7. Rejects temperature/top_p/top_k and natively supports xhigh reasoning effort. */
+export const isClaude47SeriesModel = (model: Model): boolean => {
+  const id = getLowerBaseModelName(getRawModelId(model), '/')
+  return /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i.test(id)
+}
+
+/** Check if model is a Gemma 4 model hosted on Gemini API (supports thinking mode but no hard-off). */
+export const isHostedGemma4ThinkingModel = (model: Model): boolean => {
+  if (model.providerId !== 'gemini') return false
+  const id = getLowerBaseModelName(getRawModelId(model), '/')
+  return id.startsWith('gemma-4-')
+}
+
 /** Check if model is Claude 4.5 reasoning */
 export const isClaude45ReasoningModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
