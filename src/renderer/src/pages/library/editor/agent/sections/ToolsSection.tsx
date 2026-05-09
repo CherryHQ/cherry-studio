@@ -4,13 +4,13 @@ import { permissionModeCards } from '@renderer/config/agent'
 import {
   computeModeDefaults,
   mergeAutoApprovedTools,
-  normalizePermissionMode,
-  uniq
+  normalizePermissionMode
 } from '@renderer/hooks/agents/permissionMode'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { Tool } from '@renderer/types'
 import type { AgentDetail } from '@shared/data/types/agent'
 import type { MCPServer } from '@shared/data/types/mcpServer'
+import { uniq } from 'lodash'
 import { Network, Search, Sparkles, Wrench } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'

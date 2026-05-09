@@ -230,7 +230,7 @@ class SkillsServer {
   }
 
   private async listSkills() {
-    const skills = await skillService.list(this.agentId)
+    const skills = await skillService.list({ agentId: this.agentId })
 
     if (skills.length === 0) {
       return { content: [{ type: 'text' as const, text: 'No skills installed.' }] }

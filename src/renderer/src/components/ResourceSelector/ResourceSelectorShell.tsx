@@ -243,8 +243,11 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   // Reset search text on close. Filter panel + right-click menu dismiss is handled by EntitySelector.
   useEffect(() => {
-    if (!open) setSearchValue('')
-  }, [open])
+    if (open) return
+    setSearchValue('')
+    const timer = window.setTimeout(runPendingCloseAction, 0)
+    return () => window.clearTimeout(timer)
+  }, [open, runPendingCloseAction])
 
   // Fire onOpen for both Radix-internal and external (controlled) opens. Routing this through
   // an effect on the effective `open` value covers the controlled `open=true` path that
@@ -252,7 +255,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const handleOpen = useEffectEvent(() => onOpen?.())
   useEffect(() => {
     if (open) handleOpen()
-  }, [open])
+  }, [open, handleOpen])
 
   // Normalize caller's value to an id list for both the EntitySelector contract (string/string[])
   // and the toolbar's initial seed.
@@ -539,7 +542,6 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       trigger={trigger}
       open={open}
       onOpenChange={handleOpenChange}
-      onCloseComplete={runPendingCloseAction}
       sections={sections}
       mode={entityMode}
       value={entityValue}

@@ -108,7 +108,7 @@ describe('SkillService', () => {
         isEnabled: true
       })
 
-      const result = await skillService.list(AGENT_ID)
+      const result = await skillService.list({ agentId: AGENT_ID })
 
       expect(result).toHaveLength(3)
       const one = result.find((s) => s.id === SKILL_ID_1)
@@ -122,7 +122,7 @@ describe('SkillService', () => {
       await seedAgent()
       await seedSkills()
 
-      const result = await skillService.list(AGENT_ID)
+      const result = await skillService.list({ agentId: AGENT_ID })
 
       expect(result.every((s) => s.isEnabled === false)).toBe(true)
     })

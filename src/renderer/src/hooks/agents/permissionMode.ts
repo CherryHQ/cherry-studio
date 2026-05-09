@@ -1,4 +1,5 @@
 import type { PermissionMode, Tool } from '@renderer/types'
+import { uniq } from 'lodash'
 
 export const DEFAULT_MAX_TURNS = 100
 export const DEFAULT_PERMISSION_MODE = 'default' as const
@@ -57,8 +58,4 @@ export function mergeAutoApprovedTools(
   tools: Tool[]
 ): string[] {
   return uniq([...allowedTools, ...computeModeDefaults(permissionMode, tools)])
-}
-
-export function uniq(values: readonly string[]): string[] {
-  return Array.from(new Set(values))
 }

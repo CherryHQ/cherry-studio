@@ -32,8 +32,6 @@ import { SkillInstaller } from './SkillInstaller'
 
 const logger = loggerService.withContext('SkillService')
 
-type SkillListOptions = string | ListSkillsQuery
-
 // API base URLs for the 3 search sources
 const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 
@@ -79,8 +77,7 @@ export class SkillService {
     return this.getSkillById(id)
   }
 
-  async list(options?: SkillListOptions): Promise<InstalledSkill[]> {
-    const query: ListSkillsQuery = typeof options === 'string' ? { agentId: options } : (options ?? {})
+  async list(query: ListSkillsQuery = {}): Promise<InstalledSkill[]> {
     const conditions: SQL[] = []
 
     if (query.search) {
