@@ -142,38 +142,50 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.4 - Bug Fixes & Model Support
-
-    🐛 Bug Fixes
-    - [OpenCode] NEWAPI provider models now appear in the dropdown and route correctly
-    - [Image Generation] Fixed gpt-image-2/gpt-image-1.5 editing and generation across multiple providers
-    - [Models] Fixed Kimi K2.6 requests being rejected due to unsupported temperature settings
-    - [Gateway] Fixed Vercel AI Gateway model list fetch failing due to missing authentication
-    - [Copilot] Fixed GitHub Copilot model synchronization
+    Cherry Studio 1.9.5 - Bug Fixes & Claude Opus 4.7
 
     ✨ New Features
-    - [Models] Added MiMo V2.5 model support with reasoning and calling capabilities
-    - [Models] Added DeepSeek V4+ model support with reasoning effort control (high/max)
-    - [Models] Mistral Small 4 now supports vision and adjustable reasoning effort
+    - [Models] Add support for Claude Opus 4.7 with xhigh reasoning effort and adaptive thinking
 
-    💄 Improvements
-    - [Agents] Removed auto-injected @cherry/browser MCP (re-enable manually if needed)
+    🐛 Bug Fixes
+    - [Backup] Fix silent data loss on macOS/Linux when importing backups
+    - [Agents] Fix CherryIN OpenAI-protocol models not appearing in Agent model picker
+    - [Models] Fix incorrect default icons for Tongyi models
+    - [OpenCode] Fix "Update Available" dialog showing incorrectly
+    - [Models] Fix hosted Gemma 4 thinking mode options
+    - [Models] Fix DeepSeek V4 routed model slugs not recognized for reasoning effort
+    - [Image] Fix generated image re-editing in NewApiPage
+    - [Models] Update built-in DeepSeek defaults to V4 models
+    - [i18n] Fix default assistant and topic names not updating on language switch
+    - [Feishu] Fix typing indicator now shows emoji reaction
+    - [API] Fix Anthropic endpoint producing double /v1 path causing 404 errors
+    - [Gateway] Fix Vercel AI Gateway model listing returning empty list
+    - [Models] Fix JSON response error with DeepSeek/Zhipu models on SiliconFlow
+    - [UI] Fix scrolling in horizontal multi-model message layout
+    - [Vertex] Fix model listing and service account setup for Vertex AI
+    - [Search] Fix web search truncating assistant response
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.4 - 错误修复与模型支持
-
-    🐛 问题修复
-    - [OpenCode] NEWAPI 服务商模型现在显示在列表中并正确路由
-    - [图像生成] 修复多个服务商的 gpt-image-2/gpt-image-1.5 编辑和生成问题
-    - [模型] 修复 Kimi K2.6 因不支持的温度设置导致请求失败
-    - [网关] 修复 Vercel AI Gateway 模型列表获取因缺少认证而失败
-    - [Copilot] 修复 GitHub Copilot 模型同步问题
+    Cherry Studio 1.9.5 - 错误修复与 Claude Opus 4.7 支持
 
     ✨ 新功能
-    - [模型] 添加 MiMo V2.5 模型支持，包含推理和调用能力
-    - [模型] 添加 DeepSeek V4+ 模型支持，支持推理强度控制 (high/max)
-    - [模型] Mistral Small 4 现在支持视觉和可调节推理强度
+    - [模型] 添加 Claude Opus 4.7 支持，包含 xhigh 推理强度和自适应思考模式
 
-    💄 改进
-    - [智能体] 移除自动注入的 @cherry/browser MCP（如需要请手动重新启用）
+    🐛 问题修复
+    - [备份] 修复 macOS/Linux 上导入备份时的静默数据丢失问题
+    - [智能体] 修复 CherryIN OpenAI 协议模型未出现在智能体模型选择器中
+    - [模型] 修复通义模型默认图标错误
+    - [OpenCode] 修复"更新可用"对话框错误显示
+    - [模型] 修复托管版 Gemma 4 推理模式选项
+    - [模型] 修复 DeepSeek V4 路由模型 slug 无法识别推理强度
+    - [图像] 修复 NewApiPage 中生成图像的重新编辑功能
+    - [模型] 更新内置 DeepSeek 默认模型为 V4 版本
+    - [国际化] 修复切换语言时默认助手和主题名称不更新
+    - [飞书] 修复输入指示器，现在显示表情反应
+    - [API] 修复 Anthropic 端点产生双重 /v1 路径导致 404 错误
+    - [网关] 修复 Vercel AI Gateway 模型列表返回空列表
+    - [模型] 修复 SiliconFlow 上 DeepSeek/智谱模型的 JSON 响应错误
+    - [界面] 修复水平多模型消息布局中的滚动问题
+    - [Vertex] 修复 Vertex AI 的模型列表和服务账户设置
+    - [搜索] 修复网络搜索截断助手响应
     <!--LANG:END-->
