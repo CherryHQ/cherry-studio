@@ -19,7 +19,7 @@ import {
   type ModelSchemas,
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
-import { parseUniqueModelId, UNIQUE_MODEL_ID_SEPARATOR } from '@shared/data/types/model'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('DataApi:ModelHandlers')
 
@@ -27,18 +27,19 @@ const logger = loggerService.withContext('DataApi:ModelHandlers')
  * Parse a UniqueModelId from the transport layer, raising a 422 validation
  * error (instead of a bare Error → 500) when the shape is malformed.
  *
- * Boundary policy is intentionally permissive: only "no separator at all" is
- * a transport-level error. Empty `providerId` / `modelId` parts pass through
- * to the service — this contract is pinned by handler tests so callers that
- * legitimately need that shape (delete-by-prefix probes, etc.) keep working.
+ * Uses the permissive `isUniqueModelId` predicate intentionally: only "no
+ * separator at all" is a transport-level error. Empty `providerId` / `modelId`
+ * parts pass through to the service — this contract is pinned by handler
+ * tests so callers that legitimately need that shape (delete-by-prefix
+ * probes, etc.) keep working.
  */
 const parseOrValidationError = (uniqueModelId: string) => {
-  if (!uniqueModelId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
+  if (!isUniqueModelId(uniqueModelId)) {
     throw DataApiErrorFactory.validation({
       uniqueModelId: [`Expected "providerId::modelId", got "${uniqueModelId}"`]
     })
   }
-  return parseUniqueModelId(uniqueModelId as never)
+  return parseUniqueModelId(uniqueModelId)
 }
 
 async function enrichCreateItems(dtos: CreateModelDto[]) {

@@ -86,23 +86,34 @@ const RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS = ['?', '#'] as const
 export type UniqueModelId = `${string}${typeof UNIQUE_MODEL_ID_SEPARATOR}${string}`
 
 /**
- * Single source of truth for whether a value is a valid encoded UniqueModelId.
- * `createUniqueModelId`, `parseUniqueModelId`, and `UniqueModelIdSchema` all
- * delegate here so their accept/reject sets stay aligned.
+ * Syntactic check for "looks like an encoded UniqueModelId" — value is a
+ * string and contains the separator. Permissive on purpose: empty providerId
+ * or modelId parts are accepted here so handler boundaries that legitimately
+ * forward partial ids (e.g. delete-by-prefix probes) can use this as a cheap
+ * upfront guard. For round-trip-strict validation (matches the contract of
+ * `createUniqueModelId`), use `UniqueModelIdSchema`.
  */
 export function isUniqueModelId(value: unknown): value is UniqueModelId {
-  if (typeof value !== 'string') return false
-  const idx = value.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
-  if (idx <= 0) return false
-  const modelId = value.slice(idx + UNIQUE_MODEL_ID_SEPARATOR.length)
-  if (modelId.length === 0) return false
-  return !RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.some((char) => modelId.includes(char))
+  return typeof value === 'string' && value.includes(UNIQUE_MODEL_ID_SEPARATOR)
 }
 
-/** Zod schema for UniqueModelId with runtime validation */
-export const UniqueModelIdSchema = z.custom<UniqueModelId>(isUniqueModelId, {
-  message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)`
-})
+/**
+ * Zod schema for UniqueModelId — the strict form that mirrors
+ * `createUniqueModelId`'s contract: separator at a real position, both parts
+ * non-empty, and no reserved route characters in the modelId. Used at API
+ * boundaries that accept fully-formed ids in DTO bodies.
+ */
+export const UniqueModelIdSchema = z.custom<UniqueModelId>(
+  (value) => {
+    if (typeof value !== 'string') return false
+    const idx = value.indexOf(UNIQUE_MODEL_ID_SEPARATOR)
+    if (idx <= 0) return false
+    const modelId = value.slice(idx + UNIQUE_MODEL_ID_SEPARATOR.length)
+    if (modelId.length === 0) return false
+    return !RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.some((char) => modelId.includes(char))
+  },
+  { message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)` }
+)
 
 /**
  * Create a UniqueModelId from provider and model IDs.
@@ -127,14 +138,10 @@ export function createUniqueModelId(providerId: string, modelId: string): Unique
 }
 
 /**
- * Parse a UniqueModelId into its components.
- *
- * Permissive on purpose: the only hard requirement is that a separator exists
- * so the split is well-defined. Empty `providerId` / `modelId` parts are
- * intentionally allowed through — boundary code (handlers, services) decides
- * whether to accept or reject them, and several handler contracts pin the
- * "pass empty parts through to the service" behavior. For strict, fully-formed
- * validation use `isUniqueModelId` or `UniqueModelIdSchema`.
+ * Parse a UniqueModelId into its components — splits on the FIRST separator.
+ * Same permissive semantics as `isUniqueModelId`: empty `providerId` or
+ * `modelId` parts pass through, callers decide whether to reject them. For
+ * strict, fully-formed validation use `UniqueModelIdSchema`.
  *
  * @throws Error if the value does not contain `${UNIQUE_MODEL_ID_SEPARATOR}`.
  */
