@@ -85,14 +85,13 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     targetsRef.current = { preferred: preferredLang, alter: alterLang }
   }, [preferredLang, alterLang])
 
-  // Track the displayed target with the preferred language until fetchResult
-  // resolves the actual translate target, so the dropdown does not flash UNKNOWN
-  // before useLanguages loads.
+  // Track the displayed target with the preferred language only before the
+  // first translation run; fetchResult owns it after initialization.
   useEffect(() => {
-    if (status === 'preparing') {
+    if (!initialized) {
       setActualTargetLanguage(preferredLang)
     }
-  }, [preferredLang, status])
+  }, [preferredLang, initialized])
 
   const fetchResult = useCallback(
     // overrideTarget bypasses the smart preferred/alter swap when the user
