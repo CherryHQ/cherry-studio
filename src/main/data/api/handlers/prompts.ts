@@ -20,7 +20,7 @@ export const promptHandlers: HandlersFor<PromptSchemas> = {
   '/prompts': {
     GET: async ({ query }) => {
       const parsed = ListPromptsQuerySchema.parse(query ?? {})
-      return await promptService.getAll(parsed)
+      return await promptService.list(parsed)
     },
 
     POST: async ({ body }) => {

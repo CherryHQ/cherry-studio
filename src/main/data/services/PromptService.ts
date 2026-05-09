@@ -49,7 +49,7 @@ export class PromptService {
     return application.get('DbService').getDb()
   }
 
-  async getAll(query: ListPromptsQuery = {}): Promise<Prompt[]> {
+  async list(query: ListPromptsQuery = {}): Promise<Prompt[]> {
     // Canonical API order is old → new; settings UI reverses this for display.
     const conditions: SQL[] = []
     if (query.search) {

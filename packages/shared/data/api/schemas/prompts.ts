@@ -5,6 +5,7 @@
  * Entity schemas and types live in `@shared/data/types/prompt`.
  */
 
+import type { SearchParams } from '@shared/data/api'
 import * as z from 'zod'
 
 import { type Prompt, PromptIdSchema as SharedPromptIdSchema, PromptSchema } from '../../types/prompt'
@@ -33,7 +34,7 @@ export const ListPromptsQuerySchema = z.strictObject({
   search: z.string().trim().min(1).optional()
 })
 export type ListPromptsQueryParams = z.input<typeof ListPromptsQuerySchema>
-export type ListPromptsQuery = z.output<typeof ListPromptsQuerySchema>
+export type ListPromptsQuery = SearchParams
 
 // ============================================================================
 // API Schema Definitions
