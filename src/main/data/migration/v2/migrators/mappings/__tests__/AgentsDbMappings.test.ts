@@ -39,7 +39,7 @@ describe('AgentsDbMappings', () => {
 
     expect(statements[0]).toBe("ATTACH DATABASE '/tmp/agent''s.db' AS agents_legacy")
     expect(statements).toContain(
-      `INSERT INTO agent (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, order_key, deleted_at, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, COALESCE(accessible_paths, '[]') AS accessible_paths, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
+      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, order_key, deleted_at, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
     )
     expect(statements.at(-1)).toBe('DETACH DATABASE agents_legacy')
   })
@@ -69,7 +69,7 @@ describe('AgentsDbMappings', () => {
 
     // deleted_at absent from source → skipped in INSERT (resolveColumnSelection returns null)
     expect(statements).toContain(
-      `INSERT INTO agent (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, order_key, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, COALESCE(accessible_paths, '[]') AS accessible_paths, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
+      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, order_key, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
     )
     expect(statements.some((statement) => statement.includes('agents_legacy.skills'))).toBe(false)
   })
@@ -355,7 +355,7 @@ describe('AgentsDbMappings', () => {
 
     const agentInsert = find('agent')
     expect(agentInsert).toContain("COALESCE(description, '') AS description")
-    expect(agentInsert).toContain("COALESCE(accessible_paths, '[]') AS accessible_paths")
+    expect(agentInsert).not.toContain('accessible_paths')
     expect(agentInsert).toContain("COALESCE(mcps, '[]') AS mcps")
     expect(agentInsert).toContain("COALESCE(allowed_tools, '[]') AS allowed_tools")
     expect(agentInsert).toContain("COALESCE(configuration, '{}') AS configuration")
@@ -363,6 +363,9 @@ describe('AgentsDbMappings', () => {
 
     const sessionInsert = find('agent_session')
     expect(sessionInsert).toContain("COALESCE(description, '') AS description")
+    expect(sessionInsert).toContain(
+      "COALESCE(accessible_paths, (SELECT a.accessible_paths FROM agents_legacy.agents a WHERE a.id = sessions.agent_id), '[]') AS accessible_paths"
+    )
     expect(sessionInsert).toContain("'' AS order_key")
 
     const skillInsert = find('agent_global_skill')
@@ -389,7 +392,6 @@ describe('AgentsDbMappings', () => {
     const EXPECTED_DEFAULTS: Record<string, Record<string, ColumnDefault>> = {
       agent: {
         description: { defaultExpr: "''" },
-        accessible_paths: { defaultExpr: "'[]'" },
         mcps: { defaultExpr: "'[]'" },
         allowed_tools: { defaultExpr: "'[]'" },
         configuration: { defaultExpr: "'{}'" },

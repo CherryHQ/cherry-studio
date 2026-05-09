@@ -11,7 +11,6 @@ export const agentTable = sqliteTable(
     type: text().notNull(),
     name: text().notNull(),
     description: text().notNull().default(''),
-    accessiblePaths: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
     instructions: text().notNull(),
     model: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     planModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),

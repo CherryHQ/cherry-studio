@@ -36,14 +36,6 @@
           "autoincrement": false,
           "default": "''"
         },
-        "accessible_paths": {
-          "name": "accessible_paths",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
         "instructions": {
           "name": "instructions",
           "type": "text",
@@ -517,6 +509,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "''"
+        },
+        "accessible_paths": {
+          "name": "accessible_paths",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "order_key": {
           "name": "order_key",

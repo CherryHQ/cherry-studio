@@ -5,6 +5,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { pinService } from '@data/services/PinService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { resolveAccessiblePaths } from '@main/services/agents/agentUtils'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -14,7 +15,7 @@ import type {
   ListSessionsQuery,
   UpdateSessionDto
 } from '@shared/data/api/schemas/sessions'
-import { and, asc, eq, gt, or, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, or, type SQL } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -30,6 +31,7 @@ function rowToSession(row: SessionRow): AgentSessionEntity {
     agentId: row.agentId,
     name: row.name,
     description: row.description || undefined,
+    accessiblePaths: row.accessiblePaths,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -70,6 +72,20 @@ export class SessionService {
       .limit(1)
     if (!agent) throw DataApiErrorFactory.notFound('Agent', dto.agentId)
 
+    let workspaceInput = dto.accessiblePaths
+    if (!workspaceInput || workspaceInput.length === 0) {
+      const [sibling] = await db
+        .select({ accessiblePaths: sessionsTable.accessiblePaths })
+        .from(sessionsTable)
+        .where(eq(sessionsTable.agentId, dto.agentId))
+        .orderBy(desc(sessionsTable.createdAt))
+        .limit(1)
+      if (sibling?.accessiblePaths && sibling.accessiblePaths.length > 0) {
+        workspaceInput = sibling.accessiblePaths
+      }
+    }
+    const accessiblePaths = resolveAccessiblePaths(workspaceInput)
+
     const id = uuidv4()
     const row = await withSqliteErrors(
       () =>
@@ -77,7 +93,7 @@ export class SessionService {
           insertWithOrderKey(
             tx,
             sessionsTable,
-            { id, agentId: dto.agentId, name: dto.name, description: dto.description },
+            { id, agentId: dto.agentId, name: dto.name, description: dto.description, accessiblePaths },
             { pkColumn: sessionsTable.id, position: 'first' }
           )
         ),

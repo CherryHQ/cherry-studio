@@ -212,7 +212,26 @@ class SchedulerService {
       }
 
       const config = agent.configuration ?? {}
-      const workspacePath = agent.accessiblePaths?.[0]
+
+      // Resolve subscribed channels
+      subscribedChannels = await channelService.getSubscribedChannels(task.id)
+
+      // Resolve session BEFORE reading workspace — workspace now lives on the
+      // session (CMA Environment binding). createSession inherits accessiblePaths
+      // from the latest sibling session of the same agent when omitted.
+      const lastSessionId = await taskService.getLastRunSessionId(task.id)
+      let session = lastSessionId ? await sessionService.getById(lastSessionId).catch(() => null) : null
+
+      if (session) {
+        sessionId = session.id
+        logger.debug('Reusing session from last run', { taskId: task.id, sessionId })
+      } else {
+        session = await sessionService.createSession({ agentId: task.agentId, name: task.name || 'Scheduled run' })
+        sessionId = session.id
+        logger.debug('Created new session for task', { taskId: task.id, sessionId })
+      }
+
+      const workspacePath = session.accessiblePaths?.[0]
 
       // For heartbeat tasks, read prompt from workspace heartbeat.md file
       let fullPrompt = task.prompt
@@ -241,22 +260,6 @@ class SchedulerService {
           '---',
           heartbeatContent
         ].join('\n')
-      }
-
-      // Resolve subscribed channels
-      subscribedChannels = await channelService.getSubscribedChannels(task.id)
-
-      // Try to reuse the session from the last successful run for context continuity
-      const lastSessionId = await taskService.getLastRunSessionId(task.id)
-      let session = lastSessionId ? await sessionService.getById(lastSessionId).catch(() => null) : null
-
-      if (session) {
-        sessionId = session.id
-        logger.debug('Reusing session from last run', { taskId: task.id, sessionId })
-      } else {
-        session = await sessionService.createSession({ agentId: task.agentId, name: task.name || 'Scheduled run' })
-        sessionId = session.id
-        logger.debug('Created new session for task', { taskId: task.id, sessionId })
       }
 
       if (!agent.model) {

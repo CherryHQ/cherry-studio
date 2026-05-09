@@ -104,14 +104,13 @@ const AgentSessionInputbar = ({
     } satisfies Assistant
   }, [session, agent, agentId, sessionModel])
 
-  // Prepare session data for tools (slashCommands derive from agent.type)
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
     return {
       agentId,
       sessionId,
       agentType: agent.type,
-      accessiblePaths: agent.accessiblePaths ?? []
+      accessiblePaths: session.accessiblePaths ?? []
     }
   }, [session, agent, agentId, sessionId])
 

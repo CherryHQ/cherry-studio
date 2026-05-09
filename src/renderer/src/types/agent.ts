@@ -58,7 +58,6 @@ export type BaseAgentForm = {
   description?: string
   instructions?: string
   model: string
-  accessiblePaths: string[]
   allowedTools: string[]
   mcps?: string[]
   configuration?: AgentConfiguration
@@ -72,13 +71,15 @@ export type UpdateAgentForm = Partial<Omit<BaseAgentForm, 'type'>> & {
 }
 
 /**
- * Session forms only carry instance-level fields. Config (model, instructions,
- * etc.) belongs to the parent agent and is updated via UpdateAgentForm.
+ * Session forms carry instance-level fields plus the workspace binding
+ * (`accessiblePaths`). Workspace is set at create time only — `UpdateSessionForm`
+ * deliberately excludes it so a running session can't be re-pointed.
  */
 export type CreateSessionForm = {
   agentId: string
   name: string
   description?: string
+  accessiblePaths?: string[]
   id?: never
 }
 

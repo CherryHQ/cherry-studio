@@ -1,24 +1,18 @@
 import { cn } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import type { AgentEntity } from '@shared/data/types/agent'
 import { Folder } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type SessionWorkspaceMetaProps = {
-  agent: AgentEntity
   session: AgentSessionEntity
 }
 
-const SessionWorkspaceMeta = ({ agent, session }: SessionWorkspaceMetaProps) => {
+const SessionWorkspaceMeta = ({ session }: SessionWorkspaceMetaProps) => {
   const { t } = useTranslation()
 
-  if (!session || !agent) {
-    return null
-  }
-
-  const firstAccessiblePath = agent.accessiblePaths?.[0]
+  const firstAccessiblePath = session.accessiblePaths?.[0]
 
   const getLastFolderName = (path: string): string => {
     const trimmedPath = path.replace(/[/\\]+$/, '')

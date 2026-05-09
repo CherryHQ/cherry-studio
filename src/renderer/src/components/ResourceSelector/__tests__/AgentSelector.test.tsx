@@ -62,7 +62,6 @@ const AGENTS_RESPONSE = {
       type: 'claude-code',
       name: 'Alpha Agent',
       description: 'First test agent',
-      accessiblePaths: [],
       model: 'claude-3-5-sonnet',
       createdAt: '2024-01-01T00:00:00.000Z',
       updatedAt: '2024-01-01T00:00:00.000Z'
@@ -72,7 +71,6 @@ const AGENTS_RESPONSE = {
       type: 'claude-code',
       name: 'Beta Agent',
       description: 'Second test agent',
-      accessiblePaths: [],
       model: 'claude-3-5-sonnet',
       createdAt: '2024-01-02T00:00:00.000Z',
       updatedAt: '2024-01-02T00:00:00.000Z'

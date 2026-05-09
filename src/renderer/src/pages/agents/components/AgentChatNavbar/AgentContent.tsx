@@ -87,10 +87,8 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
                 {/* Separator */}
                 <ChevronRight className="h-4 w-4 text-gray-400" />
 
-                {/* Session Label */}
-                <div
-                  className="flex h-full cursor-pointer items-center"
-                  onClick={() => AgentSettingsPopup.show({ agentId: activeAgent.id })}>
+                {/* Session Label (display-only — sessions are pure instances; agent settings live behind the agent label above) */}
+                <div className="flex h-full items-center">
                   <SessionLabel session={activeSession} className="max-w-40 text-xs" />
                 </div>
 
@@ -108,8 +106,8 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
                 {/* Separator */}
                 <ChevronRight className="h-4 w-4 text-gray-400" />
 
-                {/* Workspace Meta */}
-                <SessionWorkspaceMeta agent={activeAgent} session={activeSession} />
+                {/* Workspace Meta — session-bound */}
+                <SessionWorkspaceMeta session={activeSession} />
               </>
             )}
           </div>
@@ -117,8 +115,8 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
       </div>
       <div className="flex items-center">
         {/* Open External Apps */}
-        {activeSession && activeAgent.accessiblePaths?.[0] && (
-          <OpenExternalAppButton workdir={activeAgent.accessiblePaths[0]} className="mr-2" />
+        {activeSession && activeSession.accessiblePaths?.[0] && (
+          <OpenExternalAppButton workdir={activeSession.accessiblePaths[0]} className="mr-2" />
         )}
         <Tools />
       </div>

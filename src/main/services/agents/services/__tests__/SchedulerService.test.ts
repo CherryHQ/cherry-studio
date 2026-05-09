@@ -166,7 +166,6 @@ describe('SchedulerService', () => {
       type: 'claude-code',
       name: 'Test',
       model: 'anthropic::claude-3',
-      accessiblePaths: ['/tmp/test'],
       configuration: { heartbeat_enabled: true },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -174,7 +173,8 @@ describe('SchedulerService', () => {
     vi.mocked(sessionService.createSession).mockResolvedValueOnce({
       id: 'session-1',
       agentId: 'agent-1',
-      name: 'Scheduled run'
+      name: 'Scheduled run',
+      accessiblePaths: ['/tmp/test']
     } as any)
 
     // Simulate AiStreamManager completing the execution so the scheduler's

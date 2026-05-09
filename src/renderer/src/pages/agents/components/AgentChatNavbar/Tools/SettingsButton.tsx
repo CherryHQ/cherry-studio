@@ -4,7 +4,7 @@ import { t } from 'i18next'
 import { Settings2 } from 'lucide-react'
 import { useState } from 'react'
 
-import AgentSettingsTab from '../../../AgentSettingsTab'
+import ChatPreferencesTab from '../../../ChatPreferencesTab'
 
 const SettingsButton = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -23,7 +23,7 @@ const SettingsButton = () => {
         width="var(--assistants-width)"
         closable={false}
         styles={{ body: { padding: 0, paddingTop: 'var(--navbar-height)' } }}>
-        <AgentSettingsTab />
+        <ChatPreferencesTab />
       </Drawer>
     </>
   )

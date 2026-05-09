@@ -104,11 +104,12 @@ export function sanitizeAgentConfiguration(raw: unknown): {
 // Agent entity schemas (Rule C: entity schemas live in packages/shared/data/api/schemas/)
 // ============================================================================
 
-/** Core mutable fields shared between agent and session rows. */
+/** Core mutable fields on an agent (the cognitive blueprint). Workspace
+ *  (`accessiblePaths`) is intentionally NOT here — that's bound to a session at
+ *  create time, see `AgentSessionEntitySchema.accessiblePaths`. */
 export const AgentBaseSchema = z.strictObject({
   name: AgentNameAtomSchema,
   description: z.string().optional(),
-  accessiblePaths: z.array(z.string()),
   instructions: z.string().optional(),
   model: ModelIdAtomSchema,
   planModel: z.string().optional(),
@@ -123,7 +124,6 @@ export type AgentBase = z.infer<typeof AgentBaseSchema>
 export const AGENT_MUTABLE_FIELDS = {
   name: true,
   description: true,
-  accessiblePaths: true,
   instructions: true,
   model: true,
   planModel: true,
@@ -210,11 +210,8 @@ export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 // Agent DTOs (derived via .pick() from AgentEntitySchema — Rule C)
 // ============================================================================
 
-// accessiblePaths is optional at create time — AgentService.computeWorkspacePaths()
-// fills the default from the agent's workspace path, which is the single runtime source.
 // `model` re-required because the picked entity field is optional (FK SET NULL).
 export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
-  accessiblePaths: z.array(z.string()).optional(),
   model: ModelIdAtomSchema
 })
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>

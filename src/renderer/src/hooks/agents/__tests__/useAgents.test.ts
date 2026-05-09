@@ -68,7 +68,6 @@ describe('useAgents', () => {
           name: 'New Agent',
           model: 'claude-3',
           type: 'claude-code',
-          accessiblePaths: [],
           allowedTools: []
         })
       )
@@ -92,7 +91,6 @@ describe('useAgents', () => {
           name: 'New Agent',
           model: 'claude-3',
           type: 'claude-code',
-          accessiblePaths: [],
           allowedTools: []
         })
       )

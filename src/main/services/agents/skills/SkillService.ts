@@ -8,6 +8,7 @@ import {
   agentGlobalSkillTable,
   type InsertAgentGlobalSkillRow
 } from '@data/db/schemas/agentGlobalSkill'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -101,16 +102,18 @@ export class SkillService {
     const skill = await this.getSkillById(options.skillId)
     if (!skill) return null
 
-    const workspace = await this.getAgentWorkspace(options.agentId)
+    const workspaces = await this.getAgentSessionWorkspaces(options.agentId)
 
     await this.upsertAgentSkill(options.agentId, options.skillId, options.isEnabled)
 
-    if (workspace) {
+    if (workspaces.length > 0) {
       try {
-        if (options.isEnabled) {
-          await this.linkSkill(skill.folderName, workspace)
-        } else {
-          await this.unlinkSkill(skill.folderName, workspace)
+        for (const workspace of workspaces) {
+          if (options.isEnabled) {
+            await this.linkSkill(skill.folderName, workspace)
+          } else {
+            await this.unlinkSkill(skill.folderName, workspace)
+          }
         }
       } catch (error) {
         let rollbackError: unknown
@@ -171,26 +174,26 @@ export class SkillService {
   }
 
   /**
-   * Enable a skill across every existing agent and create per-workspace symlinks.
-   * Used when a new builtin skill is installed.
+   * Enable a skill across every existing agent and create symlinks in every
+   * session workspace. Used when a new builtin skill is installed.
    */
   async enableForAllAgents(skillId: string, folderName: string): Promise<void> {
-    const agents = await this.db
-      .select({ id: agentTable.id, accessiblePaths: agentTable.accessiblePaths })
-      .from(agentTable)
+    const agents = await this.db.select({ id: agentTable.id }).from(agentTable)
 
     for (const agent of agents) {
       await this.upsertAgentSkill(agent.id, skillId, true)
-      const workspace = this.parseFirstAccessiblePath(agent.accessiblePaths)
-      if (!workspace || !(await directoryExists(workspace))) continue
-      try {
-        await this.linkSkill(folderName, workspace)
-      } catch (error) {
-        logger.warn('Failed to link builtin skill for agent', {
-          agentId: agent.id,
-          skillId,
-          error: error instanceof Error ? error.message : String(error)
-        })
+      const workspaces = await this.getAgentSessionWorkspaces(agent.id)
+      for (const workspace of workspaces) {
+        try {
+          await this.linkSkill(folderName, workspace)
+        } catch (error) {
+          logger.warn('Failed to link builtin skill for session workspace', {
+            agentId: agent.id,
+            workspace,
+            skillId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
       }
     }
     logger.info('Enabled skill for all agents', { skillId, folderName, agentCount: agents.length })
@@ -276,21 +279,23 @@ export class SkillService {
       throw new Error(`Skill not found: ${skillId}`)
     }
 
-    // Remove symlinks from every agent workspace that had this skill enabled,
+    // Remove symlinks from every session workspace that had this skill enabled,
     // before we lose the join rows to the cascade delete below.
     const agentSkillRows = await this.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, skillId))
     for (const row of agentSkillRows) {
       if (!row.isEnabled) continue
-      const workspace = await this.getAgentWorkspace(row.agentId)
-      if (!workspace) continue
-      try {
-        await this.unlinkSkill(skill.folderName, workspace)
-      } catch (error) {
-        logger.warn('Failed to unlink skill during uninstall', {
-          skillId,
-          agentId: row.agentId,
-          error: error instanceof Error ? error.message : String(error)
-        })
+      const workspaces = await this.getAgentSessionWorkspaces(row.agentId)
+      for (const workspace of workspaces) {
+        try {
+          await this.unlinkSkill(skill.folderName, workspace)
+        } catch (error) {
+          logger.warn('Failed to unlink skill during uninstall', {
+            skillId,
+            agentId: row.agentId,
+            workspace,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
       }
     }
 
@@ -731,16 +736,21 @@ export class SkillService {
     return path.join(workspace, '.claude', 'skills', folderName)
   }
 
-  private async getAgentWorkspace(agentId: string): Promise<string | undefined> {
+  private async getAgentSessionWorkspaces(agentId: string): Promise<string[]> {
     const rows = await this.db
-      .select({ accessiblePaths: agentTable.accessiblePaths })
-      .from(agentTable)
-      .where(eq(agentTable.id, agentId))
-      .limit(1)
-    const workspace = this.parseFirstAccessiblePath(rows[0]?.accessiblePaths)
-    if (!workspace) return undefined
-    if (!(await directoryExists(workspace))) return undefined
-    return workspace
+      .select({ accessiblePaths: agentSessionTable.accessiblePaths })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.agentId, agentId))
+    const seen = new Set<string>()
+    const workspaces: string[] = []
+    for (const row of rows) {
+      const workspace = this.parseFirstAccessiblePath(row.accessiblePaths)
+      if (!workspace || seen.has(workspace)) continue
+      if (!(await directoryExists(workspace))) continue
+      seen.add(workspace)
+      workspaces.push(workspace)
+    }
+    return workspaces
   }
 
   private parseFirstAccessiblePath(paths: string[] | null | undefined): string | undefined {

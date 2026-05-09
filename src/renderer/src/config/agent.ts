@@ -3,18 +3,12 @@ import type { PermissionModeCard } from '@renderer/types/agent'
 import type { AgentBase, AgentConfiguration, AgentType } from '@shared/data/types/agent'
 
 // Partial defaults — `name` and `model` are user-supplied at create time.
+// Workspace defaults belong to session creation, not to the agent blueprint.
 type PartialAgentBase = Partial<Omit<AgentBase, 'model'>>
 
-const DEFAULT_AGENT_CONFIG: PartialAgentBase = {
-  accessiblePaths: []
-} as const
-
-export const DEFAULT_CLAUDE_CODE_CONFIG: PartialAgentBase = {
-  ...DEFAULT_AGENT_CONFIG
-} as const
+export const DEFAULT_CLAUDE_CODE_CONFIG: PartialAgentBase = {} as const
 
 export const DEFAULT_CHERRY_CLAW_CONFIG: PartialAgentBase & { configuration: AgentConfiguration } = {
-  ...DEFAULT_AGENT_CONFIG,
   configuration: {
     permission_mode: 'bypassPermissions',
     max_turns: 100,

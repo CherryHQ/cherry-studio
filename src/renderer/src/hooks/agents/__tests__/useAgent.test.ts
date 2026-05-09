@@ -28,7 +28,6 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      accessiblePaths: [],
       allowedTools: [],
       configuration: { permission_mode: 'default', max_turns: 100, env_vars: {} },
       createdAt: '2024-01-01T00:00:00Z',
@@ -56,7 +55,6 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      accessiblePaths: [],
       allowedTools: [],
       configuration: { avatar: '🤖' },
       createdAt: '2024-01-01T00:00:00Z',
@@ -78,7 +76,6 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      accessiblePaths: [],
       allowedTools: [],
       // permission_mode/'invalid' fails enum check; env_vars/null fails record check.
       // max_turns/200 is well-typed and must survive.

@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import { agentTable } from '@data/db/schemas/agent'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -85,20 +83,6 @@ describe('AgentService', () => {
       })
 
       expect(agent.id).toMatch(uuidV4Pattern)
-    })
-
-    it('uses a UUID workspace directory instead of deriving it from the agent id', async () => {
-      const agent = await agentService.createAgent({
-        type: 'claude-code',
-        name: 'Workspace Test',
-        model: TEST_MODEL_ID
-      })
-
-      expect(agent.accessiblePaths).toHaveLength(1)
-      const workspace = agent.accessiblePaths[0]
-      expect(path.dirname(workspace)).toBe('/mock/feature.agents.workspaces')
-      expect(path.basename(workspace)).toMatch(uuidV4Pattern)
-      expect(path.basename(workspace)).not.toBe(agent.id.slice(-9))
     })
 
     it('places newly created agents at the top of asc(orderKey) listings', async () => {

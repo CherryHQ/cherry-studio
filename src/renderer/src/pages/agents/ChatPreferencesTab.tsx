@@ -18,7 +18,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-const AgentSettingsTab = () => {
+const ChatPreferencesTab = () => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [language] = usePreference('app.language')
@@ -462,4 +462,4 @@ const SettingGroup = styled.div<{ theme?: ThemeMode }>`
   margin-bottom: 10px;
 `
 
-export default AgentSettingsTab
+export default ChatPreferencesTab

@@ -35,27 +35,15 @@ function rowToAgent(row: AgentRow): AgentEntity {
   return {
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
-    accessiblePaths: row.accessiblePaths,
     configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
-/** Compute the default workspace paths for an agent without creating any directories. */
-function computeWorkspacePaths(paths: string[] | undefined): string[] {
-  if (paths && paths.length > 0) return paths
-  // Workspace dir uses its own uuid, decoupled from agent.id, so id-format
-  // changes never require moving on-disk workspaces.
-  return [`${application.getPath('feature.agents.workspaces')}/${uuidv4()}`]
-}
-
 export class AgentService {
   async createAgent(req: CreateAgentDto): Promise<AgentEntity> {
     const id = uuidv4()
-
-    // Compute workspace paths (pure — directory creation is the caller's responsibility).
-    const resolvedPaths = computeWorkspacePaths(req.accessiblePaths)
 
     const database = application.get('DbService').getDb()
 
@@ -72,8 +60,7 @@ export class AgentService {
       smallModel: req.smallModel,
       mcps: req.mcps,
       allowedTools: req.allowedTools,
-      configuration: req.configuration,
-      accessiblePaths: resolvedPaths
+      configuration: req.configuration
     }
 
     const row = await withSqliteErrors(
@@ -152,10 +139,6 @@ export class AgentService {
   ): Promise<AgentEntity | null> {
     const existing = await this.getAgent(id)
     if (!existing) return null
-
-    if (updates.accessiblePaths !== undefined && updates.accessiblePaths.length === 0) {
-      throw DataApiErrorFactory.validation({ accessiblePaths: ['must not be empty'] })
-    }
 
     const updateData: Partial<AgentRow> = {
       updatedAt: Date.now()

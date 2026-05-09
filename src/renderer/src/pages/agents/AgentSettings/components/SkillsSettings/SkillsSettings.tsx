@@ -3,11 +3,11 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { TopView } from '@renderer/components/TopView'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { useNavigate } from '@tanstack/react-router'
-import type { InstalledSkill, LocalSkill } from '@types'
+import type { InstalledSkill } from '@types'
 import type { CardProps } from 'antd'
 import { Card, Tag } from 'antd'
 import { Plus, Puzzle } from 'lucide-react'
-import { type FC, memo, useCallback, useEffect, useEffectEvent, useMemo, useState } from 'react'
+import { type FC, memo, useCallback, useEffectEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, SettingsTitle } from '../../shared'
@@ -65,27 +65,6 @@ const SkillCard = memo<{
 })
 SkillCard.displayName = 'SkillCard'
 
-const LocalSkillCard = memo<{ plugin: LocalSkill }>(({ plugin }) => (
-  <Card
-    className="border border-default-200"
-    title={
-      <div className="flex items-start justify-between gap-3 py-2">
-        <div className="flex min-w-0 flex-col gap-1">
-          <span className="truncate font-medium text-sm">{plugin.name}</span>
-          {plugin.description ? (
-            <span className="line-clamp-2 whitespace-normal text-foreground-500 text-xs">{plugin.description}</span>
-          ) : null}
-          <div className="flex flex-wrap items-center gap-2">
-            <Tag color="default">local</Tag>
-          </div>
-        </div>
-      </div>
-    }
-    styles={cardStyles}
-  />
-))
-LocalSkillCard.displayName = 'LocalSkillCard'
-
 /**
  * Agent Skills Settings - shows the global skill library with a per-agent
  * enable/disable toggle, plus local skills from the agent workspace
@@ -106,18 +85,6 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
   const { skills, loading, error, toggle } = useInstalledSkills(agentId)
   const [filter, setFilter] = useState('')
   const [togglingId, setTogglingId] = useState<string | null>(null)
-  const [localPlugins, setLocalSkills] = useState<LocalSkill[]>([])
-
-  const workdir = agentBase?.accessiblePaths?.[0]
-
-  useEffect(() => {
-    if (!workdir) return
-    void window.api.skill.listLocal(workdir).then((result) => {
-      if (result.success) {
-        setLocalSkills(result.data)
-      }
-    })
-  }, [workdir])
 
   const filteredSkills = useMemo(() => {
     if (!filter.trim()) return skills
@@ -129,12 +96,6 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
         s.author?.toLowerCase().includes(q)
     )
   }, [skills, filter])
-
-  const filteredLocal = useMemo(() => {
-    if (!filter.trim()) return localPlugins
-    const q = filter.toLowerCase()
-    return localPlugins.filter((p) => p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q))
-  }, [localPlugins, filter])
 
   const handleToggle = useCallback(
     async (skill: InstalledSkill, checked: boolean) => {
@@ -148,7 +109,7 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
     [toggle]
   )
 
-  const hasNoResults = filteredSkills.length === 0 && filteredLocal.length === 0
+  const hasNoResults = filteredSkills.length === 0
 
   return (
     <SettingsContainer>
@@ -199,9 +160,6 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
             <>
               {filteredSkills.map((skill) => (
                 <SkillCard key={skill.id} skill={skill} toggling={togglingId === skill.id} onToggle={handleToggle} />
-              ))}
-              {filteredLocal.map((plugin) => (
-                <LocalSkillCard key={plugin.filename} plugin={plugin} />
               ))}
             </>
           )}

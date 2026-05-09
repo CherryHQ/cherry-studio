@@ -113,7 +113,6 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'type',
       'name',
       notNullCol('description', "''"),
-      notNullCol('accessible_paths', "'[]'"),
       'instructions',
       { name: 'model', expr: buildUserModelLookupExpr('model'), sourceColumn: 'model' },
       { name: 'plan_model', expr: buildUserModelLookupExpr('plan_model'), sourceColumn: 'plan_model' },
@@ -147,6 +146,13 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'agent_id',
       'name',
       notNullCol('description', "''"),
+      {
+        name: 'accessible_paths',
+        expr: "COALESCE(accessible_paths, (SELECT a.accessible_paths FROM agents_legacy.agents a WHERE a.id = sessions.agent_id), '[]')",
+        sourceColumn: 'accessible_paths',
+        fallbackExpr:
+          "COALESCE((SELECT a.accessible_paths FROM agents_legacy.agents a WHERE a.id = sessions.agent_id), '[]')"
+      },
       // Placeholder; AgentsMigrator backfills real fractional-indexing keys
       // scoped by agentId, ordered by source `sort_order` after INSERT.
       notNullCol('order_key', "''"),

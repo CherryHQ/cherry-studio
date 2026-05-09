@@ -36,7 +36,6 @@ const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
   description: existing?.description,
   instructions: existing?.instructions,
   model: existing?.model ?? '',
-  accessiblePaths: existing?.accessiblePaths ? [...existing.accessiblePaths] : [],
   allowedTools: existing?.allowedTools ? [...existing.allowedTools] : [],
   mcps: existing?.mcps ? [...existing.mcps] : [],
   configuration: AgentConfigurationSchema.parse(existing?.configuration ?? {})
@@ -210,35 +209,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     }))
   }, [])
 
-  const addAccessiblePath = useCallback(async () => {
-    try {
-      const selected = await window.api.file.selectFolder()
-      if (!selected) {
-        return
-      }
-      setForm((prev) => {
-        if (prev.accessiblePaths.includes(selected)) {
-          window.toast.warning(t('agent.session.accessible_paths.duplicate'))
-          return prev
-        }
-        return {
-          ...prev,
-          accessiblePaths: [...prev.accessiblePaths, selected]
-        }
-      })
-    } catch (error) {
-      logger.error('Failed to select accessible path:', error as Error)
-      window.toast.error(t('agent.session.accessible_paths.select_failed'))
-    }
-  }, [t])
-
-  const removeAccessiblePath = useCallback((path: string) => {
-    setForm((prev) => ({
-      ...prev,
-      accessiblePaths: prev.accessiblePaths.filter((item) => item !== path)
-    }))
-  }, [])
-
   // Create a temporary agentBase object for SelectAgentBaseModelButton
   const tempAgentBase: AgentEntity = useMemo(
     () => ({
@@ -246,7 +216,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
       type: form.type,
       name: form.name,
       model: form.model,
-      accessiblePaths: form.accessiblePaths.length > 0 ? form.accessiblePaths : ['/'],
       allowedTools: form.allowedTools ?? [],
       description: form.description,
       instructions: form.instructions,
@@ -308,7 +277,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
           description: form.description,
           instructions: form.instructions,
           model: form.model,
-          accessiblePaths: [...form.accessiblePaths],
           allowedTools: [...form.allowedTools],
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies UpdateAgentForm
@@ -327,7 +295,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
           description: form.description,
           instructions: form.instructions,
           model: form.model,
-          accessiblePaths: [...form.accessiblePaths],
           allowedTools: [...form.allowedTools],
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies AddAgentForm
@@ -345,7 +312,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     [
       form.type,
       form.model,
-      form.accessiblePaths,
       form.name,
       form.description,
       form.instructions,
@@ -488,34 +454,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
             )}
 
             <FormItem>
-              <LabelWithButton>
-                <Label>{t('agent.session.accessible_paths.label')}</Label>
-                <Button size="small" onClick={addAccessiblePath}>
-                  {t('agent.session.accessible_paths.add')}
-                </Button>
-              </LabelWithButton>
-              {form.accessiblePaths.length > 0 ? (
-                <PathList>
-                  {form.accessiblePaths.map((path) => (
-                    <PathItem key={path}>
-                      <PathText title={path}>{path}</PathText>
-                      <Button size="small" danger onClick={() => removeAccessiblePath(path)}>
-                        {t('common.delete')}
-                      </Button>
-                    </PathItem>
-                  ))}
-                </PathList>
-              ) : (
-                <HelpText>
-                  {t(
-                    'agent.session.accessible_paths.default_hint',
-                    'A default workspace will be created automatically if not specified.'
-                  )}
-                </HelpText>
-              )}
-            </FormItem>
-
-            <FormItem>
               <Label>{t('common.prompt')}</Label>
               <TextArea rows={3} value={form.instructions ?? ''} onChange={onInstChange} />
             </FormItem>
@@ -633,38 +571,6 @@ const RequiredMark = styled.span`
 const HelpText = styled.div`
   font-size: 12px;
   color: var(--color-text-3);
-`
-
-const LabelWithButton = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-`
-
-const PathList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
-
-const PathItem = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background-color: var(--color-bg-1);
-`
-
-const PathText = styled.span`
-  flex: 1;
-  font-size: 13px;
-  color: var(--color-text-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 `
 
 const FormFooter = styled.div`

@@ -192,8 +192,8 @@ export class ChannelMessageHandler {
         return
       }
 
-      // Resolve agent for config (model / accessiblePaths / configuration / mcps / allowedTools).
-      // session DTO no longer carries config — sessions are pure agent instances.
+      // Resolve agent for cognitive config (model / configuration / mcps / allowedTools).
+      // Workspace is read from the session itself (CMA Environment binding).
       // An orphan session (`agentId === null`) cannot run; skip it.
       if (!session.agentId) {
         logger.error('Channel message hit an orphan session', { sessionId: session.id })
@@ -209,7 +209,7 @@ export class ChannelMessageHandler {
       // session.configuration in-place; with config now living on agent, this
       // override needs to flow as a per-dispatch option instead. Tracked separately.
 
-      const workDir = agent.accessiblePaths[0]
+      const workDir = session.accessiblePaths[0]
 
       // Save images to agent workspace so the agent can read them via the Read tool
       let imagePaths: string[] = []

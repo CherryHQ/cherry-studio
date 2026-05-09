@@ -1,11 +1,13 @@
 /**
  * Session domain API Schema definitions.
  *
- * A `Session` is a pure instance of an `Agent` — its only persisted state is
- * (id, agentId, name, description, orderKey, timestamps). Config (model,
- * instructions, mcps, allowedTools, accessiblePaths, configuration, ...) lives
- * on the parent agent and is fetched separately via `useAgent(session.agentId)`
- * (renderer) or `agentService.getAgent(...)` (main).
+ * A `Session` is one execution of an `Agent` bound to a workspace
+ * (`accessiblePaths`, the CMA-Environment equivalent). All cognitive config
+ * (model, instructions, mcps, allowedTools, configuration, ...) lives on the
+ * parent agent and is fetched separately via `useAgent(session.agentId)`
+ * (renderer) or `agentService.getAgent(...)` (main); workspace lives on the
+ * session itself and is **insert-only** — `UpdateSessionDto` deliberately does
+ * not include it, so a running session can't be re-pointed at a new directory.
  */
 
 import * as z from 'zod'
@@ -24,6 +26,9 @@ export const AgentSessionEntitySchema = z.strictObject({
   agentId: z.string().nullable(),
   name: AgentNameAtomSchema,
   description: z.string().optional(),
+  // Workspace bound at session create time. Read-only post-creation —
+  // `UpdateSessionSchema` (below) intentionally doesn't pick this.
+  accessiblePaths: z.array(z.string()),
   orderKey: z.string(),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -31,10 +36,13 @@ export const AgentSessionEntitySchema = z.strictObject({
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 
 // Create requires a real `agentId` — orphans only happen via cascade, never on insert.
+// `accessiblePaths` is optional at create time — when omitted, the service
+// inherits from the latest sibling session of the same agent.
 export const CreateSessionSchema = z.strictObject({
   agentId: z.string(),
   name: AgentNameAtomSchema,
-  description: z.string().optional()
+  description: z.string().optional(),
+  accessiblePaths: z.array(z.string()).optional()
 })
 export type CreateSessionDto = z.infer<typeof CreateSessionSchema>
 

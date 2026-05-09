@@ -203,8 +203,8 @@ export async function buildClaudeCodeSessionSettings(
   provider: Provider,
   options?: ClaudeCodeSessionOptions
 ): Promise<ClaudeCodeSettings> {
-  // Agent owns all config (model, instructions, mcps, allowedTools,
-  // accessiblePaths, configuration). Session is just the running instance.
+  // Agent owns cognitive config (model, instructions, mcps, allowedTools,
+  // configuration); workspace lives on the session (CMA Environment binding).
   // An orphan session (`agentId === null`, agent was deleted) cannot run.
   if (!session.agentId) {
     throw new Error(`Cannot build settings for orphan session ${session.id} — its agent was deleted`)
@@ -214,10 +214,10 @@ export async function buildClaudeCodeSessionSettings(
     throw new Error(`Agent not found for session ${session.id}: ${session.agentId}`)
   }
 
-  // 1. Working directory
-  const cwd = agent.accessiblePaths[0]
+  // 1. Working directory (session-bound)
+  const cwd = session.accessiblePaths[0]
   if (!cwd) {
-    throw new Error('No accessible paths defined for the agent')
+    throw new Error(`No accessible paths defined for session ${session.id}`)
   }
 
   // 2. Environment variables
@@ -276,8 +276,8 @@ export async function buildClaudeCodeSessionSettings(
     ...(options?.lastAgentSessionId ? { resume: options.lastAgentSessionId } : {})
   }
 
-  if (agent.accessiblePaths.length > 1) {
-    settings.additionalDirectories = agent.accessiblePaths.slice(1)
+  if (session.accessiblePaths.length > 1) {
+    settings.additionalDirectories = session.accessiblePaths.slice(1)
   }
 
   return settings
