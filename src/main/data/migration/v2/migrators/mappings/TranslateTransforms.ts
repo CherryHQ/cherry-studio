@@ -4,6 +4,13 @@ import { PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes
 import type { TransformResult } from './ComplexPreferenceMappings'
 
 const logger = loggerService.withContext('Migration:TranslateTransforms')
+const LEGACY_LANG_CODE_MAP: Record<string, string> = {
+  'ar-ar': 'ar-sa'
+}
+
+const canonicalizeLegacyLangCode = (langCode: string): string => {
+  return LEGACY_LANG_CODE_MAP[langCode] ?? langCode
+}
 
 /**
  * Split the legacy `translate:bidirectional:pair` tuple into separate
@@ -34,8 +41,10 @@ export function splitBidirectionalPairForAction(sources: { bidirectionalPair?: u
   // "Auto" / "EN" / "zh_CN" don't get written verbatim into the new preference —
   // they'd type-check as `string` but fail the TranslateLangCode regex at the
   // point of consumption, producing confusing runtime issues later.
-  const preferredResult = PersistedLangCodeSchema.safeParse(preferred.toLowerCase())
-  const alterResult = PersistedLangCodeSchema.safeParse(alter.toLowerCase())
+  const normalizedPreferred = canonicalizeLegacyLangCode(preferred.toLowerCase())
+  const normalizedAlter = canonicalizeLegacyLangCode(alter.toLowerCase())
+  const preferredResult = PersistedLangCodeSchema.safeParse(normalizedPreferred)
+  const alterResult = PersistedLangCodeSchema.safeParse(normalizedAlter)
 
   if (!preferredResult.success || !alterResult.success) {
     logger.error(
@@ -68,7 +77,8 @@ export function copyTargetLanguageForMiniWindow(sources: { targetLanguage?: unkn
 
   // Same normalization as the bidirectional pair — block malformed legacy values
   // from reaching the new preference store.
-  const result = PersistedLangCodeSchema.safeParse(lang.toLowerCase())
+  const normalizedLang = canonicalizeLegacyLangCode(lang.toLowerCase())
+  const result = PersistedLangCodeSchema.safeParse(normalizedLang)
   if (!result.success) {
     logger.error('Invalid target language: did not match TranslateLangCode pattern, falling back to defaults', {
       value: lang

@@ -38,6 +38,13 @@ describe('splitBidirectionalPairForAction', () => {
     })
   })
 
+  it('canonicalizes legacy Arabic code "ar-ar" to "ar-sa"', () => {
+    expect(splitBidirectionalPairForAction({ bidirectionalPair: ['AR-AR', 'en-us'] })).toEqual({
+      'feature.translate.action.preferred_lang': 'ar-sa',
+      'feature.translate.action.alter_lang': 'en-us'
+    })
+  })
+
   it('returns empty object when a string element fails the TranslateLangCode regex', () => {
     // Historical dexie data sometimes carries non-conformant values like underscores
     // or freeform labels; schema validation must block them from reaching the new preference.
@@ -93,6 +100,12 @@ describe('copyTargetLanguageForMiniWindow', () => {
   it('normalizes uppercase input to lowercase so "EN-US" becomes "en-us"', () => {
     expect(copyTargetLanguageForMiniWindow({ targetLanguage: 'EN-US' })).toEqual({
       'feature.translate.mini_window.target_lang': 'en-us'
+    })
+  })
+
+  it('canonicalizes legacy Arabic code "ar-ar" to "ar-sa"', () => {
+    expect(copyTargetLanguageForMiniWindow({ targetLanguage: 'AR-AR' })).toEqual({
+      'feature.translate.mini_window.target_lang': 'ar-sa'
     })
   })
 
