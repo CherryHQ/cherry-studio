@@ -76,7 +76,7 @@ describe('ProviderSettingsPage', () => {
       expect(screen.getByText('provider-setting-anthropic')).toBeInTheDocument()
     })
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/settings/provider-v2',
+      to: '/settings/provider',
       search: {},
       replace: true
     })

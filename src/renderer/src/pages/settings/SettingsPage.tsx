@@ -64,13 +64,6 @@ const SettingsPage: FC = () => {
               />
               <MenuItem
                 className={menuItemClassName}
-                icon={<Cloud />}
-                label={`${t('settings.provider.title')} V2`}
-                active={isActive('/settings/provider-v2')}
-                onClick={() => go('/settings/provider-v2')}
-              />
-              <MenuItem
-                className={menuItemClassName}
                 icon={<Package />}
                 label={t('settings.model')}
                 active={isActive('/settings/model')}

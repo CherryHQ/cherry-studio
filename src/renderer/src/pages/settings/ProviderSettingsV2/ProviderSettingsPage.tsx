@@ -21,7 +21,7 @@ interface ProviderSettingsSearch {
 }
 
 export default function ProviderSettingsPage({ isOnboarding = false }: ProviderSettingsPageProps) {
-  const search = useSearch({ from: '/settings/provider-v2' }) as ProviderSettingsSearch
+  const search = useSearch({ from: '/settings/provider' }) as ProviderSettingsSearch
   const navigate = useNavigate()
   const { providers: rawProviders } = useProviders()
   const [lastSelectedProviderId, setLastSelectedProviderId] = usePersistCache(
@@ -69,7 +69,7 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
 
     if (shouldConsume) {
       const restSearch = Object.fromEntries(Object.entries(search).filter(([key]) => key !== 'filter' && key !== 'id'))
-      void navigate({ to: '/settings/provider-v2', search: restSearch as Record<string, string>, replace: true })
+      void navigate({ to: '/settings/provider', search: restSearch as Record<string, string>, replace: true })
     }
   }, [navigate, search, setSelectedProviderId, visibleProviders])
 

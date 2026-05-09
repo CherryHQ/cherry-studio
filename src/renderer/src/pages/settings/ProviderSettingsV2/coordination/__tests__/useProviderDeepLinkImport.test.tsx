@@ -101,7 +101,7 @@ describe('useProviderDeepLinkImport', () => {
     })
     expect(onSelectProvider).toHaveBeenCalledWith('openai')
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/settings/provider-v2',
+      to: '/settings/provider',
       search: { id: 'openai' }
     })
     expect(window.toast.success).toHaveBeenCalledTimes(1)
@@ -153,7 +153,7 @@ describe('useProviderDeepLinkImport', () => {
     })
     expect(onSelectProvider).toHaveBeenCalledWith('anthropic')
     expect(navigateMock).toHaveBeenCalledWith({
-      to: '/settings/provider-v2',
+      to: '/settings/provider',
       search: { id: 'anthropic' }
     })
   })
@@ -178,7 +178,7 @@ describe('useProviderDeepLinkImport', () => {
     expect(createProviderMock).not.toHaveBeenCalled()
     expect(updateProviderByIdMock).not.toHaveBeenCalled()
     expect(addApiKeyTriggerMock).not.toHaveBeenCalled()
-    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider-v2' })
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider' })
     expect(onSelectProvider).not.toHaveBeenCalled()
   })
 
@@ -214,6 +214,6 @@ describe('useProviderDeepLinkImport', () => {
 
     expect(addApiKeyTriggerMock).not.toHaveBeenCalled()
     expect(onSelectProvider).not.toHaveBeenCalled()
-    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider-v2' })
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider' })
   })
 })

@@ -68,7 +68,7 @@ export function useProviderDeepLinkImport(
         const { updatedProvider, isNew, displayName } = popupResult
 
         if (!updatedProvider) {
-          void navigate({ to: '/settings/provider-v2' })
+          void navigate({ to: '/settings/provider' })
           return
         }
 
@@ -105,12 +105,12 @@ export function useProviderDeepLinkImport(
         }
 
         onSelectProvider(providerId)
-        void navigate({ to: '/settings/provider-v2', search: { id: providerId } })
+        void navigate({ to: '/settings/provider', search: { id: providerId } })
         window.toast.success(t('settings.models.provider_key_added', { provider: displayName }))
       } catch (error) {
         logger.error('Failed to import provider deep link data', error as Error)
         window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-        void navigate({ to: '/settings/provider-v2' })
+        void navigate({ to: '/settings/provider' })
       }
     }
 
@@ -119,7 +119,7 @@ export function useProviderDeepLinkImport(
 
       if (!parsed.id || !parsed.apiKey || !parsed.baseUrl) {
         window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-        void navigate({ to: '/settings/provider-v2' })
+        void navigate({ to: '/settings/provider' })
         return
       }
 
@@ -127,7 +127,7 @@ export function useProviderDeepLinkImport(
     } catch (error) {
       logger.error('Failed to parse provider deep link import data', error as Error)
       window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
-      void navigate({ to: '/settings/provider-v2' })
+      void navigate({ to: '/settings/provider' })
     }
   }, [addApiKeyTrigger, createProvider, navigate, onSelectProvider, searchAddProviderData, t, updateProviderById])
 }
