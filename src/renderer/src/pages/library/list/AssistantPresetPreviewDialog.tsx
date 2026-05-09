@@ -26,7 +26,7 @@ export function AssistantPresetPreviewDialog({ preset, open, adding = false, onO
       <DialogContent
         showCloseButton={false}
         overlayClassName="bg-black/40 backdrop-blur-sm"
-        className="max-h-[calc(100vh-48px)] w-[600px] gap-0 overflow-hidden rounded-xs border-border/30 bg-popover p-0 shadow-2xl sm:max-w-[600px]">
+        className="max-h-[calc(100vh-48px)] w-[600px] gap-0 overflow-hidden rounded-lg border-border/30 bg-card p-0 shadow-2xl sm:max-w-[600px]">
         <div className="flex items-start justify-between gap-4 border-border/15 border-b px-5 py-4">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xs bg-accent/55 text-base">

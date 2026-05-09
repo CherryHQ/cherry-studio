@@ -350,9 +350,9 @@ export default function LibraryPage() {
       <AnimatePresence mode="wait">
         <motion.div
           key="assistant-create"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           className="flex min-h-0 flex-1 flex-col bg-background">
           <AssistantConfigPage onBack={handleBackToList} onCreated={handleCreated} />
         </motion.div>
@@ -365,9 +365,9 @@ export default function LibraryPage() {
       <AnimatePresence mode="wait">
         <motion.div
           key={`edit-${configView.assistant.id}`}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           className="flex min-h-0 flex-1 flex-col bg-background">
           <AssistantConfigPage assistant={configView.assistant} onBack={handleBackToList} />
         </motion.div>
@@ -380,9 +380,9 @@ export default function LibraryPage() {
       <AnimatePresence mode="wait">
         <motion.div
           key={`agent-edit-${configView.agent.id}`}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           className="flex min-h-0 flex-1 flex-col bg-background">
           <AgentConfigPage agent={configView.agent} onBack={handleBackToList} />
         </motion.div>
@@ -395,9 +395,9 @@ export default function LibraryPage() {
       <AnimatePresence mode="wait">
         <motion.div
           key="agent-create"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           className="flex min-h-0 flex-1 flex-col bg-background">
           <AgentConfigPage onBack={handleBackToList} onCreated={handleCreated} />
         </motion.div>
@@ -410,9 +410,9 @@ export default function LibraryPage() {
       <AnimatePresence mode="wait">
         <motion.div
           key="prompt-create"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           className="flex min-h-0 flex-1 flex-col bg-background">
           <PromptConfigPage onBack={handleBackToList} onCreated={handleCreated} />
         </motion.div>
@@ -425,9 +425,9 @@ export default function LibraryPage() {
       <AnimatePresence mode="wait">
         <motion.div
           key={`prompt-edit-${configView.prompt.id}`}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           className="flex min-h-0 flex-1 flex-col bg-background">
           <PromptConfigPage prompt={configView.prompt} onBack={handleBackToList} />
         </motion.div>
@@ -440,9 +440,9 @@ export default function LibraryPage() {
       <AnimatePresence mode="wait">
         <motion.div
           key={`skill-detail-${configView.skill.id}`}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           className="flex min-h-0 flex-1 flex-col bg-background">
           <SkillDetailPage
             skill={configView.skill}

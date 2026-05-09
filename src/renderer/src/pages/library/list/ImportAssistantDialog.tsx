@@ -325,7 +325,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       <DialogContent
         showCloseButton={false}
         overlayClassName="bg-black/40 backdrop-blur-sm"
-        className="w-[460px] gap-0 overflow-hidden rounded-xs border-border/30 bg-popover p-0 shadow-2xl sm:max-w-[460px]">
+        className="w-[460px] gap-0 overflow-hidden rounded-lg border-border/30 bg-card p-0 shadow-2xl sm:max-w-[460px]">
         {/* Header */}
         <div className="flex items-center justify-between border-border/15 border-b px-5 py-4">
           <div>
@@ -337,7 +337,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
             size="icon-sm"
             onClick={close}
             disabled={loading}
-            className="flex h-6 min-h-0 w-6 items-center justify-center rounded-3xs font-normal text-muted-foreground/40 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+            className="flex h-6 min-h-0 w-6 items-center justify-center rounded-md font-normal text-muted-foreground/40 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
             <X size={14} />
           </Button>
         </div>
@@ -351,7 +351,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                 <TabsTrigger
                   key={tabDef.id}
                   value={tabDef.id}
-                  className="flex h-auto flex-none items-center gap-1.5 rounded-3xs border-0 bg-transparent px-3 py-1.5 text-[10px] text-muted-foreground/50 shadow-none transition-all hover:bg-accent/30 hover:text-foreground data-[state=active]:bg-accent/60 data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:border-0 dark:data-[state=active]:bg-accent/60">
+                  className="flex h-auto flex-none items-center gap-1.5 rounded-md border-0 bg-transparent px-3 py-1.5 text-[10px] text-muted-foreground/50 shadow-none transition-all hover:bg-accent/30 hover:text-foreground data-[state=active]:bg-accent/60 data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:border-0 dark:data-[state=active]:bg-accent/60">
                   <Icon size={11} />
                   <span>{tabDef.label}</span>
                 </TabsTrigger>
@@ -377,7 +377,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   onError={() =>
                     setStatus({ kind: 'error', message: t('assistants.presets.import.error.invalid_format') })
                   }
-                  className="flex cursor-pointer flex-col items-center justify-center rounded-2xs border-2 border-border/20 border-dashed bg-transparent p-8 text-center shadow-none transition-all hover:border-border/40 hover:bg-accent/10 disabled:pointer-events-none disabled:opacity-60">
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-border/20 border-dashed bg-transparent p-8 text-center shadow-none transition-all hover:border-border/40 hover:bg-accent/10 disabled:pointer-events-none disabled:opacity-60">
                   <DropzoneEmptyState>
                     <Upload size={24} strokeWidth={1.2} className="mb-3 text-muted-foreground/30" />
                     <p className="mb-1 text-[11px] text-muted-foreground/50">
@@ -399,12 +399,12 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   onValueChange={setClipboardText}
                   disabled={loading}
                   placeholder={t('library.import_dialog.clipboard.placeholder')}
-                  className="h-[160px] min-h-0 w-full resize-none rounded-2xs border border-border/20 bg-accent/10 p-3 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]"
+                  className="h-[120px] min-h-0 w-full resize-none rounded-md border border-border/20 bg-accent/10 p-3 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]"
                 />
                 <Button
                   onClick={handleClipboardImport}
                   disabled={!clipboardText.trim() || loading}
-                  className="mt-3 flex h-auto min-h-0 items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 font-normal text-[11px] text-background shadow-none transition-colors hover:bg-foreground/90 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-30">
+                  className="mt-3 flex h-auto min-h-0 items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 font-normal text-[11px] text-background shadow-none transition-colors hover:bg-foreground/90 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-30">
                   <FileJson size={10} className="lucide-custom" />
                   <span>{t('library.import_dialog.clipboard.button')}</span>
                 </Button>
@@ -422,13 +422,13 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   onChange={(e) => setUrlText(e.target.value)}
                   disabled={loading}
                   placeholder="https://gist.github.com/..."
-                  className="h-auto w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed"
+                  className="h-auto w-full rounded-md border border-border/20 bg-accent/10 px-3 py-2 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed"
                 />
                 <div className="mt-3 flex items-center gap-3">
                   <Button
                     onClick={() => void handleUrlImport()}
                     disabled={!urlText.trim() || loading}
-                    className="flex h-auto min-h-0 items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 font-normal text-[11px] text-background shadow-none transition-colors hover:bg-foreground/90 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-30">
+                    className="flex h-auto min-h-0 items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 font-normal text-[11px] text-background shadow-none transition-colors hover:bg-foreground/90 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-30">
                     <Link size={10} className="lucide-custom" />
                     <span>{t('library.import_dialog.url.button')}</span>
                   </Button>
@@ -457,7 +457,7 @@ function StatusBanner({ status }: { status: ImportStatus }) {
             type="success"
             showIcon
             message={status.message}
-            className="rounded-3xs px-3 py-2 text-[10px] shadow-none"
+            className="rounded-md px-3 py-2 text-[10px] shadow-none"
           />
         </motion.div>
       )}
@@ -471,7 +471,7 @@ function StatusBanner({ status }: { status: ImportStatus }) {
             type="error"
             showIcon
             message={status.message}
-            className="rounded-3xs px-3 py-2 text-[10px] shadow-none"
+            className="rounded-md px-3 py-2 text-[10px] shadow-none"
           />
         </motion.div>
       )}

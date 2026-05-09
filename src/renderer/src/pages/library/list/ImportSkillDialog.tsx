@@ -164,7 +164,7 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
       <DialogContent
         showCloseButton={false}
         overlayClassName="bg-black/40 backdrop-blur-sm"
-        className="w-[480px] gap-0 overflow-hidden rounded-xs border-border/30 bg-popover p-0 shadow-2xl sm:max-w-[480px]">
+        className="w-[480px] gap-0 overflow-hidden rounded-lg border-border/30 bg-card p-0 shadow-2xl sm:max-w-[480px]">
         {/* Header */}
         <div className="flex items-center justify-between border-border/15 border-b px-5 py-4">
           <div>
