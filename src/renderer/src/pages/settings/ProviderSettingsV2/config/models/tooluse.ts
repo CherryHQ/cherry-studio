@@ -13,7 +13,7 @@ const FUNCTION_CALLING_MODELS = [
   'gpt-4o-mini',
   'gpt-4',
   'gpt-4.5',
-  'gpt-oss(?:-[\\w-]+)',
+  'gpt-oss(?:-[\\w-]+)?',
   'gpt-5(?:-[0-9-]+)?',
   'o(1|3|4)(?:-[\\w-]+)?',
   'claude',
@@ -37,6 +37,7 @@ const FUNCTION_CALLING_MODELS = [
   'ling-\\w+(?:-[\\w-]+)?',
   'ring-\\w+(?:-[\\w-]+)?',
   'minimax-m2(?:\\.\\d+)?(?:-[\\w-]+)?',
+  'mimo-v2\\.5(?:-pro)?(?!-)',
   'mimo-v2-flash',
   'mimo-v2-pro',
   'mimo-v2-omni',
@@ -55,7 +56,7 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'glm-4\\.5v',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
-  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?',
+  'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?',
   'deepseek-v3.2-speciale'
 ]
 

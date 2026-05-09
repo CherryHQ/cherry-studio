@@ -6,10 +6,7 @@
 import { ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
-/** Client-only: optional catalog preset trace for sync diff (not on shared `Model`). */
-export const ModelSyncPreviewModelSchema = ModelSchema.extend({
-  presetModelId: z.string().nullable().optional()
-})
+export const ModelSyncPreviewModelSchema = ModelSchema
 export type ModelSyncPreviewModel = z.infer<typeof ModelSyncPreviewModelSchema>
 
 export const ModelSyncReplacementSuggestionSchema = z.strictObject({

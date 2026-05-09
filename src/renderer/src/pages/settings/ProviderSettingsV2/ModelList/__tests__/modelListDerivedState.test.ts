@@ -3,6 +3,7 @@ import { HealthStatus } from '@renderer/pages/settings/ProviderSettingsV2/types/
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
+import { isFunctionCallingModel, isGenerateImageModel, isVisionModel } from '../../config/models'
 import {
   applyModelFilters,
   calculateModelListDerivedState,
@@ -139,5 +140,35 @@ describe('modelListDerivedState', () => {
       rerank: 0,
       function_calling: 0
     })
+  })
+
+  it('keeps v2 capability regexes aligned for Kimi, Gemini image, GPT OSS, and MiMo variants', () => {
+    expect(
+      isVisionModel({ id: 'moonshot::kimi-k2.6', name: 'kimi-k2.6', providerId: 'moonshot', capabilities: [] })
+    ).toBe(true)
+    expect(
+      isGenerateImageModel({
+        id: 'google::gemini-3-flash-image-preview',
+        name: 'gemini-3-flash-image-preview',
+        providerId: 'google',
+        capabilities: []
+      })
+    ).toBe(true)
+    expect(
+      isFunctionCallingModel({
+        id: 'openai::gpt-oss',
+        name: 'gpt-oss',
+        providerId: 'openai',
+        capabilities: []
+      })
+    ).toBe(true)
+    expect(
+      isFunctionCallingModel({
+        id: 'mimo::mimo-v2.5-pro',
+        name: 'mimo-v2.5-pro',
+        providerId: 'mimo',
+        capabilities: []
+      })
+    ).toBe(true)
   })
 })

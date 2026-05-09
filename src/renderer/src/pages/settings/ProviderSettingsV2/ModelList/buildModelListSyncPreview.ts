@@ -3,11 +3,7 @@ import { loggerService } from '@logger'
 import type { Provider } from '@shared/data/types/provider'
 
 import { fetchResolvedProviderModels } from './modelSync'
-import type {
-  ModelSyncPreviewMissingItem,
-  ModelSyncPreviewModel,
-  ModelSyncPreviewResponse
-} from './modelSyncPreviewTypes'
+import type { ModelSyncPreviewMissingItem, ModelSyncPreviewResponse } from './modelSyncPreviewTypes'
 
 const logger = loggerService.withContext('ModelListSyncPreview')
 
@@ -22,7 +18,7 @@ export async function buildModelListSyncPreview(params: {
   const { providerId, provider } = params
 
   const [localModels, remoteModels] = await Promise.all([
-    dataApiService.get('/models' as const, { query: { providerId } }) as Promise<ModelSyncPreviewModel[]>,
+    dataApiService.get('/models' as const, { query: { providerId } }),
     fetchResolvedProviderModels(providerId, provider)
   ])
 

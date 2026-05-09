@@ -154,6 +154,7 @@ function rowToRuntimeModel(row: UserModel): Model {
     id: createUniqueModelId(row.providerId, row.modelId),
     providerId: row.providerId,
     apiModelId: row.modelId,
+    presetModelId: row.presetModelId,
     name: row.name ?? row.modelId,
     description: row.description ?? undefined,
     group: row.group ?? undefined,

@@ -63,49 +63,55 @@ export function useProviderDeepLinkImport(
     }
 
     const importProvider = async (providerData: ImportedProviderSearchData) => {
-      const popupResult = await UrlSchemaInfoPopup.show(providerData)
-      const { updatedProvider, isNew, displayName } = popupResult
+      try {
+        const popupResult = await UrlSchemaInfoPopup.show(providerData)
+        const { updatedProvider, isNew, displayName } = popupResult
 
-      if (!updatedProvider) {
-        void navigate({ to: '/settings/provider-v2' })
-        return
-      }
+        if (!updatedProvider) {
+          void navigate({ to: '/settings/provider-v2' })
+          return
+        }
 
-      const providerId = updatedProvider.id
-      const defaultChatEndpoint = resolveDefaultEndpoint(updatedProvider.type)
-      const endpointConfigs = updatedProvider.apiHost
-        ? {
-            [defaultChatEndpoint]: {
-              baseUrl: updatedProvider.apiHost
+        const providerId = updatedProvider.id
+        const defaultChatEndpoint = resolveDefaultEndpoint(updatedProvider.type)
+        const endpointConfigs = updatedProvider.apiHost
+          ? {
+              [defaultChatEndpoint]: {
+                baseUrl: updatedProvider.apiHost
+              }
             }
-          }
-        : undefined
+          : undefined
 
-      if (isNew) {
-        await createProvider({
-          providerId,
-          name: updatedProvider.name || providerData.id,
-          defaultChatEndpoint,
-          endpointConfigs
-        })
-      } else {
-        await updateProviderById(providerId, {
-          name: updatedProvider.name,
-          defaultChatEndpoint,
-          endpointConfigs
-        })
+        if (isNew) {
+          await createProvider({
+            providerId,
+            name: updatedProvider.name || providerData.id,
+            defaultChatEndpoint,
+            endpointConfigs
+          })
+        } else {
+          await updateProviderById(providerId, {
+            name: updatedProvider.name,
+            defaultChatEndpoint,
+            endpointConfigs
+          })
+        }
+
+        if (updatedProvider.apiKey.trim()) {
+          await addApiKeyTrigger({
+            params: { providerId },
+            body: { key: updatedProvider.apiKey.trim() }
+          })
+        }
+
+        onSelectProvider(providerId)
+        void navigate({ to: '/settings/provider-v2', search: { id: providerId } })
+        window.toast.success(t('settings.models.provider_key_added', { provider: displayName }))
+      } catch (error) {
+        logger.error('Failed to import provider deep link data', error as Error)
+        window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+        void navigate({ to: '/settings/provider-v2' })
       }
-
-      if (updatedProvider.apiKey.trim()) {
-        await addApiKeyTrigger({
-          params: { providerId },
-          body: { key: updatedProvider.apiKey.trim() }
-        })
-      }
-
-      onSelectProvider(providerId)
-      void navigate({ to: '/settings/provider-v2', search: { id: providerId } })
-      window.toast.success(t('settings.models.provider_key_added', { provider: displayName }))
     }
 
     try {

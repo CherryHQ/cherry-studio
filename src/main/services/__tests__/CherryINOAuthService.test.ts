@@ -43,6 +43,16 @@ describe('CherryINOAuthService', () => {
     })
   })
 
+  it('fails token saves without overwriting auth config when the current auth config cannot be read', async () => {
+    providerServiceMocks.getAuthConfig.mockRejectedValue(new Error('sqlite busy'))
+
+    await expect(cherryINOAuthService.saveToken({} as Electron.IpcMainInvokeEvent, 'new-access')).rejects.toThrow(
+      'Failed to save OAuth token'
+    )
+
+    expect(providerServiceMocks.update).not.toHaveBeenCalled()
+  })
+
   it('reads the access token from provider auth config', async () => {
     providerServiceMocks.getAuthConfig.mockResolvedValue({
       type: 'oauth',
@@ -102,6 +112,142 @@ describe('CherryINOAuthService', () => {
       monthlyUsageTokens: null,
       monthlySpend: 6.82
     })
+  })
+
+  it('maps flat profile responses without treating them as missing wrapped data', async () => {
+    providerServiceMocks.getAuthConfig.mockResolvedValue({
+      type: 'oauth',
+      clientId: 'client-id',
+      accessToken: 'oauth-access',
+      refreshToken: 'oauth-refresh'
+    })
+    vi.mocked(net.fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({
+          success: true,
+          data: {
+            quota: 1000,
+            used_quota: 0
+          }
+        })
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({
+          display_name: 'Flat User',
+          username: 'flat',
+          email: 'flat@example.com',
+          group: 'Team'
+        })
+      } as Response)
+
+    const result = await cherryINOAuthService.getBalance({} as Electron.IpcMainInvokeEvent, 'https://open.cherryin.ai')
+
+    expect(result.profile).toEqual({
+      displayName: 'Flat User',
+      username: 'flat',
+      email: 'flat@example.com',
+      group: 'Team'
+    })
+  })
+
+  it('deduplicates concurrent token refreshes after simultaneous unauthorized responses', async () => {
+    providerServiceMocks.getAuthConfig.mockResolvedValue({
+      type: 'oauth',
+      clientId: 'client-id',
+      accessToken: 'expired-access',
+      refreshToken: 'refresh-token'
+    })
+    providerServiceMocks.update.mockResolvedValue(undefined)
+
+    let releaseRefresh!: () => void
+    const refreshGate = new Promise<void>((resolve) => {
+      releaseRefresh = resolve
+    })
+
+    vi.mocked(net.fetch).mockImplementation(async (url, init) => {
+      const urlString = String(url)
+
+      if (urlString.endsWith('/oauth2/token')) {
+        await refreshGate
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({
+            access_token: 'fresh-access',
+            refresh_token: 'fresh-refresh'
+          })
+        } as Response
+      }
+
+      const authorization = (init?.headers as Record<string, string> | undefined)?.Authorization
+      if (authorization === 'Bearer fresh-access') {
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({
+            success: true,
+            data: {
+              quota: 100,
+              used_quota: 0
+            }
+          })
+        } as Response
+      }
+
+      return {
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        clone: () =>
+          ({
+            text: async () => '{}'
+          }) as Response
+      } as Response
+    })
+
+    const first = cherryINOAuthService.getBalance({} as Electron.IpcMainInvokeEvent, 'https://open.cherryin.ai')
+    const second = cherryINOAuthService.getBalance({} as Electron.IpcMainInvokeEvent, 'https://open.cherryin.ai')
+
+    await vi.waitFor(() => {
+      expect(vi.mocked(net.fetch).mock.calls.filter(([url]) => String(url).endsWith('/oauth2/token'))).toHaveLength(1)
+    })
+
+    releaseRefresh()
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      {
+        balance: 0.0002,
+        profile: {
+          displayName: null,
+          username: null,
+          email: null,
+          group: null
+        },
+        monthlyUsageTokens: null,
+        monthlySpend: 0
+      },
+      {
+        balance: 0.0002,
+        profile: {
+          displayName: null,
+          username: null,
+          email: null,
+          group: null
+        },
+        monthlyUsageTokens: null,
+        monthlySpend: 0
+      }
+    ])
+    expect(providerServiceMocks.update).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(net.fetch).mock.calls.filter(([url]) => String(url).endsWith('/oauth2/token'))).toHaveLength(2)
   })
 
   it('exposes balance API HTTP failures in the thrown error message', async () => {

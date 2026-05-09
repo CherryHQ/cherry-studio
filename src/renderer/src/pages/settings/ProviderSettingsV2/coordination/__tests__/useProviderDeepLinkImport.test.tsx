@@ -181,4 +181,39 @@ describe('useProviderDeepLinkImport', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider-v2' })
     expect(onSelectProvider).not.toHaveBeenCalled()
   })
+
+  it('shows an error toast and clears the search state when provider import mutations fail', async () => {
+    const onSelectProvider = vi.fn()
+    createProviderMock.mockRejectedValue(new Error('create failed'))
+    popupShowMock.mockResolvedValue({
+      updatedProvider: {
+        id: 'openai',
+        name: 'OpenAI',
+        type: 'openai',
+        apiKey: 'sk-openai',
+        apiHost: 'https://api.openai.com'
+      },
+      isNew: true,
+      displayName: 'OpenAI'
+    })
+
+    renderHook(() =>
+      useProviderDeepLinkImport(
+        JSON.stringify({
+          id: 'openai',
+          apiKey: 'sk-openai',
+          baseUrl: 'https://api.openai.com',
+          type: 'openai',
+          name: 'OpenAI'
+        }),
+        onSelectProvider
+      )
+    )
+
+    await waitFor(() => expect(window.toast.error).toHaveBeenCalledTimes(1))
+
+    expect(addApiKeyTriggerMock).not.toHaveBeenCalled()
+    expect(onSelectProvider).not.toHaveBeenCalled()
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider-v2' })
+  })
 })

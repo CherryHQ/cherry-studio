@@ -50,7 +50,7 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
     startTransition(() => setSelectedProviderIdState(providerId))
   }, [])
 
-  useProviderDeepLinkImport(search.addProviderData, (providerId) => setSelectedProviderId(providerId))
+  useProviderDeepLinkImport(search.addProviderData, setSelectedProviderId)
 
   useEffect(() => {
     let shouldConsume = false

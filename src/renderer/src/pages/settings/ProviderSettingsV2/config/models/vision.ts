@@ -12,7 +12,7 @@ const visionAllowedModels = [
   'gemini-1\\.5',
   'gemini-2\\.0',
   'gemini-2\\.5',
-  'gemini-3(?:\\.\\d)?-(?:flash|pro)(?:-preview)?',
+  'gemini-3(?:\\.\\d+)?-(?:flash|pro)(?:-(?:image-)?preview)?(?:-[\\w-]+)*',
   'gemini-(flash|pro|flash-lite)-latest',
   'gemini-exp',
   'claude-3',
@@ -43,7 +43,7 @@ const visionAllowedModels = [
   'o3(?:-[\\w-]+)?',
   'o4(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
-  'kimi-k2.5',
+  'kimi-k2\\.[56](?:-[\\w-]+)?',
   'kimi-latest',
   'gemma-?[3-4](?:[-.\\w]+)?',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
@@ -108,7 +108,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
   'gpt-image-1',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
-  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?'
+  'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?'
 ]
 
 const OPENAI_IMAGE_GENERATION_MODELS = [
@@ -125,13 +125,16 @@ const GENERATE_IMAGE_MODELS = [
   'gemini-2.0-flash-exp(?:-[\\w-]+)?',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
-  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?',
+  'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?',
   ...DEDICATED_IMAGE_MODELS
 ]
 
 const OPENAI_IMAGE_GENERATION_MODELS_REGEX = new RegExp(OPENAI_IMAGE_GENERATION_MODELS.join('|'), 'i')
 const GENERATE_IMAGE_MODELS_REGEX = new RegExp(GENERATE_IMAGE_MODELS.join('|'), 'i')
-const MODERN_GENERATE_IMAGE_MODELS_REGEX = new RegExp(['gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?'].join('|'), 'i')
+const MODERN_GENERATE_IMAGE_MODELS_REGEX = new RegExp(
+  ['gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?'].join('|'),
+  'i'
+)
 const DEDICATED_IMAGE_MODEL_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'), 'i')
 const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
 const OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS = [

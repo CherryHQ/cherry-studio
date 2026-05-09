@@ -108,6 +108,17 @@ describe('ModelService.update', () => {
     expect(row.maxOutputTokens).toBe(4096)
   })
 
+  it('exposes presetModelId in runtime model responses for sync diff ownership', async () => {
+    await seedExistingModel()
+
+    const [model] = await modelService.list({ providerId: 'openai' })
+
+    expect(model).toMatchObject({
+      id: 'openai::gpt-4o',
+      presetModelId: 'gpt-4o'
+    })
+  })
+
   it('parameterSupport DTO key maps to parameters DB column', async () => {
     await seedExistingModel()
 

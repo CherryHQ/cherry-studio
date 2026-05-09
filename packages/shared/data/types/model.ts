@@ -260,6 +260,8 @@ export const ModelSchema = z.object({
   providerId: z.string(),
   /** API Model ID - The actual ID used when calling the provider's API */
   apiModelId: z.string().optional(),
+  /** Preset catalog model ID this row was created from, if any */
+  presetModelId: z.string().nullable().optional(),
 
   // Display Information
   /** Display name */

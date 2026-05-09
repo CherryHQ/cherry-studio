@@ -52,7 +52,10 @@ const UserSelfProfileSchema = z.object({
 
 const UserSelfResponseSchema = z
   .union([
-    z.object({ data: UserSelfProfileSchema.nullable().optional() }).transform((payload) => payload.data ?? null),
+    z
+      .object({ data: UserSelfProfileSchema.nullable() })
+      .passthrough()
+      .transform((payload) => payload.data),
     UserSelfProfileSchema.transform((profile) => profile)
   ])
   .transform((payload): CherryINProfile | null => {
@@ -125,14 +128,11 @@ function cleanupExpiredFlows(): void {
 }
 
 class CherryINOAuthService {
+  private refreshAccessTokenPromise: Promise<string | null> | null = null
+
   private getOAuthAuthConfig = async (): Promise<Extract<AuthConfig, { type: 'oauth' }> | null> => {
-    try {
-      const authConfig = await providerService.getAuthConfig(CHERRYIN_PROVIDER_ID)
-      return authConfig?.type === 'oauth' ? authConfig : null
-    } catch (error) {
-      logger.error('Failed to read CherryIN auth config:', error as Error)
-      return null
-    }
+    const authConfig = await providerService.getAuthConfig(CHERRYIN_PROVIDER_ID)
+    return authConfig?.type === 'oauth' ? authConfig : null
   }
 
   /**
@@ -411,7 +411,7 @@ class CherryINOAuthService {
   /**
    * Refresh access token using refresh token
    */
-  private refreshAccessToken = async (apiHost: string): Promise<string | null> => {
+  private doRefreshAccessToken = async (apiHost: string): Promise<string | null> => {
     try {
       const refreshToken = await this.getRefreshToken()
       if (!refreshToken) {
@@ -457,6 +457,89 @@ class CherryINOAuthService {
     }
   }
 
+  private refreshAccessToken = async (apiHost: string): Promise<string | null> => {
+    if (this.refreshAccessTokenPromise) {
+      logger.debug('Joining in-flight CherryIN OAuth token refresh')
+      return this.refreshAccessTokenPromise
+    }
+
+    this.refreshAccessTokenPromise = this.doRefreshAccessToken(apiHost).finally(() => {
+      this.refreshAccessTokenPromise = null
+    })
+
+    return this.refreshAccessTokenPromise
+  }
+
+  private redactDiagnosticValue = (value: unknown): unknown => {
+    if (typeof value === 'string') {
+      return value
+        .replace(/Bearer\s+\S+/gi, 'Bearer <redacted>')
+        .replace(/[\w-]*token["']?\s*:\s*["'][^"']+["']/gi, (match) =>
+          match.replace(/:\s*["'][^"']+["']/, ': "<redacted>"')
+        )
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((item) => this.redactDiagnosticValue(item))
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value).map(([key, item]) => [
+          key,
+          /token|authorization|api[-_]?key/i.test(key) ? '<redacted>' : this.redactDiagnosticValue(item)
+        ])
+      )
+    }
+
+    return value
+  }
+
+  private readResponseBodyForDiagnostics = async (response: Response): Promise<unknown> => {
+    if (typeof response.clone !== 'function') {
+      return null
+    }
+
+    try {
+      const text = await response.clone().text()
+      if (!text) {
+        return null
+      }
+
+      try {
+        return this.redactDiagnosticValue(JSON.parse(text))
+      } catch {
+        return this.redactDiagnosticValue(text)
+      }
+    } catch (error) {
+      logger.warn('Failed to read CherryIN error response body for diagnostics:', error as Error)
+      return null
+    }
+  }
+
+  private logUnauthorizedResponse = async (
+    apiHost: string,
+    endpoint: string,
+    response: Response,
+    requestOptions: RequestInit
+  ): Promise<void> => {
+    logger.error('CherryIN request returned 401 Unauthorized', {
+      stage: endpoint,
+      request: {
+        url: `${apiHost}${endpoint}`,
+        method: requestOptions.method ?? 'GET',
+        headers: this.redactDiagnosticValue(requestOptions.headers ?? {}),
+        body: requestOptions.body ? this.redactDiagnosticValue(String(requestOptions.body)) : null
+      },
+      response: {
+        status: response.status,
+        statusText: response.statusText,
+        headers: {},
+        body: await this.readResponseBodyForDiagnostics(response)
+      }
+    })
+  }
+
   /**
    * Make authenticated API request with automatic token refresh on 401
    */
@@ -471,14 +554,16 @@ class CherryINOAuthService {
     }
 
     const makeRequest = async (accessToken: string): Promise<Response> => {
-      return net.fetch(`${apiHost}${endpoint}`, {
+      const requestOptions: RequestInit = {
         ...options,
         headers: {
           ...options.headers,
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         }
-      })
+      }
+
+      return net.fetch(`${apiHost}${endpoint}`, requestOptions)
     }
 
     let response = await makeRequest(token)
@@ -490,6 +575,17 @@ class CherryINOAuthService {
       if (newToken) {
         response = await makeRequest(newToken)
       }
+    }
+
+    if (response.status === 401) {
+      await this.logUnauthorizedResponse(apiHost, endpoint, response, {
+        ...options,
+        headers: {
+          ...options.headers,
+          Authorization: 'Bearer <redacted>',
+          'Content-Type': 'application/json'
+        }
+      })
     }
 
     return response
@@ -526,7 +622,7 @@ class CherryINOAuthService {
       const response = await this.authenticatedFetch(apiHost, '/api/v1/oauth/balance')
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        throw new CherryINOAuthServiceError(`HTTP ${response.status} ${response.statusText} from /api/v1/oauth/balance`)
       }
 
       const json = await response.json()
@@ -556,7 +652,8 @@ class CherryINOAuthService {
         throw new CherryINOAuthServiceError('Invalid response format from server', error)
       }
       logger.error('Failed to get balance:', error as Error)
-      throw new CherryINOAuthServiceError('Failed to get balance', error)
+      const detail = error instanceof Error && error.message ? `: ${error.message}` : ''
+      throw new CherryINOAuthServiceError(`Failed to get balance${detail}`, error)
     }
   }
 

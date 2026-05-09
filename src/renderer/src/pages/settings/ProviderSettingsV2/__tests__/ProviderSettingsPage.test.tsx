@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useProviderDeepLinkImport } from '../coordination/useProviderDeepLinkImport'
 import ProviderSettingsPage from '../ProviderSettingsPage'
 
 const navigateMock = vi.fn()
@@ -78,5 +79,14 @@ describe('ProviderSettingsPage', () => {
       search: {},
       replace: true
     })
+  })
+
+  it('passes a stable provider selector to deep-link import across rerenders', () => {
+    const { rerender } = render(<ProviderSettingsPage />)
+    const firstSelector = vi.mocked(useProviderDeepLinkImport).mock.calls.at(-1)?.[1]
+
+    rerender(<ProviderSettingsPage />)
+
+    expect(vi.mocked(useProviderDeepLinkImport).mock.calls.at(-1)?.[1]).toBe(firstSelector)
   })
 })
