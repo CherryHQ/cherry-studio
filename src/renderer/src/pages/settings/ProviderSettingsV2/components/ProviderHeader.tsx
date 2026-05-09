@@ -1,7 +1,7 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderAvatar'
-import { Bolt } from 'lucide-react'
+import { Bolt, ExternalLink } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -49,17 +49,25 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
           <ProviderAvatar provider={provider} size={32} className="shrink-0 rounded-xl" />
           <div className="min-w-0 self-center">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h1 className="truncate font-semibold text-(--color-foreground) text-[16px] leading-[1.25]">
-                {meta.fancyProviderName}
-              </h1>
-              {meta.docsWebsite && (
-                <a
-                  href={meta.docsWebsite}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-(--color-primary) text-[13px] transition-colors hover:opacity-80">
-                  {t('common.docs')}
-                </a>
+              {meta.docsWebsite ? (
+                <Tooltip content={t('common.docs')}>
+                  <a
+                    href={meta.docsWebsite}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`${meta.fancyProviderName} · ${t('common.docs')}`}
+                    className="group inline-flex min-w-0 items-center gap-1 text-(--color-foreground) transition-colors hover:text-(--color-primary)">
+                    <h1 className="truncate font-semibold text-[16px] leading-[1.25]">{meta.fancyProviderName}</h1>
+                    <ExternalLink
+                      className="size-3.5 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-(--color-primary)"
+                      aria-hidden
+                    />
+                  </a>
+                </Tooltip>
+              ) : (
+                <h1 className="truncate font-semibold text-(--color-foreground) text-[16px] leading-[1.25]">
+                  {meta.fancyProviderName}
+                </h1>
               )}
               {meta.showApiOptionsButton && (
                 <Tooltip content={t('settings.provider.api.options.label')}>
