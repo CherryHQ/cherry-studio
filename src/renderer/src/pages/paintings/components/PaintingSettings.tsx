@@ -1,5 +1,5 @@
 import { InfoTooltip } from '@cherrystudio/ui'
-import type { FC, ReactNode } from 'react'
+import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -8,24 +8,25 @@ import { usePaintingModelCatalog } from '../hooks/usePaintingModelCatalog'
 import { usePaintingProviderOptions } from '../hooks/usePaintingProviderOptions'
 import { usePaintingProviderRuntime } from '../hooks/usePaintingProviderRuntime'
 import type { PaintingData } from '../model/types/paintingData'
+import type { BaseConfigItem } from '../providers/shared/providerFieldSchema'
 import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
 import { PaintingSettingsExtras } from './PaintingProviderViews'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
-export function PaintingSettingsHeader({
-  actions
-}: {
-  /** Inline with title: e.g. provider “Learn more” before the close button. */
-  actions?: ReactNode
-}) {
-  const { t } = useTranslation()
+function resolveItemOptions(item: BaseConfigItem, painting: Record<string, unknown>) {
+  return typeof item.options === 'function' ? item.options(item, painting) : (item.options ?? [])
+}
 
-  return (
-    <div className="flex w-full min-w-0 flex-nowrap items-center justify-between gap-2">
-      <span className="min-w-0 truncate text-foreground text-xs tracking-wider">{t('paintings.parameters')}</span>
-      <div className="flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-x-2">{actions}</div>
-    </div>
-  )
+function shouldRenderConfigItem(item: BaseConfigItem, painting: Record<string, unknown>) {
+  if (item.condition && !item.condition(painting)) {
+    return false
+  }
+
+  if (item.type === 'sizeChips' && resolveItemOptions(item, painting).length === 0) {
+    return false
+  }
+
+  return true
 }
 
 export interface PaintingSettingsProps {
@@ -83,7 +84,7 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
   return (
     <>
       {configItems
-        .filter((item) => !item.condition || item.condition(paintingRecord))
+        .filter((item) => shouldRenderConfigItem(item, paintingRecord))
         .map((item, index) => (
           <div key={item.key || index}>
             {item.title && (

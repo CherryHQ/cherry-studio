@@ -1,7 +1,7 @@
 export const paintingClasses = {
   page: 'painting-theme flex h-full flex-1 flex-col',
   content: 'flex min-h-0 flex-1 flex-col overflow-hidden !bg-white dark:!bg-background',
-  tabsWrap: 'flex justify-center px-6 pt-4 pb-3',
+  tabsWrap: 'shrink-0 flex justify-center px-6 pt-4 pb-3',
   tabsList:
     'rounded-full border border-border/60 bg-neutral-100 p-1 shadow-[var(--painting-surface-shadow)] backdrop-blur-sm dark:bg-muted/40',
   tabsTrigger:
@@ -12,8 +12,7 @@ export const paintingClasses = {
   centerPane: 'relative flex min-w-0 flex-1 flex-col overflow-hidden',
   panel:
     'painting-theme-portal flex h-full w-[var(--painting-panel-width)] shrink-0 flex-col overflow-hidden border-border/50 border-r bg-[var(--painting-panel-bg)]',
-  panelHeader: 'flex items-center justify-between px-4 pt-3 pb-2',
-  panelModelSelector: 'shrink-0 px-4 pb-3',
+  panelModelSelector: 'shrink-0 px-4 pt-3 pb-3',
   panelModelSelectorTrigger:
     'h-9 w-full max-w-none justify-between rounded-xl border border-border/50 bg-background/70 px-3 hover:bg-muted/45',
   panelBody: 'flex min-h-0 flex-1 flex-col px-4 pb-4',

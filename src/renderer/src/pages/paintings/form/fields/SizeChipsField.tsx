@@ -3,13 +3,13 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import type { OptionItem } from '../../providers/shared/providerFieldSchema'
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
 
-const MAX_THUMB = 18
+const MAX_THUMB = 14
 const MIN_THUMB = 6
 const RATIO_MAX_TERM = 32
 const DEFAULT_COLUMNS = 3
 
 const chipClass = {
-  base: 'flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[var(--painting-radius-control)] px-2 py-1.5 text-[11px] leading-tight transition-all',
+  base: 'flex min-h-10 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[var(--painting-radius-control)] px-2 py-1 text-[11px] leading-tight transition-all',
   active:
     'bg-[var(--painting-choice-active-bg)] text-[var(--painting-choice-active-fg)] ring-1 ring-[var(--painting-choice-active-ring)]',
   inactive:

@@ -31,7 +31,7 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
 
   return (
     <div className="flex w-full min-w-0 shrink-0 px-2 pt-2 pb-4">
-      <div className="relative flex max-h-[132px] min-h-[94px] w-full min-w-0 flex-col rounded-[1.25rem] border border-border/60 bg-white dark:bg-background">
+      <div className="relative flex h-[110px] w-full min-w-0 flex-col rounded-[1.25rem] border border-border/60 bg-white dark:bg-background">
         <Textarea.Input
           disabled={disabled}
           value={painting.prompt || ''}

@@ -7,7 +7,7 @@ import PaintingModelSelector from './components/PaintingModelSelector'
 import { PaintingModeTabs } from './components/PaintingModeTabs'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import { PaintingArtboard, PaintingProviderHeaderActions } from './components/PaintingProviderViews'
-import PaintingSettings, { PaintingSettingsHeader } from './components/PaintingSettings'
+import PaintingSettings from './components/PaintingSettings'
 import PaintingStrip from './components/PaintingStrip'
 import { usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
 import { usePaintingInitialProvider } from './hooks/usePaintingInitialProvider'
@@ -81,13 +81,11 @@ const PaintingPage: FC = () => {
           <div className={paintingClasses.frame}>
             <div className={paintingClasses.surface}>
               <div className={paintingClasses.panel}>
-                <div className={paintingClasses.panelHeader}>
-                  <PaintingSettingsHeader actions={<PaintingProviderHeaderActions providerId={currentProviderId} />} />
-                </div>
                 <div className={paintingClasses.panelModelSelector}>
                   <PaintingModelSelector
                     className={paintingClasses.panelModelSelectorTrigger}
                     painting={currentPainting}
+                    actions={<PaintingProviderHeaderActions providerId={currentProviderId} />}
                     onSelect={switchModel}
                   />
                 </div>

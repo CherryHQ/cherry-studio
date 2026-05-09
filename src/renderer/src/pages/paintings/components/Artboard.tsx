@@ -70,7 +70,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
   }, [painting.files.length])
 
   return (
-    <div className="flex flex-1 items-center justify-center [--artboard-max:calc(100vh-256px)]">
+    <div className="flex min-h-0 flex-1 items-center justify-center [--artboard-max:calc(100vh-256px)]">
       <div
         className={`relative flex h-full w-full items-center justify-center transition-opacity ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
         {painting.files.length > 0 ? (
@@ -91,7 +91,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
                 maxWidth: 'var(--artboard-max)',
                 maxHeight: 'var(--artboard-max)',
                 objectFit: 'contain',
-                backgroundColor: 'var(--color-background-soft)',
+                backgroundColor: 'hsl(var(--muted) / 0.35)',
                 cursor: 'pointer'
               }}
             />

@@ -4,38 +4,47 @@ import { ModelSelector } from '@renderer/components/ModelSelector'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { ChevronDown } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePaintingModelCatalog } from '../hooks/usePaintingModelCatalog'
 import { usePaintingProviderOptions } from '../hooks/usePaintingProviderOptions'
+import { usePaintingProviderRuntime } from '../hooks/usePaintingProviderRuntime'
 import type { PaintingData } from '../model/types/paintingData'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
 interface PaintingModelSelectorProps {
   className?: string
   painting: PaintingData
+  actions?: ReactNode
   onSelect: (selection: { providerId: string; modelId: string }) => void
 }
 
-const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, painting, onSelect }) => {
+const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, painting, actions, onSelect }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const providerOptions = usePaintingProviderOptions()
+  const { provider } = usePaintingProviderRuntime(painting.providerId)
   const { selectorData, isLoading } = usePaintingModelCatalog({
     providerOptions,
     painting,
     shouldPrefetch: open
   })
   const currentProviderId = painting.providerId
+  const disabled = !provider.isEnabled
 
   return (
     <div>
-      <PaintingSectionTitle>{t('paintings.model')}</PaintingSectionTitle>
+      <PaintingSectionTitle className="justify-between">
+        <span className="min-w-0 truncate">{t('paintings.model')}</span>
+        {actions ? (
+          <span className="flex shrink-0 items-center gap-2 normal-case tracking-normal">{actions}</span>
+        ) : null}
+      </PaintingSectionTitle>
       <ModelSelector
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={(nextOpen) => setOpen(disabled ? false : nextOpen)}
         multiple={false}
         selectionType="id"
         value={selectorData.selectedModelId}
@@ -61,8 +70,11 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
           <Button
             variant="ghost"
             size="sm"
+            disabled={disabled}
             className={cn(
               'h-auto w-full max-w-none justify-between gap-2 rounded-[var(--painting-radius-track)] border border-border/50 bg-[var(--painting-control-bg)] px-2.5 py-[6px] text-muted-foreground text-xs shadow-none hover:bg-[var(--painting-control-bg-hover)] hover:text-foreground',
+              disabled &&
+                'cursor-not-allowed opacity-55 hover:bg-[var(--painting-control-bg)] hover:text-muted-foreground',
               className
             )}>
             <span className="flex min-w-0 items-center gap-2">
