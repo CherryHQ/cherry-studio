@@ -583,6 +583,101 @@ describe('ModelService.getByKey', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ModelService.existsById — FK pre-validation helper
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService.existsById', () => {
+  const dbh = setupTestDatabase()
+
+  it('returns true when the unique model id exists', async () => {
+    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI' })
+    const uid = createUniqueModelId('openai', 'gpt-4o')
+    await dbh.db.insert(userModelTable).values({
+      id: uid,
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      name: 'GPT-4o'
+    })
+
+    await expect(modelService.existsById(uid)).resolves.toBe(true)
+  })
+
+  it('returns false when the unique model id is missing', async () => {
+    await expect(modelService.existsById('openai::nope')).resolves.toBe(false)
+  })
+
+  it('observes a freshly-inserted row inside the same transaction', async () => {
+    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI' })
+    const uid = createUniqueModelId('openai', 'gpt-4o')
+
+    await dbh.db.transaction(async (tx) => {
+      await tx.insert(userModelTable).values({
+        id: uid,
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        name: 'GPT-4o'
+      })
+      await expect(modelService.existsById(uid, tx)).resolves.toBe(true)
+    })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ModelService.getNamesByUniqueIds — batch name resolution for embeds
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService.getNamesByUniqueIds', () => {
+  const dbh = setupTestDatabase()
+
+  it('returns a map of names keyed by UniqueModelId', async () => {
+    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI' })
+    const uid1 = createUniqueModelId('openai', 'gpt-4o')
+    const uid2 = createUniqueModelId('openai', 'gpt-4o-mini')
+    await dbh.db.insert(userModelTable).values([
+      { id: uid1, providerId: 'openai', modelId: 'gpt-4o', name: 'GPT-4o' },
+      { id: uid2, providerId: 'openai', modelId: 'gpt-4o-mini', name: 'GPT-4o mini' }
+    ])
+
+    const result = await modelService.getNamesByUniqueIds([uid1, uid2, 'openai::missing'])
+
+    expect(result.get(uid1)).toBe('GPT-4o')
+    expect(result.get(uid2)).toBe('GPT-4o mini')
+    expect(result.has('openai::missing')).toBe(false)
+  })
+
+  it('filters null / undefined / empty inputs and dedupes', async () => {
+    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI' })
+    const uid = createUniqueModelId('openai', 'gpt-4o')
+    await dbh.db.insert(userModelTable).values({ id: uid, providerId: 'openai', modelId: 'gpt-4o', name: 'GPT-4o' })
+
+    const result = await modelService.getNamesByUniqueIds([uid, uid, null, undefined, ''])
+
+    expect(result.size).toBe(1)
+    expect(result.get(uid)).toBe('GPT-4o')
+  })
+
+  it('omits rows with null or empty name (no synthetic blank label)', async () => {
+    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI' })
+    const uidNull = createUniqueModelId('openai', 'gpt-null')
+    const uidEmpty = createUniqueModelId('openai', 'gpt-empty')
+    await dbh.db.insert(userModelTable).values([
+      { id: uidNull, providerId: 'openai', modelId: 'gpt-null', name: null },
+      { id: uidEmpty, providerId: 'openai', modelId: 'gpt-empty', name: '' }
+    ])
+
+    const result = await modelService.getNamesByUniqueIds([uidNull, uidEmpty])
+
+    expect(result.has(uidNull)).toBe(false)
+    expect(result.has(uidEmpty)).toBe(false)
+  })
+
+  it('returns an empty map for empty input without querying', async () => {
+    const result = await modelService.getNamesByUniqueIds([])
+    expect(result.size).toBe(0)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ModelService.delete — removal behavior
 // ─────────────────────────────────────────────────────────────────────────────
 

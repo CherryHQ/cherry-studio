@@ -12,6 +12,7 @@ import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import type { NewUserModel, UserModel } from '@data/db/schemas/userModel'
 import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -226,6 +227,64 @@ class ModelService {
     }
 
     return models
+  }
+
+  /**
+   * Cheap existence check by UniqueModelId (`providerId::modelId`).
+   *
+   * Foreign services (e.g. AssistantService) call this to validate FK targets
+   * before writing — pre-validation surfaces a `VALIDATION_ERROR` with a
+   * field-level message instead of letting SQLite's FK constraint surface as
+   * a raw `DrizzleQueryError`. The error message itself is the caller's
+   * responsibility (different domains want different field-level messages),
+   * so this method only returns the boolean.
+   *
+   * `tx` lets callers reuse an in-flight transaction so the check and the
+   * subsequent write land atomically.
+   */
+  async existsById(id: string, tx: Pick<DbType, 'select'> = application.get('DbService').getDb()): Promise<boolean> {
+    const [row] = await tx
+      .select({ id: userModelTable.id })
+      .from(userModelTable)
+      .where(eq(userModelTable.id, id))
+      .limit(1)
+    return !!row
+  }
+
+  /**
+   * Batch-resolve `Model.name` for a set of UniqueModelIds.
+   *
+   * Foreign services use this on read paths to embed `modelName` on their
+   * entity shape (e.g. `Assistant.modelName`) without N round-trips. Returns
+   * a Map keyed by UniqueModelId; missing entries are absent so callers can
+   * fall back to `null` without extra null-checks. Rows with `null` or empty
+   * `name` are intentionally omitted — `userModelTable.name` is nullable and
+   * a blank label is no more useful than a missing one for UI display.
+   *
+   * Input may include `null` / `undefined` / empty strings (convenient when
+   * caller passes `rows.map(r => r.modelId)` and modelId is nullable); these
+   * are filtered and the unique non-empty set is queried in a single
+   * `IN (...)`.
+   *
+   * `tx` lets callers reuse an in-flight transaction.
+   */
+  async getNamesByUniqueIds(
+    uniqueIds: (string | null | undefined)[],
+    tx: Pick<DbType, 'select'> = application.get('DbService').getDb()
+  ): Promise<Map<string, string>> {
+    const result = new Map<string, string>()
+    const ids = Array.from(new Set(uniqueIds.filter((id): id is string => typeof id === 'string' && id.length > 0)))
+    if (ids.length === 0) return result
+
+    const rows = await tx
+      .select({ id: userModelTable.id, name: userModelTable.name })
+      .from(userModelTable)
+      .where(inArray(userModelTable.id, ids))
+
+    for (const row of rows) {
+      if (row.name) result.set(row.id, row.name)
+    }
+    return result
   }
 
   /**
