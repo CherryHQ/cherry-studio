@@ -10,19 +10,13 @@ import { isWin } from '@renderer/config/constant'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useUpdateAgent } from '@renderer/hooks/agents/useAgentDataApi'
 import SelectAgentBaseModelButton from '@renderer/pages/agents/components/SelectAgentBaseModelButton'
-import type {
-  AddAgentForm,
-  AgentEntity,
-  ApiModel,
-  BaseAgentForm,
-  PermissionMode,
-  Tool,
-  UpdateAgentForm
-} from '@renderer/types'
-import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
+import type { AddAgentForm, ApiModel, BaseAgentForm, PermissionMode, UpdateAgentForm } from '@renderer/types'
+import { isAgentType } from '@renderer/types'
 import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
 import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
 import type { GitBashPathInfo } from '@shared/config/constant'
+import { AgentConfigurationSchema } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, AgentTool as Tool } from '@shared/data/types/agent'
 import { Button, Input, Modal, Select, Tooltip } from 'antd'
 import { Info } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'

@@ -1,4 +1,4 @@
-import type { AgentType } from '@types'
+import type { AgentType } from '@shared/data/types/agent'
 
 export type AgentModelField = 'model' | 'planModel' | 'smallModel'
 

@@ -6,14 +6,13 @@
  * backward-compatible consumption across main and renderer.
  */
 
-import type { AgentDetail, AgentSessionMessageEntity, InstalledSkill, ScheduledTaskEntity } from '../api/schemas/agents'
-
 export type {
   AgentBase,
   AgentConfiguration,
   AgentDetail,
   AgentEntity,
   AgentSessionMessageEntity,
+  AgentTool,
   InstalledSkill,
   ScheduledTaskEntity,
   SlashCommand,
@@ -33,29 +32,25 @@ export type TaskStatus = 'active' | 'paused' | 'completed'
 export type SessionMessageRole = 'user' | 'assistant' | 'tool' | 'system'
 
 // ============================================================================
-// List response types (deprecated – use OffsetPaginationResponse from @shared/data/api)
+// Task DTOs (renderer hooks + main test seeding both consume these)
 // ============================================================================
 
-/** @deprecated Use `OffsetPaginationResponse<AgentDetail>` from `@shared/data/api`. Remove once #14431 rebinds renderer to DataApi. */
-export interface ListAgentsResponse {
-  data: AgentDetail[]
-  total: number
-  limit: number
-  offset: number
+export interface CreateTaskRequest {
+  name: string
+  prompt: string
+  scheduleType: TaskScheduleType
+  scheduleValue: string
+  timeoutMinutes?: number | null
+  channelIds?: string[]
 }
 
-/** @deprecated Use `OffsetPaginationResponse<ScheduledTaskEntity>` from `@shared/data/api`. Remove once #14431 rebinds renderer to DataApi. */
-export interface ListTasksResponse {
-  data: ScheduledTaskEntity[]
-  total: number
-  limit: number
-  offset: number
-}
-
-export interface ListSkillsResponse {
-  data: InstalledSkill[]
-}
-
-export interface ListSessionMessagesResponse {
-  messages: AgentSessionMessageEntity[]
+export interface UpdateTaskRequest {
+  name?: string
+  prompt?: string
+  agentId?: string
+  scheduleType?: TaskScheduleType
+  scheduleValue?: string
+  timeoutMinutes?: number | null
+  channelIds?: string[]
+  status?: TaskStatus
 }

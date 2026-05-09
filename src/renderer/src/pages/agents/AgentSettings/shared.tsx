@@ -2,16 +2,10 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { ScrollbarProps } from '@renderer/components/Scrollbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingDivider } from '@renderer/pages/settings'
-import type {
-  AgentConfiguration,
-  AgentEntity,
-  GetAgentResponse,
-  PermissionMode,
-  Tool,
-  UpdateAgentFunction
-} from '@renderer/types'
+import type { GetAgentResponse, PermissionMode, UpdateAgentFunction } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentConfiguration, AgentEntity, AgentTool as Tool } from '@shared/data/types/agent'
 import type { ModalProps } from 'antd'
 import React, { type ReactNode } from 'react'
 

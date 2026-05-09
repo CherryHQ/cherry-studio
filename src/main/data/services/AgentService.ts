@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { ListOptions } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -13,7 +14,7 @@ import {
   sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
-import type { AgentType, ListOptions } from '@types'
+import type { AgentType } from '@shared/data/types/agent'
 import { and, asc, count, desc, eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 

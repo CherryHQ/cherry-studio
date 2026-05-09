@@ -29,8 +29,13 @@ import { cacheService } from '@renderer/data/CacheService'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useCreateTask, useDeleteTask, useRunTask, useTaskLogs, useUpdateTask } from '@renderer/hooks/agents/useTasks'
-import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
-import type { AgentEntity } from '@renderer/types/agent'
+import type {
+  CreateTaskRequest,
+  ScheduledTaskEntity,
+  TaskRunLogEntity,
+  UpdateTaskRequest
+} from '@shared/data/types/agent'
+import type { AgentEntity } from '@shared/data/types/agent'
 import { useNavigate } from '@tanstack/react-router'
 import {
   AlertTriangle,

@@ -9,7 +9,7 @@ import { channelManager } from '@main/services/agents/services/channels/ChannelM
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
-import type { AgentConfiguration, TaskScheduleType } from '@types'
+import type { AgentConfiguration, TaskScheduleType } from '@shared/data/types/agent'
 import QRCode from 'qrcode'
 
 const logger = loggerService.withContext('MCPServer:Claw')

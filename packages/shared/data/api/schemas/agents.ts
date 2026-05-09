@@ -29,7 +29,12 @@ export type SlashCommand = z.infer<typeof SlashCommandSchema>
 export const AgentToolSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
-  description: z.string().optional()
+  description: z.string().optional(),
+  /** Source of the tool — set on builtin / MCP / user-custom catalog entries.
+   *  API responses currently omit this; settings UIs / claudecode catalog read it. */
+  type: z.enum(['builtin', 'mcp', 'custom']).optional(),
+  /** Requires user approval before invocation (UI-only hint). */
+  requirePermissions: z.boolean().optional()
 })
 export type AgentTool = z.infer<typeof AgentToolSchema>
 

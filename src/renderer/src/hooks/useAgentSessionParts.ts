@@ -11,7 +11,7 @@
  */
 
 import { useQuery } from '@renderer/data/hooks/useDataApi'
-import type { AgentSessionMessageEntity } from '@renderer/types/agent'
+import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageStatus } from '@shared/data/types/message'
 import { useCallback, useMemo } from 'react'
 

@@ -7,9 +7,10 @@
  */
 
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import type { AddAgentForm, AgentEntity, CreateAgentResponse, GetAgentResponse, UpdateAgentForm } from '@renderer/types'
+import type { AddAgentForm, GetAgentResponse, UpdateAgentForm } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { AgentEntity } from '@shared/data/types/agent'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -60,11 +61,11 @@ export const useAgents = () => {
 
   const { trigger: createTrigger } = useMutation('POST', '/agents', { refresh: ['/agents'] })
   const addAgent = useCallback(
-    async (form: AddAgentForm): Promise<Result<CreateAgentResponse>> => {
+    async (form: AddAgentForm): Promise<Result<AgentEntity>> => {
       try {
         const result = await createTrigger({ body: form })
         window.toast.success(t('common.add_success'))
-        return { success: true, data: result as unknown as CreateAgentResponse }
+        return { success: true, data: result as unknown as AgentEntity }
       } catch (error) {
         const msg = formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))
         window.toast.error(msg)

@@ -1,7 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
 import type { UpdateAgentBaseForm } from '@renderer/types'
-import { AgentConfigurationSchema } from '@renderer/types'
 import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
+import { AgentConfigurationSchema } from '@shared/data/api/schemas/agents'
 import { Input, InputNumber } from 'antd'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'

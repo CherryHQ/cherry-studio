@@ -2,7 +2,7 @@ import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import type { AgentConfiguration } from '@types'
+import type { AgentConfiguration } from '@shared/data/types/agent'
 
 import { BOOTSTRAP_INSTRUCTIONS, SOUL_CONTENT_THRESHOLD } from './seedWorkspace'
 

@@ -2,8 +2,8 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentTaskTable, type InsertAgentTaskRow } from '@data/db/schemas/agentTask'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { ErrorCode } from '@shared/data/api'
+import type { CreateTaskRequest } from '@shared/data/types/agent'
 import { setupTestDatabase } from '@test-helpers/db'
-import type { CreateTaskRequest } from '@types'
 import { describe, expect, it } from 'vitest'
 
 describe('TaskService', () => {

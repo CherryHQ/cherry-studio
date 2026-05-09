@@ -1,18 +1,19 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import type { AgentBase, AgentConfiguration, AgentType } from '@renderer/types'
 import type { PermissionModeCard } from '@renderer/types/agent'
+import type { AgentBase, AgentConfiguration, AgentType } from '@shared/data/types/agent'
 
-// base agent config. no default config for now.
-const DEFAULT_AGENT_CONFIG: Omit<AgentBase, 'model'> = {
+// Partial defaults — `name` and `model` are user-supplied at create time.
+type PartialAgentBase = Partial<Omit<AgentBase, 'model'>>
+
+const DEFAULT_AGENT_CONFIG: PartialAgentBase = {
   accessiblePaths: []
 } as const
 
-// no default config for now.
-export const DEFAULT_CLAUDE_CODE_CONFIG: Omit<AgentBase, 'model'> = {
+export const DEFAULT_CLAUDE_CODE_CONFIG: PartialAgentBase = {
   ...DEFAULT_AGENT_CONFIG
 } as const
 
-export const DEFAULT_CHERRY_CLAW_CONFIG: Omit<AgentBase, 'model'> & { configuration: AgentConfiguration } = {
+export const DEFAULT_CHERRY_CLAW_CONFIG: PartialAgentBase & { configuration: AgentConfiguration } = {
   ...DEFAULT_AGENT_CONFIG,
   configuration: {
     permission_mode: 'bypassPermissions',

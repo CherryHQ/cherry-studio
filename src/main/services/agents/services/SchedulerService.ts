@@ -7,7 +7,7 @@ import { buildAgentSessionTopicId, parseAgentSessionModel } from '@main/ai/provi
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
 import type { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
 import { application } from '@main/core/application'
-import type { ScheduledTaskEntity } from '@types'
+import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 
 import { channelManager } from './channels/ChannelManager'
 import { readHeartbeat } from './cherryclaw/heartbeat'

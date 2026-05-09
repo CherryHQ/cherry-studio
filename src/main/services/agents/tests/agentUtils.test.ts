@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import type { AgentType } from '@types'
+import type { AgentType } from '@shared/data/types/agent'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { AgentModelField } from '../errors'

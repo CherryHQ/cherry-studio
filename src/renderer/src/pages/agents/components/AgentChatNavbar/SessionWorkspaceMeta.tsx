@@ -1,7 +1,7 @@
-import type { AgentEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentEntity } from '@shared/data/types/agent'
 import { Folder } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'

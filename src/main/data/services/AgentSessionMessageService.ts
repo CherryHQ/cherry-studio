@@ -8,19 +8,17 @@ import {
   type InsertAgentSessionMessageRow as InsertSessionMessageRow
 } from '@data/db/schemas/agentSessionMessage'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbOrTx } from '@data/db/types'
+import type { DbOrTx, ListOptions } from '@data/db/types'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agents'
 import type {
-  AgentMessageAssistantPersistPayload,
-  AgentMessagePersistExchangePayload,
-  AgentMessagePersistExchangeResult,
-  AgentMessageUserPersistPayload,
-  AgentPersistedMessage,
-  AgentSessionMessageEntity,
-  ListOptions
-} from '@types'
+  AgentMessageExchangeInput,
+  AgentMessageExchangeOutput,
+  AgentMessagePersistInput,
+  AgentPersistedMessage
+} from '@shared/data/types/agentMessage'
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('SessionMessageService')
@@ -157,8 +155,8 @@ export class AgentSessionMessageService {
   private async upsertMessage(
     db: DbOrTx,
     params:
-      | (AgentMessageUserPersistPayload & { sessionId: string; agentSessionId?: string })
-      | (AgentMessageAssistantPersistPayload & { sessionId: string; agentSessionId: string })
+      | (AgentMessagePersistInput & { sessionId: string; agentSessionId?: string })
+      | (AgentMessagePersistInput & { sessionId: string; agentSessionId: string })
   ): Promise<AgentSessionMessageEntity> {
     const { sessionId, agentSessionId = '', payload, metadata } = params
 
@@ -213,7 +211,7 @@ export class AgentSessionMessageService {
   }
 
   async persistUserMessage(
-    params: AgentMessageUserPersistPayload & { sessionId: string; agentSessionId?: string },
+    params: AgentMessagePersistInput & { sessionId: string; agentSessionId?: string },
     db?: DbOrTx
   ): Promise<AgentSessionMessageEntity> {
     const database = db ?? application.get('DbService').getDb()
@@ -221,19 +219,19 @@ export class AgentSessionMessageService {
   }
 
   async persistAssistantMessage(
-    params: AgentMessageAssistantPersistPayload & { sessionId: string; agentSessionId: string },
+    params: AgentMessagePersistInput & { sessionId: string; agentSessionId: string },
     db?: DbOrTx
   ): Promise<AgentSessionMessageEntity> {
     const database = db ?? application.get('DbService').getDb()
     return this.upsertMessage(database, params)
   }
 
-  async persistExchange(params: AgentMessagePersistExchangePayload): Promise<AgentMessagePersistExchangeResult> {
+  async persistExchange(params: AgentMessageExchangeInput): Promise<AgentMessageExchangeOutput> {
     const { sessionId, agentSessionId, user, assistant } = params
     const database = application.get('DbService').getDb()
 
     return database.transaction(async (tx) => {
-      const exchangeResult: AgentMessagePersistExchangeResult = {}
+      const exchangeResult: AgentMessageExchangeOutput = {}
 
       if (user?.payload) {
         exchangeResult.userMessage = await this.persistUserMessage(
