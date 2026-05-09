@@ -27,8 +27,14 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
   return {
     ...actual,
-    Button: ({ children, onClick, type = 'button', form, ...props }: any) => (
-      <button type={type} form={form} onClick={onClick} {...props}>
+    Button: ({ children, onClick, type = 'button', form, loading, disabled, ...props }: any) => (
+      <button
+        type={type}
+        form={form}
+        disabled={disabled || loading}
+        data-loading={loading}
+        onClick={onClick}
+        {...props}>
         {children}
       </button>
     ),
@@ -115,7 +121,7 @@ describe('Model drawers', () => {
     useModelsMock.mockReturnValue({ models: [] })
   })
 
-  it('renders the legacy add drawer without the inner panel shell and submits through the local drawer form', () => {
+  it('renders the legacy add drawer without the inner panel shell and submits through the local drawer form', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', name: 'OpenAI' }
     })
@@ -137,7 +143,9 @@ describe('Model drawers', () => {
     fireEvent.change(screen.getByLabelText('settings.models.add.group_name.label'), {
       target: { value: 'Alpha' }
     })
-    fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    })
 
     expect(createModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -150,7 +158,7 @@ describe('Model drawers', () => {
     )
   })
 
-  it('renders the new-api add drawer with the shared select surface and keeps endpoint type in create payload', () => {
+  it('renders the new-api add drawer with the shared select surface and keeps endpoint type in create payload', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'new-api', name: 'New API' }
     })
@@ -163,7 +171,9 @@ describe('Model drawers', () => {
     fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
       target: { value: 'claude-4-sonnet' }
     })
-    fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    })
 
     expect(createModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -172,6 +182,38 @@ describe('Model drawers', () => {
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
       })
     )
+  })
+
+  it('keeps the add-model submit disabled while creating and shows an error toast on failure', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+    let rejectCreate!: (error: Error) => void
+    createModelMock.mockReturnValue(
+      new Promise((_, reject) => {
+        rejectCreate = reject
+      })
+    )
+
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
+      target: { value: 'alpha-model' }
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+    })
+
+    expect(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /common\.cancel/i })).toBeDisabled()
+
+    await act(async () => {
+      rejectCreate(new Error('create failed'))
+    })
+
+    expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+    expect(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i })).not.toBeDisabled()
   })
 
   it('loads edit values, expands more settings, and keeps save plus auto-save on the existing mutation path', async () => {

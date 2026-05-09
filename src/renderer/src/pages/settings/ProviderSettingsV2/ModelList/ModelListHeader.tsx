@@ -22,7 +22,7 @@ export interface ModelListHeaderProps {
   setSelectedCapabilityFilter: (filter: ModelListCapabilityFilter) => void
   capabilityOptions: readonly ModelListCapabilityFilter[]
   capabilityModelCounts: ModelListCapabilityCounts
-  onToggleVisibleModels: (enabled: boolean) => void
+  onToggleVisibleModels: (enabled: boolean) => Promise<void>
   actions?: React.ReactNode
 }
 
@@ -72,6 +72,12 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
       return !open
     })
   }, [setSelectedCapabilityFilter])
+
+  const handleToggleVisibleModels = useCallback(() => {
+    void Promise.resolve(onToggleVisibleModels(!allEnabled)).catch(() => {
+      window.toast.error(t('settings.models.manage.operation_failed'))
+    })
+  }, [allEnabled, onToggleVisibleModels, t])
 
   return (
     <div className={modelListClasses.headerToolStack}>
@@ -130,7 +136,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
                   : 'hover:bg-[var(--color-surface-hover-soft)] hover:text-primary/90'
               )}
               disabled={!hasVisibleModels || isBusy}
-              onClick={() => onToggleVisibleModels(!allEnabled)}>
+              onClick={handleToggleVisibleModels}>
               {allEnabled ? (
                 <EyeOff className={modelListClasses.toolbarDesignIcon} />
               ) : (

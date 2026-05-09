@@ -36,7 +36,7 @@ export interface ProviderModelListHeaderSurface {
   setSelectedCapabilityFilter: (filter: ModelListCapabilityFilter) => void
   capabilityOptions: readonly ModelListCapabilityFilter[]
   capabilityModelCounts: ModelListCapabilityCounts
-  onToggleVisibleModels: (enabled: boolean) => void
+  onToggleVisibleModels: (enabled: boolean) => Promise<void>
 }
 
 export interface ProviderModelListSectionsSurface {

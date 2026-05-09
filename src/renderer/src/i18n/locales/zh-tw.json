@@ -5335,6 +5335,7 @@
         "filter_add_all": "全部新增",
         "filter_remove_all": "全部移除",
         "footer_done": "完成",
+        "operation_failed": "模型操作失敗。",
         "refetch_list": "重新取得模型列表",
         "reload_catalog": "重新整理列表",
         "remove_listed": "移除列表中的模型",

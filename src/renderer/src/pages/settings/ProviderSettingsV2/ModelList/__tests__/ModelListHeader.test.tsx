@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MODEL_LIST_CAPABILITY_FILTERS, type ModelListCapabilityCounts } from '../modelListDerivedState'
@@ -55,6 +55,9 @@ const baseProps = {
 describe('ModelListHeader', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ;(window as any).toast = {
+      error: vi.fn()
+    }
   })
 
   it('renders the model list title, list actions, and external action slot', () => {
@@ -67,6 +70,18 @@ describe('ModelListHeader', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.bulk_enable' }))
     expect(baseProps.onToggleVisibleModels).toHaveBeenCalledWith(true)
+  })
+
+  it('shows an error toast when bulk toggle fails', async () => {
+    const onToggleVisibleModels = vi.fn().mockRejectedValue(new Error('bulk failed'))
+
+    render(<ModelListHeader {...baseProps} onToggleVisibleModels={onToggleVisibleModels} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.bulk_enable' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+    })
   })
 
   it('switches the bulk action label when all models are enabled', () => {

@@ -46,6 +46,7 @@ export default function AddModelFormPanel({
   )
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
 
@@ -100,45 +101,57 @@ export default function AddModelFormPanel({
   )
 
   const submitAddModel = useCallback(async () => {
+    if (isSubmitting) {
+      return
+    }
+
     if (mode === 'new-api' && !(formState.endpointTypes?.length ?? 0)) {
       setEndpointTypeTouched(true)
       return
     }
 
-    const normalizedId = formState.modelId.trim().replaceAll('，', ',')
+    setIsSubmitting(true)
 
-    if (normalizedId.includes(',')) {
-      let addedCount = 0
-      for (const singleId of splitModelIds(normalizedId)) {
-        const added = await addSingleModel({
-          modelId: singleId,
-          name: singleId,
-          group: '',
-          maxInputTokens: '',
-          maxOutputTokens: '',
-          endpointTypes: formState.endpointTypes
-        })
+    try {
+      const normalizedId = formState.modelId.trim().replaceAll('，', ',')
 
-        if (added) {
-          addedCount += 1
+      if (normalizedId.includes(',')) {
+        let addedCount = 0
+        for (const singleId of splitModelIds(normalizedId)) {
+          const added = await addSingleModel({
+            modelId: singleId,
+            name: singleId,
+            group: '',
+            maxInputTokens: '',
+            maxOutputTokens: '',
+            endpointTypes: formState.endpointTypes
+          })
+
+          if (added) {
+            addedCount += 1
+          }
         }
+
+        if (addedCount > 0) {
+          onSuccess()
+        }
+        return
       }
 
-      if (addedCount > 0) {
+      if (
+        await addSingleModel({
+          ...formState,
+          modelId: normalizedId
+        })
+      ) {
         onSuccess()
       }
-      return
+    } catch {
+      window.toast.error(t('settings.models.manage.operation_failed'))
+    } finally {
+      setIsSubmitting(false)
     }
-
-    if (
-      await addSingleModel({
-        ...formState,
-        modelId: normalizedId
-      })
-    ) {
-      onSuccess()
-    }
-  }, [addSingleModel, formState, mode, onSuccess])
+  }, [addSingleModel, formState, isSubmitting, mode, onSuccess, t])
 
   const handleFormSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -201,10 +214,10 @@ export default function AddModelFormPanel({
         )}
       </form>
       <ProviderActions className={`${drawerClasses.footer} mt-auto pt-2`}>
-        <Button variant="outline" type="button" onClick={onCancel}>
+        <Button variant="outline" type="button" disabled={isSubmitting} onClick={onCancel}>
           {t('common.cancel')}
         </Button>
-        <Button type="button" onClick={() => void submitAddModel()}>
+        <Button type="button" loading={isSubmitting} onClick={() => void submitAddModel()}>
           {t('settings.models.add.add_model')}
         </Button>
       </ProviderActions>

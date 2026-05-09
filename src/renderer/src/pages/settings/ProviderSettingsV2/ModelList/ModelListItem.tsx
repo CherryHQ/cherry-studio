@@ -42,9 +42,11 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
 
   const handleToggleEnabled = useCallback(
     (enabled: boolean) => {
-      void onToggleEnabled(model, enabled)
+      void onToggleEnabled(model, enabled).catch(() => {
+        window.toast.error(t('settings.models.manage.operation_failed'))
+      })
     },
-    [model, onToggleEnabled]
+    [model, onToggleEnabled, t]
   )
 
   return (
