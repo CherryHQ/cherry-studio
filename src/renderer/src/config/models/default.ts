@@ -8,6 +8,32 @@ export const qwenModel: Model = {
 }
 
 export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> = {
+  omlx: [
+    {
+      id: 'Qwen3.6-27B-UD-MLX-4bit',
+      name: 'Qwen3.6-27B-UD-MLX-4bit',
+      provider: 'omlx',
+      group: 'Qwen'
+    },
+    {
+      id: 'Qwen3.6-27B-AEON-Ultimate-Uncensored-BF16-mlx-4Bit',
+      name: 'Qwen3.6-27B-AEON-Ultimate-Uncensored-BF16-mlx-4Bit',
+      provider: 'omlx',
+      group: 'Qwen'
+    },
+    {
+      id: 'Qwen3.6-35B-A3B-UD-MLX-4bit',
+      name: 'Qwen3.6-35B-A3B-UD-MLX-4bit',
+      provider: 'omlx',
+      group: 'Qwen'
+    },
+    {
+      id: 'gemma-4-26B-A4B-it-uncensored-heretic-ara-MLX-6bit-int6-affine',
+      name: 'gemma-4-26B-A4B-it-uncensored-heretic-ara-MLX-6bit-int6-affine',
+      provider: 'omlx',
+      group: 'Gemma'
+    }
+  ],
   defaultModel: [
     // Default assistant model
     qwenModel,
