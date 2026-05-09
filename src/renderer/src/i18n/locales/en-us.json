@@ -3433,6 +3433,7 @@
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
+    "omlx": "oMLX",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
@@ -3454,8 +3455,7 @@
     "yi": "Yi",
     "zai": "Z.ai",
     "zhinao": "360AI",
-    "zhipu": "BigModel",
-    "omlx": "oMLX"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
