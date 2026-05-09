@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
+import { useTopViewClose } from './useTopViewClose'
 
 interface PopupButtonProps {
   className?: string
@@ -15,6 +16,7 @@ interface PopupButtonProps {
 }
 
 interface PopupProps {
+  afterClose?: () => void
   cancelButtonProps?: PopupButtonProps
   cancelText?: ReactNode
   className?: string
@@ -51,7 +53,7 @@ const PopupContainer: React.FC<Props> = ({
   const [richContent, setRichContent] = useState(content)
   const editorRef = useRef<RichEditorRef>(null)
   const isMounted = useRef(true)
-  const resolvedRef = useRef(false)
+  const close = useTopViewClose({ afterClose: modalProps?.afterClose, resolve, setOpen, topViewKey: TopViewKey })
 
   useEffect(() => {
     return () => {
@@ -60,11 +62,7 @@ const PopupContainer: React.FC<Props> = ({
   }, [])
 
   const settle = (result: string | null) => {
-    if (resolvedRef.current) return
-
-    resolvedRef.current = true
-    setOpen(false)
-    resolve(result)
+    close(result)
   }
 
   const onOk = () => {
@@ -173,16 +171,7 @@ export default class RichEditPopup {
   }
   static show(props: ShowParams) {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

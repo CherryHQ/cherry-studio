@@ -2,8 +2,10 @@ import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle 
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { TopView } from '@renderer/components/TopView'
 import type { CSSProperties, ReactNode } from 'react'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useTopViewClose } from './useTopViewClose'
 
 interface PopupButtonProps {
   className?: string
@@ -19,6 +21,7 @@ interface PopupStyles {
 }
 
 interface ShowParams {
+  afterClose?: () => void
   cancelButtonProps?: PopupButtonProps
   cancelText?: ReactNode
   className?: string
@@ -80,20 +83,14 @@ const PopupContainer: React.FC<Props> = ({
   ...rest
 }) => {
   const [open, setOpen] = useState(true)
-  const resolvedRef = useRef(false)
   const { t } = useTranslation()
+  const close = useTopViewClose({ afterClose: rest.afterClose, resolve, setOpen, topViewKey: TopViewKey })
 
   const settle = (result: any) => {
-    if (resolvedRef.current) return
-
-    resolvedRef.current = true
-    setOpen(false)
-    resolve(result)
+    close(result)
   }
 
   const onOk = async () => {
-    if (resolvedRef.current) return
-
     try {
       const result = await handleOk?.()
       if (result === false) {
@@ -107,8 +104,6 @@ const PopupContainer: React.FC<Props> = ({
   }
 
   const onCancel = () => {
-    if (resolvedRef.current) return
-
     handleCancel?.()
     settle({})
   }
@@ -182,16 +177,7 @@ export default class GeneralPopup {
   }
   static show(props: ShowParams) {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

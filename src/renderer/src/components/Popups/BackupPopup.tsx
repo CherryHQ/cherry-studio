@@ -12,10 +12,11 @@ import { loggerService } from '@logger'
 import { getBackupProgressLabel } from '@renderer/i18n/label'
 import { backup, backupToLanTransfer } from '@renderer/services/BackupService'
 import { IpcChannel } from '@shared/IpcChannel'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
+import { useTopViewClose } from './useTopViewClose'
 
 const logger = loggerService.withContext('BackupPopup')
 
@@ -35,9 +36,9 @@ interface ProgressData {
 const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => {
   const [open, setOpen] = useState(true)
   const [progressData, setProgressData] = useState<ProgressData>()
-  const resolvedRef = useRef(false)
   const { t } = useTranslation()
   const [skipBackupFile] = usePreference('data.backup.general.skip_backup_file')
+  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(IpcChannel.BackupProgress, (_, data: ProgressData) => {
@@ -49,13 +50,6 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
     }
   }, [])
 
-  useEffect(() => {
-    if (open || resolvedRef.current) return
-
-    resolvedRef.current = true
-    resolve({})
-  }, [open, resolve])
-
   const onOk = async () => {
     logger.debug(`skipBackupFile: ${skipBackupFile}, backupType: ${backupType}`)
 
@@ -64,11 +58,11 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
     } else {
       await backup(skipBackupFile)
     }
-    setOpen(false)
+    close({})
   }
 
   const onCancel = () => {
-    setOpen(false)
+    close({})
   }
 
   const getProgressText = () => {
@@ -132,16 +126,7 @@ export default class BackupPopup {
   }
   static show(backupType: 'direct' | 'lan-transfer' = 'direct') {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          backupType={backupType}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer backupType={backupType} resolve={resolve} />, TopViewKey)
     })
   }
 }

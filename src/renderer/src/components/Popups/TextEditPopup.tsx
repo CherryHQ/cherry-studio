@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
+import { useTopViewClose } from './useTopViewClose'
 
 const logger = loggerService.withContext('TextEditPopup')
 
@@ -20,6 +21,7 @@ interface PopupButtonProps {
 }
 
 interface PopupProps {
+  afterClose?: () => void
   cancelButtonProps?: PopupButtonProps
   cancelText?: ReactNode
   className?: string
@@ -58,7 +60,6 @@ const PopupContainer: React.FC<Props> = ({
   showTranslate = true
 }) => {
   const [open, setOpen] = useState(true)
-  const resolvedRef = useRef(false)
   const { t } = useTranslation()
   const { getLanguageByLangcode } = useTranslate()
   const [textValue, setTextValue] = useState(text)
@@ -75,6 +76,7 @@ const PopupContainer: React.FC<Props> = ({
     style: textareaStyle,
     ...restTextareaProps
   } = textareaProps ?? {}
+  const close = useTopViewClose({ afterClose: modalProps?.afterClose, resolve, setOpen, topViewKey: TopViewKey })
 
   useEffect(() => {
     return () => {
@@ -83,11 +85,7 @@ const PopupContainer: React.FC<Props> = ({
   }, [])
 
   const settle = (result: string | null) => {
-    if (resolvedRef.current) return
-
-    resolvedRef.current = true
-    setOpen(false)
-    resolve(result)
+    close(result)
   }
 
   const onOk = () => {
@@ -251,16 +249,7 @@ export default class TextEditPopup {
   }
   static show(props: ShowParams) {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }
