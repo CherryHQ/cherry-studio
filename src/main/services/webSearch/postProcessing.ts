@@ -2,28 +2,24 @@ import type {
   WebSearchCompressionConfig,
   WebSearchExecutionConfig,
   WebSearchResponse,
-  WebSearchResult,
-  WebSearchStatus
+  WebSearchResult
 } from '@shared/data/types/webSearch'
 import { sliceByTokens } from 'tokenx'
 
 export type WebSearchPostProcessingResult = {
   response: WebSearchResponse
-  status?: WebSearchStatus
 }
 
 /**
  * Applies result-level post processing after provider execution and blacklist filtering.
  *
  * This module intentionally stays pure: it only transforms the response from
- * compression config and does not own request lifecycle side effects such as
- * status writes. Lifecycle phases like `cutoff` and future `rag*` states are
- * orchestrated by `WebSearchService`.
+ * compression config. Request lifecycle behavior is orchestrated by
+ * `WebSearchService`.
  *
  * Current behavior:
  * - `none`: return raw results
  * - `cutoff`: truncate result content
- * - `rag`: reserved for future Main-side implementation, currently returns raw results
  */
 export async function postProcessWebSearchResponse(
   response: WebSearchResponse,
@@ -35,7 +31,6 @@ export async function postProcessWebSearchResponse(
 
   if (runtimeConfig.compression.method === 'cutoff') {
     return {
-      status: { phase: 'cutoff' },
       response: {
         ...response,
         results: applyCutoff(response.results, runtimeConfig.compression)
@@ -43,19 +38,6 @@ export async function postProcessWebSearchResponse(
     }
   }
 
-  if (runtimeConfig.compression.method === 'rag') {
-    return applyRag(response, runtimeConfig)
-  }
-
-  return { response }
-}
-
-async function applyRag(
-  response: WebSearchResponse,
-  runtimeConfig: WebSearchExecutionConfig
-): Promise<WebSearchPostProcessingResult> {
-  void runtimeConfig
-  // TODO: implement Main-side RAG compression and lifecycle status handling.
   return { response }
 }
 

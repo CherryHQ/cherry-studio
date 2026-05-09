@@ -87,7 +87,7 @@
     "ci": "pnpm ci:basic-check && pnpm ci:test-check"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.81",
+    "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@expo/sudo-prompt": "^9.3.2",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@libsql/client": "^0.15.15",
@@ -185,6 +185,7 @@
     "@floating-ui/dom": "1.7.3",
     "@google/genai": "^1.46.0",
     "@hello-pangea/dnd": "^18.0.1",
+    "@hookform/resolvers": "^5.0.1",
     "@iconify-json/material-icon-theme": "^1.2.56",
     "@iconify/react": "^6.0.2",
     "@j178/prek": "^0.3.4",
@@ -399,6 +400,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-error-boundary": "^6.0.0",
+    "react-hook-form": "^7.55.0",
     "react-hotkeys-hook": "^4.6.1",
     "react-i18next": "^14.1.2",
     "react-infinite-scroll-component": "^6.1.0",

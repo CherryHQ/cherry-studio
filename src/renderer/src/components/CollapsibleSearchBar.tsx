@@ -30,6 +30,7 @@ const CollapsibleSearchBar = ({
   const [searchVisible, setSearchVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
   const inputRef = useRef<InputRef>(null)
+  const collapsedWidth = 32
 
   const handleTextChange = useCallback(
     (text: string) => {
@@ -52,15 +53,31 @@ const CollapsibleSearchBar = ({
   }, [searchVisible])
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+    <motion.div
+      initial={false}
+      animate={searchVisible ? 'expanded' : 'collapsed'}
+      variants={{
+        expanded: { width: maxWidth, transition: { duration: 0.3, ease: 'easeInOut' } },
+        collapsed: { width: collapsedWidth, transition: { duration: 0.3, ease: 'easeInOut' } }
+      }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        position: 'relative',
+        height: collapsedWidth,
+        minWidth: 0,
+        overflow: 'hidden',
+        flexShrink: searchVisible ? 1 : 0
+      }}>
       <motion.div
-        initial="collapsed"
+        initial={false}
         animate={searchVisible ? 'expanded' : 'collapsed'}
         variants={{
-          expanded: { maxWidth: maxWidth, opacity: 1, transition: { duration: 0.3, ease: 'easeInOut' } },
-          collapsed: { maxWidth: 0, opacity: 0, transition: { duration: 0.3, ease: 'easeInOut' } }
+          expanded: { width: '100%', opacity: 1, transition: { duration: 0.3, ease: 'easeInOut' } },
+          collapsed: { width: 0, opacity: 0, transition: { duration: 0.3, ease: 'easeInOut' } }
         }}
-        style={{ overflow: 'hidden', flex: 1 }}>
+        style={{ overflow: 'hidden', flexShrink: 1 }}>
         <Input
           ref={inputRef}
           type="text"
@@ -82,23 +99,34 @@ const CollapsibleSearchBar = ({
             if (!searchText) setSearchVisible(false)
           }}
           onClear={handleClear}
-          style={{ width: '100%', ...style }}
+          style={{ width: '100%', height: collapsedWidth, ...style }}
         />
       </motion.div>
       <motion.div
-        initial="visible"
+        initial={false}
         animate={searchVisible ? 'hidden' : 'visible'}
+        className="rounded-lg transition-colors hover:bg-accent"
         variants={{
           visible: { opacity: 1, transition: { duration: 0.1, delay: 0.3, ease: 'easeInOut' } },
           hidden: { opacity: 0, transition: { duration: 0.1, ease: 'easeInOut' } }
         }}
-        style={{ cursor: 'pointer', display: 'flex' }}
+        style={{
+          position: 'absolute',
+          right: 0,
+          width: collapsedWidth,
+          height: collapsedWidth,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: searchVisible ? 'none' : 'auto'
+        }}
         onClick={() => setSearchVisible(true)}>
         <Tooltip content={tooltip} delay={500}>
           {icon}
         </Tooltip>
       </motion.div>
-    </div>
+    </motion.div>
   )
 }
 

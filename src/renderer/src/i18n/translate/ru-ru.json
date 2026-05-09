@@ -36,9 +36,9 @@
         "comingSoon": "Скоро",
         "connected": "Подключено",
         "connecting": "Подключение",
-        "createError": "[to be translated]:Failed to create channel",
+        "createError": "Не удалось создать канал",
         "deleteConfirm": "Удалить канал \"{{name}}\"?",
-        "deleteError": "[to be translated]:Failed to delete channel",
+        "deleteError": "Не удалось удалить канал",
         "description": "Подключите вашего агента к платформам обмена сообщениями.",
         "disconnected": "Отключено",
         "discord": {
@@ -123,7 +123,7 @@
           "title": "Telegram"
         },
         "title": "Каналы",
-        "updateError": "[to be translated]:Failed to update channel",
+        "updateError": "Не удалось обновить канал",
         "wechat": {
           "addAccount": "Добавить аккаунт WeChat",
           "chatIds": "Разрешённые идентификаторы пользователей",
@@ -215,7 +215,7 @@
         "edit": "Редактировать",
         "empty": "Нет запланированных задач. Добавьте одну, чтобы начать.",
         "error": {
-          "loadFailed": "[to be translated]:Failed to load tasks"
+          "loadFailed": "Не удалось загрузить задачи"
         },
         "intervalPlaceholder": "Интервал в минутах",
         "intervalUnit": "минуты",
@@ -226,7 +226,7 @@
           "error": "Ошибка",
           "justNow": "только что",
           "label": "История запусков",
-          "loadError": "[to be translated]:Failed to load run history",
+          "loadError": "Не удалось загрузить историю запусков",
           "result": "Результат",
           "runAt": "Запущено в",
           "running": "Бежит...",
@@ -957,17 +957,6 @@
         "xhigh": "Сверхвысокое",
         "xhigh_description": "Высочайший уровень рассуждений"
       },
-      "regular_phrases": {
-        "add": "Добавить подсказку",
-        "contentLabel": "Содержание",
-        "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}.",
-        "delete": "Удалить подсказку",
-        "deleteConfirm": "Вы уверены, что хотите удалить эту подсказку?",
-        "edit": "Редактировать подсказку",
-        "title": "Регулярные подсказки",
-        "titleLabel": "Заголовок",
-        "titlePlaceholder": "Введите заголовок"
-      },
       "title": "Настройки ассистента",
       "tool_use_mode": {
         "function": "Функция",
@@ -1510,8 +1499,8 @@
     "bun_required_message": "Запуск CLI-инструментов требует установки среды Bun",
     "cli_tool": "Инструмент",
     "cli_tool_placeholder": "Выберите CLI-инструмент для использования",
-    "count_one": "[to be translated]:{{count}} item",
-    "count_other": "[to be translated]:{{count}} items",
+    "count_one": "{{count}} элемент",
+    "count_other": "{{count}} предметов",
     "custom_path": "Пользовательский путь",
     "custom_path_error": "Не удалось задать пользовательский путь терминала",
     "custom_path_required": "Этот терминал требует установки пользовательского пути",
@@ -1519,12 +1508,12 @@
     "description": "Быстро запускает несколько CLI-инструментов для кода, повышая эффективность разработки",
     "empty": {
       "no_match": {
-        "description": "[to be translated]:Try adjusting your search terms",
-        "title": "[to be translated]:No matching tools found"
+        "description": "Попробуйте изменить поисковые запросы",
+        "title": "Подходящие инструменты не найдены"
       },
       "no_tool": {
-        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
-        "title": "[to be translated]:No code tools yet"
+        "description": "Добавьте инструмент CLI или помощник по коду, чтобы начать работу",
+        "title": "Инструментов для кода пока нет"
       }
     },
     "env_vars_help": "Установите переменные окружения для использования при запуске CLI-инструментов. Каждая переменная должна быть на отдельной строке в формате KEY=value",
@@ -1536,28 +1525,28 @@
       "bun_required": "Пожалуйста, установите среду Bun перед запуском CLI-инструментов",
       "error": "Не удалось запустить. Пожалуйста, попробуйте снова",
       "label": "Запуск",
-      "launched": "[to be translated]:Launched",
+      "launched": "Запущено",
       "success": "Запуск успешно завершен",
       "validation_error": "Пожалуйста, заполните все обязательные поля: CLI-инструмент, модель и рабочая директория"
     },
     "launching": "Запуск...",
     "model": "Модель",
-    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
+    "model_hint": "Выберите, какую модель ИИ должен использовать инструмент CLI",
     "model_placeholder": "Выберите модель для использования",
     "model_required": "Пожалуйста, выберите модель",
-    "official_tag": "[to be translated]:Official",
-    "official_tools": "[to be translated]:Official",
-    "search_placeholder": "[to be translated]:Search CLI tools…",
+    "official_tag": "Официальный",
+    "official_tools": "Официальный",
+    "search_placeholder": "Поиск инструментов CLI…",
     "select_folder": "Выберите папку",
     "set_custom_path": "Настройка пользовательского пути терминала",
     "supported_providers": "Поддерживаемые поставщики",
     "terminal": "терминал",
-    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
+    "terminal_hint": "Выберите, в каком терминале запускать интерфейс командной строки",
     "terminal_placeholder": "Выбор приложения терминала",
     "title": "Инструменты кода",
     "update_options": "Параметры обновления",
     "working_directory": "Рабочая директория",
-    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
+    "working_directory_hint": "Рабочий каталог, в котором запускается инструмент CLI"
   },
   "code_block": {
     "collapse": "Свернуть",
@@ -2352,7 +2341,7 @@
   },
   "launchpad": {
     "apps": "Приложения",
-    "minapps": "Приложения"
+    "miniApps": "Приложения"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2702,20 +2691,23 @@
     "websearch": {
       "cutoff": "Обрезка содержимого поиска...",
       "fetch_complete": "{{count}} результатов поиска",
-      "rag": "Выполнение RAG...",
-      "rag_complete": "Сохранено {{countAfter}} из {{countBefore}} результатов...",
-      "rag_failed": "RAG не удалось, возвращается пустой результат..."
+      "partial_failure": "{{count}} результатов поиска, некоторые поиски завершились ошибкой"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Добавить в стартовый экран",
     "add_to_sidebar": "Добавить в боковую панель",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Закрыть встроенное приложение",
       "devtools": "Инструменты разработчика",
       "goBack": "Назад",
       "goForward": "Вперед",
-      "minimize": "Свернуть встроенное приложение",
       "openExternal": "Открыть в браузере",
       "open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию",
       "open_link_external_on": "Текущий: Открыть ссылки в браузере",
@@ -2724,6 +2716,13 @@
     },
     "remove_from_launchpad": "Удалить из стартового экрана",
     "remove_from_sidebar": "Удалить из боковой панели",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Закрыть"
@@ -2738,9 +2737,11 @@
         "title": "Удалить пользовательское приложение"
       }
     },
-    "title": "Встроенные приложения"
+    "title": "Встроенные приложения",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Байчжан",
     "baidu-ai-search": "Baidu AI Search",
@@ -2759,6 +2760,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Tencent Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -2767,8 +2769,8 @@
   },
   "models": {
     "action": {
-      "pin": "[to be translated]:Pin this model",
-      "unpin": "[to be translated]:Unpin model"
+      "pin": "Закрепить эту модель",
+      "unpin": "Открепить модель"
     },
     "add_parameter": "Добавить параметр",
     "all": "Все",
@@ -2788,7 +2790,7 @@
     "invalid_model": "Недействительная модель",
     "json_parse_error": "Неверный формат JSON",
     "multi_select": {
-      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+      "label": "Многомодельный параллелизм (взаимоисключающий с мульти-ассистентом)"
     },
     "no_matches": "Нет доступных моделей",
     "parameter_name": "Имя параметра",
@@ -4038,27 +4040,27 @@
   },
   "selector": {
     "agent": {
-      "create_new": "[to be translated]:New Agent",
-      "empty_text": "[to be translated]:No agents yet",
-      "search_placeholder": "[to be translated]:Search agents…"
+      "create_new": "Новый агент",
+      "empty_text": "Агентов пока нет",
+      "search_placeholder": "Поиск агентов…"
     },
     "assistant": {
-      "create_new": "[to be translated]:New Assistant",
-      "empty_text": "[to be translated]:No assistants yet",
-      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
-      "multi_label": "[to be translated]:Multi-assistant parallel",
-      "search_placeholder": "[to be translated]:Search assistants…"
+      "create_new": "Новый ассистент",
+      "empty_text": "Пока нет ассистентов",
+      "multi_hint": "(взаимоисключающий с многомодельным)",
+      "multi_label": "Многопомощниковый параллелизм",
+      "search_placeholder": "Поиск ассистентов…"
     },
     "common": {
-      "edit": "[to be translated]:Edit",
-      "pin": "[to be translated]:Pin",
-      "pinned_title": "[to be translated]:Pinned",
+      "edit": "Редактировать",
+      "pin": "Пин",
+      "pinned_title": "Закреплено",
       "sort": {
-        "asc": "[to be translated]:Oldest",
-        "desc": "[to be translated]:Recent"
+        "asc": "Старейший",
+        "desc": "Недавний"
       },
-      "sort_label": "[to be translated]:Sort",
-      "unpin": "[to be translated]:Unpin"
+      "sort_label": "Сортировать",
+      "unpin": "Открепить"
     }
   },
   "settings": {
@@ -4129,72 +4131,72 @@
     },
     "componentLab": {
       "agentSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
-        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Agent Selector",
-        "triggerPlaceholder": "[to be translated]:Select an agent",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "Прозрачный",
+        "configDescription": "Переключите props, чтобы предварительно просмотреть поведение компонента",
+        "configTitle": "Конфиг",
+        "currentProps": "Текущие реквизиты",
+        "description": "AgentSelector теперь считывает реальные данные DataApi из /agents, чтобы проверять выбор id/элемента, закрепление, сортировку и поведение поиска.",
+        "emptyShellNotice": "Этот предварительный просмотр использует реальный список агентов, возвращаемый DataApi /agents.",
+        "lastOnChange": "Последнее onChange",
+        "previewDescription": "Нажмите на триггер, чтобы открыть селектор",
+        "previewTitle": "Предварительный просмотр",
+        "title": "Селектор агентов",
+        "triggerPlaceholder": "Выберите агента",
+        "valueProp": "Текущее значение"
       },
       "assistantSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Assistant Selector",
-        "triggerPlaceholder": "[to be translated]:Select an assistant",
-        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "Прозрачный",
+        "configDescription": "Переключайте свойства, чтобы просмотреть поведение компонента",
+        "configTitle": "Конфиг",
+        "currentProps": "Текущие реквизиты",
+        "description": "Монтирует бизнес-компонент AssistantSelector напрямую для проверки поведения множественного/одиночного выбора, идентификатора/элемента, закрепления, сортировки и поиска.",
+        "lastOnChange": "Последнее onChange",
+        "previewDescription": "Нажмите на триггер, чтобы открыть селектор",
+        "previewTitle": "Предварительный просмотр",
+        "title": "Селектор ассистента",
+        "triggerPlaceholder": "Выберите ассистента",
+        "triggerSelectedCount": "{{count}} ассистентов выбрано",
+        "valueProp": "Текущее значение"
       },
-      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
-      "label": "[to be translated]:Component Lab",
+      "description": "Видно только в режиме разработки для тестирования нового селектора моделей прямо в приложении.",
+      "label": "Компонентная лаборатория",
       "modelSelector": {
-        "behaviorConfig": "[to be translated]:Behavior & Display Config",
-        "callbackEmpty": "[to be translated]:No component callback received yet",
-        "clearSelection": "[to be translated]:Clear Selection",
-        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
-        "configTitle": "[to be translated]:Props Playground",
-        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
-        "currentProps": "[to be translated]:Current Props",
-        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
-        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
-        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
-        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
-        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
-        "loading": "[to be translated]:Loading models...",
-        "modelId": "[to be translated]:Model ID",
-        "multiSelectMode": "[to be translated]:multiSelectMode",
-        "multiple": "[to be translated]:multiple",
-        "normalizedIds": "[to be translated]:Normalized Selected IDs",
-        "outputEmpty": "[to be translated]:No data to display yet",
-        "provider": "[to be translated]:Provider",
-        "resetOutputs": "[to be translated]:Reset Outputs",
-        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
-        "resultsTitle": "[to be translated]:Outputs & State",
-        "selected": "[to be translated]:Current Selection",
-        "selectedEmpty": "[to be translated]:No model selected yet",
-        "selectionConfig": "[to be translated]:Selection Value Config",
-        "selectionType": "[to be translated]:selectionType",
-        "selectionTypeId": "[to be translated]:Return Model IDs",
-        "selectionTypeModel": "[to be translated]:Return Model Objects",
-        "showPinnedModels": "[to be translated]:showPinnedModels",
-        "showTagFilter": "[to be translated]:showTagFilter",
-        "title": "[to be translated]:Model Selector",
-        "triggerPlaceholder": "[to be translated]:Select a model",
-        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
-        "valueProp": "[to be translated]:Current Value Prop"
+        "behaviorConfig": "Конфигурация поведения и отображения",
+        "callbackEmpty": "Компонентный обратный вызов еще не получен",
+        "clearSelection": "Очистить выбор",
+        "configDescription": "Переключите ключевые свойства ModelSelector выше и изучите значение поля ввода и полезные нагрузки обратного вызова ниже.",
+        "configTitle": "Площадка реквизита",
+        "controlMultiSelectMode": "Контролируемый multiSelectMode",
+        "currentProps": "Текущие реквизиты",
+        "defaultMultiSelectMode": "режимМножественногоВыбораПоУмолчанию",
+        "description": "Эта страница напрямую монтирует текущий бизнес-компонент ModelSelector, чтобы мы могли проверить поведение выбора, фильтрации, поиска и закрепления.",
+        "empty": "В настоящее время модели недоступны, поэтому селектор пока не может быть отображён.",
+        "lastModeChangeReturn": "Последний onMultiSelectModeChange Return",
+        "lastSelectReturn": "Последний onSelect Return",
+        "loading": "Загрузка моделей...",
+        "modelId": "Идентификатор модели",
+        "multiSelectMode": "множественныйРежимВыбора",
+        "multiple": "множественный",
+        "normalizedIds": "Нормализованные выбранные идентификаторы",
+        "outputEmpty": "Нет данных для отображения",
+        "provider": "Поставщик",
+        "resetOutputs": "Сбросить выходы",
+        "resultsDescription": "Это показывает текущее значение prop, нормализованные выбранные идентификаторы и последний вывод обратного вызова из компонента.",
+        "resultsTitle": "Выходные данные и состояние",
+        "selected": "Текущий выбор",
+        "selectedEmpty": "Модель ещё не выбрана",
+        "selectionConfig": "Конфигурация значения выбора",
+        "selectionType": "типВыбора",
+        "selectionTypeId": "Вернуть идентификаторы моделей",
+        "selectionTypeModel": "Вернуть объекты модели",
+        "showPinnedModels": "показать закреплённые модели",
+        "showTagFilter": "показатьФильтрТегов",
+        "title": "Селектор моделей",
+        "triggerPlaceholder": "Выберите модель",
+        "triggerSelectedCount": "{{count}} моделей выбрано",
+        "valueProp": "Текущее ценностное предложение"
       },
-      "title": "[to be translated]:Development Component Lab"
+      "title": "Лаборатория компонентов разработки"
     },
     "data": {
       "app_data": {
@@ -4860,7 +4862,7 @@
         "knowledge": {
           "icon": "Показывать иконку знаний"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "Показывать иконку мини-приложения"
         },
         "painting": {
@@ -4894,6 +4896,15 @@
       "backup": {
         "button": "Резервное копирование",
         "title": "Резервное копирование и восстановление данных"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "Пользовательский CSS",
+          "display_language": "Отображение и язык",
+          "privacy_advanced": "Конфиденциальность и расширенные",
+          "system_startup": "Система и запуск"
+        },
+        "title": "Общие настройки"
       },
       "display": {
         "title": "Настройки отображения"
@@ -4955,6 +4966,12 @@
         "label": "Целевой язык",
         "russian": "Русский"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "Заметки"
+      },
+      "title": "Интеграции"
     },
     "launch": {
       "onboot": "Автозапуск при включении",
@@ -5225,6 +5242,13 @@
       "url": "URL",
       "user": "Пользователь"
     },
+    "menuGroups": {
+      "appSettings": "Настройки приложения",
+      "integrations": "Модели",
+      "productivity": "Производительность",
+      "services": "Плагины",
+      "system": "Система"
+    },
     "messages": {
       "divider": {
         "label": "Показывать разделитель между сообщениями",
@@ -5262,7 +5286,7 @@
       "title": "Настройки сообщений",
       "use_serif_font": "Использовать serif шрифт"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения",
       "cache_description": "Установить максимальное количество активных мини-приложений в памяти",
       "cache_settings": "Настройки кэша",
@@ -5312,8 +5336,6 @@
         "title": "Фильтрация по регионам в мини-программе"
       },
       "reset_tooltip": "Сбросить до значения по умолчанию",
-      "sidebar_description": "Настройка отображения активных мини-приложений в боковой панели",
-      "sidebar_title": "Отображение активных мини-приложений в боковой панели",
       "title": "Настройки мини-приложений",
       "visible": "Отображаемые мини-приложения"
     },
@@ -5378,7 +5400,7 @@
         "use_all_keys": "Использовать все ключи"
       },
       "default_assistant_model": "Модель ассистента по умолчанию",
-      "default_assistant_model_description": "Модель, используемая при создании нового ассистента, если ассистент не имеет настроенной модели, будет использоваться эта модель",
+      "default_assistant_model_description": "Используется, если у ассистента нет модели.",
       "empty": "Модели не найдены",
       "manage": {
         "add_listed": {
@@ -5472,9 +5494,35 @@
         "title": "подробность"
       }
     },
+    "plugins": {
+      "bunDescription": "Среда выполнения JavaScript, используемая службами MCP и связанными с ними инструментальными цепочками.",
+      "description": "Управляйте бинарными инструментами и зависимостями среды выполнения, необходимыми приложению.",
+      "installing": "Установка...",
+      "notInstalled": "Не установлено",
+      "title": "Зависимости окружения",
+      "uvDescription": "Менеджер пакетов Python для сервисов MCP и установки зависимостей."
+    },
     "privacy": {
       "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике",
       "title": "Настройки конфиденциальности"
+    },
+    "prompts": {
+      "add": "Добавить промпт",
+      "contentLabel": "Содержание",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Удалить промпт",
+      "deleteConfirm": "Промпт будет удален без возможности восстановления. Продолжить?",
+      "edit": "Редактировать промпт",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Управление промптами",
+      "titleLabel": "Заголовок",
+      "titlePlaceholder": "Введите заголовок промпта"
     },
     "provider": {
       "add": {
@@ -5769,20 +5817,6 @@
       "select": "Выбрать",
       "title": "Быстрое меню"
     },
-    "quickPhrase": {
-      "add": "Добавить фразу",
-      "assistant": "Подсказки ассистента",
-      "contentLabel": "Содержание",
-      "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}.",
-      "delete": "Удалить фразу",
-      "deleteConfirm": "После удаления фраза не может быть восстановлена, продолжить?",
-      "edit": "Редактировать фразу",
-      "global": "Глобальные быстрые фразы",
-      "locationLabel": "Место добавления",
-      "title": "Быстрые фразы",
-      "titleLabel": "Заголовок",
-      "titlePlaceholder": "Введите заголовок фразы"
-    },
     "scheduledTasks": {
       "description": "Управляйте запланированными задачами на всех агентах. Задачи выполняются автоматически по заданному расписанию.",
       "noAgents": "Агенты не найдены. Сначала создайте агента, чтобы добавить запланированные задачи.",
@@ -5794,12 +5828,22 @@
     "shortcuts": {
       "action": "Действие",
       "actions": "操作",
+      "all_disable": "Отключить все",
+      "all_enable": "Включить все",
       "bind_first_to_enable": "Сначала назначьте сочетание клавиш, чтобы изменить его состояние включения.",
+      "categories": {
+        "assistant": "Инструменты ИИ-ассистента",
+        "chat": "Взаимодействие с сообщениями",
+        "general": "Глобальное и Окно",
+        "title": "Группы ярлыков",
+        "topic": "Разговор и темы"
+      },
       "clear_shortcut": "Очистить сочетание клавиш",
       "clear_topic": "Очистить все сообщения",
       "conflict_with": "Уже используется \"{{name}}\"",
       "copy_last_message": "Копировать последнее сообщение",
       "edit_last_user_message": "Редактировать последнее сообщение пользователя",
+      "empty": "В этой группе нет доступных ярлыков",
       "enabled": "Включить",
       "exit_fullscreen": "Выйти из полноэкранного режима",
       "label": "Клавиша",
@@ -5808,6 +5852,7 @@
       "press_shortcut": "Нажмите сочетание клавиш",
       "quick_assistant": "Быстрый помощник",
       "rename_topic": "Переименовать топик",
+      "reset": "Сброс",
       "reset_defaults": "Сбросить настройки по умолчанию",
       "reset_defaults_confirm": "Вы уверены, что хотите сбросить все горячие клавиши?",
       "reset_defaults_failed": "Не удалось сбросить сочетания клавиш к значениям по умолчанию",
@@ -5888,6 +5933,14 @@
         "error": {
           "not_system": "Системный OCR поддерживается только в Windows и MacOS"
         },
+        "features": {
+          "paddleocr": "Более подходящий для китайского текста и лучше адаптированный для чеков, сканов и изображений со сложным макетом.",
+          "system": {
+            "macos": "Использует встроенный механизм OCR macOS без необходимости настройки, идеально подходит для скриншотов и лёгкого извлечения текста.",
+            "windows": "Использует встроенный механизм OCR Windows с глубокой интеграцией в ОС для выполнения базовых локальных задач распознавания."
+          },
+          "tesseract": "Классический локальный вариант OCR с настраиваемыми языковыми пакетами, хорошо подходящий для автономной и многоязычной работы."
+        },
         "image": {
           "error": {
             "provider_not_found": "Поставщик не существует"
@@ -5914,6 +5967,13 @@
         "title": "OCR-сервис"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "Идеально подходит для преобразования PDF в более чистый Markdown или редактируемый текст для последующего извлечения и редактирования.",
+          "mineru": "Оптимизировано для более точного восстановления макета, особенно полезно для академических PDF-документов, таблиц и формул.",
+          "mistral": "Мощное облачное понимание документов, подходящее для структурированного извлечения, многостраничных файлов и сложных макетов.",
+          "open_mineru": "Открытая опция развертывания, подходящая для команд, предпочитающих самостоятельное размещение или более строгий контроль над конвейером обработки.",
+          "paddleocr": "Более лёгкий вариант интеграции, хорошо подходящий для китайских документов, сканов и обычных чеков."
+        },
         "paddleocr": {
           "aistudio_access_token": "Токен доступа к сообществу AI Studio",
           "api_url": "URL API",
@@ -5952,23 +6012,10 @@
               "token": "Токены"
             }
           },
-          "error": {
-            "rag_failed": "RAG не удалось"
-          },
-          "info": {
-            "dimensions_auto_success": "Размерности успешно получены, размерности: {{dimensions}}"
-          },
           "method": {
             "cutoff": "Обрезка",
             "label": "Метод сжатия",
-            "none": "Не сжимать",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Количество фрагментов документов",
-              "tooltip": "Ожидаемое количество фрагментов документов, которые будут извлечены из каждого результата поиска. Фактическое количество извлеченных фрагментов документов равно этому значению, умноженному на количество результатов поиска."
-            }
+            "none": "Не сжимать"
           },
           "title": "Сжатие результатов поиска"
         },

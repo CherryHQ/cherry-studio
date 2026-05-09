@@ -12,11 +12,9 @@ import type { LanguageModelV3Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
-export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import type { CSSProperties } from 'react'
-
 export * from './file'
 export * from './note'
+export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 
 import type { TranslateLanguageCode } from '@shared/data/preference/preferenceTypes'
 import type { MCPServer } from '@shared/data/types/mcpServer'
@@ -40,6 +38,7 @@ export * from './plugin'
 export * from './provider'
 export * from './serialize'
 export * from './skill'
+export * from './websearch'
 
 export type McpMode = 'disabled' | 'auto' | 'manual'
 
@@ -127,6 +126,7 @@ const ThinkModelTypes = [
   'gemini3_flash',
   'gemini3_pro',
   'gemini3_1_pro',
+  'gemma4_hosted',
   'qwen',
   'qwen_thinking',
   'doubao',
@@ -516,27 +516,6 @@ export interface PaintingsState {
   ppio_edit: PpioPainting[]
 }
 
-export type MinAppType = {
-  id: string
-  name: string
-  /** i18n key for translatable names */
-  nameKey?: string
-  /** Regions where this app is available. If includes 'Global', shown to international users. */
-  supportedRegions?: MinAppRegion[]
-  logo?: string
-  url: string
-  bordered?: boolean
-  background?: string
-  style?: CSSProperties
-  addTime?: string
-  type?: 'Custom' | 'Default' // Added the 'type' property
-}
-
-/** Region types for miniapps visibility */
-export type MinAppRegion = 'CN' | 'Global'
-
-export type MinAppRegionFilter = 'auto' | MinAppRegion
-
 export enum ThemeMode {
   light = 'light',
   dark = 'dark',
@@ -681,20 +660,6 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
   return Object.hasOwn(AutoDetectionMethods, method)
 }
 
-// by fullex @ data refactor
-// export type SidebarIcon =
-//   | 'assistants'
-//   | 'agents'
-//   | 'store'
-//   | 'paintings'
-//   | 'translate'
-//   | 'minapp'
-//   | 'knowledge'
-//   | 'files'
-//   | 'code_tools'
-//   | 'notes'
-// | 'openclaw'
-
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]
   toolUse?: MCPToolResponse[]
@@ -711,9 +676,8 @@ export const WebSearchProviderIds = {
   'exa-mcp': 'exa-mcp',
   bocha: 'bocha',
   querit: 'querit',
-  'local-google': 'local-google',
-  'local-bing': 'local-bing',
-  'local-baidu': 'local-baidu'
+  fetch: 'fetch',
+  jina: 'jina'
 } as const
 
 export type WebSearchProviderId = keyof typeof WebSearchProviderIds
@@ -784,13 +748,7 @@ export type WebSearchResponse = {
   source: WebSearchSource
 }
 
-export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
-
-export type WebSearchStatus = {
-  phase: WebSearchPhase
-  countBefore?: number
-  countAfter?: number
-}
+export type { WebSearchPhase, WebSearchStatus } from '@shared/data/types/webSearch'
 
 // TODO: 把 mcp 相关类型定义迁移到独立文件中
 export type MCPArgType = 'string' | 'list' | 'number'

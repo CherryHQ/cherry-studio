@@ -7,6 +7,17 @@ import { useBlurHandler, useHeightListener, useLanguageExtensions, useSaveKeymap
 import type { CodeEditorProps } from './types'
 import { prepareCodeChanges } from './utils'
 
+const codeEditorGutterTheme = EditorView.theme({
+  '.cm-gutters': {
+    backgroundColor: 'transparent',
+    borderRight: 'none',
+    color: 'var(--color-muted-foreground)'
+  },
+  '.cm-activeLineGutter': {
+    backgroundColor: 'transparent'
+  }
+})
+
 /**
  * A code editor component based on CodeMirror.
  * This is a wrapper of ReactCodeMirror.
@@ -92,6 +103,7 @@ const CodeEditor = ({
       ...(extensions ?? []),
       ...langExtensions,
       ...(wrapped ? [EditorView.lineWrapping] : []),
+      codeEditorGutterTheme,
       saveKeymapExtension,
       blurExtension,
       heightListenerExtension

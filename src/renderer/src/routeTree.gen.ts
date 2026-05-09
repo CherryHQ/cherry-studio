@@ -19,15 +19,15 @@ import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut'
 import { Route as SettingsSelectionAssistantRouteImport } from './routes/settings/selectionAssistant'
 import { Route as SettingsScheduledTasksRouteImport } from './routes/settings/scheduled-tasks'
-import { Route as SettingsQuickphraseRouteImport } from './routes/settings/quickphrase'
 import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quickAssistant'
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
-import { Route as SettingsNotesRouteImport } from './routes/settings/notes'
+import { Route as SettingsPromptsRouteImport } from './routes/settings/prompts'
+import { Route as SettingsPluginsRouteImport } from './routes/settings/plugins'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
+import { Route as SettingsIntegrationsRouteImport } from './routes/settings/integrations'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsDocprocessRouteImport } from './routes/settings/docprocess'
-import { Route as SettingsDisplayRouteImport } from './routes/settings/display'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsComponentLabRouteImport } from './routes/settings/component-lab'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
@@ -45,7 +45,7 @@ import { Route as AppAgentsRouteImport } from './routes/app/agents'
 import { Route as SettingsWebsearchIndexRouteImport } from './routes/settings/websearch/index'
 import { Route as SettingsMcpIndexRouteImport } from './routes/settings/mcp/index'
 import { Route as AppPaintingsIndexRouteImport } from './routes/app/paintings/index'
-import { Route as AppMinappIndexRouteImport } from './routes/app/minapp/index'
+import { Route as AppMiniAppIndexRouteImport } from './routes/app/mini-app/index'
 import { Route as SettingsWebsearchGeneralRouteImport } from './routes/settings/websearch/general'
 import { Route as SettingsMcpServersRouteImport } from './routes/settings/mcp/servers'
 import { Route as SettingsMcpNpxSearchRouteImport } from './routes/settings/mcp/npx-search'
@@ -54,7 +54,7 @@ import { Route as SettingsMcpMarketplacesRouteImport } from './routes/settings/m
 import { Route as SettingsMcpBuiltinRouteImport } from './routes/settings/mcp/builtin'
 import { Route as SettingsMcpSplatRouteImport } from './routes/settings/mcp/$'
 import { Route as AppPaintingsSplatRouteImport } from './routes/app/paintings/$'
-import { Route as AppMinappAppIdRouteImport } from './routes/app/minapp/$appId'
+import { Route as AppMiniAppAppIdRouteImport } from './routes/app/mini-app/$appId'
 import { Route as SettingsWebsearchProviderProviderIdRouteImport } from './routes/settings/websearch/provider.$providerId'
 import { Route as SettingsMcpSettingsServerIdRouteImport } from './routes/settings/mcp/settings.$serverId'
 
@@ -109,11 +109,6 @@ const SettingsScheduledTasksRoute = SettingsScheduledTasksRouteImport.update({
   path: '/scheduled-tasks',
   getParentRoute: () => SettingsRoute,
 } as any)
-const SettingsQuickphraseRoute = SettingsQuickphraseRouteImport.update({
-  id: '/quickphrase',
-  path: '/quickphrase',
-  getParentRoute: () => SettingsRoute,
-} as any)
 const SettingsQuickAssistantRoute = SettingsQuickAssistantRouteImport.update({
   id: '/quickAssistant',
   path: '/quickAssistant',
@@ -124,9 +119,14 @@ const SettingsProviderRoute = SettingsProviderRouteImport.update({
   path: '/provider',
   getParentRoute: () => SettingsRoute,
 } as any)
-const SettingsNotesRoute = SettingsNotesRouteImport.update({
-  id: '/notes',
-  path: '/notes',
+const SettingsPromptsRoute = SettingsPromptsRouteImport.update({
+  id: '/prompts',
+  path: '/prompts',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsPluginsRoute = SettingsPluginsRouteImport.update({
+  id: '/plugins',
+  path: '/plugins',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsModelRoute = SettingsModelRouteImport.update({
@@ -139,6 +139,11 @@ const SettingsMcpRoute = SettingsMcpRouteImport.update({
   path: '/mcp',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsIntegrationsRoute = SettingsIntegrationsRouteImport.update({
+  id: '/integrations',
+  path: '/integrations',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
@@ -147,11 +152,6 @@ const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
 const SettingsDocprocessRoute = SettingsDocprocessRouteImport.update({
   id: '/docprocess',
   path: '/docprocess',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsDisplayRoute = SettingsDisplayRouteImport.update({
-  id: '/display',
-  path: '/display',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsDataRoute = SettingsDataRouteImport.update({
@@ -239,9 +239,9 @@ const AppPaintingsIndexRoute = AppPaintingsIndexRouteImport.update({
   path: '/paintings/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppMinappIndexRoute = AppMinappIndexRouteImport.update({
-  id: '/minapp/',
-  path: '/minapp/',
+const AppMiniAppIndexRoute = AppMiniAppIndexRouteImport.update({
+  id: '/mini-app/',
+  path: '/mini-app/',
   getParentRoute: () => AppRoute,
 } as any)
 const SettingsWebsearchGeneralRoute =
@@ -285,9 +285,9 @@ const AppPaintingsSplatRoute = AppPaintingsSplatRouteImport.update({
   path: '/paintings/$',
   getParentRoute: () => AppRoute,
 } as any)
-const AppMinappAppIdRoute = AppMinappAppIdRouteImport.update({
-  id: '/minapp/$appId',
-  path: '/minapp/$appId',
+const AppMiniAppAppIdRoute = AppMiniAppAppIdRouteImport.update({
+  id: '/mini-app/$appId',
+  path: '/mini-app/$appId',
   getParentRoute: () => AppRoute,
 } as any)
 const SettingsWebsearchProviderProviderIdRoute =
@@ -322,22 +322,22 @@ export interface FileRoutesByFullPath {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
-  '/settings/notes': typeof SettingsNotesRoute
+  '/settings/plugins': typeof SettingsPluginsRoute
+  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
-  '/settings/quickphrase': typeof SettingsQuickphraseRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
   '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/websearch': typeof SettingsWebsearchRouteWithChildren
   '/settings/': typeof SettingsIndexRoute
-  '/app/minapp/$appId': typeof AppMinappAppIdRoute
+  '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
@@ -346,7 +346,7 @@ export interface FileRoutesByFullPath {
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
   '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
-  '/app/minapp/': typeof AppMinappIndexRoute
+  '/app/mini-app/': typeof AppMiniAppIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
   '/settings/websearch/': typeof SettingsWebsearchIndexRoute
@@ -371,20 +371,20 @@ export interface FileRoutesByTo {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/model': typeof SettingsModelRoute
-  '/settings/notes': typeof SettingsNotesRoute
+  '/settings/plugins': typeof SettingsPluginsRoute
+  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
-  '/settings/quickphrase': typeof SettingsQuickphraseRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
   '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings': typeof SettingsIndexRoute
-  '/app/minapp/$appId': typeof AppMinappAppIdRoute
+  '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
@@ -393,7 +393,7 @@ export interface FileRoutesByTo {
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
   '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
-  '/app/minapp': typeof AppMinappIndexRoute
+  '/app/mini-app': typeof AppMiniAppIndexRoute
   '/app/paintings': typeof AppPaintingsIndexRoute
   '/settings/mcp': typeof SettingsMcpIndexRoute
   '/settings/websearch': typeof SettingsWebsearchIndexRoute
@@ -420,22 +420,22 @@ export interface FileRoutesById {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
-  '/settings/notes': typeof SettingsNotesRoute
+  '/settings/plugins': typeof SettingsPluginsRoute
+  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
-  '/settings/quickphrase': typeof SettingsQuickphraseRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
   '/settings/selectionAssistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings/websearch': typeof SettingsWebsearchRouteWithChildren
   '/settings/': typeof SettingsIndexRoute
-  '/app/minapp/$appId': typeof AppMinappAppIdRoute
+  '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
   '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
@@ -444,7 +444,7 @@ export interface FileRoutesById {
   '/settings/mcp/npx-search': typeof SettingsMcpNpxSearchRoute
   '/settings/mcp/servers': typeof SettingsMcpServersRoute
   '/settings/websearch/general': typeof SettingsWebsearchGeneralRoute
-  '/app/minapp/': typeof AppMinappIndexRoute
+  '/app/mini-app/': typeof AppMiniAppIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
   '/settings/websearch/': typeof SettingsWebsearchIndexRoute
@@ -472,22 +472,22 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/display'
     | '/settings/docprocess'
     | '/settings/general'
+    | '/settings/integrations'
     | '/settings/mcp'
     | '/settings/model'
-    | '/settings/notes'
+    | '/settings/plugins'
+    | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quickAssistant'
-    | '/settings/quickphrase'
     | '/settings/scheduled-tasks'
     | '/settings/selectionAssistant'
     | '/settings/shortcut'
     | '/settings/skills'
     | '/settings/websearch'
     | '/settings/'
-    | '/app/minapp/$appId'
+    | '/app/mini-app/$appId'
     | '/app/paintings/$'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
@@ -496,7 +496,7 @@ export interface FileRouteTypes {
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
     | '/settings/websearch/general'
-    | '/app/minapp/'
+    | '/app/mini-app/'
     | '/app/paintings/'
     | '/settings/mcp/'
     | '/settings/websearch/'
@@ -521,20 +521,20 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/display'
     | '/settings/docprocess'
     | '/settings/general'
+    | '/settings/integrations'
     | '/settings/model'
-    | '/settings/notes'
+    | '/settings/plugins'
+    | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quickAssistant'
-    | '/settings/quickphrase'
     | '/settings/scheduled-tasks'
     | '/settings/selectionAssistant'
     | '/settings/shortcut'
     | '/settings/skills'
     | '/settings'
-    | '/app/minapp/$appId'
+    | '/app/mini-app/$appId'
     | '/app/paintings/$'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
@@ -543,7 +543,7 @@ export interface FileRouteTypes {
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
     | '/settings/websearch/general'
-    | '/app/minapp'
+    | '/app/mini-app'
     | '/app/paintings'
     | '/settings/mcp'
     | '/settings/websearch'
@@ -569,22 +569,22 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/display'
     | '/settings/docprocess'
     | '/settings/general'
+    | '/settings/integrations'
     | '/settings/mcp'
     | '/settings/model'
-    | '/settings/notes'
+    | '/settings/plugins'
+    | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quickAssistant'
-    | '/settings/quickphrase'
     | '/settings/scheduled-tasks'
     | '/settings/selectionAssistant'
     | '/settings/shortcut'
     | '/settings/skills'
     | '/settings/websearch'
     | '/settings/'
-    | '/app/minapp/$appId'
+    | '/app/mini-app/$appId'
     | '/app/paintings/$'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
@@ -593,7 +593,7 @@ export interface FileRouteTypes {
     | '/settings/mcp/npx-search'
     | '/settings/mcp/servers'
     | '/settings/websearch/general'
-    | '/app/minapp/'
+    | '/app/mini-app/'
     | '/app/paintings/'
     | '/settings/mcp/'
     | '/settings/websearch/'
@@ -680,13 +680,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsScheduledTasksRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/quickphrase': {
-      id: '/settings/quickphrase'
-      path: '/quickphrase'
-      fullPath: '/settings/quickphrase'
-      preLoaderRoute: typeof SettingsQuickphraseRouteImport
-      parentRoute: typeof SettingsRoute
-    }
     '/settings/quickAssistant': {
       id: '/settings/quickAssistant'
       path: '/quickAssistant'
@@ -701,11 +694,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsProviderRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/notes': {
-      id: '/settings/notes'
-      path: '/notes'
-      fullPath: '/settings/notes'
-      preLoaderRoute: typeof SettingsNotesRouteImport
+    '/settings/prompts': {
+      id: '/settings/prompts'
+      path: '/prompts'
+      fullPath: '/settings/prompts'
+      preLoaderRoute: typeof SettingsPromptsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/plugins': {
+      id: '/settings/plugins'
+      path: '/plugins'
+      fullPath: '/settings/plugins'
+      preLoaderRoute: typeof SettingsPluginsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/model': {
@@ -722,6 +722,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsMcpRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/integrations': {
+      id: '/settings/integrations'
+      path: '/integrations'
+      fullPath: '/settings/integrations'
+      preLoaderRoute: typeof SettingsIntegrationsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/general': {
       id: '/settings/general'
       path: '/general'
@@ -734,13 +741,6 @@ declare module '@tanstack/react-router' {
       path: '/docprocess'
       fullPath: '/settings/docprocess'
       preLoaderRoute: typeof SettingsDocprocessRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/display': {
-      id: '/settings/display'
-      path: '/display'
-      fullPath: '/settings/display'
-      preLoaderRoute: typeof SettingsDisplayRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/data': {
@@ -862,11 +862,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPaintingsIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/minapp/': {
-      id: '/app/minapp/'
-      path: '/minapp'
-      fullPath: '/app/minapp/'
-      preLoaderRoute: typeof AppMinappIndexRouteImport
+    '/app/mini-app/': {
+      id: '/app/mini-app/'
+      path: '/mini-app'
+      fullPath: '/app/mini-app/'
+      preLoaderRoute: typeof AppMiniAppIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/settings/websearch/general': {
@@ -925,11 +925,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPaintingsSplatRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/minapp/$appId': {
-      id: '/app/minapp/$appId'
-      path: '/minapp/$appId'
-      fullPath: '/app/minapp/$appId'
-      preLoaderRoute: typeof AppMinappAppIdRouteImport
+    '/app/mini-app/$appId': {
+      id: '/app/mini-app/$appId'
+      path: '/mini-app/$appId'
+      fullPath: '/app/mini-app/$appId'
+      preLoaderRoute: typeof AppMiniAppAppIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/settings/websearch/provider/$providerId': {
@@ -959,9 +959,9 @@ interface AppRouteChildren {
   AppNotesRoute: typeof AppNotesRoute
   AppOpenclawRoute: typeof AppOpenclawRoute
   AppTranslateRoute: typeof AppTranslateRoute
-  AppMinappAppIdRoute: typeof AppMinappAppIdRoute
+  AppMiniAppAppIdRoute: typeof AppMiniAppAppIdRoute
   AppPaintingsSplatRoute: typeof AppPaintingsSplatRoute
-  AppMinappIndexRoute: typeof AppMinappIndexRoute
+  AppMiniAppIndexRoute: typeof AppMiniAppIndexRoute
   AppPaintingsIndexRoute: typeof AppPaintingsIndexRoute
 }
 
@@ -975,9 +975,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppNotesRoute: AppNotesRoute,
   AppOpenclawRoute: AppOpenclawRoute,
   AppTranslateRoute: AppTranslateRoute,
-  AppMinappAppIdRoute: AppMinappAppIdRoute,
+  AppMiniAppAppIdRoute: AppMiniAppAppIdRoute,
   AppPaintingsSplatRoute: AppPaintingsSplatRoute,
-  AppMinappIndexRoute: AppMinappIndexRoute,
+  AppMiniAppIndexRoute: AppMiniAppIndexRoute,
   AppPaintingsIndexRoute: AppPaintingsIndexRoute,
 }
 
@@ -1031,15 +1031,15 @@ interface SettingsRouteChildren {
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsComponentLabRoute: typeof SettingsComponentLabRoute
   SettingsDataRoute: typeof SettingsDataRoute
-  SettingsDisplayRoute: typeof SettingsDisplayRoute
   SettingsDocprocessRoute: typeof SettingsDocprocessRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
+  SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsModelRoute: typeof SettingsModelRoute
-  SettingsNotesRoute: typeof SettingsNotesRoute
+  SettingsPluginsRoute: typeof SettingsPluginsRoute
+  SettingsPromptsRoute: typeof SettingsPromptsRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
   SettingsQuickAssistantRoute: typeof SettingsQuickAssistantRoute
-  SettingsQuickphraseRoute: typeof SettingsQuickphraseRoute
   SettingsScheduledTasksRoute: typeof SettingsScheduledTasksRoute
   SettingsSelectionAssistantRoute: typeof SettingsSelectionAssistantRoute
   SettingsShortcutRoute: typeof SettingsShortcutRoute
@@ -1054,15 +1054,15 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsComponentLabRoute: SettingsComponentLabRoute,
   SettingsDataRoute: SettingsDataRoute,
-  SettingsDisplayRoute: SettingsDisplayRoute,
   SettingsDocprocessRoute: SettingsDocprocessRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
+  SettingsIntegrationsRoute: SettingsIntegrationsRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsModelRoute: SettingsModelRoute,
-  SettingsNotesRoute: SettingsNotesRoute,
+  SettingsPluginsRoute: SettingsPluginsRoute,
+  SettingsPromptsRoute: SettingsPromptsRoute,
   SettingsProviderRoute: SettingsProviderRoute,
   SettingsQuickAssistantRoute: SettingsQuickAssistantRoute,
-  SettingsQuickphraseRoute: SettingsQuickphraseRoute,
   SettingsScheduledTasksRoute: SettingsScheduledTasksRoute,
   SettingsSelectionAssistantRoute: SettingsSelectionAssistantRoute,
   SettingsShortcutRoute: SettingsShortcutRoute,

@@ -16,7 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import type { MinAppRegion } from '@renderer/types'
+import type { MiniAppRegion } from '@shared/data/types/miniApp'
 
 // export interface ChatState {
 //   isMultiSelectMode: boolean
@@ -56,14 +56,7 @@ export interface RuntimeState {
   // generating: boolean
   // translating: boolean
   // translateAbortKey?: string
-  // /** whether the minapp popup is shown */
-  // minappShow: boolean
-  // /** the minapps that are opened and should be keep alive */
-  // openedKeepAliveMinapps: MinAppType[]
-  // /** the minapp that is opened for one time */
-  // openedOneOffMinapp: MinAppType | null
-  // /** the current minapp id */
-  // currentMinappId: string
+
   // searching: boolean
   // filesPath: string
   // resourcesPath: string
@@ -72,7 +65,7 @@ export interface RuntimeState {
   // chat: ChatState
   // websearch: WebSearchState
   /** Detected region from IP lookup (not persisted, re-detected on each app start) */
-  detectedRegion: MinAppRegion | null
+  detectedRegion: MiniAppRegion | null
   /** Query whether a task is processing or not. undefined and false share same semantics.  */
   loadingMap: Record<string, boolean>
   // Migrated from useApiServer, it's global state now
@@ -146,15 +139,7 @@ const runtimeSlice = createSlice({
     // setTranslateAbortKey: (state, action: PayloadAction<string>) => {
     //   state.translateAbortKey = action.payload
     // },
-    // setMinappShow: (state, action: PayloadAction<boolean>) => {
-    //   state.minappShow = action.payload
-    // },
-    // setOpenedKeepAliveMinapps: (state, action: PayloadAction<MinAppType[]>) => {
-    //   state.openedKeepAliveMinapps = action.payload
-    // },
-    // setOpenedOneOffMinapp: (state, action: PayloadAction<MinAppType | null>) => {
-    //   state.openedOneOffMinapp = action.payload
-    // },
+
     // setCurrentMinappId: (state, action: PayloadAction<string>) => {
     //   state.currentMinappId = action.payload
     // },
@@ -222,7 +207,7 @@ const runtimeSlice = createSlice({
       const { id } = action.payload
       delete state.loadingMap[id]
     },
-    setDetectedRegion: (state, action: PayloadAction<MinAppRegion | null>) => {
+    setDetectedRegion: (state, action: PayloadAction<MiniAppRegion | null>) => {
       state.detectedRegion = action.payload
     },
     setApiServerRunningAction: (state, action: PayloadAction<boolean>) => {

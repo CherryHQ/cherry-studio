@@ -36,9 +36,9 @@
         "comingSoon": "近日公開",
         "connected": "接続済み",
         "connecting": "接続",
-        "createError": "[to be translated]:Failed to create channel",
+        "createError": "チャンネルの作成に失敗しました",
         "deleteConfirm": "チャンネル「{{name}}」を削除しますか？",
-        "deleteError": "[to be translated]:Failed to delete channel",
+        "deleteError": "チャンネルの削除に失敗しました",
         "description": "エージェントをメッセージングプラットフォームに接続します。",
         "disconnected": "切断済み",
         "discord": {
@@ -123,7 +123,7 @@
           "title": "Telegram"
         },
         "title": "チャンネル",
-        "updateError": "[to be translated]:Failed to update channel",
+        "updateError": "チャンネルの更新に失敗しました",
         "wechat": {
           "addAccount": "WeChatアカウントを追加",
           "chatIds": "許可されたユーザーID",
@@ -215,7 +215,7 @@
         "edit": "編集",
         "empty": "スケジュールタスクがありません。追加して開始しましょう。",
         "error": {
-          "loadFailed": "[to be translated]:Failed to load tasks"
+          "loadFailed": "タスクの読み込みに失敗しました"
         },
         "intervalPlaceholder": "間隔（分）",
         "intervalUnit": "議事録",
@@ -226,7 +226,7 @@
           "error": "エラー",
           "justNow": "さっき",
           "label": "実行履歴",
-          "loadError": "[to be translated]:Failed to load run history",
+          "loadError": "実行履歴の読み込みに失敗しました",
           "result": "結果",
           "runAt": "実行時刻",
           "running": "走っている…",
@@ -957,17 +957,6 @@
         "xhigh": "超高",
         "xhigh_description": "超高度な推論"
       },
-      "regular_phrases": {
-        "add": "プロンプトを追加",
-        "contentLabel": "内容",
-        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
-        "delete": "プロンプトを削除",
-        "deleteConfirm": "このプロンプトを削除してもよろしいですか？",
-        "edit": "プロンプトを編集",
-        "title": "定型プロンプト",
-        "titleLabel": "タイトル",
-        "titlePlaceholder": "タイトルを入力"
-      },
       "title": "アシスタント設定",
       "tool_use_mode": {
         "function": "関数",
@@ -1510,8 +1499,8 @@
     "bun_required_message": "CLI ツールを実行するには Bun 環境が必要です",
     "cli_tool": "CLI ツール",
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
-    "count_one": "[to be translated]:{{count}} item",
-    "count_other": "[to be translated]:{{count}} items",
+    "count_one": "{{count}}個のアイテム",
+    "count_other": "{{count}}個のアイテム",
     "custom_path": "カスタムパス",
     "custom_path_error": "カスタムターミナルパスの設定に失敗しました",
     "custom_path_required": "この端末にはカスタムパスを設定する必要があります",
@@ -1519,12 +1508,12 @@
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
     "empty": {
       "no_match": {
-        "description": "[to be translated]:Try adjusting your search terms",
-        "title": "[to be translated]:No matching tools found"
+        "description": "検索語を調整してみてください",
+        "title": "一致するツールが見つかりません"
       },
       "no_tool": {
-        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
-        "title": "[to be translated]:No code tools yet"
+        "description": "CLIツールまたはコードアシスタントを追加して始めましょう",
+        "title": "コードツールはまだありません"
       }
     },
     "env_vars_help": "環境変数を設定して、CLI ツールの実行時に使用します。各変数は 1 行ごとに設定してください。",
@@ -1536,28 +1525,28 @@
       "bun_required": "CLI ツールを実行するには Bun 環境が必要です。まず Bun をインストールしてください",
       "error": "起動に失敗しました。もう一度試してください",
       "label": "起動",
-      "launched": "[to be translated]:Launched",
+      "launched": "開始されました",
       "success": "起動成功",
       "validation_error": "必須項目を入力してください：CLI ツール、モデル、作業ディレクトリ"
     },
     "launching": "起動中...",
     "model": "モデル",
-    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
+    "model_hint": "CLIツールが使用するAIモデルを選択してください",
     "model_placeholder": "使用するモデルを選択してください",
     "model_required": "モデルを選択してください",
-    "official_tag": "[to be translated]:Official",
-    "official_tools": "[to be translated]:Official",
-    "search_placeholder": "[to be translated]:Search CLI tools…",
+    "official_tag": "公式",
+    "official_tools": "公式",
+    "search_placeholder": "CLIツールを検索…",
     "select_folder": "フォルダを選択",
     "set_custom_path": "カスタムターミナルパスを設定",
     "supported_providers": "サポートされているプロバイダー",
     "terminal": "端末",
-    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
+    "terminal_hint": "CLIを実行するターミナルアプリケーションを選択してください",
     "terminal_placeholder": "ターミナルアプリを選択",
     "title": "コードツール",
     "update_options": "更新オプション",
     "working_directory": "作業ディレクトリ",
-    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
+    "working_directory_hint": "CLIツールが起動する作業ディレクトリ"
   },
   "code_block": {
     "collapse": "折りたたむ",
@@ -2352,7 +2341,7 @@
   },
   "launchpad": {
     "apps": "アプリ",
-    "minapps": "アプリ"
+    "miniApps": "アプリ"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2702,20 +2691,23 @@
     "websearch": {
       "cutoff": "検索内容を切り詰めています...",
       "fetch_complete": "{{count}}件の検索結果",
-      "rag": "RAGを実行中...",
-      "rag_complete": "{{countBefore}}個の結果から{{countAfter}}個を保持...",
-      "rag_failed": "RAGが失敗しました。空の結果を返します..."
+      "partial_failure": "{{count}}件の検索結果、一部の検索に失敗しました"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "スタート画面に追加",
     "add_to_sidebar": "サイドバーに追加",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "ミニアプリを閉じる",
       "devtools": "開発者ツール",
       "goBack": "戻る",
       "goForward": "進む",
-      "minimize": "ミニアプリを最小化",
       "openExternal": "ブラウザで開く",
       "open_link_external_off": "現在：デフォルトのウィンドウで開く",
       "open_link_external_on": "現在：ブラウザで開く",
@@ -2724,6 +2716,13 @@
     },
     "remove_from_launchpad": "スタート画面から削除",
     "remove_from_sidebar": "サイドバーから削除",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "閉じる"
@@ -2738,9 +2737,11 @@
         "title": "カスタムアプリを削除"
       }
     },
-    "title": "ミニアプリ"
+    "title": "ミニアプリ",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "百小應",
     "baidu-ai-search": "百度AI検索",
@@ -2759,6 +2760,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "騰訊元宝",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "万知",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -2767,8 +2769,8 @@
   },
   "models": {
     "action": {
-      "pin": "[to be translated]:Pin this model",
-      "unpin": "[to be translated]:Unpin model"
+      "pin": "このモデルをピン留め",
+      "unpin": "モデルのピン留めを解除"
     },
     "add_parameter": "パラメータを追加",
     "all": "すべて",
@@ -2788,7 +2790,7 @@
     "invalid_model": "無効なモデル",
     "json_parse_error": "無効なJSON形式",
     "multi_select": {
-      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+      "label": "マルチモデル並列（マルチアシスタントとは相互排他）"
     },
     "no_matches": "利用可能なモデルがありません",
     "parameter_name": "パラメータ名",
@@ -4038,27 +4040,27 @@
   },
   "selector": {
     "agent": {
-      "create_new": "[to be translated]:New Agent",
-      "empty_text": "[to be translated]:No agents yet",
-      "search_placeholder": "[to be translated]:Search agents…"
+      "create_new": "新しいエージェント",
+      "empty_text": "エージェントはまだいません",
+      "search_placeholder": "検索エージェント…"
     },
     "assistant": {
-      "create_new": "[to be translated]:New Assistant",
-      "empty_text": "[to be translated]:No assistants yet",
-      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
-      "multi_label": "[to be translated]:Multi-assistant parallel",
-      "search_placeholder": "[to be translated]:Search assistants…"
+      "create_new": "新しいアシスタント",
+      "empty_text": "まだアシスタントはいません",
+      "multi_hint": "（マルチモデルとは相互に排他的）",
+      "multi_label": "マルチアシスタント並列",
+      "search_placeholder": "検索アシスタント…"
     },
     "common": {
-      "edit": "[to be translated]:Edit",
-      "pin": "[to be translated]:Pin",
-      "pinned_title": "[to be translated]:Pinned",
+      "edit": "編集",
+      "pin": "ピン",
+      "pinned_title": "ピン留め",
       "sort": {
-        "asc": "[to be translated]:Oldest",
-        "desc": "[to be translated]:Recent"
+        "asc": "最古",
+        "desc": "最近"
       },
-      "sort_label": "[to be translated]:Sort",
-      "unpin": "[to be translated]:Unpin"
+      "sort_label": "並び替え",
+      "unpin": "ピン留めを解除"
     }
   },
   "settings": {
@@ -4129,72 +4131,72 @@
     },
     "componentLab": {
       "agentSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
-        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Agent Selector",
-        "triggerPlaceholder": "[to be translated]:Select an agent",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "クリア",
+        "configDescription": "プロップを切り替えてコンポーネントの動作をプレビューする",
+        "configTitle": "設定",
+        "currentProps": "現在のプロップ",
+        "description": "AgentSelectorは、ID/アイテムの選択、ピン留め、ソート、検索動作を検証するために、リアルな/agents DataApiデータを読み込むようになりました。",
+        "emptyShellNotice": "このプレビューは、/agents DataApi から返される実際のエージェントリストを使用しています。",
+        "lastOnChange": "最新のonChange",
+        "previewDescription": "トリガーをクリックしてセレクタを開きます",
+        "previewTitle": "プレビュー",
+        "title": "エージェントセレクター",
+        "triggerPlaceholder": "エージェントを選択してください",
+        "valueProp": "現在値"
       },
       "assistantSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Assistant Selector",
-        "triggerPlaceholder": "[to be translated]:Select an assistant",
-        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "クリア",
+        "configDescription": "プロパティを切り替えてコンポーネントの動作をプレビューする",
+        "configTitle": "設定",
+        "currentProps": "現在のプロップ",
+        "description": "AssistantSelectorのビジネスコンポーネントを直接マウントし、複数/単一、ID/項目、ピン留め、ソート、検索の動作を検証します。",
+        "lastOnChange": "最新のonChange",
+        "previewDescription": "トリガーをクリックしてセレクターを開きます",
+        "previewTitle": "プレビュー",
+        "title": "アシスタントセレクター",
+        "triggerPlaceholder": "アシスタントを選択してください",
+        "triggerSelectedCount": "{{count}}人のアシスタントが選択されました",
+        "valueProp": "現在の値"
       },
-      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
-      "label": "[to be translated]:Component Lab",
+      "description": "開発環境でのみ表示され、アプリ内で直接新しいモデルセレクタをテストするためのものです。",
+      "label": "コンポーネントラボ",
       "modelSelector": {
-        "behaviorConfig": "[to be translated]:Behavior & Display Config",
-        "callbackEmpty": "[to be translated]:No component callback received yet",
-        "clearSelection": "[to be translated]:Clear Selection",
-        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
-        "configTitle": "[to be translated]:Props Playground",
-        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
-        "currentProps": "[to be translated]:Current Props",
-        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
-        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
-        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
-        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
-        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
-        "loading": "[to be translated]:Loading models...",
-        "modelId": "[to be translated]:Model ID",
-        "multiSelectMode": "[to be translated]:multiSelectMode",
-        "multiple": "[to be translated]:multiple",
-        "normalizedIds": "[to be translated]:Normalized Selected IDs",
-        "outputEmpty": "[to be translated]:No data to display yet",
-        "provider": "[to be translated]:Provider",
-        "resetOutputs": "[to be translated]:Reset Outputs",
-        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
-        "resultsTitle": "[to be translated]:Outputs & State",
-        "selected": "[to be translated]:Current Selection",
-        "selectedEmpty": "[to be translated]:No model selected yet",
-        "selectionConfig": "[to be translated]:Selection Value Config",
-        "selectionType": "[to be translated]:selectionType",
-        "selectionTypeId": "[to be translated]:Return Model IDs",
-        "selectionTypeModel": "[to be translated]:Return Model Objects",
-        "showPinnedModels": "[to be translated]:showPinnedModels",
-        "showTagFilter": "[to be translated]:showTagFilter",
-        "title": "[to be translated]:Model Selector",
-        "triggerPlaceholder": "[to be translated]:Select a model",
-        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
-        "valueProp": "[to be translated]:Current Value Prop"
+        "behaviorConfig": "動作と表示設定",
+        "callbackEmpty": "まだコンポーネントコールバックを受信していません",
+        "clearSelection": "選択をクリア",
+        "configDescription": "上記のキー ModelSelector プロパティを切り替え、下記の入力値とコールバックのペイロードを確認してください。",
+        "configTitle": "プロップス プレイグラウンド",
+        "controlMultiSelectMode": "制御された複数選択モード",
+        "currentProps": "現在のプロップ",
+        "defaultMultiSelectMode": "デフォルトマルチセレクトモード",
+        "description": "このページでは、現在の ModelSelector ビジネスコンポーネントを直接マウントして、選択、フィルタリング、検索、ピン留めの動作を確認できます。",
+        "empty": "現在利用可能なモデルがないため、セレクターはまだ表示できません。",
+        "lastModeChangeReturn": "最新の onMultiSelectModeChange 戻り値",
+        "lastSelectReturn": "最新のonSelect戻り値",
+        "loading": "モデルを読み込んでいます...",
+        "modelId": "モデルID",
+        "multiSelectMode": "マルチセレクトモード",
+        "multiple": "複数",
+        "normalizedIds": "正規化された選択されたID",
+        "outputEmpty": "まだ表示するデータがありません",
+        "provider": "プロバイダー",
+        "resetOutputs": "出力をリセット",
+        "resultsDescription": "これは現在の値のプロップ、正規化された選択されたID、およびコンポーネントからの最新のコールバック出力を示しています。",
+        "resultsTitle": "出力と状態",
+        "selected": "現在の選択",
+        "selectedEmpty": "モデルがまだ選択されていません",
+        "selectionConfig": "選択値設定",
+        "selectionType": "選択タイプ",
+        "selectionTypeId": "モデルIDを返す",
+        "selectionTypeModel": "モデルオブジェクトを返す",
+        "showPinnedModels": "固定されたモデルを表示",
+        "showTagFilter": "タグフィルターを表示",
+        "title": "モデルセレクター",
+        "triggerPlaceholder": "モデルを選択してください",
+        "triggerSelectedCount": "{{count}}件のモデルが選択されています",
+        "valueProp": "現在のバリュープロポジション"
       },
-      "title": "[to be translated]:Development Component Lab"
+      "title": "開発コンポーネントラボ"
     },
     "data": {
       "app_data": {
@@ -4860,7 +4862,7 @@
         "knowledge": {
           "icon": "ナレッジのアイコンを表示"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "ミニアプリのアイコンを表示"
         },
         "painting": {
@@ -4894,6 +4896,15 @@
       "backup": {
         "button": "バックアップ",
         "title": "データのバックアップと復元"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "カスタムCSS",
+          "display_language": "表示と言語",
+          "privacy_advanced": "プライバシーと高度な設定",
+          "system_startup": "システム＆スタートアップ"
+        },
+        "title": "共通設定"
       },
       "display": {
         "title": "表示設定"
@@ -4955,6 +4966,12 @@
         "label": "目標言語",
         "russian": "ロシア語"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "ノート"
+      },
+      "title": "連携"
     },
     "launch": {
       "onboot": "起動時に自動で開始",
@@ -5225,6 +5242,13 @@
       "url": "URL",
       "user": "ユーザー"
     },
+    "menuGroups": {
+      "appSettings": "アプリ設定",
+      "integrations": "モデル",
+      "productivity": "生産性",
+      "services": "プラグイン",
+      "system": "システム"
+    },
     "messages": {
       "divider": {
         "label": "メッセージ間に区切り線を表示",
@@ -5262,7 +5286,7 @@
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
       "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
       "cache_settings": "キャッシュ設定",
@@ -5312,8 +5336,6 @@
         "title": "ミニアプリ地域絞り込み"
       },
       "reset_tooltip": "デフォルト値にリセット",
-      "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
-      "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
       "title": "ミニアプリ設定",
       "visible": "表示するミニアプリ"
     },
@@ -5378,7 +5400,7 @@
         "use_all_keys": "キー"
       },
       "default_assistant_model": "デフォルトアシスタントモデル",
-      "default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
+      "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "empty": "モデルが見つかりません",
       "manage": {
         "add_listed": {
@@ -5472,9 +5494,35 @@
         "title": "詳細度"
       }
     },
+    "plugins": {
+      "bunDescription": "MCPサービスおよび関連ツールチェーンで使用されるJavaScriptランタイム。",
+      "description": "アプリに必要なバイナリツールとランタイム依存関係を管理します。",
+      "installing": "インストール中...",
+      "notInstalled": "インストールされていません",
+      "title": "環境依存",
+      "uvDescription": "MCPサービスおよび依存関係インストール用のPythonパッケージマネージャー。"
+    },
     "privacy": {
       "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信",
       "title": "プライバシー設定"
+    },
+    "prompts": {
+      "add": "プロンプトを追加",
+      "contentLabel": "内容",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "プロンプトを削除",
+      "deleteConfirm": "プロンプトは完全に削除されます。続行しますか？",
+      "edit": "プロンプトを編集",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "プロンプト管理",
+      "titleLabel": "タイトル",
+      "titlePlaceholder": "プロンプトのタイトルを入力してください"
     },
     "provider": {
       "add": {
@@ -5769,20 +5817,6 @@
       "select": "選択",
       "title": "クイックメニュー"
     },
-    "quickPhrase": {
-      "add": "フレーズを追加",
-      "assistant": "アシスタントプロンプト",
-      "contentLabel": "内容",
-      "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
-      "delete": "フレーズを削除",
-      "deleteConfirm": "削除後は復元できません。続行しますか？",
-      "edit": "フレーズを編集",
-      "global": "グローバルクイックフレーズ",
-      "locationLabel": "追加場所",
-      "title": "クイックフレーズ",
-      "titleLabel": "タイトル",
-      "titlePlaceholder": "フレーズのタイトルを入力してください"
-    },
     "scheduledTasks": {
       "description": "すべてのエージェントにわたるスケジュールされたタスクを管理します。タスクは設定されたスケジュールに従って自動的に実行されます。",
       "noAgents": "エージェントが見つかりません。スケジュールされたタスクを追加するには、まずエージェントを作成してください。",
@@ -5794,12 +5828,22 @@
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
+      "all_disable": "すべて無効にする",
+      "all_enable": "すべて有効にする",
       "bind_first_to_enable": "ショートカットを最初に割り当てて、その有効状態を変更してください",
+      "categories": {
+        "assistant": "AIアシスタントツール",
+        "chat": "メッセージインタラクション",
+        "general": "グローバルとウィンドウ",
+        "title": "ショートカットグループ",
+        "topic": "会話と話題"
+      },
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
       "conflict_with": "すでに「{{name}}」によって使用されています",
       "copy_last_message": "最後のメッセージをコピー",
       "edit_last_user_message": "最後のユーザーメッセージを編集",
+      "empty": "このグループには利用可能なショートカットはありません",
       "enabled": "有効化",
       "exit_fullscreen": "フルスクリーンを終了",
       "label": "キー",
@@ -5808,6 +5852,7 @@
       "press_shortcut": "ショートカットを押す",
       "quick_assistant": "クイックアシスタント",
       "rename_topic": "トピックの名前を変更",
+      "reset": "リセット",
       "reset_defaults": "デフォルトのショートカットをリセット",
       "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
       "reset_defaults_failed": "ショートカットをデフォルトにリセットできませんでした",
@@ -5888,6 +5933,14 @@
         "error": {
           "not_system": "システムOCRはWindowsとMacOSのみをサポートしています"
         },
+        "features": {
+          "paddleocr": "中国語のテキストに対してより強力で、レシート、スキャン、より複雑なレイアウトの画像に適しています。",
+          "system": {
+            "macos": "macOSに内蔵されたOCRエンジンを使用し、セットアップ不要でスクリーンショットや軽量なテキスト抽出に最適です。",
+            "windows": "ネイティブな Windows OCR エンジンを使用し、OS と強く統合され、基本的なローカル認識タスクに対応します。"
+          },
+          "tesseract": "カスタマイズ可能な言語パックを備えたクラシックなローカルOCRオプションで、オフラインおよび多言語ワークフローに最適です。"
+        },
         "image": {
           "error": {
             "provider_not_found": "該提供者は存在しません"
@@ -5914,6 +5967,13 @@
         "title": "OCRサービス"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "PDFをよりクリーンなMarkdownや編集可能なテキストに変換し、後続の検索や編集に適した形式にするのに最適です。",
+          "mineru": "より高品位なレイアウト復元に最適化されており、学術PDF、表、数式に特に有用です。",
+          "mistral": "強力なクラウドベースのドキュメント理解機能で、構造化された抽出、複数ページのファイル、複雑なレイアウトに対応します。",
+          "open_mineru": "セルフホスティングや処理パイプラインをより厳密に制御したいチームに適した、オープンな展開オプション。",
+          "paddleocr": "中国語の文書、スキャン、一般的なレシート形式のコンテンツに適した、より軽い統合オプション。"
+        },
         "paddleocr": {
           "aistudio_access_token": "AI Studioコミュニティのアクセストークン",
           "api_url": "API URL",
@@ -5952,23 +6012,10 @@
               "token": "トークン"
             }
           },
-          "error": {
-            "rag_failed": "RAG に失敗しました"
-          },
-          "info": {
-            "dimensions_auto_success": "次元が自動取得されました。次元: {{dimensions}}"
-          },
           "method": {
             "cutoff": "切り捨て",
             "label": "圧縮方法",
-            "none": "圧縮しない",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "文書チャンク数",
-              "tooltip": "単一の検索結果から抽出する文書チャンク数。実際に抽出される文書チャンク数は、この値に検索結果数を乗じたものです。"
-            }
+            "none": "圧縮しない"
           },
           "title": "検索結果の圧縮"
         },

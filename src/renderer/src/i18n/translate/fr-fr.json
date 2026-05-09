@@ -36,9 +36,9 @@
         "comingSoon": "Bientôt disponible",
         "connected": "Connecté",
         "connecting": "Connexion",
-        "createError": "[to be translated]:Failed to create channel",
+        "createError": "Échec de la création du canal",
         "deleteConfirm": "Supprimer le canal \"{{name}}\" ?",
-        "deleteError": "[to be translated]:Failed to delete channel",
+        "deleteError": "Échec de la suppression du canal",
         "description": "Connectez votre agent aux plateformes de messagerie.",
         "disconnected": "Déconnecté",
         "discord": {
@@ -123,7 +123,7 @@
           "title": "Telegram"
         },
         "title": "Canaux",
-        "updateError": "[to be translated]:Failed to update channel",
+        "updateError": "Échec de la mise à jour du canal",
         "wechat": {
           "addAccount": "Ajouter un compte WeChat",
           "chatIds": "Identifiants d'utilisateurs autorisés",
@@ -215,7 +215,7 @@
         "edit": "Modifier",
         "empty": "Aucune tâche planifiée. Ajoutez-en une pour commencer.",
         "error": {
-          "loadFailed": "[to be translated]:Failed to load tasks"
+          "loadFailed": "Échec du chargement des tâches"
         },
         "intervalPlaceholder": "Intervalle en minutes",
         "intervalUnit": "minutes",
@@ -226,7 +226,7 @@
           "error": "Erreur",
           "justNow": "à l'instant",
           "label": "Historique d'exécution",
-          "loadError": "[to be translated]:Failed to load run history",
+          "loadError": "Échec du chargement de l'historique des exécutions",
           "result": "Résultat",
           "runAt": "Exécuté le",
           "running": "En cours d'exécution...",
@@ -957,17 +957,6 @@
         "xhigh": "Très élevée",
         "xhigh_description": "Raisonnement de très haut niveau"
       },
-      "regular_phrases": {
-        "add": "Добавить фразу",
-        "contentLabel": "Содержание",
-        "contentPlaceholder": "Введите содержание фразы. Поддерживаются переменные, после этого нажмите Tab для быстрого перехода к переменной и изменения её значения. Например:\\n Планируй маршрут из ${from} в ${to}, а затем отправь его на ${email}.",
-        "delete": "Удалить фразу",
-        "deleteConfirm": "Вы уверены, что хотите удалить эту фразу?",
-        "edit": "Редактировать фразу",
-        "title": "Популярные фразы",
-        "titleLabel": "Заголовок",
-        "titlePlaceholder": "Введите заголовок"
-      },
       "title": "Paramètres de l'assistant",
       "tool_use_mode": {
         "function": "Fonction",
@@ -1510,8 +1499,8 @@
     "bun_required_message": "L'exécution de l'outil en ligne de commande nécessite l'installation de l'environnement Bun",
     "cli_tool": "Outil CLI",
     "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
-    "count_one": "[to be translated]:{{count}} item",
-    "count_other": "[to be translated]:{{count}} items",
+    "count_one": "{{count}} article",
+    "count_other": "{{count}} articles",
     "custom_path": "Chemin personnalisé",
     "custom_path_error": "Échec de la définition du chemin de terminal personnalisé",
     "custom_path_required": "Ce terminal nécessite la configuration d’un chemin personnalisé",
@@ -1519,12 +1508,12 @@
     "description": "Lancer rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement",
     "empty": {
       "no_match": {
-        "description": "[to be translated]:Try adjusting your search terms",
-        "title": "[to be translated]:No matching tools found"
+        "description": "Essayez d’ajuster vos termes de recherche",
+        "title": "Aucun outil correspondant trouvé"
       },
       "no_tool": {
-        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
-        "title": "[to be translated]:No code tools yet"
+        "description": "Ajoutez un outil CLI ou un assistant de code pour commencer",
+        "title": "Pas encore d'outils de code"
       }
     },
     "env_vars_help": "Saisissez les variables d'environnement personnalisées (une par ligne, format : KEY=value)",
@@ -1536,28 +1525,28 @@
       "bun_required": "Veuillez d'abord installer l'environnement Bun avant de lancer l'outil en ligne de commande",
       "error": "Échec du démarrage, veuillez réessayer",
       "label": "Démarrer",
-      "launched": "[to be translated]:Launched",
+      "launched": "Lancé",
       "success": "Démarrage réussi",
       "validation_error": "Veuillez remplir tous les champs obligatoires : outil CLI, modèle et répertoire de travail"
     },
     "launching": "En cours de démarrage...",
     "model": "modèle",
-    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
+    "model_hint": "Choisis quel modèle d’IA l’outil CLI doit utiliser",
     "model_placeholder": "Sélectionnez le modèle à utiliser",
     "model_required": "Veuillez sélectionner le modèle",
-    "official_tag": "[to be translated]:Official",
-    "official_tools": "[to be translated]:Official",
-    "search_placeholder": "[to be translated]:Search CLI tools…",
+    "official_tag": "Officiel",
+    "official_tools": "Officiel",
+    "search_placeholder": "Rechercher des outils CLI…",
     "select_folder": "Sélectionner le dossier",
     "set_custom_path": "Définir un chemin de terminal personnalisé",
     "supported_providers": "fournisseurs pris en charge",
     "terminal": "Terminal",
-    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
+    "terminal_hint": "Choisissez l'application de terminal dans laquelle exécuter le CLI",
     "terminal_placeholder": "Choisir une application de terminal",
     "title": "Outils de code",
     "update_options": "Options de mise à jour",
     "working_directory": "répertoire de travail",
-    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
+    "working_directory_hint": "Le répertoire de travail dans lequel l'outil CLI se lance"
   },
   "code_block": {
     "collapse": "Réduire",
@@ -2352,7 +2341,7 @@
   },
   "launchpad": {
     "apps": "Applications",
-    "minapps": "Mini-applications"
+    "miniApps": "Mini-applications"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2702,20 +2691,23 @@
     "websearch": {
       "cutoff": "Troncature du contenu de recherche en cours...",
       "fetch_complete": "{{count}} résultats de recherche",
-      "rag": "Exécution de la RAG en cours...",
-      "rag_complete": "Conserver {{countAfter}} résultats sur {{countBefore}}...",
-      "rag_failed": "Échec de la RAG, retour d'un résultat vide..."
+      "partial_failure": "{{count}} résultats de recherche, certaines recherches ont échoué"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Ajouter au tableau de bord",
     "add_to_sidebar": "Ajouter à la barre latérale",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Закрыть мини-программу",
       "devtools": "Инструменты разработчика",
       "goBack": "Reculer",
       "goForward": "Avancer",
-      "minimize": "Свернуть мини-программу",
       "openExternal": "Открыть в браузере",
       "open_link_external_off": "Текущий: открывать ссылки в окне по умолчанию",
       "open_link_external_on": "Текущий: открывать ссылки в браузере",
@@ -2724,6 +2716,13 @@
     },
     "remove_from_launchpad": "Supprimer du tableau de bord",
     "remove_from_sidebar": "Supprimer de la barre latérale",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Fermer"
@@ -2738,9 +2737,11 @@
         "title": "Supprimer l'application personnalisée"
       }
     },
-    "title": "Mini-programme"
+    "title": "Mini-programme",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -2759,6 +2760,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -2767,8 +2769,8 @@
   },
   "models": {
     "action": {
-      "pin": "[to be translated]:Pin this model",
-      "unpin": "[to be translated]:Unpin model"
+      "pin": "Épingler ce modèle",
+      "unpin": "Détacher le modèle"
     },
     "add_parameter": "Ajouter un paramètre",
     "all": "Tout",
@@ -2788,7 +2790,7 @@
     "invalid_model": "Modèle invalide",
     "json_parse_error": "Format JSON invalide",
     "multi_select": {
-      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+      "label": "Parallélisme multi-modèle (exclusif mutuel avec assistant multiple)"
     },
     "no_matches": "Aucun modèle disponible",
     "parameter_name": "Nom du paramètre",
@@ -4038,27 +4040,27 @@
   },
   "selector": {
     "agent": {
-      "create_new": "[to be translated]:New Agent",
-      "empty_text": "[to be translated]:No agents yet",
-      "search_placeholder": "[to be translated]:Search agents…"
+      "create_new": "Nouvel Agent",
+      "empty_text": "Pas encore d'agents",
+      "search_placeholder": "Agents de recherche…"
     },
     "assistant": {
-      "create_new": "[to be translated]:New Assistant",
-      "empty_text": "[to be translated]:No assistants yet",
-      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
-      "multi_label": "[to be translated]:Multi-assistant parallel",
-      "search_placeholder": "[to be translated]:Search assistants…"
+      "create_new": "Nouvel Assistant",
+      "empty_text": "Pas encore d'assistants",
+      "multi_hint": "(mutuellement exclusif avec multi-modèle)",
+      "multi_label": "Multi-assistant parallèle",
+      "search_placeholder": "Assistant de recherche…"
     },
     "common": {
-      "edit": "[to be translated]:Edit",
-      "pin": "[to be translated]:Pin",
-      "pinned_title": "[to be translated]:Pinned",
+      "edit": "Modifier",
+      "pin": "Épingle",
+      "pinned_title": "Épinglé",
       "sort": {
-        "asc": "[to be translated]:Oldest",
-        "desc": "[to be translated]:Recent"
+        "asc": "Le plus ancien",
+        "desc": "Récent"
       },
-      "sort_label": "[to be translated]:Sort",
-      "unpin": "[to be translated]:Unpin"
+      "sort_label": "Trier",
+      "unpin": "Détacher"
     }
   },
   "settings": {
@@ -4129,72 +4131,72 @@
     },
     "componentLab": {
       "agentSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
-        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Agent Selector",
-        "triggerPlaceholder": "[to be translated]:Select an agent",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "Clair",
+        "configDescription": "Basculer les props pour prévisualiser le comportement du composant",
+        "configTitle": "Configuration",
+        "currentProps": "Accessoires actuels",
+        "description": "AgentSelector lit désormais les données réelles de l’API DataApi /agents pour vérifier la sélection d’identifiant/d’élément, l’épinglage, le tri et le comportement de recherche.",
+        "emptyShellNotice": "Cet aperçu utilise la vraie liste d’agents renvoyée par l’API de données /agents.",
+        "lastOnChange": "Dernier onChange",
+        "previewDescription": "Cliquez sur le déclencheur pour ouvrir le sélecteur",
+        "previewTitle": "Aperçu",
+        "title": "Sélecteur d'agent",
+        "triggerPlaceholder": "Sélectionnez un agent",
+        "valueProp": "Valeur actuelle"
       },
       "assistantSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Assistant Selector",
-        "triggerPlaceholder": "[to be translated]:Select an assistant",
-        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "Clair",
+        "configDescription": "Basculer les props pour prévisualiser le comportement du composant",
+        "configTitle": "Configuration",
+        "currentProps": "Propriétés actuelles",
+        "description": "Monte le composant métier AssistantSelector directement pour vérifier les comportements multi/simple, id/élément, épinglage, tri et recherche.",
+        "lastOnChange": "Dernier onChange",
+        "previewDescription": "Cliquez sur le déclencheur pour ouvrir le sélecteur",
+        "previewTitle": "Aperçu",
+        "title": "Sélecteur d'Assistant",
+        "triggerPlaceholder": "Sélectionnez un assistant",
+        "triggerSelectedCount": "{{count}} assistants sélectionnés",
+        "valueProp": "Valeur actuelle"
       },
-      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
-      "label": "[to be translated]:Component Lab",
+      "description": "Visible uniquement en développement pour tester le nouveau sélecteur de modèle directement dans l'application.",
+      "label": "Laboratoire de Composants",
       "modelSelector": {
-        "behaviorConfig": "[to be translated]:Behavior & Display Config",
-        "callbackEmpty": "[to be translated]:No component callback received yet",
-        "clearSelection": "[to be translated]:Clear Selection",
-        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
-        "configTitle": "[to be translated]:Props Playground",
-        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
-        "currentProps": "[to be translated]:Current Props",
-        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
-        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
-        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
-        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
-        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
-        "loading": "[to be translated]:Loading models...",
-        "modelId": "[to be translated]:Model ID",
-        "multiSelectMode": "[to be translated]:multiSelectMode",
-        "multiple": "[to be translated]:multiple",
-        "normalizedIds": "[to be translated]:Normalized Selected IDs",
-        "outputEmpty": "[to be translated]:No data to display yet",
-        "provider": "[to be translated]:Provider",
-        "resetOutputs": "[to be translated]:Reset Outputs",
-        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
-        "resultsTitle": "[to be translated]:Outputs & State",
-        "selected": "[to be translated]:Current Selection",
-        "selectedEmpty": "[to be translated]:No model selected yet",
-        "selectionConfig": "[to be translated]:Selection Value Config",
-        "selectionType": "[to be translated]:selectionType",
-        "selectionTypeId": "[to be translated]:Return Model IDs",
-        "selectionTypeModel": "[to be translated]:Return Model Objects",
-        "showPinnedModels": "[to be translated]:showPinnedModels",
-        "showTagFilter": "[to be translated]:showTagFilter",
-        "title": "[to be translated]:Model Selector",
-        "triggerPlaceholder": "[to be translated]:Select a model",
-        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
-        "valueProp": "[to be translated]:Current Value Prop"
+        "behaviorConfig": "Configuration du comportement et de l'affichage",
+        "callbackEmpty": "Aucun rappel de composant reçu pour l'instant",
+        "clearSelection": "Effacer la sélection",
+        "configDescription": "Activez les props clés de ModelSelector ci-dessus et inspectez la valeur d'entrée ainsi que les payloads de rappel ci-dessous.",
+        "configTitle": "Terrain de jeu des accessoires",
+        "controlMultiSelectMode": "Mode multi-sélection contrôlée",
+        "currentProps": "Accessoires actuels",
+        "defaultMultiSelectMode": "modeSélectionMultipleParDéfaut",
+        "description": "Cette page monte directement le composant métier ModelSelector actuel afin que nous puissions vérifier les comportements de sélection, de filtrage, de recherche et d'épinglage.",
+        "empty": "Aucun modèle n’est actuellement disponible, donc le sélecteur ne peut pas encore être affiché.",
+        "lastModeChangeReturn": "Dernier retour de onMultiSelectModeChange",
+        "lastSelectReturn": "Dernier retour onSelect",
+        "loading": "Chargement des modèles...",
+        "modelId": "ID du modèle",
+        "multiSelectMode": "modeSélectionMultiple",
+        "multiple": "multiple",
+        "normalizedIds": "IDs sélectionnés normalisés",
+        "outputEmpty": "Aucune donnée à afficher pour le moment",
+        "provider": "Fournisseur",
+        "resetOutputs": "Réinitialiser les sorties",
+        "resultsDescription": "Ceci montre la proposition de valeur actuelle, les identifiants sélectionnés normalisés et la dernière sortie de rappel du composant.",
+        "resultsTitle": "Sorties et état",
+        "selected": "Sélection actuelle",
+        "selectedEmpty": "Aucun modèle sélectionné pour l'instant",
+        "selectionConfig": "Configuration de la valeur de sélection",
+        "selectionType": "typeDeSélection",
+        "selectionTypeId": "Retourner les ID de modèle",
+        "selectionTypeModel": "Retourner les objets du modèle",
+        "showPinnedModels": "afficherModèlesÉpinglés",
+        "showTagFilter": "afficherFiltreTag",
+        "title": "Sélecteur de modèle",
+        "triggerPlaceholder": "Sélectionner un modèle",
+        "triggerSelectedCount": "{{count}} modèles sélectionnés",
+        "valueProp": "Valeur actuelle proposée"
       },
-      "title": "[to be translated]:Development Component Lab"
+      "title": "Composant de développement Laboratoire"
     },
     "data": {
       "app_data": {
@@ -4860,7 +4862,7 @@
         "knowledge": {
           "icon": "Afficher l'icône des connaissances"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "Afficher l'icône des applications minimisées"
         },
         "painting": {
@@ -4894,6 +4896,15 @@
       "backup": {
         "button": "Sauvegarder",
         "title": "Sauvegarde et restauration des données"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "CSS personnalisé",
+          "display_language": "Affichage et langue",
+          "privacy_advanced": "Confidentialité et avancé",
+          "system_startup": "Système et démarrage"
+        },
+        "title": "Paramètres communs"
       },
       "display": {
         "title": "Paramètres d'affichage"
@@ -4955,6 +4966,12 @@
         "label": "Langue cible",
         "russian": "Russe"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "Notes"
+      },
+      "title": "Intégrations"
     },
     "launch": {
       "onboot": "Démarrer automatiquement au démarrage",
@@ -5225,6 +5242,13 @@
       "url": "URL",
       "user": "Пользователь"
     },
+    "menuGroups": {
+      "appSettings": "Paramètres de l'application",
+      "integrations": "Modèles",
+      "productivity": "Productivité",
+      "services": "Modules complémentaires",
+      "system": "Système"
+    },
     "messages": {
       "divider": {
         "label": "Séparateur de messages",
@@ -5262,7 +5286,7 @@
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Les modifications prendront effet après l'ajout ou la suppression d'applications ouvertes jusqu'à atteindre la valeur définie",
       "cache_description": "Définir le nombre maximum d'applications pouvant rester actives simultanément",
       "cache_settings": "Paramètres du cache",
@@ -5312,8 +5336,6 @@
         "title": "Filtrage par zone de la mini-application"
       },
       "reset_tooltip": "Réinitialiser aux valeurs par défaut",
-      "sidebar_description": "Définir si les applications actives doivent s'afficher dans la barre latérale",
-      "sidebar_title": "Affichage des applications actives dans la barre latérale",
       "title": "Paramètres de l'application",
       "visible": "Applications visibles"
     },
@@ -5378,7 +5400,7 @@
         "use_all_keys": "Utiliser toutes les clés"
       },
       "default_assistant_model": "Modèle d'assistant par défaut",
-      "default_assistant_model_description": "Modèle utilisé pour créer de nouveaux assistants, si aucun modèle n'est défini pour l'assistant, ce modèle sera utilisé",
+      "default_assistant_model_description": "Utilisé lorsqu'un assistant n'a pas de modèle.",
       "empty": "Aucun modèle",
       "manage": {
         "add_listed": {
@@ -5472,9 +5494,35 @@
         "title": "niveau de détail"
       }
     },
+    "plugins": {
+      "bunDescription": "Runtime JavaScript utilisé par les services MCP et les chaînes d'outils associées.",
+      "description": "Gérez les outils binaires et les dépendances d'exécution requises par l'application.",
+      "installing": "Installation en cours...",
+      "notInstalled": "Non installé",
+      "title": "Dépendances de l'environnement",
+      "uvDescription": "Gestionnaire de packages Python pour les services MCP et l’installation des dépendances."
+    },
     "privacy": {
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",
       "title": "Настройки конфиденциальности"
+    },
+    "prompts": {
+      "add": "Ajouter un prompt",
+      "contentLabel": "Contenu",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Supprimer le prompt",
+      "deleteConfirm": "Le prompt sera définitivement supprimé. Continuer ?",
+      "edit": "Modifier le prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Gestion des prompts",
+      "titleLabel": "Titre",
+      "titlePlaceholder": "Saisissez le titre du prompt"
     },
     "provider": {
       "add": {
@@ -5769,20 +5817,6 @@
       "select": "Выбрать",
       "title": "Быстрое меню"
     },
-    "quickPhrase": {
-      "add": "Добавить фразу",
-      "assistant": "Фразы помощника",
-      "contentLabel": "Содержание",
-      "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, после этого нажмите Tab, чтобы быстро перейти к переменной для редактирования. Например: \\n Запланируй маршрут от ${from} до ${to}, а затем отправь его на ${email}.",
-      "delete": "Удалить фразу",
-      "deleteConfirm": "После удаления фразы её невозможно восстановить. Продолжить?",
-      "edit": "Редактировать фразу",
-      "global": "Глобальные фразы",
-      "locationLabel": "Добавить местоположение",
-      "title": "Быстрые фразы",
-      "titleLabel": "Заголовок",
-      "titlePlaceholder": "Введите заголовок фразы"
-    },
     "scheduledTasks": {
       "description": "Gérez les tâches planifiées sur tous les agents. Les tâches s'exécutent automatiquement selon le planning configuré.",
       "noAgents": "Aucun agent trouvé. Créez d'abord un agent pour ajouter des tâches planifiées.",
@@ -5794,12 +5828,22 @@
     "shortcuts": {
       "action": "Action",
       "actions": "操作",
+      "all_disable": "Désactiver tout",
+      "all_enable": "Tout activer",
       "bind_first_to_enable": "Liez d'abord un raccourci pour modifier son état activé",
+      "categories": {
+        "assistant": "Outils d'assistance IA",
+        "chat": "Interaction des messages",
+        "general": "Global et Fenêtre",
+        "title": "Groupes de raccourcis",
+        "topic": "Conversation et Sujets"
+      },
       "clear_shortcut": "Effacer raccourci clavier",
       "clear_topic": "Vider les messages",
       "conflict_with": "Déjà utilisé par \"{{name}}\"",
       "copy_last_message": "Copier le dernier message",
       "edit_last_user_message": "Éditer le dernier message utilisateur",
+      "empty": "Aucun raccourci n’est disponible dans ce groupe",
       "enabled": "activer",
       "exit_fullscreen": "Quitter le plein écran",
       "label": "Touche",
@@ -5808,6 +5852,7 @@
       "press_shortcut": "Appuyer sur raccourci clavier",
       "quick_assistant": "Assistant rapide",
       "rename_topic": "Renommer le sujet",
+      "reset": "Réinitialiser",
       "reset_defaults": "Réinitialiser raccourcis par défaut",
       "reset_defaults_confirm": "Êtes-vous sûr de vouloir réinitialiser tous les raccourcis clavier ?",
       "reset_defaults_failed": "Échec de la réinitialisation des raccourcis aux valeurs par défaut",
@@ -5888,6 +5933,14 @@
         "error": {
           "not_system": "L'OCR système prend uniquement en charge Windows et MacOS"
         },
+        "features": {
+          "paddleocr": "Plus robuste pour le texte chinois et mieux adapté aux reçus, aux scans et aux images avec des mises en page plus complexes.",
+          "system": {
+            "macos": "Utilise le moteur OCR intégré de macOS sans configuration, idéal pour les captures d’écran et l’extraction légère de texte.",
+            "windows": "Utilise le moteur OCR natif de Windows avec une forte intégration au système d'exploitation pour des tâches de reconnaissance locales de base."
+          },
+          "tesseract": "Une option OCR locale classique avec des packs linguistiques personnalisables, bien adaptée aux workflows hors ligne et multilingues."
+        },
         "image": {
           "error": {
             "provider_not_found": "Ce fournisseur n'existe pas"
@@ -5914,6 +5967,13 @@
         "title": "Service OCR"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "Parfait pour convertir des PDF en Markdown plus propre ou en texte éditable pour une récupération et un édition ultérieures.",
+          "mineru": "Optimisé pour une récupération de mise en page de haute fidélité, particulièrement utile pour les PDF académiques, les tableaux et les formules.",
+          "mistral": "Forte compréhension de documents basée sur le cloud, adaptée à l'extraction structurée, aux fichiers multipages et aux mises en page complexes.",
+          "open_mineru": "Une option de déploiement ouverte qui convient aux équipes souhaitant l’auto-hébergement ou un contrôle plus étroit sur la chaîne de traitement.",
+          "paddleocr": "Un choix d'intégration plus léger qui fonctionne bien pour les documents chinois, les scans et le contenu courant de type reçu."
+        },
         "paddleocr": {
           "aistudio_access_token": "Jeton d’accès à la communauté AI Studio",
           "api_url": "URL de l’API",
@@ -5952,23 +6012,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "Échec du RAG"
-          },
-          "info": {
-            "dimensions_auto_success": "L'obtention automatique des dimensions a réussi, les dimensions sont {{dimensions}}"
-          },
           "method": {
             "cutoff": "Troncature",
             "label": "Méthode de compression",
-            "none": "Pas de compression",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Nombre de fragments de document",
-              "tooltip": "Nombre prévu de fragments de document à extraire d'un seul résultat de recherche. Le nombre total réellement extrait est ce nombre multiplié par le nombre de résultats de recherche."
-            }
+            "none": "Pas de compression"
           },
           "title": "Compression des résultats de recherche"
         },

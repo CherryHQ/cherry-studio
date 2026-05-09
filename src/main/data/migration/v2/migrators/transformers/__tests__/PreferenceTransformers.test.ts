@@ -5,7 +5,8 @@ import {
   getNestedValue,
   isNonEmptyString,
   isValidNumber,
-  migrateWebSearchProviders
+  migrateWebSearchProviders,
+  normalizeWebSearchDefaultProvider
 } from '../PreferenceTransformers'
 
 describe('PreferenceTransformers', () => {
@@ -134,38 +135,52 @@ describe('PreferenceTransformers', () => {
     })
   })
 
+  describe('normalizeWebSearchDefaultProvider', () => {
+    it('should keep supported provider ids', () => {
+      const result = normalizeWebSearchDefaultProvider({ defaultProvider: 'tavily' })
+
+      expect(result['chat.web_search.default_search_keywords_provider']).toBe('tavily')
+    })
+
+    it('should collapse removed local providers to null', () => {
+      const result = normalizeWebSearchDefaultProvider({ defaultProvider: 'local-bing' })
+
+      expect(result['chat.web_search.default_search_keywords_provider']).toBeNull()
+    })
+
+    it('should collapse empty and unknown providers to null', () => {
+      expect(
+        normalizeWebSearchDefaultProvider({ defaultProvider: '' })['chat.web_search.default_search_keywords_provider']
+      ).toBeNull()
+      expect(
+        normalizeWebSearchDefaultProvider({ defaultProvider: 'custom-provider' })[
+          'chat.web_search.default_search_keywords_provider'
+        ]
+      ).toBeNull()
+      expect(normalizeWebSearchDefaultProvider({})['chat.web_search.default_search_keywords_provider']).toBeNull()
+    })
+  })
+
   describe('flattenCompressionConfig', () => {
     it('should return defaults when no config provided', () => {
       const result = flattenCompressionConfig({})
       expect(result['chat.web_search.compression.method']).toBe('none')
-      expect(result['chat.web_search.compression.cutoff_limit']).toBeNull()
+      expect(result['chat.web_search.compression.cutoff_limit']).toBe(2000)
       expect(result['chat.web_search.compression.cutoff_unit']).toBe('char')
-      expect(result['chat.web_search.compression.rag_document_count']).toBe(5)
-      expect(result['chat.web_search.compression.rag_embedding_model_id']).toBeNull()
-      expect(result['chat.web_search.compression.rag_embedding_dimensions']).toBeNull()
-      expect(result['chat.web_search.compression.rag_rerank_model_id']).toBeNull()
     })
 
     it('should flatten compression config with all fields', () => {
       const result = flattenCompressionConfig({
         compressionConfig: {
-          method: 'rag',
+          method: 'cutoff',
           cutoffLimit: 2000,
-          cutoffUnit: 'token',
-          documentCount: 10,
-          embeddingModel: { id: 'embed-model', provider: 'openai' },
-          embeddingDimensions: 1536,
-          rerankModel: { id: 'rerank-model', provider: 'cohere' }
+          cutoffUnit: 'token'
         }
       })
 
-      expect(result['chat.web_search.compression.method']).toBe('rag')
+      expect(result['chat.web_search.compression.method']).toBe('cutoff')
       expect(result['chat.web_search.compression.cutoff_limit']).toBe(2000)
       expect(result['chat.web_search.compression.cutoff_unit']).toBe('token')
-      expect(result['chat.web_search.compression.rag_document_count']).toBe(10)
-      expect(result['chat.web_search.compression.rag_embedding_model_id']).toBe('openai::embed-model')
-      expect(result['chat.web_search.compression.rag_embedding_dimensions']).toBe(1536)
-      expect(result['chat.web_search.compression.rag_rerank_model_id']).toBe('cohere::rerank-model')
     })
 
     it('should handle partial config with defaults', () => {
@@ -179,7 +194,18 @@ describe('PreferenceTransformers', () => {
       expect(result['chat.web_search.compression.method']).toBe('cutoff')
       expect(result['chat.web_search.compression.cutoff_limit']).toBe(1000)
       expect(result['chat.web_search.compression.cutoff_unit']).toBe('char')
-      expect(result['chat.web_search.compression.rag_document_count']).toBe(5)
+    })
+
+    it('should fallback to default cutoff limit when cutoff config has no limit', () => {
+      const result = flattenCompressionConfig({
+        compressionConfig: {
+          method: 'cutoff',
+          cutoffLimit: null
+        }
+      })
+
+      expect(result['chat.web_search.compression.method']).toBe('cutoff')
+      expect(result['chat.web_search.compression.cutoff_limit']).toBe(2000)
     })
 
     it('should fallback to default method when method is invalid', () => {
@@ -197,26 +223,23 @@ describe('PreferenceTransformers', () => {
     it('should fallback to default cutoff unit when unit is invalid', () => {
       const result = flattenCompressionConfig({
         compressionConfig: {
-          method: 'rag',
+          method: 'cutoff',
           cutoffUnit: 'sentence'
         }
       })
 
-      expect(result['chat.web_search.compression.method']).toBe('rag')
+      expect(result['chat.web_search.compression.method']).toBe('cutoff')
       expect(result['chat.web_search.compression.cutoff_unit']).toBe('char')
     })
 
-    it('should handle null embeddingModel and rerankModel', () => {
+    it('should collapse removed rag method to none', () => {
       const result = flattenCompressionConfig({
         compressionConfig: {
-          method: 'none',
-          embeddingModel: null,
-          rerankModel: null
+          method: 'rag'
         }
       })
 
-      expect(result['chat.web_search.compression.rag_embedding_model_id']).toBeNull()
-      expect(result['chat.web_search.compression.rag_rerank_model_id']).toBeNull()
+      expect(result['chat.web_search.compression.method']).toBe('none')
     })
   })
 
@@ -249,7 +272,7 @@ describe('PreferenceTransformers', () => {
             apiHost: 'https://searx.example.com',
             engines: ['news'],
             basicAuthUsername: 'user',
-            basicAuthPassword: 'pass'
+            basicAuthPassword: ' pass '
           }
         ]
       })
@@ -257,10 +280,14 @@ describe('PreferenceTransformers', () => {
       const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
       expect(overrides).toEqual({
         searxng: {
-          apiHost: 'https://searx.example.com',
+          capabilities: {
+            searchKeywords: {
+              apiHost: 'https://searx.example.com'
+            }
+          },
           engines: ['news'],
           basicAuthUsername: 'user',
-          basicAuthPassword: 'pass'
+          basicAuthPassword: ' pass '
         }
       })
     })

@@ -1,13 +1,10 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { toUndefinedIfNull } from '@cherrystudio/ui/utils/index'
-import type { VariantProps } from 'class-variance-authority'
-import { cva } from 'class-variance-authority'
-import { Edit2Icon, EyeIcon, EyeOffIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useCallback, useMemo, useState } from 'react'
-
-import type { InputProps } from '../../primitives/input'
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '../../primitives/input-group'
+import type { InputProps } from '@cherrystudio/ui/components/primitives/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput
+} from '@cherrystudio/ui/components/primitives/input-group'
 import {
   Select,
   SelectContent,
@@ -16,12 +13,19 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue
-} from '../../primitives/select'
+} from '@cherrystudio/ui/components/primitives/select'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { toUndefinedIfNull } from '@cherrystudio/ui/utils/index'
+import type { VariantProps } from 'class-variance-authority'
+import { cva } from 'class-variance-authority'
+import { Edit2Icon, EyeIcon, EyeOffIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 const inputGroupVariants = cva(
   [
     'h-auto',
-    'rounded-xs',
+    'rounded-md',
     'has-[[data-slot=input-group-control]:focus-visible]:ring-ring/40',
     'has-[[data-slot=input-group-control]:focus-visible]:border-[#3CD45A]'
   ],

@@ -265,23 +265,21 @@ export function WebdavBackupManager({
       width={800}
       centered
       transitionName="animation-move-down"
-      footer={[
-        <Button key="refresh" onClick={fetchBackupFiles} disabled={loading}>
-          <ReloadOutlined />
-          {t('settings.data.webdav.backup.manager.refresh')}
-        </Button>,
-        <Button
-          key="delete"
-          variant="destructive"
-          onClick={handleDeleteSelected}
-          disabled={selectedRowKeys.length === 0 || deleting}>
-          <DeleteOutlined />
-          {t('settings.data.webdav.backup.manager.delete.selected')} ({selectedRowKeys.length})
-        </Button>,
-        <Button key="close" onClick={onClose}>
-          {t('common.close')}
-        </Button>
-      ]}>
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={fetchBackupFiles} disabled={loading}>
+            <ReloadOutlined />
+            {t('settings.data.webdav.backup.manager.refresh')}
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleDeleteSelected}
+            disabled={selectedRowKeys.length === 0 || deleting}>
+            <DeleteOutlined />
+            {t('settings.data.webdav.backup.manager.delete.selected')} ({selectedRowKeys.length})
+          </Button>
+        </div>
+      }>
       <Table
         rowKey="fileName"
         columns={columns}

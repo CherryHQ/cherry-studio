@@ -1,9 +1,11 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { isMac } from '@renderer/config/constant'
+import { getMiniAppsLogo } from '@renderer/config/miniApps'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn, uuid } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { Home, Plus, X } from 'lucide-react'
+import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,6 +14,27 @@ import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
 import { TabContextMenu } from './TabContextMenu'
 import { getTabIcon } from './tabIcons'
 import { useTabDrag } from './useTabDrag'
+
+const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ tab, size, className }) => {
+  if (tab.icon) {
+    const logo = getMiniAppsLogo(tab.icon)
+    if (logo) {
+      const Compound = logo
+      return <Compound.Avatar size={size} shape="rounded" className={cn('select-none', className)} />
+    }
+    return (
+      <img
+        src={tab.icon}
+        alt=""
+        draggable={false}
+        className={cn('select-none rounded-[3px] object-cover', className)}
+        style={{ width: size, height: size }}
+      />
+    )
+  }
+  const Icon = getTabIcon(tab)
+  return <Icon size={size} strokeWidth={1.6} className={className} />
+}
 
 const HOME_TAB_ID = 'home'
 
@@ -98,7 +121,6 @@ const PinnedTabButton = ({
   tabRef: (el: HTMLButtonElement | null) => void
   tone: TabToneProps
 }) => {
-  const Icon = getTabIcon(tab)
   return (
     <Tooltip placement="bottom" content={tab.title} delay={600}>
       <button
@@ -120,7 +142,7 @@ const PinnedTabButton = ({
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           isActive ? tone.activeClass : tone.hoverClass
         )}>
-        <Icon size={14} strokeWidth={1.6} />
+        <TabIcon tab={tab} size={14} />
       </button>
     </Tooltip>
   )
@@ -150,7 +172,6 @@ const NormalTabButton = ({
   tabRef: (el: HTMLButtonElement | null) => void
   tone: TabToneProps
 }) => {
-  const Icon = getTabIcon(tab)
   const isCloseable = tab.id !== HOME_TAB_ID
   const btnRef = useRef<HTMLButtonElement | null>(null)
   const [isNarrow, setIsNarrow] = useState(false)
@@ -198,7 +219,7 @@ const NormalTabButton = ({
       )}>
       {/* Icon — on narrow tabs, X overlay replaces icon on hover (Chrome-style) */}
       <div className="relative flex h-[13px] w-[13px] shrink-0 items-center justify-center">
-        <Icon size={13} strokeWidth={1.6} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
+        <TabIcon tab={tab} size={13} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
         {showIconOverlayClose && (
           <div
             role="button"
@@ -270,7 +291,7 @@ export const AppShellTabBar = ({
       isMacTransparentWindow
         ? {
             activeClass:
-              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-white/14 dark:bg-white/16 dark:text-sidebar-foreground',
+              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/6 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]',
             hoverClass:
               'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
           }
@@ -457,8 +478,8 @@ export const AppShellTabBar = ({
               type="button"
               onClick={handleAddTab}
               className={cn(
-                'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors [-webkit-app-region:no-drag] hover:bg-sidebar-accent hover:text-sidebar-foreground',
-                isMacTransparentWindow ? 'bg-white/60 backdrop-blur-sm dark:bg-black/40' : 'bg-sidebar'
+                'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
+                isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
               )}
               title={t('tab.new')}>
               <Plus size={14} />

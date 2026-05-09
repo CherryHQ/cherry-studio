@@ -3,7 +3,6 @@ import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { resolveProviderApiKey } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { ApiKeyRequestSearchContext } from '../base/context'
 
@@ -30,7 +29,11 @@ const TavilySearchResponseSchema = z.object({
 type TavilySearchContext = ApiKeyRequestSearchContext<z.infer<typeof TavilySearchRequestSchema>>
 
 export class TavilyProvider extends BaseWebSearchProvider {
-  async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+  async searchKeywords(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchResponse> {
     const context = this.prepareSearchContext(query, config, httpOptions)
     const searchPayload = await this.executeSearch(context)
 
@@ -42,13 +45,13 @@ export class TavilyProvider extends BaseWebSearchProvider {
     config: WebSearchExecutionConfig,
     httpOptions?: RequestInit
   ): TavilySearchContext {
-    const apiKey = resolveProviderApiKey(this.provider)
+    const apiKey = this.resolveApiKey()
 
     return {
       apiKey,
       query,
       maxResults: config.maxResults,
-      requestUrl: this.resolveApiUrl('/search'),
+      requestUrl: this.resolveApiUrl('searchKeywords', '/search'),
       requestBody: TavilySearchRequestSchema.parse({
         query,
         max_results: config.maxResults
@@ -84,11 +87,15 @@ export class TavilyProvider extends BaseWebSearchProvider {
     searchPayload: z.infer<typeof TavilySearchResponseSchema>
   ): WebSearchResponse {
     return {
-      query: searchPayload.query || context.query,
+      query: context.query,
+      providerId: this.provider.id,
+      capability: 'searchKeywords',
+      inputs: [context.query],
       results: searchPayload.results.slice(0, context.maxResults).map((item) => ({
         title: item.title?.trim() || '',
         content: item.content?.trim() || '',
-        url: item.url || ''
+        url: item.url || '',
+        sourceInput: context.query
       }))
     }
   }

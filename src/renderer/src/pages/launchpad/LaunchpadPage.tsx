@@ -1,6 +1,6 @@
 import { OpenClawIcon } from '@renderer/components/Icons/SVGIcon'
-import App from '@renderer/components/MinApp/MinApp'
-import { useMinapps } from '@renderer/hooks/useMinapps'
+import App from '@renderer/components/MiniApp/MiniApp'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useNavigate } from '@tanstack/react-router'
 import { Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette, Sparkle } from 'lucide-react'
@@ -13,13 +13,13 @@ const LaunchpadPage: FC = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { defaultPaintingProvider } = useSettings()
-  const { pinned, openedKeepAliveMinapps } = useMinapps()
+  const { pinned, openedKeepAliveMiniApps } = useMiniApps()
 
   const appMenuItems = [
     {
       icon: <LayoutGrid size={32} className="icon" />,
       text: t('title.apps'),
-      path: '/app/minapp',
+      path: '/app/mini-app',
       bgColor: 'linear-gradient(135deg, #8B5CF6, #A855F7)' // 小程序：紫色，代表多功能和灵活性
     },
     {
@@ -61,7 +61,7 @@ const LaunchpadPage: FC = () => {
     {
       icon: <OpenClawIcon className="icon" />,
       text: t('title.openclaw'),
-      path: '/openclaw',
+      path: '/app/openclaw',
       bgColor: 'linear-gradient(135deg, #EF4444, #B91C1C)' // OpenClaw：红色渐变，代表龙虾的颜色
     },
     {
@@ -73,19 +73,19 @@ const LaunchpadPage: FC = () => {
   ]
 
   // 合并并排序小程序列表
-  const sortedMinapps = useMemo(() => {
+  const sortedMiniApps = useMemo(() => {
     // 先添加固定的小程序，保持原有顺序
     const result = [...pinned]
 
     // 再添加其他已打开但未固定的小程序
-    openedKeepAliveMinapps.forEach((app) => {
-      if (!result.some((pinnedApp) => pinnedApp.id === app.id)) {
+    openedKeepAliveMiniApps.forEach((app) => {
+      if (!result.some((pinnedApp) => pinnedApp.appId === app.appId)) {
         result.push(app)
       }
     })
 
     return result
-  }, [openedKeepAliveMinapps, pinned])
+  }, [openedKeepAliveMiniApps, pinned])
 
   return (
     <Container>
@@ -104,12 +104,12 @@ const LaunchpadPage: FC = () => {
           </Grid>
         </Section>
 
-        {sortedMinapps.length > 0 && (
+        {sortedMiniApps.length > 0 && (
           <Section>
-            <SectionTitle>{t('launchpad.minapps')}</SectionTitle>
+            <SectionTitle>{t('launchpad.miniApps')}</SectionTitle>
             <Grid>
-              {sortedMinapps.map((app) => (
-                <AppWrapper key={app.id}>
+              {sortedMiniApps.map((app) => (
+                <AppWrapper key={app.appId}>
                   <App app={app} size={56} />
                 </AppWrapper>
               ))}

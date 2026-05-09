@@ -1,29 +1,29 @@
-import { CloudServerOutlined, CloudSyncOutlined, YuqueOutlined } from '@ant-design/icons'
-import { MenuItem, MenuList, RowFlex } from '@cherrystudio/ui'
-import DividerWithText from '@renderer/components/DividerWithText'
-import { JoplinIcon, SiyuanIcon } from '@renderer/components/Icons'
+import { CloudServerOutlined, CloudSyncOutlined } from '@ant-design/icons'
+import { MenuDivider, MenuItem, MenuList, RowFlex } from '@cherrystudio/ui'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
 import { FileText, FolderCog, FolderInput, FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import { SettingContainer } from '..'
+import {
+  SettingContainer,
+  settingsSubmenuDividerClassName,
+  settingsSubmenuItemClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuScrollClassName,
+  settingsSubmenuSectionTitleClassName
+} from '..'
 import BasicDataSettings from './BasicDataSettings'
 import ExportMenuOptions from './ExportMenuSettings'
-import JoplinSettings from './JoplinSettings'
 import LocalBackupSettings from './LocalBackupSettings'
 import MarkdownExportSettings from './MarkdownExportSettings'
-import NotionSettings from './NotionSettings'
 import NutstoreSettings from './NutstoreSettings'
-import ObsidianSettings from './ObsidianSettings'
 import S3Settings from './S3Settings'
-import SiyuanSettings from './SiyuanSettings'
 import WebDavSettings from './WebDavSettings'
-import YuqueSettings from './YuqueSettings'
 
 const DataSettings: FC = () => {
   const { t } = useTranslation()
@@ -54,50 +54,39 @@ const DataSettings: FC = () => {
       key: 'markdown_export',
       title: t('settings.data.markdown_export.title'),
       icon: <FileText size={16} />
-    },
-
-    { key: 'divider_4', isDivider: true, text: t('settings.data.divider.third_party') },
-    { key: 'notion', title: t('settings.data.notion.title'), icon: <i className="iconfont icon-notion" /> },
-    {
-      key: 'yuque',
-      title: t('settings.data.yuque.title'),
-      icon: <YuqueOutlined style={{ fontSize: 16 }} />
-    },
-    {
-      key: 'joplin',
-      title: t('settings.data.joplin.title'),
-      icon: <JoplinIcon />
-    },
-    {
-      key: 'obsidian',
-      title: t('settings.data.obsidian.title'),
-      icon: <i className="iconfont icon-obsidian" />
-    },
-    {
-      key: 'siyuan',
-      title: t('settings.data.siyuan.title'),
-      icon: <SiyuanIcon />
     }
   ]
 
   return (
-    <Container>
-      <DataMenuList>
-        {menuItems.map((item) =>
-          item.isDivider ? (
-            <DividerWithText key={item.key} text={item.text || ''} style={{ margin: '8px 0' }} />
-          ) : (
-            <MenuItem
-              key={item.key}
-              label={item.title || ''}
-              active={menu === item.key}
-              onClick={() => setMenu(item.key)}
-              icon={item.icon}
-              className="font-medium"
-            />
-          )
-        )}
-      </DataMenuList>
+    <RowFlex className="flex-1">
+      <Scrollbar className={`${settingsSubmenuScrollClassName} [&_.iconfont]:text-current [&_.iconfont]:leading-4`}>
+        <MenuList className={settingsSubmenuListClassName}>
+          {menuItems.map((item, index) =>
+            item.isDivider ? (
+              <div key={item.key}>
+                {index > 0 && <MenuDivider className={settingsSubmenuDividerClassName} />}
+                <div
+                  className={
+                    index === 0
+                      ? 'px-2.5 pt-1 pb-2 font-medium text-foreground-muted text-xs'
+                      : settingsSubmenuSectionTitleClassName
+                  }>
+                  {item.text || ''}
+                </div>
+              </div>
+            ) : (
+              <MenuItem
+                key={item.key}
+                label={item.title || ''}
+                active={menu === item.key}
+                onClick={() => setMenu(item.key)}
+                icon={item.icon}
+                className={settingsSubmenuItemClassName}
+              />
+            )
+          )}
+        </MenuList>
+      </Scrollbar>
       <SettingContainer theme={theme} style={{ display: 'flex', flex: 1, height: '100%' }}>
         {menu === 'data' && <BasicDataSettings />}
         {menu === 'webdav' && <WebDavSettings />}
@@ -106,37 +95,10 @@ const DataSettings: FC = () => {
         {menu === 'import_settings' && <ImportMenuOptions />}
         {menu === 'export_menu' && <ExportMenuOptions />}
         {menu === 'markdown_export' && <MarkdownExportSettings />}
-        {menu === 'notion' && <NotionSettings />}
-        {menu === 'yuque' && <YuqueSettings />}
-        {menu === 'joplin' && <JoplinSettings />}
-        {menu === 'obsidian' && <ObsidianSettings />}
-        {menu === 'siyuan' && <SiyuanSettings />}
         {menu === 'local_backup' && <LocalBackupSettings />}
       </SettingContainer>
-    </Container>
+    </RowFlex>
   )
 }
-
-const Container = styled(RowFlex)`
-  flex: 1;
-`
-
-const DataMenuList = styled(MenuList)`
-  display: flex;
-  flex-direction: column;
-  width: var(--settings-width);
-  padding: 12px;
-  padding-bottom: 48px;
-  border-right: 0.5px solid var(--color-border);
-  height: 100vh;
-  overflow: auto;
-  box-sizing: border-box;
-  min-height: 0;
-
-  .iconfont {
-    color: currentColor;
-    line-height: 16px;
-  }
-`
 
 export default DataSettings

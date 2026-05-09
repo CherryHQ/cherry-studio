@@ -53,7 +53,7 @@ export enum IpcChannel {
   Open_Path = 'open:path',
   Open_Website = 'open:website',
 
-  Minapp = 'minapp',
+  MiniApp = 'mini-app',
 
   Config_Set = 'config:set',
   Config_Get = 'config:get',
@@ -202,6 +202,10 @@ export enum IpcChannel {
   KnowledgeRuntime_ListItemChunks = 'knowledge-runtime:list-item-chunks',
   KnowledgeRuntime_DeleteItemChunk = 'knowledge-runtime:delete-item-chunk',
 
+  FileProcessing_StartTask = 'file-processing:start-task',
+  FileProcessing_GetTask = 'file-processing:get-task',
+  FileProcessing_CancelTask = 'file-processing:cancel-task',
+
   //file
   File_Open = 'file:open',
   File_OpenPath = 'file:openPath',
@@ -334,6 +338,10 @@ export enum IpcChannel {
   // Provider
   Provider_AddKey = 'provider:add-key',
 
+  // Web Search
+  WebSearch_SearchKeywords = 'web-search:search-keywords',
+  WebSearch_FetchUrls = 'web-search:fetch-urls',
+
   //Selection Assistant
   Selection_TextSelected = 'selection:text-selected',
   Selection_ToolbarHide = 'selection:toolbar-hide',
@@ -464,6 +472,7 @@ export enum IpcChannel {
   Analytics_TrackTokenUsage = 'analytics:track-token-usage',
 
   // WindowManager
+  SettingsWindow_Open = 'settings-window:open',
   WindowManager_Open = 'window-manager:open',
   WindowManager_Close = 'window-manager:close',
   WindowManager_Minimize = 'window-manager:minimize',

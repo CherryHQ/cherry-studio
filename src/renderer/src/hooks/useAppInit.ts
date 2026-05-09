@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
-import { useMinapps } from './useMinapps'
+import { useMiniApps } from './useMiniApps'
 import useNavBackgroundColor from './useNavBackgroundColor'
 import { useNavbarPosition } from './useNavbar'
 const logger = loggerService.withContext('useAppInit')
@@ -40,7 +40,7 @@ export function useAppInit() {
   const [enableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
   const { isLeftNavbar } = useNavbarPosition()
-  const { minappShow } = useMinapps()
+  const { miniAppShow } = useMiniApps()
   const { updateAppUpdateState } = useAppUpdateState()
   const { setDefaultModel, setQuickModel, setTranslateModel } = useDefaultModel()
   const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
@@ -112,13 +112,13 @@ export function useAppInit() {
   useEffect(() => {
     const isMacTransparentWindow = windowStyle === 'transparent' && isMac
 
-    if (minappShow && isLeftNavbar) {
+    if (miniAppShow && isLeftNavbar) {
       window.root.style.background = isMacTransparentWindow ? 'var(--color-background)' : navBackgroundColor
       return
     }
 
     window.root.style.background = navBackgroundColor
-  }, [windowStyle, minappShow, theme, isLeftNavbar, navBackgroundColor])
+  }, [windowStyle, miniAppShow, theme, isLeftNavbar, navBackgroundColor])
 
   useEffect(() => {
     if (isLocalAi) {
@@ -127,7 +127,6 @@ export function useAppInit() {
       setQuickModel(model)
       setTranslateModel(model)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {

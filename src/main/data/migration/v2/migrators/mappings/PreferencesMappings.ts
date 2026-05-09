@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-04-24T11:16:23.611Z
+ * Generated at: 2026-05-07T06:53:51.740Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -363,14 +363,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'chat.message.confirm_regenerate'
     },
     {
-      originalKey: 'sidebarIcons.visible',
-      targetKey: 'ui.sidebar.icons.visible'
-    },
-    {
-      originalKey: 'sidebarIcons.disabled',
-      targetKey: 'ui.sidebar.icons.invisible'
-    },
-    {
       originalKey: 'narrowMode',
       targetKey: 'chat.narrow_mode'
     },
@@ -476,15 +468,15 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'maxKeepAliveMinapps',
-      targetKey: 'feature.minapp.max_keep_alive'
-    },
-    {
-      originalKey: 'showOpenedMinappsInSidebar',
-      targetKey: 'feature.minapp.show_opened_in_sidebar'
+      targetKey: 'feature.mini_app.max_keep_alive'
     },
     {
       originalKey: 'minappsOpenLinkExternal',
-      targetKey: 'feature.minapp.open_link_external'
+      targetKey: 'feature.mini_app.open_link_external'
+    },
+    {
+      originalKey: 'minAppRegion',
+      targetKey: 'feature.mini_app.region'
     },
     {
       originalKey: 'enableSpellCheck',
@@ -724,7 +716,7 @@ export const REDUX_STORE_MAPPINGS = {
   preprocess: [
     {
       originalKey: 'defaultProvider',
-      targetKey: 'feature.file_processing.default_markdown_conversion'
+      targetKey: 'feature.file_processing.default_document_to_markdown'
     }
   ],
   translate: [
@@ -735,18 +727,26 @@ export const REDUX_STORE_MAPPINGS = {
   ],
   websearch: [
     {
+      originalKey: 'searchWithTime',
+      targetKey: 'chat.web_search.search_with_time'
+    },
+    {
       originalKey: 'maxResults',
       targetKey: 'chat.web_search.max_results'
     },
     {
       originalKey: 'excludeDomains',
       targetKey: 'chat.web_search.exclude_domains'
+    },
+    {
+      originalKey: 'subscribeSources',
+      targetKey: 'chat.web_search.subscribe_sources'
     }
   ],
   ocr: [
     {
       originalKey: 'imageProviderId',
-      targetKey: 'feature.file_processing.default_text_extraction'
+      targetKey: 'feature.file_processing.default_image_to_text'
     }
   ],
   note: [

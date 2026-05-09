@@ -46,10 +46,10 @@ function IconDockedTabs({
                   event.stopPropagation()
                   onStartSidebarDrag?.(event, dockedTab.id)
                 }}
-                className={`relative flex h-7 w-7 cursor-grab items-center justify-center rounded-md transition-all duration-150 active:cursor-grabbing ${
+                className={`relative flex h-7 w-7 cursor-grab items-center justify-center rounded-full transition-all duration-150 active:cursor-grabbing ${
                   isActive ? 'bg-sidebar-active-bg' : 'hover:bg-accent/50'
                 }`}>
-                {isActive && <ActiveIndicator className="rounded-md" />}
+                {isActive && <ActiveIndicator className="rounded-full" />}
                 <SidebarTabIcon tab={dockedTab} size={14} strokeWidth={1.6} miniAppSize="md" />
               </button>
             </SidebarTooltip>
