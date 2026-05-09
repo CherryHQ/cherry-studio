@@ -64,7 +64,7 @@ export function AssistantCatalogPresetContent({
               key={virtualRow.key}
               ref={measureRow}
               data-index={virtualRow.index}
-              className="grid gap-3"
+              className="grid gap-3 pb-3"
               style={{
                 position: 'absolute',
                 top: 0,

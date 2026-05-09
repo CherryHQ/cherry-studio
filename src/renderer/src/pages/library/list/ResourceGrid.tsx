@@ -383,7 +383,7 @@ function VirtualizedResourceGrid({
             key={virtualRow.key}
             ref={rowVirtualizer.measureElement}
             data-index={virtualRow.index}
-            className="grid gap-3"
+            className="grid gap-3 pb-3"
             style={{
               position: 'absolute',
               top: 0,

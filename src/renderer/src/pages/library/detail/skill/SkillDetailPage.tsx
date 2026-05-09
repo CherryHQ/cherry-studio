@@ -220,9 +220,7 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
             <h2 className="font-medium text-muted-foreground/70 text-sm">{t('library.skill_detail.source_files')}</h2>
             <div className="rounded-xs bg-muted/30 p-3">
               {loadingTree ? (
-                <div className="flex items-center justify-center py-6">
-                  <Loader2 size={16} className="animate-spin text-muted-foreground/40" />
-                </div>
+                <div className="py-6" aria-hidden="true" />
               ) : fileTree.length === 0 ? (
                 <p className="py-5 text-center text-muted-foreground/40 text-xs">{t('settings.skills.noSkillFile')}</p>
               ) : (
@@ -238,9 +236,7 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
             <div className="min-h-[360px] overflow-hidden rounded-xs bg-muted/30">
               {selectedFile && fileContent !== null ? (
                 loadingContent ? (
-                  <div className="flex min-h-[360px] items-center justify-center">
-                    <Loader2 size={18} className="animate-spin text-muted-foreground/40" />
-                  </div>
+                  <div className="min-h-[360px]" aria-hidden="true" />
                 ) : isMarkdownFile(selectedFile) ? (
                   <div className="max-h-[520px] overflow-auto px-5 py-4">
                     <div className="mb-4 flex items-center gap-2 text-muted-foreground/45 text-xs">
@@ -261,6 +257,8 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
                     <CodeViewer key={selectedFile} value={fileContent} language={guessLanguage(selectedFile)} />
                   </div>
                 )
+              ) : loadingContent ? (
+                <div className="min-h-[360px]" aria-hidden="true" />
               ) : (
                 <div className="flex min-h-[360px] flex-col items-center justify-center gap-2 text-muted-foreground/40">
                   <FileText size={28} strokeWidth={1.2} />
