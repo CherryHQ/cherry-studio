@@ -1,60 +1,67 @@
 {
-  "generated_at": "2026-05-07T17:00:00Z",
-  "snapshot_date": "2026-05-07",
-  "thresholds": {
-    "active_days": 14,
-    "aging_days": 30,
-    "stale_days": 90
+  "generated_at": "2026-05-09T00:00:00Z",
+  "report_date": "2026-05-09",
+  "repository": "CherryHQ/cherry-studio",
+  "summary": {
+    "total_open": 842,
+    "health_breakdown": {
+      "active": { "count": 191, "pct": 22.7, "definition": "updated within last 7 days" },
+      "aging": { "count": 360, "pct": 42.8, "definition": "updated 7-30 days ago" },
+      "stale": { "count": 296, "pct": 35.2, "definition": "updated 30-90 days ago" },
+      "zombie": { "count": 4, "pct": 0.5, "definition": "not updated in 90+ days" }
+    },
+    "unclassified": { "count": 80, "pct": 9.5, "definition": "issues with no labels" }
   },
-  "health_buckets": {
-    "active": {
-      "label": "Active",
-      "description": "Updated within last 14 days",
-      "count": 303,
-      "pct": 0.364,
-      "since": "2026-04-23"
+  "p1_urgent": [
+    {
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "health": "active",
+      "labels": ["P1", "Planned", "feature", "UI/UX"],
+      "milestone": "v2.4.0",
+      "author": "SiinXu",
+      "days_since_update": 2,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
     },
-    "aging": {
-      "label": "Aging",
-      "description": "Updated 14-30 days ago",
-      "count": 367,
-      "pct": 0.441,
-      "window": "2026-04-07 to 2026-04-23"
+    {
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "health": "stale",
+      "labels": ["P1", "Models"],
+      "milestone": "v1.8.1 (closed milestone - issue not resolved)",
+      "days_since_update": 51,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
+      "action_required": "Stale P1 bug in closed milestone - needs triage"
     },
-    "stale": {
-      "label": "Stale",
-      "description": "Updated 30-90 days ago",
-      "count": 158,
-      "pct": 0.19,
-      "window": "2026-02-07 to 2026-04-07"
-    },
-    "zombie": {
-      "label": "Zombie",
-      "description": "No update in 90+ days",
-      "count": 4,
-      "pct": 0.005,
-      "before": "2026-02-07"
+    {
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions",
+      "health": "stale",
+      "labels": ["P1", "Models"],
+      "assignee": "DeJeune",
+      "days_since_update": 65,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
+      "action_required": "Assigned P1 bug stale 65 days - follow up with assignee"
     }
-  },
-  "total_open": 832,
-  "label_health": {
-    "unlabeled": 83,
-    "unlabeled_pct": 0.0997,
-    "P1_open": 3,
-    "P2_open": 14
-  },
-  "notable_zombie_issues": [
+  ],
+  "zombie_issues": [
     {
       "number": 11578,
       "title": "Upgrade to the MCP protocol by November 25, 2025.",
-      "author": "DeJeune",
-      "labels": [
-        "MCP"
-      ],
+      "labels": ["MCP"],
       "assignee": "DeJeune",
       "created_at": "2025-11-30T10:29:08Z",
-      "last_updated": "2025-11-30T10:29:08Z"
+      "last_updated": "2025-11-30T10:29:08Z",
+      "days_stale": 160,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/11578",
+      "action_required": "Review if completed or close as wontfix"
     }
   ],
-  "summary": "Repository has 832 open issues. Health is moderate: 36.4% actively updated (last 14 days), 44.1% aging (14-30 days), 19.0% stale (30-90 days), 0.5% zombie (90+ days). Unlabeled rate 10.0%."
+  "recommendations": [
+    "2 stale P1 bugs (#13608, #13193) need immediate triage - both in Models category",
+    "80 unclassified issues (9.5%) need label triage",
+    "360 aging issues (42.8%) risk becoming stale - consider triage sprint",
+    "4 zombie issues should be reviewed for close/reopen decision",
+    "DeJeune assigned to 2 P1 issues - check capacity"
+  ]
 }

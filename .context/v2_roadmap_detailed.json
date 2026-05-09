@@ -1,85 +1,71 @@
 {
-  "generated_at": "2026-05-07T17:00:00Z",
-  "snapshot_date": "2026-05-07",
+  "generated_at": "2026-05-09T00:00:00Z",
+  "report_date": "2026-05-09",
+  "repository": "CherryHQ/cherry-studio",
   "branch": "v2",
-  "status": "active_development",
-  "open_prs": {
-    "total": 72,
-    "draft": 16,
-    "ready_to_merge": 1,
-    "blocked_v2": 2,
-    "ready_for_review": 53
+  "strategy_note": "main branch is under code freeze (hotfix/* only). All new features on v2 branch.",
+  "pr_stats": {
+    "open": {
+      "total": 71,
+      "drafts": 16,
+      "ready_for_review": 55,
+      "label_breakdown": {
+        "v2": 59,
+        "Blocked_v2": 2,
+        "Pending": 1,
+        "ready_to_merge": 1
+      }
+    },
+    "merged_last_30d": {
+      "total": 46,
+      "label_breakdown": {
+        "v2": 38,
+        "UI_UX": 2,
+        "ready_to_merge": 1
+      }
+    }
   },
-  "pr_labels": {
-    "v2": 60,
-    "Blocked: v2": 2,
-    "Pending": 1,
-    "ready-to-merge": 1
-  },
-  "top_contributors": [
+  "recent_notable_prs": [
     {
-      "login": "DeJeune",
-      "open_prs": 15
-    },
-    {
-      "login": "EurFelux",
-      "open_prs": 12
-    },
-    {
-      "login": "LWWZH",
-      "open_prs": 9
-    },
-    {
-      "login": "404-Page-Found",
-      "open_prs": 6
-    },
-    {
-      "login": "eeee0717",
-      "open_prs": 3
-    },
-    {
-      "login": "kangfenmao",
-      "open_prs": 3
-    },
-    {
-      "login": "kovsu",
-      "open_prs": 3
-    },
-    {
-      "login": "Raymond8196",
-      "open_prs": 2
-    },
-    {
-      "login": "jidan745le",
-      "open_prs": 2
-    },
-    {
-      "login": "zhangjiadi225",
-      "open_prs": 2
+      "number": 14968,
+      "title": "refactor(miniapp): migrate from antd/styled-components to Tailwind + @cherrystudio/ui",
+      "author": "chengcheng84",
+      "state": "open",
+      "draft": false,
+      "labels": ["v2"],
+      "created_at": "2026-05-09T15:04:40Z",
+      "url": "https://github.com/CherryHQ/cherry-studio/pull/14968",
+      "summary": "UI framework migration: antd+styled-components to Tailwind+Shadcn UI"
     }
   ],
-  "active_milestones": {
-    "v2.1.0": {
-      "state": "open",
-      "open_issues": 3,
-      "closed_issues": 4
-    },
-    "v2.3.0": {
-      "state": "open",
-      "open_issues": 6,
-      "closed_issues": 0
-    },
-    "v2.4.0": {
+  "recent_merged": [
+    {
+      "number": 14965,
+      "title": "hotfix(agents): report 1M context for DeepSeek V4+ pro on official host",
+      "author": "DeJeune",
+      "merged_at": "2026-05-09T13:20:57Z",
+      "base": "main (hotfix)",
+      "url": "https://github.com/CherryHQ/cherry-studio/pull/14965",
+      "summary": "Fix DeepSeek V4+ context window showing 200K instead of 1M for api.deepseek.com"
+    }
+  ],
+  "milestones": [
+    {
+      "title": "v2.4.0",
       "state": "open",
       "open_issues": 2,
-      "closed_issues": 0
+      "closed_issues": 0,
+      "created_at": "2026-04-30T05:29:58Z",
+      "note": "Contains P1 Notification Center feature (#14899)"
     }
+  ],
+  "v2_blocked_issues": {
+    "count": 6,
+    "note": "Issues labeled 'Blocked: v2' on page-1 sample; full count may be higher"
   },
-  "main_branch_hotfix": {
-    "open_prs": 229,
-    "status": "code_freeze",
-    "note": "main only accepts hotfix/* branches with minimal scope"
-  },
-  "policy": "main branch under code freeze since 2026-04-03. All features and refactoring target v2 branch.",
-  "summary": "72 open PRs targeting v2 (16 draft, 1 ready-to-merge, 2 blocked). Top contributor DeJeune (15), EurFelux (12), LWWZH (9). Three active milestones: v2.1.0, v2.3.0, v2.4.0."
+  "velocity": {
+    "merged_prs_last_30d_v2_branch": 46,
+    "merged_prs_last_30d_all": 139,
+    "v2_share_pct": 33.1
+  }
 }

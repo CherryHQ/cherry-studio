@@ -1,69 +1,93 @@
 {
-  "generated_at": "2026-05-07T17:00:00Z",
-  "snapshot_date": "2026-05-07",
+  "generated_at": "2026-05-09T00:00:00Z",
+  "snapshot_date": "2026-05-09",
+  "repository": "CherryHQ/cherry-studio",
   "issues": {
-    "open_total": 832,
-    "closed_last_30d": 367,
-    "by_label": {
-      "bug": 116,
-      "feature": 125,
-      "P1": 3,
-      "P2": 14,
-      "Planned": 21,
-      "no_label": 83
+    "open_total": 842,
+    "closed_last_30d": 374,
+    "unclassified": {
+      "count": 80,
+      "pct": 9.5
     },
-    "unlabeled_ratio": 0.0997,
+    "health": {
+      "active_7d": 191,
+      "aging_7_30d": 360,
+      "stale_30_90d": 296,
+      "zombie_90d_plus": 4,
+      "note": "Based on last-updated date; counts use GitHub search API and may sum to ~851 due to boundary rounding"
+    },
+    "health_pct": {
+      "active": 22.7,
+      "aging": 42.8,
+      "stale": 35.2,
+      "zombie": 0.5
+    },
     "p1_issues": [
       {
         "number": 14899,
         "title": "[Feature]: Unified Notification Center",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/14899",
-        "author": "SiinXu",
-        "labels": [
-          "Planned",
-          "P1",
-          "feature",
-          "UI/UX"
-        ],
+        "labels": ["P1", "Planned", "feature", "UI/UX"],
         "milestone": "v2.4.0",
+        "author": "SiinXu",
         "created_at": "2026-05-07T05:01:00Z",
-        "comments": 0
+        "updated_at": "2026-05-07T05:52:49Z",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/14899",
+        "health": "active"
       },
       {
         "number": 13608,
         "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
+        "labels": ["P1", "Models"],
+        "milestone": "v1.8.1 (closed)",
         "author": "lsy08",
-        "labels": [
-          "P1",
-          "Models"
-        ],
-        "milestone": "v1.8.1",
         "created_at": "2026-03-18T14:34:38Z",
+        "updated_at": "2026-03-19T14:22:09Z",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
+        "health": "stale",
         "comments": 8
       },
       {
         "number": 13193,
         "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
-        "author": "simplezhao",
-        "labels": [
-          "P1",
-          "Models"
-        ],
+        "labels": ["P1", "Models"],
         "assignee": "DeJeune",
+        "author": "simplezhao",
         "created_at": "2026-03-04T05:07:40Z",
+        "updated_at": "2026-03-05T08:47:59Z",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
+        "health": "stale",
         "comments": 1
       }
+    ],
+    "label_distribution_top10": [
+      ["UI/UX", "most common (sample: 33/100)"],
+      ["Models", "24/100"],
+      ["inactive", "22/100"],
+      ["Assistant", "18/100"],
+      ["help wanted", "10/100"],
+      ["discussion", "10/100"],
+      ["feature", "10/100"],
+      ["RAG", "9/100"],
+      ["MCP", "8/100"],
+      ["Data", "6/100"]
     ]
   },
   "pull_requests": {
-    "open_main": 229,
-    "open_v2": 72,
-    "open_total": 301
+    "open_total": 300,
+    "merged_last_30d": 139,
+    "v2_branch": {
+      "open": 71,
+      "open_drafts": 16,
+      "open_ready": 55,
+      "merged_last_30d": 46
+    },
+    "main_branch": {
+      "open_estimate": 229,
+      "note": "Estimate = total open (300) minus v2 open (71)"
+    }
   },
   "branch_strategy": {
-    "main_status": "code_freeze_hotfix_only",
-    "v2_status": "active_development"
+    "main": "code freeze - hotfix/* only",
+    "v2": "active development branch"
   }
 }
