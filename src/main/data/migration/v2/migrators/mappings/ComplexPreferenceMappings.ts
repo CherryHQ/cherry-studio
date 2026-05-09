@@ -162,10 +162,10 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: transformShortcuts
   },
 
-  // Sidebar icons: rewrite 'minapp' → 'mini_app' (v1→v2 rename) and expose the resource library.
+  // Sidebar icons: rewrite 'minapp' → 'mini_app' (v1→v2 rename)
   {
     id: 'sidebar_icons_rename',
-    description: "Rewrite legacy 'minapp' icon key to 'mini_app' in sidebar icon arrays and add resource library",
+    description: "Rewrite legacy 'minapp' icon key to 'mini_app' in sidebar icon arrays",
     sources: {
       visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
       disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }
@@ -174,21 +174,8 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: (sources) => {
       const rewrite = (arr: unknown): unknown =>
         Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : arr
-      const addLibrary = (arr: unknown): unknown => {
-        if (!Array.isArray(arr) || arr.includes('library')) {
-          return arr
-        }
-
-        const storeIndex = arr.indexOf('store')
-        if (storeIndex === -1) {
-          return [...arr, 'library']
-        }
-
-        return [...arr.slice(0, storeIndex + 1), 'library', ...arr.slice(storeIndex + 1)]
-      }
-      const visible = addLibrary(rewrite(sources.visible))
       return {
-        'ui.sidebar.icons.visible': visible,
+        'ui.sidebar.icons.visible': rewrite(sources.visible),
         'ui.sidebar.icons.invisible': rewrite(sources.disabled)
       }
     }

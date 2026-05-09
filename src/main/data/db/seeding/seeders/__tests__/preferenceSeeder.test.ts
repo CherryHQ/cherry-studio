@@ -66,24 +66,6 @@ describe('PreferenceSeeder', () => {
     expect(after).toBe(before)
   })
 
-  it('should add resource library to an existing visible sidebar preference', async () => {
-    await dbh.db.insert(preferenceTable).values({
-      scope: 'default',
-      key: 'ui.sidebar.icons.visible',
-      value: ['assistants', 'store', 'translate']
-    })
-
-    const seed = new PreferenceSeeder()
-    await seed.run(dbh.db)
-
-    const rows = await dbh.db
-      .select()
-      .from(preferenceTable)
-      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'ui.sidebar.icons.visible')))
-
-    expect(rows[0]?.value).toEqual(['assistants', 'store', 'library', 'translate'])
-  })
-
   it('should delete obsolete default preferences', async () => {
     await dbh.db.insert(preferenceTable).values({
       scope: 'default',

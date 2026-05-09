@@ -120,7 +120,7 @@
     {
       "targetKey": "ui.sidebar.icons.visible",
       "type": "PreferenceTypes.SidebarIcon[]",
-      "defaultValue": ["assistants", "store", "library", "paintings", "translate", "mini_app", "knowledge", "files", "code_tools", "notes"],
+      "defaultValue": ["assistants", "store", "paintings", "translate", "mini_app", "knowledge", "files", "code_tools", "notes"],
       "status": "classified",
       "description": "Visible sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"
     },
