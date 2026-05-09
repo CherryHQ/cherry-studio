@@ -1,107 +1,9 @@
-import { DEFAULT_SYSTEM_PROMPT } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
 import { preferenceService } from '@renderer/data/PreferenceService'
 import store from '@renderer/store'
-import type { MCPTool } from '@renderer/types'
 import { defaultLanguage } from '@shared/config/constant'
 
 const logger = loggerService.withContext('Utils:Prompt')
-
-export { DEFAULT_SYSTEM_PROMPT as SYSTEM_PROMPT }
-
-export const THINK_TOOL_PROMPT = `{{ USER_SYSTEM_PROMPT }}`
-
-export const ToolUseExamples = `
-Here are a few examples using notional tools:
----
-User: Generate an image of the oldest person in this document.
-
-A: I can use the document_qa tool to find out who the oldest person is in the document.
-<tool_use>
-  <name>document_qa</name>
-  <arguments>{"document": "document.pdf", "question": "Who is the oldest person mentioned?"}</arguments>
-</tool_use>
-
-User: <tool_use_result>
-  <name>document_qa</name>
-  <result>John Doe, a 55 year old lumberjack living in Newfoundland.</result>
-</tool_use_result>
-
-A: I can use the image_generator tool to create a portrait of John Doe.
-<tool_use>
-  <name>image_generator</name>
-  <arguments>{"prompt": "A portrait of John Doe, a 55-year-old man living in Canada."}</arguments>
-</tool_use>
-
-User: <tool_use_result>
-  <name>image_generator</name>
-  <result>image.png</result>
-</tool_use_result>
-
-A: the image is generated as image.png
-
----
-User: "What is the result of the following operation: 5 + 3 + 1294.678?"
-
-A: I can use the python_interpreter tool to calculate the result of the operation.
-<tool_use>
-  <name>python_interpreter</name>
-  <arguments>{"code": "5 + 3 + 1294.678"}</arguments>
-</tool_use>
-
-User: <tool_use_result>
-  <name>python_interpreter</name>
-  <result>1302.678</result>
-</tool_use_result>
-
-A: The result of the operation is 1302.678.
-
----
-User: "Which city has the highest population , Guangzhou or Shanghai?"
-
-A: I can use the search tool to find the population of Guangzhou.
-<tool_use>
-  <name>search</name>
-  <arguments>{"query": "Population Guangzhou"}</arguments>
-</tool_use>
-
-User: <tool_use_result>
-  <name>search</name>
-  <result>Guangzhou has a population of 15 million inhabitants as of 2021.</result>
-</tool_use_result>
-
-A: I can use the search tool to find the population of Shanghai.
-<tool_use>
-  <name>search</name>
-  <arguments>{"query": "Population Shanghai"}</arguments>
-</tool_use>
-
-User: <tool_use_result>
-  <name>search</name>
-  <result>26 million (2019)</result>
-</tool_use_result>
-
-A: The population of Shanghai is 26 million, while Guangzhou has a population of 15 million. Therefore, Shanghai has the highest population.
-`
-
-export const AvailableTools = (tools: MCPTool[]) => {
-  const availableTools = tools
-    .map((tool) => {
-      return `
-<tool>
-  <name>${tool.id}</name>
-  <description>${tool.description}</description>
-  <arguments>
-    ${tool.inputSchema ? JSON.stringify(tool.inputSchema) : ''}
-  </arguments>
-</tool>
-`
-    })
-    .join('\n')
-  return `<tools>
-${availableTools}
-</tools>`
-}
 
 const supportedVariables = [
   '{{username}}',
@@ -204,17 +106,4 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
   }
 
   return userSystemPrompt
-}
-
-export const buildSystemPromptWithTools = (userSystemPrompt: string, tools?: MCPTool[]): string => {
-  if (tools && tools.length > 0) {
-    return DEFAULT_SYSTEM_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', userSystemPrompt || '')
-      .replace('{{ TOOL_USE_EXAMPLES }}', ToolUseExamples)
-      .replace('{{ AVAILABLE_TOOLS }}', AvailableTools(tools))
-  }
-  return userSystemPrompt
-}
-
-export const buildSystemPromptWithThinkTool = (userSystemPrompt: string): string => {
-  return THINK_TOOL_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', userSystemPrompt || '')
 }

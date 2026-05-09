@@ -50,13 +50,12 @@ import {
   type MCPPrompt,
   type MCPResource,
   type MCPServer,
-  type MCPTool,
-  MCPToolInputSchema,
-  MCPToolOutputSchema
+  type MCPTool
 } from '@types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
+import * as z from 'zod'
 
 import DxtService from '../DxtService'
 import { fileStorage } from '../FileStorage'
@@ -70,6 +69,32 @@ type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 type CallToolArgs = { server: MCPServer; name: string; args: any; callId?: string }
 
 const logger = loggerService.withContext('McpService')
+
+/** JSON-Schema validator for MCP tool input/output schemas. `loose()` keeps
+ *  any extra fields the protocol may add; the input transform guarantees
+ *  `properties`/`required` are populated so renderers can read them without
+ *  nullish chaining. Output keeps the raw shape — only forwarded, not read
+ *  by current renderers. */
+const MCP_TOOL_INPUT_SCHEMA = z
+  .object({
+    type: z.literal('object'),
+    properties: z.object({}).loose().optional(),
+    required: z.array(z.string()).optional()
+  })
+  .loose()
+  .transform((schema) => {
+    if (!schema.properties) schema.properties = {}
+    if (!schema.required) schema.required = []
+    return schema
+  })
+
+const MCP_TOOL_OUTPUT_SCHEMA = z
+  .object({
+    type: z.literal('object'),
+    properties: z.object({}).loose().optional(),
+    required: z.array(z.string()).optional()
+  })
+  .loose()
 
 // Minimum timeout for the MCP `initialize` request. Connect runs once per activation,
 // so a generous floor avoids false positives on slow SSE/streamableHttp handshakes while
@@ -854,8 +879,8 @@ export class McpService extends BaseService {
       tools.map((tool: SDKTool) => {
         const serverTool: MCPTool = {
           ...tool,
-          inputSchema: MCPToolInputSchema.parse(tool.inputSchema),
-          outputSchema: tool.outputSchema ? MCPToolOutputSchema.parse(tool.outputSchema) : undefined,
+          inputSchema: MCP_TOOL_INPUT_SCHEMA.parse(tool.inputSchema),
+          outputSchema: tool.outputSchema ? MCP_TOOL_OUTPUT_SCHEMA.parse(tool.outputSchema) : undefined,
           id: buildFunctionCallToolName(server.name, tool.name),
           serverId: server.id,
           serverName: server.name,
