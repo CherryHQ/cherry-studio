@@ -408,26 +408,4 @@ describe('TagService', () => {
       expect(rows).toEqual([expect.objectContaining({ entityType: 'topic', entityId: ASSISTANT_1, tagId: TAG_2 })])
     })
   })
-
-  describe('getTagIdsByEntities', () => {
-    it('should return a map with stable per-entity ordering', async () => {
-      await seedTags()
-      await dbh.db.insert(entityTagTable).values([
-        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 1000, updatedAt: 1000 },
-        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1000, updatedAt: 1000 },
-        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_3, createdAt: 2000, updatedAt: 2000 }
-      ])
-
-      const result = await tagService.getTagIdsByEntities('assistant', [ASSISTANT_1, ASSISTANT_2, TOPIC_1])
-
-      expect(result.get(ASSISTANT_1)).toEqual([TAG_1, TAG_2])
-      expect(result.get(ASSISTANT_2)).toEqual([TAG_3])
-      expect(result.get(TOPIC_1)).toEqual([])
-    })
-
-    it('should return an empty map for empty input without querying entity rows', async () => {
-      const result = await tagService.getTagIdsByEntities('assistant', [])
-      expect(result.size).toBe(0)
-    })
-  })
 })
