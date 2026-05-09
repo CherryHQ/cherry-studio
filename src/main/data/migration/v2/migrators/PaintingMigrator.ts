@@ -19,10 +19,6 @@ const logger = loggerService.withContext('PaintingMigrator')
 
 const INSERT_BATCH_SIZE = 100
 
-function resolvePaintingModelCandidate(providerId: string, modelId: string | null | undefined): string | null {
-  return legacyModelToUniqueId({ id: modelId ?? undefined, provider: providerId }, modelId)
-}
-
 export class PaintingMigrator extends BaseMigrator {
   readonly id = 'painting'
   readonly name = 'Painting'
@@ -133,10 +129,11 @@ export class PaintingMigrator extends BaseMigrator {
       )
       let droppedModelRefs = 0
       const sanitizedPaintings = this.preparedPaintings.map((painting) => {
-        const resolution = resolveModelReference(
-          resolvePaintingModelCandidate(painting.providerId, painting.modelId),
-          existingModelIds
+        const modelId = legacyModelToUniqueId(
+          { id: painting.modelId ?? undefined, provider: painting.providerId },
+          painting.modelId
         )
+        const resolution = resolveModelReference(modelId, existingModelIds)
         if (resolution.kind === 'resolved') {
           return { ...painting, modelId: resolution.modelId }
         }
