@@ -34,7 +34,6 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
 
 function DialogContent({
   className,
-  overlayClassName,
   children,
   showCloseButton = true,
   overlayClassName,
