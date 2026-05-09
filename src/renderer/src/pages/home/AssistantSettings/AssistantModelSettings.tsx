@@ -3,7 +3,7 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CodeEditor from '@renderer/components/CodeEditor'
 import EditableNumber from '@renderer/components/EditableNumber'
 import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
-import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import Selector from '@renderer/components/Selector'
 import {
   DEFAULT_CONTEXTCOUNT,
@@ -12,17 +12,17 @@ import {
   MAX_TOOL_CALLS,
   MIN_TOOL_CALLS
 } from '@renderer/config/constant'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useModelById } from '@renderer/hooks/useModels'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
-import type { Assistant, AssistantSettings, Model } from '@renderer/types'
+import type { Assistant, AssistantSettings } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
-import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
 import { Col, Divider, Input, InputNumber, Row, Select, Slider } from 'antd'
 import { isNull } from 'lodash'
 import { PlusIcon } from 'lucide-react'
@@ -220,27 +220,25 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setMaxToolCalls(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
     updateAssistantSettings(DEFAULT_ASSISTANT_SETTINGS)
   }
-  const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
+  const modelFilter = useCallback((m: SharedModel) => !isNonChatModel(m), [])
 
-  const onSelectModel = useCallback(async () => {
-    const selectedModel = await SelectChatModelPopup.show({ model: defaultModel, filter: modelFilter })
-    if (selectedModel) {
-      const reasoning = reconcileReasoningEffortForModel(
-        selectedModel,
-        assistant.settings.reasoning_effort,
-        assistant.id
-      )
-      const webSearch = reconcileWebSearchForModel(selectedModel, assistant.settings)
+  const onSelectModel = useCallback(
+    (selected: SharedModel | undefined) => {
+      if (!selected) return
+      const next = fromSharedModel(selected)
+      const reasoning = reconcileReasoningEffortForModel(next, assistant.settings.reasoning_effort, assistant.id)
+      const webSearch = reconcileWebSearchForModel(next, assistant.settings)
       updateAssistant(
         reasoning || webSearch
           ? {
-              modelId: createUniqueModelId(selectedModel.provider, selectedModel.id),
+              modelId: createUniqueModelId(next.provider, next.id),
               settings: { ...assistant.settings, ...reasoning, ...webSearch }
             }
-          : { modelId: createUniqueModelId(selectedModel.provider, selectedModel.id) }
+          : { modelId: createUniqueModelId(next.provider, next.id) }
       )
-    }
-  }, [defaultModel, assistant.settings, assistant.id, updateAssistant])
+    },
+    [assistant.settings, assistant.id, updateAssistant]
+  )
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
@@ -257,10 +255,20 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <RowFlex className="mb-2.5 items-center justify-between">
         <Label>{t('assistants.settings.default_model')}</Label>
         <RowFlex className="items-center gap-[5px]">
-          <ModelSelectButton onClick={onSelectModel}>
-            {defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
-            <ModelName>{defaultModel ? defaultModel.name : t('assistants.presets.edit.model.select.title')}</ModelName>
-          </ModelSelectButton>
+          <ModelSelector
+            multiple={false}
+            value={apiDefaultModel}
+            onSelect={onSelectModel}
+            filter={modelFilter}
+            trigger={
+              <ModelSelectButton>
+                {defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
+                <ModelName>
+                  {defaultModel ? defaultModel.name : t('assistants.presets.edit.model.select.title')}
+                </ModelName>
+              </ModelSelectButton>
+            }
+          />
           {defaultModel && (
             <Button
               variant="destructive"

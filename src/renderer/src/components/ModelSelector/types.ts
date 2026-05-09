@@ -1,5 +1,6 @@
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { ShortcutKey, ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type { ReactNode } from 'react'
 
 import type { ModelSelectorTag } from './filters'
@@ -24,6 +25,7 @@ interface ModelSelectorCommonProps {
   multiSelectMode?: boolean
   defaultMultiSelectMode?: boolean
   onMultiSelectModeChange?: (enabled: boolean) => void
+  shortcut?: ShortcutKey | ShortcutPreferenceKey
 }
 
 export interface ModelSelectorSingleModelProps extends ModelSelectorCommonProps {

@@ -4,20 +4,16 @@ import { loggerService } from '@logger'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
-import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Model, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
@@ -40,9 +36,7 @@ interface Props {
 }
 
 const Chat: FC<Props> = (props) => {
-  const { assistant, model, setModel } = useAssistant(props.activeTopic.assistantId ?? '')
   const { updateTopic: patchTopic } = useTopicMutations()
-  const v1Model = useMemo(() => (model ? fromSharedModel(model) : undefined), [model])
   const { t } = useTranslation()
   const [topicPosition] = usePreference('topic.position')
   const [messageStyle] = usePreference('chat.message.style')
@@ -81,19 +75,6 @@ const Chat: FC<Props> = (props) => {
     })
     if (name && topic.name !== name) {
       await patchTopic(topic.id, { name, isNameManuallyEdited: true })
-    }
-  })
-
-  useShortcut('chat.select_model', async () => {
-    if (!assistant) return
-    const modelFilter = (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m)
-    const selectedModel = await SelectChatModelPopup.show({
-      model: v1Model,
-      filter: modelFilter
-    })
-    if (selectedModel) {
-      const enabledWebSearch = isWebSearchModel(selectedModel)
-      setModel(selectedModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
     }
   })
 
@@ -148,7 +129,7 @@ const Chat: FC<Props> = (props) => {
             className="transform-[translateZ(0)] relative flex flex-1 flex-col justify-between"
             style={{ height: mainHeight, width: '100%' }}>
             <QuickPanelProvider>
-              <ChatNavbar assistantId={props.activeTopic.assistantId} />
+              <ChatNavbar assistantId={props.activeTopic.assistantId} topicId={props.activeTopic.id} />
               <V2ChatContent
                 key={props.activeTopic.id}
                 topic={props.activeTopic}

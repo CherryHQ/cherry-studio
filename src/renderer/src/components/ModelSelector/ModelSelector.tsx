@@ -15,6 +15,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isDev } from '@renderer/config/constant'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
 import { first } from 'lodash'
@@ -268,7 +269,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     listVisibleCount = PAGE_SIZE,
     multiSelectMode: multiSelectModeProp,
     defaultMultiSelectMode = false,
-    onMultiSelectModeChange
+    onMultiSelectModeChange,
+    shortcut
   } = props
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -327,6 +329,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     },
     [onOpenChange, openProp]
   )
+
+  const handleShortcut = useCallback(() => setOpen(true), [setOpen])
 
   const setMultiSelectMode = useCallback(
     (nextEnabled: boolean) => {
@@ -631,12 +635,13 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
+      {shortcut ? <ShortcutBinding shortcut={shortcut} onTrigger={handleShortcut} /> : null}
       <PopoverTrigger asChild>{triggerNode}</PopoverTrigger>
       <PopoverContent
         side={side}
         align={align}
         sideOffset={sideOffset}
-        className={cn('max-h-140 w-90 overflow-hidden rounded-2xs p-0 py-1', contentClassName)}
+        className={cn('max-h-140 w-90 overflow-hidden rounded-lg p-0 py-1', contentClassName)}
         data-testid="model-selector-content">
         <div className="flex items-center gap-2 border-border/60 border-b px-3 py-2.5">
           <Search className="pointer-events-none size-3.25 shrink-0 text-muted-foreground/50" />
@@ -718,4 +723,21 @@ export function ModelSelector(props: ModelSelectorProps) {
       </PopoverContent>
     </Popover>
   )
+}
+
+/**
+ * Renders nothing — its only job is to register a shortcut for the parent
+ * ModelSelector. Extracted as a sub-component so the hook is only called when
+ * `shortcut` is set (extracting it via a conditional return inside ModelSelector
+ * itself would violate the rules-of-hooks).
+ */
+function ShortcutBinding({
+  shortcut,
+  onTrigger
+}: {
+  shortcut: NonNullable<ModelSelectorProps['shortcut']>
+  onTrigger: () => void
+}) {
+  useShortcut(shortcut, onTrigger)
+  return null
 }

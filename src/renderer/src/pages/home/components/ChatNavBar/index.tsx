@@ -13,9 +13,10 @@ import ChatNavbarContent from './ChatNavbarContent'
 
 interface Props {
   assistantId: string
+  topicId: string
 }
 
-const HeaderNavbar: FC<Props> = ({ assistantId }) => {
+const HeaderNavbar: FC<Props> = ({ assistantId, topicId }) => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { isTopNavbar } = useNavbarPosition()
@@ -41,7 +42,7 @@ const HeaderNavbar: FC<Props> = ({ assistantId }) => {
             </NavbarIcon>
           </Tooltip>
         )}
-        <ChatNavbarContent assistantId={assistantId} />
+        <ChatNavbarContent assistantId={assistantId} topicId={topicId} />
       </div>
     </NavbarHeader>
   )

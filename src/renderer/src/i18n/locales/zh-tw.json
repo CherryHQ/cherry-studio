@@ -2710,6 +2710,7 @@
     },
     "stream_output": "串流輸出",
     "type": {
+      "audio": "音訊",
       "embedding": "嵌入",
       "free": "免費",
       "function_calling": "工具",
@@ -2717,6 +2718,7 @@
       "rerank": "重排",
       "select": "模型類型",
       "text": "文字",
+      "video": "影片",
       "vision": "視覺",
       "websearch": "網路搜尋"
     }

@@ -10,7 +10,7 @@ import { isWin } from '@renderer/config/constant'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useUpdateAgent } from '@renderer/hooks/agents/useAgentDataApi'
 import SelectAgentBaseModelButton from '@renderer/pages/agents/components/SelectAgentBaseModelButton'
-import type { AddAgentForm, ApiModel, BaseAgentForm, PermissionMode, UpdateAgentForm } from '@renderer/types'
+import type { AddAgentForm, BaseAgentForm, Model, PermissionMode, UpdateAgentForm } from '@renderer/types'
 import { isAgentType } from '@renderer/types'
 import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
 import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
@@ -226,7 +226,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     [form, agent?.id, agent?.createdAt, agent?.updatedAt]
   )
 
-  const handleModelSelect = useCallback(async (model: ApiModel) => {
+  const handleModelSelect = useCallback(async (model: Model) => {
     setForm((prev) => ({ ...prev, model: model.id }))
   }, [])
 
@@ -366,6 +366,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
               </div>
               <SelectAgentBaseModelButton
                 agentBase={tempAgentBase}
+                agentType={form.type}
                 onSelect={handleModelSelect}
                 fontSize={14}
                 avatarSize={24}

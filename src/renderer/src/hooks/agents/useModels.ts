@@ -1,32 +1,26 @@
 import { useQuery } from '@renderer/data/hooks/useDataApi'
-import type { ApiModel, ApiModelsFilter } from '@renderer/types'
-import type { Model } from '@shared/data/types/model'
+import type { Model } from '@renderer/types'
+import type { Model as SharedModel } from '@shared/data/types/model'
 import { useMemo } from 'react'
 
 /**
- * Adapter: DataApi `Model` → legacy `ApiModel` shape consumed by the agent
- * model picker / navbar button. We project from `/models` (DataApi) and
- * keep the surface stable for callers.
- *
- * The `filter` parameter is currently a no-op — `getModelFilterByAgentType`
- * already returns `{}` (provider-type filtering went away with v1's
- * ProviderTypeSchema removal). Kept for API compatibility.
+ * Adapter: DataApi `Model` → renderer-local `Model` shape consumed by the
+ * agent model picker / navbar button. We project from `/models` and keep
+ * `id` in canonical UniqueModelId form so it matches `agent.model` (which
+ * is the same FK target).
  */
-function toApiModel(model: Model): ApiModel {
+function toRendererModel(model: SharedModel): Model {
   return {
     id: model.id,
-    object: 'model',
-    created: 0,
-    name: model.name,
-    owned_by: model.ownedBy ?? model.providerId,
     provider: model.providerId,
-    provider_name: model.providerId,
-    provider_model_id: model.apiModelId ?? model.id
+    name: model.name,
+    group: model.group ?? '',
+    owned_by: model.ownedBy
   }
 }
 
-export const useApiModels = (_filter?: ApiModelsFilter) => {
+export const useApiModels = () => {
   const { data, error, isLoading } = useQuery('/models')
-  const models = useMemo(() => (data ?? []).map(toApiModel), [data])
+  const models = useMemo(() => (data ?? []).map(toRendererModel), [data])
   return { models, error, isLoading }
 }

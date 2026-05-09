@@ -83,7 +83,13 @@ export type CreateSessionForm = {
   id?: never
 }
 
-export type UpdateSessionForm = { id: string; name?: string; description?: string }
+export type UpdateSessionForm = {
+  id: string
+  name?: string
+  description?: string
+  /** Re-point the session to a different parent agent. Workspace stays put. */
+  agentId?: string
+}
 
 export type UpdateAgentBaseForm = Partial<AgentBase> & { id: string }
 

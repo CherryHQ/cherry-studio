@@ -1,6 +1,3 @@
-import type { ApiModelsFilter } from '@renderer/types'
-import type { AgentType } from '@shared/data/types/agent'
-
 const SESSION_TOPIC_PREFIX = 'agent-session:'
 
 export const buildAgentSessionTopicId = (sessionId: string): string => {
@@ -34,10 +31,4 @@ const CHANNEL_TYPE_ICONS: Record<string, string> = {
 export const getChannelTypeIcon = (channelType: string | undefined): string | undefined => {
   if (!channelType) return undefined
   return CHANNEL_TYPE_ICONS[channelType]
-}
-
-export const getModelFilterByAgentType = (_type: AgentType): ApiModelsFilter => {
-  // TODO: provider-type filtering dropped with v1 ProviderTypeSchema removal;
-  // reintroduce via UniqueModelId-aware filter if/when claude-code needs it again.
-  return {}
 }

@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import IndicatorLight from './IndicatorLight'
-import { SelectModelPopup } from './Popups/SelectModelPopup'
 import CustomTag from './Tags/CustomTag'
 
 interface Props {
@@ -38,7 +37,6 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
 
   const onNavigateProvider = (e: MouseEvent) => {
     e.stopPropagation()
-    SelectModelPopup.hide()
     void NavigationService.navigate?.({ to: '/settings/provider', search: { id: providerId } })
   }
 

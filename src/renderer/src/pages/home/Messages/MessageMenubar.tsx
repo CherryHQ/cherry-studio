@@ -4,11 +4,10 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import InspectMessagePopup from '@renderer/components/Popups/InspectMessagePopup'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
-import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
-import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import type { MessageMenubarButtonId, MessageMenubarScope } from '@renderer/config/registry/messageMenubar'
 import {
   DEFAULT_MESSAGE_MENUBAR_SCOPE,
@@ -18,6 +17,7 @@ import {
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessage } from '@renderer/hooks/useMessage'
+import { useModelById } from '@renderer/hooks/useModels'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -47,6 +47,13 @@ import {
   hasTranslationParts
 } from '@renderer/utils/messageUtils/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import {
+  createUniqueModelId,
+  type Model as SharedModel,
+  parseUniqueModelId,
+  type UniqueModelId
+} from '@shared/data/types/model'
+import { isNonChatModel, isVisionModel as isSharedVisionModel } from '@shared/utils/model'
 import type { MenuProps } from 'antd'
 import { Dropdown, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
@@ -116,7 +123,12 @@ type MessageMenubarButtonContext = {
   notesPath: string
   onCopy: (e: React.MouseEvent) => void
   onEdit: () => void | Promise<void>
-  onMentionModel: (e: React.MouseEvent) => void | Promise<void>
+  /** Filter applied inside the mention-model selector — narrows the model list to candidates valid for this turn. */
+  mentionModelFilter: (m: SharedModel) => boolean
+  /** Fires when the user picks a model from the mention selector — caller forks a new sibling using the chosen model. */
+  onSelectMentionModel: (m: SharedModel | undefined) => void | Promise<void>
+  /** Current model on the message — used as the initial highlight in the mention selector popover. */
+  currentMentionModel?: SharedModel
   onRegenerate: (e?: React.MouseEvent) => void | Promise<void>
   onUseful: (e: React.MouseEvent) => void
   setShowDeleteTooltip: Dispatch<SetStateAction<boolean>>
@@ -143,6 +155,8 @@ const MessageMenubar: FC<Props> = (props) => {
     onUpdateUseful
   } = props
   const { t } = useTranslation()
+  const currentMentionModelId = model ? createUniqueModelId(model.provider, model.id) : undefined
+  const { model: currentMentionModel } = useModelById(currentMentionModelId ?? ('' as UniqueModelId))
   const { notesPath } = useNotesSettings()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useTemporaryValue(false, 2000)
@@ -204,35 +218,32 @@ const MessageMenubar: FC<Props> = (props) => {
   /**
    * Mention a specific model to regenerate this assistant turn — produces a
    * new sibling in the same group (parent user message, shared
-   * `siblingsGroupId`) using the chosen model. Filters out non-generative
-   * models (embedding/rerank) and vision-only models when the upstream turn
-   * doesn't have images.
+   * `siblingsGroupId`) using the chosen model. Filters out non-chat models
+   * (embedding/rerank/image-gen/audio/etc.) and text-only models when the
+   * upstream turn carries images.
    */
   const mentionModelFilter = useCallback(
-    (m: Model) => {
-      if (isEmbeddingModel(m) || isRerankModel(m)) return false
-      // For user-message siblings with images, hide text-only models.
+    (m: SharedModel) => {
+      if (isNonChatModel(m)) return false
       const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
-      if (needsVision && !isVisionModel(m)) return false
+      if (needsVision && !isSharedVisionModel(m)) return false
       return true
     },
     [messageParts]
   )
 
-  const onMentionModel = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation()
-      const selectedModel = await SelectChatModelPopup.show({ model, filter: mentionModelFilter })
-      if (!selectedModel) return
-      const uniqueModelId = `${selectedModel.provider}::${selectedModel.id}` as const
-      await regenerateWithModel(uniqueModelId, {
-        id: selectedModel.id,
-        name: selectedModel.name,
-        provider: selectedModel.provider,
-        ...(selectedModel.group && { group: selectedModel.group })
+  const onSelectMentionModel = useCallback(
+    async (selected: SharedModel | undefined) => {
+      if (!selected) return
+      const { providerId, modelId } = parseUniqueModelId(selected.id)
+      await regenerateWithModel(selected.id, {
+        id: modelId,
+        name: selected.name,
+        provider: providerId,
+        ...(selected.group && { group: selected.group })
       })
     },
-    [model, mentionModelFilter, regenerateWithModel]
+    [regenerateWithModel]
   )
 
   const { startEditing } = useMessageEditing()
@@ -526,7 +537,9 @@ const MessageMenubar: FC<Props> = (props) => {
     notesPath,
     onCopy,
     onEdit,
-    onMentionModel,
+    mentionModelFilter,
+    onSelectMentionModel,
+    currentMentionModel,
     onRegenerate,
     onUseful,
     setShowDeleteTooltip,
@@ -650,17 +663,33 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       </Tooltip>
     )
   },
-  'assistant-mention-model': ({ isAssistantMessage, onMentionModel, softHoverBg, supportsWrites, t }) => {
+  'assistant-mention-model': ({
+    currentMentionModel,
+    isAssistantMessage,
+    mentionModelFilter,
+    onSelectMentionModel,
+    softHoverBg,
+    supportsWrites,
+    t
+  }) => {
     if (!isAssistantMessage || !supportsWrites) {
       return null
     }
 
     return (
-      <Tooltip content={t('message.mention.title')} delay={800}>
-        <ActionButton className="message-action-button" onClick={onMentionModel} $softHoverBg={softHoverBg}>
-          <AtSign size={15} />
-        </ActionButton>
-      </Tooltip>
+      <ModelSelector
+        multiple={false}
+        value={currentMentionModel}
+        filter={mentionModelFilter}
+        onSelect={onSelectMentionModel}
+        trigger={
+          <Tooltip content={t('message.mention.title')} delay={800}>
+            <ActionButton className="message-action-button" $softHoverBg={softHoverBg}>
+              <AtSign size={15} />
+            </ActionButton>
+          </Tooltip>
+        }
+      />
     )
   },
   translate: ({

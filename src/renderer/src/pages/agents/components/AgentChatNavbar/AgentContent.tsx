@@ -1,22 +1,29 @@
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import NavbarIcon from '@renderer/components/NavbarIcon'
+import { AgentSelector } from '@renderer/components/ResourceSelector'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateAgent } from '@renderer/hooks/agents/useAgentDataApi'
+import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
+import { useUpdateSession } from '@renderer/hooks/agents/useSessionDataApi'
+import { useModelById } from '@renderer/hooks/useModels'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { AgentSettingsPopup } from '@renderer/pages/agents/AgentSettings'
-import { AgentLabel, SessionLabel } from '@renderer/pages/agents/AgentSettings/shared'
-import type { ApiModel } from '@renderer/types'
+import { AgentLabel } from '@renderer/pages/agents/AgentSettings/shared'
+import { getProviderNameById } from '@renderer/services/ProviderService'
 import type { AgentEntity } from '@shared/data/types/agent'
+import type { Model as SharedModel, UniqueModelId } from '@shared/data/types/model'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { ChevronRight } from 'lucide-react'
 import { Menu, PanelLeftClose, PanelRightClose } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import AgentSidePanelDrawer from '../AgentSidePanelDrawer'
-import SelectAgentBaseModelButton from '../SelectAgentBaseModelButton'
 import OpenExternalAppButton from './OpenExternalAppButton'
 import SessionWorkspaceMeta from './SessionWorkspaceMeta'
 import Tools from './Tools'
@@ -31,13 +38,30 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
   const { isTopNavbar } = useNavbarPosition()
   const { session: activeSession } = useActiveSession()
   const { updateModel } = useUpdateAgent()
+  const { updateSession } = useUpdateSession(activeAgent.id)
+  const modelFilter = useAgentModelFilter(activeAgent.type)
 
-  const handleUpdateModel = useCallback(
-    async (model: ApiModel) => {
-      if (!activeAgent) return
-      return updateModel(activeAgent.id, model.id, { showSuccessToast: false })
+  const { model: currentSharedModel } = useModelById((activeAgent.model ?? '') as UniqueModelId)
+  const currentRendererModel = useMemo(
+    () => (currentSharedModel ? fromSharedModel(currentSharedModel) : undefined),
+    [currentSharedModel]
+  )
+  const providerName = currentSharedModel ? getProviderNameById(currentSharedModel.providerId) : undefined
+
+  const handleAgentChange = useCallback(
+    async (nextAgentId: string | null) => {
+      if (!nextAgentId || !activeSession || nextAgentId === activeAgent.id) return
+      await updateSession({ id: activeSession.id, agentId: nextAgentId }, { showSuccessToast: false })
     },
-    [activeAgent, updateModel]
+    [activeAgent.id, activeSession, updateSession]
+  )
+
+  const handleModelSelect = useCallback(
+    (model: SharedModel | undefined) => {
+      if (!model) return
+      void updateModel(activeAgent.id, model.id, { showSuccessToast: false })
+    },
+    [activeAgent.id, updateModel]
   )
 
   return (
@@ -72,41 +96,39 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
         </AnimatePresence>
         <HorizontalScrollContainer className="ml-2 min-w-0 flex-initial shrink">
           <div className="flex flex-nowrap items-center gap-2">
-            {/* Agent Label */}
-            <div
-              className="flex h-full cursor-pointer items-center"
-              onClick={() => AgentSettingsPopup.show({ agentId: activeAgent.id })}>
-              <AgentLabel
-                agent={activeAgent}
-                classNames={{ name: 'max-w-40 text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
-              />
-            </div>
+            <AgentSelector
+              value={activeAgent.id}
+              onChange={handleAgentChange}
+              trigger={
+                <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs">
+                  <AgentLabel
+                    agent={activeAgent}
+                    classNames={{ name: 'max-w-40 text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
+                  />
+                  <ChevronDown size={14} className="text-muted-foreground" />
+                </Button>
+              }
+            />
 
             {activeSession && (
               <>
-                {/* Separator */}
-                <ChevronRight className="h-4 w-4 text-gray-400" />
-
-                {/* Session Label (display-only — sessions are pure instances; agent settings live behind the agent label above) */}
-                <div className="flex h-full items-center">
-                  <SessionLabel session={activeSession} className="max-w-40 text-xs" />
-                </div>
-
-                {/* Separator */}
-                <ChevronRight className="h-4 w-4 text-gray-400" />
-
-                {/* Model Button */}
-                <SelectAgentBaseModelButton
-                  agentBase={activeAgent}
-                  onSelect={async (model) => {
-                    await handleUpdateModel(model)
-                  }}
+                <ModelSelector
+                  multiple={false}
+                  value={currentSharedModel}
+                  onSelect={handleModelSelect}
+                  filter={modelFilter}
+                  trigger={
+                    <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs">
+                      <ModelAvatar model={currentRendererModel} size={20} />
+                      <span className="max-w-60 truncate">
+                        {currentRendererModel ? currentRendererModel.name : t('button.select_model')}
+                        {providerName ? ` | ${providerName}` : ''}
+                      </span>
+                      <ChevronDown size={14} className="text-muted-foreground" />
+                    </Button>
+                  }
                 />
 
-                {/* Separator */}
-                <ChevronRight className="h-4 w-4 text-gray-400" />
-
-                {/* Workspace Meta — session-bound */}
                 <SessionWorkspaceMeta session={activeSession} />
               </>
             )}
@@ -114,7 +136,6 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
         </HorizontalScrollContainer>
       </div>
       <div className="flex items-center">
-        {/* Open External Apps */}
         {activeSession && activeSession.accessiblePaths?.[0] && (
           <OpenExternalAppButton workdir={activeSession.accessiblePaths[0]} className="mr-2" />
         )}

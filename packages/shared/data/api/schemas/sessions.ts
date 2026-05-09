@@ -60,10 +60,12 @@ export const CreateSessionSchema = z.strictObject({
 })
 export type CreateSessionDto = z.infer<typeof CreateSessionSchema>
 
-export const UpdateSessionSchema = AgentSessionEntitySchema.pick({
-  name: true,
-  description: true
-}).partial()
+export const UpdateSessionSchema = z.strictObject({
+  name: AgentNameAtomSchema.optional(),
+  description: z.string().optional(),
+  agentId: z.string().min(1).optional()
+})
+
 export type UpdateSessionDto = z.infer<typeof UpdateSessionSchema>
 
 /** Query for `GET /sessions` (cursor pagination + optional agent filter). */

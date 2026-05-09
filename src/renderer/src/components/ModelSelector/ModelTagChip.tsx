@@ -1,6 +1,6 @@
 import { CustomTag } from '@cherrystudio/ui'
 import type { CustomTagProps } from '@cherrystudio/ui/components/primitives/customTag'
-import { Brain, Eye, Globe, Wrench } from 'lucide-react'
+import { AudioLines, Brain, Eye, Globe, Video, Wrench } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,6 +28,20 @@ const TAG_META = {
     supportsTooltip: true,
     respectsShowLabel: true,
     renderIcon: (_label, size) => <Eye size={size} color="currentColor" className="text-current" />
+  },
+  'audio-recognition': {
+    color: '#d946ef',
+    labelKey: 'models.type.audio',
+    supportsTooltip: true,
+    respectsShowLabel: true,
+    renderIcon: (_label, size) => <AudioLines size={size} color="currentColor" className="text-current" />
+  },
+  'video-recognition': {
+    color: '#ec4899',
+    labelKey: 'models.type.video',
+    supportsTooltip: true,
+    respectsShowLabel: true,
+    renderIcon: (_label, size) => <Video size={size} color="currentColor" className="text-current" />
   },
   reasoning: {
     color: '#6372bd',

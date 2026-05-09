@@ -5,7 +5,6 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import ModelSelectButton from '@renderer/components/ModelSelectButton'
-import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -41,6 +40,8 @@ import {
 } from '@renderer/utils/translate'
 import { documentExts } from '@shared/config/constant'
 import { imageExts, MB, textExts } from '@shared/config/constant'
+import type { Model as SharedModel } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
 import { FloatButton, Popover, Typography } from 'antd'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
@@ -482,10 +483,7 @@ const TranslatePage: FC = () => {
   }
 
   // 控制模型选择器
-  const modelPredicate = useCallback(
-    (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
-    []
-  )
+  const modelPredicate = useCallback((m: SharedModel) => !isNonChatModel(m), [])
 
   // 控制token估计
   const tokenCount = useMemo(() => estimateTokenCount(text + prompt), [prompt, text])

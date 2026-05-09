@@ -31,7 +31,6 @@ import type { Message } from './newMessage'
 import type { BaseTool, MCPTool } from './tool'
 
 export * from './agent'
-export * from './apiModels'
 export * from './apiServer'
 export * from './knowledge'
 export * from './mcp'

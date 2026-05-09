@@ -1,44 +1,49 @@
 import type { TooltipProps } from '@cherrystudio/ui'
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { ModelSelector } from '@renderer/components/ModelSelector'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import type { Model } from '@renderer/types'
+import type { Model as SharedModel } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
 
 import ModelAvatar from './Avatar/ModelAvatar'
-import { SelectChatModelPopup } from './Popups/SelectModelPopup'
 
 type Props = {
   model: Model
   onSelectModel: (model: Model) => void
-  modelFilter?: (model: Model) => boolean
+  /** Filter operates on the shared Model (the same shape ModelSelector iterates). */
+  modelFilter?: (model: SharedModel) => boolean
   noTooltip?: boolean
   tooltipProps?: TooltipProps
 }
 
 const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, tooltipProps }: Props) => {
-  const onClick = useCallback(async () => {
-    const selectedModel = await SelectChatModelPopup.show({ model, filter: modelFilter })
-    if (selectedModel) {
-      onSelectModel?.(selectedModel)
-    }
-  }, [model, modelFilter, onSelectModel])
+  const handleSelect = useCallback(
+    (next: SharedModel | undefined) => {
+      if (!next) return
+      onSelectModel(fromSharedModel(next))
+    },
+    [onSelectModel]
+  )
 
-  const button = useMemo(() => {
-    return (
-      <Button variant="ghost" className="rounded-full" size="icon" onClick={onClick}>
+  const button = useMemo(
+    () => (
+      <Button variant="ghost" className="rounded-full" size="icon">
         <ModelAvatar model={model} size={22} />
       </Button>
-    )
-  }, [model, onClick])
+    ),
+    [model]
+  )
 
-  if (noTooltip) {
-    return button
-  } else {
-    return (
-      <Tooltip content={model.name} {...tooltipProps}>
-        {button}
-      </Tooltip>
-    )
-  }
+  const triggerWithTooltip = noTooltip ? (
+    button
+  ) : (
+    <Tooltip content={model.name} {...tooltipProps}>
+      {button}
+    </Tooltip>
+  )
+
+  return <ModelSelector multiple={false} onSelect={handleSelect} filter={modelFilter} trigger={triggerWithTooltip} />
 }
 
 export default ModelSelectButton

@@ -66,6 +66,15 @@ export const isTextToImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) &&
   !model.capabilities.includes(MODEL_CAPABILITY.REASONING)
 
+export const isNonChatModel = (model: Model): boolean =>
+  isEmbeddingModel(model) ||
+  isRerankModel(model) ||
+  isGenerateImageModel(model) ||
+  isGenerateVideoModel(model) ||
+  isGenerateAudioModel(model) ||
+  isTextToSpeechModel(model) ||
+  isSpeechToTextModel(model)
+
 // ---------------------------------------------------------------------------
 // Reasoning configuration
 // ---------------------------------------------------------------------------

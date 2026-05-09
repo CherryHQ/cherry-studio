@@ -68,7 +68,8 @@ export function AgentSelector(props: AgentSelectorProps) {
       (data?.items ?? []).map((agent) => ({
         id: agent.id,
         name: agent.name,
-        description: agent.description
+        description: agent.description,
+        emoji: agent.configuration?.avatar
       })),
     [data]
   )
