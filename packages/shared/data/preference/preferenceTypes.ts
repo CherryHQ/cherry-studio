@@ -129,7 +129,12 @@ export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
  *
  * Pattern: 2–3 lowercase letters, optionally followed by `-` and 2–4 lowercase letters.
  */
-export const PersistedLangCodeSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+export const PersistedLangCodeSchema = z
+  .string()
+  .regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+  .brand<'PersistedLangCode'>()
+export type PersistedLangCode = z.infer<typeof PersistedLangCodeSchema>
+export const parsePersistedLangCode = (value: string): PersistedLangCode => PersistedLangCodeSchema.parse(value)
 
 /**
  * Permissive language code — {@link PersistedLangCodeSchema} plus the `'unknown'` UI sentinel.
@@ -139,10 +144,15 @@ export const PersistedLangCodeSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4}
  */
 export const TranslateLangCodeSchema = z.union([z.literal('unknown'), PersistedLangCodeSchema])
 export type TranslateLangCode = z.infer<typeof TranslateLangCodeSchema>
+export const parseTranslateLangCode = (value: string): TranslateLangCode => TranslateLangCodeSchema.parse(value)
 export const isTranslateLangCode = (value: unknown): value is TranslateLangCode =>
   TranslateLangCodeSchema.safeParse(value).success
 export type TranslateSourceLanguage = TranslateLangCode | 'auto'
 export type TranslateBidirectionalPair = [TranslateLangCode, TranslateLangCode]
+export const parseTranslateBidirectionalPair = (value: readonly [string, string]): TranslateBidirectionalPair => [
+  parseTranslateLangCode(value[0]),
+  parseTranslateLangCode(value[1])
+]
 
 // ============================================================================
 // WebSearch Types

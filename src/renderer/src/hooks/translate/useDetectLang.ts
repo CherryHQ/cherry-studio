@@ -216,7 +216,7 @@ export const useDetectLang = () => {
       logger.info(`Auto detection method: ${method}`)
       const result = await detectWithMethod(text, method, langCodes)
       logger.info(`Detected language: ${result}`)
-      return result.trim()
+      return result
     },
     [method, languages]
   )

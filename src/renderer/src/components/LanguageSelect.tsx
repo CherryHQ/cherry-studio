@@ -2,14 +2,14 @@ import { Skeleton } from '@cherrystudio/ui'
 import { UNKNOWN } from '@renderer/config/translate'
 import { useLanguages } from '@renderer/hooks/translate/useLanguages'
 import type { TranslateLanguageVo } from '@renderer/types'
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
 import type { SelectProps } from 'antd'
 import { Select, Space } from 'antd'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 
 export type LanguageOption = {
-  value: TranslateLangCode
+  value: TranslateSourceLanguage
   label: ReactNode
 }
 

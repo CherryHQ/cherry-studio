@@ -1,12 +1,16 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { UNKNOWN } from '@renderer/config/translate'
 import type { CreateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { PersistedLangCode, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
 import { type MutationFeedbackOptions, useMutationFeedback } from './_mutationFeedback'
 
 const logger = loggerService.withContext('translate/useAddHistory')
+
+const toPersistedLangCodeOrNull = (langCode: TranslateLangCode | null): PersistedLangCode | null => {
+  if (langCode === null || langCode === 'unknown') return null
+  return langCode
+}
 
 /**
  * Renderer-side input for {@link useAddHistory}.
@@ -43,8 +47,8 @@ export const useAddHistory = (options?: MutationFeedbackOptions) => {
       const body: CreateTranslateHistoryDto = {
         sourceText: data.sourceText,
         targetText: data.targetText,
-        sourceLanguage: data.sourceLanguage === UNKNOWN.langCode ? null : data.sourceLanguage,
-        targetLanguage: data.targetLanguage === UNKNOWN.langCode ? null : data.targetLanguage
+        sourceLanguage: toPersistedLangCodeOrNull(data.sourceLanguage),
+        targetLanguage: toPersistedLangCodeOrNull(data.targetLanguage)
       }
       return trigger({ body })
     },

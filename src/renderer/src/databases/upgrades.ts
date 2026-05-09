@@ -24,7 +24,7 @@ import type {
   MessageBlock
 } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { parseTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import type { Transaction } from 'dexie'
 import { isEmpty } from 'lodash'
@@ -340,25 +340,25 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
   logger.info('DB migration to version 8 started')
 
   const langMap: Record<string, TranslateLangCode> = {
-    english: 'en-us',
-    chinese: 'zh-cn',
-    'chinese-traditional': 'zh-tw',
-    japanese: 'ja-jp',
-    korean: 'ko-kr',
-    french: 'fr-fr',
-    german: 'de-de',
-    italian: 'it-it',
-    spanish: 'es-es',
-    portuguese: 'pt-pt',
-    russian: 'ru-ru',
-    polish: 'pl-pl',
-    arabic: 'ar-ar',
-    turkish: 'tr-tr',
-    thai: 'th-th',
-    vietnamese: 'vi-vn',
-    indonesian: 'id-id',
-    urdu: 'ur-pk',
-    malay: 'ms-my'
+    english: parseTranslateLangCode('en-us'),
+    chinese: parseTranslateLangCode('zh-cn'),
+    'chinese-traditional': parseTranslateLangCode('zh-tw'),
+    japanese: parseTranslateLangCode('ja-jp'),
+    korean: parseTranslateLangCode('ko-kr'),
+    french: parseTranslateLangCode('fr-fr'),
+    german: parseTranslateLangCode('de-de'),
+    italian: parseTranslateLangCode('it-it'),
+    spanish: parseTranslateLangCode('es-es'),
+    portuguese: parseTranslateLangCode('pt-pt'),
+    russian: parseTranslateLangCode('ru-ru'),
+    polish: parseTranslateLangCode('pl-pl'),
+    arabic: parseTranslateLangCode('ar-ar'),
+    turkish: parseTranslateLangCode('tr-tr'),
+    thai: parseTranslateLangCode('th-th'),
+    vietnamese: parseTranslateLangCode('vi-vn'),
+    indonesian: parseTranslateLangCode('id-id'),
+    urdu: parseTranslateLangCode('ur-pk'),
+    malay: parseTranslateLangCode('ms-my')
   }
 
   const settingsTable = tx.table('settings')

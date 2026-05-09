@@ -1,3 +1,4 @@
+import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { mockUsePreference } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
@@ -8,6 +9,8 @@ import { UNKNOWN } from '../../../config/translate'
 import type { Chunk } from '../../../types/chunk'
 import { ChunkType } from '../../../types/chunk'
 import { detectLanguageByFranc, detectLanguageByLLM, detectWithMethod, useDetectLang } from '../useDetectLang'
+
+const lang = parseTranslateLangCode
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => `t(${key})` })
@@ -77,43 +80,43 @@ describe('detectLanguageByLLM', () => {
       onChunkReceived({ type: ChunkType.TEXT_DELTA, text: '  en-us  ' } as Chunk)
     })
 
-    await expect(detectLanguageByLLM('Hello', ['en-us', 'zh-cn'])).resolves.toBe('en-us')
+    await expect(detectLanguageByLLM('Hello', [lang('en-us'), lang('zh-cn')])).resolves.toBe('en-us')
   })
 
   it('throws when getQuickModel returns nothing', async () => {
     getQuickModelMock.mockReturnValueOnce(undefined)
-    await expect(detectLanguageByLLM('Hello', ['en-us'])).rejects.toThrow(/model/i)
+    await expect(detectLanguageByLLM('Hello', [lang('en-us')])).rejects.toThrow(/model/i)
   })
 
   it('throws when hasModel returns false', async () => {
     hasModelMock.mockReturnValueOnce(false)
-    await expect(detectLanguageByLLM('Hello', ['en-us'])).rejects.toThrow(/model/i)
+    await expect(detectLanguageByLLM('Hello', [lang('en-us')])).rejects.toThrow(/model/i)
   })
 
   it('throws when the selected model is a Qwen-MT model', async () => {
     isQwenMTModelMock.mockReturnValueOnce(true)
-    await expect(detectLanguageByLLM('Hello', ['en-us'])).rejects.toThrow(/qwen_mt/i)
+    await expect(detectLanguageByLLM('Hello', [lang('en-us')])).rejects.toThrow(/qwen_mt/i)
   })
 
   it('throws when the LLM responds with an empty string', async () => {
     fetchChatCompletionMock.mockImplementationOnce(async ({ onChunkReceived }) => {
       onChunkReceived({ type: ChunkType.TEXT_DELTA, text: '   ' } as Chunk)
     })
-    await expect(detectLanguageByLLM('Hello', ['en-us'])).rejects.toThrow(/empty/i)
+    await expect(detectLanguageByLLM('Hello', [lang('en-us')])).rejects.toThrow(/empty/i)
   })
 
   it('throws when the LLM responds with an invalid lang code', async () => {
     fetchChatCompletionMock.mockImplementationOnce(async ({ onChunkReceived }) => {
       onChunkReceived({ type: ChunkType.TEXT_DELTA, text: 'NOT_A_CODE' } as Chunk)
     })
-    await expect(detectLanguageByLLM('Hello', ['en-us'])).rejects.toThrow(/invalid/i)
+    await expect(detectLanguageByLLM('Hello', [lang('en-us')])).rejects.toThrow(/invalid/i)
   })
 
   it('throws when the LLM stream emits a ChunkType.ERROR chunk (not misreported as empty)', async () => {
     fetchChatCompletionMock.mockImplementationOnce(async ({ onChunkReceived }) => {
       onChunkReceived({ type: ChunkType.ERROR, error: { message: 'rate limited' } } as unknown as Chunk)
     })
-    await expect(detectLanguageByLLM('Hello', ['en-us'])).rejects.toThrow(/failed/i)
+    await expect(detectLanguageByLLM('Hello', [lang('en-us')])).rejects.toThrow(/failed/i)
   })
 })
 
@@ -147,7 +150,7 @@ describe('detectWithMethod', () => {
 
   it('auto + short text (< token threshold) routes to the LLM', async () => {
     estimateTextTokensMock.mockReturnValueOnce(10)
-    await expect(detectWithMethod('Hi', 'auto', ['en-us'])).resolves.toBe('en-us')
+    await expect(detectWithMethod('Hi', 'auto', [lang('en-us')])).resolves.toBe('en-us')
     expect(fetchChatCompletionMock).toHaveBeenCalledTimes(1)
     expect(francMock).not.toHaveBeenCalled()
   })
@@ -155,7 +158,7 @@ describe('detectWithMethod', () => {
   it('auto + long text uses franc when franc resolves a known language', async () => {
     estimateTextTokensMock.mockReturnValueOnce(500)
     francMock.mockReturnValueOnce('jpn')
-    await expect(detectWithMethod('日本語の長い文章…', 'auto', ['ja-jp'])).resolves.toBe('ja-jp')
+    await expect(detectWithMethod('日本語の長い文章…', 'auto', [lang('ja-jp')])).resolves.toBe('ja-jp')
     expect(fetchChatCompletionMock).not.toHaveBeenCalled()
   })
 
@@ -164,19 +167,19 @@ describe('detectWithMethod', () => {
     francMock.mockReturnValueOnce('und') // not in isoMap
     const infoSpy = vi.spyOn(mockRendererLoggerService, 'info').mockImplementation(() => {})
 
-    await expect(detectWithMethod('gibberish text', 'auto', ['en-us'])).resolves.toBe('en-us')
+    await expect(detectWithMethod('gibberish text', 'auto', [lang('en-us')])).resolves.toBe('en-us')
     expect(fetchChatCompletionMock).toHaveBeenCalledTimes(1)
     expect(infoSpy).toHaveBeenCalledWith('franc returned UNKNOWN, falling back to LLM detection')
   })
 
   it('franc method goes through franc directly (no LLM)', async () => {
     francMock.mockReturnValueOnce('kor')
-    await expect(detectWithMethod('안녕하세요', 'franc', ['ko-kr'])).resolves.toBe('ko-kr')
+    await expect(detectWithMethod('안녕하세요', 'franc', [lang('ko-kr')])).resolves.toBe('ko-kr')
     expect(fetchChatCompletionMock).not.toHaveBeenCalled()
   })
 
   it('llm method always goes through the LLM (no franc)', async () => {
-    await expect(detectWithMethod('Hi there', 'llm', ['en-us'])).resolves.toBe('en-us')
+    await expect(detectWithMethod('Hi there', 'llm', [lang('en-us')])).resolves.toBe('en-us')
     expect(fetchChatCompletionMock).toHaveBeenCalledTimes(1)
     expect(francMock).not.toHaveBeenCalled()
   })
@@ -194,8 +197,8 @@ describe('useDetectLang hook', () => {
       () =>
         ({
           data: [
-            { langCode: 'en-us', value: 'English', emoji: '🇺🇸' },
-            { langCode: 'zh-cn', value: '中文', emoji: '🇨🇳' }
+            { langCode: lang('en-us'), value: 'English', emoji: '🇺🇸' },
+            { langCode: lang('zh-cn'), value: '中文', emoji: '🇨🇳' }
           ],
           isLoading: false,
           isRefreshing: false,

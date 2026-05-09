@@ -14,8 +14,9 @@ import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 export * from './file'
 export * from './note'
-export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+export type { LanguageVarious, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import * as z from 'zod'
@@ -620,7 +621,7 @@ export type GenerateImageResponse = {
   images: string[]
 }
 
-export type TranslateLanguageVo = Pick<TranslateLanguage, 'value' | 'langCode' | 'emoji'>
+export type TranslateLanguageVo = Pick<TranslateLanguage, 'value' | 'emoji'> & { langCode: TranslateLangCode }
 
 export const AutoDetectionMethods = {
   franc: 'franc',

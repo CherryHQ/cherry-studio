@@ -4,7 +4,7 @@ import { isMac, isWin } from '@renderer/config/constant'
 import { useLanguages } from '@renderer/hooks/translate/useLanguages'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import { BuiltinOcrProviderIds, isOcrSystemProvider } from '@renderer/types'
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -62,7 +62,7 @@ export const OcrSystemSettings = () => {
 
   const onChange = useCallback(
     (value: string | string[]) => {
-      const nextLangs = Array.isArray(value) ? value : []
+      const nextLangs = (Array.isArray(value) ? value : []).filter(isTranslateLangCode)
       startTransition(() => {
         setLangs(nextLangs)
       })

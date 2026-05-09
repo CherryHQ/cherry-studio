@@ -1,3 +1,4 @@
+import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,8 +17,8 @@ describe('useAddHistory', () => {
   const historyInput = {
     sourceText: 'Hello',
     targetText: '你好',
-    sourceLanguage: 'en-us' as const,
-    targetLanguage: 'zh-cn' as const
+    sourceLanguage: parseTranslateLangCode('en-us'),
+    targetLanguage: parseTranslateLangCode('zh-cn')
   }
 
   beforeEach(() => {
@@ -96,7 +97,7 @@ describe('useAddHistory', () => {
     await result.current({
       sourceText: 'Hello',
       targetText: '你好',
-      sourceLanguage: 'en-us',
+      sourceLanguage: parseTranslateLangCode('en-us'),
       targetLanguage: null
     })
 
@@ -115,8 +116,8 @@ describe('useAddHistory', () => {
       id: 'h1',
       sourceText: 'Hello',
       targetText: '你好',
-      sourceLanguage: 'en-us',
-      targetLanguage: 'zh-cn'
+      sourceLanguage: parseTranslateLangCode('en-us'),
+      targetLanguage: parseTranslateLangCode('zh-cn')
     }
     const triggerSpy = vi.fn().mockResolvedValue(created)
     mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)

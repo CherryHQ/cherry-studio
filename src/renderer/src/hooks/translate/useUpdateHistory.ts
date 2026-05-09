@@ -1,12 +1,16 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { UNKNOWN } from '@renderer/config/translate'
 import type { UpdateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { PersistedLangCode, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
 import { type MutationFeedbackOptions, useMutationFeedback } from './_mutationFeedback'
 
 const logger = loggerService.withContext('translate/useUpdateHistory')
+
+const toPersistedLangCodeOrNull = (langCode: TranslateLangCode | null | undefined): PersistedLangCode | null => {
+  if (langCode === null || langCode === undefined || langCode === 'unknown') return null
+  return langCode
+}
 
 /**
  * Renderer-side input for {@link useUpdateHistory}.
@@ -47,10 +51,10 @@ export const useUpdateHistory = (id: string, options?: MutationFeedbackOptions) 
       if (data.sourceText !== undefined) body.sourceText = data.sourceText
       if (data.targetText !== undefined) body.targetText = data.targetText
       if ('sourceLanguage' in data) {
-        body.sourceLanguage = data.sourceLanguage === UNKNOWN.langCode ? null : data.sourceLanguage
+        body.sourceLanguage = toPersistedLangCodeOrNull(data.sourceLanguage)
       }
       if ('targetLanguage' in data) {
-        body.targetLanguage = data.targetLanguage === UNKNOWN.langCode ? null : data.targetLanguage
+        body.targetLanguage = toPersistedLangCodeOrNull(data.targetLanguage)
       }
       if (data.star !== undefined) body.star = data.star
       return trigger({ body })

@@ -6,34 +6,34 @@
  * - Renderer process (identify builtin vs user-created languages)
  */
 
-import type { TranslateLangCode } from '../preference/preferenceTypes'
+import { parsePersistedLangCode, type PersistedLangCode } from '../preference/preferenceTypes'
 
 /**
  * Enum-like constant object of all builtin translate languages.
  * Access individual languages via `BUILTIN_LANGUAGE.enUS`, `BUILTIN_LANGUAGE.zhCN`, etc.
  */
 export const BUILTIN_LANGUAGE = {
-  enUS: { langCode: 'en-us', value: 'English', emoji: '🇺🇸' },
-  zhCN: { langCode: 'zh-cn', value: 'Chinese (Simplified)', emoji: '🇨🇳' },
-  zhTW: { langCode: 'zh-tw', value: 'Chinese (Traditional)', emoji: '🇭🇰' },
-  jaJP: { langCode: 'ja-jp', value: 'Japanese', emoji: '🇯🇵' },
-  koKR: { langCode: 'ko-kr', value: 'Korean', emoji: '🇰🇷' },
-  frFR: { langCode: 'fr-fr', value: 'French', emoji: '🇫🇷' },
-  deDE: { langCode: 'de-de', value: 'German', emoji: '🇩🇪' },
-  itIT: { langCode: 'it-it', value: 'Italian', emoji: '🇮🇹' },
-  esES: { langCode: 'es-es', value: 'Spanish', emoji: '🇪🇸' },
-  ptPT: { langCode: 'pt-pt', value: 'Portuguese', emoji: '🇵🇹' },
-  ruRU: { langCode: 'ru-ru', value: 'Russian', emoji: '🇷🇺' },
-  plPL: { langCode: 'pl-pl', value: 'Polish', emoji: '🇵🇱' },
-  arSA: { langCode: 'ar-sa', value: 'Arabic', emoji: '🇸🇦' },
-  trTR: { langCode: 'tr-tr', value: 'Turkish', emoji: '🇹🇷' },
-  thTH: { langCode: 'th-th', value: 'Thai', emoji: '🇹🇭' },
-  viVN: { langCode: 'vi-vn', value: 'Vietnamese', emoji: '🇻🇳' },
-  idID: { langCode: 'id-id', value: 'Indonesian', emoji: '🇮🇩' },
-  urPK: { langCode: 'ur-pk', value: 'Urdu', emoji: '🇵🇰' },
-  msMY: { langCode: 'ms-my', value: 'Malay', emoji: '🇲🇾' },
-  ukUA: { langCode: 'uk-ua', value: 'Ukrainian', emoji: '🇺🇦' }
-} as const satisfies Record<string, { langCode: TranslateLangCode; value: string; emoji: string }>
+  enUS: { langCode: parsePersistedLangCode('en-us'), value: 'English', emoji: '🇺🇸' },
+  zhCN: { langCode: parsePersistedLangCode('zh-cn'), value: 'Chinese (Simplified)', emoji: '🇨🇳' },
+  zhTW: { langCode: parsePersistedLangCode('zh-tw'), value: 'Chinese (Traditional)', emoji: '🇭🇰' },
+  jaJP: { langCode: parsePersistedLangCode('ja-jp'), value: 'Japanese', emoji: '🇯🇵' },
+  koKR: { langCode: parsePersistedLangCode('ko-kr'), value: 'Korean', emoji: '🇰🇷' },
+  frFR: { langCode: parsePersistedLangCode('fr-fr'), value: 'French', emoji: '🇫🇷' },
+  deDE: { langCode: parsePersistedLangCode('de-de'), value: 'German', emoji: '🇩🇪' },
+  itIT: { langCode: parsePersistedLangCode('it-it'), value: 'Italian', emoji: '🇮🇹' },
+  esES: { langCode: parsePersistedLangCode('es-es'), value: 'Spanish', emoji: '🇪🇸' },
+  ptPT: { langCode: parsePersistedLangCode('pt-pt'), value: 'Portuguese', emoji: '🇵🇹' },
+  ruRU: { langCode: parsePersistedLangCode('ru-ru'), value: 'Russian', emoji: '🇷🇺' },
+  plPL: { langCode: parsePersistedLangCode('pl-pl'), value: 'Polish', emoji: '🇵🇱' },
+  arSA: { langCode: parsePersistedLangCode('ar-sa'), value: 'Arabic', emoji: '🇸🇦' },
+  trTR: { langCode: parsePersistedLangCode('tr-tr'), value: 'Turkish', emoji: '🇹🇷' },
+  thTH: { langCode: parsePersistedLangCode('th-th'), value: 'Thai', emoji: '🇹🇭' },
+  viVN: { langCode: parsePersistedLangCode('vi-vn'), value: 'Vietnamese', emoji: '🇻🇳' },
+  idID: { langCode: parsePersistedLangCode('id-id'), value: 'Indonesian', emoji: '🇮🇩' },
+  urPK: { langCode: parsePersistedLangCode('ur-pk'), value: 'Urdu', emoji: '🇵🇰' },
+  msMY: { langCode: parsePersistedLangCode('ms-my'), value: 'Malay', emoji: '🇲🇾' },
+  ukUA: { langCode: parsePersistedLangCode('uk-ua'), value: 'Ukrainian', emoji: '🇺🇦' }
+} as const satisfies Record<string, { langCode: PersistedLangCode; value: string; emoji: string }>
 
 /** Flat array of all builtin translate languages, derived from {@link BUILTIN_LANGUAGE}. */
 export const BUILTIN_TRANSLATE_LANGUAGES = Object.values(BUILTIN_LANGUAGE)
@@ -62,5 +62,5 @@ export const langCodeToI18nKey = new Map(
     'ms-my': 'languages.malay',
     'uk-ua': 'languages.ukrainian',
     unknown: 'languages.unknown'
-  } satisfies Record<(typeof BUILTIN_LANGUAGE)[keyof typeof BUILTIN_LANGUAGE]['langCode'] | 'unknown', string>)
+  } satisfies Record<string, string>)
 )

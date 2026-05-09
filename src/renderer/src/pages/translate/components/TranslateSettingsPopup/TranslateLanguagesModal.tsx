@@ -4,7 +4,7 @@ import EmojiPicker from '@renderer/components/EmojiPicker'
 import { useAddLanguage, useUpdateLanguage } from '@renderer/hooks/translate'
 import { useLanguages } from '@renderer/hooks/translate/useLanguages'
 import type { TranslateLanguageVo } from '@renderer/types'
-import { PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
+import { parsePersistedLangCode, PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
 import { Form, Input, Modal, Popover, Space } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -63,7 +63,7 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
         if (editingCustomLanguage) {
           await updateLanguage({ value, emoji })
         } else {
-          await addLanguage({ value, emoji, langCode: langCode.toLowerCase() })
+          await addLanguage({ value, emoji, langCode: parsePersistedLangCode(langCode.toLowerCase()) })
         }
         onCancel() // Only close the modal on success — failures keep the form state so the user can retry.
       } catch (e) {
@@ -148,8 +148,8 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
                   throw new Error(t('settings.translate.custom.error.langCode.invalid'))
                 }
                 const clashes = editingCustomLanguage
-                  ? langCodeList.includes(normalized) && normalized !== editingCustomLanguage.langCode
-                  : langCodeList.includes(normalized)
+                  ? langCodeList.some((code) => code === normalized) && normalized !== editingCustomLanguage.langCode
+                  : langCodeList.some((code) => code === normalized)
                 if (clashes) {
                   throw new Error(t('settings.translate.custom.error.langCode.exists'))
                 }

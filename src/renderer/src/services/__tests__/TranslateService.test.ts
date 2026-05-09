@@ -2,6 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import type { TranslateLanguageVo } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
+import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { NoOutputGeneratedError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,7 +37,7 @@ vi.mock('@renderer/utils/error', () => ({
 
 import { translateText } from '../TranslateService'
 
-const TARGET: TranslateLanguageVo = { langCode: 'en-us', value: 'English', emoji: '🇺🇸' }
+const TARGET: TranslateLanguageVo = { langCode: parseTranslateLangCode('en-us'), value: 'English', emoji: '🇺🇸' }
 
 const streamChunks = (chunks: Chunk[]) =>
   fetchChatCompletionMock.mockImplementationOnce(async ({ onChunkReceived }) => {
@@ -139,7 +140,7 @@ describe('translateText', () => {
       } as any)
       streamChunks([{ type: ChunkType.TEXT_DELTA, text: 'ok' } as Chunk])
 
-      await translateText('source', 'en-us')
+      await translateText('source', parseTranslateLangCode('en-us'))
 
       expect(dataApiService.get).toHaveBeenCalledWith('/translate/languages/en-us')
     })

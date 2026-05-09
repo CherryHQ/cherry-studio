@@ -407,7 +407,7 @@ export const DefaultPreferences: PreferenceSchemas = {`
 
       if (value.type) {
         // 叶子节点 - 实际的配置项，直接使用targetKey
-        const defaultVal = this.formatDefaultValue(value.defaultValue)
+        const defaultVal = this.formatDefaultValue(value.defaultValue, value.type)
         code += `${indent}'${key}': ${defaultVal}${isLast ? '' : ','}\n`
       } else {
         // 中间节点 - 嵌套对象
@@ -420,7 +420,7 @@ export const DefaultPreferences: PreferenceSchemas = {`
     return code
   }
 
-  formatDefaultValue(value) {
+  formatDefaultValue(value, type) {
     if (value === null || value === undefined) {
       return 'null'
     }
@@ -429,12 +429,23 @@ export const DefaultPreferences: PreferenceSchemas = {`
       if (value.startsWith('VALUE: ')) {
         return value.substring(7) // Remove "VALUE: " prefix and don't add quotes
       }
+      if (type === 'PreferenceTypes.TranslateLangCode') {
+        return `PreferenceTypes.parseTranslateLangCode('${value.replace(/'/g, "\\'")}')`
+      }
+      if (type === 'PreferenceTypes.TranslateSourceLanguage' && value !== 'auto') {
+        return `PreferenceTypes.parseTranslateLangCode('${value.replace(/'/g, "\\'")}')`
+      }
       return `'${value.replace(/'/g, "\\'")}'`
     }
     if (typeof value === 'boolean' || typeof value === 'number') {
       return String(value)
     }
     if (Array.isArray(value)) {
+      if (type === 'PreferenceTypes.TranslateBidirectionalPair') {
+        return `PreferenceTypes.parseTranslateBidirectionalPair([${value
+          .map((item) => this.formatDefaultValue(item))
+          .join(', ')}])`
+      }
       return `[${value.map((item) => this.formatDefaultValue(item)).join(', ')}]`
     }
     if (typeof value === 'object') {

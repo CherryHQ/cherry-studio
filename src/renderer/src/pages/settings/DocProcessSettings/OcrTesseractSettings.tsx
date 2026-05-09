@@ -22,12 +22,10 @@ export const OcrTesseractSettings = () => {
 
   const options = useMemo(
     () =>
-      languages
-        ?.map((lang) => ({
-          value: TESSERACT_LANG_MAP[lang.langCode],
-          label: getLabel(lang) ?? lang.langCode
-        }))
-        .filter((option) => option.value) ?? [],
+      languages?.flatMap((lang) => {
+        const value = TESSERACT_LANG_MAP[lang.langCode]
+        return value ? [{ value, label: getLabel(lang) ?? lang.langCode }] : []
+      }) ?? [],
     [languages, getLabel]
   )
 

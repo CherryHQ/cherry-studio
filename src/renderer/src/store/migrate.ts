@@ -51,8 +51,7 @@ import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { defaultByPassRules } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { parseTranslateLangCode, type TranslateLangCode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
@@ -1895,17 +1894,17 @@ const migrateConfig = {
       }
 
       const langMap: Record<string, TranslateLangCode> = {
-        english: 'en-us',
-        chinese: 'zh-cn',
-        'chinese-traditional': 'zh-tw',
-        japanese: 'ja-jp',
-        russian: 'ru-ru'
+        english: parseTranslateLangCode('en-us'),
+        chinese: parseTranslateLangCode('zh-cn'),
+        'chinese-traditional': parseTranslateLangCode('zh-tw'),
+        japanese: parseTranslateLangCode('ja-jp'),
+        russian: parseTranslateLangCode('ru-ru')
       }
 
       const origin = state.settings.targetLanguage
       const newLang = langMap[origin]
       if (newLang) state.settings.targetLanguage = newLang
-      else state.settings.targetLanguage = 'en-us'
+      else state.settings.targetLanguage = parseTranslateLangCode('en-us')
 
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'azure-openai') {

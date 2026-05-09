@@ -1,3 +1,4 @@
+import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -61,7 +62,7 @@ describe('useUpdateHistory', () => {
 
     const { result } = renderHook(() => useUpdateHistory('hist-123'))
 
-    await result.current({ sourceLanguage: 'unknown', targetLanguage: 'en-us' })
+    await result.current({ sourceLanguage: 'unknown', targetLanguage: parseTranslateLangCode('en-us') })
 
     expect(triggerSpy).toHaveBeenCalledWith({
       body: { sourceLanguage: null, targetLanguage: 'en-us' }

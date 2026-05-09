@@ -8,7 +8,7 @@ import type {
   OcrTesseractProvider,
   TesseractLangCode
 } from '@renderer/types'
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
 import { isMac, isWin } from './constant'
 
@@ -31,7 +31,7 @@ const systemOcr: OcrSystemProvider = {
   id: 'system',
   name: 'System',
   config: {
-    langs: isWin ? ['en-us'] : undefined
+    langs: isWin ? [parseTranslateLangCode('en-us')] : undefined
   },
   capabilities: {
     image: true
@@ -55,7 +55,7 @@ const ovOcr: OcrOvProvider = {
   id: 'ovocr',
   name: 'Intel OV(NPU) OCR',
   config: {
-    langs: isWin ? ['en-us', 'zh-cn'] : undefined
+    langs: isWin ? [parseTranslateLangCode('en-us'), parseTranslateLangCode('zh-cn')] : undefined
   },
   capabilities: {
     image: true
@@ -76,7 +76,7 @@ export const DEFAULT_OCR_PROVIDER = {
   image: isWin || isMac ? systemOcr : tesseract
 } as const satisfies Record<OcrProviderCapability, BuiltinOcrProvider>
 
-export const TESSERACT_LANG_MAP: Record<TranslateLangCode, TesseractLangCode> = {
+export const TESSERACT_LANG_MAP: Partial<Record<string, TesseractLangCode>> = {
   'af-za': 'afr',
   'am-et': 'amh',
   'ar-sa': 'ara',

@@ -1,3 +1,4 @@
+import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,7 +14,7 @@ vi.mock('react-i18next', () => ({
 
 describe('useAddLanguage', () => {
   const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
-  const input = { langCode: 'xx-yy' as const, value: 'Custom', emoji: '🏳️' }
+  const input = { langCode: parsePersistedLangCode('xx-yy'), value: 'Custom', emoji: '🏳️' }
 
   beforeEach(() => {
     vi.clearAllMocks()
