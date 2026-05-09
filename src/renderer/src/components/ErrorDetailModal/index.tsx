@@ -1,3 +1,5 @@
+import { Button } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -30,11 +32,9 @@ import {
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import { parseDataUrl } from '@shared/utils'
-import { Button } from 'antd'
 import { CheckCircle, Copy, Loader2, Stethoscope } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import Scrollbar from '../Scrollbar'
 import AIDiagnosisSectionWithStatus from './AIDiagnosisSection'
@@ -72,68 +72,52 @@ const truncateLargeData = (
   }
 }
 
-// --- Styled Components ---
+const ErrorDetailContainer = ({ className, ...props }: React.ComponentProps<typeof Scrollbar>) => (
+  <Scrollbar className={cn('max-h-[60vh] pr-[5px]', className)} {...props} />
+)
 
-const ErrorDetailContainer = styled(Scrollbar)`
-  max-height: 60vh;
-  padding-right: 5px;
-`
+const ErrorDetailList = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('flex flex-col gap-4', className)} {...props} />
+)
 
-const ErrorDetailList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-`
+const ErrorDetailItem = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('flex flex-col gap-2', className)} {...props} />
+)
 
-const ErrorDetailItem = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
+const ErrorDetailLabel = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('font-semibold text-[14px] text-foreground', className)} {...props} />
+)
 
-const ErrorDetailLabel = styled.div`
-  font-weight: 600;
-  color: var(--color-text);
-  font-size: 14px;
-`
+const ErrorDetailValue = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      'rounded-[4px] border border-[var(--color-border)] bg-background-subtle p-2 font-[var(--code-font-family)] text-[12px] text-foreground [word-break:break-word]',
+      className
+    )}
+    {...props}
+  />
+)
 
-const ErrorDetailValue = styled.div`
-  font-family: var(--code-font-family);
-  font-size: 12px;
-  padding: 8px;
-  background: var(--color-code-background);
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  word-break: break-word;
-  color: var(--color-text);
-`
+const StackTrace = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      'rounded-[6px] border border-error-base bg-background-subtle p-3 [&_pre]:m-0 [&_pre]:whitespace-pre-wrap [&_pre]:font-[var(--code-font-family)] [&_pre]:text-[12px] [&_pre]:text-error-base [&_pre]:leading-[1.4] [&_pre]:[word-break:break-word]',
+      className
+    )}
+    {...props}
+  />
+)
 
-const StackTrace = styled.div`
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-error);
-  border-radius: 6px;
-  padding: 12px;
-
-  pre {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-family: var(--code-font-family);
-    font-size: 12px;
-    line-height: 1.4;
-    color: var(--color-error);
-  }
-`
-
-const TruncatedBadge = styled.span`
-  margin-left: 8px;
-  padding: 2px 6px;
-  font-size: 10px;
-  font-weight: normal;
-  color: var(--color-warning);
-  background: var(--color-warning-bg, rgba(250, 173, 20, 0.1));
-  border-radius: 4px;
-`
+const TruncatedBadge = ({ className, style, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
+  <span
+    className={cn('ml-2 rounded-[4px] px-1.5 py-0.5 font-normal text-[10px] text-[var(--color-warning)]', className)}
+    style={{
+      background: 'var(--color-warning-bg, rgba(250, 173, 20, 0.1))',
+      ...style
+    }}
+    {...props}
+  />
+)
 
 // --- Sub-Components ---
 
@@ -601,22 +585,18 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
         )}
       </ErrorDetailContainer>
       <div className="my-2 mt-4 flex justify-end gap-2">
-        <Button color="default" icon={<Copy size={14} />} onClick={copyErrorDetails}>
+        <Button variant="outline" onClick={copyErrorDetails}>
+          <Copy size={14} />
           {t('common.copy')}
         </Button>
-        <Button
-          type="primary"
-          disabled={diagStatus === 'loading'}
-          icon={
-            diagStatus === 'loading' ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : diagStatus === 'done' ? (
-              <CheckCircle size={14} />
-            ) : (
-              <Stethoscope size={14} />
-            )
-          }
-          onClick={handleDiagnose}>
+        <Button disabled={diagStatus === 'loading'} onClick={handleDiagnose}>
+          {diagStatus === 'loading' ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : diagStatus === 'done' ? (
+            <CheckCircle size={14} />
+          ) : (
+            <Stethoscope size={14} />
+          )}
           {getDiagButtonText()}
         </Button>
       </div>

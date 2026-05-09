@@ -2,42 +2,16 @@
 
 exports[`ImageToolbar > should match snapshot 1`] = `
 <DocumentFragment>
-  .c0 {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: absolute;
-  gap: 4px;
-  right: 1em;
-  bottom: 1em;
-  z-index: 5;
-}
-
-.c0 .ant-btn {
-  line-height: 0;
-}
-
-.c1 {
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-  width: 100%;
-}
-
-.c2 {
-  flex: 1;
-}
-
-<div
+  <div
     aria-label="preview.label"
-    class="c0 preview-toolbar"
+    class="preview-toolbar absolute right-[1em] bottom-[1em] z-[5] flex flex-col items-center gap-1 [&_.ant-btn]:leading-[0]"
     role="toolbar"
   >
     <div
-      class="c1"
+      class="flex w-full justify-center gap-1"
     >
       <div
-        class="c2"
+        class="flex-1"
       />
       <button
         aria-label="preview.pan_up"
@@ -63,7 +37,7 @@ exports[`ImageToolbar > should match snapshot 1`] = `
       </button>
     </div>
     <div
-      class="c1"
+      class="flex w-full justify-center gap-1"
     >
       <button
         aria-label="preview.pan_left"
@@ -100,7 +74,7 @@ exports[`ImageToolbar > should match snapshot 1`] = `
       </button>
     </div>
     <div
-      class="c1"
+      class="flex w-full justify-center gap-1"
     >
       <button
         aria-label="preview.zoom_out"

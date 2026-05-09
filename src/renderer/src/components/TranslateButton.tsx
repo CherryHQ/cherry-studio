@@ -1,10 +1,9 @@
-import { LoadingOutlined } from '@ant-design/icons'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { translateText } from '@renderer/services/TranslateService'
-import { Languages } from 'lucide-react'
+import { Languages, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -72,7 +71,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
         variant="ghost"
         size="icon-sm"
         className="rounded-full">
-        {isTranslating ? <LoadingOutlined spin /> : <Languages size={18} />}
+        {isTranslating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}
       </Button>
     </Tooltip>
   )
