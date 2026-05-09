@@ -11,6 +11,7 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   getModelSupportedReasoningEffortOptions,
   isClaude46SeriesModel,
+  isClaude47SeriesModel,
   isDeepSeekHybridInferenceModel,
   isDeepSeekV4PlusModel,
   isDoubaoSeed18Model,
@@ -18,6 +19,7 @@ import {
   isDoubaoThinkingAutoModel,
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
+  isHostedGemma4ThinkingModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
@@ -143,7 +145,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       (provider.id === SystemProviderIds.dashscope &&
         (isDeepSeekHybridInferenceModel(model) ||
           isSupportedThinkingTokenZhipuModel(model) ||
-          isSupportedThinkingTokenKimiModel(model)))
+          isSupportedThinkingTokenKimiModel(model))) ||
+      // SiliconFlow uses enable_thinking for DeepSeek and Zhipu models, same as positive path
+      (provider.id === SystemProviderIds.silicon &&
+        (isDeepSeekHybridInferenceModel(model) || isSupportedThinkingTokenZhipuModel(model)))
     ) {
       return { enable_thinking: false }
     }
@@ -701,7 +706,7 @@ export function getAnthropicReasoningParams(
   model: Model
 ): {
   thinking?: AnthropicProviderOptions['thinking']
-  effort?: Exclude<AnthropicProviderOptions['effort'], 'xhigh'>
+  effort?: AnthropicProviderOptions['effort']
   sendReasoning?: AnthropicProviderOptions['sendReasoning']
 } {
   if (!isReasoningModel(model)) {
@@ -724,6 +729,24 @@ export function getAnthropicReasoningParams(
 
   // Claude reasoning parameters
   if (isSupportedThinkingTokenClaudeModel(model)) {
+    // Claude 4.7: adaptive thinking + native 'xhigh' effort.
+    // Also requires thinking.display: 'summarized' — API defaults to 'omitted'
+    // (no reasoning text in response), which would break Cherry's thinking UI.
+    if (isClaude47SeriesModel(model)) {
+      const effort47Map = {
+        default: undefined,
+        auto: undefined,
+        minimal: 'low',
+        low: 'low',
+        medium: 'medium',
+        high: 'high',
+        xhigh: 'xhigh'
+      } as const satisfies Record<Exclude<ReasoningEffortOption, 'none'>, AnthropicProviderOptions['effort']>
+      const effort = effort47Map[reasoningEffort]
+      const thinking = { type: 'adaptive', display: 'summarized' } as const
+      return effort ? { thinking, effort } : { thinking }
+    }
+
     // Claude 4.6 uses adaptive thinking + effort parameters
     // Map reasoningEffort to Claude 4.6 supported effort values
     if (isClaude46SeriesModel(model)) {
@@ -838,6 +861,21 @@ export function getGeminiReasoningParams(
   let thinkingLevel: GoogleThinkingLevel | null = null
   const includeThoughts = reasoningEffort !== 'none'
 
+  if (isHostedGemma4ThinkingModel(model)) {
+    // Hosted Gemma 4 does not expose a distinct hard-off mode on the Gemini API.
+    // We only surface minimal/high in the UI and collapse legacy or unexpected
+    // `none` inputs to `minimal` for compatibility.
+    const isHighThinking = reasoningEffort === 'high' || reasoningEffort === 'xhigh'
+    thinkingLevel = isHighThinking ? 'high' : 'minimal'
+
+    return {
+      thinkingConfig: {
+        includeThoughts: isHighThinking,
+        thinkingLevel
+      }
+    }
+  }
+
   // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
   if (isGemini3ThinkingTokenModel(model)) {
     thinkingLevel = mapToGeminiThinkingLevel(reasoningEffort)
@@ -949,8 +987,10 @@ export function getBedrockReasoningParams(
     return {}
   }
 
-  // Claude 4.6 uses adaptive thinking + maxReasoningEffort
-  if (isClaude46SeriesModel(model)) {
+  // Claude 4.6 / 4.7 use adaptive thinking + maxReasoningEffort.
+  // Bedrock's maxReasoningEffort enum doesn't yet include 'xhigh', so 4.7 xhigh
+  // falls back to 'max' here (matches the 4.6 mapping).
+  if (isClaude46SeriesModel(model) || isClaude47SeriesModel(model)) {
     const effortMap = {
       auto: undefined,
       minimal: 'low',

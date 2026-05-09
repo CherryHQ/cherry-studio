@@ -296,11 +296,17 @@ export function validateProvider(provider: Provider): boolean {
   }
 }
 
+const supportsAnthropicEndpoint = (m: Model): boolean =>
+  m.endpoint_type === 'anthropic' || m.supported_endpoint_types?.includes('anthropic') === true
+
 export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model) => boolean) => {
   switch (providerId) {
     case 'cherryin':
     case 'new-api':
-      return (m: Model) => m.endpoint_type === 'anthropic'
+      // Both are OpenAI-compatible aggregators that may expose Anthropic-protocol models.
+      // Auto-fetched models declare `supported_endpoint_types`; manually added or older
+      // entries fall back to the legacy `endpoint_type === 'anthropic'` flag.
+      return supportsAnthropicEndpoint
     case 'silicon':
       return (m: Model) => isSiliconAnthropicCompatibleModel(m.id)
     default:
