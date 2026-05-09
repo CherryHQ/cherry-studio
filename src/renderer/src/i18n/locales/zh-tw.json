@@ -4042,6 +4042,43 @@
         "valueProp": "目前 value"
       },
       "description": "僅在開發環境顯示，用於直接在應用內聯調 v2 選擇器等新元件。",
+      "fileProcessing": {
+        "artifact": {
+          "file": "Markdown 檔案",
+          "text": "文字結果"
+        },
+        "description": "透過真實 file processing IPC 執行所有已設定的檔案處理器，並比較結果。",
+        "duration": "{{seconds}} 秒",
+        "markdown": {
+          "description": "選擇文件，並執行所有文件轉 Markdown 處理器。",
+          "fileFilterName": "文件",
+          "noFile": "未選擇文件",
+          "select": "選擇文件",
+          "start": "測試 Markdown",
+          "title": "Markdown"
+        },
+        "noProcessors": "沒有處理器支援這個能力。",
+        "ocr": {
+          "description": "選擇圖片，並執行所有 OCR 處理器。",
+          "fileFilterName": "圖片",
+          "noFile": "未選擇圖片",
+          "select": "選擇圖片",
+          "start": "測試 OCR",
+          "title": "OCR"
+        },
+        "processorCount": "{{count}} 個處理器",
+        "status": {
+          "cancelled": "已取消",
+          "completed": "已完成",
+          "failed": "失敗",
+          "idle": "閒置",
+          "pending": "等待中",
+          "processing": "處理中",
+          "starting": "啟動中"
+        },
+        "taskId": "任務 ID",
+        "title": "檔案處理"
+      },
       "label": "元件測試",
       "modelSelector": {
         "behaviorConfig": "互動與顯示設定",

@@ -4042,6 +4042,43 @@
         "valueProp": "当前 value"
       },
       "description": "仅在开发环境显示，用于在应用内直接联调 v2 选择器等新组件。",
+      "fileProcessing": {
+        "artifact": {
+          "file": "Markdown 文件",
+          "text": "文本结果"
+        },
+        "description": "通过真实 file processing IPC 运行所有已配置的文件处理器，并对比结果。",
+        "duration": "{{seconds}} 秒",
+        "markdown": {
+          "description": "选择文档，并运行所有文档转 Markdown 处理器。",
+          "fileFilterName": "文档",
+          "noFile": "未选择文档",
+          "select": "选择文档",
+          "start": "测试 Markdown",
+          "title": "Markdown"
+        },
+        "noProcessors": "没有处理器支持这个能力。",
+        "ocr": {
+          "description": "选择图片，并运行所有 OCR 处理器。",
+          "fileFilterName": "图片",
+          "noFile": "未选择图片",
+          "select": "选择图片",
+          "start": "测试 OCR",
+          "title": "OCR"
+        },
+        "processorCount": "{{count}} 个处理器",
+        "status": {
+          "cancelled": "已取消",
+          "completed": "已完成",
+          "failed": "失败",
+          "idle": "空闲",
+          "pending": "等待中",
+          "processing": "处理中",
+          "starting": "启动中"
+        },
+        "taskId": "任务 ID",
+        "title": "文件处理"
+      },
       "label": "组件测试",
       "modelSelector": {
         "behaviorConfig": "交互与展示配置",

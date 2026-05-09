@@ -4042,6 +4042,43 @@
         "valueProp": "Current value"
       },
       "description": "Visible only in development for testing new v2 components (selectors and friends) directly inside the app.",
+      "fileProcessing": {
+        "artifact": {
+          "file": "Markdown file",
+          "text": "Text result"
+        },
+        "description": "Run every configured file processor through the real file processing IPC and compare results.",
+        "duration": "{{seconds}}s",
+        "markdown": {
+          "description": "Select a document and run all document-to-markdown processors.",
+          "fileFilterName": "Documents",
+          "noFile": "No document selected",
+          "select": "Select document",
+          "start": "Test markdown",
+          "title": "Markdown"
+        },
+        "noProcessors": "No processors support this feature.",
+        "ocr": {
+          "description": "Select an image and run all OCR processors.",
+          "fileFilterName": "Images",
+          "noFile": "No image selected",
+          "select": "Select image",
+          "start": "Test OCR",
+          "title": "OCR"
+        },
+        "processorCount": "{{count}} processors",
+        "status": {
+          "cancelled": "Cancelled",
+          "completed": "Completed",
+          "failed": "Failed",
+          "idle": "Idle",
+          "pending": "Pending",
+          "processing": "Processing",
+          "starting": "Starting"
+        },
+        "taskId": "Task ID",
+        "title": "File Processing"
+      },
       "label": "Component Lab",
       "modelSelector": {
         "behaviorConfig": "Behavior & Display Config",
