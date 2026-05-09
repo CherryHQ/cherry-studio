@@ -37,9 +37,9 @@ export const useAgents = () => {
     if (!apiServerRunning) {
       throw new Error(t('agent.server.error.not_running'))
     }
-    // limit: 1000 matches the server-side PaginationQuerySchema max so the sidebar gets the full
-    // agents list in a single round trip. NOTE: useUpdateAgent depends on a flat array result.
-    const result = await client.listAgents({ sortBy: 'sort_order', orderBy: 'asc', limit: 1000 })
+    // The /agents listing endpoint defaults to the schema max so a single fetch returns the full
+    // list. NOTE: useUpdateAgent depends on a flat array result.
+    const result = await client.listAgents({ sortBy: 'sort_order', orderBy: 'asc' })
     return result.data
   }, [apiServerConfig.enabled, apiServerRunning, client, t])
 
