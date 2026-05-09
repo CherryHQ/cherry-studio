@@ -10,12 +10,6 @@ import { ChunkType } from '@renderer/types/chunk'
 import { readyToAbort } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { languageDtoToVo } from '@renderer/utils/translate'
-import type {
-  CreateTranslateHistoryDto,
-  CreateTranslateLanguageDto,
-  UpdateTranslateHistoryDto,
-  UpdateTranslateLanguageDto
-} from '@shared/data/api/schemas/translate'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { NoOutputGeneratedError } from 'ai'
 import { t } from 'i18next'
@@ -106,62 +100,4 @@ export const translateText = async (
   }
 
   return trimmedText
-}
-
-/**
- * Create a new translate language.
- * @param data - Language payload (langCode, value, emoji)
- * @returns The created {@link TranslateLanguage} object
- */
-export const addLanguage = (data: CreateTranslateLanguageDto) => {
-  return dataApiService.post('/translate/languages', { body: data })
-}
-
-/**
- * Update an existing translate language (only value/emoji; langCode is immutable).
- * @param langCode - The language code to update
- * @param data - Fields to update
- * @returns The updated {@link TranslateLanguage} object
- */
-export const updateLanguage = (langCode: string, data: UpdateTranslateLanguageDto) => {
-  return dataApiService.patch(`/translate/languages/${langCode}`, { body: data })
-}
-
-/**
- * Delete a translate language.
- * @param langCode - The language code to delete
- */
-export const deleteLanguage = (langCode: string) => {
-  return dataApiService.delete(`/translate/languages/${langCode}`)
-}
-
-// ---------------------------------------------------------------------------
-// History CRUD
-// ---------------------------------------------------------------------------
-
-/**
- * Create a new translate history record.
- * @param data - History payload (sourceText, targetText, languages, etc.)
- * @returns The created {@link TranslateHistory} object
- */
-export const addHistory = (data: CreateTranslateHistoryDto) => {
-  return dataApiService.post('/translate/histories', { body: data })
-}
-
-/**
- * Update an existing translate history record.
- * @param id - The history record ID
- * @param data - Fields to update
- * @returns The updated {@link TranslateHistory} object
- */
-export const updateHistory = (id: string, data: UpdateTranslateHistoryDto) => {
-  return dataApiService.patch(`/translate/histories/${id}`, { body: data })
-}
-
-/**
- * Delete a translate history record.
- * @param id - The history record ID
- */
-export const deleteHistory = (id: string) => {
-  return dataApiService.delete(`/translate/histories/${id}`)
 }
