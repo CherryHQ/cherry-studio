@@ -55,7 +55,7 @@ export const authConnectionClasses = {
   shell: 'rounded-[length:var(--radius-button)] border border-[color:var(--section-border)] px-3.5 py-3',
   blockTitle:
     'mb-2.5 text-[length:var(--font-size-body-md)] text-foreground/85 leading-[var(--line-height-section-label)] font-[weight:var(--font-weight-medium)]',
-  body: 'space-y-2.5'
+  body: 'flex flex-col gap-2.5'
 } as const
 
 /**
