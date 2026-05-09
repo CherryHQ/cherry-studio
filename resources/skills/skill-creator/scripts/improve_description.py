@@ -34,6 +34,7 @@ def _call_claude(prompt: str, model: str | None, timeout: int = 300) -> str:
 
     result = subprocess.run(
         cmd,
+        shell=False,
         input=prompt,
         capture_output=True,
         text=True,
