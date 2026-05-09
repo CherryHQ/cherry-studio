@@ -22,7 +22,7 @@ import type {
 import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { Painting } from '@shared/data/types/painting'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, sql } from 'drizzle-orm'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
@@ -43,11 +43,11 @@ export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = [
   'files'
 ]
 
-function rowToPainting(row: PaintingRow, validModelIds: ReadonlySet<string>): Painting {
+function rowToPainting(row: PaintingRow): Painting {
   return {
     id: row.id,
     providerId: row.providerId,
-    modelId: row.modelId && validModelIds.has(row.modelId) ? row.modelId : null,
+    modelId: row.modelId,
     mode: row.mode,
     mediaType: row.mediaType,
     prompt: row.prompt,
@@ -60,24 +60,6 @@ function rowToPainting(row: PaintingRow, validModelIds: ReadonlySet<string>): Pa
 }
 
 type ModelLookupDb = Pick<DbType, 'select'>
-
-async function loadValidModelIds(db: ModelLookupDb, rows: PaintingRow[]): Promise<ReadonlySet<string>> {
-  const modelIds = [...new Set(rows.map((row) => row.modelId).filter((id): id is string => Boolean(id)))]
-  if (modelIds.length === 0) {
-    return new Set()
-  }
-
-  const models = await db
-    .select({ id: userModelTable.id })
-    .from(userModelTable)
-    .where(inArray(userModelTable.id, modelIds))
-  return new Set(models.map((model) => model.id))
-}
-
-async function rowsToPaintings(db: ModelLookupDb, rows: PaintingRow[]): Promise<Painting[]> {
-  const validModelIds = await loadValidModelIds(db, rows)
-  return rows.map((row) => rowToPainting(row, validModelIds))
-}
 
 function resolveCandidateModelId(providerId: string, modelId: string | null | undefined): string | null {
   if (!modelId) {
@@ -136,7 +118,7 @@ class PaintingService {
     ])
 
     return {
-      items: await rowsToPaintings(db, rows),
+      items: rows.map((row) => rowToPainting(row)),
       total: countResult[0]?.count ?? 0,
       limit: query.limit,
       offset: query.offset
@@ -151,7 +133,7 @@ class PaintingService {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
 
-    return (await rowsToPaintings(db, [row]))[0]
+    return rowToPainting(row)
   }
 
   async create(dto: CreatePaintingDto): Promise<Painting> {
@@ -184,7 +166,7 @@ class PaintingService {
       mode: row.mode
     })
 
-    return (await rowsToPaintings(db, [row as PaintingRow]))[0]
+    return rowToPainting(row as PaintingRow)
   }
 
   async update(id: string, dto: UpdatePaintingDto): Promise<Painting> {
@@ -206,7 +188,7 @@ class PaintingService {
     }
 
     if (Object.keys(updates).length === 0) {
-      return (await rowsToPaintings(db, [existing]))[0]
+      return rowToPainting(existing)
     }
 
     const [row] = await db.update(paintingTable).set(updates).where(eq(paintingTable.id, id)).returning()
@@ -215,7 +197,7 @@ class PaintingService {
     }
 
     logger.info('Updated painting', { id, changes: Object.keys(dto) })
-    return (await rowsToPaintings(db, [row]))[0]
+    return rowToPainting(row)
   }
 
   async delete(id: string): Promise<void> {

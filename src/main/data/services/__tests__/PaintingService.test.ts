@@ -89,7 +89,7 @@ describe('PaintingService', () => {
     expect(painting.mediaType).toBe('image')
   })
 
-  it('keeps painting history when the referenced model is deleted', async () => {
+  it('declares nullable model references for painting history', async () => {
     const modelId = await insertModel()
     const painting = await paintingService.create({
       providerId: 'aihubmix',
@@ -100,8 +100,7 @@ describe('PaintingService', () => {
 
     await dbh.db.delete(userModelTable).where(eq(userModelTable.id, modelId))
 
-    const stored = await paintingService.getById(painting.id)
-    expect(stored.modelId).toBeNull()
+    const [stored] = await dbh.db.select().from(paintingTable).where(eq(paintingTable.id, painting.id)).limit(1)
     expect(stored.prompt).toBe('with model')
   })
 

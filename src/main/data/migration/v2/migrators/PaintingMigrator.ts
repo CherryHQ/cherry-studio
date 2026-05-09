@@ -2,7 +2,6 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -14,18 +13,14 @@ import {
   type NormalizedPaintingRow,
   transformLegacyPaintingRecord
 } from './mappings/PaintingMappings'
-import { resolveModelReference } from './transformers/ModelTransformers'
+import { legacyModelToUniqueId, resolveModelReference } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('PaintingMigrator')
 
 const INSERT_BATCH_SIZE = 100
 
 function resolvePaintingModelCandidate(providerId: string, modelId: string | null | undefined): string | null {
-  if (!modelId) {
-    return null
-  }
-
-  return isUniqueModelId(modelId) ? modelId : createUniqueModelId(providerId, modelId)
+  return legacyModelToUniqueId({ id: modelId ?? undefined, provider: providerId }, modelId)
 }
 
 export class PaintingMigrator extends BaseMigrator {
