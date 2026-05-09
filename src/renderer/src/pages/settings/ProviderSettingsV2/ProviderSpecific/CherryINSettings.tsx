@@ -1,8 +1,11 @@
-import { SelectDropdown } from '@cherrystudio/ui'
+import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProviders'
+import { fieldClasses } from '@renderer/pages/settings/ProviderSettingsV2/shared/primitives/ProviderSettingsPrimitives'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
+import { cn } from '@renderer/utils'
+import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface CherryINSettingsProps {
@@ -30,58 +33,78 @@ const API_HOST_OPTIONS = [
 const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId }) => {
   const { provider, updateProvider } = useProvider(providerId)
   const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
 
-  const currentDomain = useMemo(() => {
+  const currentHost = useMemo(() => {
     if (!provider?.endpointConfigs) return API_HOST_OPTIONS[0].value
     const firstConfig = Object.values(provider.endpointConfigs)[0]
     const firstUrl = firstConfig?.baseUrl
     if (!firstUrl) return API_HOST_OPTIONS[0].value
     try {
-      return new URL(firstUrl).hostname
+      const hostname = new URL(firstUrl).hostname
+      const matched = API_HOST_OPTIONS.find((option) => hostname.includes(option.value))
+      return matched?.value ?? API_HOST_OPTIONS[0].value
     } catch {
       return API_HOST_OPTIONS[0].value
     }
   }, [provider?.endpointConfigs])
 
-  const getCurrentHost = useMemo(() => {
-    const matched = API_HOST_OPTIONS.find((option) => currentDomain.includes(option.value))
-    return matched?.value ?? API_HOST_OPTIONS[0].value
-  }, [currentDomain])
-
   const handleHostChange = useCallback(
     async (value: string) => {
+      setOpen(false)
       const newEndpointConfigs = replaceEndpointConfigDomain(provider?.endpointConfigs, value)
-      await updateProvider({ endpointConfigs: newEndpointConfigs })
+      try {
+        await updateProvider({ endpointConfigs: newEndpointConfigs })
+      } catch {
+        window.toast.error(t('settings.provider.save_failed'))
+      }
     },
-    [provider?.endpointConfigs, updateProvider]
-  )
-
-  const options = useMemo(
-    () =>
-      API_HOST_OPTIONS.map((option) => ({
-        id: option.value,
-        value: option.value,
-        label: t(option.labelKey),
-        description: option.description,
-        content: (
-          <div className="flex flex-col gap-0.5">
-            <span>{t(option.labelKey)}</span>
-            <span className="text-muted-foreground/70 text-xs">{option.description}</span>
-          </div>
-        )
-      })),
-    [t]
+    [provider?.endpointConfigs, t, updateProvider]
   )
 
   return (
-    <div className="mt-1.5 w-full">
-      <SelectDropdown
-        items={options}
-        selectedId={getCurrentHost}
-        onSelect={handleHostChange}
-        renderSelected={(item) => <span className="truncate">{item.value}</span>}
-        renderItem={(item) => item.content}
-      />
+    <div className={fieldClasses.inputRow}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          className={cn(
+            fieldClasses.inputGroup,
+            'group flex min-w-0 flex-1 cursor-pointer items-center justify-between text-left outline-none'
+          )}>
+          <span
+            className={cn(
+              fieldClasses.input,
+              'block min-h-[1.25em] min-w-0 flex-1 truncate bg-transparent py-0 font-mono tabular-nums'
+            )}>
+            {currentHost}
+          </span>
+          <ChevronDown
+            size={12}
+            className="ml-2 shrink-0 text-muted-foreground/55 transition-transform group-data-[state=open]:rotate-180"
+            aria-hidden
+          />
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          sideOffset={4}
+          className="w-(--radix-popover-trigger-width) rounded-md border-[color:var(--section-border)] p-1">
+          {API_HOST_OPTIONS.map((option) => {
+            const isSelected = option.value === currentHost
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => void handleHostChange(option.value)}
+                className={cn(
+                  'flex w-full flex-col gap-0.5 rounded-sm px-2 py-1.5 text-left text-[length:var(--font-size-body-md)] transition-colors',
+                  isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent/60'
+                )}>
+                <span>{t(option.labelKey)}</span>
+                <span className="text-muted-foreground/70 text-xs">{option.description}</span>
+              </button>
+            )
+          })}
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }
