@@ -337,7 +337,6 @@ async function logUnauthorizedResponse(
   }
 
   logger.error('CherryIN request returned 401 Unauthorized', diagnostic)
-  console.error('[CherryINOAuthService] CherryIN request returned 401 Unauthorized', diagnostic)
 }
 
 // Store pending OAuth flows with PKCE verifiers (keyed by state parameter).
