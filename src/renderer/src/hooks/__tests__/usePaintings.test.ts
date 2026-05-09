@@ -18,9 +18,9 @@ describe('usePaintings', () => {
   const record: PaintingRecord = {
     id: 'painting-1',
     providerId: 'silicon',
+    modelId: 'model-1',
     mode: 'generate',
     mediaType: 'image',
-    model: 'model-1',
     prompt: 'draw a cat',
     params: { guidanceScale: 4.5 },
     files: { output: ['file-1'], input: [] },
@@ -69,9 +69,9 @@ describe('usePaintings', () => {
     const createDto: CreatePaintingDto = {
       id: 'painting-1',
       providerId: 'silicon',
+      modelId: 'model-1',
       mode: 'generate',
       mediaType: 'image',
-      model: 'model-1',
       prompt: 'draw a cat',
       params: { guidanceScale: 4.5 },
       files: { output: [], input: [] }

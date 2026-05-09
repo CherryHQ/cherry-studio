@@ -6,9 +6,9 @@ import { paintingFileIdsForPersistence, paintingParamsForPersistence } from './p
 export function paintingDataToUpdateDto(painting: PaintingData): UpdatePaintingDto {
   return {
     providerId: painting.providerId,
+    modelId: typeof painting.model === 'string' && painting.model.trim() ? painting.model : undefined,
     mode: painting.mode,
     mediaType: painting.mediaType ?? 'image',
-    model: typeof painting.model === 'string' && painting.model.trim() ? painting.model : undefined,
     prompt: painting.prompt ?? '',
     params: paintingParamsForPersistence(painting),
     files: {

@@ -32,9 +32,9 @@ const logger = loggerService.withContext('DataApi:PaintingService')
  */
 export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = [
   'providerId',
+  'modelId',
   'mode',
   'mediaType',
-  'model',
   'prompt',
   'params',
   'files'
@@ -44,9 +44,9 @@ function rowToPainting(row: PaintingRow): Painting {
   return {
     id: row.id,
     providerId: row.providerId,
+    modelId: row.modelId ?? null,
     mode: row.mode,
     mediaType: row.mediaType,
-    model: row.model ?? null,
     prompt: row.prompt ?? '',
     params: row.params ?? {},
     files: { output: row.files?.output ?? [], input: row.files?.input ?? [] },
@@ -115,9 +115,9 @@ class PaintingService {
         {
           id: dto.id,
           providerId: dto.providerId,
+          modelId: dto.modelId ?? null,
           mode: dto.mode,
           mediaType: dto.mediaType ?? 'image',
-          model: dto.model ?? null,
           prompt: dto.prompt ?? '',
           params: dto.params ?? {},
           files: { output: dto.files?.output ?? [], input: dto.files?.input ?? [] }

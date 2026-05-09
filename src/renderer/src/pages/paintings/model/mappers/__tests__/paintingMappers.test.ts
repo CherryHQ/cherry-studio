@@ -34,7 +34,7 @@ describe('paintingMappers', () => {
     providerId: 'silicon',
     mode: 'generate',
     mediaType: 'video',
-    model: 'model-1',
+    modelId: 'model-1',
     prompt: 'draw a cat',
     params: {
       guidanceScale: 4.5,
@@ -73,9 +73,9 @@ describe('paintingMappers', () => {
     expect(result).toEqual({
       id: 'painting-1',
       providerId: 'silicon',
+      model: 'model-1',
       mode: 'generate',
       mediaType: 'video',
-      model: 'model-1',
       prompt: 'draw a cat',
       files: [{ ...file, name: 'file-1.png' }],
       inputFiles: [{ ...file, id: 'input-file-1', name: 'input-file-1.png' }],
@@ -104,9 +104,9 @@ describe('paintingMappers', () => {
     ).toEqual({
       id: 'painting-1',
       providerId: 'silicon',
+      modelId: 'model-1',
       mode: 'generate',
       mediaType: 'video',
-      model: 'model-1',
       prompt: 'draw a cat',
       params: {
         guidanceScale: 4.5,
@@ -124,7 +124,7 @@ describe('paintingMappers', () => {
       providerId: 'silicon',
       mode: 'generate',
       mediaType: 'video',
-      model: 'model-1',
+      modelId: 'model-1',
       prompt: 'draw a cat',
       params: {
         guidanceScale: 4.5,

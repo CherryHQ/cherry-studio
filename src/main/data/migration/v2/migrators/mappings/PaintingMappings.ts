@@ -39,9 +39,9 @@ const legacyParentDbKey = ['parent', '_', 'id'].join('')
 export interface NormalizedPaintingRow extends Omit<NewPainting, 'orderKey'> {
   id: string
   providerId: string
+  modelId: string | null
   mode: PaintingMode
   mediaType: PaintingMediaType
-  model: string | null
   prompt: string
   params: PaintingParams
   files: { output: string[]; input: string[] }
@@ -185,6 +185,7 @@ function buildParams(
     'providerId',
     'mediaType',
     'media_type',
+    'modelId',
     'model',
     'prompt',
     'files',
@@ -283,9 +284,9 @@ export function transformLegacyPaintingRecord(
     value: {
       id,
       providerId: scope.providerId,
+      modelId: getNonEmptyString(record.modelId) ?? getNonEmptyString(record.model) ?? null,
       mode: scope.mode,
       mediaType: 'image',
-      model: getNonEmptyString(record.model) ?? null,
       prompt,
       params,
       files: { output: outputFileIds, input: inputFileIds }

@@ -2230,6 +2230,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "mode": {
           "name": "mode",
           "type": "text",
@@ -2244,13 +2251,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'image'"
-        },
-        "model": {
-          "name": "model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         },
         "prompt": {
           "name": "prompt",
@@ -2314,10 +2314,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "painting_mode_check": {
-          "name": "painting_mode_check",
-          "value": "\"painting\".\"mode\" IN ('generate', 'draw', 'edit', 'remix', 'merge', 'upscale')"
-        },
         "painting_media_type_check": {
           "name": "painting_media_type_check",
           "value": "\"painting\".\"media_type\" IN ('image', 'video')"

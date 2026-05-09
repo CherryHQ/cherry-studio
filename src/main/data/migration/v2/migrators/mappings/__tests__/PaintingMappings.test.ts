@@ -24,6 +24,7 @@ describe('PaintingMappings', () => {
     const result = transformLegacyPaintingRecord('openai_image_generate', {
       id: 'painting-1',
       providerId: 'my-custom-new-api',
+      model: 'gpt-image-1',
       prompt: 'hello'
     })
 
@@ -31,6 +32,7 @@ describe('PaintingMappings', () => {
       ok: true,
       value: {
         providerId: 'my-custom-new-api',
+        modelId: 'gpt-image-1',
         mode: 'generate',
         mediaType: 'image'
       }

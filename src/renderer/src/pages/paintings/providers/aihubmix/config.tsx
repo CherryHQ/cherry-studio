@@ -1,5 +1,4 @@
 import { uuid } from '@renderer/utils'
-import type { PaintingMode } from '@shared/data/types/painting'
 
 import {
   ASPECT_RATIOS,
@@ -452,7 +451,7 @@ export const DEFAULT_PAINTING: PaintingData = {
 }
 
 export function createDefaultAihubmixPainting(tab?: string) {
-  const mode = (tab ?? 'generate') as PaintingMode
+  const mode = tab ?? 'generate'
   return {
     ...DEFAULT_PAINTING,
     id: uuid(),

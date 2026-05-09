@@ -4,7 +4,7 @@ import { createNewApiProvider } from '../providers/newapi'
 import { providerRegistry } from '../providers/registry'
 import type { PaintingProviderDefinition } from '../providers/shared/provider'
 
-const MODE_ALIASES: Partial<Record<PaintingMode, PaintingMode[]>> = {
+const MODE_ALIASES: Record<string, string[]> = {
   generate: ['draw'],
   draw: ['generate']
 }

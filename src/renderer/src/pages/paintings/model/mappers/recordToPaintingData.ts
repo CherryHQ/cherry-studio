@@ -30,7 +30,7 @@ export async function recordToPaintingData(record: PaintingRecord): Promise<Pain
     providerId: record.providerId,
     mode: record.mode,
     mediaType: record.mediaType,
-    model: record.model ?? undefined,
+    model: record.modelId ?? undefined,
     prompt: record.prompt,
     files,
     inputFiles,

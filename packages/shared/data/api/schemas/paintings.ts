@@ -32,9 +32,9 @@ export const CreatePaintingSchema = z
   .object({
     id: OptionalTrimmedStringSchema.optional(),
     providerId: OptionalTrimmedStringSchema,
+    modelId: OptionalNullableTrimmedStringSchema.optional(),
     mode: PaintingModeSchema,
     mediaType: PaintingMediaTypeSchema.optional(),
-    model: OptionalNullableTrimmedStringSchema.optional(),
     prompt: z.string().optional(),
     params: PaintingParamsSchema.optional(),
     files: PaintingFilesSchema.optional()
@@ -45,9 +45,9 @@ export type CreatePaintingDto = z.infer<typeof CreatePaintingSchema>
 export const UpdatePaintingSchema = z
   .object({
     providerId: OptionalTrimmedStringSchema.optional(),
+    modelId: OptionalNullableTrimmedStringSchema.optional(),
     mode: PaintingModeSchema.optional(),
     mediaType: PaintingMediaTypeSchema.optional(),
-    model: OptionalNullableTrimmedStringSchema.optional(),
     prompt: z.string().optional(),
     params: PaintingParamsSchema.optional(),
     files: PaintingFilesSchema.optional()

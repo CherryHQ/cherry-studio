@@ -16,6 +16,7 @@ const RESERVED_PAINTING_PARAM_KEYS = new Set([
   'mediaType',
   'files',
   'inputFiles',
+  'modelId',
   'model',
   'prompt',
   'persistedAt'
@@ -48,9 +49,9 @@ export function paintingDataToCreateDto(painting: CreatePaintingData): CreatePai
   return {
     id: painting.id,
     providerId: painting.providerId,
+    modelId: typeof painting.model === 'string' && painting.model.trim() ? painting.model : undefined,
     mode: painting.mode,
     mediaType: painting.mediaType ?? 'image',
-    model: typeof painting.model === 'string' && painting.model.trim() ? painting.model : undefined,
     prompt: painting.prompt ?? '',
     params: paintingParamsForPersistence(painting),
     files: {

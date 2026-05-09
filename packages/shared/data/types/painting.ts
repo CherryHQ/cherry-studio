@@ -1,6 +1,14 @@
 import * as z from 'zod'
 
-export const PaintingModeSchema = z.enum(['generate', 'draw', 'edit', 'remix', 'merge', 'upscale'])
+/**
+ * Provider workflow key used for list filtering and UI restoration.
+ *
+ * This stays as a top-level field instead of living in `params` because it is
+ * a cross-provider query dimension. It is intentionally weakly constrained so
+ * new image/video providers can introduce modes without requiring a DB/API
+ * schema migration.
+ */
+export const PaintingModeSchema = z.string().trim().min(1)
 export type PaintingMode = z.infer<typeof PaintingModeSchema>
 
 export const PaintingMediaTypeSchema = z.enum(['image', 'video'])
@@ -18,9 +26,9 @@ export type PaintingFiles = z.infer<typeof PaintingFilesSchema>
 export const PaintingSchema = z.object({
   id: z.string(),
   providerId: z.string(),
+  modelId: z.string().nullable().optional(),
   mode: PaintingModeSchema,
   mediaType: PaintingMediaTypeSchema,
-  model: z.string().nullable().optional(),
   prompt: z.string(),
   params: PaintingParamsSchema,
   files: PaintingFilesSchema,
