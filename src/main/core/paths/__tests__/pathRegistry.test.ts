@@ -47,6 +47,10 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('feature.files.data')).toBe(true)
     })
 
+    it('returns true for feature.file_processing.results', () => {
+      expect(shouldAutoEnsure('feature.file_processing.results')).toBe(true)
+    })
+
     it('returns true for feature.mcp', () => {
       expect(shouldAutoEnsure('feature.mcp')).toBe(true)
     })

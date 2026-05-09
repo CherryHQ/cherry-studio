@@ -68,10 +68,10 @@ Use the full Cherry Studio design system so Tailwind theme tokens resolve to Che
 <div className="p-xl">Extra large spacing (5rem)</div>
 <div className="p-8xl">Maximum spacing (15rem)</div>
 
-<div className="rounded-4xs">Tiny radius (0.25rem)</div>
-<div className="rounded-xs">Small radius (1rem)</div>
-<div className="rounded-md">Medium radius (2rem)</div>
-<div className="rounded-xl">Large radius (3rem)</div>
+<div className="rounded-4xs">Tiny radius (0.03125rem)</div>
+<div className="rounded-xs">Small radius (0.125rem)</div>
+<div className="rounded-md">Medium radius (0.5rem)</div>
+<div className="rounded-xl">Large radius (0.875rem)</div>
 <div className="rounded-round">Full radius (999px)</div>
 ```
 

@@ -1,89 +1,105 @@
 import { cn } from '@renderer/utils'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import React from 'react'
-import type { CSSProp } from 'styled-components'
-import styled from 'styled-components'
 
 export { Divider as SettingDivider } from '@cherrystudio/ui'
 
-export const SettingContainer = styled.div<{ theme?: ThemeMode }>`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  padding: 15px 18px;
-  overflow-y: scroll;
-  background: ${(props) => (props.theme === 'dark' ? 'transparent' : 'var(--color-background-soft)')};
+export const SettingContainer = ({
+  className,
+  theme,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode }) => (
+  <div
+    data-theme-mode={theme}
+    className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden', className)}
+    {...props}
+  />
+)
 
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`
-
-export const SettingTitle = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  user-select: none;
-  font-size: 14px;
-  font-weight: bold;
-`
+export const SettingTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn('flex select-none items-center justify-between font-semibold text-[15px]', className)}
+    {...props}
+  />
+)
 
 export const SettingSubtitle = ({
   ref,
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.RefObject<HTMLDivElement | null> }) => (
-  <div ref={ref} className={cn('mt-4 select-none font-bold text-(--color-text-1) text-sm', className)} {...props} />
+  <div ref={ref} className={cn('mt-4 select-none font-bold text-(--color-foreground) text-sm', className)} {...props} />
 )
 
-export const SettingDescription = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
-  margin-top: 10px;
-`
+export const SettingDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-2.5 text-foreground-muted text-xs', className)} {...props} />
+)
 
-export const SettingRow = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  min-height: 24px;
-`
+export const SettingRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex min-h-6 items-center justify-between', className)} {...props} />
+)
 
-export const SettingRowTitle = styled.div`
-  font-size: 14px;
-  line-height: 18px;
-  color: var(--color-text-1);
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-`
+export const SettingRowTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex items-center text-foreground text-sm leading-4.5', className)} {...props} />
+)
 
-export const SettingHelpTextRow = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 5px 0;
-`
+export const SettingHelpTextRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex items-center py-1.25', className)} {...props} />
+)
 
-export const SettingHelpText = styled.div`
-  font-size: 11px;
-  color: var(--color-text);
-  opacity: 0.4;
-`
+export const SettingHelpText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('text-[11px] text-foreground/40', className)} {...props} />
+)
 
 export const SettingHelpLink = ({ className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+  <a className={cn('cursor-pointer text-(--color-primary) text-[11px] hover:underline', className)} {...props} />
+)
+
+export const SettingTitleExternalLink = ({
+  className,
+  target = '_blank',
+  rel = 'noreferrer',
+  ...props
+}: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
   <a
-    className={cn('mx-1.25 cursor-pointer text-(--color-primary) text-[11px] hover:underline', className)}
+    target={target}
+    rel={rel}
+    className={cn('inline-flex items-center text-(--color-primary) hover:underline', className)}
     {...props}
   />
 )
 
-export const SettingGroup = styled.div<{ theme?: ThemeMode; css?: CSSProp }>`
-  margin-bottom: 20px;
-  border-radius: var(--radius-2xs);
-  border: 0.5px solid var(--color-border);
-  padding: 16px;
-  background: ${(props) => (props.theme === 'dark' ? '#00000010' : 'var(--color-background)')};
-`
+export const SettingGroup = ({
+  className,
+  theme,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode }) => (
+  <div
+    data-theme-mode={theme}
+    className={cn('mt-2 border-border/60 border-t pt-3 first:mt-0 first:border-t-0 first:pt-0', className)}
+    {...props}
+  />
+)
+
+export const settingsSubmenuScrollClassName =
+  'h-[calc(100vh-var(--navbar-height))] w-(--settings-width) border-border border-r-[0.5px]'
+
+export const settingsSubmenuListClassName = 'flex min-h-full flex-col gap-0.5 p-2.5 pb-12 [box-sizing:border-box]'
+
+export const settingsSubmenuItemClassName =
+  'h-8 rounded-lg border-transparent px-2.5 my-[1px] font-semibold text-foreground/85 text-sm hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground/70'
+
+export const settingsSubmenuSectionTitleClassName =
+  'px-2.5 pt-1.5 pb-1 font-medium text-foreground-muted text-xs first:pt-0'
+
+export const settingsSubmenuDividerClassName = 'my-1 bg-transparent'
+
+export const settingsContentScrollClassName = 'flex-1 min-h-0'
+
+export const settingsContentBodyClassName = 'flex min-h-full w-full flex-col px-5 py-4'
+
+export const settingsContentHeaderClassName = 'mb-5'
+
+export const settingsContentHeaderTitleClassName = 'font-semibold text-foreground text-[15px]'
+
+export const settingsContentHeaderDescriptionClassName = 'mt-1 text-foreground-muted text-sm'

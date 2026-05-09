@@ -30,6 +30,9 @@ const tailwindThemeChange = (theme: ThemeMode) => {
   root.classList.add(theme)
 }
 
+const getSystemTheme = () =>
+  window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
+
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   // 用户设置的主题
   // const { theme: settedTheme, setTheme: setSettedTheme, language } = useSettings()
@@ -37,9 +40,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [settedTheme, setSettedTheme] = usePreference('ui.theme_mode')
   const [language] = usePreference('app.language')
 
-  const [actualTheme, setActualTheme] = useState<ThemeMode>(
-    window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
-  )
+  const [actualTheme, setActualTheme] = useState<ThemeMode>(getSystemTheme)
   const { initUserTheme } = useUserTheme()
   const { navbarPosition } = useNavbarPosition()
 
@@ -82,6 +83,26 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   useEffect(() => {
     tailwindThemeChange(actualTheme)
   }, [actualTheme])
+
+  useEffect(() => {
+    if (settedTheme === ThemeMode.light || settedTheme === ThemeMode.dark) {
+      setActualTheme(settedTheme)
+      return
+    }
+
+    if (settedTheme !== ThemeMode.system) {
+      return
+    }
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const updateSystemTheme = () => {
+      setActualTheme(media.matches ? ThemeMode.dark : ThemeMode.light)
+    }
+
+    updateSystemTheme()
+    media.addEventListener('change', updateSystemTheme)
+    return () => media.removeEventListener('change', updateSystemTheme)
+  }, [settedTheme])
 
   return (
     <ThemeContext value={{ theme: actualTheme, settedTheme: settedTheme, toggleTheme, setTheme: setSettedTheme }}>

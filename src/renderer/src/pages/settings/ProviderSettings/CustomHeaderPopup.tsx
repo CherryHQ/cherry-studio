@@ -5,7 +5,7 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Provider } from '@renderer/types'
-import { Modal, Space } from 'antd'
+import { Modal } from 'antd'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -75,7 +75,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       maskClosable={false}
       transitionName="animation-move-down"
       centered>
-      <Space.Compact direction="vertical" style={{ width: '100%', marginTop: 5 }}>
+      <div className="mt-1.25 flex w-full flex-col">
         <SettingHelpText>{t('settings.provider.copilot.headers_description')}</SettingHelpText>
         <CodeEditor
           theme={activeCmTheme}
@@ -95,7 +95,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             keymap: true
           }}
         />
-      </Space.Compact>
+      </div>
     </Modal>
   )
 }

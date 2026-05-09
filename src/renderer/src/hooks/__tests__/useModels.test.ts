@@ -36,7 +36,7 @@ describe('useModels', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }))
 
@@ -52,7 +52,7 @@ describe('useModels', () => {
       isLoading: true,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }))
 
@@ -68,7 +68,7 @@ describe('useModels', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }))
 
@@ -128,7 +128,7 @@ describe('useModels', () => {
   })
 
   it('should expose refetch from useQuery', () => {
-    const mockRefetch = vi.fn()
+    const mockRefetch = vi.fn().mockResolvedValue(undefined)
     mockUseQuery.mockImplementation(() => ({
       data: mockModelList,
       isLoading: false,

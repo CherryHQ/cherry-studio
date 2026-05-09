@@ -16,7 +16,9 @@
  *   pattern; TagService reads are scoped to tag-management flows.
  *
  * IMPORTANT: `entity_tag` is polymorphic and has no FK to assistant/topic/session tables.
- * Callers deleting tagged entities must invoke `purgeForEntity()` as part of their delete workflow.
+ * Callers deleting tagged entities must invoke `purgeForEntityTx()` as part of their delete workflow.
+ * For cascading deletes where a parent owns N entities of the same type, prefer
+ * `purgeForEntitiesTx` over a loop of `purgeForEntityTx`.
  * TODO(v2): Wire session cleanup through this helper once the session table is migrated into the v2 data layer.
  */
 
@@ -84,7 +86,7 @@ export class TagService {
     return application.get('DbService').getDb()
   }
 
-  private async assertTagsExist(tx: Pick<DbType, 'select'>, tagIds: string[]): Promise<void> {
+  private async assertTagsExistTx(tx: Pick<DbType, 'select'>, tagIds: string[]): Promise<void> {
     const uniqueTagIds = [...new Set(tagIds)]
 
     if (uniqueTagIds.length === 0) {
@@ -245,7 +247,7 @@ export class TagService {
       }
 
       if (toAdd.length > 0) {
-        await this.assertTagsExist(tx, toAdd)
+        await this.assertTagsExistTx(tx, toAdd)
         await tx.insert(entityTagTable).values(toAdd.map((tagId) => ({ entityType, entityId, tagId })))
       }
     })
@@ -297,14 +299,27 @@ export class TagService {
    * when deleting an entity, since entity_tag has no FK to entity tables.
    *
    * Signature is tx-first to match the polymorphic-purge convention
-   * (see PinService.purgeForEntity).
+   * (see PinService.purgeForEntityTx).
    */
-  async purgeForEntity(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): Promise<void> {
+  async purgeForEntityTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): Promise<void> {
     await tx
       .delete(entityTagTable)
       .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
 
     logger.info('Purged tags for entity', { entityType, entityId })
+  }
+
+  /**
+   * Bulk variant of `purgeForEntityTx` — same semantics, takes a list of entity
+   * ids. Empty input is a no-op. Single aggregated log line.
+   */
+  async purgeForEntitiesTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityIds: string[]): Promise<void> {
+    if (entityIds.length === 0) return
+    await tx
+      .delete(entityTagTable)
+      .where(and(eq(entityTagTable.entityType, entityType), inArray(entityTagTable.entityId, entityIds)))
+
+    logger.info('Purged tags for entities', { entityType, count: entityIds.length })
   }
 
   /**

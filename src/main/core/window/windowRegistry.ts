@@ -39,6 +39,15 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   // backgroundColor / titleBarOverlay / backgroundMaterial / frame / icon / zoomFactor) are
   // injected via wm.open({ options }). showMode 'manual' lets MainWindowService decide first
   // show in the ready-to-show handler (so tray-on-launch can suppress it).
+  //
+  // Intentionally NOT using `singletonConfig` here — MainWindowService's close handler
+  // (see `setupWindowLifecycleEvents`) reads tray preferences at runtime, calls
+  // `application.quit()` on Win/Linux without tray, guards on `isFullScreen()`, and
+  // toggles `setMacShowInDockByType` for tray-mode transitions. None of this is
+  // expressible via `retentionTime`, and forcing it through would regress Win/Linux
+  // "close = quit" semantics. Eager warmup also clashes with the dynamic options +
+  // state-preserving hide→show contract of Step A. See window-manager-warmup-mechanics.md
+  // → Singleton Variant for the declarative alternative and its constraints.
   [WindowType.Main]: {
     type: WindowType.Main,
     lifecycle: 'singleton',
@@ -81,6 +90,36 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // every show/hide/minimize/restore, replacing the manual app.dock?.show()
       // / app.dock?.hide() calls that used to live in the close handler.
       macShowInDock: true
+    }
+  },
+
+  // Settings window — singleton popup surface for application settings.
+  // The renderer consumes initData as the target /settings/* route, so open()
+  // can focus an existing settings window and navigate it in-place.
+  [WindowType.Settings]: {
+    type: WindowType.Settings,
+    lifecycle: 'singleton',
+    singletonConfig: {
+      retentionTime: 300
+    },
+    htmlPath: 'settings.html',
+    windowOptions: {
+      ...DEFAULT_WINDOW_CONFIG,
+      width: 960,
+      height: 680,
+      minWidth: 760,
+      minHeight: 520,
+      autoHideMenuBar: true,
+      transparent: false,
+      vibrancy: 'sidebar',
+      visualEffectState: 'active',
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        webSecurity: false,
+        webviewTag: true
+      }
     }
   },
 

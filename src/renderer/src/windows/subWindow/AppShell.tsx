@@ -1,5 +1,6 @@
 import '@renderer/databases'
 
+import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
 import { useWindowInitData } from '@renderer/core/hooks/useWindowInitData'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
@@ -59,9 +60,11 @@ export const SubWindowAppShell = () => {
     }
   }
 
-  // Sync internal navigation back to tab state with default title
+  // Sync internal navigation back to tab state. Mirror the main AppShell:
+  // clear the per-entity icon override so a mini-app logo doesn't stick onto
+  // an unrelated route after navigation inside the same tab.
   const handleUrlChange = (tabId: string, url: string) => {
-    updateTab(tabId, { url, title: getDefaultRouteTitle(url) })
+    updateTab(tabId, { url, title: getDefaultRouteTitle(url), icon: undefined })
   }
 
   return (
@@ -99,6 +102,12 @@ export const SubWindowAppShell = () => {
           .map((tab) => (
             <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
           ))}
+
+        {/* Mini-app keep-alive WebView pool — needed for /app/mini-app/<id>
+            route tabs, same as the main AppShell. The cache backing the pool
+            is per-window (Memory tier) so this sub-window manages its own
+            list independently of the main window. */}
+        <MiniAppTabsPool />
       </main>
     </div>
   )

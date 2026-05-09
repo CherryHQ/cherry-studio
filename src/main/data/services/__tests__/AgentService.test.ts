@@ -1,5 +1,8 @@
+import path from 'node:path'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentService } from '@data/services/AgentService'
+import { pinService } from '@data/services/PinService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -43,12 +46,14 @@ vi.mock('@main/services/agents/agentUtils', async (importOriginal) => {
 
 describe('AgentService', () => {
   const dbh = setupTestDatabase()
+  const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
   async function insertAgent(overrides: Partial<typeof agentTable.$inferInsert> = {}): Promise<{ id: string }> {
     const id = overrides.id ?? `agent_test_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
     const base: typeof agentTable.$inferInsert = {
       type: 'claude-code',
       name: 'Test Agent',
+      instructions: 'You are a helpful assistant.',
       model: 'claude-3-5-sonnet',
       sortOrder: 0,
       ...overrides,
@@ -58,8 +63,48 @@ describe('AgentService', () => {
     return { id }
   }
 
+  describe('createAgent', () => {
+    it('generates a UUID v4 agent ID', async () => {
+      const agent = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'UUID ID Test',
+        model: 'claude-3-5-sonnet'
+      })
+
+      expect(agent.id).toMatch(uuidV4Pattern)
+    })
+
+    it('uses a UUID workspace directory instead of deriving it from the agent id', async () => {
+      const agent = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Workspace Test',
+        model: 'claude-3-5-sonnet'
+      })
+
+      expect(agent.accessiblePaths).toHaveLength(1)
+      const workspace = agent.accessiblePaths[0]
+      expect(path.dirname(workspace)).toBe('/mock/feature.agents.workspaces')
+      expect(path.basename(workspace)).toMatch(uuidV4Pattern)
+      expect(path.basename(workspace)).not.toBe(agent.id.slice(-9))
+    })
+
+    it('places newly created agents at the top of asc(sortOrder) listings', async () => {
+      await insertAgent({ id: 'agent_existing_a', sortOrder: 0 })
+      await insertAgent({ id: 'agent_existing_b', sortOrder: 1 })
+
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Newest',
+        model: 'claude-3-5-sonnet'
+      })
+
+      const { agents } = await agentService.listAgents()
+      expect(agents[0]?.id).toBe(created.id)
+    })
+  })
+
   describe('deleteAgent', () => {
-    it('hard-deletes a non-builtin agent and removes the row', async () => {
+    it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
 
       const deleted = await agentService.deleteAgent(id)
@@ -69,16 +114,16 @@ describe('AgentService', () => {
       expect(rows.find((r) => r.id === id)).toBeUndefined()
     })
 
-    it('soft-deletes a builtin agent by setting deletedAt', async () => {
-      await insertAgent({ id: 'cherry-claw-default' })
+    it('purges agent pins on delete (pin table has no FK)', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_pin_001' })
+      const otherAgent = await insertAgent({ id: 'agent_other_002' })
+      await pinService.pin({ entityType: 'agent', entityId: id })
+      const otherPin = await pinService.pin({ entityType: 'agent', entityId: otherAgent.id })
 
-      const deleted = await agentService.deleteAgent('cherry-claw-default')
+      await agentService.deleteAgent(id)
 
-      expect(deleted).toBe(true)
-      const [row] = await dbh.db.select().from(agentTable)
-      expect(row?.deletedAt).toBeTruthy()
-      // Row still exists in the table
-      expect(row?.id).toBe('cherry-claw-default')
+      const remaining = await pinService.listByEntityType('agent')
+      expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
     })
   })
 

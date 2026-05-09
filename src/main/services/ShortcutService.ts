@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isMac } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { handleZoomFactor } from '@main/utils/zoom'
@@ -20,12 +21,13 @@ const toAccelerator = (keys: string[]): string => keys.join('+')
 const relevantDefinitions = SHORTCUT_DEFINITIONS.filter(
   (d) =>
     d.scope !== 'renderer' &&
+    !(isMac && d.key === 'shortcut.general.show_settings') &&
     (!d.supportedPlatforms || d.supportedPlatforms.includes(process.platform as SupportedPlatform))
 )
 
 @Injectable('ShortcutService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['MainWindowService', 'SelectionService'])
+@DependsOn(['MainWindowService', 'SelectionService', 'SettingsWindowService'])
 export class ShortcutService extends BaseService {
   private mainWindow: BrowserWindow | null = null
   private handlers = new Map<ShortcutPreferenceKey, ShortcutHandler>()
@@ -53,8 +55,7 @@ export class ShortcutService extends BaseService {
     })
 
     this.handlers.set('shortcut.general.show_settings', () => {
-      application.get('MainWindowService').showMainWindow()
-      application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.MainWindow_NavigateToSettings)
+      application.get('SettingsWindowService').open('/settings/provider')
     })
 
     this.handlers.set('shortcut.feature.quick_assistant.toggle_window', () => {
@@ -153,8 +154,8 @@ export class ShortcutService extends BaseService {
       this.registerDisposable(() => window.off('closed', onClosed))
     }
 
-    if (!window.isDestroyed() && window.isFocused()) {
-      this.registerShortcuts(window, false)
+    if (!window.isDestroyed()) {
+      this.registerShortcuts(window, !window.isFocused())
     }
   }
 

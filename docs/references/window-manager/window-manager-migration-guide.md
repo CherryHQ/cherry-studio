@@ -45,6 +45,8 @@ WINDOW_TYPE_REGISTRY[WindowType.MyWindow] = {
 
 See [Lifecycle Modes](./window-manager-overview.md#three-lifecycle-modes) for choosing between `default` / `singleton` / `pooled`.
 
+Optional: for singleton types that benefit from pre-warm or close→hide, set `singletonConfig`. See [Warmup Mechanics → Singleton Variant](./window-manager-warmup-mechanics.md#singleton-variant).
+
 ## Step 3: Move domain logic to onWindowCreated
 
 Replace direct `new BrowserWindow()` + setup code with an `onWindowCreated` subscription in your domain service:

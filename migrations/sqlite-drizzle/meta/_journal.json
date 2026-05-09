@@ -109,8 +109,50 @@
     {
       "idx": 15,
       "version": "6",
-      "when": 1776954716957,
-      "tag": "0015_breezy_demogoblin",
+      "when": 1777461460041,
+      "tag": "0015_groovy_tiger_shark",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1777474576049,
+      "tag": "0016_late_stryfe",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1777474700000,
+      "tag": "0017_giant_vermin",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1777555974425,
+      "tag": "0018_tearful_jamie_braddock",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1777636561235,
+      "tag": "0019_parallel_annihilus",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1778063182815,
+      "tag": "0020_known_captain_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1778156840137,
+      "tag": "0021_vengeful_green_goblin",
       "breakpoints": true
     }
   ],

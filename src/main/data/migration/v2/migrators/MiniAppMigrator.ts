@@ -2,15 +2,21 @@
  * MiniApp migrator - migrates miniapp configurations from Redux to SQLite
  */
 
-import type { MiniAppInsert, MiniAppStatus } from '@data/db/schemas/miniapp'
-import { miniappTable } from '@data/db/schemas/miniapp'
+import fs from 'node:fs/promises'
+
+import type { MiniAppInsert, MiniAppStatus } from '@data/db/schemas/miniApp'
+import { miniAppTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
+import { MINI_APP_ID_REGEX } from '@shared/data/api/schemas/miniApps'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import { assignOrderKeysByScope } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { transformMiniApp } from './mappings/MiniAppMappings'
+
+type MiniAppRowWithoutOrderKey = Omit<MiniAppInsert, 'orderKey'>
 
 const logger = loggerService.withContext('MiniAppMigrator')
 
@@ -22,15 +28,18 @@ export class MiniAppMigrator extends BaseMigrator {
 
   private preparedRows: MiniAppInsert[] = []
   private skippedCount = 0
+  private originalSourceCount = 0
 
   override reset(): void {
     this.preparedRows = []
     this.skippedCount = 0
+    this.originalSourceCount = 0
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     this.preparedRows = []
     this.skippedCount = 0
+    this.originalSourceCount = 0
 
     try {
       const warnings: string[] = []
@@ -41,7 +50,7 @@ export class MiniAppMigrator extends BaseMigrator {
       }>('minapps')
 
       if (!state) {
-        logger.info('No minapps state found, skipping migration')
+        logger.info('No miniApps state found, skipping migration')
         return { success: true, itemCount: 0 }
       }
 
@@ -52,9 +61,22 @@ export class MiniAppMigrator extends BaseMigrator {
         { data: state.pinned ?? [], status: 'pinned' }
       ]
 
+      // Calculate original source count (total apps before filtering/deduplication)
+      this.originalSourceCount = groups.reduce((total, group) => total + group.data.length, 0)
+
+      // v1 strips `logo` to undefined before persisting custom apps to Redux state
+      // (see v1 src/renderer/src/store/minapps.ts reducers). The full custom-app
+      // record — including logo — lives in `customMiniAppsFile` (resolved by
+      // MigrationPaths from {userData}/Data/Files/custom-minapps.json) and is
+      // reattached at runtime. Re-read it here so logos survive migration.
+      const { logos: customLogosByAppId, warnings: customLogoWarnings } = await loadCustomMiniAppLogos(
+        ctx.paths.customMiniAppsFile
+      )
+      warnings.push(...customLogoWarnings)
+
       // Track seen IDs to detect duplicates across groups
       // A pinned app also appears in enabled — prefer the pinned status (higher priority)
-      const seenIds = new Map<string, MiniAppInsert>()
+      const seenIds = new Map<string, MiniAppRowWithoutOrderKey>()
 
       // Process pinned first (highest priority), then enabled, then disabled
       const priorityOrder: MiniAppStatus[] = ['pinned', 'enabled', 'disabled']
@@ -63,25 +85,48 @@ export class MiniAppMigrator extends BaseMigrator {
         const group = groups.find((g) => g.status === status)
         if (!group) continue
 
-        for (let i = 0; i < group.data.length; i++) {
-          const app = group.data[i]
-
+        for (const app of group.data) {
           if (!app || !app.id || typeof app.id !== 'string') {
             this.skippedCount++
             warnings.push(`Skipped ${status} app without valid id: ${app?.name ?? 'unknown'}`)
             continue
           }
 
-          try {
-            const row = transformMiniApp(app, status, i)
+          // Reject ids that the v2 API would refuse on `POST /mini-apps`.
+          // Otherwise a stray `:` / `/` in a v1 custom-app id (legal in v1)
+          // migrates a row that the v2 schema can never recreate after deletion.
+          if (!MINI_APP_ID_REGEX.test(app.id)) {
+            this.skippedCount++
+            warnings.push(`Skipped ${status} app with invalid id format: ${app.id}`)
+            continue
+          }
 
-            // If already seen with same or higher priority, keep existing
-            // If seen with lower priority, replace (e.g. enabled -> pinned)
+          try {
+            // Reattach logo for custom apps from custom-minapps.json (v1 strips it from Redux).
+            if (!app.logo && customLogosByAppId.has(app.id)) {
+              app.logo = customLogosByAppId.get(app.id)
+            }
+
+            const row = transformMiniApp(app, status)
+
+            // All rows must have name and url populated (full data + delta tracking).
+            if (!row.name || !row.url) {
+              this.skippedCount++
+              warnings.push(`Skipped ${status} app ${app.id}: missing name or url`)
+              continue
+            }
+
+            // If already seen with same or higher priority, keep existing.
+            // If seen with lower priority, replace (e.g. enabled -> pinned).
+            // Either way the duplicate is counted as skipped so the engine's
+            // `targetCount >= sourceCount - skippedCount` invariant holds —
+            // pinned apps in v1 also appear in `enabled`, inflating sourceCount.
             const existing = seenIds.get(app.id)
             if (!existing) {
               seenIds.set(app.id, row)
+            } else {
+              this.skippedCount++
             }
-            // else: keep the higher-priority version already stored
           } catch (err) {
             this.skippedCount++
             const errMsg = err instanceof Error ? err.message : String(err)
@@ -91,32 +136,20 @@ export class MiniAppMigrator extends BaseMigrator {
         }
       }
 
-      // Collect final unique rows, excluding duplicates that were demoted
-      // Re-index sortOrder within each status group after dedup
-      const statusGroups = new Map<MiniAppStatus, MiniAppInsert[]>()
-      for (const row of seenIds.values()) {
-        const status = row.status ?? 'enabled'
-        const group = statusGroups.get(status) ?? []
-        group.push(row)
-        statusGroups.set(status, group)
-      }
+      // Stamp orderKey within each status partition (data-ordering-guide.md §5)
+      const rowsWithoutOrder: MiniAppRowWithoutOrderKey[] = [...seenIds.values()]
+      this.preparedRows = assignOrderKeysByScope(rowsWithoutOrder, (row) => row.status ?? 'enabled') as MiniAppInsert[]
 
-      // Re-assign sortOrder within each group
-      this.preparedRows = []
-      for (const [, rows] of statusGroups) {
-        for (let i = 0; i < rows.length; i++) {
-          this.preparedRows.push({ ...rows[i], sortOrder: i })
-        }
+      const byStatus = {
+        enabled: this.preparedRows.filter((r) => r.status === 'enabled').length,
+        disabled: this.preparedRows.filter((r) => r.status === 'disabled').length,
+        pinned: this.preparedRows.filter((r) => r.status === 'pinned').length
       }
 
       logger.info('Preparation completed', {
         appCount: this.preparedRows.length,
         skipped: this.skippedCount,
-        byStatus: {
-          enabled: statusGroups.get('enabled')?.length ?? 0,
-          disabled: statusGroups.get('disabled')?.length ?? 0,
-          pinned: statusGroups.get('pinned')?.length ?? 0
-        }
+        byStatus
       })
 
       return {
@@ -146,12 +179,12 @@ export class MiniAppMigrator extends BaseMigrator {
       await ctx.db.transaction(async (tx) => {
         for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {
           const batch = this.preparedRows.slice(i, i + BATCH_SIZE)
-          await tx.insert(miniappTable).values(batch)
+          await tx.insert(miniAppTable).values(batch)
           processed += batch.length
         }
       })
 
-      this.reportProgress(100, `Migrated ${processed} miniapps`, {
+      this.reportProgress(100, `Migrated ${processed} miniApps`, {
         key: 'migration.progress.migrated_miniapps',
         params: { processed, total: this.preparedRows.length }
       })
@@ -171,33 +204,36 @@ export class MiniAppMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const result = await ctx.db.select({ count: sql<number>`count(*)` }).from(miniappTable).get()
+      const result = await ctx.db.select({ count: sql<number>`count(*)` }).from(miniAppTable).get()
       const appCount = result?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
       if (appCount !== this.preparedRows.length) {
         errors.push({
           key: 'count_mismatch',
-          message: `Expected ${this.preparedRows.length} miniapps but found ${appCount}`
+          message: `Expected ${this.preparedRows.length} miniApps but found ${appCount}`
         })
       }
 
-      // Sample validation: check required fields
-      const sample = await ctx.db.select().from(miniappTable).limit(5).all()
-      for (const app of sample) {
-        if (!app.appId || !app.name || !app.url) {
-          errors.push({
-            key: app.appId ?? 'unknown',
-            message: 'Missing required field (appId, name, or url)'
-          })
-        }
+      // All rows must have non-empty appId, name, and url.
+      const badRows = await ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(miniAppTable)
+        .where(sql`${miniAppTable.appId} = '' OR ${miniAppTable.name} = '' OR ${miniAppTable.url} = ''`)
+        .get()
+      const badCount = badRows?.count ?? 0
+      if (badCount > 0) {
+        errors.push({
+          key: 'empty_fields',
+          message: `Found ${badCount} rows with empty appId, name, or url`
+        })
       }
 
       return {
         success: errors.length === 0,
         errors,
         stats: {
-          sourceCount: this.preparedRows.length,
+          sourceCount: this.originalSourceCount,
           targetCount: appCount,
           skippedCount: this.skippedCount
         }
@@ -208,11 +244,80 @@ export class MiniAppMigrator extends BaseMigrator {
         success: false,
         errors: [{ key: 'validation', message: error instanceof Error ? error.message : String(error) }],
         stats: {
-          sourceCount: this.preparedRows.length,
+          sourceCount: this.originalSourceCount,
           targetCount: 0,
           skippedCount: this.skippedCount
         }
       }
     }
   }
+}
+
+interface LoadCustomLogosResult {
+  logos: Map<string, string>
+  warnings: string[]
+}
+
+/**
+ * Load the v1 `custom-minapps.json` sidecar at the path supplied by
+ * MigrationPaths and return a map from app id to its logo string. Tolerant of
+ * missing/malformed files. When the file is present but unreadable/unparseable
+ * /wrong-shape it is quarantined to `${file}.broken-<ts>.bak` so subsequent
+ * runs don't keep tripping on the same broken file, and a user-visible
+ * warning is surfaced through the returned `warnings`.
+ */
+async function loadCustomMiniAppLogos(file: string | undefined): Promise<LoadCustomLogosResult> {
+  const logos = new Map<string, string>()
+  const warnings: string[] = []
+  if (!file) return { logos, warnings }
+
+  const quarantine = async (reason: string) => {
+    const backup = `${file}.broken-${Date.now()}.bak`
+    try {
+      await fs.rename(file, backup)
+      const msg = `Quarantined unreadable custom-minapps.json (${reason}) to ${backup}; custom app logos will be lost`
+      warnings.push(msg)
+      logger.warn(msg)
+    } catch (renameErr) {
+      // If we can't even rename, just warn — leaving the file in place is
+      // safer than silently swallowing the failure.
+      warnings.push(`Failed to load and quarantine custom-minapps.json (${reason})`)
+      logger.warn('Failed to quarantine custom-minapps.json', renameErr as Error)
+    }
+  }
+
+  let raw: string
+  try {
+    raw = await fs.readFile(file, 'utf-8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { logos, warnings }
+    logger.warn('Failed to read custom-minapps.json', err instanceof Error ? err : new Error(String(err)))
+    await quarantine(`read failed: ${(err as Error).message ?? String(err)}`)
+    return { logos, warnings }
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err) {
+    logger.warn('Failed to parse custom-minapps.json', err instanceof Error ? err : new Error(String(err)))
+    await quarantine('invalid JSON')
+    return { logos, warnings }
+  }
+  if (!Array.isArray(parsed)) {
+    logger.warn('custom-minapps.json is not a JSON array, ignoring')
+    await quarantine('top-level value is not an array')
+    return { logos, warnings }
+  }
+  for (const entry of parsed) {
+    if (
+      entry &&
+      typeof entry === 'object' &&
+      typeof (entry as Record<string, unknown>).id === 'string' &&
+      typeof (entry as Record<string, unknown>).logo === 'string'
+    ) {
+      const { id, logo } = entry as { id: string; logo: string }
+      if (logo.length > 0) logos.set(id, logo)
+    }
+  }
+  return { logos, warnings }
 }

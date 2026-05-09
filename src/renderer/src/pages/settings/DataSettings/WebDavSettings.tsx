@@ -1,5 +1,5 @@
 import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
-import { Button, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
@@ -7,7 +7,6 @@ import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/We
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
-import { Input } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -63,11 +62,11 @@ const WebDavSettings: FC = () => {
     if (!webdavHost) return null
 
     if (!webdavSync.lastSyncTime && !webdavSync.syncing && !webdavSync.lastSyncError) {
-      return <span style={{ color: 'var(--text-secondary)' }}>{t('settings.data.webdav.noSync')}</span>
+      return <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.webdav.noSync')}</span>
     }
 
     return (
-      <RowFlex className="items-center gap-[5px]">
+      <RowFlex className="items-center gap-1.25">
         {webdavSync.syncing && <SyncOutlined spin />}
         {!webdavSync.syncing && webdavSync.lastSyncError && (
           <WarnTooltip
@@ -76,7 +75,7 @@ const WebDavSettings: FC = () => {
           />
         )}
         {webdavSync.lastSyncTime && (
-          <span style={{ color: 'var(--text-secondary)' }}>
+          <span style={{ color: 'var(--color-foreground-secondary)' }}>
             {t('settings.data.webdav.lastSync')}: {dayjs(webdavSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
@@ -124,7 +123,8 @@ const WebDavSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.webdav.password')}</SettingRowTitle>
-        <Input.Password
+        <Input
+          type="password"
           placeholder={t('settings.data.webdav.password')}
           value={webdavPass}
           onChange={(e) => setWebdavPass(e.target.value)}
@@ -146,12 +146,12 @@ const WebDavSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-        <RowFlex className="justify-between gap-[5px]">
-          <Button onClick={showBackupModal} disabled={backuping}>
+        <RowFlex className="justify-between gap-1.25">
+          <Button onClick={showBackupModal} disabled={backuping} variant="outline">
             <SaveOutlined />
             {t('settings.data.webdav.backup.button')}
           </Button>
-          <Button onClick={showBackupManager} disabled={!webdavHost}>
+          <Button onClick={showBackupManager} disabled={!webdavHost} variant="outline">
             <FolderOpenOutlined />
             {t('settings.data.webdav.restore.button')}
           </Button>

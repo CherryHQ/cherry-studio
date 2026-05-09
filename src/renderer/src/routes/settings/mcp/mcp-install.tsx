@@ -1,10 +1,10 @@
 import { SettingContainer } from '@renderer/pages/settings'
-import InstallNpxUv from '@renderer/pages/settings/MCPSettings/InstallNpxUv'
+import EnvironmentDependencies from '@renderer/pages/settings/MCPSettings/EnvironmentDependencies'
 import { createFileRoute } from '@tanstack/react-router'
 
 const McpInstallWrapper = () => (
   <SettingContainer style={{ backgroundColor: 'inherit' }}>
-    <InstallNpxUv />
+    <EnvironmentDependencies />
   </SettingContainer>
 )
 

@@ -95,6 +95,21 @@ export const allHandlers: ApiImplementation = {
 - Domain workflows
 - Data access via Drizzle ORM
 
+### Cross-Service Table Access
+
+Each table has exactly **one owning service** — the rule is split by access kind:
+
+- **Writes (`insert` / `update` / `delete`) to a table you do not own: forbidden.** Call the owner's method (pass `tx` for transactional writes — owners' mutation methods accept `Pick<DbType, 'delete' | 'insert' | ...>` as the first arg). If a needed shape is missing, add a method on the owner; bulk needs get a bulk method (e.g. `purgeForEntitiesTx`).
+- **Reads from a table you do not own: allowed when inlining is the simpler path.** A cross-table JOIN that combines the owner's table into your query in one round-trip is fine; reach for the owner's read API only when the read needs business logic the owner already encapsulates.
+
+Why writes are strict: the owning service is the single source of truth for the table's invariants (unique indices, `orderKey` semantics, soft-delete, audit timestamps) and emits its mutation logs. Foreign writes split that knowledge across every caller and silence the log narrative.
+
+✅ `ProviderService.delete` → `pinService.purgeForEntitiesTx(tx, 'model', ids)`
+✅ `AssistantService.list` JOINs `entity_tag` + `tag` inline to load tags per assistant
+❌ `ProviderService.delete` → `tx.delete(pinTable).where(...)` directly
+
+If you're tempted to write "going through `XxxService` would be over-engineering" — stop. A 5-line method on the owner is not over-engineering; a foreign service writing to its table is.
+
 ### Example Service
 
 ```typescript
@@ -169,6 +184,23 @@ export class TopicService {
 export const topicService = TopicService.getInstance()
 ```
 
+### Write-path defaults
+
+`service.create()` passes a value into `db.insert(...).values({...})` **only** for columns that are `NOT NULL`, have neither a DB `DEFAULT` nor a `$defaultFn`, and are not already supplied by the DTO:
+
+```ts
+async create(dto: CreateXxxDto) {
+  return await this.db.insert(xxxTable).values({
+    ...dto,
+    settings: dto.settings ?? DEFAULT_XXX_SETTINGS  // service-owned default for a tunable product value
+  }).returning()
+}
+```
+
+For everything else — fields with DB DEFAULTs, `$defaultFn` columns, or genuinely nullable columns — **omit the field from `values({...})`**. Drizzle leaves it out of the SQL; the DB applies its own default (or NULL for nullable columns). Restating the DB's knowledge in app code creates drift risk when defaults later change.
+
+For the cross-layer placement decision tree, see [Default Values & Nullability](./best-practice-default-values-and-nullability.md).
+
 ### Row → Entity Mapping
 
 Each Entity Service provides a `rowToEntity` function that bridges a Drizzle row to its domain entity. Use `nullsToUndefined` (from `services/utils/rowMappers.ts`) for the SQLite NULL → TypeScript `undefined` translation.
@@ -216,9 +248,12 @@ Rule of thumb: **domain field typed `T | null` → use `row.x`; domain field typ
 Some `rowToEntity` functions do too much to benefit from spread. Keep them hand-written when any of the following apply:
 
 - **Field renaming**: `row.parameters → domain parameterSupport` (ModelService)
-- **Non-`undefined` fallbacks**: `?? []`, `?? true`, `?? false`, `?? anotherField` — these need per-field logic anyway
 - **Computed / merged fields**: `authType` derivation, `apiFeatures` merging from defaults (ProviderService)
 - **Sensitive data sanitization**: `apiKeys` stripping — `...clean` would leak unsanitized values
+
+**Anti-pattern — `??` fallbacks for fabricated defaults:**
+
+`row.x ?? '🌟'` / `row.x ?? []` inside `rowToEntity` is **forbidden**. The presence of such a fallback is reverse evidence that the column should be `NOT NULL` with a DB DEFAULT or `$defaultFn` — see [Default Values & Nullability § R3](./best-practice-default-values-and-nullability.md). The legitimate exception is when the entity field is genuinely `T | null` (e.g. `assistant.modelId`); then bypass `clean` and reference `row.x` directly to preserve the NULL contract — that is the **Advanced skeleton** above, not a `??` fallback.
 
 **Conventions:**
 
@@ -244,6 +279,37 @@ async createTopicWithMessage(data: CreateTopicWithMessageDto) {
 
     return { topic, message }
   })
+}
+```
+
+### Transaction Method Naming
+
+Service methods accepting a Drizzle transaction:
+
+| Rule | |
+|---|---|
+| Parameter position | `tx` is the **first** parameter |
+| Method name | ends with `Tx` |
+| Parameter type | `Pick<DbType, '...'>` with the minimum operations needed |
+| Non-Tx wrapper | optional; thin `db.transaction(...)` wrapper, only when a caller needs to own the transaction |
+
+```ts
+// ✅
+async purgeForEntityTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): Promise<void>
+
+// ❌ tx not first
+async purgeForEntity(entityType: EntityType, entityId: string, tx: Pick<DbType, 'delete'>)
+// ❌ missing Tx suffix
+async purgeForEntity(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string)
+// ❌ over-broad type
+async purgeForEntityTx(tx: DbType, entityType: EntityType, entityId: string)
+```
+
+Optional non-Tx wrapper:
+
+```ts
+async purgeForEntity(entityType: EntityType, entityId: string): Promise<void> {
+  await this.db.transaction((tx) => this.purgeForEntityTx(tx, entityType, entityId))
 }
 ```
 

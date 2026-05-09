@@ -1,8 +1,7 @@
 // Original path: src/renderer/src/components/Preview/ImageToolButton.tsx
+import { Button } from '@cherrystudio/ui/components/primitives/button'
+import { Tooltip } from '@cherrystudio/ui/components/primitives/tooltip'
 import { memo } from 'react'
-
-import { Button } from '../../primitives/button'
-import { Tooltip } from '../../primitives/tooltip'
 
 interface ImageToolButtonProps {
   tooltip: string

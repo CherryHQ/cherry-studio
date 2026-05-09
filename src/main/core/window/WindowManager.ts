@@ -20,8 +20,10 @@ import {
   type ManagedWindow,
   type OpenWindowArgs,
   type PoolConfig,
-  type PoolState,
+  type SingletonConfig,
   VALID_WINDOW_TYPES,
+  type WarmupState,
+  type WarmupStateInit,
   type WindowInfo,
   type WindowOptions
 } from '@main/core/window/types'
@@ -32,28 +34,38 @@ import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('WindowManager')
 
-/** GC tick interval in ms — minute-grained precision is sufficient for pool decay/inactivity. */
-const POOL_GC_INTERVAL = 60_000
+/** GC tick interval in ms — minute-grained precision is sufficient for decay/inactivity. */
+const WARMUP_GC_INTERVAL = 60_000
 
 /**
- * Structured pool operation tags. Every pool state mutation logs exactly one
- * `pool[type] <op>` line carrying the full `{idle, managed, inflight}` snapshot,
- * so a pool's timeline can be reconstructed by greppung `op:` or `pool[<type>]`.
+ * Structured warmup operation tags. Every warmup state mutation logs exactly one
+ * `warmup[type] <op>` line carrying the full `{idle, managed, inflight}` snapshot,
+ * so a type's timeline can be reconstructed by grepping `op:` or `warmup[<type>]`.
+ *
+ * Naming convention: ops that only fire on pool code paths carry the `pool-`
+ * prefix; ops that only fire on singleton code paths carry the `singleton-`
+ * prefix; ops emitted from code paths shared by both lifecycles (idle-queue
+ * bookkeeping, GC trim, warmup entry points) carry no prefix.
  */
-type PoolOp =
-  | 'recycle'
-  | 'create-fresh'
+type WarmupOp =
+  // Shared — fired from code paths used by both pool and singleton
   | 'create-idle'
-  | 'release'
   | 'release-skip'
-  | 'release-destroy-disabled'
-  | 'release-destroy-overcap'
-  | 'decay'
   | 'inactivity-trim'
-  | 'lazy-backfill'
-  | 'suspend'
-  | 'resume'
   | 'warmup'
+  // Pool-only — fired exclusively from pool code paths
+  | 'pool-recycle'
+  | 'pool-create-fresh'
+  | 'pool-release'
+  | 'pool-release-destroy-disabled'
+  | 'pool-release-destroy-overcap'
+  | 'pool-decay'
+  | 'pool-lazy-backfill'
+  | 'pool-suspend'
+  | 'pool-resume'
+  // Singleton-only — fired exclusively from singleton code paths
+  | 'singleton-hide'
+  | 'singleton-reuse'
 
 /**
  * Default warmup mode when not explicitly set: 'eager' when the user has
@@ -86,8 +98,8 @@ export class WindowManager extends BaseService {
   /** Window IDs indexed by type for fast lookups */
   private windowsByType = new Map<WindowType, Set<string>>()
 
-  /** Pool state per window type */
-  private pools = new Map<WindowType, PoolState>()
+  /** Warmup state per window type — shared by pooled and singleton lifecycles */
+  private warmupStates = new Map<WindowType, WarmupState>()
 
   /** One-time initialization data per window (consumed by renderer via getInitData IPC) */
   private initDataStore = new Map<string, unknown>()
@@ -106,18 +118,18 @@ export class WindowManager extends BaseService {
     updateDockVisibility: () => this.updateDockVisibility()
   })
 
-  /** Single GC timer shared across all pools (null when no idle windows exist) */
-  private poolGcTimer: ReturnType<typeof setInterval> | null = null
+  /** Single GC timer shared across all warmup states (null when no idle windows exist) */
+  private warmupGcTimer: Disposable | null = null
 
   /**
-   * Pool types whose `idle.length > 0`. Lets `poolGcTick` iterate only over
-   * pools with actual work to do, avoiding empty-pool overhead. Subset of
-   * `pools.keys()`. Maintained on every push/shift/splice of `state.idle`.
-   * The `poolGcTick` defends against brief inconsistency (between
+   * Window types whose `idle.length > 0`. Lets `warmupGcTick` iterate only over
+   * entries with actual work to do, avoiding empty-state overhead. Subset of
+   * `warmupStates.keys()`. Maintained on every push/shift/splice of `state.idle`.
+   * The `warmupGcTick` defends against brief inconsistency (between
    * `destroyWindow()` and the async `closed` listener splice) by re-checking
    * `state.idle.length === 0` inside the loop.
    */
-  private activePoolTypes = new Set<WindowType>()
+  private activeWarmupTypes = new Set<WindowType>()
 
   // ─── Events ────────────────────────────────────────────────────
 
@@ -162,19 +174,27 @@ export class WindowManager extends BaseService {
   }
 
   /**
-   * Warm up eager pools after all services are ready.
+   * Warm up eager pools and singletons after all services are ready.
    * This runs after all bootstrap phases complete, ensuring domain services
    * have already subscribed to onWindowCreated.
    */
   protected override onAllReady(): void {
     for (const [type, metadata] of Object.entries(WINDOW_TYPE_REGISTRY)) {
-      if (metadata.lifecycle !== 'pooled') continue
-      this.validatePoolConfig(type as WindowType, metadata.poolConfig)
-      const warmup = metadata.poolConfig.warmup ?? defaultWarmup(metadata.poolConfig)
-      if (warmup !== 'eager') continue
-      const state = this.pools.get(type as WindowType)
-      if (state?.suspended) continue
-      this.warmPool(type as WindowType, metadata.poolConfig)
+      if (metadata.lifecycle === 'pooled') {
+        this.validatePoolConfig(type as WindowType, metadata.poolConfig)
+        const warmup = metadata.poolConfig.warmup ?? defaultWarmup(metadata.poolConfig)
+        if (warmup !== 'eager') continue
+        const state = this.warmupStates.get(type as WindowType)
+        if (state?.suspended) continue
+        this.warmPool(type as WindowType, metadata.poolConfig)
+        continue
+      }
+      if (metadata.lifecycle === 'singleton' && metadata.singletonConfig) {
+        const validated = this.validateSingletonConfig(type as WindowType, metadata.singletonConfig)
+        if (validated.warmup === 'eager') {
+          this.warmSingleton(type as WindowType, validated)
+        }
+      }
     }
   }
 
@@ -197,20 +217,52 @@ export class WindowManager extends BaseService {
     }
   }
 
+  /**
+   * Validate a {@link SingletonConfig}. Normalizes invalid `retentionTime`
+   * values (non-integer, negative ≠ -1, NaN/Infinity) back to `undefined`
+   * with a warn log. Also warns on `{ warmup: 'eager' }` without retention —
+   * the pre-warmed hidden instance would be destroyed on first close and
+   * never recreated, reducing warmup to a single-use optimization.
+   *
+   * Returns the (possibly normalized) config. Callers should use the returned
+   * value when deriving {@link WarmupStateInit}.
+   */
+  private validateSingletonConfig(type: WindowType, cfg: SingletonConfig): SingletonConfig {
+    const { warmup, retentionTime } = cfg
+    let normalized = retentionTime
+
+    if (normalized !== undefined) {
+      const isInvalid =
+        !Number.isFinite(normalized) || !Number.isInteger(normalized) || (normalized < 0 && normalized !== -1)
+      if (isInvalid) {
+        logger.warn('Singleton config: invalid retentionTime, falling back to undefined', { type, retentionTime })
+        normalized = undefined
+      }
+    }
+
+    if (warmup === 'eager' && (normalized === undefined || normalized === 0)) {
+      logger.warn(
+        'Singleton config: warmup "eager" without retentionTime will destroy the hidden instance on first close. ' +
+          'Use retentionTime: -1 to keep forever, or a positive number to keep for N seconds.',
+        { type }
+      )
+    }
+
+    return normalized === retentionTime ? cfg : { ...cfg, retentionTime: normalized }
+  }
+
   protected override onDestroy(): void {
     logger.info('Destroying, closing all windows...')
 
-    if (this.poolGcTimer) {
-      clearInterval(this.poolGcTimer)
-      this.poolGcTimer = null
-    }
-    this.activePoolTypes.clear()
+    // GC timer is auto-disposed via registerInterval; just drop the reference.
+    this.warmupGcTimer = null
+    this.activeWarmupTypes.clear()
     // Signal any pending setImmediate standby replenish callbacks to bail out.
     // They check `state.suspended` at execution time.
-    for (const state of this.pools.values()) {
+    for (const state of this.warmupStates.values()) {
       state.suspended = true
     }
-    this.pools.clear()
+    this.warmupStates.clear()
     this.initDataStore.clear()
 
     for (const managed of this.windows.values()) {
@@ -303,6 +355,43 @@ export class WindowManager extends BaseService {
     const metadata = getWindowTypeMetadata(type)
 
     if (metadata.lifecycle === 'singleton') {
+      // Step A: hidden instance awaiting promotion (eager warmup or close→hide).
+      //
+      // INTENTIONAL — do NOT call resetPooledWindowGeometry here. Singleton
+      // hide→show preserves user state (window size, React tree, form inputs).
+      // Pool reuse resets because it is a multi-consumer resource; singleton is
+      // single-consumer.
+      const state = this.warmupStates.get(type)
+      if (state && !state.suspended && state.idle.length > 0) {
+        const candidateId = state.idle.shift()!
+        if (state.idle.length === 0) this.activeWarmupTypes.delete(type)
+        const candidate = this.windows.get(candidateId)
+        if (candidate && !candidate.window.isDestroyed() && !candidate.window.webContents.isCrashed()) {
+          // Only call applyReusedInitData when the caller actually provides new
+          // initData. `applyReusedInitData(managed, undefined)` deletes the
+          // initDataStore entry, which violates the "preserve state across hide"
+          // contract — the stored payload must survive hide so a renderer
+          // reload during hide can restore context via `WindowManager_GetInitData`.
+          if (args?.initData !== undefined) {
+            this.applyReusedInitData(candidate, args.initData)
+          }
+          if (metadata.showMode !== 'manual') {
+            candidate.window.show()
+            candidate.window.focus()
+          }
+          state.lastActivityAt = Date.now()
+          this.logWarmupEvent('singleton-reuse', type, state, { windowId: candidateId })
+          return candidateId
+        }
+        // Unhealthy idle candidate — mirror openPooled's cleanup so
+        // windowsByType index is not leaked.
+        state.managed.delete(candidateId)
+        if (candidate) {
+          this.cleanupWindowTracking(candidateId, candidate.type)
+        }
+      }
+
+      // Step B: already-visible singleton instance.
       const existing = this.findWindowByType(type)
       if (existing) {
         // Singleton reuse: push initData to renderer BEFORE show/focus, so the
@@ -317,10 +406,23 @@ export class WindowManager extends BaseService {
         }
         return existing.id
       }
+
+      // Step C: first-time create. If the type declares `singletonConfig`,
+      // register it into WarmupState so later close() can intercept.
+      if (metadata.singletonConfig) {
+        const validated = this.validateSingletonConfig(type, metadata.singletonConfig)
+        const st = this.getOrCreateWarmupState(type, this.warmupInitFromSingletonConfig(validated))
+        const windowId = this.createWindow(type, args)
+        if (!st.suspended) {
+          st.managed.add(windowId)
+          st.lastActivityAt = Date.now()
+        }
+        return windowId
+      }
     }
 
     if (metadata.lifecycle === 'pooled') {
-      const state = this.pools.get(type)
+      const state = this.warmupStates.get(type)
       if (state?.suspended) {
         return this.createWindow(type, args)
       }
@@ -357,7 +459,7 @@ export class WindowManager extends BaseService {
     const windowId = this.createWindow(type, args)
 
     if (metadata.lifecycle === 'pooled') {
-      const state = this.getOrCreatePoolState(type, metadata.poolConfig)
+      const state = this.getOrCreateWarmupState(type, this.warmupInitFromPoolConfig(metadata.poolConfig))
       if (!state.suspended) {
         state.managed.add(windowId)
       }
@@ -407,7 +509,7 @@ export class WindowManager extends BaseService {
     const managed = this.windows.get(windowId)
     if (!managed) return false
 
-    for (const [type, state] of this.pools) {
+    for (const [type, state] of this.warmupStates) {
       if (state.managed.has(windowId)) {
         const metadata = getWindowTypeMetadata(type)
         if (metadata.lifecycle === 'pooled') {
@@ -693,11 +795,11 @@ export class WindowManager extends BaseService {
       return 0
     }
 
-    const state = this.getOrCreatePoolState(type, metadata.poolConfig)
+    const state = this.getOrCreateWarmupState(type, this.warmupInitFromPoolConfig(metadata.poolConfig))
     state.suspended = true
 
     if (state.idle.length === 0) {
-      this.activePoolTypes.delete(type)
+      this.activeWarmupTypes.delete(type)
       return 0
     }
 
@@ -711,9 +813,9 @@ export class WindowManager extends BaseService {
       }
     }
 
-    this.activePoolTypes.delete(type)
+    this.activeWarmupTypes.delete(type)
 
-    this.logPoolEvent('suspend', type, state, { count })
+    this.logWarmupEvent('pool-suspend', type, state, { count })
     this.updateDockVisibility()
     return count
   }
@@ -729,11 +831,11 @@ export class WindowManager extends BaseService {
       return
     }
 
-    const state = this.pools.get(type)
+    const state = this.warmupStates.get(type)
     if (!state || !state.suspended) return
 
     state.suspended = false
-    state.lastOpenAt = Date.now()
+    state.lastActivityAt = Date.now()
 
     const warmup = metadata.poolConfig.warmup ?? defaultWarmup(metadata.poolConfig)
     if (warmup === 'eager') {
@@ -743,7 +845,7 @@ export class WindowManager extends BaseService {
       this.replenishStandby(type, state, metadata.poolConfig)
     }
 
-    this.logPoolEvent('resume', type, state)
+    this.logWarmupEvent('pool-resume', type, state)
   }
 
   // ─── Pool internals ───────────────────────────────────────────
@@ -757,12 +859,12 @@ export class WindowManager extends BaseService {
    * - Are shown/focused immediately based on metadata `show` behavior.
    */
   private openPooled<T>(type: WindowType, poolConfig: PoolConfig, args?: OpenWindowArgs<T>): string {
-    const state = this.getOrCreatePoolState(type, poolConfig)
+    const state = this.getOrCreateWarmupState(type, this.warmupInitFromPoolConfig(poolConfig))
 
     // Try to find a healthy idle window
     while (state.idle.length > 0) {
       const candidateId = state.idle.shift()!
-      if (state.idle.length === 0) this.activePoolTypes.delete(type)
+      if (state.idle.length === 0) this.activeWarmupTypes.delete(type)
       const candidate = this.windows.get(candidateId)
 
       if (!candidate || candidate.window.isDestroyed() || candidate.window.webContents.isCrashed()) {
@@ -790,16 +892,16 @@ export class WindowManager extends BaseService {
         candidate.window.focus()
       }
 
-      state.lastOpenAt = Date.now()
+      state.lastActivityAt = Date.now()
       this.replenishStandby(type, state, poolConfig)
-      this.logPoolEvent('recycle', type, state, { windowId: candidateId })
+      this.logWarmupEvent('pool-recycle', type, state, { windowId: candidateId })
       return candidateId
     }
 
     // Fresh path: create new window and track in pool
     const windowId = this.createWindow(type, args)
     state.managed.add(windowId)
-    state.lastOpenAt = Date.now()
+    state.lastActivityAt = Date.now()
 
     const recycleMax = poolConfig.recycleMaxSize ?? 0
     if (recycleMax > 0 && state.managed.size + state.inflightCreates > recycleMax) {
@@ -812,7 +914,7 @@ export class WindowManager extends BaseService {
     }
 
     this.replenishStandby(type, state, poolConfig)
-    this.logPoolEvent('create-fresh', type, state, { windowId })
+    this.logWarmupEvent('pool-create-fresh', type, state, { windowId })
     return windowId
   }
 
@@ -827,7 +929,7 @@ export class WindowManager extends BaseService {
    * Callbacks check `state.suspended` at execution time to stay correct if
    * `suspendPool()` fires between scheduling and execution.
    */
-  private replenishStandby(type: WindowType, state: PoolState, cfg: PoolConfig): void {
+  private replenishStandby(type: WindowType, state: WarmupState, cfg: PoolConfig): void {
     // Do not prewarm during app quit — otherwise newly created pooled windows
     // would re-trigger the close intercept and stall app.quit().
     if (application.isQuitting) return
@@ -839,7 +941,7 @@ export class WindowManager extends BaseService {
       setImmediate(() => {
         try {
           if (state.suspended) return
-          this.createPooledIdleWindow(type, state)
+          this.createIdleWindow(type, state)
         } catch (err) {
           logger.error('standbySize replenish failed', { type, err })
         } finally {
@@ -848,7 +950,7 @@ export class WindowManager extends BaseService {
       })
     }
     if (shortfall > 0) {
-      this.startPoolGc()
+      this.startWarmupGc()
     }
   }
 
@@ -897,13 +999,13 @@ export class WindowManager extends BaseService {
   private releaseToPool(
     windowId: string,
     managed: ManagedWindow,
-    state: PoolState,
+    state: WarmupState,
     poolConfig: PoolConfig,
     type: WindowType
   ): void {
     // Idempotency guard
     if (state.idle.includes(windowId)) {
-      this.logPoolEvent('release-skip', type, state, { windowId })
+      this.logWarmupEvent('release-skip', type, state, { windowId })
       return
     }
 
@@ -928,7 +1030,7 @@ export class WindowManager extends BaseService {
       }
       this.destroyWindow(managed.window)
       this.initDataStore.delete(windowId)
-      this.logPoolEvent('release-destroy-disabled', type, state, { windowId })
+      this.logWarmupEvent('pool-release-destroy-disabled', type, state, { windowId })
       this.updateDockVisibility()
       return
     }
@@ -942,7 +1044,7 @@ export class WindowManager extends BaseService {
       }
       this.destroyWindow(managed.window)
       this.initDataStore.delete(windowId)
-      this.logPoolEvent('release-destroy-overcap', type, state, { windowId, recycleMaxSize: recycleMax })
+      this.logWarmupEvent('pool-release-destroy-overcap', type, state, { windowId, recycleMaxSize: recycleMax })
       this.updateDockVisibility()
       return
     }
@@ -955,10 +1057,15 @@ export class WindowManager extends BaseService {
     this.initDataStore.delete(windowId)
 
     state.idle.push(windowId)
-    this.activePoolTypes.add(type)
-    this.logPoolEvent('release', type, state, { windowId })
+    this.activeWarmupTypes.add(type)
+    // Reset the inactivity/decay clock at close time too: `lastActivityAt`
+    // captures the end of a usage cycle so the retention timer only starts
+    // counting from the last interaction (open OR close), not from the
+    // last open() far in the past.
+    state.lastActivityAt = Date.now()
+    this.logWarmupEvent('pool-release', type, state, { windowId })
 
-    this.startPoolGc()
+    this.startWarmupGc()
 
     // Lazy warmup: backfill to initialSize after first release. Skipped when
     // standbySize is configured — standby replenish already keeps the idle
@@ -968,66 +1075,155 @@ export class WindowManager extends BaseService {
       if (initialSize > 0 && state.managed.size < initialSize) {
         const deficit = initialSize - state.managed.size
         for (let i = 0; i < deficit; i++) {
-          this.createPooledIdleWindow(type, state)
+          this.createIdleWindow(type, state)
         }
-        this.logPoolEvent('lazy-backfill', type, state, { deficit })
+        this.logWarmupEvent('pool-lazy-backfill', type, state, { deficit })
       }
     }
 
     this.updateDockVisibility()
   }
 
+  /**
+   * Release a singleton window back to the warmup state machine as a hidden
+   * idle instance (as opposed to `releaseToPool`, which may destroy on
+   * overcap / recycling-disabled).
+   *
+   * Unlike `releaseToPool`, this deliberately preserves user-facing state:
+   * no behavior override clear, no initDataStore delete, no geometry reset.
+   * Singleton hide is "temporarily hidden, preserve state", not "return to a
+   * shared pool, reset to clean slate for the next consumer".
+   */
+  private releaseSingletonToHidden(
+    windowId: string,
+    managed: ManagedWindow,
+    state: WarmupState,
+    cfg: SingletonConfig,
+    type: WindowType
+  ): void {
+    if (state.idle.includes(windowId)) {
+      this.logWarmupEvent('release-skip', type, state, { windowId })
+      return
+    }
+
+    // INTENTIONAL — preserve state across hide. Do NOT:
+    //   - clear behavior override: user-pinned alwaysOnTop / hideOnBlur survives.
+    //   - delete initDataStore entry: allows renderer reload during hide to
+    //     restore last initData via WindowManager_GetInitData. Next open() with
+    //     fresh args will overwrite via applyReusedInitData; next open() without
+    //     args leaves the entry intact (singleton's single-consumer semantics).
+    //   - reset geometry: user-adjusted window size is part of preserved state.
+    // Renderer state (DOM / React tree / component state) is auto-preserved
+    // by Electron since hide() does not destroy the renderer process.
+    if (!managed.window.isDestroyed()) managed.window.hide()
+
+    state.idle.push(windowId)
+    this.activeWarmupTypes.add(type)
+    state.lastActivityAt = Date.now()
+    this.logWarmupEvent('singleton-hide', type, state, { windowId })
+
+    // Only retentionTime > 0 needs the GC timer. retentionTime === -1 (permanent)
+    // means "never evict" — leave GC alone (gcDisabled in WarmupState will also
+    // short-circuit the tick for this type).
+    if ((cfg.retentionTime ?? 0) > 0) this.startWarmupGc()
+
+    this.updateDockVisibility()
+  }
+
   /** Create a hidden window and add it directly to the pool as idle */
-  private createPooledIdleWindow(type: WindowType, state: PoolState): void {
+  private createIdleWindow(type: WindowType, state: WarmupState): void {
     const windowId = this.createWindow(type, undefined, true)
     state.managed.add(windowId)
     state.idle.push(windowId)
-    this.activePoolTypes.add(type)
-    this.logPoolEvent('create-idle', type, state, { windowId })
+    this.activeWarmupTypes.add(type)
+    this.logWarmupEvent('create-idle', type, state, { windowId })
   }
 
   /** Pre-create idle windows for eager warmup pools */
   private warmPool(type: WindowType, poolConfig: PoolConfig): void {
-    const state = this.getOrCreatePoolState(type, poolConfig)
+    const state = this.getOrCreateWarmupState(type, this.warmupInitFromPoolConfig(poolConfig))
     const target = poolConfig.initialSize ?? Math.max(poolConfig.standbySize ?? 0, poolConfig.recycleMinSize ?? 0)
     const count = target - state.managed.size
     for (let i = 0; i < count; i++) {
-      this.createPooledIdleWindow(type, state)
+      this.createIdleWindow(type, state)
     }
     if (count > 0) {
-      this.startPoolGc()
-      this.logPoolEvent('warmup', type, state, { count })
+      this.startWarmupGc()
+      this.logWarmupEvent('warmup', type, state, { count })
     }
   }
 
   /**
-   * Get or create PoolState for a window type. The `cfg` argument is consumed
-   * only on first creation to populate the readonly precomputed fields; later
-   * calls ignore it (config is immutable per pool lifetime).
+   * Pre-create the single hidden instance for an eager-warmup singleton.
+   * No-op when the state already has a managed window or is suspended.
    */
-  private getOrCreatePoolState(type: WindowType, cfg: PoolConfig): PoolState {
-    let state = this.pools.get(type)
-    if (state) return state
+  private warmSingleton(type: WindowType, cfg: SingletonConfig): void {
+    const state = this.getOrCreateWarmupState(type, this.warmupInitFromSingletonConfig(cfg))
+    if (state.managed.size > 0 || state.suspended) return
+    this.createIdleWindow(type, state)
+    this.startWarmupGc()
+    this.logWarmupEvent('warmup', type, state, { count: 1, lifecycle: 'singleton' })
+  }
 
-    const standby = cfg.standbySize ?? 0
-    const recycMin = cfg.recycleMinSize ?? 0
-    const inactMs = (cfg.inactivityTimeout ?? 0) * 1000
-    const decayMs = (cfg.decayInterval ?? 0) * 1000
-    state = {
+  /**
+   * Get or create WarmupState for a window type. The `init` argument is consumed
+   * only on first creation to populate the readonly precomputed fields; later
+   * calls ignore it (config is immutable per state lifetime). Each lifecycle
+   * maps its own config shape into {@link WarmupStateInit} via its own adapter
+   * (see {@link warmupInitFromPoolConfig}, {@link warmupInitFromSingletonConfig}).
+   */
+  private getOrCreateWarmupState(type: WindowType, init: WarmupStateInit): WarmupState {
+    const existing = this.warmupStates.get(type)
+    if (existing) return existing
+
+    const state: WarmupState = {
       idle: [],
       managed: new Set(),
-      lastOpenAt: Date.now(),
+      lastActivityAt: Date.now(),
       lastDecayAt: Date.now(),
       suspended: false,
       inflightCreates: 0,
-      standbyFloor: standby,
-      decayFloor: Math.max(standby, recycMin),
-      inactivityTimeoutMs: inactMs,
-      decayIntervalMs: decayMs,
-      gcDisabled: inactMs === 0 && decayMs === 0
+      standbyFloor: init.standbyFloor,
+      decayFloor: init.decayFloor,
+      inactivityTimeoutMs: init.inactivityTimeoutMs,
+      decayIntervalMs: init.decayIntervalMs,
+      gcDisabled: init.inactivityTimeoutMs === 0 && init.decayIntervalMs === 0
     }
-    this.pools.set(type, state)
+    this.warmupStates.set(type, state)
     return state
+  }
+
+  /**
+   * Map a pool lifecycle's {@link PoolConfig} to the generic {@link WarmupStateInit}
+   * seed used by {@link getOrCreateWarmupState}. Pool uses two-axis floors
+   * (standby vs. decay) and treats `inactivityTimeout` / `decayInterval` directly.
+   */
+  private warmupInitFromPoolConfig(cfg: PoolConfig): WarmupStateInit {
+    const standbyFloor = cfg.standbySize ?? 0
+    return {
+      standbyFloor,
+      decayFloor: Math.max(standbyFloor, cfg.recycleMinSize ?? 0),
+      inactivityTimeoutMs: (cfg.inactivityTimeout ?? 0) * 1000,
+      decayIntervalMs: (cfg.decayInterval ?? 0) * 1000
+    }
+  }
+
+  /**
+   * Map a singleton lifecycle's {@link SingletonConfig} to the generic
+   * {@link WarmupStateInit} seed. Singleton is the degenerate case: capacity
+   * ∈ {0, 1}, no decay. `standbyFloor` is 1 iff a permanent hidden instance
+   * is desired (`warmup: 'eager'` or `retentionTime: -1`), else 0.
+   */
+  private warmupInitFromSingletonConfig(cfg: SingletonConfig): WarmupStateInit {
+    const permanentHidden = cfg.warmup === 'eager' || cfg.retentionTime === -1
+    const floor = permanentHidden ? 1 : 0
+    const retention = cfg.retentionTime
+    return {
+      standbyFloor: floor,
+      decayFloor: floor,
+      inactivityTimeoutMs: retention !== undefined && retention > 0 ? retention * 1000 : 0,
+      decayIntervalMs: 0
+    }
   }
 
   /**
@@ -1036,8 +1232,8 @@ export class WindowManager extends BaseService {
    * plus any caller-supplied extras. Caller responsibility: invoke after the
    * mutation lands, so the snapshot reflects post-state.
    */
-  private logPoolEvent(op: PoolOp, type: WindowType, state: PoolState, extra?: Record<string, unknown>): void {
-    logger.debug(`pool[${type}] ${op}`, {
+  private logWarmupEvent(op: WarmupOp, type: WindowType, state: WarmupState, extra?: Record<string, unknown>): void {
+    logger.debug(`warmup[${type}] ${op}`, {
       op,
       type,
       idle: state.idle.length,
@@ -1050,26 +1246,27 @@ export class WindowManager extends BaseService {
   // ─── GC Timer ─────────────────────────────────────────────────
 
   /** Start the shared GC timer if not already running */
-  private startPoolGc(): void {
-    if (this.poolGcTimer) return
-    this.poolGcTimer = setInterval(() => this.poolGcTick(), POOL_GC_INTERVAL)
-    logger.debug('pool gc-start', { intervalMs: POOL_GC_INTERVAL })
+  private startWarmupGc(): void {
+    if (this.warmupGcTimer) return
+    this.warmupGcTimer = this.registerInterval(() => this.warmupGcTick(), WARMUP_GC_INTERVAL)
+    logger.debug('warmup gc-start', { intervalMs: WARMUP_GC_INTERVAL })
   }
 
   /**
    * Single GC tick — handles decay and idle timeout.
    *
-   * Iterates only `activePoolTypes` (pools with `idle.length > 0`), skipping
-   * empty pools entirely. All threshold values are read from precomputed
-   * `PoolState` fields, avoiding per-tick `getWindowTypeMetadata` lookups,
-   * `?? 0` coalescing, and `* 1000` arithmetic.
+   * Iterates only `activeWarmupTypes` (entries with `idle.length > 0`),
+   * skipping empty entries entirely. All threshold values are read from
+   * precomputed `WarmupState` fields, avoiding per-tick
+   * `getWindowTypeMetadata` lookups, `?? 0` coalescing, and `* 1000`
+   * arithmetic.
    */
-  private poolGcTick(): void {
-    if (this.activePoolTypes.size === 0) {
-      if (this.poolGcTimer) {
-        clearInterval(this.poolGcTimer)
-        this.poolGcTimer = null
-        logger.debug('pool gc-stop', { reason: 'no active pools' })
+  private warmupGcTick(): void {
+    if (this.activeWarmupTypes.size === 0) {
+      if (this.warmupGcTimer) {
+        this.warmupGcTimer.dispose()
+        this.warmupGcTimer = null
+        logger.debug('warmup gc-stop', { reason: 'no active warmup states' })
       }
       return
     }
@@ -1077,35 +1274,35 @@ export class WindowManager extends BaseService {
     const now = Date.now()
     let toDeactivate: WindowType[] | null = null
 
-    for (const type of this.activePoolTypes) {
-      const state = this.pools.get(type)
+    for (const type of this.activeWarmupTypes) {
+      const state = this.warmupStates.get(type)
       if (!state || state.suspended) continue
-      // Pools with no time-driven GC at all (no inactivity, no decay) have
+      // Entries with no time-driven GC at all (no inactivity, no decay) have
       // nothing to do — drop from active set so the timer can self-stop.
       if (state.gcDisabled) {
         ;(toDeactivate ??= []).push(type)
         continue
       }
       // Defense against the brief inconsistency window between destroyWindow()
-      // and the async `closed` listener splice — activePoolTypes may still
-      // point at this pool while `state.idle` has already been emptied.
+      // and the async `closed` listener splice — activeWarmupTypes may still
+      // point at this type while `state.idle` has already been emptied.
       if (state.idle.length === 0) continue
 
       // Inactivity timeout (priority 1): trim idle queue down to standbyFloor.
-      if (state.inactivityTimeoutMs > 0 && now - state.lastOpenAt > state.inactivityTimeoutMs) {
+      if (state.inactivityTimeoutMs > 0 && now - state.lastActivityAt > state.inactivityTimeoutMs) {
         this.trimIdleToFloor(type, state, state.standbyFloor)
       } else if (state.decayIntervalMs > 0 && state.idle.length > state.decayFloor) {
         // Decay (priority 2): evict one idle window above decayFloor when interval elapsed.
-        if (now - state.lastOpenAt > state.decayIntervalMs && now - state.lastDecayAt > state.decayIntervalMs) {
+        if (now - state.lastActivityAt > state.decayIntervalMs && now - state.lastDecayAt > state.decayIntervalMs) {
           this.destroyOneIdle(type, state)
           state.lastDecayAt = now
         }
       }
 
-      // Steady-state pruning: a pool with `idle <= standbyFloor` has no
+      // Steady-state pruning: an entry with `idle <= standbyFloor` has no
       // inactivity-trim work (excess = idle - standbyFloor ≤ 0); since
       // `standbyFloor ≤ decayFloor` by definition, it also has no decay work.
-      // Drop from `activePoolTypes` so the timer self-stops once ALL pools
+      // Drop from `activeWarmupTypes` so the timer self-stops once ALL entries
       // converge to steady state. Subsequent `release` / `replenish` will
       // re-add via the maintenance points.
       if (state.idle.length <= state.standbyFloor) {
@@ -1114,7 +1311,7 @@ export class WindowManager extends BaseService {
     }
 
     if (toDeactivate) {
-      for (const type of toDeactivate) this.activePoolTypes.delete(type)
+      for (const type of toDeactivate) this.activeWarmupTypes.delete(type)
     }
   }
 
@@ -1128,7 +1325,7 @@ export class WindowManager extends BaseService {
    * through the centralized `closed` event listener — this method only issues
    * `destroyWindow()` calls.
    */
-  private trimIdleToFloor(type: WindowType, state: PoolState, floor: number): void {
+  private trimIdleToFloor(type: WindowType, state: WarmupState, floor: number): void {
     const excess = state.idle.length - Math.max(0, floor)
     if (excess <= 0) return
     const toDestroy = state.idle.slice(0, excess)
@@ -1138,19 +1335,19 @@ export class WindowManager extends BaseService {
         this.destroyWindow(managed.window)
       }
     }
-    this.logPoolEvent('inactivity-trim', type, state, { floor, destroyed: excess })
+    this.logWarmupEvent('inactivity-trim', type, state, { floor, destroyed: excess })
   }
 
   /** Destroy the oldest idle window for a pool type */
-  private destroyOneIdle(type: WindowType, state: PoolState): void {
+  private destroyOneIdle(type: WindowType, state: WarmupState): void {
     const id = state.idle.shift()
     if (!id) return
-    if (state.idle.length === 0) this.activePoolTypes.delete(type)
+    if (state.idle.length === 0) this.activeWarmupTypes.delete(type)
     const managed = this.windows.get(id)
     if (managed) {
       this.destroyWindow(managed.window)
     }
-    this.logPoolEvent('decay', type, state, { windowId: id })
+    this.logWarmupEvent('pool-decay', type, state, { windowId: id })
   }
 
   // ─── Window creation & lifecycle ──────────────────────────────
@@ -1338,27 +1535,38 @@ export class WindowManager extends BaseService {
       window.webContents.send(IpcChannel.WindowManager_FullscreenChanged, false)
     })
 
-    // Intercept native close for pooled windows — hide and return to pool
+    // Intercept native close for warmup-tracked windows — hide and return to
+    // the idle queue (pool) or preserve hidden state (singleton w/ retention).
     window.on('close', (event) => {
       // App is quitting — let native close proceed so app.quit() can complete.
-      // Without this, pooled windows' preventDefault stalls will-quit indefinitely.
+      // Without this, preventDefault'd windows stall will-quit indefinitely.
       if (application.isQuitting) return
 
-      for (const [type, state] of this.pools) {
-        if (state.managed.has(windowId)) {
-          const metadata = getWindowTypeMetadata(type)
-          if (metadata.lifecycle === 'pooled') {
-            if (state.suspended) return // let native close proceed
-            event.preventDefault()
-            if (state.idle.includes(windowId)) return // already idle
-            const managed = this.windows.get(windowId)
-            if (managed) {
-              this.releaseToPool(windowId, managed, state, metadata.poolConfig, type)
-            }
-            return
+      for (const [type, state] of this.warmupStates) {
+        if (!state.managed.has(windowId)) continue
+        const metadata = getWindowTypeMetadata(type)
+        if (metadata.lifecycle === 'pooled') {
+          if (state.suspended) return // let native close proceed
+          event.preventDefault()
+          if (state.idle.includes(windowId)) return // already idle
+          const managed = this.windows.get(windowId)
+          if (managed) {
+            this.releaseToPool(windowId, managed, state, metadata.poolConfig, type)
           }
+          return
+        }
+        if (metadata.lifecycle === 'singleton' && metadata.singletonConfig?.retentionTime !== undefined) {
+          if (state.suspended) return
+          event.preventDefault()
+          if (state.idle.includes(windowId)) return
+          const managed = this.windows.get(windowId)
+          if (managed) {
+            this.releaseSingletonToHidden(windowId, managed, state, metadata.singletonConfig, type)
+          }
+          return
         }
       }
+      // Singleton without retentionTime / default: fall through, native destroy.
     })
 
     window.on('closed', () => {
@@ -1376,12 +1584,12 @@ export class WindowManager extends BaseService {
       // we deliberately do not emit a second per-window log here. For natively
       // closed (user-initiated) windows, the generic `Window closed` line above
       // is the lifecycle marker.
-      for (const [type, state] of this.pools) {
+      for (const [type, state] of this.warmupStates) {
         if (state.managed.has(windowId)) {
           state.managed.delete(windowId)
           const idx = state.idle.indexOf(windowId)
           if (idx !== -1) state.idle.splice(idx, 1)
-          if (state.idle.length === 0) this.activePoolTypes.delete(type)
+          if (state.idle.length === 0) this.activeWarmupTypes.delete(type)
           break
         }
       }

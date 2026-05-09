@@ -1,5 +1,4 @@
-import { Button, ColFlex } from '@cherrystudio/ui'
-import { Alert } from 'antd'
+import { Alert, Button, ColFlex } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -110,8 +109,7 @@ const OVMSSettings: FC = () => {
     <>
       <Alert
         type={getAlertType()}
-        banner
-        style={{ borderRadius: 'var(--cs-radius-2xs)' }}
+        className="rounded-sm"
         description={
           <ColFlex>
             <SettingRow style={{ width: '100%' }}>
@@ -142,7 +140,7 @@ const OVMSSettings: FC = () => {
       />
       <Alert
         type="info"
-        style={{ marginTop: 5 }}
+        className="mt-1.25"
         message={'Intel OVMS Guide:'}
         description={<div dangerouslySetInnerHTML={{ __html: t('ovms.description') }}></div>}
         showIcon

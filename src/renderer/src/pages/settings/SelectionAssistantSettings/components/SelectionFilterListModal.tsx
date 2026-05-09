@@ -1,10 +1,8 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
 import { isWin } from '@renderer/config/constant'
-import { Form, Input, Modal } from 'antd'
 import type { FC } from 'react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface SelectionFilterListModalProps {
   open: boolean
@@ -15,69 +13,53 @@ interface SelectionFilterListModalProps {
 
 const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onClose, filterList = [], onSave }) => {
   const { t } = useTranslation()
-  const [form] = Form.useForm()
+  const [value, setValue] = useState('')
 
   useEffect(() => {
     if (open) {
-      form.setFieldsValue({
-        filterList: (filterList || []).join('\n')
-      })
+      setValue((filterList || []).join('\n'))
     }
-  }, [open, filterList, form])
+  }, [open, filterList])
 
-  const handleSave = async () => {
-    try {
-      const values = await form.validateFields()
-      const newList = (values.filterList as string)
-        .trim()
-        .toLowerCase()
-        .split('\n')
-        .map((line: string) => line.trim())
-        .filter((line: string) => line.length > 0)
-      onSave([...new Set(newList)])
-      onClose()
-    } catch (error) {
-      // validation failed
-    }
+  const handleSave = () => {
+    const newList = value
+      .trim()
+      .toLowerCase()
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+    onSave([...new Set(newList)])
+    onClose()
   }
 
   return (
-    <Modal
-      title={t('selection.settings.filter_modal.title')}
-      open={open}
-      onCancel={onClose}
-      maskClosable={false}
-      keyboard={true}
-      destroyOnHidden
-      footer={[
-        <Button key="modal-cancel" onClick={onClose}>
-          {t('common.cancel')}
-        </Button>,
-        <Button key="modal-save" color="primary" onClick={handleSave}>
-          {t('common.save')}
-        </Button>
-      ]}>
-      <UserTip>
-        {isWin
-          ? t('selection.settings.filter_modal.user_tips.windows')
-          : t('selection.settings.filter_modal.user_tips.mac')}
-      </UserTip>
-      <Form form={form} layout="vertical" initialValues={{ filterList: '' }}>
-        <Form.Item name="filterList" noStyle>
-          <StyledTextArea autoSize={{ minRows: 6, maxRows: 16 }} spellCheck={false} autoFocus />
-        </Form.Item>
-      </Form>
-    </Modal>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="sm:max-w-[520px]" onPointerDownOutside={(e) => e.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{t('selection.settings.filter_modal.title')}</DialogTitle>
+        </DialogHeader>
+        <div className="text-sm">
+          {isWin
+            ? t('selection.settings.filter_modal.user_tips.windows')
+            : t('selection.settings.filter_modal.user_tips.mac')}
+        </div>
+        <Textarea.Input
+          className="mt-4 w-full [field-sizing:content]"
+          rows={6}
+          spellCheck={false}
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={handleSave}>{t('common.save')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
-
-const StyledTextArea = styled(Input.TextArea)`
-  margin-top: 16px;
-  width: 100%;
-`
-
-const UserTip = styled.div`
-  font-size: 14px;
-`
 
 export default SelectionFilterListModal

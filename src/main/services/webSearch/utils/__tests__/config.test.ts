@@ -1,7 +1,7 @@
 import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it } from 'vitest'
 
-import { getProviderById, getResolvedConfig, getRuntimeConfig } from '../config'
+import { getProviderById, getProviderForCapability, getResolvedConfig, getRuntimeConfig } from '../config'
 
 const preferenceValues: Record<string, unknown> = {
   'chat.web_search.max_results': 5,
@@ -9,13 +9,16 @@ const preferenceValues: Record<string, unknown> = {
   'chat.web_search.compression.method': 'none',
   'chat.web_search.compression.cutoff_limit': null,
   'chat.web_search.compression.cutoff_unit': 'char',
-  'chat.web_search.compression.rag_document_count': 5,
-  'chat.web_search.compression.rag_embedding_model_id': null,
-  'chat.web_search.compression.rag_embedding_dimensions': null,
-  'chat.web_search.compression.rag_rerank_model_id': null,
+  'chat.web_search.default_search_keywords_provider': 'tavily',
+  'chat.web_search.default_fetch_urls_provider': 'fetch',
   'chat.web_search.provider_overrides': {
     tavily: {
-      apiKeys: ['tavily-key']
+      apiKeys: ['tavily-key'],
+      capabilities: {
+        searchKeywords: {
+          apiHost: ' https://custom.tavily.dev '
+        }
+      }
     }
   }
 }
@@ -33,6 +36,9 @@ describe('webSearch config utils', () => {
 
     expect(providerIds).toContain('exa-mcp')
     expect(providerIds).toContain('querit')
+    expect(providerIds).toContain('fetch')
+    expect(providerIds).toContain('jina')
+    expect(providerIds).not.toContain('jina-reader')
 
     const tavily = resolved.providers.find((provider) => provider.id === 'tavily')
     expect(tavily?.apiKeys).toEqual(['tavily-key'])
@@ -44,6 +50,21 @@ describe('webSearch config utils', () => {
     expect(runtime.maxResults).toBe(5)
     expect(runtime.excludeDomains).toEqual(['example.com'])
     expect(runtime.compression.method).toBe('none')
+    expect(runtime.compression.cutoffLimit).toBe(2000)
+  })
+
+  it('defaults stale empty cutoff limit in runtime config', async () => {
+    const runtime = await getRuntimeConfig({
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.compression.cutoff_limit') {
+          return null as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    expect(runtime.compression.cutoffLimit).toBe(2000)
   })
 
   it('normalizes maxResults to at least 1 in runtime config', async () => {
@@ -68,7 +89,86 @@ describe('webSearch config utils', () => {
       name: 'Tavily',
       type: 'api',
       apiKeys: ['tavily-key'],
-      apiHost: 'https://api.tavily.com'
+      capabilities: [
+        {
+          feature: 'searchKeywords',
+          apiHost: 'https://custom.tavily.dev'
+        }
+      ]
     })
+  })
+
+  it('preserves basic auth password whitespace when resolving providers', async () => {
+    const provider = await getProviderById('searxng', {
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.provider_overrides') {
+          return {
+            searxng: {
+              basicAuthPassword: ' pass '
+            }
+          } as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    expect(provider.basicAuthPassword).toBe(' pass ')
+  })
+
+  it('resolves URL fetch provider presets', async () => {
+    const fetchProvider = await getProviderById('fetch', mockPreferenceReader)
+    const jinaProvider = await getProviderById('jina', mockPreferenceReader)
+
+    expect(fetchProvider).toMatchObject({
+      id: 'fetch',
+      name: 'Fetch',
+      type: 'api',
+      apiKeys: [],
+      capabilities: [
+        {
+          feature: 'fetchUrls',
+          apiHost: ''
+        }
+      ]
+    })
+    expect(jinaProvider).toMatchObject({
+      id: 'jina',
+      name: 'Jina',
+      type: 'api',
+      capabilities: [
+        {
+          feature: 'searchKeywords',
+          apiHost: 'https://s.jina.ai'
+        },
+        {
+          feature: 'fetchUrls',
+          apiHost: 'https://r.jina.ai'
+        }
+      ]
+    })
+  })
+
+  it('resolves default providers by capability', async () => {
+    await expect(getProviderForCapability(undefined, 'searchKeywords', mockPreferenceReader)).resolves.toMatchObject({
+      id: 'tavily'
+    })
+    await expect(getProviderForCapability(undefined, 'fetchUrls', mockPreferenceReader)).resolves.toMatchObject({
+      id: 'fetch'
+    })
+  })
+
+  it('throws when a capability default provider is not configured', async () => {
+    await expect(
+      getProviderForCapability(undefined, 'searchKeywords', {
+        async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+          if (key === 'chat.web_search.default_search_keywords_provider') {
+            return null as PreferenceDefaultScopeType[K]
+          }
+
+          return preferenceValues[key] as PreferenceDefaultScopeType[K]
+        }
+      })
+    ).rejects.toThrow('Default web search provider is not configured for capability searchKeywords')
   })
 })

@@ -18,10 +18,43 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 
-import { parseCurrentVersion, parseUpdateStatus } from './utils/openClawParsers'
 import { vertexAIService } from './VertexAIService'
 
 const logger = loggerService.withContext('OpenClawService')
+
+/**
+ * Parse the current version from `openclaw --version` output.
+ * Example input: "OpenClaw 2026.3.9 (fe96034)"
+ */
+export function parseCurrentVersion(versionOutput: string): string | null {
+  const match = versionOutput.match(/OpenClaw\s+([\d.]+)/i)
+  return match?.[1] ?? null
+}
+
+/**
+ * Parse the update status from `openclaw update status` output.
+ * Returns the latest version string if a **binary** update is available, otherwise null.
+ *
+ * Cherry Studio installs OpenClaw as a standalone binary, so we only care about
+ * binary-channel updates. npm/pkg-channel updates are ignored because they
+ * require a different upgrade path (`npm update -g`).
+ *
+ * The table output contains a row like:
+ *   │ Update   │ available · binary · 2026.3.12 │
+ * And a summary line like:
+ *   Update available (binary 2026.3.12). Run: openclaw update
+ */
+export function parseUpdateStatus(statusOutput: string): string | null {
+  // Match binary-channel update from table row: "available · binary · <version>"
+  const tableMatch = statusOutput.match(/available\s*·\s*binary\s*·?\s*([\d.]+)/i)
+  if (tableMatch) return tableMatch[1]
+
+  // Match binary-channel update from summary line: "Update available (binary <version>)"
+  const summaryMatch = statusOutput.match(/Update available\s*\(binary\s+([\d.]+)\)/i)
+  if (summaryMatch) return summaryMatch[1]
+
+  return null
+}
 
 const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
 const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
@@ -707,21 +740,20 @@ export class OpenClawService extends BaseService {
   }
 
   /**
-   * Get OpenClaw Dashboard URL (for opening in minapp).
-   * The Control UI uses ?token= to auto-authenticate the WebSocket connection.
+   * Get OpenClaw Dashboard URL (for opening in miniapp).
+   * The Control UI uses #token= to bootstrap WebSocket authentication while
+   * keeping the token client-side instead of sending it in HTTP requests.
    */
   public getDashboardUrl(): string {
     // Ensure we have the token (may have been lost after app restart)
     if (!this.gatewayAuthToken) {
       this.loadAuthTokenFromConfig()
     }
-    let url = `http://127.0.0.1:${this.gatewayPort}`
-    if (this.gatewayAuthToken) {
-      // Use query string (not URL fragment) so dashboard app state can persist correctly.
-      // Fragment (#...) is often used by SPAs for transient client-side state.
-      url += `?token=${encodeURIComponent(this.gatewayAuthToken)}`
+    if (!this.gatewayAuthToken) {
+      throw new Error('OpenClaw dashboard auth token is missing')
     }
-    return url
+    const url = `http://127.0.0.1:${this.gatewayPort}`
+    return `${url}#token=${encodeURIComponent(this.gatewayAuthToken)}`
   }
 
   /**
@@ -738,8 +770,8 @@ export class OpenClawService extends BaseService {
           logger.info('Recovered auth token from config file')
         }
       }
-    } catch {
-      logger.debug('Failed to load auth token from config file')
+    } catch (error) {
+      logger.warn('Failed to load auth token from config file', error as Error)
     }
   }
 

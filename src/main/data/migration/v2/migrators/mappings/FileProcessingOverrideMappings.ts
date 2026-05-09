@@ -78,6 +78,24 @@ function getPresetCapability(processorId: FileProcessorId, feature: FileProcesso
   }
 }
 
+function resolvePreprocessFeature(processorId: FileProcessorId): FileProcessorFeature {
+  const processor = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === processorId)!
+
+  if (processor.capabilities.some((capability) => capability.feature === 'document_to_markdown')) {
+    return 'document_to_markdown'
+  }
+
+  return 'image_to_text'
+}
+
+function resolvePreprocessFeatures(processorId: FileProcessorId): FileProcessorFeature[] {
+  if (processorId === 'mistral') {
+    return ['document_to_markdown', 'image_to_text']
+  }
+
+  return [resolvePreprocessFeature(processorId)]
+}
+
 function setCapabilityApiHost(
   override: FileProcessorOverride,
   processorId: FileProcessorId,
@@ -179,16 +197,15 @@ function mergePreprocessProvider(overrides: FileProcessorOverrides, provider: un
   }
 
   const override = ensureOverride(overrides, providerId)
-  const features: FileProcessorFeature[] =
-    providerId === 'mistral' ? ['markdown_conversion', 'text_extraction'] : ['markdown_conversion']
+  const features = resolvePreprocessFeatures(providerId)
 
   addApiKey(override, provider.apiKey)
 
   if (providerId !== 'paddleocr') {
-    features.forEach((feature) => {
+    for (const feature of features) {
       setCapabilityApiHost(override, providerId, feature, provider.apiHost)
       setCapabilityModelId(override, providerId, feature, provider.model)
-    })
+    }
   }
 
   if (isRecord(provider.options)) {
@@ -218,7 +235,7 @@ function mergeOcrProvider(overrides: FileProcessorOverrides, provider: unknown) 
 
   addApiKey(override, config.accessToken)
   if (providerId !== 'paddleocr') {
-    setCapabilityApiHost(override, providerId, 'text_extraction', config.apiUrl)
+    setCapabilityApiHost(override, providerId, 'image_to_text', config.apiUrl)
   }
 
   const langs = normalizeLangs(config.langs, providerId)
@@ -229,7 +246,7 @@ function mergeOcrProvider(overrides: FileProcessorOverrides, provider: unknown) 
   if (isRecord(config.api)) {
     addApiKey(override, config.api.apiKey)
     if (providerId !== 'paddleocr') {
-      setCapabilityApiHost(override, providerId, 'text_extraction', config.api.apiHost)
+      setCapabilityApiHost(override, providerId, 'image_to_text', config.api.apiHost)
     }
 
     if (isNonEmptyString(config.api.apiVersion)) {

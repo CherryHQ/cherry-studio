@@ -17,8 +17,9 @@ import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/a
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 
+import { pinService } from './PinService'
 import { tagService } from './TagService'
-import { timestampToISO } from './utils/rowMappers'
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
 
@@ -34,14 +35,11 @@ function createEmptyRelations(): AssistantRelationIds {
 }
 
 function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = createEmptyRelations()): Assistant {
+  const clean = nullsToUndefined(row)
   return {
-    id: row.id,
-    name: row.name,
-    prompt: row.prompt ?? '',
-    emoji: row.emoji ?? '🌟',
-    description: row.description ?? '',
-    settings: row.settings ?? DEFAULT_ASSISTANT_SETTINGS,
-    modelId: (row.modelId ?? null) as UniqueModelId | null,
+    ...clean,
+    // Preserve the T | null contract: `modelId` is legitimately nullable (R3 exception).
+    modelId: row.modelId as UniqueModelId | null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
     createdAt: timestampToISO(row.createdAt),
@@ -168,20 +166,21 @@ export class AssistantDataService {
     this.validateName(dto.name)
 
     const row = await this.db.transaction(async (tx) => {
-      const [inserted] = await tx
-        .insert(assistantTable)
-        .values({
-          name: dto.name,
-          prompt: dto.prompt,
-          emoji: dto.emoji,
-          description: dto.description,
-          modelId: dto.modelId ?? null,
-          settings: dto.settings
-        })
-        .returning()
+      // Split column fields from relation arrays — relations are synced via junction tables.
+      // `prompt` / `description` stay omitted when undefined so the DB DEFAULT '' takes over.
+      // `emoji` and `settings` are filled here — Service is the single source of truth for
+      // their product-chosen / tunable defaults (spec § Decision Matrix 2).
+      const { mcpServerIds, knowledgeBaseIds, ...columnDto } = dto
+      const insertValues: typeof assistantTable.$inferInsert = {
+        ...columnDto,
+        emoji: dto.emoji ?? '🌟',
+        settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
+      }
+
+      const [inserted] = await tx.insert(assistantTable).values(insertValues).returning()
 
       // Insert junction table rows
-      await this.syncRelations(tx, inserted.id, dto)
+      await this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
 
       return inserted
     })
@@ -228,7 +227,7 @@ export class AssistantDataService {
       }
 
       // Sync junction table rows if relation fields are provided
-      await this.syncRelations(tx, id, { mcpServerIds, knowledgeBaseIds })
+      await this.syncRelationsTx(tx, id, { mcpServerIds, knowledgeBaseIds })
 
       return updated
     })
@@ -250,7 +249,8 @@ export class AssistantDataService {
 
     await this.db.transaction(async (tx) => {
       await tx.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
-      await tagService.purgeForEntity(tx, 'assistant', id)
+      await tagService.purgeForEntityTx(tx, 'assistant', id)
+      await pinService.purgeForEntityTx(tx, 'assistant', id)
     })
 
     logger.info('Soft-deleted assistant', { id })
@@ -262,7 +262,7 @@ export class AssistantDataService {
    * If undefined, the existing rows are left unchanged.
    * Runs within the caller's transaction for atomicity.
    */
-  private async syncRelations(
+  private async syncRelationsTx(
     tx: Pick<DbType, 'delete' | 'insert' | 'select'>,
     assistantId: string,
     dto: { mcpServerIds?: string[]; knowledgeBaseIds?: string[] }

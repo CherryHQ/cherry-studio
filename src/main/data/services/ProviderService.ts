@@ -7,8 +7,10 @@
  */
 
 import { application } from '@application'
+import { userModelTable } from '@data/db/schemas/userModel'
 import type { NewUserProvider, UserProvider } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { pinService } from '@data/services/PinService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
@@ -327,13 +329,41 @@ class ProviderService {
   async delete(providerId: string): Promise<void> {
     const db = application.get('DbService').getDb()
 
-    const provider = await this.getByProviderId(providerId)
+    await db.transaction(async (tx) => {
+      const [provider] = await tx
+        .select({ presetProviderId: userProviderTable.presetProviderId })
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+        .limit(1)
 
-    if (provider.presetProviderId && provider.presetProviderId === providerId) {
-      throw DataApiErrorFactory.invalidOperation(`Cannot delete preset provider '${providerId}'`)
-    }
+      if (!provider) {
+        throw DataApiErrorFactory.notFound('Provider', providerId)
+      }
 
-    await db.delete(userProviderTable).where(eq(userProviderTable.providerId, providerId))
+      if (provider.presetProviderId && provider.presetProviderId === providerId) {
+        throw DataApiErrorFactory.invalidOperation(`Cannot delete preset provider '${providerId}'`)
+      }
+
+      const models = await tx
+        .select({ id: userModelTable.id })
+        .from(userModelTable)
+        .where(eq(userModelTable.providerId, providerId))
+
+      await pinService.purgeForEntitiesTx(
+        tx,
+        'model',
+        models.map((model) => model.id)
+      )
+
+      const deleted = await tx
+        .delete(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+        .returning({ providerId: userProviderTable.providerId })
+
+      if (deleted.length === 0) {
+        throw DataApiErrorFactory.notFound('Provider', providerId)
+      }
+    })
 
     logger.info('Deleted provider', { providerId })
   }

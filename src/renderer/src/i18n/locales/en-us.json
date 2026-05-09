@@ -36,7 +36,9 @@
         "comingSoon": "Coming soon",
         "connected": "Connected",
         "connecting": "Connecting",
+        "createError": "Failed to create channel",
         "deleteConfirm": "Delete channel \"{{name}}\"?",
+        "deleteError": "Failed to delete channel",
         "description": "Connect your agent to messaging platforms.",
         "disconnected": "Disconnected",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Channels",
+        "updateError": "Failed to update channel",
         "wechat": {
           "addAccount": "Add WeChat Account",
           "chatIds": "Allowed User IDs",
@@ -211,6 +214,9 @@
         },
         "edit": "Edit",
         "empty": "No scheduled tasks. Add one to get started.",
+        "error": {
+          "loadFailed": "Failed to load tasks"
+        },
         "intervalPlaceholder": "Interval in minutes",
         "intervalUnit": "minutes",
         "lastRun": "Last Run",
@@ -220,6 +226,7 @@
           "error": "Error",
           "justNow": "just now",
           "label": "Run History",
+          "loadError": "Failed to load run history",
           "result": "Result",
           "runAt": "Run At",
           "running": "Running...",
@@ -571,6 +578,98 @@
     },
     "sidebar_title": "Agents",
     "todo": {
+      "mock": {
+        "actions": {
+          "complete": "Complete",
+          "dismiss": "Dismiss"
+        },
+        "details": {
+          "addRouter": {
+            "summary": "Configuring client routing with react-router-dom v6...",
+            "title": "Add React Router"
+          },
+          "configureProject": {
+            "resources": {
+              "createdMeta": "created",
+              "postcssConfig": "postcss.config.js",
+              "tailwindConfig": "tailwind.config.js",
+              "updatedMeta": "updated",
+              "viteConfig": "vite.config.ts - port 3001"
+            },
+            "title": "Configure project"
+          },
+          "installDependencies": {
+            "resources": {
+              "dependenciesMeta": "dependencies",
+              "devDependenciesMeta": "devDependencies",
+              "reactDeps": "react@18.3.1, react-dom@18.3.1",
+              "tailwindDeps": "tailwindcss@3.4.4, postcss@8.4.38",
+              "typescriptDeps": "typescript@5.4.5, vite@5.3.0"
+            },
+            "summary": "Installed react, react-dom, tailwindcss, postcss, autoprefixer, and TypeScript.",
+            "title": "Install dependencies"
+          },
+          "reviewReferences": {
+            "collectionTitle": "Reviewed references",
+            "resources": {
+              "npmCreateVite": "npm create vite - Official Scaffolding",
+              "npmMeta": "npmjs.com",
+              "reactDocs": "React Documentation - Quick Start",
+              "reactMeta": "react.dev",
+              "tailwindDocs": "Tailwind CSS - Installation Guide",
+              "tailwindMeta": "tailwindcss.com",
+              "viteDocs": "Vite - Next Generation Frontend Tooling",
+              "viteMeta": "vitejs.dev"
+            },
+            "title": "Review references"
+          },
+          "searchWeb": {
+            "resources": {
+              "reactViteQuery": "React Vite TypeScript starter 2025 best practices"
+            },
+            "summary": "Collected current references for React + Vite scaffolding and best practices.",
+            "title": "Search web references"
+          },
+          "title": "Execution details",
+          "writeComponents": {
+            "collectionTitle": "Created files",
+            "resources": {
+              "app": "src/App.tsx",
+              "button": "src/components/Button.tsx",
+              "card": "src/components/Card.tsx",
+              "footer": "src/components/Footer.tsx",
+              "header": "src/components/Header.tsx",
+              "layout": "src/components/Layout.tsx",
+              "modifiedMeta": "modified",
+              "newMeta": "new",
+              "updatedMeta": "updated"
+            },
+            "title": "Write components"
+          },
+          "writePages": {
+            "resources": {
+              "about": "src/pages/About.tsx",
+              "home": "src/pages/Home.tsx",
+              "newMeta": "new"
+            },
+            "title": "Write pages"
+          }
+        },
+        "progress": "{{completed}}/{{total}} tasks completed",
+        "tasks": {
+          "addLinting": "Add ESLint + Prettier",
+          "addRouter": "Add React Router",
+          "buildDeploy": "Build and deploy",
+          "configureProject": "Configure project",
+          "finish": "Finish",
+          "installDependencies": "Install dependencies",
+          "reviewReferences": "Review references",
+          "searchWeb": "Search web references",
+          "writeComponents": "Write components",
+          "writePages": "Write pages"
+        },
+        "title": "Tasks"
+      },
       "panel": {
         "title": "{{completed}}/{{total}} tasks completed"
       },
@@ -735,7 +834,7 @@
       "running": "Running",
       "stopped": "Stopped"
     },
-    "title": "API Server"
+    "title": "API Gateway"
   },
   "appMenu": {
     "about": "About",
@@ -949,17 +1048,6 @@
         "off_description": "Disable reasoning",
         "xhigh": "Extra High",
         "xhigh_description": "Extra high level reasoning"
-      },
-      "regular_phrases": {
-        "add": "Add Phrase",
-        "contentLabel": "Content",
-        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
-        "delete": "Delete Phrase",
-        "deleteConfirm": "Are you sure to delete this phrase?",
-        "edit": "Edit Phrase",
-        "title": "Regular Phrase",
-        "titleLabel": "Title",
-        "titlePlaceholder": "Enter title"
       },
       "title": "Assistant Settings",
       "tool_use_mode": {
@@ -2140,7 +2228,7 @@
   },
   "launchpad": {
     "apps": "Apps",
-    "minapps": "Minapps"
+    "miniApps": "MiniApps"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2490,20 +2578,23 @@
     "websearch": {
       "cutoff": "Truncating search content...",
       "fetch_complete": "{{count}} search result(s)",
-      "rag": "Executing RAG...",
-      "rag_complete": "Keeping {{countAfter}} out of {{countBefore}} results...",
-      "rag_failed": "RAG failed, returning empty results..."
+      "partial_failure": "{{count}} search result(s), some searches failed"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Add to Launchpad",
     "add_to_sidebar": "Add to Sidebar",
+    "error": {
+      "load_failed": "Failed to load app",
+      "not_found": "App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "Failed to pin mini-app",
     "popup": {
-      "close": "Close MinApp",
+      "close": "Close MiniApp",
       "devtools": "Developer Tools",
       "goBack": "Go Back",
       "goForward": "Go Forward",
-      "minimize": "Minimize MinApp",
       "openExternal": "Open in Browser",
       "open_link_external_off": "Current: Open links in default window",
       "open_link_external_on": "Current: Open links in browser",
@@ -2512,6 +2603,13 @@
     },
     "remove_from_launchpad": "Remove from Launchpad",
     "remove_from_sidebar": "Remove from Sidebar",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "Failed: {{message}}",
+      "html_saved": "HTML saved to: {{path}}",
+      "pdf_saved": "PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Close"
@@ -2526,9 +2624,11 @@
         "title": "Delete Custom App"
       }
     },
-    "title": "MinApp"
+    "title": "MiniApp",
+    "unpin_failed": "Failed to unpin mini-app",
+    "update_partial_failure": "{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -2547,6 +2647,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -2554,6 +2655,10 @@
     "zhihu": "Zhihu"
   },
   "models": {
+    "action": {
+      "pin": "Pin this model",
+      "unpin": "Unpin model"
+    },
     "add_parameter": "Add Parameter",
     "all": "All",
     "custom_parameters": "Custom Parameters",
@@ -2571,6 +2676,9 @@
     "function_calling": "Function Calling",
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
+    "multi_select": {
+      "label": "Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
     "parameter_type": {
@@ -3637,7 +3745,7 @@
         "r_regenerate": "R: Regenerate"
       }
     },
-    "name": "Selection Assistant",
+    "name": "Selection",
     "settings": {
       "actions": {
         "add_tooltip": {
@@ -3689,7 +3797,7 @@
         "title": "Application Filter List",
         "user_tips": {
           "mac": "Please enter the Bundle ID of the application, one per line, case insensitive, can be fuzzy matched. For example: com.google.Chrome, com.apple.mail, etc.",
-          "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
+          "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, CherryStudio.exe, etc."
         }
       },
       "linux": {
@@ -3810,6 +3918,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "New Agent",
+      "empty_text": "No agents yet",
+      "search_placeholder": "Search agents…"
+    },
+    "assistant": {
+      "create_new": "New Assistant",
+      "empty_text": "No assistants yet",
+      "multi_hint": "(mutually exclusive with multi-model)",
+      "multi_label": "Multi-assistant parallel",
+      "search_placeholder": "Search assistants…"
+    },
+    "common": {
+      "edit": "Edit",
+      "pin": "Pin",
+      "pinned_title": "Pinned",
+      "sort": {
+        "asc": "Oldest",
+        "desc": "Recent"
+      },
+      "sort_label": "Sort",
+      "unpin": "Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3876,6 +4009,78 @@
       "description": "Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
       "title": "Channels"
     },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "Clear",
+        "configDescription": "Toggle props to preview component behavior",
+        "configTitle": "Config",
+        "currentProps": "Current props",
+        "description": "AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "Latest onChange",
+        "previewDescription": "Click the trigger to open the selector",
+        "previewTitle": "Preview",
+        "title": "Agent Selector",
+        "triggerPlaceholder": "Select an agent",
+        "valueProp": "Current value"
+      },
+      "agentTodoList": {
+        "title": "Agent Todo List"
+      },
+      "assistantSelector": {
+        "clearSelection": "Clear",
+        "configDescription": "Toggle props to preview component behavior",
+        "configTitle": "Config",
+        "currentProps": "Current props",
+        "description": "Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "Latest onChange",
+        "previewDescription": "Click the trigger to open the selector",
+        "previewTitle": "Preview",
+        "title": "Assistant Selector",
+        "triggerPlaceholder": "Select an assistant",
+        "triggerSelectedCount": "{{count}} assistants selected",
+        "valueProp": "Current value"
+      },
+      "description": "Visible only in development for testing new v2 components (selectors and friends) directly inside the app.",
+      "label": "Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "Behavior & Display Config",
+        "callbackEmpty": "No component callback received yet",
+        "clearSelection": "Clear Selection",
+        "configDescription": "Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "Props Playground",
+        "controlMultiSelectMode": "Controlled multiSelectMode",
+        "currentProps": "Current Props",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "Latest onSelect Return",
+        "loading": "Loading models...",
+        "modelId": "Model ID",
+        "multiSelectMode": "multiSelectMode",
+        "multiple": "multiple",
+        "normalizedIds": "Normalized Selected IDs",
+        "outputEmpty": "No data to display yet",
+        "provider": "Provider",
+        "resetOutputs": "Reset Outputs",
+        "resultsDescription": "This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "Outputs & State",
+        "selected": "Current Selection",
+        "selectedEmpty": "No model selected yet",
+        "selectionConfig": "Selection Value Config",
+        "selectionType": "selectionType",
+        "selectionTypeId": "Return Model IDs",
+        "selectionTypeModel": "Return Model Objects",
+        "showPinnedModels": "showPinnedModels",
+        "showTagFilter": "showTagFilter",
+        "title": "Model Selector",
+        "triggerPlaceholder": "Select a model",
+        "triggerSelectedCount": "{{count}} models selected",
+        "valueProp": "Current Value Prop"
+      },
+      "title": "Development Component Lab"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Copy data, will automatically restart after copying the original directory data to the new directory",
@@ -3923,7 +4128,7 @@
       },
       "clear_cache": {
         "button": "Clear Cache",
-        "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
+        "confirm": "Clearing the cache will delete application cache data, including miniapp data. This action is irreversible, continue?",
         "error": "Error clearing cache",
         "success": "Cache cleared",
         "title": "Clear Cache"
@@ -4540,8 +4745,8 @@
         "knowledge": {
           "icon": "Show Knowledge icon"
         },
-        "minapp": {
-          "icon": "Show MinApp icon"
+        "miniApp": {
+          "icon": "Show MiniApp icon"
         },
         "painting": {
           "icon": "Show Painting icon"
@@ -4574,6 +4779,15 @@
       "backup": {
         "button": "Backup",
         "title": "Data Backup and Recovery"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "Custom CSS",
+          "display_language": "Display & Language",
+          "privacy_advanced": "Privacy & Advanced",
+          "system_startup": "System & Startup"
+        },
+        "title": "General"
       },
       "display": {
         "title": "Display Settings"
@@ -4635,6 +4849,12 @@
         "label": "Target language",
         "russian": "Russian"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "Notes"
+      },
+      "title": "Integrations"
     },
     "launch": {
       "onboot": "Start Automatically on Boot",
@@ -4905,6 +5125,13 @@
       "url": "URL",
       "user": "User"
     },
+    "menuGroups": {
+      "appSettings": "App Settings",
+      "integrations": "Models",
+      "productivity": "Productivity",
+      "services": "Plugins",
+      "system": "System"
+    },
     "messages": {
       "divider": {
         "label": "Show divider between messages",
@@ -4942,7 +5169,7 @@
       "title": "Message Settings",
       "use_serif_font": "Use serif font"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",
       "cache_description": "Set the maximum number of active mini apps to keep in memory",
       "cache_settings": "Cache Settings",
@@ -4992,8 +5219,6 @@
         "title": "Mini Program filter"
       },
       "reset_tooltip": "Reset to default",
-      "sidebar_description": "Show active mini apps in the sidebar",
-      "sidebar_title": "Sidebar Active Mini Apps Display",
       "title": "Mini Apps Settings",
       "visible": "Visible Mini Apps"
     },
@@ -5058,7 +5283,7 @@
         "use_all_keys": "Key(s)"
       },
       "default_assistant_model": "Default Assistant Model",
-      "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
+      "default_assistant_model_description": "Used when an assistant has no model",
       "empty": "No models found",
       "manage": {
         "add_listed": {
@@ -5152,9 +5377,35 @@
         "title": "Verbosity"
       }
     },
+    "plugins": {
+      "bunDescription": "JavaScript runtime used by MCP services and related toolchains.",
+      "description": "Manage binary tools and runtime dependencies required by the app.",
+      "installing": "Installing...",
+      "notInstalled": "Not installed",
+      "title": "Dependencies",
+      "uvDescription": "Python package manager for MCP services and dependency installation."
+    },
     "privacy": {
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",
       "title": "Privacy Settings"
+    },
+    "prompts": {
+      "add": "Add Prompt",
+      "contentLabel": "Content",
+      "contentPlaceholder": "Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Delete Prompt",
+      "deleteConfirm": "The prompt will be permanently deleted. Continue?",
+      "edit": "Edit Prompt",
+      "errors": {
+        "createFailed": "Failed to create prompt",
+        "deleteFailed": "Failed to delete prompt",
+        "loadFailed": "Failed to load prompts",
+        "reorderFailed": "Failed to reorder prompts",
+        "updateFailed": "Failed to update prompt"
+      },
+      "title": "Prompt Management",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Enter prompt title"
     },
     "provider": {
       "add": {
@@ -5396,7 +5647,8 @@
         "documentation": "View official documentation for more configuration details:",
         "learn_more": "Learn More",
         "location": "Location",
-        "location_help": "Vertex AI service location, e.g., us-central1",
+        "location_help": "Vertex AI service location, e.g., us-central1. This field is not read from the Service Account JSON and must be entered manually.",
+        "location_placeholder": "Select Vertex AI location",
         "project_id": "Project ID",
         "project_id_help": "Your Google Cloud project ID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5406,7 +5658,12 @@
           "client_email_help": "The client_email field from the JSON key file downloaded from Google Cloud Console",
           "client_email_placeholder": "Enter Service Account client email",
           "description": "Use Service Account for authentication, suitable for environments where ADC is not available",
-          "incomplete_config": "Please complete Service Account configuration first",
+          "incomplete_config": "Please complete all required Vertex AI settings first",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Paste the complete JSON key content. After parsing, only project_id, client_email, and private_key are saved, and the raw JSON is cleared.",
+          "json_input_placeholder": "Paste the complete Service Account JSON key content",
+          "json_parse_error": "Failed to parse Service Account JSON. Please confirm the format is correct.",
+          "json_parse_success": "Service Account JSON parsed",
           "private_key": "Private Key",
           "private_key_help": "The private_key field from the JSON key file downloaded from Google Cloud Console",
           "private_key_placeholder": "Enter Service Account private key",
@@ -5443,20 +5700,6 @@
       "select": "Select",
       "title": "Quick Menu"
     },
-    "quickPhrase": {
-      "add": "Add Phrase",
-      "assistant": "Assistant Phrases",
-      "contentLabel": "Content",
-      "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
-      "delete": "Delete Phrase",
-      "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
-      "edit": "Edit Phrase",
-      "global": "Global Phrases",
-      "locationLabel": "Add Location",
-      "title": "Quick Phrases",
-      "titleLabel": "Title",
-      "titlePlaceholder": "Please enter phrase title"
-    },
     "scheduledTasks": {
       "description": "Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
       "noAgents": "Scheduled tasks require agents with Soul Mode or Bypass Permissions enabled. Update an agent's settings to get started.",
@@ -5468,12 +5711,22 @@
     "shortcuts": {
       "action": "Action",
       "actions": "operation",
+      "all_disable": "Disable All",
+      "all_enable": "Enable All",
       "bind_first_to_enable": "Bind a shortcut first to change its enabled state",
+      "categories": {
+        "assistant": "AI Assistant Tools",
+        "chat": "Message Interaction",
+        "general": "Global and Window",
+        "title": "Shortcut Groups",
+        "topic": "Conversation and Topics"
+      },
       "clear_shortcut": "Clear Shortcut",
       "clear_topic": "Clear Messages",
       "conflict_with": "Already used by \"{{name}}\"",
       "copy_last_message": "Copy Last Message",
       "edit_last_user_message": "Edit Last User Message",
+      "empty": "No shortcuts are available in this group",
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
       "label": "Key",
@@ -5482,6 +5735,7 @@
       "press_shortcut": "Press Shortcut",
       "quick_assistant": "Quick Assistant",
       "rename_topic": "Rename Topic",
+      "reset": "Reset",
       "reset_defaults": "Reset Defaults",
       "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
       "reset_defaults_failed": "Failed to reset shortcuts to defaults",
@@ -5496,7 +5750,7 @@
       "selection_assistant_toggle": "Toggle Selection Assistant",
       "show_app": "Show/Hide App",
       "show_settings": "Open Settings",
-      "title": "Keyboard Shortcuts",
+      "title": "Shortcuts",
       "toggle_new_context": "Clear Context",
       "toggle_show_topics": "Toggle Topics",
       "toggle_sidebar": "Toggle Sidebar",
@@ -5562,6 +5816,14 @@
         "error": {
           "not_system": "System OCR only supports Windows and MacOS"
         },
+        "features": {
+          "paddleocr": "Stronger for Chinese text and better suited for receipts, scans, and images with more complex layouts.",
+          "system": {
+            "macos": "Uses the built-in macOS OCR engine with zero setup, ideal for screenshots and lightweight text extraction.",
+            "windows": "Uses the native Windows OCR engine with strong OS integration for basic local recognition tasks."
+          },
+          "tesseract": "A classic local OCR option with customizable language packs, well suited for offline and multilingual workflows."
+        },
         "image": {
           "error": {
             "provider_not_found": "The provider does not exist"
@@ -5588,15 +5850,22 @@
         "title": "OCR service"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "Well suited for converting PDFs into cleaner Markdown or editable text for downstream retrieval and editing.",
+          "mineru": "Optimized for higher-fidelity layout recovery, especially useful for academic PDFs, tables, and formulas.",
+          "mistral": "Strong cloud-based document understanding, suitable for structured extraction, multi-page files, and complex layouts.",
+          "open_mineru": "An open deployment option that fits teams wanting self-hosting or tighter control over the processing pipeline.",
+          "paddleocr": "A lighter integration choice that works well for Chinese documents, scans, and common receipt-style content."
+        },
         "paddleocr": {
           "aistudio_access_token": "Access token of AI Studio Community",
           "api_url": "API URL",
           "api_url_label": "Obtain Access Token and API URL",
           "paddleocr_url_label": "PaddleOCR Official Website"
         },
-        "provider": "Document Processing Provider",
-        "provider_placeholder": "Choose a document processing provider",
-        "title": "Document Processing",
+        "provider": "Doc Provider",
+        "provider_placeholder": "Choose a doc provider",
+        "title": "Doc Process",
         "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
       },
       "title": "Other Settings",
@@ -5626,23 +5895,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG failed"
-          },
-          "info": {
-            "dimensions_auto_success": "Dimensions auto-obtained successfully, dimensions: {{dimensions}}"
-          },
           "method": {
             "cutoff": "Cutoff",
             "label": "Compression Method",
-            "none": "None",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Document Chunks Count",
-              "tooltip": "Expected number of document chunks to extract from each search result, the actual total number of extracted document chunks is this value multiplied by the number of search results."
-            }
+            "none": "None"
           },
           "title": "Search Result Compression"
         },

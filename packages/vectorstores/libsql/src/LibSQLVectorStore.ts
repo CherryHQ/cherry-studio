@@ -31,6 +31,17 @@ function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
 }
 
+function toFts5TokenQuery(query: string): string | null {
+  const tokens = query.match(/[\p{L}\p{N}_]+/gu) ?? []
+  const nonEmptyTokens = tokens.map((token) => token.trim()).filter((token) => token.length > 0)
+
+  if (nonEmptyTokens.length === 0) {
+    return null
+  }
+
+  return nonEmptyTokens.map((token) => `"${token.replaceAll('"', '""')}"`).join(' AND ')
+}
+
 function validateMetadataKey(key: string): string {
   if (!SAFE_METADATA_KEY_PATTERN.test(key)) {
     throw new Error(`Invalid metadata filter key: ${key}`)
@@ -267,9 +278,6 @@ export class LibSQLVectorStore extends BaseVectorStore {
       const id = node.id_.length ? node.id_ : null
       const externalId = node.sourceNode?.nodeId || node.id_
       const meta = node.metadata || {}
-      if (!meta.create_date) {
-        meta.create_date = new Date()
-      }
 
       const nodeId = id ?? '<auto-id>'
       const embedding = this.normalizeEmbeddingOrThrow(this.getNodeEmbedding(node, nodeId), nodeId)
@@ -334,6 +342,16 @@ export class LibSQLVectorStore extends BaseVectorStore {
     const args = this.collection.length ? [refDocId, this.collection] : [refDocId]
     const validParams = toInArgs(args)
     const statement: InStatement = { sql, args: validParams }
+    await this.clientInstance.execute(statement)
+  }
+
+  async deleteByIdAndExternalId(chunkId: string, refDocId: string): Promise<void> {
+    await this.ensureInitialized()
+
+    const collectionCriteria = this.collection.length ? 'AND collection = ?' : ''
+    const sql = `DELETE FROM ${this.tableName} WHERE id = ? AND external_id = ? ${collectionCriteria}`
+    const args = this.collection.length ? [chunkId, refDocId, this.collection] : [chunkId, refDocId]
+    const statement: InStatement = { sql, args: toInArgs(args) }
     await this.clientInstance.execute(statement)
   }
 
@@ -583,6 +601,16 @@ export class LibSQLVectorStore extends BaseVectorStore {
       throw new Error('queryStr is required for BM25 mode')
     }
 
+    const matchQuery = toFts5TokenQuery(query.queryStr)
+
+    if (!matchQuery) {
+      return {
+        nodes: [],
+        similarities: [],
+        ids: []
+      }
+    }
+
     const { where, params } = this.buildWhereClause(query, 'v')
 
     // Use FTS5 for BM25 search
@@ -596,7 +624,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
         ORDER BY score
         LIMIT ${max}
       `,
-      args: toInArgs([...params, query.queryStr])
+      args: toInArgs([...params, matchQuery])
     }
 
     try {
@@ -733,5 +761,40 @@ export class LibSQLVectorStore extends BaseVectorStore {
       args: toInArgs(params)
     })
     return results.rows.length > 0
+  }
+
+  async listByExternalId(refDocId: string): Promise<Document<Metadata>[]> {
+    await this.ensureInitialized()
+    const collectionCriteria = this.collection.length ? 'AND collection = ?' : ''
+    const sql = `SELECT id, external_id, document, metadata FROM ${this.tableName}
+                 WHERE external_id = ? ${collectionCriteria}
+                 ORDER BY CASE WHEN json_valid(metadata) THEN CAST(json_extract(metadata, '$.chunkIndex') AS INTEGER) ELSE NULL END, id`
+    const params = this.collection.length ? [refDocId, this.collection] : [refDocId]
+    const results = await this.clientInstance.execute({
+      sql,
+      args: toInArgs(params)
+    })
+
+    return results.rows.map((row) => {
+      const metadata = this.parseJson<Metadata>(
+        row.metadata as Metadata | string | null | undefined,
+        {},
+        {
+          field: 'metadata',
+          rowId: String(row.id ?? '')
+        }
+      )
+      const externalId = typeof row.external_id === 'string' && row.external_id.length > 0 ? row.external_id : undefined
+
+      if (externalId && metadata.itemId === undefined) {
+        metadata.itemId = externalId
+      }
+
+      return new Document({
+        id_: String(row.id),
+        text: String(row.document || ''),
+        metadata
+      })
+    })
   }
 }

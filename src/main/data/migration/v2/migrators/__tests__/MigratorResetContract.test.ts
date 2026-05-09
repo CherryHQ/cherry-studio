@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { AssistantMigrator } from '../AssistantMigrator'
 import { ChatMigrator } from '../ChatMigrator'
 import { getAllMigrators } from '../index'
+import { PromptMigrator } from '../PromptMigrator'
 import { TranslateMigrator } from '../TranslateMigrator'
 
 describe('migrator reset contract', () => {
@@ -26,7 +27,7 @@ describe('migrator reset contract', () => {
     state.topicAssistantLookup = new Map([['topic-1', 'assistant-1']])
     state.skippedTopics = 2
     state.skippedMessages = 5
-    state.seenMessageIds = new Set(['message-1'])
+    // seenMessageIds is now a local variable inside insertStagedTopics(), not a class field.
     state.blockStats = {
       requested: 9,
       resolved: 8,
@@ -35,6 +36,9 @@ describe('migrator reset contract', () => {
     }
     state.promotedToRootCount = 3
     state.validAssistantIds = new Set(['ast-1'])
+    state.validModelIds = new Set(['provider::model'])
+    state.orphanedAssistantTopics = 4
+    state.stagedTopics = [{ topic: { id: 't' }, messages: [], pinned: false }]
 
     migrator.reset()
 
@@ -46,7 +50,6 @@ describe('migrator reset contract', () => {
     expect(state.topicAssistantLookup.size).toBe(0)
     expect(state.skippedTopics).toBe(0)
     expect(state.skippedMessages).toBe(0)
-    expect(state.seenMessageIds.size).toBe(0)
     expect(state.blockStats).toStrictEqual({
       requested: 0,
       resolved: 0,
@@ -55,6 +58,9 @@ describe('migrator reset contract', () => {
     })
     expect(state.promotedToRootCount).toBe(0)
     expect(state.validAssistantIds).toBeNull()
+    expect(state.validModelIds).toBeNull()
+    expect(state.orphanedAssistantTopics).toBe(0)
+    expect(state.stagedTopics).toStrictEqual([])
   })
 
   it('clears all attempt-local state in AssistantMigrator', () => {
@@ -70,6 +76,21 @@ describe('migrator reset contract', () => {
     expect(state.preparedResults).toStrictEqual([])
     expect(state.skippedCount).toBe(0)
     expect(state.validAssistantIds.size).toBe(0)
+  })
+
+  it('clears cached source data and counters in PromptMigrator', () => {
+    const migrator = new PromptMigrator()
+    const state = migrator as any
+
+    state.promptCount = 5
+    state.skippedCount = 2
+    state.preparedPhrases = [{ id: 'phrase-1' }]
+
+    migrator.reset()
+
+    expect(state.promptCount).toBe(0)
+    expect(state.skippedCount).toBe(0)
+    expect(state.preparedPhrases).toStrictEqual([])
   })
 
   it('clears cached source data and counters in TranslateMigrator', () => {

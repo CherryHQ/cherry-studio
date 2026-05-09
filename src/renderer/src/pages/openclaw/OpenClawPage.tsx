@@ -1,31 +1,46 @@
+import { Alert, Button } from '@cherrystudio/ui'
 import { Openclaw } from '@cherrystudio/ui/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
-import ModelSelector from '@renderer/components/ModelSelector'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import ModelSelector from '@renderer/components/ModelSelectorLegacy'
+import { useSharedCache } from '@renderer/data/hooks/useCache'
+import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { loggerService } from '@renderer/services/LoggerService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  type GatewayStatus,
-  type HealthInfo,
-  setGatewayStatus,
-  setLastHealthCheck,
-  setSelectedModelUniqId
-} from '@renderer/store/openclaw'
+import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Alert, Button, Result, Space, Spin } from 'antd'
-import { Download, ExternalLink, Play, Square } from 'lucide-react'
+import { Download, ExternalLink, Loader2, Play, Square, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
+import useSWR, { mutate } from 'swr'
 
 import UpdateButton from './components/UpdateButton'
 
 const logger = loggerService.withContext('OpenClawPage')
 
 const DEFAULT_DOCS_URL = 'https://docs.openclaw.ai/'
+const NO_API_KEY_PROVIDERS = new Set(['ollama', 'lmstudio', 'gpustack'])
+
+function toLegacyModelSelectorValue(modelId: UniqueModelId | null): string | null {
+  if (!modelId) return null
+
+  const parsed = parseUniqueModelId(modelId)
+  return JSON.stringify({ id: parsed.modelId, provider: parsed.providerId })
+}
+
+function fromLegacyModelSelectorValue(modelUniqId: string): UniqueModelId | null {
+  try {
+    const parsed = JSON.parse(modelUniqId) as { id?: unknown; provider?: unknown }
+    if (typeof parsed.id !== 'string' || typeof parsed.provider !== 'string') {
+      return null
+    }
+    return createUniqueModelId(parsed.provider, parsed.id)
+  } catch {
+    return null
+  }
+}
 
 interface TitleSectionProps {
   title: string
@@ -55,9 +70,8 @@ const TitleSection: FC<TitleSectionProps> = ({ title, description, clickable = f
 
 const OpenClawPage: FC = () => {
   const { t, i18n } = useTranslation()
-  const dispatch = useAppDispatch()
   const { providers } = useProviders()
-  const { openSmartMinapp } = useMinappPopup()
+  const { openSmartMiniApp } = useMiniAppPopup()
 
   const docsUrl = useMemo(() => {
     const lang = i18n.language?.toLowerCase() ?? ''
@@ -67,7 +81,9 @@ const OpenClawPage: FC = () => {
     return DEFAULT_DOCS_URL
   }, [i18n.language])
 
-  const { gatewayStatus, gatewayPort, selectedModelUniqId } = useAppSelector((state) => state.openclaw)
+  const [gatewayPort] = usePreference('feature.openclaw.gateway_port')
+  const [selectedModelId, setSelectedModelId] = usePreference('feature.openclaw.selected_model_id')
+  const [gatewayStatus, setGatewayStatus] = useSharedCache('feature.openclaw.gateway_status')
 
   const [error, setError] = useState<string | null>(null)
   const [isInstalled, setIsInstalled] = useState<boolean | null>(null) // null = unknown, checking in background
@@ -86,24 +102,29 @@ const OpenClawPage: FC = () => {
   const [uninstallSuccess, setUninstallSuccess] = useState(false)
   const [isOpenClawUpdating, setIsOpenClawUpdating] = useState(false)
 
-  const noApiKeyProviders = ['ollama', 'lmstudio', 'gpustack']
-  const availableProviders = providers.filter((p) => p.enabled && (p.apiKey || noApiKeyProviders.includes(p.type)))
+  const availableProviders = useMemo(
+    () => providers.filter((p) => p.enabled && (p.apiKey || NO_API_KEY_PROVIDERS.has(p.type))),
+    [providers]
+  )
 
   const selectedModelInfo = useMemo(() => {
-    if (!selectedModelUniqId) return null
-    try {
-      const parsed = JSON.parse(selectedModelUniqId) as { id: string; provider: string }
-      for (const p of availableProviders) {
-        const model = p.models.find((m) => m.id === parsed.id && m.provider === parsed.provider)
-        if (model) {
-          return { provider: p, model }
-        }
+    if (!selectedModelId || !isUniqueModelId(selectedModelId)) return null
+    const { providerId, modelId } = parseUniqueModelId(selectedModelId)
+
+    for (const p of availableProviders) {
+      const model = p.models.find((m) => m.id === modelId && m.provider === providerId)
+      if (model) {
+        return { provider: p, model }
       }
-    } catch {
-      // Invalid JSON
     }
+
     return null
-  }, [selectedModelUniqId, availableProviders])
+  }, [selectedModelId, availableProviders])
+
+  const selectedModelUniqId = useMemo(() => {
+    if (!selectedModelId || !isUniqueModelId(selectedModelId)) return null
+    return toLegacyModelSelectorValue(selectedModelId)
+  }, [selectedModelId])
 
   const selectedProvider = selectedModelInfo?.provider ?? null
   const selectedModel = selectedModelInfo?.model ?? null
@@ -195,18 +216,8 @@ const OpenClawPage: FC = () => {
     isInstallPage ? 'openclaw/status' : null,
     async () => {
       const [status] = await Promise.all([window.api.openclaw.getStatus(), checkInstallation()])
-      dispatch(setGatewayStatus(status.status as GatewayStatus))
+      setGatewayStatus(status.status)
       return status
-    },
-    { refreshInterval: 5000, revalidateOnFocus: false }
-  )
-
-  useSWR(
-    isInstallPage && gatewayStatus === 'running' ? 'openclaw/health' : null,
-    async () => {
-      const health = await window.api.openclaw.checkHealth()
-      dispatch(setLastHealthCheck(health as HealthInfo))
-      return health
     },
     { refreshInterval: 5000, revalidateOnFocus: false }
   )
@@ -227,7 +238,12 @@ const OpenClawPage: FC = () => {
   }, [])
 
   const handleModelSelect = (modelUniqId: string) => {
-    dispatch(setSelectedModelUniqId(modelUniqId))
+    const nextModelId = fromLegacyModelSelectorValue(modelUniqId)
+    if (!nextModelId) {
+      logger.warn('Invalid model selector value, ignoring', { modelUniqId })
+      return
+    }
+    void setSelectedModelId(nextModelId)
   }
 
   const handleStartGateway = async () => {
@@ -259,18 +275,16 @@ const OpenClawPage: FC = () => {
       // Auto open dashboard first
       const dashboardUrl = await window.api.openclaw.getDashboardUrl()
 
-      openSmartMinapp({
-        id: 'openclaw-dashboard',
+      openSmartMiniApp({
+        appId: 'openclaw-dashboard',
         name: 'OpenClaw',
         url: dashboardUrl,
         logo: 'openclaw'
       })
 
-      // Delay 500ms before updating UI state (wait for minapp animation)
-      setTimeout(() => {
-        dispatch(setGatewayStatus('running'))
-        setIsStarting(false)
-      }, 500)
+      void mutate('openclaw/status', { status: 'running' }, { revalidate: false })
+      setGatewayStatus('running')
+      setIsStarting(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       setIsStarting(false)
@@ -282,7 +296,7 @@ const OpenClawPage: FC = () => {
     try {
       const result = await window.api.openclaw.stopGateway()
       if (result.success) {
-        dispatch(setGatewayStatus('stopped'))
+        setGatewayStatus('stopped')
       } else {
         setError(result.message)
       }
@@ -294,13 +308,18 @@ const OpenClawPage: FC = () => {
   }
 
   const handleOpenDashboard = async () => {
-    const dashboardUrl = await window.api.openclaw.getDashboardUrl()
-    openSmartMinapp({
-      id: 'openclaw-dashboard',
-      name: 'OpenClaw',
-      url: dashboardUrl,
-      logo: 'openclaw'
-    })
+    try {
+      const dashboardUrl = await window.api.openclaw.getDashboardUrl()
+      openSmartMiniApp({
+        appId: 'openclaw-dashboard',
+        name: 'OpenClaw',
+        url: dashboardUrl,
+        logo: 'openclaw'
+      })
+    } catch (err) {
+      logger.error('Failed to open dashboard', err as Error)
+      setError(err instanceof Error ? err.message : String(err))
+    }
   }
 
   const renderLogContainer = (expanded = false) => (
@@ -310,7 +329,7 @@ const OpenClawPage: FC = () => {
         style={{ background: 'var(--color-background-mute)' }}>
         <span>{t(expanded ? 'openclaw.uninstall_progress' : 'openclaw.install_progress')}</span>
         {!expanded && (
-          <Button size="small" type="text" onClick={() => setShowLogs(false)}>
+          <Button size="sm" variant="ghost" onClick={() => setShowLogs(false)}>
             {t('common.close')}
           </Button>
         )}
@@ -339,36 +358,39 @@ const OpenClawPage: FC = () => {
     <div id="content-container" className="flex flex-1 flex-col overflow-y-auto py-5">
       <div className="flex-1" />
       <div className="mx-auto min-h-fit w-130 shrink-0">
-        <Result
-          icon={<Openclaw.Avatar size={64} shape="rounded" />}
-          title={t(needsMigration ? 'openclaw.migration.title' : 'openclaw.not_installed.title')}
-          subTitle={t(needsMigration ? 'openclaw.migration.description' : 'openclaw.not_installed.description')}
-          extra={
-            <Space>
-              <Button
-                type="primary"
-                icon={<Download size={16} />}
-                disabled={isInstalling}
-                onClick={handleInstall}
-                loading={isInstalling}>
-                {t(needsMigration ? 'openclaw.migration.install_button' : 'openclaw.not_installed.install_button')}
-              </Button>
-              <Button
-                icon={<ExternalLink size={16} />}
-                disabled={isInstalling}
-                onClick={() => window.open(docsUrl, '_blank')}>
-                {t('openclaw.quick_actions.view_docs')}
-              </Button>
-            </Space>
-          }
-        />
+        <div className="mb-6 flex flex-col items-center text-center">
+          <Openclaw.Avatar size={64} shape="rounded" />
+          <h2 className="mt-5 font-semibold text-foreground text-lg">
+            {t(needsMigration ? 'openclaw.migration.title' : 'openclaw.not_installed.title')}
+          </h2>
+          <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
+            {t(needsMigration ? 'openclaw.migration.description' : 'openclaw.not_installed.description')}
+          </p>
+          <div className="mt-6 flex items-center justify-center gap-2">
+            <Button disabled={isInstalling} onClick={handleInstall} loading={isInstalling}>
+              {!isInstalling && <Download size={16} />}
+              {t(needsMigration ? 'openclaw.migration.install_button' : 'openclaw.not_installed.install_button')}
+            </Button>
+            <Button variant="outline" disabled={isInstalling} onClick={() => window.open(docsUrl, '_blank')}>
+              <ExternalLink size={16} />
+              {t('openclaw.quick_actions.view_docs')}
+            </Button>
+          </div>
+        </div>
         {installError && (
           <Alert
             message={installError}
             type="error"
-            closable
-            onClose={() => setInstallError(null)}
-            style={{ marginBottom: 16 }}
+            className="mb-4"
+            action={
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label={t('common.close')}
+                onClick={() => setInstallError(null)}>
+                <X size={14} />
+              </Button>
+            }
           />
         )}
 
@@ -395,10 +417,10 @@ const OpenClawPage: FC = () => {
                   {installPath}
                 </div>
                 <Button
-                  type="link"
-                  className="h-auto! w-3! p-0!"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="size-4! p-0! shadow-none"
                   aria-label={t('common.copy')}
-                  icon={<CopyIcon className="size-3!" />}
                   onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(installPath)
@@ -407,8 +429,9 @@ const OpenClawPage: FC = () => {
                       window.toast.error(t('common.copy_failed'))
                       logger.error('Failed to copy install path:', error as Error)
                     }
-                  }}
-                />
+                  }}>
+                  <CopyIcon className="size-3!" />
+                </Button>
                 <UpdateButton onUpdateComplete={checkInstallation} onUpdatingChange={setIsOpenClawUpdating} />
               </div>
             </div>
@@ -436,13 +459,13 @@ const OpenClawPage: FC = () => {
               </span>
             </div>
             <Button
-              size="small"
-              type="text"
-              icon={<Square size={14} />}
+              size="sm"
+              variant="ghost"
               onClick={handleStopGateway}
               loading={isStopping}
               disabled={isStopping}
-              danger>
+              className="text-destructive hover:text-destructive">
+              {!isStopping && <Square size={14} />}
               {t('openclaw.gateway.stop')}
             </Button>
           </div>
@@ -455,26 +478,38 @@ const OpenClawPage: FC = () => {
               message={
                 <div className="flex items-start justify-between gap-2">
                   <span className="max-h-25 flex-1 overflow-y-auto whitespace-pre-wrap break-all">{error}</span>
+                </div>
+              }
+              type="error"
+              action={
+                <div className="flex items-center gap-1">
                   <Button
-                    type="link"
-                    className="h-auto! w-3! shrink-0 p-0!"
+                    size="icon-sm"
+                    variant="ghost"
+                    className="shadow-none"
                     aria-label={t('common.copy')}
-                    icon={<CopyIcon className="size-3!" />}
                     onClick={async () => {
                       try {
                         await navigator.clipboard.writeText(error)
                         window.toast.success(t('common.copied'))
                       } catch (err) {
                         window.toast.error(t('common.copy_failed'))
+                        logger.error('Failed to copy error message:', err as Error)
                       }
-                    }}
-                  />
+                    }}>
+                    <CopyIcon className="size-3!" />
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    className="shadow-none"
+                    aria-label={t('common.close')}
+                    onClick={() => setError(null)}>
+                    <X size={14} />
+                  </Button>
                 </div>
               }
-              type="error"
-              closable
-              onClose={() => setError(null)}
-              className="rounded-lg!"
+              className="rounded-lg"
             />
           </div>
         )}
@@ -516,20 +551,19 @@ const OpenClawPage: FC = () => {
 
         {gatewayStatus !== 'running' && (
           <Button
-            type="primary"
-            icon={<Play size={16} />}
             onClick={handleStartGateway}
             loading={isStarting || gatewayStatus === 'starting'}
             disabled={
               !selectedProvider || !selectedModel || isStarting || gatewayStatus === 'starting' || isOpenClawUpdating
             }
-            size="large"
-            block>
+            size="lg"
+            className="w-full">
+            {!isStarting && gatewayStatus !== 'starting' && <Play size={16} />}
             {t('openclaw.gateway.start')}
           </Button>
         )}
         {gatewayStatus === 'running' && (
-          <Button type="primary" onClick={handleOpenDashboard} size="large" block>
+          <Button onClick={handleOpenDashboard} size="lg" className="w-full">
             {t('openclaw.quick_actions.open_dashboard')}
           </Button>
         )}
@@ -539,7 +573,7 @@ const OpenClawPage: FC = () => {
 
   const renderCheckingContent = () => (
     <div id="content-container" className="flex flex-1 flex-col items-center justify-center">
-      <Spin size="large" />
+      <Loader2 className="size-7 animate-spin" style={{ color: 'var(--color-primary)' }} />
       <div className="mt-4" style={{ color: 'var(--color-text-3)' }}>
         {t('openclaw.checking_installation')}
       </div>
@@ -560,16 +594,23 @@ const OpenClawPage: FC = () => {
             <Alert
               message={installError}
               type="error"
-              closable
-              onClose={() => setInstallError(null)}
-              className="rounded-lg!"
+              action={
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={t('common.close')}
+                  onClick={() => setInstallError(null)}>
+                  <X size={14} />
+                </Button>
+              }
+              className="rounded-lg"
             />
           </div>
         )}
 
         {renderLogContainer(true)}
 
-        <Button disabled={!uninstallSuccess} type="primary" onClick={handleUninstallComplete} block size="large">
+        <Button disabled={!uninstallSuccess} onClick={handleUninstallComplete} className="w-full" size="lg">
           {t('common.close')}
         </Button>
       </div>

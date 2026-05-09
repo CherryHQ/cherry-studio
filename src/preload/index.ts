@@ -19,13 +19,29 @@ import type {
 } from '@shared/config/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
+  FileProcessorFeature,
+  FileProcessorId,
   SelectionActionItem,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType,
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
-import type { KnowledgeSearchResult as KnowledgeVectorSearchResult } from '@shared/data/types/knowledge'
+import type { FileProcessingTaskResult, FileProcessingTaskStartResult } from '@shared/data/types/fileProcessing'
+import type {
+  CreateKnowledgeBaseDto,
+  KnowledgeBase,
+  KnowledgeItemChunk,
+  KnowledgeRuntimeAddItemInput,
+  KnowledgeSearchResult as KnowledgeVectorSearchResult,
+  RestoreKnowledgeBaseDto
+} from '@shared/data/types/knowledge'
+import type { SettingsPath } from '@shared/data/types/settingsPath'
+import type {
+  WebSearchFetchUrlsRequest,
+  WebSearchResponse,
+  WebSearchSearchKeywordsRequest
+} from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
@@ -345,16 +361,24 @@ const api = {
       })
   },
   knowledgeRuntime: {
-    createBase: (baseId: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_CreateBase, { baseId }),
+    createBase: (base: CreateKnowledgeBaseDto): Promise<KnowledgeBase> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_CreateBase, { base }),
+    restoreBase: (dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_RestoreBase, dto),
     deleteBase: (baseId: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteBase, { baseId }),
-    addItems: (baseId: string, itemIds: string[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_AddItems, { baseId, itemIds }),
+    addItems: (baseId: string, items: KnowledgeRuntimeAddItemInput[]): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_AddItems, { baseId, items }),
     deleteItems: (baseId: string, itemIds: string[]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteItems, { baseId, itemIds }),
+    reindexItems: (baseId: string, itemIds: string[]): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_ReindexItems, { baseId, itemIds }),
     search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_Search, { baseId, query })
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_Search, { baseId, query }),
+    listItemChunks: (baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_ListItemChunks, { baseId, itemId }),
+    deleteItemChunk: (baseId: string, itemId: string, chunkId: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteItemChunk, { baseId, itemId, chunkId })
   },
   window: {
     setMinimumSize: (width: number, height: number) =>
@@ -540,6 +564,9 @@ const api = {
     }
   },
   windowManager: {
+    openSettings: (path: SettingsPath = '/settings/provider'): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.SettingsWindow_Open, path),
+
     // Retrieve init data that the main process stored for this window via
     // wm.setInitData() or wm.open({ initData }). Returns null when no data was set or when
     // the sender window is not managed by WindowManager (e.g., detached devtools).
@@ -802,9 +829,26 @@ const api = {
       ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
     listProviders: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_ListProviders)
   },
+  fileProcessing: {
+    startTask: (payload: {
+      feature: FileProcessorFeature
+      file: FileMetadata
+      processorId?: FileProcessorId
+    }): Promise<FileProcessingTaskStartResult> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartTask, payload),
+    getTask: (payload: { taskId: string }): Promise<FileProcessingTaskResult> =>
+      ipcRenderer.invoke(IpcChannel.FileProcessing_GetTask, payload),
+    cancelTask: (payload: { taskId: string }): Promise<FileProcessingTaskResult> =>
+      ipcRenderer.invoke(IpcChannel.FileProcessing_CancelTask, payload)
+  },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Cherryai_GetSignature, params)
+  },
+  webSearch: {
+    searchKeywords: (request: WebSearchSearchKeywordsRequest): Promise<WebSearchResponse> =>
+      ipcRenderer.invoke(IpcChannel.WebSearch_SearchKeywords, request),
+    fetchUrls: (request: WebSearchFetchUrlsRequest): Promise<WebSearchResponse> =>
+      ipcRenderer.invoke(IpcChannel.WebSearch_FetchUrls, request)
   },
   shortcut: {
     onRegistrationConflict: (callback: (payload: ShortcutRegistrationConflictPayload) => void): (() => void) => {
@@ -950,6 +994,10 @@ const api = {
   },
   analytics: {
     trackTokenUsage: (data: TokenUsageData) => ipcRenderer.invoke(IpcChannel.Analytics_TrackTokenUsage, data)
+  },
+  agent: {
+    runTask: (agentId: string, taskId: string) => ipcRenderer.invoke(IpcChannel.Agent_RunTask, agentId, taskId),
+    getModels: (filter: unknown) => ipcRenderer.invoke(IpcChannel.Agent_GetModels, filter)
   }
 }
 

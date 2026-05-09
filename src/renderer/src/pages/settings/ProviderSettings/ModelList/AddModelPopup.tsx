@@ -1,4 +1,4 @@
-import { Flex } from '@cherrystudio/ui'
+import { Flex, Input } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { isNotSupportTextDeltaModel } from '@renderer/config/models'
@@ -6,7 +6,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import type { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
 import type { FormProps } from 'antd'
-import { Form, Input, Modal } from 'antd'
+import { Form, Modal } from 'antd'
 import { find } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -96,7 +96,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
         labelCol={{ flex: '110px' }}
         labelAlign="left"
         colon={false}
-        className="mt-[25px]"
+        className="mt-6.25"
         onFinish={onFinish}>
         <Form.Item
           name="id"

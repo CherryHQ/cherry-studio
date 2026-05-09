@@ -11,7 +11,6 @@ import { maskApiKey } from '@renderer/utils/api'
 import { Bolt, Minus } from 'lucide-react'
 import React, { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
@@ -67,7 +66,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
 
   return (
     <>
-      <ListItem ref={ref}>
+      <div ref={ref} className="flex flex-row items-center gap-2.5 text-foreground text-sm leading-none">
         <RowFlex className="flex-1 items-center gap-2.5">
           {(() => {
             const Icon = getModelLogo(model)
@@ -110,19 +109,9 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
             </Tooltip>
           </RowFlex>
         </RowFlex>
-      </ListItem>
+      </div>
     </>
   )
 }
-
-const ListItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  color: var(--color-text);
-  font-size: 14px;
-  line-height: 1;
-`
 
 export default memo(ModelListItem)

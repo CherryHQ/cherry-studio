@@ -8,7 +8,7 @@ import type { FC } from 'react'
 import { memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import TranslateSettingsPopup from '../settings/TranslateSettingsPopup/TranslateSettingsPopup'
+import TranslateSettingsPopup from './components/TranslateSettingsPopup/TranslateSettingsPopup'
 
 // TODO: Just don't send so many props. Migrate them to redux.
 const TranslateSettings: FC<{

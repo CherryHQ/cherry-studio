@@ -51,7 +51,13 @@ const CustomTag: FC<CustomTagProps> = ({
           ...style
         }}
         onClick={disabled ? undefined : onClick}>
-        {icon && <span style={{ fontSize: `${size}px`, color: actualColor }}>{icon}</span>}
+        {icon && (
+          <span
+            className="inline-flex items-center justify-center"
+            style={{ fontSize: `${size}px`, color: 'currentColor' }}>
+            {icon}
+          </span>
+        )}
         {children}
         {closable && (
           <div

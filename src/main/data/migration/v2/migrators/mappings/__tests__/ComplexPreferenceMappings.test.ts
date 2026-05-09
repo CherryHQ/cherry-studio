@@ -77,13 +77,21 @@ describe('ComplexPreferenceMappings', () => {
       const websearchMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_compression_flatten')
       expect(websearchMapping).toBeDefined()
       expect(websearchMapping?.targetKeys).toContain('chat.web_search.compression.method')
-      expect(websearchMapping?.targetKeys.length).toBe(7)
+      expect(websearchMapping?.targetKeys.length).toBe(3)
     })
 
     it('should contain websearch providers migrate mapping', () => {
       const providersMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_providers_migrate')
       expect(providersMapping).toBeDefined()
       expect(providersMapping?.targetKeys).toContain('chat.web_search.provider_overrides')
+    })
+
+    it('should contain websearch default provider migrate mapping', () => {
+      const defaultProviderMapping = COMPLEX_PREFERENCE_MAPPINGS.find(
+        (m) => m.id === 'websearch_default_provider_migrate'
+      )
+      expect(defaultProviderMapping).toBeDefined()
+      expect(defaultProviderMapping?.targetKeys).toEqual(['chat.web_search.default_search_keywords_provider'])
     })
 
     it('should contain the code_cli_overrides mapping', () => {
@@ -102,14 +110,19 @@ describe('ComplexPreferenceMappings', () => {
       const keys = getComplexMappingTargetKeys()
       expect(keys).toContain('chat.web_search.compression.method')
       expect(keys).toContain('chat.web_search.provider_overrides')
+      expect(keys).toContain('chat.web_search.default_search_keywords_provider')
       expect(keys).toContain('feature.code_cli.overrides')
       expect(keys).toContain('feature.file_processing.overrides')
       expect(keys).toContain('chat.default_model_id')
       expect(keys).toContain('topic.naming.model_id')
       expect(keys).toContain('feature.quick_assistant.model_id')
       expect(keys).toContain('feature.translate.model_id')
+      expect(keys).toContain('feature.openclaw.gateway_port')
+      expect(keys).toContain('feature.openclaw.selected_model_id')
       expect(keys).toContain('shortcut.general.zoom_in')
-      expect(keys.length).toBe(34) // 7 websearch compression + 1 provider overrides + 1 code_cli + 20 shortcuts + 1 file processing + 4 llm model ids
+      expect(keys).toContain('ui.sidebar.icons.visible')
+      expect(keys).toContain('ui.sidebar.icons.invisible')
+      expect(keys.length).toBe(35) // 33 existing keys + 2 OpenClaw preference keys
     })
 
     it('should flatten target keys from all mappings', () => {
@@ -153,6 +166,98 @@ describe('ComplexPreferenceMappings', () => {
     it('should return undefined for non-existent id', () => {
       const mapping = getComplexMappingById('does_not_exist')
       expect(mapping).toBeUndefined()
+    })
+  })
+
+  describe('sidebar_icons_rename', () => {
+    it("should rewrite 'minapp' to 'mini_app' in both visible and disabled arrays", () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')
+      expect(mapping).toBeDefined()
+
+      const result = mapping!.transform({
+        visible: ['assistants', 'minapp', 'translate'],
+        disabled: ['minapp', 'files']
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.icons.visible': ['assistants', 'mini_app', 'translate'],
+        'ui.sidebar.icons.invisible': ['mini_app', 'files']
+      })
+    })
+
+    it('should pass through other literals unchanged', () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')!
+      const result = mapping.transform({
+        visible: ['assistants', 'translate', 'paintings'],
+        disabled: ['files', 'knowledge']
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.icons.visible': ['assistants', 'translate', 'paintings'],
+        'ui.sidebar.icons.invisible': ['files', 'knowledge']
+      })
+    })
+
+    it('should return non-array inputs as-is without crashing', () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')!
+
+      expect(mapping.transform({ visible: undefined, disabled: undefined })).toEqual({
+        'ui.sidebar.icons.visible': undefined,
+        'ui.sidebar.icons.invisible': undefined
+      })
+
+      expect(mapping.transform({ visible: null, disabled: null })).toEqual({
+        'ui.sidebar.icons.visible': null,
+        'ui.sidebar.icons.invisible': null
+      })
+
+      expect(mapping.transform({})).toEqual({
+        'ui.sidebar.icons.visible': undefined,
+        'ui.sidebar.icons.invisible': undefined
+      })
+    })
+  })
+
+  describe('openclaw_preferences', () => {
+    it('should map gateway port and convert selected model JSON', () => {
+      const mapping = getComplexMappingById('openclaw_preferences')!
+
+      expect(
+        mapping.transform({
+          gatewayPort: 18790,
+          selectedModelUniqId: '{"id":"gpt-4o","provider":"openai"}'
+        })
+      ).toEqual({
+        'feature.openclaw.gateway_port': 18790,
+        'feature.openclaw.selected_model_id': 'openai::gpt-4o'
+      })
+    })
+
+    it.each([
+      ['', null],
+      ['null', null],
+      ['"some-string"', null],
+      ['[{"id":"x","provider":"y"}]', null],
+      ['{"id":"openai::gpt-4","provider":"openai"}', 'openai::gpt-4'],
+      ['openai::gpt-4', null]
+    ])('should handle legacy selected model value %s', (selectedModelUniqId, expected) => {
+      const mapping = getComplexMappingById('openclaw_preferences')!
+
+      expect(
+        mapping.transform({
+          gatewayPort: 18790,
+          selectedModelUniqId
+        })['feature.openclaw.selected_model_id']
+      ).toBe(expected)
+    })
+
+    it('should skip invalid gateway ports so schema default applies', () => {
+      const mapping = getComplexMappingById('openclaw_preferences')!
+
+      expect(mapping.transform({ gatewayPort: undefined })['feature.openclaw.gateway_port']).toBeUndefined()
+      expect(mapping.transform({ gatewayPort: null })['feature.openclaw.gateway_port']).toBeUndefined()
+      expect(mapping.transform({ gatewayPort: '18790' })['feature.openclaw.gateway_port']).toBeUndefined()
+      expect(mapping.transform({ gatewayPort: Number.NaN })['feature.openclaw.gateway_port']).toBeUndefined()
     })
   })
 

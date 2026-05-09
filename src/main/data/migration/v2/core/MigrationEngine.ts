@@ -16,8 +16,10 @@ import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/s
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
-import { miniappTable } from '@data/db/schemas/miniapp'
+import { miniAppTable } from '@data/db/schemas/miniApp'
+import { pinTable } from '@data/db/schemas/pin'
 import { preferenceTable } from '@data/db/schemas/preference'
+import { promptTable } from '@data/db/schemas/prompt'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
@@ -211,7 +213,8 @@ export class MigrationEngine {
         // Phase 1: Prepare (includes dry-run validation)
         const prepareResult = await migrator.prepare(context)
         if (!prepareResult.success) {
-          throw new Error(`${migrator.name} prepare failed: ${prepareResult.warnings?.join(', ')}`)
+          const reason = prepareResult.error ?? prepareResult.warnings?.join(', ') ?? 'unknown reason'
+          throw new Error(`${migrator.name} prepare failed: ${reason}`)
         }
 
         logger.info(`${migrator.name} prepare completed`, { itemCount: prepareResult.itemCount })
@@ -271,9 +274,10 @@ export class MigrationEngine {
         totalDuration: Date.now() - startTime
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const err = error instanceof Error ? error : new Error(String(error))
+      const errorMessage = err.message
 
-      logger.error('Migration failed', { error: errorMessage })
+      logger.error('Migration failed', err)
 
       // Mark migration as failed with error details
       await this.markFailed(errorMessage)
@@ -297,6 +301,7 @@ export class MigrationEngine {
     // Tables to clear - add more as they are created
     // Order matters: child tables must be cleared before parent tables
     const tables = [
+      { table: pinTable, name: 'pin' },
       { table: userModelTable, name: 'user_model' }, // Must clear before user_provider
       { table: userProviderTable, name: 'user_provider' },
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
@@ -305,12 +310,13 @@ export class MigrationEngine {
       { table: assistantKnowledgeBaseTable, name: 'assistant_knowledge_base' }, // Junction: clear before assistant
       { table: assistantTable, name: 'assistant' },
       { table: mcpServerTable, name: 'mcp_server' },
-      { table: miniappTable, name: 'miniapp' },
+      { table: miniAppTable, name: 'mini_app' },
       { table: preferenceTable, name: 'preference' },
       { table: translateHistoryTable, name: 'translate_history' },
       { table: translateLanguageTable, name: 'translate_language' },
       { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
       { table: knowledgeBaseTable, name: 'knowledge_base' },
+      { table: promptTable, name: 'prompt' },
       // Agents-domain tables — child → parent order
       { table: agentSessionMessageTable, name: 'agent_session_message' },
       { table: agentChannelTaskTable, name: 'agent_channel_task' },
@@ -333,31 +339,12 @@ export class MigrationEngine {
       }
     }
 
-    // Clear tables in dependency order (children before parents)
-    await db.delete(userModelTable)
-    await db.delete(userProviderTable)
-    await db.delete(messageTable) // FK → topic
-    await db.delete(topicTable) // FK → assistant
-    await db.delete(assistantMcpServerTable) // FK → assistant, mcp_server
-    await db.delete(assistantKnowledgeBaseTable) // FK → assistant
-    await db.delete(assistantTable)
-    await db.delete(mcpServerTable)
-    await db.delete(miniappTable)
-    await db.delete(preferenceTable)
-    await db.delete(translateHistoryTable)
-    await db.delete(translateLanguageTable)
-    await db.delete(knowledgeItemTable) // FK → knowledge_base
-    await db.delete(knowledgeBaseTable)
-    // Agents-domain cleanup — child → parent order
-    await db.delete(agentSessionMessageTable) // FK → agent_session
-    await db.delete(agentChannelTaskTable) // FK → agent_channel, agent_task
-    await db.delete(agentTaskRunLogTable) // FK → agent_task
-    await db.delete(agentChannelTable) // FK → agent, agent_session
-    await db.delete(agentTaskTable) // FK → agent
-    await db.delete(agentSkillTable) // FK → agent, agent_global_skill
-    await db.delete(agentSessionTable) // FK → agent
-    await db.delete(agentGlobalSkillTable)
-    await db.delete(agentTable)
+    // Clear tables atomically in dependency order (children before parents).
+    await db.transaction(async (tx) => {
+      for (const { table } of tables) {
+        await tx.delete(table)
+      }
+    })
 
     logger.info('All new architecture tables cleared successfully')
   }
@@ -425,7 +412,9 @@ export class MigrationEngine {
       await fs.rm(exportPath, { recursive: true, force: true })
       logger.info('Temporary files cleaned up', { path: exportPath })
     } catch (error) {
-      logger.warn('Failed to cleanup temp files', { error, path: exportPath })
+      // logger.error not warn — migration is already "completed" so a silent
+      // failure here leaks Dexie export blobs across retries.
+      logger.error('Failed to cleanup temp files', error as Error, { path: exportPath })
     }
   }
 

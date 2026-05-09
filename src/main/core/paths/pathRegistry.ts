@@ -83,7 +83,7 @@ export function buildPathRegistry() {
 
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged
-      ? path.join(appExtraResources, 'packages/provider-registry/data')
+      ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
     // MCP
@@ -118,6 +118,7 @@ export function buildPathRegistry() {
 
     // Files / Notes / Knowledgebase
     'feature.files.data': path.join(appUserDataData, 'Files'),
+    'feature.file_processing.results': path.join(appUserDataData, 'Files', 'file-processing'),
     'feature.notes.data': path.join(appUserDataData, 'Notes'),
     'feature.knowledgebase.data': path.join(appUserDataData, 'KnowledgeBase'),
 

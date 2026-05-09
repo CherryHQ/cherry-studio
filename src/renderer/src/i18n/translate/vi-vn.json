@@ -36,7 +36,9 @@
         "comingSoon": "Sắp ra mắt",
         "connected": "Đã kết nối",
         "connecting": "Kết nối",
+        "createError": "Không tạo được kênh",
         "deleteConfirm": "Xóa kênh \"{{name}}\"?",
+        "deleteError": "Không xóa được kênh",
         "description": "Kết nối tác nhân của bạn với các nền tảng nhắn tin.",
         "disconnected": "Ngắt kết nối",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Kênh",
+        "updateError": "Không thể cập nhật kênh",
         "wechat": {
           "addAccount": "Thêm Tài khoản WeChat",
           "chatIds": "ID Người Dùng Được Phép",
@@ -211,6 +214,9 @@
         },
         "edit": "Chỉnh sửa",
         "empty": "Không có tác vụ nào được lên lịch. Thêm một tác vụ để bắt đầu.",
+        "error": {
+          "loadFailed": "Không tải được nhiệm vụ"
+        },
         "intervalPlaceholder": "Khoảng thời gian tính bằng phút",
         "intervalUnit": "phút",
         "lastRun": "Lần chạy cuối",
@@ -220,6 +226,7 @@
           "error": "Lỗi",
           "justNow": "vừa mới đây",
           "label": "Lịch sử chạy",
+          "loadError": "Không tải được lịch sử chạy",
           "result": "Kết quả",
           "runAt": "Chạy tại",
           "running": "Đang chạy...",
@@ -950,17 +957,6 @@
         "xhigh": "Cao đặc biệt",
         "xhigh_description": "Lý luận cấp độ cực cao"
       },
-      "regular_phrases": {
-        "add": "Thêm Cụm từ",
-        "contentLabel": "Nội dung",
-        "contentPlaceholder": "Vui lòng nhập nội dung cụm từ, hỗ trợ sử dụng biến và nhấn Tab để nhanh chóng định vị biến cần sửa. Ví dụ:  \nHãy giúp tôi lên lộ trình từ ${from} đến ${to} và gửi nó đến ${email}.",
-        "delete": "Xóa cụm từ",
-        "deleteConfirm": "Bạn có chắc chắn muốn xóa cụm từ này không?",
-        "edit": "Chỉnh sửa cụm từ",
-        "title": "Cụm từ thông dụng",
-        "titleLabel": "Tiêu đề",
-        "titlePlaceholder": "Nhập tiêu đề"
-      },
       "title": "Cài đặt Trợ lý",
       "tool_use_mode": {
         "function": "Chức năng",
@@ -1491,6 +1487,7 @@
       "unpin": "Bỏ ghim chủ đề"
     },
     "translate": "Dịch",
+    "user": "Người dùng",
     "web_search": {
       "warning": {
         "openai": "Mô hình GPT-5 với nỗ lực suy luận tối thiểu không hỗ trợ tìm kiếm web."
@@ -1502,11 +1499,23 @@
     "bun_required_message": "Môi trường Bun là bắt buộc để chạy các công cụ CLI",
     "cli_tool": "Công cụ CLI",
     "cli_tool_placeholder": "Chọn công cụ CLI để sử dụng",
+    "count_one": "{{count}} mục",
+    "count_other": "{{count}} mục",
     "custom_path": "Đường dẫn tùy chỉnh",
     "custom_path_error": "Falha ao definir caminho personalizado do terminal",
     "custom_path_required": "Chemin personnalisé requis pour ce terminal",
     "custom_path_set": "Đường dẫn terminal tùy chỉnh đã được đặt thành công",
     "description": "Khởi chạy nhanh nhiều công cụ CLI mã để nâng cao hiệu suất phát triển",
+    "empty": {
+      "no_match": {
+        "description": "Hãy thử điều chỉnh các từ khóa tìm kiếm của bạn",
+        "title": "Không tìm thấy công cụ phù hợp"
+      },
+      "no_tool": {
+        "description": "Thêm một công cụ CLI hoặc trợ lý mã để bắt đầu",
+        "title": "Chưa có công cụ lập trình nào"
+      }
+    },
     "env_vars_help": "Nhập các biến môi trường tùy chỉnh (mỗi dòng một biến, định dạng: KEY=value)",
     "environment_variables": "Biến Môi trường",
     "folder_placeholder": "Chọn thư mục làm việc",
@@ -1516,21 +1525,28 @@
       "bun_required": "Vui lòng cài đặt môi trường Bun trước khi khởi chạy các công cụ CLI",
       "error": "Lancement échoué, veuillez réessayer",
       "label": "Lanzamiento",
+      "launched": "Đã ra mắt",
       "success": "Khởi chạy thành công",
       "validation_error": "Vui lòng hoàn thành tất cả các trường bắt buộc: công cụ CLI, mô hình và thư mục làm việc"
     },
     "launching": "Lanzando...",
     "model": "Modelo",
+    "model_hint": "Chọn mô hình AI mà công cụ CLI nên sử dụng",
     "model_placeholder": "Chọn mô hình cần sử dụng",
     "model_required": "Vui lòng chọn một mô hình",
+    "official_tag": "Chính thức",
+    "official_tools": "Chính thức",
+    "search_placeholder": "Tìm kiếm công cụ CLI…",
     "select_folder": "Pilih Folder",
     "set_custom_path": "Đặt đường dẫn terminal tùy chỉnh",
     "supported_providers": "Nhà cung cấp được hỗ trợ",
     "terminal": "Thiết bị đầu cuối",
+    "terminal_hint": "Chọn ứng dụng terminal để chạy CLI",
     "terminal_placeholder": "Chọn ứng dụng thiết bị đầu cuối",
     "title": "Công cụ mã",
     "update_options": "Tùy chọn Cập nhật",
-    "working_directory": "Thư mục làm việc"
+    "working_directory": "Thư mục làm việc",
+    "working_directory_hint": "Thư mục làm việc mà công cụ CLI khởi chạy trong"
   },
   "code_block": {
     "collapse": "Colapso",
@@ -2120,7 +2136,7 @@
   },
   "launchpad": {
     "apps": "Ứng dụng",
-    "minapps": "Minapps"
+    "miniApps": "MiniApps"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2129,112 +2145,6 @@
       "title": "Thời gian giữ hoạt động"
     },
     "title": "LM Studio"
-  },
-  "memory": {
-    "actions": "Hành động",
-    "add_failed": "Không thể thêm bộ nhớ",
-    "add_first_memory": "Adicione Sua Primeira Memória",
-    "add_memory": "Adicionar Memória",
-    "add_new_user": "Thêm Người Dùng Mới",
-    "add_success": "Memoria añadida con éxito",
-    "add_user": "Thêm Người dùng",
-    "add_user_failed": "Không thể thêm người dùng",
-    "all_users": "Tất cả người dùng",
-    "cannot_delete_default_user": "Không thể xóa người dùng mặc định",
-    "configure_memory_first": "Vui lòng định cấu hình cài đặt bộ nhớ trước",
-    "content": "Nội dung",
-    "current_user": "Người dùng hiện tại",
-    "custom": "Tùy chỉnh",
-    "default": "Mặc định",
-    "default_user": "Người dùng Mặc định",
-    "delete_confirm": "Bạn có chắc chắn muốn xóa ký ức này không?",
-    "delete_confirm_content": "Bạn có chắc chắn muốn xóa {{count}} ký ức?",
-    "delete_confirm_single": "Bạn có chắc chắn muốn xóa ký ức này không?",
-    "delete_confirm_title": "Xóa Ký Ức",
-    "delete_failed": "Gagal menghapus memori",
-    "delete_selected": "Xóa đã chọn",
-    "delete_success": "Bộ nhớ đã được xóa thành công",
-    "delete_user": "Xóa Người dùng",
-    "delete_user_confirm_content": "Bạn có chắc chắn muốn xóa người dùng {{user}} và toàn bộ ký ức của họ không?",
-    "delete_user_confirm_title": "Xóa người dùng",
-    "delete_user_failed": "Không xóa được người dùng",
-    "description": "Bộ nhớ cho phép bạn lưu trữ và quản lý thông tin về các tương tác của bạn với trợ lý. Bạn có thể thêm, chỉnh sửa và xóa ký ức, cũng như lọc và tìm kiếm trong số chúng.",
-    "edit_memory": "Chỉnh sửa Bộ nhớ",
-    "embedding_dimensions": "Kích thước nhúng",
-    "embedding_model": "Mô hình Nhúng",
-    "enable_global_memory_first": "Vui lòng bật bộ nhớ toàn cầu trước",
-    "end_date": "Ngày kết thúc",
-    "global_memory": "Bộ nhớ toàn cục",
-    "global_memory_description": "Để sử dụng các tính năng bộ nhớ, vui lòng kích hoạt bộ nhớ toàn cầu trong cài đặt trợ lý.",
-    "global_memory_disabled_desc": "Để sử dụng các tính năng bộ nhớ, vui lòng bật bộ nhớ toàn cục trong cài đặt trợ lý trước.",
-    "global_memory_disabled_title": "Bộ Nhớ Toàn Cầu Đã Bị Vô Hiệu Hóa",
-    "global_memory_enabled": "Bộ nhớ toàn cầu đã được kích hoạt",
-    "go_to_memory_page": "Đi tới Trang Bộ nhớ",
-    "initial_memory_content": "Chào mừng! Đây là ký ức đầu tiên của bạn.",
-    "llm_model": "Mô hình LLM",
-    "load_failed": "Không tải được ký ức",
-    "loading": "Đang tải ký ức...",
-    "loading_memories": "Đang tải ký ức...",
-    "memories_description": "Hiển thị {{count}} trong tổng số {{total}} ký ức",
-    "memories_reset_success": "Tất cả ký ức cho {{user}} đã được đặt lại thành công",
-    "memory": "bộ nhớ",
-    "memory_content": "Nội dung bộ nhớ",
-    "memory_placeholder": "Nhập nội dung bộ nhớ...",
-    "new_user_id": "ID Người Dùng Mới",
-    "new_user_id_placeholder": "Nhập ID người dùng duy nhất",
-    "no_matching_memories": "Không tìm thấy ký ức phù hợp nào",
-    "no_memories": "Chưa có kỷ niệm nào",
-    "no_memories_description": "Bắt đầu bằng cách thêm ký ức đầu tiên của bạn để bắt đầu",
-    "not_configured_desc": "Vui lòng cấu hình các mô hình embedding và LLM trong cài đặt bộ nhớ để kích hoạt chức năng bộ nhớ.",
-    "not_configured_title": "Bộ nhớ chưa được cấu hình",
-    "pagination_total": "{{start}}-{{end}} trong tổng số {{total}} mục",
-    "please_enter_memory": "Vui lòng nhập nội dung bộ nhớ",
-    "please_select_embedding_model": "Vui lòng chọn một mô hình nhúng",
-    "please_select_llm_model": "Vui lòng chọn một mô hình LLM",
-    "reset_filters": "Đặt lại Bộ lọc",
-    "reset_memories": "Đặt lại Ký ức",
-    "reset_memories_confirm_content": "Bạn có chắc chắn muốn xóa vĩnh viễn tất cả ký ức của {{user}} không? Hành động này không thể hoàn tác.",
-    "reset_memories_confirm_title": "Đặt lại Tất cả Ký ức",
-    "reset_memories_failed": "Không thể đặt lại ký ức",
-    "reset_user_memories": "Đặt lại Bộ nhớ Người dùng",
-    "reset_user_memories_confirm_content": "Bạn có chắc chắn muốn đặt lại toàn bộ ký ức cho {{user}} không?",
-    "reset_user_memories_confirm_title": "Đặt lại bộ nhớ người dùng",
-    "reset_user_memories_failed": "Không thể đặt lại bộ nhớ người dùng",
-    "score": "Điểm",
-    "search": "Tìm kiếm",
-    "search_placeholder": "Tìm kiếm ký ức...",
-    "select_embedding_model_placeholder": "Chọn Mô hình Nhúng",
-    "select_llm_model_placeholder": "Chọn mô hình LLM",
-    "select_user": "Chọn Người dùng",
-    "settings": "Cài đặt",
-    "settings_title": "Cài đặt bộ nhớ",
-    "start_date": "Ngày bắt đầu",
-    "statistics": "Thống kê",
-    "stored_memories": "Ký Ức Được Lưu Trữ",
-    "switch_user": "Chuyển người dùng",
-    "switch_user_confirm": "Chuyển ngữ cảnh người dùng sang {{user}}?",
-    "time": "Thời gian",
-    "title": "Kỷ niệm",
-    "total_memories": "tổng số ký ức",
-    "try_different_filters": "Thử điều chỉnh tiêu chí tìm kiếm của bạn",
-    "update_failed": "Không thể cập nhật bộ nhớ",
-    "update_success": "Bộ nhớ đã được cập nhật thành công",
-    "user": "Người dùng",
-    "user_created": "Người dùng {{user}} đã được tạo và chuyển đổi thành công",
-    "user_deleted": "Người dùng {{user}} đã được xóa thành công",
-    "user_id": "ID người dùng",
-    "user_id_exists": "ID người dùng này đã tồn tại",
-    "user_id_invalid_chars": "ID người dùng chỉ có thể chứa chữ cái, chữ số, dấu gạch ngang và dấu gạch dưới",
-    "user_id_placeholder": "Nhập ID người dùng (tùy chọn)",
-    "user_id_required": "ID người dùng là bắt buộc",
-    "user_id_reserved": "'default-user' được giữ lại, vui lòng sử dụng một ID khác",
-    "user_id_rules": "ID người dùng phải là duy nhất và chỉ chứa chữ cái, chữ số, dấu gạch ngang (-) và dấu gạch dưới (_)",
-    "user_id_too_long": "ID người dùng không được vượt quá 50 ký tự",
-    "user_management": "Quản lý người dùng",
-    "user_memories_reset": "Tất cả ký ức cho {{user}} đã được đặt lại",
-    "user_switch_failed": "Không thể chuyển đổi người dùng",
-    "user_switched": "Ngữ cảnh người dùng đã chuyển sang {{user}}",
-    "users": "người dùng"
   },
   "message": {
     "agents": {
@@ -2576,101 +2486,87 @@
     "websearch": {
       "cutoff": "Đang cắt ngắn nội dung tìm kiếm...",
       "fetch_complete": "{{count}} kết quả tìm kiếm",
-      "rag": "Đang thực thi RAG...",
-      "rag_complete": "Giữ lại {{countAfter}} trên {{countBefore}} kết quả...",
-      "rag_failed": "RAG thất bại, trả về kết quả trống..."
+      "partial_failure": "{{count}} kết quả tìm kiếm, một số tìm kiếm thất bại"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Ajouter à Launchpad",
-    "add_to_sidebar": "Thêm vào thanh bên",
-    "popup": {
-      "close": "Đóng MinApp",
-      "devtools": "Công cụ dành cho nhà phát triển",
-      "goBack": "Quay lại",
-      "goForward": "Tiến về phía trước",
-      "minimize": "Thu nhỏ Ứng dụng Min",
-      "openExternal": "Mở trong trình duyệt",
-      "open_link_external_off": "Hiện tại: Mở liên kết trong cửa sổ mặc định",
-      "open_link_external_on": "Hiện tại: Mở liên kết trong trình duyệt",
-      "refresh": "Làm mới",
-      "rightclick_copyurl": "Nhấp chuột phải để sao chép URL"
+  "miniApp": {
+    "add_to_launchpad": "[to be translated]:Add to Launchpad",
+    "add_to_sidebar": "[to be translated]:Add to Sidebar",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
     },
-    "remove_from_launchpad": "Xóa khỏi Launchpad",
-    "remove_from_sidebar": "Xóa khỏi thanh bên",
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
+    "popup": {
+      "close": "[to be translated]:Close MiniApp",
+      "devtools": "[to be translated]:Developer Tools",
+      "goBack": "[to be translated]:Go Back",
+      "goForward": "[to be translated]:Go Forward",
+      "openExternal": "[to be translated]:Open in Browser",
+      "open_link_external_off": "[to be translated]:Current: Open links in default window",
+      "open_link_external_on": "[to be translated]:Current: Open links in browser",
+      "refresh": "[to be translated]:Refresh",
+      "rightclick_copyurl": "[to be translated]:Right-click to copy URL"
+    },
+    "remove_from_launchpad": "[to be translated]:Remove from Launchpad",
+    "remove_from_sidebar": "[to be translated]:Remove from Sidebar",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
-        "title": "Đóng"
+        "title": "[to be translated]:Close"
       },
       "closeall": {
-        "title": "Đóng tất cả"
+        "title": "[to be translated]:Close All"
       },
       "hide": {
-        "title": "Ẩn"
+        "title": "[to be translated]:Hide"
       },
       "remove_custom": {
-        "title": "Xóa Ứng dụng Tùy chỉnh"
+        "title": "[to be translated]:Delete Custom App"
       }
     },
-    "title": "Ứng dụng nhỏ"
+    "title": "[to be translated]:MiniApp",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
-    "ant-ling": "Kiến Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Tìm kiếm AI Baidu",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Đại lý Minimax Trung Quốc",
-    "minimax-global": "Tác nhân Minimax",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Tìm kiếm Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Nguyên bảo",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Tiểu Nghi",
-    "zhihu": "Zhihu"
-  },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Mẹo: Nếu bạn thấy thông báo 'trình duyệt không được tin cậy' khi đăng nhập vào Google, vui lòng trước tiên đăng nhập qua mini app Google trong danh sách mini app, sau đó mới dùng đăng nhập Google ở các mini app khác"
-    },
-    "clipboard": {
-      "empty": "Bộ nhớ tạm trống"
-    },
-    "feature": {
-      "chat": "Trả lời câu hỏi này",
-      "explanation": "Giải thích",
-      "summary": "Tóm tắt nội dung",
-      "translate": "Dịch văn bản"
-    },
-    "footer": {
-      "backspace_clear": "Nhấn Backspace để xóa",
-      "copy_last_message": "Nhấn C để sao chép",
-      "esc": "ESC để {{action}}",
-      "esc_back": "trả về",
-      "esc_close": "đóng",
-      "esc_pause": "tạm dừng"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Hỏi {{model}} để được giúp đỡ...",
-        "title": "Bạn muốn làm gì với văn bản này?"
-      }
-    },
-    "tooltip": {
-      "pin": "Giữ cửa sổ ở trên cùng"
-    }
+  "miniApps": {
+    "ant-ling": "[to be translated]:Ant Ling",
+    "baichuan": "[to be translated]:Baichuan",
+    "baidu-ai-search": "[to be translated]:Baidu AI Search",
+    "chatglm": "[to be translated]:ChatGLM",
+    "dangbei": "[to be translated]:Dangbei",
+    "doubao": "[to be translated]:Doubao",
+    "hailuo": "[to be translated]:Hailuo",
+    "ima": "[to be translated]:ima",
+    "metaso": "[to be translated]:Metaso",
+    "minimax-agent": "[to be translated]:Minimax Agent CN",
+    "minimax-global": "[to be translated]:Minimax Agent",
+    "nami-ai": "[to be translated]:Nami AI",
+    "nami-ai-search": "[to be translated]:Nami AI Search",
+    "qwen": "[to be translated]:Qwen",
+    "sensechat": "[to be translated]:SenseChat",
+    "stepfun": "[to be translated]:Stepfun",
+    "tencent-yuanbao": "[to be translated]:Yuanbao",
+    "tiangong-ai": "[to be translated]:Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
+    "wanzhi": "[to be translated]:Wanzhi",
+    "wenxin": "[to be translated]:ERNIE",
+    "wps-copilot": "[to be translated]:WPS Copilot",
+    "xiaoyi": "[to be translated]:Xiaoyi",
+    "zhihu": "[to be translated]:Zhihu"
   },
   "models": {
+    "action": {
+      "pin": "Ghim mô hình này",
+      "unpin": "Gỡ ghim mô hình"
+    },
     "add_parameter": "Thêm tham số",
     "all": "Tất cả",
     "custom_parameters": "Tham số Tùy chỉnh",
@@ -2688,6 +2584,9 @@
     "function_calling": "Gọi Hàm",
     "invalid_model": "Mô hình không hợp lệ",
     "json_parse_error": "Định dạng JSON không hợp lệ",
+    "multi_select": {
+      "label": "Đa mô hình song song (loại trừ lẫn nhau với đa trợ lý)"
+    },
     "no_matches": "Không có mô hình nào khả dụng",
     "parameter_name": "Tên tham số",
     "parameter_type": {
@@ -3456,6 +3355,37 @@
     "zhinao": "360AI",
     "zhipu": "Mô hình Lớn"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Mẹo: Nếu bạn thấy thông báo 'trình duyệt không được tin cậy' khi đăng nhập vào Google, vui lòng đầu tiên đăng nhập qua ứng dụng nhỏ Google trong danh sách ứng dụng nhỏ, sau đó sử dụng đăng nhập Google trong các ứng dụng nhỏ khác"
+    },
+    "clipboard": {
+      "empty": "Khay nhớp trống"
+    },
+    "feature": {
+      "chat": "Trả lời câu hỏi này",
+      "explanation": "Giải thích",
+      "summary": "Tóm tắt nội dung",
+      "translate": "Dịch văn bản"
+    },
+    "footer": {
+      "backspace_clear": "Nhấn Backspace để xóa",
+      "copy_last_message": "Nhấn C để sao chép",
+      "esc": "ESC để {{action}}",
+      "esc_back": "trả về",
+      "esc_close": "đóng",
+      "esc_pause": "tạm dừng"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Hỏi {{model}} để được giúp đỡ...",
+        "title": "Bạn muốn làm gì với văn bản này?"
+      }
+    },
+    "tooltip": {
+      "pin": "Giữ cửa sổ ở trên cùng"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "Chọn Tệp Sao Lưu",
@@ -3775,7 +3705,7 @@
         "title": "Danh sách Bộ lọc Ứng dụng",
         "user_tips": {
           "mac": "Vui lòng nhập Bundle ID của ứng dụng, mỗi dòng một cái, không phân biệt chữ hoa chữ thường, có thể khớp mờ. Ví dụ: com.google.Chrome, com.apple.mail, v.v.",
-          "windows": "Vui lòng nhập tên tệp thực thi của ứng dụng, mỗi dòng một cái, không phân biệt chữ hoa chữ thường, có thể khớp mờ. Ví dụ: chrome.exe, weixin.exe, Cherry Studio.exe, v.v."
+          "windows": "Vui lòng nhập tên tệp thực thi của ứng dụng, mỗi dòng một cái, không phân biệt chữ hoa chữ thường, có thể khớp mờ. Ví dụ: chrome.exe, weixin.exe, CherryStudio.exe, v.v."
         }
       },
       "linux": {
@@ -3896,6 +3826,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "Tác nhân mới",
+      "empty_text": "Chưa có tác nhân nào",
+      "search_placeholder": "Tìm kiếm đại lý…"
+    },
+    "assistant": {
+      "create_new": "Trợ lý mới",
+      "empty_text": "Chưa có trợ lý nào",
+      "multi_hint": "(loại trừ lẫn nhau với đa mô hình)",
+      "multi_label": "Trợ lý song song đa nhiệm",
+      "search_placeholder": "Trợ lý tìm kiếm…"
+    },
+    "common": {
+      "edit": "Chỉnh sửa",
+      "pin": "Ghim",
+      "pinned_title": "Đã ghim",
+      "sort": {
+        "asc": "Lâu đời nhất",
+        "desc": "Gần đây"
+      },
+      "sort_label": "Sắp xếp",
+      "unpin": "Bỏ ghim"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3961,6 +3916,75 @@
     "channels": {
       "description": "Kết nối các tác nhân với các nền tảng nhắn tin như Telegram, Feishu, Discord và nhiều hơn nữa.",
       "title": "Kênh"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "Rõ ràng",
+        "configDescription": "Chuyển đổi props để xem trước hành vi của thành phần",
+        "configTitle": "Cấu hình",
+        "currentProps": "Props hiện tại",
+        "description": "AgentSelector hiện đọc dữ liệu DataApi /agents thực tế để xác minh hành vi chọn id/mục, ghim, sắp xếp và tìm kiếm.",
+        "emptyShellNotice": "Bản xem trước này sử dụng danh sách tác nhân thực được trả về bởi /agents DataApi.",
+        "lastOnChange": "Cập nhật mới nhất về onChange",
+        "previewDescription": "Nhấp vào công tắc để mở bộ chọn",
+        "previewTitle": "Xem trước",
+        "title": "Bộ chọn tác nhân",
+        "triggerPlaceholder": "Chọn một đại lý",
+        "valueProp": "Giá trị hiện tại"
+      },
+      "assistantSelector": {
+        "clearSelection": "Rõ ràng",
+        "configDescription": "Chuyển đổi props để xem trước hành vi của component",
+        "configTitle": "Cấu hình",
+        "currentProps": "Props hiện tại",
+        "description": "Gắn trực tiếp thành phần kinh doanh AssistantSelector để xác minh hành vi đa/đơn, id/mục, ghim, sắp xếp và tìm kiếm.",
+        "lastOnChange": "Cập nhật mới nhất về onChange",
+        "previewDescription": "Nhấp vào kích hoạt để mở bộ chọn",
+        "previewTitle": "Xem trước",
+        "title": "Trình chọn Trợ lý",
+        "triggerPlaceholder": "Chọn một trợ lý",
+        "triggerSelectedCount": "{{count}} trợ lý đã được chọn",
+        "valueProp": "Giá trị hiện tại"
+      },
+      "description": "Chỉ hiển thị trong quá trình phát triển để thử nghiệm trình chọn mô hình mới trực tiếp trong ứng dụng.",
+      "label": "Phòng thí nghiệm linh kiện",
+      "modelSelector": {
+        "behaviorConfig": "Cấu hình Hành vi & Hiển thị",
+        "callbackEmpty": "Chưa nhận được bất kỳ callback thành phần nào",
+        "clearSelection": "Xóa lựa chọn",
+        "configDescription": "Chuyển đổi các thuộc tính ModelSelector chính ở trên và kiểm tra giá trị đầu vào cùng với các payload callback bên dưới.",
+        "configTitle": "Sân chơi Đạo cụ",
+        "controlMultiSelectMode": "Chế độ chọn nhiều được kiểm soát",
+        "currentProps": "Props Hiện Tại",
+        "defaultMultiSelectMode": "chế độ chọn nhiều mặc định",
+        "description": "Trang này gắn trực tiếp thành phần kinh doanh ModelSelector hiện tại để chúng ta có thể xác minh hành vi lựa chọn, lọc, tìm kiếm và ghim.",
+        "empty": "Hiện không có mô hình nào khả dụng nên bộ chọn chưa thể hiển thị.",
+        "lastModeChangeReturn": "Cập nhật mới nhất về Return onMultiSelectModeChange",
+        "lastSelectReturn": "Mới nhất vềSelect Return",
+        "loading": "Đang tải mô hình...",
+        "modelId": "ID mô hình",
+        "multiSelectMode": "chế độ chọn nhiều",
+        "multiple": "nhiều",
+        "normalizedIds": "ID Đã Chọn Được Chuẩn Hóa",
+        "outputEmpty": "Chưa có dữ liệu để hiển thị",
+        "provider": "Nhà cung cấp",
+        "resetOutputs": "Đặt lại đầu ra",
+        "resultsDescription": "Điều này hiển thị giá trị đề xuất hiện tại, các id đã chọn được chuẩn hóa và đầu ra gọi lại mới nhất từ thành phần.",
+        "resultsTitle": "Đầu ra & Trạng thái",
+        "selected": "Lựa chọn hiện tại",
+        "selectedEmpty": "Chưa chọn mô hình nào",
+        "selectionConfig": "Cấu hình Giá trị Lựa chọn",
+        "selectionType": "loại lựa chọn",
+        "selectionTypeId": "Trả về ID mô hình",
+        "selectionTypeModel": "Trả về các đối tượng mô hình",
+        "showPinnedModels": "hiển thị các mô hình được ghim",
+        "showTagFilter": "hiển thịBộLọcThẻ",
+        "title": "Bộ chọn mô hình",
+        "triggerPlaceholder": "Chọn một mô hình",
+        "triggerSelectedCount": "{{count}} mô hình đã được chọn",
+        "valueProp": "Giá trị đề xuất hiện tại"
+      },
+      "title": "Phòng thí nghiệm Thành phần Phát triển"
     },
     "data": {
       "app_data": {
@@ -4626,8 +4650,8 @@
         "knowledge": {
           "icon": "Hiển thị biểu tượng Kiến thức"
         },
-        "minapp": {
-          "icon": "Hiển thị biểu tượng MinApp"
+        "miniApp": {
+          "icon": "[to be translated]:Show MiniApp icon"
         },
         "painting": {
           "icon": "Hiển thị biểu tượng Vẽ"
@@ -4660,6 +4684,15 @@
       "backup": {
         "button": "Sao lưu",
         "title": "Sao lưu và Khôi phục Dữ liệu"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "CSS Tùy chỉnh",
+          "display_language": "Hiển thị & Ngôn ngữ",
+          "privacy_advanced": "Quyền riêng tư & Nâng cao",
+          "system_startup": "Hệ thống & Khởi động"
+        },
+        "title": "Cài đặt chung"
       },
       "display": {
         "title": "Cài đặt hiển thị"
@@ -4721,6 +4754,12 @@
         "label": "Ngôn ngữ đích",
         "russian": "Tiếng Nga"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "Ghi chú"
+      },
+      "title": "Tích hợp"
     },
     "launch": {
       "onboot": "Tự động khởi động khi bật máy",
@@ -4991,6 +5030,13 @@
       "url": "URL",
       "user": "Người dùng"
     },
+    "menuGroups": {
+      "appSettings": "Cài đặt ứng dụng",
+      "integrations": "Tích hợp",
+      "productivity": "Năng suất",
+      "services": "Dịch vụ",
+      "system": "Hệ thống"
+    },
     "messages": {
       "divider": {
         "label": "Hiển thị đường phân cách giữa các tin nhắn",
@@ -5028,7 +5074,7 @@
       "title": "Cài đặt tin nhắn",
       "use_serif_font": "Dùng phông chữ có chân"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Các thay đổi sẽ có hiệu lực khi số lượng ứng dụng mini đang mở đạt đến giá trị đã đặt",
       "cache_description": "Đặt số lượng tối đa các ứng dụng mini đang hoạt động cần giữ trong bộ nhớ",
       "cache_settings": "Cài đặt bộ nhớ đệm",
@@ -5078,8 +5124,6 @@
         "title": "Bộ lọc Mini Program"
       },
       "reset_tooltip": "Redefinir para o padrão",
-      "sidebar_description": "Hiển thị ứng dụng mini đang hoạt động trong thanh bên",
-      "sidebar_title": "Hiển thị Ứng dụng Nhỏ Đang Hoạt động trong Thanh Bên",
       "title": "Cài đặt Ứng dụng Mini",
       "visible": "Mini aplicaciones visibles"
     },
@@ -5144,7 +5188,7 @@
         "use_all_keys": "Clave(s)"
       },
       "default_assistant_model": "Mô hình Trợ lý Mặc định",
-      "default_assistant_model_description": "Mô hình được sử dụng khi tạo trợ lý mới, nếu trợ lý chưa được thiết lập, mô hình này sẽ được sử dụng",
+      "default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",
       "empty": "Không tìm thấy mô hình nào",
       "manage": {
         "add_listed": {
@@ -5238,9 +5282,35 @@
         "title": "Tính dài dòng"
       }
     },
+    "plugins": {
+      "bunDescription": "Trình thực thi JavaScript được sử dụng bởi các dịch vụ MCP và các công cụ liên quan.",
+      "description": "Quản lý các công cụ nhị phân và phụ thuộc runtime cần thiết cho ứng dụng.",
+      "installing": "Đang cài đặt...",
+      "notInstalled": "Chưa cài đặt",
+      "title": "Phần bổ trợ",
+      "uvDescription": "Trình quản lý gói Python cho các dịch vụ MCP và cài đặt phụ thuộc."
+    },
     "privacy": {
       "enable_privacy_mode": "Báo cáo lỗi và thống kê ẩn danh",
       "title": "Cài đặt quyền riêng tư"
+    },
+    "prompts": {
+      "add": "[to be translated]:Add Prompt",
+      "contentLabel": "[to be translated]:Content",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "[to be translated]:Delete Prompt",
+      "deleteConfirm": "[to be translated]:The prompt will be permanently deleted. Continue?",
+      "edit": "[to be translated]:Edit Prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "[to be translated]:Prompt Management",
+      "titleLabel": "[to be translated]:Title",
+      "titlePlaceholder": "[to be translated]:Enter prompt title"
     },
     "provider": {
       "add": {
@@ -5482,7 +5552,8 @@
         "documentation": "Xem tài liệu chính thức để biết thêm chi tiết cấu hình:",
         "learn_more": "Tìm hiểu thêm",
         "location": "Vị trí",
-        "location_help": "Vị trí dịch vụ Vertex AI, ví dụ: us-central1",
+        "location_help": "Vị trí dịch vụ Vertex AI, ví dụ: us-central1. Trường này không được đọc từ JSON của Service Account và phải nhập thủ công.",
+        "location_placeholder": "Chọn vị trí Vertex AI",
         "project_id": "ID Dự án",
         "project_id_help": "ID dự án Google Cloud của bạn",
         "project_id_placeholder": "id-dự-án-google-cloud-của-bạn",
@@ -5493,6 +5564,11 @@
           "client_email_placeholder": "Nhập email khách hàng của Tài khoản Dịch vụ",
           "description": "Sử dụng Tài khoản Dịch vụ để xác thực, phù hợp cho các môi trường không có ADC",
           "incomplete_config": "Vui lòng hoàn tất cấu hình Tài khoản Dịch vụ trước",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Dán toàn bộ nội dung khóa JSON. Sau khi phân tích, chỉ project_id, client_email và private_key được lưu, JSON gốc sẽ được xóa.",
+          "json_input_placeholder": "Dán toàn bộ nội dung khóa JSON của Service Account",
+          "json_parse_error": "Không thể phân tích Service Account JSON. Vui lòng xác nhận định dạng là chính xác.",
+          "json_parse_success": "Đã phân tích Service Account JSON",
           "private_key": "Khóa riêng",
           "private_key_help": "Trường private_key từ tệp khóa JSON đã tải xuống từ Google Cloud Console",
           "private_key_placeholder": "Nhập khóa riêng của Tài khoản Dịch vụ",
@@ -5529,20 +5605,6 @@
       "select": "Chọn",
       "title": "Menú Rápido"
     },
-    "quickPhrase": {
-      "add": "Thêm cụm từ",
-      "assistant": "Cụm từ Trợ lý",
-      "contentLabel": "Nội dung",
-      "contentPlaceholder": "Vui lòng nhập nội dung cụm từ, hỗ trợ sử dụng biến và nhấn Tab để nhanh chóng định vị biến cần sửa. Ví dụ:  \nHãy giúp tôi lên lộ trình từ ${from} đến ${to} và gửi nó đến ${email}.",
-      "delete": "Xóa cụm từ",
-      "deleteConfirm": "Cụm từ này không thể khôi phục sau khi xóa, tiếp tục?",
-      "edit": "Bearbeite Phrase",
-      "global": "Frases Globales",
-      "locationLabel": "Thêm Vị trí",
-      "title": "Cụm từ nhanh",
-      "titleLabel": "Tiêu đề",
-      "titlePlaceholder": "Vui lòng nhập tiêu đề cụm từ"
-    },
     "scheduledTasks": {
       "description": "Quản lý các tác vụ đã lên lịch trên tất cả các tác nhân. Các tác vụ sẽ tự động chạy theo lịch đã cấu hình.",
       "noAgents": "Các tác vụ theo lịch trình yêu cầu các tác nhân có chế độ Soul hoặc Quyền Bypass được bật. Cập nhật cài đặt của một tác nhân để bắt đầu.",
@@ -5554,22 +5616,40 @@
     "shortcuts": {
       "action": "Hành động",
       "actions": "hoạt động",
+      "all_disable": "Tắt Tất Cả",
+      "all_enable": "Kích hoạt Tất cả",
+      "bind_first_to_enable": "Trước tiên hãy gán một phím tắt để thay đổi trạng thái kích hoạt của nó",
+      "categories": {
+        "assistant": "Công cụ Trợ lý AI",
+        "chat": "Tương tác tin nhắn",
+        "general": "Toàn cầu và Cửa sổ",
+        "title": "Nhóm Phím Tắt",
+        "topic": "Cuộc trò chuyện và Chủ đề"
+      },
       "clear_shortcut": "Phím tắt rõ ràng",
       "clear_topic": "Tin nhắn rõ ràng",
+      "conflict_with": "Đã được \"{{name}}\" sử dụng",
       "copy_last_message": "Sao tin nhắn cuối cùng",
       "edit_last_user_message": "Chỉnh sửa tin nhắn cuối cùng của người dùng",
+      "empty": "Không có phím tắt nào khả dụng trong nhóm này",
       "enabled": "Kích hoạt",
       "exit_fullscreen": "Thoát toàn màn hình",
       "label": "Khóa",
-      "mini_window": "Trợ lý Nhanh",
       "new_topic": "Chủ đề mới",
+      "occupied_by_other_application": "Phím tắt này đã được hệ thống hoặc một ứng dụng khác sử dụng",
       "press_shortcut": "Nhấn Phím tắt",
+      "quick_assistant": "Trợ lý nhanh",
       "rename_topic": "Đổi tên chủ đề",
+      "reset": "Đặt lại",
       "reset_defaults": "Đặt lại mặc định",
       "reset_defaults_confirm": "Bạn có chắc chắn muốn đặt lại tất cả phím tắt không?",
+      "reset_defaults_failed": "Không thể đặt lại phím tắt về mặc định",
       "reset_to_default": "Đặt lại về mặc định",
+      "save_failed": "Không thể lưu phím tắt",
+      "save_failed_with_name": "Không thể lưu phím tắt: {{name}}",
       "search_message": "Tin nhắn tìm kiếm",
       "search_message_in_chat": "Tìm Tin nhắn trong Cuộc trò chuyện Hiện tại",
+      "search_placeholder": "Tìm kiếm phím tắt...",
       "select_model": "Chọn Mô hình",
       "selection_assistant_select_text": "Trợ lý Lựa chọn: Chọn Văn bản",
       "selection_assistant_toggle": "Bật Trợ lý Chọn",
@@ -5577,8 +5657,8 @@
       "show_settings": "Mở Cài đặt",
       "title": "Phím tắt",
       "toggle_new_context": "Ngữ cảnh rõ ràng",
-      "toggle_show_assistants": "Bật Trợ lý",
       "toggle_show_topics": "Chuyển đổi chủ đề",
+      "toggle_sidebar": "Chuyển đổi thanh bên",
       "zoom_in": "Phóng to",
       "zoom_out": "Thu nhỏ",
       "zoom_reset": "Đặt lại thu phóng"
@@ -5641,6 +5721,14 @@
         "error": {
           "not_system": "Hệ thống OCR chỉ hỗ trợ Windows và MacOS"
         },
+        "features": {
+          "paddleocr": "Mạnh hơn đối với văn bản tiếng Trung và phù hợp hơn cho các hóa đơn, bản quét và hình ảnh có bố cục phức tạp hơn.",
+          "system": {
+            "macos": "Sử dụng công cụ OCR tích hợp sẵn của macOS mà không cần thiết lập, lý tưởng cho việc chụp ảnh màn hình và trích xuất văn bản nhẹ.",
+            "windows": "Sử dụng công cụ OCR gốc của Windows với khả năng tích hợp mạnh mẽ vào hệ điều hành cho các tác vụ nhận dạng cơ bản tại chỗ."
+          },
+          "tesseract": "Một tùy chọn OCR cục bộ cổ điển với các gói ngôn ngữ có thể tùy chỉnh, rất phù hợp cho quy trình làm việc ngoại tuyến và đa ngôn ngữ."
+        },
         "image": {
           "error": {
             "provider_not_found": "Nhà cung cấp không tồn tại"
@@ -5667,6 +5755,13 @@
         "title": "Dịch vụ OCR"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "Rất phù hợp để chuyển đổi PDF thành Markdown sạch hơn hoặc văn bản có thể chỉnh sửa cho việc truy xuất và chỉnh sửa sau đó.",
+          "mineru": "Được tối ưu hóa để khôi phục bố cục với độ chính xác cao hơn, đặc biệt hữu ích cho các tệp PDF học thuật, bảng biểu và công thức.",
+          "mistral": "Khả năng hiểu tài liệu dựa trên đám mây mạnh mẽ, phù hợp cho việc trích xuất có cấu trúc, tệp nhiều trang và bố cục phức tạp.",
+          "open_mineru": "Một tùy chọn triển khai mở phù hợp với các nhóm muốn tự lưu trữ hoặc kiểm soát chặt chẽ hơn đối với quy trình xử lý.",
+          "paddleocr": "Một lựa chọn tích hợp nhẹ phù hợp với tài liệu tiếng Trung, bản quét và nội dung dạng hóa đơn thông thường."
+        },
         "paddleocr": {
           "aistudio_access_token": "Mã truy cập của Cộng đồng AI Studio",
           "api_url": "URL API",
@@ -5705,23 +5800,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG thất bại"
-          },
-          "info": {
-            "dimensions_auto_success": "Kích thước tự động lấy thành công, kích thước: {{dimensions}}"
-          },
           "method": {
             "cutoff": "Ngưỡng cắt",
             "label": "Phương pháp nén",
-            "none": "không",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Số lượng phần tài liệu",
-              "tooltip": "Số lượng đoạn tài liệu dự kiến sẽ trích xuất từ mỗi kết quả tìm kiếm, tổng số đoạn tài liệu thực tế được trích xuất bằng giá trị này nhân với số lượng kết quả tìm kiếm."
-            }
+            "none": "không"
           },
           "title": "Nén Kết Quả Tìm Kiếm"
         },
@@ -5846,6 +5928,13 @@
       "title": "Zoom de página"
     }
   },
+  "tab": {
+    "close": "Đóng Tab",
+    "moveToFirst": "Di chuyển lên đầu",
+    "new": "Thẻ Mới",
+    "pin": "Ghim Tab",
+    "unpin": "Gỡ ghim thẻ"
+  },
   "title": {
     "apps": "Ứng dụng",
     "code": "Mã",
@@ -5854,7 +5943,6 @@
     "knowledge": "Cơ sở tri thức",
     "launchpad": "Bảng khởi chạy",
     "mcp-servers": "MCP Servers",
-    "memories": "Kỷ niệm",
     "notes": "Ghi chú",
     "openclaw": "OpenClaw",
     "paintings": "Tranh vẽ",
@@ -6012,7 +6100,7 @@
   },
   "tray": {
     "quit": "Thôi",
-    "show_mini_window": "Trợ lý Nhanh",
+    "show_quick_assistant": "Trợ lý Nhanh",
     "show_window": "Hiển thị cửa sổ"
   },
   "update": {

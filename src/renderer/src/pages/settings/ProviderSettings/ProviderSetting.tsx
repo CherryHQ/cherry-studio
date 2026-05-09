@@ -1,5 +1,17 @@
-import { Button, Flex, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
-import { HelpTooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  ButtonGroup,
+  ButtonGroupItem,
+  Divider,
+  Flex,
+  HelpTooltip,
+  Input,
+  RowFlex,
+  Switch,
+  Tooltip,
+  WarnTooltip
+} from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
@@ -15,8 +27,7 @@ import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/Anthrop
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import { useAppDispatch } from '@renderer/store'
-import { updateWebSearchProvider } from '@renderer/store/websearch'
+import { updateWebSearchProviderPreferenceOverride } from '@renderer/services/WebSearchService'
 import type { SystemProviderId } from '@renderer/types'
 import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
@@ -35,14 +46,13 @@ import {
   isSupportAnthropicPromptCacheProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
-import { Divider, Input, Select, Space } from 'antd'
+import { Input as AntdInput, Select } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Bolt, Check, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { Bolt, Check, Eye, EyeOff, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import {
   SettingContainer,
@@ -65,6 +75,8 @@ import OVMSSettings from './OVMSSettings'
 import ProviderOAuth from './ProviderOAuth'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
+
+const logger = loggerService.withContext('ProviderSetting')
 
 interface Props {
   providerId: string
@@ -111,8 +123,6 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const { t, i18n } = useTranslation()
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
-  const dispatch = useAppDispatch()
-
   const isAzureOpenAI = isAzureOpenAIProvider(provider)
   const isDmxapi = provider.id === 'dmxapi'
   const isCherryIN = provider.id === 'cherryin'
@@ -130,6 +140,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const fancyProviderName = getFancyProviderName(provider)
 
   const [localApiKey, setLocalApiKey] = useState(provider.apiKey)
+  const [isApiKeyVisible, setIsApiKeyVisible] = useState(false)
   const [apiKeyConnectivity, setApiKeyConnectivity] = useState<ApiKeyConnectivity>({
     status: HealthStatus.NOT_CHECKED,
     checking: false
@@ -137,9 +148,14 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
 
   const updateWebSearchProviderKey = useCallback(
     ({ apiKey }: { apiKey: string }) => {
-      provider.id === 'zhipu' && dispatch(updateWebSearchProvider({ id: 'zhipu', apiKey: apiKey.split(',')[0] }))
+      if (provider.id === 'zhipu') {
+        void updateWebSearchProviderPreferenceOverride('zhipu', { apiKey: apiKey.split(',')[0] }).catch((error) => {
+          logger.error('Failed to update Zhipu web-search provider preference override', { error })
+          window.toast.error(t('error.diagnosis.unknown'))
+        })
+      }
     },
-    [dispatch, provider.id]
+    [provider.id, t]
   )
 
   // Store callbacks in ref to avoid recreating debounce function when dependencies change
@@ -377,9 +393,11 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       <>
         <WarnTooltip
           content={
-            <ErrorOverlay>{apiKeyConnectivity.error?.message || t('settings.models.check.failed')}</ErrorOverlay>
+            <div className="max-h-[200px] max-w-[300px] select-text overflow-y-auto break-words">
+              {apiKeyConnectivity.error?.message || t('settings.models.check.failed')}
+            </div>
           }
-          iconProps={{ size: 16, color: 'var(--color-status-warning)' }}
+          iconProps={{ size: 16, color: 'var(--color-warning-base)' }}
           onClick={() => showErrorDetailPopup({ error: apiKeyConnectivity.error })}
         />
       </>
@@ -443,10 +461,10 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const isAnthropicOAuth = () => provider.id === 'anthropic' && provider.authType === 'oauth'
 
   return (
-    <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
+    <SettingContainer theme={theme}>
       <SettingTitle>
         <Flex className="items-center gap-2">
-          <ProviderName>{fancyProviderName}</ProviderName>
+          <span className="mr-[-2px] font-medium text-sm">{fancyProviderName}</span>
           {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
               <Button variant="ghost" size="sm">
@@ -517,20 +535,35 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                   </Tooltip>
                 )}
               </SettingSubtitle>
-              <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-                <Input.Password
-                  value={localApiKey}
-                  placeholder={t('settings.provider.api_key.label')}
-                  onChange={(e) => setLocalApiKey(e.target.value)}
-                  spellCheck={false}
-                  autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
-                  disabled={provider.id === 'copilot'}
-                  suffix={renderStatusIndicator()}
-                />
+              <ButtonGroup className="mt-1.25 w-full">
+                <ButtonGroupItem className="flex-1">
+                  <Input
+                    type={isApiKeyVisible ? 'text' : 'password'}
+                    value={localApiKey}
+                    placeholder={t('settings.provider.api_key.label')}
+                    onChange={(e) => setLocalApiKey(e.target.value)}
+                    spellCheck={false}
+                    autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
+                    disabled={provider.id === 'copilot'}
+                    className="pr-16"
+                  />
+                  <div className="-translate-y-1/2 absolute top-1/2 right-1.5 flex items-center gap-1">
+                    {renderStatusIndicator()}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setIsApiKeyVisible((visible) => !visible)}
+                      className="size-7 text-muted-foreground shadow-none hover:text-foreground">
+                      {isApiKeyVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+                    </Button>
+                  </div>
+                </ButtonGroupItem>
                 <Button
                   variant={isApiKeyConnectable ? 'ghost' : undefined}
                   onClick={onCheckApi}
-                  disabled={!apiHost || apiKeyConnectivity.checking}>
+                  disabled={!apiHost || apiKeyConnectivity.checking}
+                  className="h-9 shrink-0">
                   {apiKeyConnectivity.checking ? (
                     <LoadingIcon />
                   ) : apiKeyConnectivity.status === HealthStatus.SUCCESS ? (
@@ -539,7 +572,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                     t('settings.provider.check')
                   )}
                 </Button>
-              </Space.Compact>
+              </ButtonGroup>
               <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
                 <RowFlex>
                   {apiKeyWebsite && !isDmxapi && (
@@ -579,19 +612,20 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                   {isCherryIN && isChineseUser ? (
                     <CherryINSettings providerId={provider.id} apiHost={apiHost} setApiHost={setApiHost} />
                   ) : (
-                    <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+                    <ButtonGroup className="mt-1.25 w-full">
                       <Input
                         value={apiHost}
                         placeholder={t('settings.provider.api_host')}
                         onChange={(e) => setApiHost(e.target.value)}
                         onBlur={onUpdateApiHost}
+                        className="flex-1"
                       />
                       {isApiHostResettable && (
-                        <Button variant="destructive" onClick={onReset}>
+                        <Button variant="destructive" onClick={onReset} className="shrink-0">
                           {t('settings.provider.api.url.reset')}
                         </Button>
                       )}
-                    </Space.Compact>
+                    </ButtonGroup>
                   )}
                   {isVertexProvider(provider) && (
                     <SettingHelpTextRow>
@@ -614,15 +648,16 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
 
               {activeHostField === 'anthropicApiHost' && canConfigureAnthropicHost && (
                 <>
-                  <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-                    <Input
+                  <div className="mt-1.25 flex w-full">
+                    <AntdInput
                       value={anthropicApiHost ?? ''}
                       placeholder={t('settings.provider.anthropic_api_host')}
                       onChange={(e) => setAnthropicHost(e.target.value)}
                       onBlur={onUpdateAnthropicHost}
+                      className="flex-1"
                     />
                     {/* TODO: Add a reset button here. */}
-                  </Space.Compact>
+                  </div>
                   <SettingHelpTextRow style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                     <SettingHelpText style={{ marginLeft: 6, whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
                       {t('settings.provider.anthropic_api_host_preview', {
@@ -639,14 +674,15 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       {isAzureOpenAI && (
         <>
           <SettingSubtitle>{t('settings.provider.api_version')}</SettingSubtitle>
-          <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-            <Input
+          <div className="mt-1.25 flex w-full">
+            <AntdInput
               value={apiVersion}
               placeholder="2024-xx-xx-preview"
               onChange={(e) => setApiVersion(e.target.value)}
               onBlur={onUpdateApiVersion}
+              className="flex-1"
             />
-          </Space.Compact>
+          </div>
           <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
             <SettingHelpText style={{ minWidth: 'fit-content' }}>
               {t('settings.provider.azure.apiversion.tip')}
@@ -663,19 +699,5 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
     </SettingContainer>
   )
 }
-
-const ProviderName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-  margin-right: -2px;
-`
-
-const ErrorOverlay = styled.div`
-  max-height: 200px;
-  overflow-y: auto;
-  max-width: 300px;
-  word-wrap: break-word;
-  user-select: text;
-`
 
 export default ProviderSetting

@@ -12,6 +12,7 @@ import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import type { NewUserModel, UserModel } from '@data/db/schemas/userModel'
 import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
+import { pinService } from '@data/services/PinService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
@@ -363,14 +364,18 @@ class ModelService {
   async delete(providerId: string, modelId: string): Promise<void> {
     const db = application.get('DbService').getDb()
 
-    const deleted = await db
-      .delete(userModelTable)
-      .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
-      .returning({ id: userModelTable.id })
+    await db.transaction(async (tx) => {
+      const rows = await tx
+        .delete(userModelTable)
+        .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+        .returning({ id: userModelTable.id })
 
-    if (deleted.length === 0) {
-      throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
-    }
+      if (rows.length === 0) {
+        throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
+      }
+
+      await pinService.purgeForEntityTx(tx, 'model', rows[0].id)
+    })
 
     logger.info('Deleted model', { providerId, modelId })
   }
