@@ -79,29 +79,25 @@ function buildPrompt(agentId: string, userMessage: string): string {
     .filter(Boolean)
     .join('\n')
 
-  return `你是本地 oMLX Agent，負責系統設計、架構規劃、ComfyUI Web UI 設計與工程任務拆解。
+  return `You are a local oMLX Agent for system design, architecture planning, ComfyUI Web UI design, and engineering task breakdown.
 
-重要規則：
-1. 使用繁體中文。
-2. 不呼叫 Claude Code。
-3. 不使用 Anthropic / Claude tools。
-4. 不使用 Cherry Studio Skills。
-5. 不修改任何檔案。
-6. 回答要結構化、精簡、可執行。
-7. 如果資訊不足，請明確列出缺少的資料。
+Important rules:
+1. Use the same language as the user's request.
+2. Do not call Claude Code.
+3. Use the configured local oMLX OpenAI-compatible API.
+4. Keep responses concise, practical, and implementation-oriented.
 
---- USER.md ---
-${userMd}
+# USER.md
+${userMd || '(empty)'}
 
---- SOUL.md ---
-${soulMd}
+# SOUL.md
+${soulMd || '(empty)'}
 
---- Knowledge Base ---
-${knowledge}
+# Knowledge
+${knowledge || '(empty)'}
 
---- 使用者問題 ---
-${userMessage}
-`
+# User request
+${userMessage}`
 }
 
 export async function runLocalOmlxAgent(options: LocalOmlxRunOptions): Promise<string> {
