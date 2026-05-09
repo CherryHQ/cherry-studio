@@ -119,7 +119,7 @@ export class WindowManager extends BaseService {
   })
 
   /** Single GC timer shared across all warmup states (null when no idle windows exist) */
-  private warmupGcTimer: ReturnType<typeof setInterval> | null = null
+  private warmupGcTimer: Disposable | null = null
 
   /**
    * Window types whose `idle.length > 0`. Lets `warmupGcTick` iterate only over
@@ -254,10 +254,8 @@ export class WindowManager extends BaseService {
   protected override onDestroy(): void {
     logger.info('Destroying, closing all windows...')
 
-    if (this.warmupGcTimer) {
-      clearInterval(this.warmupGcTimer)
-      this.warmupGcTimer = null
-    }
+    // GC timer is auto-disposed via registerInterval; just drop the reference.
+    this.warmupGcTimer = null
     this.activeWarmupTypes.clear()
     // Signal any pending setImmediate standby replenish callbacks to bail out.
     // They check `state.suspended` at execution time.
@@ -1250,7 +1248,7 @@ export class WindowManager extends BaseService {
   /** Start the shared GC timer if not already running */
   private startWarmupGc(): void {
     if (this.warmupGcTimer) return
-    this.warmupGcTimer = setInterval(() => this.warmupGcTick(), WARMUP_GC_INTERVAL)
+    this.warmupGcTimer = this.registerInterval(() => this.warmupGcTick(), WARMUP_GC_INTERVAL)
     logger.debug('warmup gc-start', { intervalMs: WARMUP_GC_INTERVAL })
   }
 
@@ -1266,7 +1264,7 @@ export class WindowManager extends BaseService {
   private warmupGcTick(): void {
     if (this.activeWarmupTypes.size === 0) {
       if (this.warmupGcTimer) {
-        clearInterval(this.warmupGcTimer)
+        this.warmupGcTimer.dispose()
         this.warmupGcTimer = null
         logger.debug('warmup gc-stop', { reason: 'no active warmup states' })
       }
