@@ -27,29 +27,63 @@ export const DeleteConfirmDialog: FC<Props> = ({ resource, onClose }) => {
 }
 
 const DeleteDialogBody: FC<{ resource: ResourceItem; onClose: () => void }> = ({ resource, onClose }) => {
-  const { t } = useTranslation()
+  if (resource.type === 'assistant') return <AssistantDeleteDialog resource={resource} onClose={onClose} />
+  if (resource.type === 'agent') return <AgentDeleteDialog resource={resource} onClose={onClose} />
+  if (resource.type === 'skill') return <SkillDeleteDialog resource={resource} onClose={onClose} />
+  return <PromptDeleteDialog resource={resource} onClose={onClose} />
+}
+
+const AssistantDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'assistant' }>; onClose: () => void }> = ({
+  resource,
+  onClose
+}) => {
   const { deleteAssistant } = useAssistantMutationsById(resource.id)
+  return <DeleteDialogContent resource={resource} onClose={onClose} onDelete={deleteAssistant} />
+}
+
+const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>; onClose: () => void }> = ({
+  resource,
+  onClose
+}) => {
   const { deleteAgent } = useAgentMutationsById(resource.id)
-  const { deletePrompt } = usePromptMutationsById(resource.id)
+  return <DeleteDialogContent resource={resource} onClose={onClose} onDelete={deleteAgent} />
+}
+
+const SkillDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'skill' }>; onClose: () => void }> = ({
+  resource,
+  onClose
+}) => {
   const { uninstallSkill } = useSkillMutationsById(resource.id)
+  return <DeleteDialogContent resource={resource} onClose={onClose} onDelete={uninstallSkill} />
+}
+
+const PromptDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'prompt' }>; onClose: () => void }> = ({
+  resource,
+  onClose
+}) => {
+  const { deletePrompt } = usePromptMutationsById(resource.id)
+  return <DeleteDialogContent resource={resource} onClose={onClose} onDelete={deletePrompt} />
+}
+
+const DeleteDialogContent: FC<{ resource: ResourceItem; onClose: () => void; onDelete: () => Promise<void> }> = ({
+  resource,
+  onClose,
+  onDelete
+}) => {
+  const { t } = useTranslation()
   const [pending, setPending] = useState(false)
 
   const handleConfirm = useCallback(async () => {
     setPending(true)
     try {
-      if (resource.type === 'assistant') {
-        await deleteAssistant()
-      } else if (resource.type === 'agent') {
-        await deleteAgent()
-      } else if (resource.type === 'skill') {
-        await uninstallSkill()
-      } else if (resource.type === 'prompt') {
-        await deletePrompt()
-      }
+      await onDelete()
+    } catch (error) {
+      window.toast.error(error instanceof Error ? error.message : t('common.delete_failed'))
+      throw error
     } finally {
       setPending(false)
     }
-  }, [resource, deleteAssistant, deleteAgent, uninstallSkill, deletePrompt])
+  }, [onDelete, t])
 
   const { title, description, confirmText } = useMemo(() => {
     if (resource.type === 'agent') {

@@ -217,6 +217,26 @@ describe('TagService', () => {
     })
   })
 
+  describe('getEntityIdsByTags', () => {
+    it('should return unique entity ids matching the given tags and entity type', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 },
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 2, updatedAt: 2 },
+        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_2, createdAt: 3, updatedAt: 3 },
+        { entityType: 'topic', entityId: TOPIC_1, tagId: TAG_2, createdAt: 4, updatedAt: 4 }
+      ])
+
+      const result = await tagService.getEntityIdsByTags('assistant', [TAG_1, TAG_2, TAG_2])
+
+      expect(result.sort()).toEqual([ASSISTANT_1, ASSISTANT_2])
+    })
+
+    it('should return an empty array for empty tag input', async () => {
+      await expect(tagService.getEntityIdsByTags('assistant', [])).resolves.toEqual([])
+    })
+  })
+
   describe('syncEntityTags', () => {
     it('should diff associations and preserve createdAt for unchanged tags', async () => {
       await seedTags()

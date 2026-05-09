@@ -22,6 +22,7 @@ import { useEnsureTags } from '../adapters/tagAdapter'
 import { AssistantTransferError, parseAssistantImportContent } from '../editor/assistant/transfer'
 
 const ALLOWED_FETCH_PROTOCOLS = new Set(['http:', 'https:'])
+const ALLOWED_FETCH_HOSTS = new Set(['gist.githubusercontent.com', 'raw.githubusercontent.com'])
 const FETCH_TIMEOUT_MS = 15_000
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024 // 5 MB
 const AUTO_CLOSE_DELAY_MS = 1200
@@ -37,6 +38,49 @@ type ImportStatus = { kind: 'idle' } | { kind: 'success'; message: string } | { 
 const IMPORT_ERROR_I18N_KEYS = {
   invalid_format: 'assistants.presets.import.error.invalid_format'
 } as const
+
+type ImportUrlValidation =
+  | { ok: true; url: string }
+  | {
+      ok: false
+      errorKey: 'library.import_dialog.error.invalid_url' | 'library.import_dialog.error.unsupported_protocol'
+    }
+
+export function validateAssistantImportUrl(raw: string): ImportUrlValidation {
+  try {
+    const rawUrl = new URL(raw)
+    if (!ALLOWED_FETCH_PROTOCOLS.has(rawUrl.protocol)) {
+      return { ok: false, errorKey: 'library.import_dialog.error.unsupported_protocol' }
+    }
+    const safeUrl = sanitizeUrl(raw)
+    const parsed = new URL(safeUrl)
+    if (!ALLOWED_FETCH_PROTOCOLS.has(parsed.protocol)) {
+      return { ok: false, errorKey: 'library.import_dialog.error.unsupported_protocol' }
+    }
+    if (!ALLOWED_FETCH_HOSTS.has(parsed.hostname)) {
+      return { ok: false, errorKey: 'library.import_dialog.error.invalid_url' }
+    }
+    return { ok: true, url: safeUrl }
+  } catch {
+    return { ok: false, errorKey: 'library.import_dialog.error.invalid_url' }
+  }
+}
+
+export function isAssistantImportResponseTooLarge(headers: Pick<Headers, 'get'>): boolean {
+  const declaredLength = Number(headers.get('content-length') ?? '')
+  return Number.isFinite(declaredLength) && declaredLength > MAX_IMPORT_BYTES
+}
+
+export function isAssistantImportContentTooLarge(content: string): boolean {
+  return content.length > MAX_IMPORT_BYTES
+}
+
+export function createAssistantImportFetchInit(): RequestInit {
+  return {
+    credentials: 'omit',
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+  }
+}
 
 /**
  * Import-config dialog for assistants — visual layout mirrors the ui-design
@@ -203,41 +247,32 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
    * Hardening applied before `fetch`:
    *   1. `strict-url-sanitise` strips dangerous patterns
    *   2. protocol whitelist (http / https only — no file://, javascript:, data:)
-   *   3. 15s `AbortSignal.timeout` so a hanging server can't freeze the UI
-   *   4. Content-Length + downloaded-length guard against oversized payloads
+   *   3. host allowlist for raw GitHub/Gist content
+   *   4. 15s `AbortSignal.timeout` so a hanging server can't freeze the UI
+   *   5. Content-Length + downloaded-length guard against oversized payloads
    */
   const handleUrlImport = async () => {
     const raw = urlText.trim()
     if (!raw) return
 
-    let safeUrl: string
-    try {
-      safeUrl = sanitizeUrl(raw)
-      const parsed = new URL(safeUrl)
-      if (!ALLOWED_FETCH_PROTOCOLS.has(parsed.protocol)) {
-        throw new Error(t('library.import_dialog.error.unsupported_protocol'))
-      }
-    } catch (error) {
-      setStatus({
-        kind: 'error',
-        message: error instanceof Error ? error.message : t('library.import_dialog.error.invalid_url')
-      })
+    const validation = validateAssistantImportUrl(raw)
+    if (!validation.ok) {
+      setStatus({ kind: 'error', message: t(validation.errorKey) })
       return
     }
 
     setLoading(true)
     setStatus({ kind: 'idle' })
     try {
-      const response = await fetch(safeUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
+      const response = await fetch(validation.url, createAssistantImportFetchInit())
       if (!response.ok) {
         throw new Error(t('assistants.presets.import.error.fetch_failed'))
       }
-      const declaredLength = Number(response.headers.get('content-length') ?? '')
-      if (Number.isFinite(declaredLength) && declaredLength > MAX_IMPORT_BYTES) {
+      if (isAssistantImportResponseTooLarge(response.headers)) {
         throw new Error(t('library.import_dialog.error.response_too_large'))
       }
       const content = await response.text()
-      if (content.length > MAX_IMPORT_BYTES) {
+      if (isAssistantImportContentTooLarge(content)) {
         throw new Error(t('library.import_dialog.error.response_too_large'))
       }
       setLoading(false)
@@ -286,7 +321,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
           </Button>
         </div>
 
-        {/* Tabs — only TabsList 用于 a11y/键盘导航；内容区自绘以保留原 mode="wait" 切换动画 */}
+        {/* TabsList keeps a11y/keyboard navigation while the content area owns the animated transitions. */}
         <Tabs value={tab} onValueChange={(v) => setTab(v as ImportTab)}>
           <TabsList className="h-auto w-auto justify-start gap-0.5 bg-transparent p-0 px-5 pt-3">
             {tabs.map((tabDef) => {

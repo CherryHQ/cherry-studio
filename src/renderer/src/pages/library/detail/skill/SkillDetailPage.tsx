@@ -1,4 +1,5 @@
 import { Alert, Badge, Button, ConfirmDialog, Separator } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
 import type { InstalledSkill, SkillFileNode } from '@types'
@@ -11,6 +12,8 @@ import { useTranslation } from 'react-i18next'
 import { useSkillMutationsById } from '../../adapters/skillAdapter'
 import { ResourceEditorShell } from '../../editor/ConfigEditorShell'
 import { FileTreeNode, guessLanguage, isMarkdownFile } from './skillFileTree'
+
+const logger = loggerService.withContext('SkillDetailPage')
 
 interface Props {
   skill: InstalledSkill
@@ -93,12 +96,17 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
           setSelectedFile(skillMd ?? firstMarkdown ?? firstFile)
           setExpandedDirs(new Set())
         } else {
+          logger.warn('Failed to load skill file tree', { skillId: skill.id, error: result.error })
           setFileTree([])
           setSelectedFile(null)
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (!cancelled) {
+          logger.warn('Failed to load skill file tree', {
+            skillId: skill.id,
+            error: error instanceof Error ? error.message : String(error)
+          })
           setFileTree([])
           setSelectedFile(null)
         }
@@ -123,10 +131,24 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
       .readSkillFile(skill.id, selectedFile)
       .then((result) => {
         if (cancelled) return
-        setFileContent(result.success ? result.data : null)
+        if (result.success) {
+          setFileContent(result.data)
+        } else {
+          logger.warn('Failed to load skill file content', { skillId: skill.id, selectedFile, error: result.error })
+          window.toast.error(t('common.error'))
+          setFileContent(null)
+        }
       })
-      .catch(() => {
-        if (!cancelled) setFileContent(null)
+      .catch((error) => {
+        if (!cancelled) {
+          logger.warn('Failed to load skill file content', {
+            skillId: skill.id,
+            selectedFile,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          window.toast.error(error instanceof Error ? error.message : t('common.error'))
+          setFileContent(null)
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingContent(false)
@@ -134,7 +156,7 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
     return () => {
       cancelled = true
     }
-  }, [skill.id, selectedFile])
+  }, [skill.id, selectedFile, t])
 
   const tree = useMemo(
     () =>

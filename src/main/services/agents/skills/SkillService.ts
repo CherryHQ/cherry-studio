@@ -419,10 +419,12 @@ export class SkillService {
         if (stat.isSymbolicLink()) {
           await fs.promises.rm(linkPath)
         } else if (stat.isDirectory()) {
-          logger.warn('Refusing to overwrite non-symlink directory for skill', { folderName, linkPath })
-          return
+          throw new Error(`Cannot link skill '${folderName}': target path already exists and is not a symlink`)
         }
-      } catch {
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw error
+        }
         // Does not exist, fine
       }
 
@@ -604,8 +606,25 @@ export class SkillService {
       contentHash,
       isEnabled: false
     }
-    const [inserted] = await this.db.insert(agentGlobalSkillTable).values(insertData).returning()
-    if (!inserted) throw new Error(`Failed to insert skill: ${metadata.name}`)
+    let inserted: AgentGlobalSkillRow | undefined
+    try {
+      ;[inserted] = await this.db.insert(agentGlobalSkillTable).values(insertData).returning()
+    } catch (error) {
+      try {
+        await this.installer.uninstall(destPath)
+      } catch (cleanupError) {
+        logger.error('Failed to clean up skill files after DB insert failure', {
+          folderName,
+          destPath,
+          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+        })
+      }
+      throw error
+    }
+    if (!inserted) {
+      await this.installer.uninstall(destPath)
+      throw new Error(`Failed to insert skill: ${metadata.name}`)
+    }
     const skill = this.rowToInstalledSkill(inserted)
 
     if (isBuiltin) {

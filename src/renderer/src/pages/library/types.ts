@@ -1,10 +1,14 @@
+import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
+import type { Assistant } from '@shared/data/types/assistant'
+import type { Prompt } from '@shared/data/types/prompt'
+
 export type ResourceType = 'agent' | 'assistant' | 'skill' | 'prompt'
 
 export type SortKey = 'updatedAt' | 'createdAt' | 'name'
 
-export interface ResourceItem {
+interface ResourceItemBase<TType extends ResourceType, TRaw> {
   id: string
-  type: ResourceType
+  type: TType
   name: string
   description: string
   avatar: string
@@ -12,8 +16,14 @@ export interface ResourceItem {
   tags: string[]
   createdAt: string
   updatedAt: string
-  raw: unknown
+  raw: TRaw
 }
+
+export type ResourceItem =
+  | ResourceItemBase<'assistant', Assistant>
+  | ResourceItemBase<'agent', AgentDetail>
+  | ResourceItemBase<'skill', InstalledSkill>
+  | ResourceItemBase<'prompt', Prompt>
 
 export interface TagItem {
   id: string

@@ -127,7 +127,7 @@ function createAssistantResource(): ResourceItem {
     tags: [],
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: null
+    raw: {} as Extract<ResourceItem, { type: 'assistant' }>['raw']
   }
 }
 
@@ -141,7 +141,7 @@ function createAgentResource(): ResourceItem {
     tags: [],
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: null
+    raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw']
   }
 }
 
@@ -155,7 +155,7 @@ function createSkillResource(): ResourceItem {
     tags: [],
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: null
+    raw: {} as Extract<ResourceItem, { type: 'skill' }>['raw']
   }
 }
 
@@ -169,7 +169,7 @@ function createPromptResource(): ResourceItem {
     tags: [],
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: null
+    raw: {} as Extract<ResourceItem, { type: 'prompt' }>['raw']
   }
 }
 

@@ -15,6 +15,13 @@ function unwrapSkillResult<T>(result: SkillResult<T>): T {
   throw new Error(skillErrorMessage(result.error))
 }
 
+function reportSkillMutationError(action: string, error: unknown): string {
+  const message = skillErrorMessage(error)
+  logger.error(`Failed to ${action}`, { error: message })
+  window.toast.error(message)
+  return message
+}
+
 async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalidateCache>): Promise<void> {
   try {
     await invalidate('/skills')
@@ -51,7 +58,8 @@ export function useInstalledSkills(agentId?: string) {
         if (!result.success || !result.data) return false
         await refreshSkillsBestEffort(invalidate)
         return result.data.isEnabled === isEnabled
-      } catch {
+      } catch (error) {
+        reportSkillMutationError('toggle skill', error)
         return false
       }
     },
@@ -65,7 +73,8 @@ export function useInstalledSkills(agentId?: string) {
         if (!result.success) return false
         await refreshSkillsBestEffort(invalidate)
         return true
-      } catch {
+      } catch (error) {
+        reportSkillMutationError('uninstall skill', error)
         return false
       }
     },
@@ -159,7 +168,8 @@ export function useSkillInstall() {
         const skill = unwrapSkillResult(await window.api.skill.installFromZip({ zipFilePath }))
         await refreshSkillsBestEffort(invalidate)
         return skill
-      } catch {
+      } catch (error) {
+        reportSkillMutationError('install skill from zip', error)
         return null
       } finally {
         setInstallingKey(null)
@@ -175,7 +185,8 @@ export function useSkillInstall() {
         const skill = unwrapSkillResult(await window.api.skill.installFromDirectory({ directoryPath }))
         await refreshSkillsBestEffort(invalidate)
         return skill
-      } catch {
+      } catch (error) {
+        reportSkillMutationError('install skill from directory', error)
         return null
       } finally {
         setInstallingKey(null)

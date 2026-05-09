@@ -1,3 +1,4 @@
+import { Alert, Button } from '@cherrystudio/ui'
 import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
@@ -89,7 +90,13 @@ export default function LibraryPage() {
   const activeResourceType = sidebarFilter.resourceType
   const isAssistantLibrary = activeResourceType === 'assistant'
 
-  const { resources, allResources, typeCounts, refetch } = useResourceLibrary({
+  const {
+    resources,
+    allResources,
+    typeCounts,
+    error: resourceError,
+    refetch
+  } = useResourceLibrary({
     sidebarFilter,
     activeTag: isAssistantLibrary && activeAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB ? activeTag : null,
     search: !isAssistantLibrary || activeAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB ? search : '',
@@ -113,8 +120,8 @@ export default function LibraryPage() {
   const assistantTagUiEnabled = isAssistantLibrary && isAssistantCatalogMine
 
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
-  // Row 2「+ 标签」走 ensureTags 的幂等语义:已存在则静默复用,不存在才 POST。
-  // Avoids 409 on duplicate names and keeps the UX consistent with BasicSection / 卡片菜单。
+  // The add-tag control uses ensureTags idempotently: existing names are reused,
+  // and missing names are created before the card menu / editor binds them.
   const { ensureTags } = useEnsureTags()
   // Single source of truth for "what tags exist anywhere" — backs the selection
   // pools (card menu / BasicSection) and feeds chip colors. Revalidated by the
@@ -128,7 +135,7 @@ export default function LibraryPage() {
 
   // Selection pool includes *every* tag that exists server-side — even ones
   // that have never been bound to an assistant, so a newly-created tag from
-  // Row 2's "+ 标签" button is immediately pickable in the card menu.
+  // The add-tag button is immediately pickable in the card menu.
   const allTagNames = useMemo(
     () => tagList.tags.map((t) => t.name).sort((a, b) => a.localeCompare(b, 'zh')),
     [tagList.tags]
@@ -184,19 +191,19 @@ export default function LibraryPage() {
     if (!resource) return
 
     if (resource.type === 'assistant') {
-      const assistant = resource.raw as Assistant
+      const assistant = resource.raw
       setConfigView((prev) =>
         prev.type === 'assistant-edit' && prev.assistant.id === assistant.id
           ? prev
           : { type: 'assistant-edit', assistant }
       )
     } else if (resource.type === 'agent') {
-      const agent = resource.raw as AgentDetail
+      const agent = resource.raw
       setConfigView((prev) =>
         prev.type === 'agent-edit' && prev.agent.id === agent.id ? prev : { type: 'agent-edit', agent }
       )
     } else if (resource.type === 'prompt') {
-      const prompt = resource.raw as Prompt
+      const prompt = resource.raw
       setConfigView((prev) =>
         prev.type === 'prompt-edit' && prev.prompt.id === prompt.id ? prev : { type: 'prompt-edit', prompt }
       )
@@ -205,20 +212,20 @@ export default function LibraryPage() {
 
   const handleEdit = useCallback((r: ResourceItem) => {
     if (r.type === 'assistant') {
-      setConfigView({ type: 'assistant-edit', assistant: r.raw as Assistant })
+      setConfigView({ type: 'assistant-edit', assistant: r.raw })
     } else if (r.type === 'agent') {
-      setConfigView({ type: 'agent-edit', agent: r.raw as AgentDetail })
+      setConfigView({ type: 'agent-edit', agent: r.raw })
     } else if (r.type === 'skill') {
-      setConfigView({ type: 'skill-detail', skill: r.raw as InstalledSkill })
+      setConfigView({ type: 'skill-detail', skill: r.raw })
     } else if (r.type === 'prompt') {
-      setConfigView({ type: 'prompt-edit', prompt: r.raw as Prompt })
+      setConfigView({ type: 'prompt-edit', prompt: r.raw })
     }
   }, [])
 
   const handleDuplicate = useCallback(
     async (r: ResourceItem) => {
       if (r.type === 'assistant') {
-        await duplicateAssistant(r.raw as Assistant)
+        await duplicateAssistant(r.raw)
       }
     },
     [duplicateAssistant]
@@ -276,7 +283,7 @@ export default function LibraryPage() {
     async (r: ResourceItem) => {
       if (r.type !== 'assistant') return
 
-      const assistant = r.raw as Assistant
+      const assistant = r.raw
       try {
         const content = serializeAssistantForExport(assistant)
 
@@ -293,17 +300,15 @@ export default function LibraryPage() {
   const handleCreate = useCallback((type: ResourceType) => {
     if (type === 'assistant') {
       // Mirror the agent create flow: enter the form first, then POST only
-      // after the user fills the required fields and clicks 保存.
+      // after the user fills the required fields and clicks Save.
       setConfigView({ type: 'assistant-create' })
     } else if (type === 'agent') {
-      // Defer DB write until the user hits 保存 in the config page. This
-      // avoids leaving half-configured agent rows behind if the user
-      // navigates away, and matches the flow the user spec'd:
-      // "新建智能体 要先进入到配置页 配置完后点击保存 才能成功新建".
+      // Defer DB write until the user saves in the config page. This
+      // avoids leaving half-configured agent rows behind if the user navigates away.
       setConfigView({ type: 'agent-create' })
     } else if (type === 'skill') {
       // Skill install lives in a dialog (mirrors ImportAssistantDialog) so the
-      // ZIP / directory / marketplace flows from 设置 → Skills can be exposed
+      // ZIP / directory / marketplace flows from Settings → Skills can be exposed
       // here without leaving the library page.
       setSkillImportOpen(true)
     } else if (type === 'prompt') {
@@ -470,35 +475,48 @@ export default function LibraryPage() {
       />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <ResourceGrid
-          resources={resources}
-          activeResourceType={activeResourceType}
-          search={search}
-          onSearchChange={setSearch}
-          onEdit={handleEdit}
-          onDuplicate={handleDuplicate}
-          onDelete={handleDelete}
-          onExport={(resource) => {
-            void handleExport(resource)
-          }}
-          onCreate={handleCreate}
-          onImportAssistant={() => setAssistantImportOpen(true)}
-          tags={scopedTags}
-          activeTag={activeTag}
-          onTagFilter={setActiveTag}
-          onAddTag={async (tagName) => {
-            // Idempotent: ensureTags reuses an existing tag when the name already
-            // exists (avoiding 409), or POSTs a new row with a random palette
-            // color otherwise. Either path triggers `/tags` refresh so the card
-            // menu / BasicSection selection pool picks the name up immediately.
-            // The Row 2 chip list remains bound to buildTags(resources), so a
-            // newly-created but unbound tag only surfaces after it is bound.
-            await ensureTags([tagName])
-          }}
-          onUpdateResourceTags={noop /* binding is executed inside FixedCardMenu via the tag hooks */}
-          allTagNames={allTagNames}
-          assistantCatalog={assistantCatalogProp}
-        />
+        {resourceError ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+            <Alert
+              type="error"
+              showIcon
+              message={t('common.error')}
+              description={resourceError.message}
+              action={
+                <Button variant="outline" size="sm" onClick={refetch}>
+                  {t('common.retry')}
+                </Button>
+              }
+              className="max-w-lg rounded-xs px-4 py-3 shadow-none"
+            />
+          </div>
+        ) : (
+          <ResourceGrid
+            resources={resources}
+            activeResourceType={activeResourceType}
+            search={search}
+            onSearchChange={setSearch}
+            onEdit={handleEdit}
+            onDuplicate={handleDuplicate}
+            onDelete={handleDelete}
+            onExport={(resource) => {
+              void handleExport(resource)
+            }}
+            onCreate={handleCreate}
+            onImportAssistant={() => setAssistantImportOpen(true)}
+            tags={scopedTags}
+            activeTag={activeTag}
+            onTagFilter={setActiveTag}
+            onAddTag={async (tagName) => {
+              // Idempotent: ensureTags reuses existing names or creates missing
+              // rows; binding stays inside card/editor tag hooks.
+              await ensureTags([tagName])
+            }}
+            onUpdateResourceTags={noop /* binding is executed inside FixedCardMenu via the tag hooks */}
+            allTagNames={allTagNames}
+            assistantCatalog={assistantCatalogProp}
+          />
+        )}
       </div>
 
       <DeleteConfirmDialog resource={deleteConfirm} onClose={() => setDeleteConfirm(null)} />

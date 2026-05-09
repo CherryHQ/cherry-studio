@@ -261,4 +261,40 @@ describe('useResourceLibrary model display names', () => {
       }
     ])
   })
+
+  it('resolves the selected assistant tag to tagIds for filtered list reads', () => {
+    mocks.useAssistantList.mockImplementation((query?: ResourceListQuery) => {
+      if (query?.tagIds) return listResult([])
+      return listResult([
+        {
+          id: 'assistant-1',
+          name: 'Assistant',
+          description: '',
+          emoji: '💬',
+          modelName: 'GPT-4o',
+          tags: [{ id: 'tag-1', name: 'work', color: '#3b82f6' }],
+          createdAt: '2026-04-27T00:00:00.000Z',
+          updatedAt: '2026-04-27T00:00:00.000Z'
+        }
+      ])
+    })
+
+    renderResourceLibrary({ activeTag: 'work' })
+
+    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ search: undefined, tagIds: ['tag-1'] }])
+  })
+
+  it('returns an empty list when a selected assistant tag cannot be resolved', () => {
+    const { result } = renderResourceLibrary({ activeTag: 'missing' })
+
+    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ search: undefined, tagIds: undefined }])
+    expect(result.current.resources).toEqual([])
+  })
+
+  it('ignores activeTag for non-assistant resources', () => {
+    renderResourceLibrary({ sidebarFilter: { resourceType: 'agent' }, activeTag: 'work' })
+
+    expect(mocks.useAgentList.mock.calls[1]).toEqual([{ search: undefined }])
+    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ search: undefined, tagIds: undefined }])
+  })
 })
