@@ -253,12 +253,13 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
     setSelectedTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
   }
 
-  const resolveAfterClose = () => {
+  const resolveAfterClose = (result: SaveResult | null) => {
     if (resolvedRef.current) return
 
     resolvedRef.current = true
+    setOpen(false)
     window.setTimeout(() => {
-      resolve(null)
+      resolve(result)
     }, CLOSE_ANIMATION_MS)
   }
 
@@ -322,9 +323,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         }
       }
 
-      setOpen(false)
-      resolvedRef.current = true
-      resolve({ success: true, savedCount })
+      resolveAfterClose({ success: true, savedCount })
     } catch (error) {
       logger.error('save failed:', error as Error)
 
@@ -349,8 +348,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   }
 
   const onCancel = () => {
-    setOpen(false)
-    resolveAfterClose()
+    resolveAfterClose(null)
   }
 
   const renderEmptyState = () => (

@@ -11,9 +11,12 @@ import {
   TabsList,
   TabsTrigger
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ImageUp, Link, LoaderCircle, UploadCloud } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('RichEditorImageUploader')
 
 interface ImageUploaderProps {
   /** Callback when image is selected/uploaded */
@@ -77,6 +80,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
       window.toast.success(t('richEditor.imageUploader.uploadSuccess'))
       onClose()
     } catch (error) {
+      logger.error('Image upload failed:', error as Error)
       window.toast.error(t('richEditor.imageUploader.uploadError'))
     } finally {
       setLoading(false)
@@ -140,7 +144,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
                   void handleFileSelect(file)
                 }
               }}
-              onError={() => window.toast.error(t('richEditor.imageUploader.invalidType'))}
+              onError={(err) => {
+                logger.error('Dropzone validation failed:', err)
+                window.toast.error(err.message || t('richEditor.imageUploader.invalidType'))
+              }}
               className="min-h-44 border-dashed bg-muted/20 hover:bg-accent/40">
               <div className="flex flex-col items-center justify-center gap-2 text-center">
                 <div className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">

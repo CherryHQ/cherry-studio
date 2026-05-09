@@ -7,7 +7,7 @@ import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { getToastUtilities, ToastViewport } from './toast'
+import { ToastProvider, useToasts } from './toast'
 
 let onPop = () => {}
 let onShow = ({ element, id }: { element: React.FC | React.ReactNode; id: string }) => {
@@ -30,8 +30,7 @@ type ElementItem = {
 
 // const logger = loggerService.withContext('TopView')
 
-const TopViewContainer: React.FC<Props> = ({ children }) => {
-  const { t } = useTranslation()
+const TopViewContent: React.FC<Props> = ({ children }) => {
   const [elements, setElements] = useState<ElementItem[]>([])
   const elementsRef = useRef<ElementItem[]>([])
   elementsRef.current = elements
@@ -41,20 +40,11 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
 
   useAppInit()
 
-  const toastLabels = useMemo(
-    () => ({
-      close: t('common.close'),
-      error: t('common.error'),
-      errorDescription: t('error.unknown'),
-      loading: t('common.loading'),
-      success: t('common.success')
-    }),
-    [t]
-  )
+  const toast = useToasts()
 
   useEffect(() => {
-    window.toast = getToastUtilities(toastLabels)
-  }, [toastLabels])
+    window.toast = toast
+  }, [toast])
 
   onPop = () => {
     const views = [...elementsRef.current]
@@ -107,7 +97,6 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   return (
     <>
       {children}
-      <ToastViewport labels={toastLabels} />
       <AppModalProvider
         onReady={(modal) => {
           window.modal = modal
@@ -119,6 +108,26 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
         </FullScreenContainer>
       ))}
     </>
+  )
+}
+
+const TopViewContainer: React.FC<Props> = ({ children }) => {
+  const { t } = useTranslation()
+  const toastLabels = useMemo(
+    () => ({
+      close: t('common.close'),
+      error: t('common.error'),
+      errorDescription: t('error.unknown'),
+      loading: t('common.loading'),
+      success: t('common.success')
+    }),
+    [t]
+  )
+
+  return (
+    <ToastProvider labels={toastLabels}>
+      <TopViewContent>{children}</TopViewContent>
+    </ToastProvider>
   )
 }
 

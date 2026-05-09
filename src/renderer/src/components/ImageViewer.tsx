@@ -202,6 +202,27 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ alt, onClick, onContextMenu, 
     id: src,
     src
   }
+  const displayIndex = Math.max(
+    0,
+    items.findIndex((item) => item.id === displayItem.id)
+  )
+  const contextMenuTransform = React.useMemo(() => ({ flipX: false, flipY: false, rotate: 0, scale: 1 }), [])
+  const contextMenuActionContext = React.useMemo(
+    () => ({
+      close: () => setOpen(false),
+      index: displayIndex,
+      items,
+      resetTransform: () => {},
+      transform: contextMenuTransform
+    }),
+    [contextMenuTransform, displayIndex, items, setOpen]
+  )
+  const onActionError = React.useCallback((error: unknown, action: ImagePreviewAction, item: ImagePreviewItem) => {
+    logger.error(`Image preview action failed: ${action.id}`, {
+      error: error instanceof Error ? error.message : String(error),
+      itemId: item.id
+    })
+  }, [])
 
   const image = (
     <img
@@ -224,7 +245,11 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ alt, onClick, onContextMenu, 
 
   return (
     <>
-      <ImagePreviewContextMenu actions={contextActions} item={displayItem}>
+      <ImagePreviewContextMenu
+        actions={contextActions}
+        context={contextMenuActionContext}
+        item={displayItem}
+        onActionError={onActionError}>
         {image}
       </ImagePreviewContextMenu>
       {previewEnabled && (
@@ -233,6 +258,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ alt, onClick, onContextMenu, 
           activeIndex={activeIndex}
           items={items}
           labels={labels}
+          onActionError={onActionError}
           onActiveIndexChange={setActiveIndex}
           onOpenChange={setOpen}
           open={open}

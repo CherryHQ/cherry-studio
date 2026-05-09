@@ -4,7 +4,13 @@ import * as React from 'react'
 import { cn } from '../../../lib/utils'
 import { Button } from '../../primitives/button'
 import { Tooltip } from '../../primitives/tooltip'
-import type { ImagePreviewAction, ImagePreviewActionContext, ImagePreviewItem, ImagePreviewLabels } from './types'
+import type {
+  ImagePreviewAction,
+  ImagePreviewActionContext,
+  ImagePreviewActionErrorHandler,
+  ImagePreviewItem,
+  ImagePreviewLabels
+} from './types'
 import type { ImagePreviewTransformControls } from './useImagePreviewTransform'
 
 export interface ImagePreviewToolbarProps {
@@ -13,6 +19,7 @@ export interface ImagePreviewToolbarProps {
   context: ImagePreviewActionContext
   item: ImagePreviewItem
   labels: ImagePreviewLabels
+  onActionError?: ImagePreviewActionErrorHandler
   onClose: () => void
   transformControls: ImagePreviewTransformControls
 }
@@ -45,6 +52,7 @@ export function ImagePreviewToolbar({
   context,
   item,
   labels,
+  onActionError,
   onClose,
   transformControls
 }: ImagePreviewToolbarProps) {
@@ -84,7 +92,11 @@ export function ImagePreviewToolbar({
           disabled={action.disabled}
           key={action.id}
           label={action.label}
-          onClick={() => void action.onSelect(item, context)}>
+          onClick={() => {
+            Promise.resolve()
+              .then(() => action.onSelect(item, context))
+              .catch((error) => onActionError?.(error, action, item))
+          }}>
           {action.icon}
         </ToolbarButton>
       ))}

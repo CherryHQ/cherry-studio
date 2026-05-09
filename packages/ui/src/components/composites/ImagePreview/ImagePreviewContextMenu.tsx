@@ -1,32 +1,31 @@
 import * as React from 'react'
 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '../../primitives/context-menu'
-import type { ImagePreviewAction, ImagePreviewActionContext, ImagePreviewItem } from './types'
+import type {
+  ImagePreviewAction,
+  ImagePreviewActionContext,
+  ImagePreviewActionErrorHandler,
+  ImagePreviewItem
+} from './types'
 
 export interface ImagePreviewContextMenuProps {
   actions?: ImagePreviewAction[]
   children: React.ReactNode
-  context?: Partial<ImagePreviewActionContext>
+  context: ImagePreviewActionContext
   item: ImagePreviewItem
+  onActionError?: ImagePreviewActionErrorHandler
 }
 
-const createFallbackContext = (
-  item: ImagePreviewItem,
-  context?: Partial<ImagePreviewActionContext>
-): ImagePreviewActionContext => ({
-  close: context?.close ?? (() => {}),
-  index: context?.index ?? 0,
-  items: context?.items ?? [item],
-  resetTransform: context?.resetTransform ?? (() => {}),
-  transform: context?.transform ?? { flipX: false, flipY: false, rotate: 0, scale: 1 }
-})
-
-export function ImagePreviewContextMenu({ actions = [], children, context, item }: ImagePreviewContextMenuProps) {
+export function ImagePreviewContextMenu({
+  actions = [],
+  children,
+  context,
+  item,
+  onActionError
+}: ImagePreviewContextMenuProps) {
   if (actions.length === 0) {
     return <>{children}</>
   }
-
-  const actionContext = createFallbackContext(item, context)
 
   return (
     <ContextMenu>
@@ -38,7 +37,9 @@ export function ImagePreviewContextMenu({ actions = [], children, context, item 
             key={action.id}
             onSelect={(event) => {
               event.preventDefault()
-              void action.onSelect(item, actionContext)
+              Promise.resolve()
+                .then(() => action.onSelect(item, context))
+                .catch((error) => onActionError?.(error, action, item))
             }}>
             {action.icon}
             {action.label}

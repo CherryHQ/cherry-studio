@@ -151,6 +151,7 @@ vi.stubGlobal('api', {
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
+  const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   return {
     Button: ({ children, onPress, disabled, isDisabled, startContent, ...props }) =>
       React.createElement(
@@ -211,7 +212,7 @@ vi.mock('@cherrystudio/ui', () => {
         children
       ),
     ContextMenuSeparator: (props) => React.createElement('div', { ...props, 'data-testid': 'context-menu-separator' }),
-    ImagePreviewContextMenu: ({ actions = [], children, item }) =>
+    ImagePreviewContextMenu: ({ actions = [], children, context, item }) =>
       React.createElement(
         'div',
         { 'data-testid': 'image-preview-context-menu' },
@@ -222,14 +223,7 @@ vi.mock('@cherrystudio/ui', () => {
             {
               disabled: action.disabled,
               key: action.id,
-              onClick: () =>
-                action.onSelect?.(item, {
-                  close: vi.fn(),
-                  index: 0,
-                  items: item ? [item] : [],
-                  resetTransform: vi.fn(),
-                  transform: { flipX: false, flipY: false, rotate: 0, scale: 1 }
-                }),
+              onClick: () => action.onSelect?.(item, context),
               type: 'button'
             },
             action.icon,
@@ -298,20 +292,7 @@ vi.mock('@cherrystudio/ui', () => {
       ),
     ImagePreviewTrigger: ({ alt, item, ...props }) =>
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
-    useImagePreviewTransform: () => ({
-      canZoomIn: true,
-      canZoomOut: false,
-      flipHorizontal: vi.fn(),
-      flipVertical: vi.fn(),
-      reset: vi.fn(),
-      rotateLeft: vi.fn(),
-      rotateRight: vi.fn(),
-      setTransform: vi.fn(),
-      transform: { flipX: false, flipY: false, rotate: 0, scale: 1 },
-      zoomIn: vi.fn(),
-      zoomOut: vi.fn()
-    }),
-    Dialog: ({ children, open = true, ...props }) =>
+    Dialog: ({ children, open, ...props }) =>
       open ? React.createElement('div', { ...props, 'data-testid': 'dialog' }, children) : null,
     DialogContent: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-content' }, children),
@@ -321,17 +302,31 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('h2', { ...props, 'data-testid': 'dialog-title' }, children),
     DialogFooter: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-footer' }, children),
-    Popover: ({ children, open, onOpenChange, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
+    Popover: ({ children, open = false, onOpenChange, ...props }) =>
+      React.createElement(
+        PopoverContext.Provider,
+        { value: { open, onOpenChange } },
+        React.createElement('div', { ...props, 'data-testid': 'popover' }, children)
+      ),
     PopoverTrigger: ({ children, asChild, ...props }) => {
-      const triggerProps = { ...props, 'data-testid': 'popover-trigger' }
+      const context = React.useContext(PopoverContext)
+      const triggerProps = {
+        ...props,
+        'data-testid': 'popover-trigger',
+        onClick: (event: React.MouseEvent) => {
+          props.onClick?.(event)
+          context.onOpenChange?.(!context.open)
+        }
+      }
       if (asChild && React.isValidElement(children)) {
         return React.cloneElement(children, { ...triggerProps, ...children.props })
       }
       return React.createElement('div', triggerProps, children)
     },
-    PopoverContent: ({ children, align, side, sideOffset, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children),
+    PopoverContent: ({ children, align, side, sideOffset, ...props }) => {
+      const context = React.useContext(PopoverContext)
+      return context.open ? React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children) : null
+    },
     MenuList: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'menu-list' }, children),
     MenuItem: ({ children, icon, label, onClick, ...props }) =>
@@ -369,7 +364,7 @@ vi.mock('@cherrystudio/ui', () => {
         children
       )
     },
-    Combobox: ({ options = [], value, onChange, placeholder, disabled, ...props }) =>
+    Combobox: ({ options = [], value, onChange, onValueChange, placeholder, disabled, ...props }) =>
       React.createElement(
         'select',
         {
@@ -377,7 +372,10 @@ vi.mock('@cherrystudio/ui', () => {
           disabled,
           value: value ?? '',
           'data-testid': 'combobox',
-          onChange: (event: React.ChangeEvent<HTMLSelectElement>) => onChange?.(event.target.value)
+          onChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
+            onChange?.(event.target.value)
+            onValueChange?.(event.target.value)
+          }
         },
         React.createElement('option', { value: '' }, placeholder),
         options.map((option) =>

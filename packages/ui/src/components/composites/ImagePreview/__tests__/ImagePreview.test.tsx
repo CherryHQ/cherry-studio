@@ -75,10 +75,27 @@ describe('useImagePreviewTransform', () => {
       result.current.flipHorizontal()
       result.current.flipVertical()
     })
-    expect(result.current.transform).toMatchObject({ flipX: true, flipY: true, rotate: -90 })
+    expect(result.current.transform).toMatchObject({ flipX: true, flipY: true, rotate: 270 })
 
     act(() => result.current.reset())
     expect(result.current.transform).toEqual({ flipX: false, flipY: false, rotate: 0, scale: 1 })
+  })
+
+  it('updates transform through a clamped patch API', () => {
+    const { result } = renderHook(() => useImagePreviewTransform({ maxScale: 2, minScale: 1 }))
+
+    act(() => result.current.update({ rotate: 450, scale: -10 }))
+
+    expect(result.current.transform).toMatchObject({ rotate: 90, scale: 1 })
+    expect(result.current.canZoomIn).toBe(true)
+    expect(result.current.canZoomOut).toBe(false)
+  })
+
+  it('validates transform bounds at hook entry', () => {
+    expect(() => renderHook(() => useImagePreviewTransform({ maxScale: 1, minScale: 2 }))).toThrow(
+      'minScale <= maxScale'
+    )
+    expect(() => renderHook(() => useImagePreviewTransform({ zoomStep: 0 }))).toThrow('zoomStep > 0')
   })
 })
 
@@ -109,7 +126,7 @@ describe('ImagePreviewDialog', () => {
     expect(screen.getByRole('img', { name: 'One' })).toHaveAttribute('src', ITEMS[0].src)
   })
 
-  it('runs toolbar actions with the active item', () => {
+  it('runs toolbar actions with the active item', async () => {
     const onSelect = vi.fn()
 
     render(
@@ -124,17 +141,83 @@ describe('ImagePreviewDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy image' }))
 
+    await act(async () => {
+      await Promise.resolve()
+    })
+
     expect(onSelect).toHaveBeenCalledWith(ITEMS[0], expect.objectContaining({ index: 0 }))
   })
 
-  it('closes when the backdrop is clicked', () => {
+  it('reports rejected toolbar actions', async () => {
+    const error = new Error('copy failed')
+    const onActionError = vi.fn()
+
+    render(
+      <ImagePreviewDialog
+        open
+        items={ITEMS}
+        labels={LABELS}
+        onActionError={onActionError}
+        onOpenChange={vi.fn()}
+        toolbarActions={[{ id: 'copy', label: 'Copy image', onSelect: () => Promise.reject(error) }]}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy image' }))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(onActionError).toHaveBeenCalledWith(error, expect.objectContaining({ id: 'copy' }), ITEMS[0])
+  })
+
+  it('uses pointer outside to close the dialog', async () => {
     const onOpenChange = vi.fn()
 
     render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={onOpenChange} />)
 
-    fireEvent.click(screen.getByTestId('image-preview-dialog'))
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    fireEvent.pointerDown(document.body, { pointerType: 'mouse' })
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('navigates with arrow keys from the dialog content', () => {
+    const onActiveIndexChange = vi.fn()
+
+    render(
+      <ImagePreviewDialog
+        open
+        items={ITEMS}
+        labels={LABELS}
+        onActiveIndexChange={onActiveIndexChange}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    fireEvent.keyDown(screen.getByTestId('image-preview-dialog'), { key: 'ArrowRight' })
+    expect(onActiveIndexChange).toHaveBeenCalledWith(1)
+
+    fireEvent.keyDown(screen.getByTestId('image-preview-dialog'), { key: 'ArrowLeft' })
+    expect(onActiveIndexChange).toHaveBeenCalledWith(1)
+  })
+
+  it('clamps active index when the items list shrinks', () => {
+    const { rerender } = render(
+      <ImagePreviewDialog open defaultActiveIndex={1} items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />
+    )
+
+    expect(screen.getByRole('img', { name: 'Two' })).toHaveAttribute('src', ITEMS[1].src)
+
+    rerender(
+      <ImagePreviewDialog open defaultActiveIndex={1} items={[ITEMS[0]]} labels={LABELS} onOpenChange={vi.fn()} />
+    )
+
+    expect(screen.getByRole('img', { name: 'One' })).toHaveAttribute('src', ITEMS[0].src)
   })
 })
 
@@ -169,11 +252,21 @@ describe('ImagePreviewTrigger', () => {
 })
 
 describe('ImagePreviewContextMenu', () => {
-  it('renders and invokes injected context-menu actions', () => {
+  it('renders and invokes injected context-menu actions', async () => {
     const onSelect = vi.fn()
+    const context = {
+      close: vi.fn(),
+      index: 0,
+      items: ITEMS,
+      resetTransform: vi.fn(),
+      transform: { flipX: false, flipY: false, rotate: 0, scale: 1 }
+    }
 
     render(
-      <ImagePreviewContextMenu item={ITEMS[0]} actions={[{ id: 'copy-src', label: 'Copy source', onSelect }]}>
+      <ImagePreviewContextMenu
+        item={ITEMS[0]}
+        actions={[{ id: 'copy-src', label: 'Copy source', onSelect }]}
+        context={context}>
         <img src={ITEMS[0].src} alt={ITEMS[0].alt} />
       </ImagePreviewContextMenu>
     )
@@ -181,6 +274,10 @@ describe('ImagePreviewContextMenu', () => {
     fireEvent.contextMenu(screen.getByRole('img', { name: 'One' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Copy source' }))
 
-    expect(onSelect).toHaveBeenCalledWith(ITEMS[0], expect.objectContaining({ close: expect.any(Function) }))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[0], context)
   })
 })

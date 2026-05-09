@@ -4,28 +4,66 @@ import * as ResizablePrimitive from 'react-resizable-panels'
 
 import { cn } from '../../lib/utils'
 
-type ResizablePanelGroupProps = React.ComponentProps<typeof ResizablePrimitive.Group> & {
-  direction?: 'horizontal' | 'vertical'
+type PrimitiveGroupProps = React.ComponentProps<typeof ResizablePrimitive.Group>
+type PrimitivePanelProps = React.ComponentProps<typeof ResizablePrimitive.Panel>
+type PrimitiveSeparatorProps = React.ComponentProps<typeof ResizablePrimitive.Separator>
+
+type ResizablePanelGroupProps = Partial<
+  Pick<
+    PrimitiveGroupProps,
+    'children' | 'className' | 'defaultLayout' | 'disabled' | 'id' | 'onLayoutChange' | 'onLayoutChanged' | 'style'
+  >
+> & {
+  direction?: PrimitiveGroupProps['orientation']
+  onLayout?: PrimitiveGroupProps['onLayoutChanged']
 }
 
-function ResizablePanelGroup({ className, direction, orientation, ...props }: ResizablePanelGroupProps) {
+type ResizablePanelProps = Partial<
+  Pick<
+    PrimitivePanelProps,
+    | 'children'
+    | 'className'
+    | 'collapsedSize'
+    | 'collapsible'
+    | 'defaultSize'
+    | 'disabled'
+    | 'id'
+    | 'maxSize'
+    | 'minSize'
+    | 'onResize'
+    | 'style'
+  >
+>
+
+type ResizableHandleProps = Partial<
+  Pick<PrimitiveSeparatorProps, 'children' | 'className' | 'disabled' | 'id' | 'style'>
+> & {
+  withHandle?: boolean
+}
+
+function ResizablePanelGroup({
+  className,
+  direction = 'horizontal',
+  onLayout,
+  onLayoutChanged,
+  ...props
+}: ResizablePanelGroupProps) {
   return (
     <ResizablePrimitive.Group
       data-slot="resizable-panel-group"
-      orientation={orientation ?? direction ?? 'horizontal'}
+      orientation={direction}
+      onLayoutChanged={onLayoutChanged ?? onLayout}
       className={cn('h-full w-full', className)}
       {...props}
     />
   )
 }
 
-const ResizablePanel = ResizablePrimitive.Panel
-
-type ResizableHandleProps = React.ComponentProps<typeof ResizablePrimitive.Separator> & {
-  withHandle?: boolean
+function ResizablePanel(props: ResizablePanelProps) {
+  return <ResizablePrimitive.Panel {...props} />
 }
 
-function ResizableHandle({ className, withHandle, ...props }: ResizableHandleProps) {
+function ResizableHandle({ children, className, withHandle, ...props }: ResizableHandleProps) {
   return (
     <ResizablePrimitive.Separator
       data-slot="resizable-handle"
@@ -42,14 +80,15 @@ function ResizableHandle({ className, withHandle, ...props }: ResizableHandlePro
         className
       )}
       {...props}>
-      {withHandle && (
-        <div className="z-10 flex h-4 w-3 items-center justify-center rounded-xs border border-border bg-background shadow-xs">
-          <GripVertical className="size-2.5 text-muted-foreground" />
-        </div>
-      )}
+      {children ??
+        (withHandle && (
+          <div className="z-10 flex h-4 w-3 items-center justify-center rounded-xs border border-border bg-background shadow-xs">
+            <GripVertical className="size-2.5 text-muted-foreground" />
+          </div>
+        ))}
     </ResizablePrimitive.Separator>
   )
 }
 
 export { ResizableHandle, ResizablePanel, ResizablePanelGroup }
-export type { ResizableHandleProps, ResizablePanelGroupProps }
+export type { ResizableHandleProps, ResizablePanelGroupProps, ResizablePanelProps }

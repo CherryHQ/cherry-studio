@@ -10,6 +10,7 @@ import { ImagePreviewToolbar } from './ImagePreviewToolbar'
 import {
   DEFAULT_IMAGE_PREVIEW_LABELS,
   type ImagePreviewAction,
+  type ImagePreviewActionErrorHandler,
   type ImagePreviewItem,
   type ImagePreviewLabels
 } from './types'
@@ -25,6 +26,7 @@ export interface ImagePreviewDialogProps {
   items: ImagePreviewItem[]
   labels?: Partial<ImagePreviewLabels>
   onActiveIndexChange?: (index: number) => void
+  onActionError?: ImagePreviewActionErrorHandler
   onOpenChange: (open: boolean) => void
   open: boolean
   overlayClassName?: string
@@ -53,6 +55,7 @@ export function ImagePreviewDialog({
   items,
   labels,
   onActiveIndexChange,
+  onActionError,
   onOpenChange,
   open,
   overlayClassName,
@@ -116,19 +119,14 @@ export function ImagePreviewDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
       <DialogContent
         aria-describedby={undefined}
         className={cn(
-          'fixed top-0 left-0 z-50 flex h-screen w-screen max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden rounded-none border-0 bg-transparent p-0 text-foreground shadow-none sm:max-w-none',
+          'pointer-events-none fixed top-0 left-0 z-50 flex h-screen w-screen max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden rounded-none border-0 bg-transparent p-0 text-foreground shadow-none sm:max-w-none',
           className
         )}
         data-testid="image-preview-dialog"
-        onClick={(event) => {
-          if (event.target === event.currentTarget) {
-            close()
-          }
-        }}
         onKeyDown={(event) => {
           if (!hasMultipleItems) {
             return
@@ -143,22 +141,18 @@ export function ImagePreviewDialog({
           }
         }}
         overlayClassName={cn('bg-background/70 backdrop-blur-xl dark:bg-background/65', overlayClassName)}
+        onPointerDownOutside={close}
         showCloseButton={false}>
         <DialogTitle className="sr-only">{mergedLabels.dialogTitle ?? mergedLabels.close}</DialogTitle>
         <div
           className={cn(
             'relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-6 pt-14 pb-8 sm:px-20 sm:pt-16 sm:pb-10',
             contentClassName
-          )}
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              close()
-            }
-          }}>
+          )}>
           {hasMultipleItems && (
             <Button
               aria-label={mergedLabels.previous}
-              className="absolute left-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full border-border/60 bg-background/70 text-foreground hover:bg-accent hover:text-accent-foreground"
+              className="pointer-events-auto absolute left-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full border-border/60 bg-background/70 text-foreground hover:bg-accent hover:text-accent-foreground"
               onClick={showPrevious}
               size="icon"
               type="button"
@@ -166,19 +160,21 @@ export function ImagePreviewDialog({
               <ChevronLeft className="size-5" />
             </Button>
           )}
-          <ImagePreviewContextMenu actions={actions} context={actionContext} item={item}>
-            <div className="flex h-full max-h-full w-full max-w-full items-center justify-center">
-              {renderImage ? (
-                renderImage(item, { transform: transformControls })
-              ) : (
-                <ImagePreviewImage className={imageClassName} item={item} transform={transformControls.transform} />
-              )}
+          <ImagePreviewContextMenu actions={actions} context={actionContext} item={item} onActionError={onActionError}>
+            <div className="pointer-events-none flex h-full max-h-full w-full max-w-full items-center justify-center">
+              <div className="pointer-events-auto max-h-full max-w-full">
+                {renderImage ? (
+                  renderImage(item, { transform: transformControls })
+                ) : (
+                  <ImagePreviewImage className={imageClassName} item={item} transform={transformControls.transform} />
+                )}
+              </div>
             </div>
           </ImagePreviewContextMenu>
           {hasMultipleItems && (
             <Button
               aria-label={mergedLabels.next}
-              className="absolute right-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full border-border/60 bg-background/70 text-foreground hover:bg-accent hover:text-accent-foreground"
+              className="pointer-events-auto absolute right-4 top-1/2 z-10 size-10 -translate-y-1/2 rounded-full border-border/60 bg-background/70 text-foreground hover:bg-accent hover:text-accent-foreground"
               onClick={showNext}
               size="icon"
               type="button"
@@ -187,13 +183,16 @@ export function ImagePreviewDialog({
             </Button>
           )}
         </div>
-        {renderMetadata && <div className="px-6 pb-3">{renderMetadata(item, { index: currentIndex, items })}</div>}
-        <div className="flex justify-center px-4 pb-6" onClick={(event) => event.stopPropagation()}>
+        {renderMetadata && (
+          <div className="pointer-events-auto px-6 pb-3">{renderMetadata(item, { index: currentIndex, items })}</div>
+        )}
+        <div className="pointer-events-auto flex justify-center px-4 pb-6">
           <ImagePreviewToolbar
             actions={toolbarActions}
             context={actionContext}
             item={item}
             labels={mergedLabels}
+            onActionError={onActionError}
             onClose={close}
             transformControls={transformControls}
           />

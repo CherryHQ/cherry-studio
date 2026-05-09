@@ -1,12 +1,11 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, LoaderCircle, X } from 'lucide-react'
 import type React from 'react'
-import { useEffect, useSyncExternalStore } from 'react'
-import { createRoot, type Root } from 'react-dom/client'
+import { createContext, use, useMemo, useRef, useSyncExternalStore } from 'react'
 
 import { cn } from '../../lib/utils'
 
-export type ToastColor = 'danger' | 'success' | 'warning' | 'default'
 export type ToastType = 'error' | 'success' | 'warning' | 'info' | 'loading'
+type StaticToastType = Exclude<ToastType, 'loading'>
 
 export interface ToastConfig {
   title?: React.ReactNode
@@ -20,8 +19,9 @@ export interface ToastConfig {
   style?: React.CSSProperties
 }
 
-export interface LoadingToastConfig extends ToastConfig {
-  promise: Promise<any>
+export interface LoadingToastConfig<T = unknown> extends ToastConfig {
+  onError?: (error: unknown) => void
+  promise: Promise<T>
 }
 
 export interface ToastRecord extends ToastConfig {
@@ -38,6 +38,7 @@ export interface ToastLabels {
 }
 
 export type ToastUtilities = ReturnType<typeof getToastUtilities>
+export type ToastStore = ReturnType<typeof createToastStore>
 
 const DEFAULT_TIMEOUT = 3000
 const DEFAULT_TOAST_LABELS: ToastLabels = {
@@ -48,215 +49,242 @@ const DEFAULT_TOAST_LABELS: ToastLabels = {
   success: 'Success'
 }
 
-let toastQueue: ToastRecord[] = []
-const listeners = new Set<() => void>()
-const timers = new Map<string, ReturnType<typeof setTimeout>>()
-const loadingTokens = new Map<string, symbol>()
-let mountedViewports = 0
-let standaloneViewportRoot: Root | null = null
-let standaloneViewportContainer: HTMLDivElement | null = null
-
-const notify = () => {
-  listeners.forEach((listener) => listener())
-}
-
-const ensureStandaloneViewport = () => {
-  if (typeof document === 'undefined' || mountedViewports > 0 || standaloneViewportRoot) {
-    return
-  }
-
-  standaloneViewportContainer = document.createElement('div')
-  standaloneViewportContainer.dataset.cherryToastViewport = 'standalone'
-  document.body.appendChild(standaloneViewportContainer)
-
-  standaloneViewportRoot = createRoot(standaloneViewportContainer)
-  standaloneViewportRoot.render(<ToastViewport standalone />)
-}
-
-const subscribe = (listener: () => void) => {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
-
-const getToastSnapshot = () => toastQueue
-
 const getToastKey = (key?: string | number) => String(key ?? `toast-${Date.now()}-${Math.random()}`)
 
 const getToastLabels = (labels?: Partial<ToastLabels>): ToastLabels => ({ ...DEFAULT_TOAST_LABELS, ...labels })
 
-const clearTimer = (key: string) => {
-  const timer = timers.get(key)
+const createToastStore = () => {
+  let toastQueue: ToastRecord[] = []
+  const listeners = new Set<() => void>()
+  const timers = new Map<string, ReturnType<typeof setTimeout>>()
+  const loadingTokens = new Map<string, symbol>()
 
-  if (timer) {
-    clearTimeout(timer)
-    timers.delete(key)
+  const notify = () => {
+    listeners.forEach((listener) => listener())
+  }
+
+  const subscribe = (listener: () => void) => {
+    listeners.add(listener)
+    return () => {
+      listeners.delete(listener)
+    }
+  }
+
+  const getSnapshot = () => toastQueue
+
+  const clearTimer = (key: string) => {
+    const timer = timers.get(key)
+
+    if (timer) {
+      clearTimeout(timer)
+      timers.delete(key)
+    }
+  }
+
+  const remove = (key: string) => {
+    const toast = toastQueue.find((item) => item.key === key)
+    clearTimer(key)
+    loadingTokens.delete(key)
+    toastQueue = toastQueue.filter((item) => item.key !== key)
+    toast?.onClose?.()
+    notify()
+  }
+
+  const schedule = (toast: ToastRecord) => {
+    clearTimer(toast.key)
+
+    if (toast.timeout === 0 || toast.type === 'loading') {
+      return
+    }
+
+    const timeout = toast.timeout ?? DEFAULT_TIMEOUT
+    timers.set(
+      toast.key,
+      setTimeout(() => {
+        remove(toast.key)
+      }, timeout)
+    )
+  }
+
+  const upsert = (toast: ToastRecord) => {
+    const existingIndex = toastQueue.findIndex((item) => item.key === toast.key)
+
+    if (existingIndex >= 0) {
+      toastQueue = toastQueue.map((item, index) => (index === existingIndex ? toast : item))
+    } else {
+      toastQueue = [...toastQueue, toast]
+    }
+
+    schedule(toast)
+    notify()
+  }
+
+  const closeAll = () => {
+    toastQueue.forEach((toast) => {
+      clearTimer(toast.key)
+      loadingTokens.delete(toast.key)
+      toast.onClose?.()
+    })
+    toastQueue = []
+    notify()
+  }
+
+  return {
+    closeAll,
+    getLoadingToken: (key: string) => loadingTokens.get(key),
+    getSnapshot,
+    remove,
+    setLoadingToken: (key: string, token: symbol) => loadingTokens.set(key, token),
+    subscribe,
+    unsetLoadingToken: (key: string) => loadingTokens.delete(key),
+    upsert
   }
 }
 
-const removeToast = (key: string) => {
-  const toast = toastQueue.find((item) => item.key === key)
-  clearTimer(key)
-  loadingTokens.delete(key)
-  toastQueue = toastQueue.filter((item) => item.key !== key)
-  toast?.onClose?.()
-  notify()
+const defaultToastStore = createToastStore()
+const ToastStoreContext = createContext<ToastStore | null>(null)
+const ToastLabelsContext = createContext<Partial<ToastLabels> | undefined>(undefined)
+
+const upsertToast = (toast: ToastRecord, store = defaultToastStore) => {
+  store.upsert(toast)
 }
 
-const scheduleToast = (toast: ToastRecord) => {
-  clearTimer(toast.key)
-
-  if (toast.timeout === 0 || toast.type === 'loading') {
-    return
-  }
-
-  const timeout = toast.timeout ?? DEFAULT_TIMEOUT
-  timers.set(
-    toast.key,
-    setTimeout(() => {
-      removeToast(toast.key)
-    }, timeout)
-  )
-}
-
-const upsertToast = (toast: ToastRecord) => {
-  ensureStandaloneViewport()
-
-  const existingIndex = toastQueue.findIndex((item) => item.key === toast.key)
-
-  if (existingIndex >= 0) {
-    toastQueue = toastQueue.map((item, index) => (index === existingIndex ? toast : item))
-  } else {
-    toastQueue = [...toastQueue, toast]
-  }
-
-  scheduleToast(toast)
-  notify()
-}
-
-const colorToType = (color: ToastColor): ToastType => {
-  switch (color) {
-    case 'danger':
-      return 'error'
-    case 'success':
-      return 'success'
-    case 'warning':
-      return 'warning'
-    default:
-      return 'info'
-  }
-}
-
-const createToast = (color: ToastColor) => {
+const createToast = (type: StaticToastType, store = defaultToastStore) => {
   return (arg: ToastConfig | string): string => {
-    const type = colorToType(color)
     const config = typeof arg === 'string' ? { title: arg } : arg
     const key = getToastKey(config.key)
 
-    upsertToast({
-      ...config,
-      key,
-      type
-    })
+    upsertToast(
+      {
+        ...config,
+        key,
+        type
+      },
+      store
+    )
 
     return key
   }
 }
 
-export const error = createToast('danger')
-export const success = createToast('success')
-export const warning = createToast('warning')
-export const info = createToast('default')
-
 const createLoadingToast =
-  (labels?: Partial<ToastLabels>) =>
-  (args: LoadingToastConfig): string => {
+  (labels?: Partial<ToastLabels>, store = defaultToastStore) =>
+  <T,>(args: LoadingToastConfig<T>): string => {
     const toastLabels = getToastLabels(labels)
-    const { title, description, icon, promise, timeout, ...restConfig } = args
+    const { title, description, icon, onError, promise, timeout, ...restConfig } = args
     const key = getToastKey(args.key)
     const token = Symbol(key)
 
-    loadingTokens.set(key, token)
-    upsertToast({
-      ...restConfig,
-      description,
-      icon,
-      key,
-      title: title || toastLabels.loading,
-      timeout: 0,
-      type: 'loading'
-    })
+    store.setLoadingToken(key, token)
+    upsertToast(
+      {
+        ...restConfig,
+        description,
+        icon,
+        key,
+        title: title || toastLabels.loading,
+        timeout: 0,
+        type: 'loading'
+      },
+      store
+    )
 
     promise
       .then((result) => {
-        if (loadingTokens.get(key) !== token) {
+        if (store.getLoadingToken(key) !== token) {
           return result
         }
-        loadingTokens.delete(key)
-        upsertToast({
-          ...restConfig,
-          description,
-          key,
-          title: title || toastLabels.success,
-          timeout: timeout ?? 2000,
-          type: 'success'
-        })
+        store.unsetLoadingToken(key)
+        upsertToast(
+          {
+            ...restConfig,
+            description,
+            key,
+            title: title || toastLabels.success,
+            timeout: timeout ?? 2000,
+            type: 'success'
+          },
+          store
+        )
         return result
       })
       .catch((err) => {
-        if (loadingTokens.get(key) !== token) {
+        if (store.getLoadingToken(key) !== token) {
           return
         }
-        loadingTokens.delete(key)
-        upsertToast({
-          ...restConfig,
-          description: err?.message || description || toastLabels.errorDescription,
-          key,
-          title: title || toastLabels.error,
-          timeout: timeout ?? DEFAULT_TIMEOUT,
-          type: 'error'
-        })
+        store.unsetLoadingToken(key)
+        onError?.(err)
+        upsertToast(
+          {
+            ...restConfig,
+            description: err?.message || description || toastLabels.errorDescription,
+            key,
+            title: title || toastLabels.error,
+            timeout: timeout ?? 0,
+            type: 'error'
+          },
+          store
+        )
       })
 
     return key
   }
 
+const createToastUtilities = (labels?: Partial<ToastLabels>, store = defaultToastStore) =>
+  ({
+    closeAll: store.closeAll,
+    closeToast: (key: string) => store.remove(key),
+    error: createToast('error', store),
+    getToastQueue: (): { toasts: ToastRecord[] } => ({ toasts: store.getSnapshot() }),
+    info: createToast('info', store),
+    loading: createLoadingToast(labels, store),
+    success: createToast('success', store),
+    warning: createToast('warning', store)
+  }) as const
+
+export const error = createToast('error')
+export const success = createToast('success')
+export const warning = createToast('warning')
+export const info = createToast('info')
+
 export const loading = createLoadingToast()
 
-export const addToast = (config: ToastConfig) => info(config)
-
 export const closeToast = (key: string) => {
-  removeToast(key)
+  defaultToastStore.remove(key)
 }
 
 export const closeAll = () => {
-  toastQueue.forEach((toast) => {
-    clearTimer(toast.key)
-    loadingTokens.delete(toast.key)
-    toast.onClose?.()
-  })
-  toastQueue = []
-  notify()
+  defaultToastStore.closeAll()
 }
 
-export const getToastQueue = (): { toasts: ToastRecord[] } => ({ toasts: toastQueue })
+export const getToastQueue = (): { toasts: ToastRecord[] } => ({ toasts: defaultToastStore.getSnapshot() })
 
-export const isToastClosing = (): boolean => false
+export const getToastUtilities = (labels?: Partial<ToastLabels>) => createToastUtilities(labels)
 
-export const getToastUtilities = (labels?: Partial<ToastLabels>) =>
-  ({
-    addToast,
-    closeAll,
-    closeToast,
-    error,
-    getToastQueue,
-    info,
-    isToastClosing,
-    loading: createLoadingToast(labels),
-    success,
-    warning
-  }) as const
+export const useToasts = (labels?: Partial<ToastLabels>) => {
+  const store = use(ToastStoreContext) ?? defaultToastStore
+  const contextLabels = use(ToastLabelsContext)
+  const toastLabels = labels ?? contextLabels
+
+  return useMemo(() => createToastUtilities(toastLabels, store), [toastLabels, store])
+}
+
+export const ToastProvider = ({ children, labels }: { children: React.ReactNode; labels?: Partial<ToastLabels> }) => {
+  const storeRef = useRef<ToastStore | null>(null)
+
+  if (!storeRef.current) {
+    storeRef.current = createToastStore()
+  }
+
+  return (
+    <ToastStoreContext value={storeRef.current}>
+      <ToastLabelsContext value={labels}>
+        {children}
+        <ToastViewport labels={labels} store={storeRef.current} />
+      </ToastLabelsContext>
+    </ToastStoreContext>
+  )
+}
 
 const typeIconMap: Record<ToastType, React.ReactNode> = {
   error: <AlertCircle className="size-4 text-destructive" />,
@@ -266,11 +294,21 @@ const typeIconMap: Record<ToastType, React.ReactNode> = {
   loading: <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
 }
 
-const ToastItem = ({ labels, toast }: { labels: ToastLabels; toast: ToastRecord }) => {
+const getToastA11yProps = (type: ToastType): Pick<React.HTMLAttributes<HTMLDivElement>, 'aria-live' | 'role'> => {
+  if (type === 'warning' || type === 'error') {
+    return { 'aria-live': 'assertive', role: 'alert' }
+  }
+
+  return { 'aria-live': 'polite', role: 'status' }
+}
+
+const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: ToastStore; toast: ToastRecord }) => {
   const icon = toast.icon ?? typeIconMap[toast.type]
+  const a11yProps = getToastA11yProps(toast.type)
 
   return (
     <div
+      {...a11yProps}
       className={cn(
         'pointer-events-auto flex min-w-72 max-w-[min(420px,calc(100vw-2rem))] items-start gap-3',
         'rounded-md border border-border bg-popover px-4 py-3 text-popover-foreground shadow-lg',
@@ -291,7 +329,7 @@ const ToastItem = ({ labels, toast }: { labels: ToastLabels; toast: ToastRecord 
         className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         onClick={(event) => {
           event.stopPropagation()
-          removeToast(toast.key)
+          store.remove(toast.key)
         }}>
         <X className="size-3.5" />
       </button>
@@ -301,40 +339,25 @@ const ToastItem = ({ labels, toast }: { labels: ToastLabels; toast: ToastRecord 
 
 export const ToastViewport = ({
   labels,
-  standalone = false
+  store = defaultToastStore
 }: {
   labels?: Partial<ToastLabels>
-  standalone?: boolean
+  store?: ToastStore
 }) => {
-  const toasts = useSyncExternalStore(subscribe, getToastSnapshot, getToastSnapshot)
+  const toasts = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const toastLabels = getToastLabels(labels)
-
-  useEffect(() => {
-    mountedViewports += 1
-
-    if (!standalone && standaloneViewportRoot) {
-      const root = standaloneViewportRoot
-      const container = standaloneViewportContainer
-      standaloneViewportRoot = null
-      standaloneViewportContainer = null
-
-      root.unmount()
-      container?.remove()
-    }
-
-    return () => {
-      mountedViewports = Math.max(0, mountedViewports - 1)
-    }
-  }, [standalone])
 
   if (toasts.length === 0) {
     return null
   }
 
   return (
-    <div className="-translate-x-1/2 pointer-events-none fixed top-5 left-1/2 z-[10000] flex flex-col items-center gap-2">
+    <div
+      aria-label="notifications"
+      className="-translate-x-1/2 pointer-events-none fixed top-5 left-1/2 z-[10000] flex flex-col items-center gap-2"
+      role="region">
       {toasts.map((toast) => (
-        <ToastItem key={toast.key} labels={toastLabels} toast={toast} />
+        <ToastItem key={toast.key} labels={toastLabels} store={store} toast={toast} />
       ))}
     </div>
   )

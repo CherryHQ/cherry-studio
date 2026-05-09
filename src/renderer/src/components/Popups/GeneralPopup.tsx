@@ -1,11 +1,14 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import type { CSSProperties, ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTopViewClose } from './useTopViewClose'
+
+const logger = loggerService.withContext('GeneralPopup')
 
 interface PopupButtonProps {
   className?: string
@@ -96,7 +99,8 @@ const PopupContainer: React.FC<Props> = ({
       if (result === false) {
         return
       }
-    } catch {
+    } catch (error) {
+      logger.error('GeneralPopup onOk handler failed:', error as Error)
       return
     }
 

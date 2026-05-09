@@ -8,11 +8,14 @@ import {
   DialogTitle,
   Spinner
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { importChatGPTConversations } from '@renderer/services/import'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
+
+const logger = loggerService.withContext('ImportPopup')
 
 interface PopupResult {
   success?: boolean
@@ -70,6 +73,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         window.toast.error(result.error || t('import.chatgpt.error.unknown'))
       }
     } catch (error) {
+      logger.error('ChatGPT import failed:', error as Error)
       window.toast.error(t('import.chatgpt.error.unknown'))
       setOpen(false)
     } finally {

@@ -45,6 +45,12 @@ export interface ImagePreviewAction {
   onSelect: (item: ImagePreviewItem, context: ImagePreviewActionContext) => void | Promise<void>
 }
 
+export type ImagePreviewActionErrorHandler = (
+  error: unknown,
+  action: ImagePreviewAction,
+  item: ImagePreviewItem
+) => void
+
 export const DEFAULT_IMAGE_PREVIEW_LABELS: ImagePreviewLabels = {
   close: 'Close',
   flipHorizontal: 'Flip horizontal',

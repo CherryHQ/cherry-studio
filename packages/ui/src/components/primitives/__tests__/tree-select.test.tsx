@@ -49,6 +49,16 @@ describe('TreeSelect', () => {
     expect(screen.getByRole('combobox')).toHaveTextContent('guide.md')
   })
 
+  it('supports controlled value updates', () => {
+    const { rerender } = render(<TreeSelect treeData={treeData} value="docs/guide.md" />)
+
+    expect(screen.getByRole('combobox')).toHaveTextContent('guide.md')
+
+    rerender(<TreeSelect treeData={treeData} value="archive" />)
+
+    expect(screen.getByRole('combobox')).toHaveTextContent('Archive')
+  })
+
   it('expands nested nodes and selects an item', async () => {
     const onChange = vi.fn()
     render(
@@ -93,6 +103,79 @@ describe('TreeSelect', () => {
     fireEvent.click(screen.getByText('Archive'))
 
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('uses controlled expanded values and reports expansion changes', () => {
+    const onExpandedValuesChange = vi.fn()
+    const { rerender } = render(
+      <TreeSelect
+        treeData={treeData}
+        expandedValues={['']}
+        onExpandedValuesChange={onExpandedValuesChange}
+        expandLabel="Open branch"
+        collapseLabel="Close branch"
+      />
+    )
+
+    fireEvent.click(screen.getByRole('combobox'))
+    expect(screen.getByText('Docs')).toBeInTheDocument()
+    expect(screen.queryByText('guide.md')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Open branch'))
+    expect(onExpandedValuesChange).toHaveBeenCalledWith(['', 'docs'])
+
+    rerender(
+      <TreeSelect
+        treeData={treeData}
+        expandedValues={['', 'docs']}
+        onExpandedValuesChange={onExpandedValuesChange}
+        expandLabel="Open branch"
+        collapseLabel="Close branch"
+      />
+    )
+
+    expect(screen.getByText('guide.md')).toBeInTheDocument()
+  })
+
+  it('toggles non-selectable parent nodes without selecting them', () => {
+    const onChange = vi.fn()
+    render(<TreeSelect treeData={treeData} defaultExpandAll onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('combobox'))
+    fireEvent.click(screen.getByText('Drafts'))
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('uses custom option and value renderers', () => {
+    render(
+      <TreeSelect
+        treeData={treeData}
+        value="docs/guide.md"
+        defaultExpandAll
+        renderOption={(option, state) => (
+          <span>
+            option:{option.value}:{state.depth}
+          </span>
+        )}
+        renderValue={(option) => <span>value:{option.value}</span>}
+      />
+    )
+
+    expect(screen.getByRole('combobox')).toHaveTextContent('value:docs/guide.md')
+
+    fireEvent.click(screen.getByRole('combobox'))
+
+    expect(screen.getByText('option:docs/guide.md:2')).toBeInTheDocument()
+  })
+
+  it('renders empty text when search has no matches', () => {
+    render(<TreeSelect treeData={treeData} emptyText="Nothing here" searchPlaceholder="Search paths" />)
+
+    fireEvent.click(screen.getByRole('combobox'))
+    fireEvent.change(screen.getByPlaceholderText('Search paths'), { target: { value: 'missing' } })
+
+    expect(screen.getByText('Nothing here')).toBeInTheDocument()
   })
 
   it('keeps manual expansion state when parent rerenders with new treeData identity', () => {

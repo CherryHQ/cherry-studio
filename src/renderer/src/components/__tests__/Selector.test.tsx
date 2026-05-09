@@ -30,8 +30,10 @@ describe('Selector', () => {
       />
     )
 
-    expect(screen.getByRole('combobox', { name: /one/i })).toBeInTheDocument()
+    const trigger = screen.getByRole('combobox', { name: /one/i })
+    expect(trigger).toBeInTheDocument()
 
+    await userEvent.click(trigger)
     await userEvent.click(screen.getByRole('option', { name: /two/i }))
 
     expect(onChange).toHaveBeenCalledWith(2)
@@ -54,8 +56,10 @@ describe('Selector', () => {
       />
     )
 
-    expect(screen.getByRole('combobox', { name: /2 selected/i })).toBeInTheDocument()
+    const trigger = screen.getByRole('combobox', { name: /2 selected/i })
+    expect(trigger).toBeInTheDocument()
 
+    await userEvent.click(trigger)
     await userEvent.click(screen.getByRole('option', { name: /french/i }))
 
     expect(onChange).toHaveBeenCalledWith(['en-US', 'zh-CN', 'fr-FR'])
@@ -78,9 +82,11 @@ describe('Selector', () => {
 
     expect(screen.getByRole('combobox', { name: /plain/i })).toHaveAttribute('aria-disabled', 'true')
 
-    await userEvent.click(screen.getByRole('option', { name: /bubble/i }))
+    expect(screen.queryByRole('option', { name: /bubble/i })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('combobox', { name: /plain/i }))
 
     expect(onChange).not.toHaveBeenCalled()
+    expect(screen.queryByRole('option', { name: /bubble/i })).not.toBeInTheDocument()
   })
 
   it('supports ReactNode labels in the trigger', () => {
