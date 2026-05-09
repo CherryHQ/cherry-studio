@@ -3,7 +3,6 @@ import React, { memo } from 'react'
 import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import { ModelListHealthProvider } from './modelListHealthContext'
 import { useModelListHealth } from './modelListHealthContext'
-import ModelListHelpLinks from './ModelListHelpLinks'
 import ProviderModelAdd from './ProviderModelAdd'
 import ProviderModelDownload from './ProviderModelDownload'
 import ProviderModelHealthCheck from './ProviderModelHealthCheck'
@@ -49,7 +48,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           <ModelListContent providerId={providerId} />
         </ModelListHealthProvider>
       </section>
-      <ModelListHelpLinks providerId={providerId} />
     </div>
   )
 }
