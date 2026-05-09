@@ -39,7 +39,7 @@ export function PromptVariablesTooltip() {
         size={11}
         role="img"
         aria-label={t('library.config.prompt.variables_title')}
-        className="cursor-help text-muted-foreground/70 hover:text-foreground"
+        className="cursor-help text-muted-foreground/70 hover:text-muted-foreground/90"
       />
     </Tooltip>
   )

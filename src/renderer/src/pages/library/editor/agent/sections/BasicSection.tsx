@@ -95,7 +95,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
     <div className="flex flex-col gap-5">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.basic.title')}</h3>
-        <p className="text-muted-foreground/75 text-xs">{t('library.config.agent.section.basic.desc')}</p>
+        <p className="text-muted-foreground/80 text-xs">{t('library.config.agent.section.basic.desc')}</p>
       </div>
 
       <Field className="gap-1.5">
@@ -193,7 +193,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
         <FieldContent>
           <div className="flex flex-col gap-1.5">
             {form.accessiblePaths.length === 0 ? (
-              <FieldDescription className="text-muted-foreground/75 text-xs">
+              <FieldDescription className="text-muted-foreground/80 text-xs">
                 {t('library.config.agent.field.accessible_paths.empty')}
               </FieldDescription>
             ) : null}
@@ -209,7 +209,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
                   variant="ghost"
                   size="icon-sm"
                   onClick={() => removePath(p)}
-                  className="shrink-0 text-muted-foreground/75 hover:text-destructive">
+                  className="shrink-0 text-muted-foreground/80 hover:text-destructive">
                   <Trash2 size={12} />
                 </Button>
               </div>
@@ -218,7 +218,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
               type="button"
               variant="ghost"
               onClick={() => void addPath()}
-              className="mt-1 h-auto min-h-0 w-fit rounded-2xs border border-border/20 border-dashed px-2.5 py-1 font-normal text-muted-foreground/75 text-xs shadow-none transition hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
+              className="mt-1 h-auto min-h-0 w-fit rounded-2xs border border-border/20 border-dashed px-2.5 py-1 font-normal text-muted-foreground/80 text-xs shadow-none transition hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
               <Plus size={10} className="mr-1" />
               {t('library.config.agent.field.accessible_paths.add')}
             </Button>
@@ -285,7 +285,7 @@ function ModelSubsection({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation()
   return (
     <FieldSet className="gap-3">
-      <FieldSeparator className="text-muted-foreground/85 [&>[data-slot=field-separator-content]]:bg-background [&>[data-slot=field-separator-content]]:font-normal">
+      <FieldSeparator className="font-medium text-foreground [&>[data-slot=field-separator-content]]:bg-background [&>[data-slot=field-separator-content]]:font-medium">
         {t('library.config.agent.model_config')}
       </FieldSeparator>
       {children}

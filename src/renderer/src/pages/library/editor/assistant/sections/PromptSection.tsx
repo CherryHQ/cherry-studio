@@ -104,21 +104,16 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
       {!hideHeader && (
         <div>
           <h3 className="mb-1 text-base text-foreground">{t('library.config.prompt.title')}</h3>
-          <p className="text-muted-foreground/75 text-xs">{t('library.config.prompt.desc')}</p>
+          <p className="text-muted-foreground/80 text-xs">{t('library.config.prompt.desc')}</p>
         </div>
       )}
 
       <Field data-invalid={promptInvalid || undefined} className="gap-1.5">
         <div className="flex items-center justify-between gap-3">
-          <FieldHeader
-            label={
-              <span className="flex items-center gap-1.5">
-                <span>{t('library.config.prompt.label')}</span>
-                <PromptVariablesTooltip />
-              </span>
-            }
-            className="min-w-0 flex-1"
-          />
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <FieldHeader label={t('library.config.prompt.label')} className="min-w-0" />
+            <PromptVariablesTooltip />
+          </div>
           <div className="flex items-center gap-1.5">
             {showUndoButton && (
               <Tooltip content={t('common.undo')}>
@@ -127,7 +122,7 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
                   variant="ghost"
                   aria-label={t('common.undo')}
                   onClick={handleUndoGeneratedPrompt}
-                  className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/75 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
+                  className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
                   <Undo2 size={10} />
                 </Button>
               </Tooltip>
@@ -139,7 +134,7 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
                 aria-label={t('library.config.prompt.generate')}
                 onClick={handleGeneratePrompt}
                 disabled={!generateSource || generating}
-                className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/75 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+                className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
                 {generating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
               </Button>
             </Tooltip>
@@ -147,7 +142,7 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
               variant="ghost"
               onClick={() => setShowPreview((v) => !v)}
               disabled={prompt.length === 0}
-              className="flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2 py-[3px] font-normal text-muted-foreground/75 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+              className="flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2 py-[3px] font-normal text-muted-foreground/80 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
               {effectiveShowPreview ? <Edit size={10} /> : <Eye size={10} />}
               <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
             </Button>
@@ -183,7 +178,7 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
             )}
           </div>
           <FieldError className="text-xs" errors={promptError ? [{ message: promptError }] : undefined} />
-          <div className="flex justify-between text-muted-foreground/75 text-xs">
+          <div className="flex justify-between text-muted-foreground/80 text-xs">
             <span>{t('library.config.prompt.dblclick_hint')}</span>
             <span className="tabular-nums">
               {t('library.config.prompt.tokens_label')}

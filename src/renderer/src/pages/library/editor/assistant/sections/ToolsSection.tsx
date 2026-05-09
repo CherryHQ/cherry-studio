@@ -57,7 +57,7 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
     <div className="space-y-6">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.tools.title')}</h3>
-        <p className="text-muted-foreground/75 text-xs">{t('library.config.tools.desc')}</p>
+        <p className="text-muted-foreground/80 text-xs">{t('library.config.tools.desc')}</p>
       </div>
 
       <ModeGroup>
@@ -108,8 +108,8 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
 
       <Alert type="info" showIcon className="rounded-xs border-blue-500/15 bg-blue-500/5 px-3 py-2.5 shadow-none">
         <div>
-          <p className="text-blue-600/70 text-xs dark:text-blue-400/80">{t('library.config.tools.info_main')}</p>
-          <p className="mt-0.5 text-blue-600/50 text-xs dark:text-blue-400/60">{t('library.config.tools.info_sub')}</p>
+          <p className="text-blue-600/80 text-xs dark:text-blue-400/85">{t('library.config.tools.info_main')}</p>
+          <p className="mt-0.5 text-blue-600/80 text-xs dark:text-blue-400/80">{t('library.config.tools.info_sub')}</p>
         </div>
       </Alert>
     </div>
@@ -138,7 +138,7 @@ function ModeRow({
       className={`flex h-auto min-h-0 items-start justify-start gap-2.5 rounded-xs border px-3 py-2.5 text-left font-normal shadow-none transition-all focus-visible:ring-0 ${
         active
           ? 'border-primary/35 bg-primary/[0.06] text-foreground hover:bg-primary/[0.06] hover:text-foreground'
-          : 'border-border/30 bg-accent/15 text-muted-foreground/70 hover:border-border/45 hover:bg-accent/30 hover:text-foreground'
+          : 'border-border/30 bg-accent/15 text-muted-foreground/80 hover:border-border/45 hover:bg-accent/30 hover:text-foreground'
       }`}>
       <span
         className={`mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
@@ -147,7 +147,7 @@ function ModeRow({
       />
       <div className="min-w-0 flex-1">
         <div className="text-sm">{label}</div>
-        <div className="mt-0.5 text-muted-foreground/75 text-xs">{desc}</div>
+        <div className="mt-0.5 text-muted-foreground/80 text-xs">{desc}</div>
       </div>
     </Button>
   )
@@ -158,9 +158,9 @@ function EmptyHint() {
 
   return (
     <div className="flex flex-col items-center rounded-xs border border-border/20 border-dashed p-6">
-      <Plug size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/70" />
+      <Plug size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/80" />
       <p className="mb-1 text-muted-foreground/80 text-xs">{t('library.config.tools.empty_title')}</p>
-      <p className="text-muted-foreground/75 text-xs">{t('library.config.tools.empty_desc')}</p>
+      <p className="text-muted-foreground/80 text-xs">{t('library.config.tools.empty_desc')}</p>
     </div>
   )
 }

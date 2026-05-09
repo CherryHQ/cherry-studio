@@ -107,7 +107,7 @@ export const BasicSection: FC<Props> = ({
         <h3 className="mb-1 text-base text-foreground">
           {t(mode === 'required' ? 'library.config.basic.title' : 'library.config.section.more.label')}
         </h3>
-        <p className="text-muted-foreground/75 text-xs">
+        <p className="text-muted-foreground/80 text-xs">
           {t(mode === 'required' ? 'library.config.basic.desc' : 'library.config.section.more.desc')}
         </p>
       </div>
@@ -209,7 +209,7 @@ export const BasicSection: FC<Props> = ({
                 tagColorByName={tagColorByName}
                 allTagNames={allTagNames}
               />
-              <FieldDescription className="text-muted-foreground/75 text-xs">
+              <FieldDescription className="text-muted-foreground/80 text-xs">
                 {t('library.config.basic.tag_hint')}
               </FieldDescription>
             </FieldContent>
@@ -233,8 +233,8 @@ export const BasicSection: FC<Props> = ({
               className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
             />
             <div className="mt-1 flex justify-between">
-              <span className="text-muted-foreground/75 text-xs">{t('library.config.basic.precise')}</span>
-              <span className="text-muted-foreground/75 text-xs">{t('library.config.basic.creative')}</span>
+              <span className="text-muted-foreground/80 text-xs">{t('library.config.basic.precise')}</span>
+              <span className="text-muted-foreground/80 text-xs">{t('library.config.basic.creative')}</span>
             </div>
           </ToggleFieldGroup>
 
@@ -256,19 +256,15 @@ export const BasicSection: FC<Props> = ({
           </ToggleFieldGroup>
 
           <Field className="gap-1.5">
-            <FieldHeader
-              label={
-                <span className="flex items-center gap-1.5">
-                  <span>{t('library.config.basic.context_count')}</span>
-                  <span className="text-muted-foreground/75">
-                    {form.contextCount >= UI_MAX_CONTEXT_COUNT
-                      ? t('library.config.basic.unlimited')
-                      : form.contextCount}
-                  </span>
-                </span>
-              }
-              hint={t('library.config.basic.field.context_count.hint')}
-            />
+            <div className="flex items-center gap-1.5">
+              <FieldHeader
+                label={t('library.config.basic.context_count')}
+                hint={t('library.config.basic.field.context_count.hint')}
+              />
+              <span className="text-muted-foreground/80 text-sm">
+                {form.contextCount >= UI_MAX_CONTEXT_COUNT ? t('library.config.basic.unlimited') : form.contextCount}
+              </span>
+            </div>
             <FieldContent>
               <Slider
                 size="sm"
@@ -329,7 +325,7 @@ export const BasicSection: FC<Props> = ({
                   className={`h-auto min-h-0 px-2.5 py-1 font-normal text-xs shadow-none transition-colors focus-visible:ring-0 ${
                     form.toolUseMode === mode
                       ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground/75 hover:bg-accent/50 hover:text-foreground'
+                      : 'text-muted-foreground/80 hover:bg-accent/50 hover:text-foreground'
                   }`}>
                   {t(
                     mode === 'function'
@@ -590,16 +586,10 @@ function ToggleFieldGroup({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <FieldHeader
-          label={
-            <span className="flex items-center gap-1.5">
-              <span>{label}</span>
-              <span className="text-muted-foreground/75">{valueLabel}</span>
-            </span>
-          }
-          hint={hint}
-          className="min-w-0 flex-1"
-        />
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <FieldHeader label={label} hint={hint} className="min-w-0" />
+          <span className="text-muted-foreground/80 text-sm">{valueLabel}</span>
+        </div>
         <Switch checked={enabled} onCheckedChange={onEnabledChange} />
       </div>
       {enabled && <div className="mt-2">{children}</div>}

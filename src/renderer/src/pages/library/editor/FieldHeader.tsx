@@ -13,7 +13,7 @@ export function FieldHeader({ label, hint, className }: Props) {
 
   return (
     <div className={`flex items-center gap-1.5 ${className ?? ''}`}>
-      <FieldLabel className="min-w-0 font-medium text-foreground/90 text-sm">{label}</FieldLabel>
+      <FieldLabel className="min-w-0 font-medium text-foreground text-sm">{label}</FieldLabel>
       {hint ? (
         <Tooltip
           content={hint}

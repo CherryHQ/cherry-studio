@@ -60,7 +60,7 @@ export function ModelSelectorField({ label, hint, value, allowClear = false, err
                   variant="ghost"
                   className="flex h-auto min-h-0 min-w-0 flex-1 items-center justify-between gap-1.5 rounded-[12px] px-2 py-1 font-normal text-foreground text-xs shadow-none hover:bg-accent/50 focus-visible:ring-0">
                   <span className="min-w-0 truncate text-left">{triggerLabel}</span>
-                  <ChevronsUpDown size={12} className="shrink-0 text-muted-foreground/75" />
+                  <ChevronsUpDown size={12} className="shrink-0 text-muted-foreground/80" />
                 </Button>
               }
             />
@@ -71,7 +71,7 @@ export function ModelSelectorField({ label, hint, value, allowClear = false, err
                   variant="ghost"
                   aria-label={`${label} ${t('library.config.basic.model_clear')}`}
                   onClick={() => onSelect(null)}
-                  className="flex h-6 min-h-0 w-6 shrink-0 items-center justify-center rounded-3xs font-normal text-muted-foreground/75 shadow-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0">
+                  className="flex h-6 min-h-0 w-6 shrink-0 items-center justify-center rounded-3xs font-normal text-muted-foreground/80 shadow-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0">
                   <Trash2 size={12} />
                 </Button>
               </Tooltip>
@@ -80,7 +80,7 @@ export function ModelSelectorField({ label, hint, value, allowClear = false, err
         </div>
         <FieldError className="text-xs" errors={errorMessage ? [{ message: errorMessage }] : undefined} />
         {hasValue && !selectedModel ? (
-          <FieldDescription className="text-muted-foreground/75 text-xs">
+          <FieldDescription className="text-muted-foreground/80 text-xs">
             {t('library.config.basic.model_not_found', { id: value })}
           </FieldDescription>
         ) : null}
