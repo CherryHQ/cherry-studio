@@ -65,6 +65,12 @@ function diffPromptSaveIntent(
 }
 
 const VARIABLE_PLACEHOLDER = '${variable}'
+const VARIABLE_PATTERN = /\$\{[^}\r\n]+\}/g
+
+function extractPromptVariables(content: string): string[] {
+  const variables = content.match(VARIABLE_PATTERN) ?? []
+  return Array.from(new Set(variables))
+}
 
 const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
   const { t } = useTranslation()
@@ -108,6 +114,7 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
       ? t('library.config.prompt.field.content.too_long', { max: PROMPT_CONTENT_MAX })
       : null
   const title = isCreate ? form.title.trim() || t('library.type.new_prompt') : form.title.trim() || prompt?.title || ''
+  const referencedVariables = useMemo(() => extractPromptVariables(form.content), [form.content])
 
   const insertVariable = () => {
     const textarea = textareaRef.current
@@ -130,10 +137,10 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
       saved={saved}
       error={error}
       saveButton={{ canSave, saving, onSave: handleSave }}>
-      <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-6 py-9 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
-        <div className="w-full max-w-[760px] space-y-8">
+      <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-8 py-7 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
+        <div className="w-full max-w-[860px] space-y-8">
           <label className="block">
-            <span className="mb-3 block font-medium text-foreground text-sm">
+            <span className="mb-3 block font-semibold text-muted-foreground/80 text-sm">
               {t('library.config.prompt.field.name.label')}
             </span>
             <Input
@@ -141,21 +148,21 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
               onChange={(event) => onChange({ title: event.target.value })}
               placeholder={t('settings.prompts.titlePlaceholder')}
               aria-invalid={Boolean(titleError) || undefined}
-              className="h-12 rounded-[20px] border-border/25 bg-accent/[0.03] px-5 text-base shadow-sm outline-none transition-colors placeholder:text-muted-foreground/35 focus-visible:border-border/45 focus-visible:ring-0"
+              className="h-14 w-full rounded-[28px] border border-border/25 bg-background px-5 text-foreground text-lg shadow-xs outline-none transition-all placeholder:text-muted-foreground/45 focus-visible:border-border/45 focus-visible:ring-0 aria-invalid:border-destructive/50"
             />
             {titleError && <span className="mt-1.5 block text-destructive/80 text-xs">{titleError}</span>}
           </label>
 
           <div className="block">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <label htmlFor="library-prompt-content" className="font-medium text-foreground text-sm">
+              <label htmlFor="library-prompt-content" className="font-semibold text-muted-foreground/80 text-sm">
                 {t('library.config.prompt.field.content.label')}
               </label>
               <Button
                 type="button"
                 variant="ghost"
                 onClick={insertVariable}
-                className="flex h-auto min-h-0 items-center gap-1 rounded-full px-2 py-1 font-medium text-primary/70 text-xs shadow-none hover:bg-primary/10 hover:text-primary focus-visible:ring-0">
+                className="flex h-auto min-h-0 items-center gap-1 rounded-full px-2 py-1 font-semibold text-sm text-violet-500 shadow-none transition-colors hover:bg-violet-500/10 hover:text-violet-600 focus-visible:ring-0">
                 <Braces size={13} />
                 <span>{t('library.config.prompt.insert_variable')}</span>
               </Button>
@@ -167,10 +174,29 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
               onValueChange={(content) => onChange({ content })}
               placeholder={t('settings.prompts.contentPlaceholder')}
               hasError={Boolean(contentError)}
-              className="min-h-[320px] resize-none rounded-[20px] border-border/25 bg-accent/[0.03] px-5 py-5 text-base leading-7 shadow-sm placeholder:text-muted-foreground/35 focus-visible:border-border/45 focus-visible:ring-0 md:text-base"
+              spellCheck={false}
+              className="min-h-[360px] resize-none rounded-[24px] border border-border/25 bg-background px-5 py-5 text-base leading-8 shadow-xs placeholder:text-muted-foreground/45 focus-visible:border-border/45 focus-visible:ring-0 md:text-base"
             />
             {contentError && <span className="mt-1.5 block text-destructive/80 text-xs">{contentError}</span>}
+            <p className="mt-2 text-muted-foreground/45 text-sm">{t('library.config.prompt.variable_hint')}</p>
           </div>
+
+          {referencedVariables.length > 0 && (
+            <div className="space-y-3">
+              <span className="block font-semibold text-muted-foreground/80 text-sm">
+                {t('library.config.prompt.referenced_variables')}
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {referencedVariables.map((variable) => (
+                  <span
+                    key={variable}
+                    className="rounded-full bg-violet-500/10 px-3 py-1 font-mono text-sm text-violet-500 leading-none">
+                    {variable}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </ResourceEditorShell>
