@@ -37,7 +37,9 @@ export const useAgents = () => {
     if (!apiServerRunning) {
       throw new Error(t('agent.server.error.not_running'))
     }
-    const result = await client.listAgents({ sortBy: 'sort_order', orderBy: 'asc' })
+    // limit: 100 is the API server max — matches the upper bound of PaginationQuerySchema.
+    // Without this, the sidebar would silently cap the agents list at the default page size of 20.
+    const result = await client.listAgents({ sortBy: 'sort_order', orderBy: 'asc', limit: 100 })
     // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
     return result.data
   }, [apiServerConfig.enabled, apiServerRunning, client, t])
