@@ -33,11 +33,11 @@ const KnowledgeItemList = ({
         '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
       )}>
       {isLoading ? (
-        <div className="flex h-full items-center justify-center px-4 text-center text-[0.6875rem] text-muted-foreground/60">
+        <div className="flex h-full items-center justify-center px-4 text-center text-muted-foreground/60 text-sm">
           {t('common.loading')}
         </div>
       ) : items.length === 0 ? (
-        <div className="flex h-full items-center justify-center px-4 text-center text-[0.6875rem] text-muted-foreground/60">
+        <div className="flex h-full items-center justify-center px-4 text-center text-muted-foreground/60 text-sm">
           {t('common.no_results')}
         </div>
       ) : (

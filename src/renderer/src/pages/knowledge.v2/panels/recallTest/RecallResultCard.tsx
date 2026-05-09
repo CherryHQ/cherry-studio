@@ -26,13 +26,13 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
   return (
     <div className="group/chunk rounded-lg border border-border/20 bg-muted/[0.03] transition-all hover:border-border/40">
       <div className="flex items-center gap-1.5 px-2.5 py-1.5">
-        <span className="flex size-4 shrink-0 items-center justify-center rounded bg-accent/50 text-[0.5625rem] text-muted-foreground/50 leading-3.375">
+        <span className="flex size-4 shrink-0 items-center justify-center rounded bg-accent/50 text-muted-foreground/50 text-xs leading-4">
           {index + 1}
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-1">
           <FileText className="size-2.5 shrink-0 text-muted-foreground/35" />
-          <span className="truncate text-[0.625rem] text-muted-foreground/50 leading-3.75">{item.sourceName}</span>
-          <span className="shrink-0 text-[0.5rem] text-muted-foreground/20 leading-3">#{item.chunkIndex}</span>
+          <span className="truncate text-muted-foreground/50 text-sm leading-4">{item.sourceName}</span>
+          <span className="shrink-0 text-muted-foreground/20 text-xs leading-3">#{item.chunkIndex}</span>
         </div>
         <div className="flex items-center gap-1.5">
           {/* <div className="h-0.75 w-12 overflow-hidden rounded-full bg-border/25">
@@ -41,9 +41,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
               style={{ width: `${item.scorePercent}%` }}
             />
           </div> */}
-          <span className="w-16 text-right text-[0.5625rem] text-muted-foreground/50 tabular-nums leading-3.375">
-            {scoreLabel}
-          </span>
+          <span className="w-16 text-right text-muted-foreground/50 text-xs tabular-nums leading-4">{scoreLabel}</span>
         </div>
         <Button
           type="button"
@@ -63,7 +61,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
         </Button>
       </div>
       <div className="overflow-hidden px-2.5 pb-2">
-        <p className={`text-[0.6875rem] text-foreground/75 leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
+        <p className={`text-foreground/75 text-sm leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
           {item.content}
         </p>
       </div>

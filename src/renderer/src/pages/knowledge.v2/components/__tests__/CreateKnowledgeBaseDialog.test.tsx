@@ -203,13 +203,13 @@ describe('CreateKnowledgeBaseDialog', () => {
       />
     )
 
-    expect(screen.getByRole('heading', { name: '新建知识库' })).toHaveClass('text-xs')
-    expect(screen.getByText('名称')).toHaveClass('text-[11px]')
-    expect(screen.getByLabelText('名称')).toHaveClass('text-[11px]', 'h-8')
+    expect(screen.getByRole('heading', { name: '新建知识库' })).toHaveClass('text-sm')
+    expect(screen.getByText('名称')).toHaveClass('text-sm')
+    expect(screen.getByLabelText('名称')).toHaveClass('text-sm', 'h-8')
     expect(screen.queryByText('分组')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '未设置' })).toHaveClass('text-[11px]', 'h-8')
-    expect(screen.getByRole('button', { name: '取消' })).toHaveClass('text-[11px]', 'h-8')
-    expect(screen.getByRole('button', { name: '创建' })).toHaveClass('text-[11px]', 'h-8')
+    expect(screen.getByRole('button', { name: '未设置' })).toHaveClass('text-sm', 'h-8')
+    expect(screen.getByRole('button', { name: '取消' })).toHaveClass('text-sm', 'h-8')
+    expect(screen.getByRole('button', { name: '创建' })).toHaveClass('text-sm', 'h-8')
   })
 
   it('toggles the selected emoji', () => {

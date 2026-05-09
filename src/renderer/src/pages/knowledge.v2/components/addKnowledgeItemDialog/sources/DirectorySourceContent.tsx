@@ -25,8 +25,8 @@ const DirectorySourceContent = ({ directories, onRemove, onSelectDirectory }: Di
             <Folder className="size-4" />
           </div>
           <div className="space-y-1">
-            <p className="text-[11px] leading-4">{t('knowledge_v2.data_source.add_dialog.directory.title')}</p>
-            <p className="text-[10px] text-muted-foreground/60 leading-4">
+            <p className="text-sm leading-4">{t('knowledge_v2.data_source.add_dialog.directory.title')}</p>
+            <p className="text-muted-foreground/60 text-xs leading-4">
               {t('knowledge_v2.data_source.add_dialog.directory.description')}
             </p>
           </div>

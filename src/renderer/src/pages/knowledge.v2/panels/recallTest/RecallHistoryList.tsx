@@ -14,13 +14,11 @@ const RecallHistoryList = () => {
   return (
     <div>
       <div className="mb-0.5 flex items-center justify-between px-2 py-0.5">
-        <span className="text-[0.5625rem] text-muted-foreground/30 leading-3.375">
-          {t('knowledge_v2.recall.history_title')}
-        </span>
+        <span className="text-muted-foreground/30 text-xs leading-4">{t('knowledge_v2.recall.history_title')}</span>
         <Button
           type="button"
           variant="ghost"
-          className="h-auto min-h-0 rounded-none p-0 text-[0.5625rem] text-muted-foreground/25 leading-3.375 shadow-none transition-colors hover:bg-transparent hover:text-red-500"
+          className="h-auto min-h-0 rounded-none p-0 text-muted-foreground/25 text-xs leading-4 shadow-none transition-colors hover:bg-transparent hover:text-red-500"
           onClick={clearHistory}>
           {t('knowledge_v2.recall.history_clear')}
         </Button>
@@ -33,7 +31,7 @@ const RecallHistoryList = () => {
           onClick={() => selectHistory(item)}>
           <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <History className="size-2.5 shrink-0 text-muted-foreground/25" />
-            <span className="min-w-0 flex-1 truncate text-[0.6875rem] text-foreground leading-4.125">{item.query}</span>
+            <span className="min-w-0 flex-1 truncate text-foreground text-sm leading-5">{item.query}</span>
           </button>
           <button
             type="button"

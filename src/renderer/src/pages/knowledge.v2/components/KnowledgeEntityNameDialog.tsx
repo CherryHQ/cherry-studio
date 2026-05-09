@@ -79,14 +79,12 @@ const KnowledgeEntityNameDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md gap-0 overflow-hidden rounded-2xl border-border/60 p-0">
         <DialogHeader className="gap-0.5 border-border/40 border-b px-4 py-3 text-left">
-          <DialogTitle className="font-medium text-xs leading-4">{title}</DialogTitle>
+          <DialogTitle className="font-medium text-sm leading-4">{title}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col">
           <div className="space-y-1 px-4 py-3">
-            <Label
-              htmlFor="knowledge-v2-entity-name"
-              className="font-medium text-[11px] text-muted-foreground leading-4">
+            <Label htmlFor="knowledge-v2-entity-name" className="font-medium text-muted-foreground text-sm leading-4">
               {t('common.name')}
             </Label>
             <Input
@@ -95,27 +93,27 @@ const KnowledgeEntityNameDialog = ({
               value={name}
               aria-invalid={hasAttemptedSubmit && !name.trim()}
               placeholder={namePlaceholder}
-              className="h-8 rounded-lg px-2.5 text-[11px] leading-4 placeholder:text-[11px] placeholder:text-muted-foreground/70"
+              className="h-8 rounded-lg px-2.5 text-sm leading-4 placeholder:text-muted-foreground/70 placeholder:text-sm"
               onChange={(event) => {
                 setName(event.target.value)
                 setShowSubmitError(false)
               }}
             />
             {hasAttemptedSubmit && !name.trim() ? (
-              <FieldError className="text-[11px] leading-4">{nameRequiredMessage}</FieldError>
+              <FieldError className="text-sm leading-4">{nameRequiredMessage}</FieldError>
             ) : null}
-            {showSubmitError ? <FieldError className="text-[11px] leading-4">{submitErrorMessage}</FieldError> : null}
+            {showSubmitError ? <FieldError className="text-sm leading-4">{submitErrorMessage}</FieldError> : null}
           </div>
 
           <DialogFooter className="gap-2 border-border/40 border-t px-4 py-3 sm:justify-end">
             <Button
               type="button"
               variant="outline"
-              className="h-8 rounded-lg px-3 font-medium text-[11px]"
+              className="h-8 rounded-lg px-3 font-medium text-sm"
               onClick={() => onOpenChange(false)}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit" loading={isSubmitting} className="h-8 rounded-lg px-3 font-medium text-[11px]">
+            <Button type="submit" loading={isSubmitting} className="h-8 rounded-lg px-3 font-medium text-sm">
               {submitLabel}
             </Button>
           </DialogFooter>

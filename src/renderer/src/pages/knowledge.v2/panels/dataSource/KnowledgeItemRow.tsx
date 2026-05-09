@@ -41,13 +41,11 @@ const KnowledgeItemRowContent = ({
 }) => (
   <div className="min-w-0 flex-1">
     <div className="flex items-center gap-1.5">
-      <div className="truncate text-[0.6875rem] text-foreground leading-4.125">{title}</div>
-      {suffix ? (
-        <span className="shrink-0 text-[0.5rem] text-muted-foreground/30 uppercase leading-3">{suffix}</span>
-      ) : null}
+      <div className="truncate text-foreground text-sm leading-5">{title}</div>
+      {suffix ? <span className="shrink-0 text-muted-foreground/30 text-xs uppercase leading-3">{suffix}</span> : null}
     </div>
 
-    <div className="mt-px flex items-center gap-1.5 text-[0.5625rem] text-muted-foreground/35 leading-3.375">
+    <div className="mt-px flex items-center gap-1.5 text-muted-foreground/35 text-xs leading-4">
       {metaParts.map((part) => (
         <span key={`${id}-${part}`}>{part}</span>
       ))}
@@ -75,7 +73,7 @@ const KnowledgeItemRowStatus = ({
   const content = (
     <span
       className={cn(
-        'inline-flex items-center gap-0.5 text-[0.5625rem] leading-3.375',
+        'inline-flex items-center gap-0.5 text-xs leading-4',
         failureReason ? 'cursor-help' : '',
         status.textClassName
       )}
@@ -93,7 +91,7 @@ const KnowledgeItemRowStatus = ({
           content={failureReason}
           side="bottom"
           contentProps={{
-            className: 'max-w-72 rounded-md px-2.5 py-1.5 text-[0.6875rem] leading-4 text-foreground/75'
+            className: 'max-w-72 rounded-md px-2.5 py-1.5 text-sm leading-4 text-foreground/75'
           }}>
           {content}
         </NormalTooltip>
@@ -142,7 +140,7 @@ const KnowledgeItemActionMenuItem = ({
       size="sm"
       icon={<KnowledgeItemActionMenuIcon>{icon}</KnowledgeItemActionMenuIcon>}
       label={label}
-      className="gap-1.5 rounded-md px-2 py-1 font-normal text-[0.625rem] text-popover-foreground"
+      className="gap-1.5 rounded-md px-2 py-1 font-normal text-popover-foreground text-sm"
       onClick={onClick}
     />
   )
@@ -163,7 +161,7 @@ const KnowledgeItemDeleteMenuItem = ({
       size="sm"
       icon={<KnowledgeItemActionMenuIcon>{icon}</KnowledgeItemActionMenuIcon>}
       label={label}
-      className="gap-1.5 rounded-md px-2 py-1 font-normal text-[0.625rem] text-red-500 hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500/20"
+      className="gap-1.5 rounded-md px-2 py-1 font-normal text-red-500 text-sm hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500/20"
       onClick={onClick}
     />
   )

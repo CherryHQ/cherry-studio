@@ -6,7 +6,7 @@ const NoteSourceContent = () => {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <p className="text-[10px] text-muted-foreground/40 leading-4">
+      <p className="text-muted-foreground/40 text-xs leading-4">
         {t('knowledge_v2.data_source.add_dialog.note.description')}
       </p>
 
@@ -17,10 +17,10 @@ const NoteSourceContent = () => {
             <NotebookPen className="size-4" />
           </div>
           <div className="space-y-1">
-            <p className="text-[11px] text-foreground leading-4">
+            <p className="text-foreground text-sm leading-4">
               {t('knowledge_v2.data_source.add_dialog.note.empty_title')}
             </p>
-            <p className="max-w-60 text-[10px] text-muted-foreground/60 leading-4">
+            <p className="max-w-60 text-muted-foreground/60 text-xs leading-4">
               {t('knowledge_v2.data_source.add_dialog.note.empty_description')}
             </p>
           </div>

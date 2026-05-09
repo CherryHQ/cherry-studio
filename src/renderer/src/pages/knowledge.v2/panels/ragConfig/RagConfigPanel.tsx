@@ -30,13 +30,11 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
         <div
           className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3"
           data-testid="rag-failed-state">
-          <div className="font-medium text-[0.6875rem] text-destructive leading-4">
-            {t('knowledge_v2.status.failed')}
-          </div>
-          <p className="mt-1 text-[0.6875rem] text-muted-foreground leading-4">{failureReason}</p>
+          <div className="font-medium text-destructive text-sm leading-4">{t('knowledge_v2.status.failed')}</div>
+          <p className="mt-1 text-muted-foreground text-sm leading-4">{failureReason}</p>
           <Button
             type="button"
-            className="mt-3 h-6 min-h-6 rounded-md bg-primary px-3 text-[0.6875rem] text-primary-foreground leading-4.125 shadow-none hover:bg-primary/90"
+            className="mt-3 h-6 min-h-6 rounded-md bg-primary px-3 text-primary-foreground text-sm leading-5 shadow-none hover:bg-primary/90"
             onClick={() => onRestoreBase(base)}>
             {t('knowledge_v2.restore.action')}
           </Button>
@@ -146,7 +144,7 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
             type="button"
             variant="ghost"
             disabled={!isDirty || isLoading}
-            className="h-6 min-h-6 rounded-md px-3 text-[0.6875rem] text-muted-foreground/50 leading-4.125 shadow-none hover:bg-accent/60 hover:text-foreground"
+            className="h-6 min-h-6 rounded-md px-3 text-muted-foreground/50 text-sm leading-5 shadow-none hover:bg-accent/60 hover:text-foreground"
             onClick={() => setValues(initialValues)}>
             {t('common.reset')}
           </Button>
@@ -154,7 +152,7 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
             type="button"
             loading={isLoading}
             disabled={!canSave}
-            className="h-6 min-h-6 rounded-md bg-emerald-400 px-3 text-[0.6875rem] text-white leading-4.125 shadow-none hover:bg-emerald-500"
+            className="h-6 min-h-6 rounded-md bg-emerald-400 px-3 text-sm text-white leading-5 shadow-none hover:bg-emerald-500"
             onClick={handleSave}>
             {embeddingConfigChanged ? t('knowledge_v2.restore.submit') : t('common.save')}
           </Button>

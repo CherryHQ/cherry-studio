@@ -24,7 +24,7 @@ const BaseNavigatorContent = ({
   return (
     <Scrollbar className="min-h-0 flex-1 [scrollbar-gutter:auto]">
       {sections.length === 0 ? (
-        <div className="flex h-full items-center justify-center px-4 text-center text-[0.6875rem] text-muted-foreground/60">
+        <div className="flex h-full items-center justify-center px-4 text-center text-muted-foreground/60 text-sm">
           {t('knowledge_v2.empty')}
         </div>
       ) : (

@@ -21,8 +21,8 @@ const SelectionListItem = ({
     <div role="listitem" className="flex items-center gap-1.5 rounded-md bg-accent/30 px-2 py-1">
       <Icon className={iconClassName} />
 
-      <span className="min-w-0 flex-1 truncate text-[11px] text-foreground leading-4">{name}</span>
-      {meta ? <span className="shrink-0 text-[9px] text-muted-foreground/35 leading-4">{meta}</span> : null}
+      <span className="min-w-0 flex-1 truncate text-foreground text-sm leading-4">{name}</span>
+      {meta ? <span className="shrink-0 text-muted-foreground/35 text-xs leading-4">{meta}</span> : null}
 
       <button
         type="button"

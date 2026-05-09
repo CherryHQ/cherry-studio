@@ -23,8 +23,8 @@ const DropzoneCard = ({ description, icon: Icon, onDrop, title }: DropzoneCardPr
             <Icon className="size-4" />
           </div>
           <div className="space-y-1">
-            <p className="text-[11px] leading-4">{title}</p>
-            <p className="text-[10px] text-muted-foreground/60 leading-4">{description}</p>
+            <p className="text-sm leading-4">{title}</p>
+            <p className="text-muted-foreground/60 text-xs leading-4">{description}</p>
           </div>
         </div>
       </DropzoneEmptyState>

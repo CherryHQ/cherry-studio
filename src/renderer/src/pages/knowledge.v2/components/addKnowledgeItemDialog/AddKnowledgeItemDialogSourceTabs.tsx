@@ -76,7 +76,7 @@ const AddKnowledgeItemDialogSourceTabs = ({
             <TabsTrigger
               key={source.value}
               value={source.value}
-              className="h-7.25 min-w-13.5 rounded-none border-transparent border-b-[1.5px] px-2.5 text-[11px] text-muted-foreground/45 leading-4 after:hidden hover:text-foreground data-[state=active]:border-primary data-[state=active]:text-foreground">
+              className="h-7.25 min-w-13.5 rounded-none border-transparent border-b-[1.5px] px-2.5 text-muted-foreground/45 text-sm leading-4 after:hidden hover:text-foreground data-[state=active]:border-primary data-[state=active]:text-foreground">
               {t(source.labelKey)}
             </TabsTrigger>
           ))}

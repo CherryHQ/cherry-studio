@@ -74,10 +74,10 @@ const KnowledgeItemChunkCard = ({
   return (
     <div className="group/ck rounded-lg border border-border/20 transition-all hover:border-border/40">
       <div className="flex items-center gap-1.5 px-2.5 py-1.5">
-        <span className="flex size-4 shrink-0 items-center justify-center rounded bg-accent/50 text-[0.5rem] text-muted-foreground/40 leading-3">
+        <span className="flex size-4 shrink-0 items-center justify-center rounded bg-accent/50 text-muted-foreground/40 text-xs leading-3">
           {chunk.metadata.chunkIndex}
         </span>
-        <span className="flex-1 text-[0.5625rem] text-muted-foreground/30 leading-3.375">
+        <span className="flex-1 text-muted-foreground/30 text-xs leading-4">
           {chunk.metadata.tokenCount} {t('knowledge_v2.rag.tokens_unit')}
         </span>
         <div className="flex items-center gap-0.5 opacity-0 transition-all group-hover/ck:opacity-100">
@@ -91,14 +91,14 @@ const KnowledgeItemChunkCard = ({
         </div>
       </div>
       <div className="px-2.5 pb-2">
-        <p className="line-clamp-2 text-[0.6875rem] text-foreground/70 leading-relaxed">{chunk.content}</p>
+        <p className="line-clamp-2 text-foreground/70 text-sm leading-relaxed">{chunk.content}</p>
       </div>
     </div>
   )
 }
 
 const KnowledgeItemChunkState = ({ children }: { children: ReactNode }) => (
-  <div className="flex min-h-full items-center justify-center px-4 py-10 text-center text-[0.6875rem] text-muted-foreground/35 leading-4.125">
+  <div className="flex min-h-full items-center justify-center px-4 py-10 text-center text-muted-foreground/35 text-sm leading-5">
     {children}
   </div>
 )
@@ -212,10 +212,10 @@ const KnowledgeItemChunkDetailPanel = ({
           </div>
         ) : null}
         <div className="min-w-0 flex-1">
-          <span className="block truncate text-[0.6875rem] text-foreground leading-4.125">
+          <span className="block truncate text-foreground text-sm leading-5">
             {viewModel?.title ?? t('common.loading')}
           </span>
-          <div className="flex items-center gap-2 text-[0.5625rem] text-muted-foreground/35 leading-3.375">
+          <div className="flex items-center gap-2 text-muted-foreground/35 text-xs leading-4">
             {metaParts.map((part) => (
               <span key={part} className={viewModel && part === typeMeta && viewModel.suffix ? 'uppercase' : undefined}>
                 {part}

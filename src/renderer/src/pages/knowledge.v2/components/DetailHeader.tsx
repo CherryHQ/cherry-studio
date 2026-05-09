@@ -51,18 +51,18 @@ const DetailHeader = ({ base, itemCount, onRenameBase, onDeleteBase }: DetailHea
 
           <div className="min-w-0">
             <h1 className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate text-[11px] text-foreground">{base.name}</span>
+              <span className="truncate text-foreground text-sm">{base.name}</span>
               <span
                 className={cn('size-1 shrink-0 rounded-full', statusDotClassNames[base.status])}
                 aria-label={statusLabel}
                 title={statusLabel}
               />
-              <span className="text-[9px] text-muted-foreground/35">{statusLabel}</span>
+              <span className="text-muted-foreground/35 text-xs">{statusLabel}</span>
             </h1>
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3 text-[0.5625rem] text-muted-foreground/35 leading-3.375">
+        <div className="flex shrink-0 items-center gap-3 text-muted-foreground/35 text-xs leading-4">
           <div className="flex items-center gap-1">
             <FileText className="size-3" />
             <span>{t('knowledge_v2.meta.documents_count', { count: itemCount })}</span>
@@ -95,14 +95,14 @@ const DetailHeader = ({ base, itemCount, onRenameBase, onDeleteBase }: DetailHea
                   variant="ghost"
                   icon={<PencilLine className="size-2.25" />}
                   label={t('knowledge_v2.context.rename')}
-                  className="gap-1.5 rounded-md px-2 py-1 font-normal text-[10px] text-popover-foreground hover:bg-accent"
+                  className="gap-1.5 rounded-md px-2 py-1 font-normal text-popover-foreground text-xs hover:bg-accent"
                   onClick={handleRenameBase}
                 />
                 <MenuItem
                   variant="ghost"
                   icon={<Trash2 className="size-2.25" />}
                   label={t('knowledge_v2.context.delete')}
-                  className="gap-1.5 rounded-md px-2 py-1 font-normal text-[10px] text-red-500 hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500/20"
+                  className="gap-1.5 rounded-md px-2 py-1 font-normal text-red-500 text-xs hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500/20"
                   onClick={() => {
                     setIsMenuOpen(false)
                     setIsDeleteDialogOpen(true)

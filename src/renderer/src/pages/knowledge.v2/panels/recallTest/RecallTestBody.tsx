@@ -12,7 +12,7 @@ const RecallResultSummary = () => {
   } = useRecallTest()
 
   return (
-    <div className="mt-1.5 flex items-center gap-2.5 text-[0.5625rem] text-muted-foreground/35 leading-3.375">
+    <div className="mt-1.5 flex items-center gap-2.5 text-muted-foreground/35 text-xs leading-4">
       <span className="flex items-center gap-0.5">
         <Sparkles className="size-2" />
         {t('knowledge_v2.recall.result_count', { count: results.length })}
@@ -56,8 +56,8 @@ const RecallEmptyState = () => {
     <div className="min-h-0 flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden">
       <div className="flex min-h-full flex-col items-center justify-center py-12 text-center text-muted-foreground/25">
         <Search className="size-5.5" />
-        <p className="mt-1 text-[0.6875rem] leading-4.125">{t('knowledge_v2.recall.empty_title')}</p>
-        <p className="mt-0.5 text-[0.5625rem] leading-3.375">{t('knowledge_v2.recall.empty_description')}</p>
+        <p className="mt-1 text-sm leading-5">{t('knowledge_v2.recall.empty_title')}</p>
+        <p className="mt-0.5 text-xs leading-4">{t('knowledge_v2.recall.empty_description')}</p>
       </div>
     </div>
   )
@@ -69,7 +69,7 @@ const RecallSearchingState = () => {
   return (
     <div className="flex min-h-full flex-col items-center justify-center py-12 text-center text-muted-foreground/35">
       <LoaderCircle className="size-5.5 animate-spin text-primary" />
-      <p className="mt-2 text-[0.6875rem] leading-4.125">{t('knowledge_v2.recall.searching')}</p>
+      <p className="mt-2 text-sm leading-5">{t('knowledge_v2.recall.searching')}</p>
     </div>
   )
 }

@@ -78,9 +78,9 @@ const KnowledgeBaseRow = ({
 
           <div className="min-w-0 flex-1">
             <div className="contents">
-              <div className="truncate text-[11px]">{base.name}</div>
+              <div className="truncate text-sm">{base.name}</div>
               <div className="mt-px flex items-center gap-1">
-                <span className="text-[9px] text-muted-foreground/45">{formattedUpdatedAt}</span>
+                <span className="text-muted-foreground/45 text-xs">{formattedUpdatedAt}</span>
                 <span
                   className={cn('size-1 shrink-0 rounded-full', statusDotClassNames[base.status])}
                   aria-label={statusLabel}

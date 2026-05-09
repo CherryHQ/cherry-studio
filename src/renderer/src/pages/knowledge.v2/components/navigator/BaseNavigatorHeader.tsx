@@ -9,7 +9,7 @@ const BaseNavigatorHeader = ({ baseCount, onCreateGroup, onCreateBase }: BaseNav
 
   return (
     <div className="flex h-11 shrink-0 items-center justify-between px-3.5">
-      <div className="flex min-w-0 items-center gap-1.5 text-[0.6875rem] leading-4.125">
+      <div className="flex min-w-0 items-center gap-1.5 text-sm leading-5">
         <BookOpenText className="size-3 text-foreground" />
         <span className="truncate text-foreground">{t('knowledge_v2.title')}</span>
         <span className="ml-0.5 text-muted-foreground/50">{baseCount}</span>

@@ -9,7 +9,7 @@ interface AddKnowledgeItemDialogHeaderProps {
 const AddKnowledgeItemDialogHeader = ({ closeLabel, title }: AddKnowledgeItemDialogHeaderProps) => {
   return (
     <div className="flex shrink-0 items-start justify-between px-4 pt-3 pb-2">
-      <DialogTitle className="pt-0.5 font-medium text-xs leading-4">{title}</DialogTitle>
+      <DialogTitle className="pt-0.5 font-medium text-sm leading-4">{title}</DialogTitle>
       <DialogClose asChild>
         <button
           type="button"
