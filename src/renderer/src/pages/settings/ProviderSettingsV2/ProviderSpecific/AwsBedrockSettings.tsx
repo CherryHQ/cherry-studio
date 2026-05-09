@@ -5,6 +5,7 @@ import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticationApiKey'
 import {
   ProviderHelpLink,
   ProviderHelpText,
@@ -21,6 +22,7 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
   const { provider, updateAuthConfig } = useProvider(providerId)
   const { data: authConfig } = useProviderAuthConfig(providerId)
   const { data: presetMetadata } = useProviderPresetMetadata(providerId)
+  const { inputApiKey, setInputApiKey, commitInputApiKeyNow } = useAuthenticationApiKey()
 
   const isIamMode = provider?.authType === 'iam-aws'
   const awsConfig = authConfig?.type === 'iam-aws' ? authConfig : null
@@ -139,6 +141,26 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
               <ProviderHelpText>{t('settings.provider.aws-bedrock.secret_access_key_help')}</ProviderHelpText>
             </ProviderHelpTextRow>
           )}
+        </>
+      )}
+
+      {!isIamMode && (
+        <>
+          <ProviderSettingsSubtitle className="mt-4">
+            {t('settings.provider.aws-bedrock.api_key')}
+          </ProviderSettingsSubtitle>
+          <Input
+            className="mt-1.5 w-full"
+            type="password"
+            value={inputApiKey}
+            placeholder={t('settings.provider.aws-bedrock.api_key')}
+            onChange={(e) => setInputApiKey(e.target.value)}
+            onBlur={() => void commitInputApiKeyNow()}
+            spellCheck={false}
+          />
+          <ProviderHelpTextRow>
+            <ProviderHelpText>{t('settings.provider.aws-bedrock.api_key_help')}</ProviderHelpText>
+          </ProviderHelpTextRow>
         </>
       )}
 

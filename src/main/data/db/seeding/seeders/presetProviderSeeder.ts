@@ -4,8 +4,33 @@ import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE } from '@cherrystudio/provid
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
+import type { AuthConfig } from '@shared/data/types/provider'
 
 import type { DbType, ISeeder } from '../../types'
+
+function getSeedDefaultChatEndpoint(providerId: string, presetDefault: ProtoProviderConfig['defaultChatEndpoint']) {
+  if (providerId === 'vertexai' || providerId === 'azure-openai') {
+    return ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  }
+
+  return presetDefault ?? null
+}
+
+function getSeedAuthConfig(providerId: string): AuthConfig | null {
+  if (providerId === 'vertexai') {
+    return { type: 'iam-gcp', project: '', location: '' }
+  }
+
+  if (providerId === 'azure-openai') {
+    return { type: 'iam-azure', apiVersion: '' }
+  }
+
+  if (providerId === 'aws-bedrock') {
+    return { type: 'iam-aws', region: '' }
+  }
+
+  return null
+}
 
 function toDbRow(p: ProtoProviderConfig) {
   const apiFeatures = p.apiFeatures
@@ -24,7 +49,8 @@ function toDbRow(p: ProtoProviderConfig) {
     presetProviderId: p.id,
     name: p.name,
     endpointConfigs: buildRuntimeEndpointConfigs(p.endpointConfigs),
-    defaultChatEndpoint: p.defaultChatEndpoint ?? null,
+    defaultChatEndpoint: getSeedDefaultChatEndpoint(p.id, p.defaultChatEndpoint),
+    authConfig: getSeedAuthConfig(p.id),
     apiFeatures
   }
 }
@@ -78,6 +104,7 @@ export class PresetProviderSeeder implements ISeeder {
             }
           },
           defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          authConfig: null,
           apiFeatures: null
         })
       }

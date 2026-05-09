@@ -7,6 +7,7 @@
  * provider IDs and only inserts genuinely new rows.
  */
 
+import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSeeder'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
@@ -20,7 +21,10 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
     loadProviders() {
       return [
         { id: 'openai', name: 'OpenAI', endpointConfigs: {}, defaultChatEndpoint: null },
-        { id: 'anthropic', name: 'Anthropic', endpointConfigs: {}, defaultChatEndpoint: null }
+        { id: 'anthropic', name: 'Anthropic', endpointConfigs: {}, defaultChatEndpoint: null },
+        { id: 'azure-openai', name: 'Azure OpenAI', endpointConfigs: {}, defaultChatEndpoint: null },
+        { id: 'vertexai', name: 'Vertex AI', endpointConfigs: {}, defaultChatEndpoint: null },
+        { id: 'aws-bedrock', name: 'AWS Bedrock', endpointConfigs: {}, defaultChatEndpoint: null }
       ]
     }
     getProvidersVersion() {
@@ -55,7 +59,27 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
     const ids = rows.map((r) => r.providerId)
     expect(ids).toContain('openai')
     expect(ids).toContain('anthropic')
+    expect(ids).toContain('azure-openai')
+    expect(ids).toContain('vertexai')
+    expect(ids).toContain('aws-bedrock')
     expect(ids).toContain('cherryai')
+  })
+
+  it('should seed special provider defaults without relying on providers.json endpoint metadata', async () => {
+    const seed = new PresetProviderSeeder()
+    await seed.run(dbh.db)
+
+    const rows = await dbh.db.select().from(userProviderTable)
+    const azure = rows.find((r) => r.providerId === 'azure-openai')
+    const vertex = rows.find((r) => r.providerId === 'vertexai')
+    const bedrock = rows.find((r) => r.providerId === 'aws-bedrock')
+
+    expect(azure?.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    expect(azure?.authConfig).toEqual({ type: 'iam-azure', apiVersion: '' })
+    expect(vertex?.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    expect(vertex?.authConfig).toEqual({ type: 'iam-gcp', project: '', location: '' })
+    expect(bedrock?.defaultChatEndpoint).toBeNull()
+    expect(bedrock?.authConfig).toEqual({ type: 'iam-aws', region: '' })
   })
 
   it('should NOT re-insert openai when it already exists in DB', async () => {
@@ -77,10 +101,13 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
   })
 
   it('should not insert anything when all providers (including cherryai) already exist', async () => {
-    const [openaiKey, anthropicKey, cherryaiKey] = generateOrderKeySequence(3)
+    const [openaiKey, anthropicKey, azureKey, vertexKey, bedrockKey, cherryaiKey] = generateOrderKeySequence(6)
     await dbh.db.insert(userProviderTable).values([
       { providerId: 'openai', name: 'OpenAI', orderKey: openaiKey },
       { providerId: 'anthropic', name: 'Anthropic', orderKey: anthropicKey },
+      { providerId: 'azure-openai', name: 'Azure OpenAI', orderKey: azureKey },
+      { providerId: 'vertexai', name: 'Vertex AI', orderKey: vertexKey },
+      { providerId: 'aws-bedrock', name: 'AWS Bedrock', orderKey: bedrockKey },
       { providerId: 'cherryai', name: 'CherryAI', orderKey: cherryaiKey }
     ])
     const before = await dbh.db.select().from(userProviderTable)
