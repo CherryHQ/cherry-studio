@@ -1,18 +1,18 @@
 import { ExportOutlined } from '@ant-design/icons'
 import { Button, Divider, Flex, InfoTooltip, Input, Label, RowFlex, Tooltip } from '@cherrystudio/ui'
-import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import {
   getWebSearchProviderLogo,
   WEB_SEARCH_PROVIDER_CONFIG,
   webSearchProviderRequiresApiKey,
   webSearchProviderSupportsBasicAuth
 } from '@renderer/config/webSearchProviders'
-import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
-import type { WebSearchProviderId } from '@renderer/types'
-import { formatApiKeys } from '@renderer/utils'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
+import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { getWebSearchProviderAvailability } from '@renderer/utils/webSearchProviders'
+import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchProviderFeatureCapability } from '@shared/data/presets/web-search-providers'
-import { List } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import { ExternalLink, List } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,27 +26,39 @@ import {
   SettingTitle,
   SettingTitleExternalLink
 } from '..'
+import { WebSearchApiKeyListPopup } from './components/WebSearchApiKeyList'
 
 interface Props {
   providerId: WebSearchProviderId
 }
 
 const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
-  const { provider, updateProvider } = useWebSearchProvider(providerId)
-  const { provider: defaultProvider, setDefaultProvider } = useDefaultWebSearchProvider()
+  const {
+    defaultSearchKeywordsProvider: defaultProvider,
+    getProvider,
+    setDefaultSearchKeywordsProvider,
+    updateProvider
+  } = useWebSearchProviders()
+  const provider = getProvider(providerId)
   const { t } = useTranslation()
-  const [apiKey, setApiKey] = useState(provider.apiKey || '')
+  const navigate = useNavigate()
+  const [apiKeys, setApiKeys] = useState<string[]>(provider?.apiKeys || [])
   const [apiHosts, setApiHosts] = useState<Record<string, string>>({})
-  const [basicAuthUsername, setBasicAuthUsername] = useState(provider.basicAuthUsername || '')
-  const [basicAuthPassword, setBasicAuthPassword] = useState(provider.basicAuthPassword || '')
+  const [basicAuthUsername, setBasicAuthUsername] = useState(provider?.basicAuthUsername || '')
+  const [basicAuthPassword, setBasicAuthPassword] = useState(provider?.basicAuthPassword || '')
+
+  if (!provider) {
+    throw new Error(`Web search provider with id ${providerId} not found`)
+  }
 
   const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
   const apiKeyWebsite = webSearchProviderConfig?.websites?.apiKey
   const officialWebsite = webSearchProviderConfig?.websites?.official
+  const apiKey = apiKeys.join(',')
 
   const onUpdateApiKey = () => {
-    if (apiKey !== provider.apiKey) {
-      void updateProvider({ apiKey })
+    if (apiKey !== provider.apiKeys.join(',')) {
+      void updateProvider(provider.id, { apiKeys })
     }
   }
 
@@ -57,7 +69,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     if (trimmedHost !== (capability.apiHost ?? '')) {
-      void updateProvider({
+      void updateProvider(provider.id, {
         capabilities: provider.capabilities.map((item) =>
           item.feature === capability.feature ? { ...item, apiHost: trimmedHost } : item
         )
@@ -71,7 +83,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     const currentValue = basicAuthUsername || ''
     const savedValue = provider.basicAuthUsername || ''
     if (currentValue !== savedValue) {
-      void updateProvider({ basicAuthUsername })
+      void updateProvider(provider.id, { basicAuthUsername })
     } else {
       setBasicAuthUsername(provider.basicAuthUsername || '')
     }
@@ -81,27 +93,27 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     const currentValue = basicAuthPassword || ''
     const savedValue = provider.basicAuthPassword || ''
     if (currentValue !== savedValue) {
-      void updateProvider({ basicAuthPassword })
+      void updateProvider(provider.id, { basicAuthPassword })
     } else {
       setBasicAuthPassword(provider.basicAuthPassword || '')
     }
   }
 
   const openApiKeyList = async () => {
-    await ApiKeyListPopup.show({
+    await WebSearchApiKeyListPopup.show({
       providerId: provider.id,
       title: `${provider.name} ${t('settings.provider.api.key.list.title')}`
     })
   }
 
   useEffect(() => {
-    setApiKey(provider.apiKey ?? '')
+    setApiKeys(provider.apiKeys)
     setApiHosts(
       Object.fromEntries(provider.capabilities.map((capability) => [capability.feature, capability.apiHost ?? '']))
     )
     setBasicAuthUsername(provider.basicAuthUsername ?? '')
     setBasicAuthPassword(provider.basicAuthPassword ?? '')
-  }, [provider.apiKey, provider.capabilities, provider.basicAuthUsername, provider.basicAuthPassword])
+  }, [provider.apiKeys, provider.capabilities, provider.basicAuthUsername, provider.basicAuthPassword])
 
   const providerLogo = getWebSearchProviderLogo(providerId)
 
@@ -109,11 +121,16 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
   const supportsBasicAuth = webSearchProviderSupportsBasicAuth(provider.id)
   const canSetAsDefault = !isDefault && getWebSearchProviderAvailability(provider, 'searchKeywords').available
+  const usesLlmProviderApiKey = provider.id === 'zhipu'
 
   const handleSetAsDefault = () => {
     if (canSetAsDefault) {
-      void setDefaultProvider(provider)
+      void setDefaultSearchKeywordsProvider(provider)
     }
+  }
+
+  const openLlmProviderSettings = () => {
+    void navigate({ to: '/settings/provider', search: { id: provider.id } })
   }
 
   return (
@@ -139,7 +156,18 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
         </Flex>
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      {needsApiKey && (
+      {needsApiKey && usesLlmProviderApiKey && (
+        <>
+          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
+            {t('settings.provider.api_key.label')}
+          </SettingSubtitle>
+          <Button variant="outline" onClick={openLlmProviderSettings}>
+            <ExternalLink size={14} />
+            {t('navigate.provider_settings')}
+          </Button>
+        </>
+      )}
+      {needsApiKey && !usesLlmProviderApiKey && (
         <>
           <SettingSubtitle
             style={{
@@ -161,10 +189,10 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               type="password"
               value={apiKey}
               placeholder={t('settings.provider.api_key.label')}
-              onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
+              onChange={(e) => setApiKeys(splitApiKeyString(formatApiKeys(e.target.value)))}
               onBlur={onUpdateApiKey}
               spellCheck={false}
-              autoFocus={apiKey === ''}
+              autoFocus={apiKeys.length === 0}
               className="min-w-0 flex-1"
             />
           </div>

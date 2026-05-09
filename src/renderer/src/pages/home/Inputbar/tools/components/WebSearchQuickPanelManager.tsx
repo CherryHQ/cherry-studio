@@ -6,7 +6,7 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useDefaultFetchUrlsProvider, useDefaultWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
@@ -26,8 +26,7 @@ export const useWebSearchPanelController = (assistantId: string) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { assistant, updateAssistant } = useAssistant(assistantId)
-  const { provider: defaultWebSearchProvider } = useDefaultWebSearchProvider()
-  const { provider: defaultFetchUrlsProvider } = useDefaultFetchUrlsProvider()
+  const { defaultSearchKeywordsProvider: defaultWebSearchProvider, defaultFetchUrlsProvider } = useWebSearchProviders()
   const enableWebSearch = !!assistant.enableWebSearch
 
   const openWebSearchSettings = useCallback(

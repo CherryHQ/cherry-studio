@@ -1,6 +1,6 @@
 import { Alert, Button, Textarea } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useBlacklist } from '@renderer/hooks/useWebSearchProviders'
+import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { parseMatchPattern } from '@renderer/utils/blacklistMatchPattern'
 import { t } from 'i18next'
 import { Info } from 'lucide-react'
@@ -12,7 +12,7 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 const BlacklistSettings: FC = () => {
   const [errFormat, setErrFormat] = useState(false)
   const [blacklistInput, setBlacklistInput] = useState('')
-  const { excludeDomains, setExcludeDomains } = useBlacklist()
+  const { excludeDomains, setExcludeDomains } = useWebSearchSettings()
   const { theme } = useTheme()
 
   useEffect(() => {

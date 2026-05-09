@@ -1,95 +1,28 @@
 import { webSearchProviderRequiresApiKey } from '@renderer/config/webSearchProviders'
-import type { WebSearchProvider } from '@renderer/types'
 import type {
-  PreferenceDefaultScopeType,
-  PreferenceKeyType,
   WebSearchCapability,
-  WebSearchProviderCapabilityOverride,
   WebSearchProviderId,
-  WebSearchProviderOverride,
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
-import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import type { WebSearchProviderFeatureCapability } from '@shared/data/presets/web-search-providers'
-import { findWebSearchCapability, PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
-import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
+import {
+  findWebSearchCapability,
+  PRESETS_WEB_SEARCH_PROVIDERS,
+  WEB_SEARCH_PROVIDER_PRESET_MAP
+} from '@shared/data/presets/web-search-providers'
+import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 
-export type RendererWebSearchProvider = WebSearchProvider & {
-  capabilities: WebSearchProviderFeatureCapability[]
-}
+type WebSearchProviderOverride = NonNullable<WebSearchProviderOverrides[WebSearchProviderId]>
 
-type WebSearchPreferenceSnapshot = Pick<
-  PreferenceDefaultScopeType,
-  | 'chat.web_search.default_search_keywords_provider'
-  | 'chat.web_search.default_fetch_urls_provider'
-  | 'chat.web_search.exclude_domains'
-  | 'chat.web_search.max_results'
-  | 'chat.web_search.provider_overrides'
-  | 'chat.web_search.compression.method'
-  | 'chat.web_search.compression.cutoff_limit'
-  | 'chat.web_search.compression.cutoff_unit'
+export type WebSearchProviderUpdates = Partial<
+  Pick<ResolvedWebSearchProvider, 'apiKeys' | 'capabilities' | 'engines' | 'basicAuthUsername' | 'basicAuthPassword'>
 >
 
-export const WEB_SEARCH_PREFERENCE_KEYS = {
-  defaultSearchKeywordsProvider: 'chat.web_search.default_search_keywords_provider',
-  defaultFetchUrlsProvider: 'chat.web_search.default_fetch_urls_provider',
-  excludeDomains: 'chat.web_search.exclude_domains',
-  maxResults: 'chat.web_search.max_results',
-  providerOverrides: 'chat.web_search.provider_overrides',
-  compressionMethod: 'chat.web_search.compression.method',
-  cutoffLimit: 'chat.web_search.compression.cutoff_limit',
-  cutoffUnit: 'chat.web_search.compression.cutoff_unit'
-} as const
-
-export type WebSearchPreferenceValues = {
-  -readonly [K in keyof typeof WEB_SEARCH_PREFERENCE_KEYS]: WebSearchPreferenceSnapshot[(typeof WEB_SEARCH_PREFERENCE_KEYS)[K]]
-}
-
-export type RendererCompressionConfig = {
-  method: PreferenceDefaultScopeType['chat.web_search.compression.method']
-  cutoffLimit: number
-  cutoffUnit?: PreferenceDefaultScopeType['chat.web_search.compression.cutoff_unit']
-}
-
-export type WebSearchSettingsState = {
-  defaultSearchKeywordsProvider: WebSearchProviderId | null
-  defaultFetchUrlsProvider: WebSearchProviderId | null
-  providers: RendererWebSearchProvider[]
-  maxResults: number
-  excludeDomains: string[]
-  compressionConfig: RendererCompressionConfig
-}
-
-export type WebSearchMissingConfigReason = 'apiKey' | 'apiHost'
-export type WebSearchConfigAvailability =
-  | { available: true }
-  | { available: false; reason: WebSearchMissingConfigReason }
-
-function parseApiKeys(apiKey?: string): string[] | undefined {
-  if (!apiKey) {
-    return undefined
-  }
-
-  const apiKeys = apiKey
-    .split(',')
-    .map((key) => key.trim())
-    .filter(Boolean)
-
-  return apiKeys.length > 0 ? apiKeys : undefined
-}
-
-function stringifyApiKeys(apiKeys?: string[]): string {
-  return (
-    apiKeys
-      ?.map((key) => key.trim())
-      .filter(Boolean)
-      .join(',') ?? ''
-  )
-}
+export type WebSearchConfigAvailability = { available: true } | { available: false; reason: 'apiKey' | 'apiHost' }
 
 function mergeProviderCapabilities(
   presetCapabilities: readonly WebSearchProviderFeatureCapability[],
-  override: WebSearchProviderOverride | undefined
+  override: WebSearchProviderOverrides[WebSearchProviderId]
 ): WebSearchProviderFeatureCapability[] {
   return presetCapabilities.map((capability) => ({
     ...capability,
@@ -99,17 +32,16 @@ function mergeProviderCapabilities(
   }))
 }
 
-export function resolveWebSearchProviders(overrides: WebSearchProviderOverrides): RendererWebSearchProvider[] {
+export function resolveWebSearchProviders(overrides: WebSearchProviderOverrides): ResolvedWebSearchProvider[] {
   return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
     const override = overrides[preset.id]
     const capabilities = mergeProviderCapabilities(preset.capabilities, override)
-    const searchKeywordsCapability = findWebSearchCapability({ capabilities }, 'searchKeywords')
 
     return {
       id: preset.id,
       name: preset.name,
-      apiKey: stringifyApiKeys(override?.apiKeys),
-      apiHost: searchKeywordsCapability?.apiHost?.trim() ?? '',
+      type: preset.type,
+      apiKeys: override?.apiKeys?.map((apiKey) => apiKey.trim()).filter(Boolean) || [],
       capabilities,
       engines: override?.engines || [],
       basicAuthUsername: override?.basicAuthUsername?.trim() || '',
@@ -118,54 +50,19 @@ export function resolveWebSearchProviders(overrides: WebSearchProviderOverrides)
   })
 }
 
-export function buildWebSearchProviderOverrides(providers: RendererWebSearchProvider[]): WebSearchProviderOverrides {
-  return providers.reduce<WebSearchProviderOverrides>((acc, provider) => {
-    const capabilities = provider.capabilities.reduce<
-      Partial<Record<WebSearchCapability, WebSearchProviderCapabilityOverride>>
-    >(
-      (capabilityAcc, capability) => ({
-        ...capabilityAcc,
-        [capability.feature]: capability.apiHost !== undefined ? { apiHost: capability.apiHost } : {}
-      }),
-      {}
-    )
-    const normalizedOverride = normalizeWebSearchProviderOverride({
-      apiKeys: parseApiKeys(provider.apiKey),
-      capabilities: Object.keys(capabilities).length > 0 ? capabilities : undefined,
-      engines: provider.engines,
-      basicAuthUsername: provider.basicAuthUsername,
-      basicAuthPassword: provider.basicAuthPassword
-    })
-
-    if (Object.keys(normalizedOverride).length > 0) {
-      acc[provider.id] = normalizedOverride
-    }
-
-    return acc
-  }, {})
-}
-
 export function updateWebSearchProviderOverride(
   overrides: WebSearchProviderOverrides,
   providerId: WebSearchProviderId,
-  updates: Partial<RendererWebSearchProvider>
+  updates: WebSearchProviderUpdates
 ): WebSearchProviderOverrides {
-  const currentOverride = overrides[providerId] ?? {}
+  const currentOverride: WebSearchProviderOverride = overrides[providerId] ?? {}
   const nextOverride: WebSearchProviderOverride = {
     ...currentOverride,
-    apiKeys: updates.apiKey !== undefined ? parseApiKeys(updates.apiKey) : currentOverride.apiKeys,
+    apiKeys: updates.apiKeys !== undefined ? updates.apiKeys : currentOverride.apiKeys,
     capabilities:
       updates.capabilities !== undefined
         ? mergeCapabilityUpdates(currentOverride.capabilities, updates.capabilities)
-        : updates.apiHost !== undefined
-          ? {
-              ...currentOverride.capabilities,
-              searchKeywords: {
-                ...currentOverride.capabilities?.searchKeywords,
-                apiHost: updates.apiHost
-              }
-            }
-          : currentOverride.capabilities,
+        : currentOverride.capabilities,
     engines: updates.engines !== undefined ? updates.engines : currentOverride.engines,
     basicAuthUsername:
       updates.basicAuthUsername !== undefined ? updates.basicAuthUsername : currentOverride.basicAuthUsername,
@@ -173,7 +70,7 @@ export function updateWebSearchProviderOverride(
       updates.basicAuthPassword !== undefined ? updates.basicAuthPassword : currentOverride.basicAuthPassword
   }
 
-  const normalizedOverride = normalizeWebSearchProviderOverride(nextOverride)
+  const normalizedOverride = normalizeWebSearchProviderOverride(providerId, nextOverride)
 
   if (Object.keys(normalizedOverride).length === 0) {
     const restOverrides = { ...overrides }
@@ -203,47 +100,11 @@ function mergeCapabilityUpdates(
   )
 }
 
-export function buildRendererWebSearchState(preferences: WebSearchPreferenceValues): WebSearchSettingsState {
-  const defaultSearchKeywordsProvider = getPreferenceOrDefault(
-    WEB_SEARCH_PREFERENCE_KEYS.defaultSearchKeywordsProvider,
-    preferences.defaultSearchKeywordsProvider
-  )
-  const defaultFetchUrlsProvider = getPreferenceOrDefault(
-    WEB_SEARCH_PREFERENCE_KEYS.defaultFetchUrlsProvider,
-    preferences.defaultFetchUrlsProvider
-  )
-  const excludeDomains = getPreferenceOrDefault(WEB_SEARCH_PREFERENCE_KEYS.excludeDomains, preferences.excludeDomains)
-  const maxResults = getPreferenceOrDefault(WEB_SEARCH_PREFERENCE_KEYS.maxResults, preferences.maxResults)
-  const providerOverrides = getPreferenceOrDefault(
-    WEB_SEARCH_PREFERENCE_KEYS.providerOverrides,
-    preferences.providerOverrides
-  )
-  const compressionMethod = getPreferenceOrDefault(
-    WEB_SEARCH_PREFERENCE_KEYS.compressionMethod,
-    preferences.compressionMethod
-  )
-  const cutoffLimit = getPreferenceOrDefault(WEB_SEARCH_PREFERENCE_KEYS.cutoffLimit, preferences.cutoffLimit)
-  const cutoffUnit = getPreferenceOrDefault(WEB_SEARCH_PREFERENCE_KEYS.cutoffUnit, preferences.cutoffUnit)
-
-  return {
-    defaultSearchKeywordsProvider,
-    defaultFetchUrlsProvider,
-    providers: resolveWebSearchProviders(providerOverrides),
-    maxResults: Math.max(1, maxResults),
-    excludeDomains,
-    compressionConfig: {
-      method: compressionMethod,
-      cutoffLimit: normalizeWebSearchCutoffLimit(cutoffLimit),
-      cutoffUnit
-    }
-  }
-}
-
 export function getWebSearchProviderAvailability(
-  provider: RendererWebSearchProvider,
+  provider: ResolvedWebSearchProvider,
   capability: WebSearchCapability = 'searchKeywords'
 ): WebSearchConfigAvailability {
-  if (webSearchProviderRequiresApiKey(provider.id) && !provider.apiKey?.trim()) {
+  if (webSearchProviderRequiresApiKey(provider.id) && provider.apiKeys.length === 0) {
     return { available: false, reason: 'apiKey' }
   }
 
@@ -263,23 +124,18 @@ export function getWebSearchProviderAvailability(
   return { available: true }
 }
 
-function getPreferenceOrDefault<K extends PreferenceKeyType>(
-  key: K,
-  value: PreferenceDefaultScopeType[K] | null | undefined
-): PreferenceDefaultScopeType[K] {
-  const defaultValue = getDefaultValue(key)
-  if (value === undefined || (value === null && defaultValue !== null)) {
-    return defaultValue as PreferenceDefaultScopeType[K]
-  }
-
-  return value as PreferenceDefaultScopeType[K]
-}
-
-function normalizeWebSearchProviderOverride(override: WebSearchProviderOverride): WebSearchProviderOverride {
+function normalizeWebSearchProviderOverride(
+  providerId: WebSearchProviderId,
+  override: WebSearchProviderOverride
+): WebSearchProviderOverride {
   const normalizedOverride: WebSearchProviderOverride = {}
+  const preset = WEB_SEARCH_PROVIDER_PRESET_MAP[providerId]
 
   if (override.apiKeys !== undefined) {
-    normalizedOverride.apiKeys = override.apiKeys.map((key) => key.trim()).filter(Boolean)
+    const apiKeys = override.apiKeys.map((key) => key.trim()).filter(Boolean)
+    if (apiKeys.length > 0) {
+      normalizedOverride.apiKeys = apiKeys
+    }
   }
 
   if (override.capabilities !== undefined) {
@@ -290,24 +146,42 @@ function normalizeWebSearchProviderOverride(override: WebSearchProviderOverride)
         continue
       }
 
-      capabilities[feature as WebSearchCapability] = {
-        ...(capabilityOverride.apiHost !== undefined ? { apiHost: capabilityOverride.apiHost.trim() } : {})
+      const typedFeature = feature as WebSearchCapability
+      const presetCapability = findWebSearchCapability(preset, typedFeature)
+      if (!presetCapability) {
+        continue
+      }
+
+      const presetApiHost = presetCapability?.apiHost?.trim()
+      const apiHost = capabilityOverride.apiHost?.trim()
+
+      if (apiHost !== undefined && apiHost !== presetApiHost) {
+        capabilities[typedFeature] = { apiHost }
       }
     }
 
-    normalizedOverride.capabilities = capabilities
+    if (Object.keys(capabilities).length > 0) {
+      normalizedOverride.capabilities = capabilities
+    }
   }
 
   if (override.engines !== undefined) {
-    normalizedOverride.engines = override.engines
+    if (override.engines.length > 0) {
+      normalizedOverride.engines = override.engines
+    }
   }
 
   if (override.basicAuthUsername !== undefined) {
-    normalizedOverride.basicAuthUsername = override.basicAuthUsername.trim()
+    const basicAuthUsername = override.basicAuthUsername.trim()
+    if (basicAuthUsername) {
+      normalizedOverride.basicAuthUsername = basicAuthUsername
+    }
   }
 
-  if (override.basicAuthPassword !== undefined) {
-    normalizedOverride.basicAuthPassword = override.basicAuthPassword
+  if (normalizedOverride.basicAuthUsername && override.basicAuthPassword !== undefined) {
+    if (override.basicAuthPassword) {
+      normalizedOverride.basicAuthPassword = override.basicAuthPassword
+    }
   }
 
   return normalizedOverride

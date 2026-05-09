@@ -1,15 +1,10 @@
 import { InfoTooltip, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from '@cherrystudio/ui'
 import { getWebSearchProviderLogo, webSearchProviderRequiresApiKey } from '@renderer/config/webSearchProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import {
-  useDefaultFetchUrlsProvider,
-  useDefaultWebSearchProvider,
-  useWebSearchProviders,
-  useWebSearchSettings
-} from '@renderer/hooks/useWebSearchProviders'
-import type { RendererWebSearchProvider } from '@renderer/utils/webSearchProviders'
+import { useWebSearchProviders, useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { getWebSearchProviderAvailability } from '@renderer/utils/webSearchProviders'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
+import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 import { useNavigate } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
 import type { FC } from 'react'
@@ -19,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 function getUnavailableProviderDialogConfig(
-  provider: RendererWebSearchProvider,
+  provider: ResolvedWebSearchProvider,
   t: TFunction,
   missingReason: 'apiKey' | 'apiHost'
 ) {
@@ -36,10 +31,13 @@ function getUnavailableProviderDialogConfig(
 const BasicSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { providers } = useWebSearchProviders()
-  const { provider: defaultProvider, setDefaultProvider } = useDefaultWebSearchProvider()
-  const { provider: defaultFetchUrlsProvider, setDefaultProvider: setDefaultFetchUrlsProvider } =
-    useDefaultFetchUrlsProvider()
+  const {
+    defaultSearchKeywordsProvider: defaultProvider,
+    defaultFetchUrlsProvider,
+    providers,
+    setDefaultFetchUrlsProvider,
+    setDefaultSearchKeywordsProvider
+  } = useWebSearchProviders()
   const { maxResults, compressionConfig, setMaxResults } = useWebSearchSettings()
   const navigate = useNavigate()
   const [draftMaxResults, setDraftMaxResults] = useState(maxResults)
@@ -55,7 +53,7 @@ const BasicSettings: FC = () => {
     provider.capabilities.some((capability) => capability.feature === 'fetchUrls')
   )
 
-  const openProviderSettings = (provider: RendererWebSearchProvider, missingReason: 'apiKey' | 'apiHost') => {
+  const openProviderSettings = (provider: ResolvedWebSearchProvider, missingReason: 'apiKey' | 'apiHost') => {
     window.modal.confirm({
       ...getUnavailableProviderDialogConfig(provider, t, missingReason),
       cancelText: t('common.cancel'),
@@ -69,7 +67,7 @@ const BasicSettings: FC = () => {
   const updateSelectedWebSearchProvider = (
     providerId: string,
     capability: WebSearchCapability,
-    updateProvider: (provider: RendererWebSearchProvider) => Promise<void>
+    updateProvider: (provider: ResolvedWebSearchProvider) => Promise<void>
   ) => {
     const provider = providers.find((p) => p.id === providerId)
     if (!provider) {
@@ -85,7 +83,7 @@ const BasicSettings: FC = () => {
     void updateProvider(provider)
   }
 
-  const renderProviderLabel = (provider: RendererWebSearchProvider) => {
+  const renderProviderLabel = (provider: ResolvedWebSearchProvider) => {
     const logo = getWebSearchProviderLogo(provider.id)
     const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
 
@@ -114,7 +112,7 @@ const BasicSettings: FC = () => {
           <Select
             value={defaultProvider?.id}
             onValueChange={(providerId) =>
-              updateSelectedWebSearchProvider(providerId, 'searchKeywords', setDefaultProvider)
+              updateSelectedWebSearchProvider(providerId, 'searchKeywords', setDefaultSearchKeywordsProvider)
             }>
             <SelectTrigger style={{ width: '200px' }}>
               <SelectValue placeholder={t('settings.tool.websearch.search_provider_placeholder')} />

@@ -6,12 +6,9 @@ import type {
 import { describe, expect, it } from 'vitest'
 
 import {
-  buildRendererWebSearchState,
-  buildWebSearchProviderOverrides,
   getWebSearchProviderAvailability,
   resolveWebSearchProviders,
-  updateWebSearchProviderOverride,
-  type WebSearchConfigAvailability
+  updateWebSearchProviderOverride
 } from '../webSearchProviders'
 
 type AvailabilityCase = {
@@ -19,7 +16,7 @@ type AvailabilityCase = {
   overrides: WebSearchProviderOverrides
   providerId: WebSearchProviderId
   capability?: WebSearchCapability
-  expected: WebSearchConfigAvailability
+  expected: ReturnType<typeof getWebSearchProviderAvailability>
 }
 
 describe('webSearchProviders', () => {
@@ -41,8 +38,8 @@ describe('webSearchProviders', () => {
     expect(providers.find((provider) => provider.id === 'tavily')).toEqual(
       expect.objectContaining({
         id: 'tavily',
-        apiKey: 'key-1,key-2',
-        apiHost: 'https://custom.tavily.dev',
+        apiKeys: ['key-1', 'key-2'],
+        capabilities: [{ feature: 'searchKeywords', apiHost: 'https://custom.tavily.dev' }],
         engines: ['web'],
         basicAuthUsername: 'user',
         basicAuthPassword: 'pass'
@@ -64,33 +61,6 @@ describe('webSearchProviders', () => {
     )
   })
 
-  it('builds preference overrides from renderer providers', () => {
-    const providers = resolveWebSearchProviders({})
-    const tavily = providers.find((provider) => provider.id === 'tavily')!
-    const overrides = buildWebSearchProviderOverrides([
-      {
-        ...tavily,
-        apiKey: 'key-1, key-2',
-        capabilities: [{ feature: 'searchKeywords', apiHost: ' https://custom.tavily.dev ' }],
-        engines: ['web'],
-        basicAuthUsername: ' user ',
-        basicAuthPassword: 'pass'
-      }
-    ])
-
-    expect(overrides.tavily).toEqual({
-      apiKeys: ['key-1', 'key-2'],
-      capabilities: {
-        searchKeywords: {
-          apiHost: 'https://custom.tavily.dev'
-        }
-      },
-      engines: ['web'],
-      basicAuthUsername: 'user',
-      basicAuthPassword: 'pass'
-    })
-  })
-
   it('updates a single provider override without store state', () => {
     const overrides = updateWebSearchProviderOverride(
       {
@@ -100,7 +70,7 @@ describe('webSearchProviders', () => {
       },
       'tavily',
       {
-        apiKey: 'key-2, key-3',
+        apiKeys: ['key-2', 'key-3'],
         capabilities: [{ feature: 'searchKeywords', apiHost: 'https://custom.tavily.dev' }]
       }
     )
@@ -115,29 +85,7 @@ describe('webSearchProviders', () => {
     })
   })
 
-  it('keeps explicit empty auth fields when building provider overrides', () => {
-    const providers = resolveWebSearchProviders({})
-    const tavily = providers.find((provider) => provider.id === 'tavily')!
-    const overrides = buildWebSearchProviderOverrides([
-      {
-        ...tavily,
-        apiKey: '',
-        capabilities: [],
-        engines: undefined,
-        basicAuthUsername: '',
-        basicAuthPassword: ''
-      }
-    ])
-
-    expect(overrides).toEqual({
-      tavily: {
-        basicAuthUsername: '',
-        basicAuthPassword: ''
-      }
-    })
-  })
-
-  it('keeps provider key when a capability host is explicitly cleared to empty', () => {
+  it('keeps a capability host override when explicitly cleared away from preset default', () => {
     const overrides = updateWebSearchProviderOverride(
       {
         tavily: {
@@ -165,48 +113,62 @@ describe('webSearchProviders', () => {
     })
   })
 
-  it('builds renderer websearch state from preference snapshot', () => {
-    const state = buildRendererWebSearchState({
-      defaultSearchKeywordsProvider: 'bocha',
-      defaultFetchUrlsProvider: 'fetch',
-      excludeDomains: ['example.com'],
-      maxResults: 12,
-      providerOverrides: {
+  it('removes provider override when updates match preset defaults', () => {
+    const overrides = updateWebSearchProviderOverride(
+      {
         tavily: {
-          apiKeys: ['key-1']
+          apiKeys: ['key-1'],
+          capabilities: {
+            searchKeywords: {
+              apiHost: 'https://custom.tavily.dev'
+            }
+          },
+          engines: ['web'],
+          basicAuthUsername: 'user',
+          basicAuthPassword: 'pass'
         }
       },
-      compressionMethod: 'cutoff',
-      cutoffLimit: 2000,
-      cutoffUnit: 'token'
-    })
-
-    expect(state.defaultSearchKeywordsProvider).toBe('bocha')
-    expect(state.defaultFetchUrlsProvider).toBe('fetch')
-    expect(state.maxResults).toBe(12)
-    expect(state.excludeDomains).toEqual(['example.com'])
-    expect(state.compressionConfig).toEqual(
-      expect.objectContaining({
-        method: 'cutoff',
-        cutoffLimit: 2000,
-        cutoffUnit: 'token'
-      })
+      'tavily',
+      {
+        apiKeys: [],
+        capabilities: [{ feature: 'searchKeywords', apiHost: 'https://api.tavily.com' }],
+        engines: [],
+        basicAuthUsername: '',
+        basicAuthPassword: ''
+      }
     )
+
+    expect(overrides).toEqual({})
   })
 
-  it('defaults stale empty cutoff limit when building renderer state', () => {
-    const state = buildRendererWebSearchState({
-      defaultSearchKeywordsProvider: null,
-      defaultFetchUrlsProvider: 'fetch',
-      excludeDomains: [],
-      maxResults: 10,
-      providerOverrides: {},
-      compressionMethod: 'cutoff',
-      cutoffLimit: null as any,
-      cutoffUnit: 'char'
-    })
+  it('drops orphan basic auth password when username is cleared', () => {
+    const overrides = updateWebSearchProviderOverride(
+      {
+        searxng: {
+          capabilities: {
+            searchKeywords: {
+              apiHost: 'https://search.example.com'
+            }
+          },
+          basicAuthUsername: 'user',
+          basicAuthPassword: 'pass'
+        }
+      },
+      'searxng',
+      {
+        basicAuthUsername: ''
+      }
+    )
 
-    expect(state.compressionConfig.cutoffLimit).toBe(2000)
+    expect(overrides).toEqual({
+      searxng: {
+        capabilities: {
+          searchKeywords: {
+            apiHost: 'https://search.example.com'
+          }
+        }
+      }
+    })
   })
 
   const availabilityCases: AvailabilityCase[] = [

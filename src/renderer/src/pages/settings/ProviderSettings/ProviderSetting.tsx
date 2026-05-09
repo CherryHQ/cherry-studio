@@ -23,7 +23,7 @@ import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useUpdateWebSearchProviderOverride } from '@renderer/hooks/useWebSearchProviders'
+import { useSyncZhipuWebSearchApiKeys } from '@renderer/hooks/useWebSearch'
 import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
@@ -131,7 +131,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const hideApiInput = noAPIInputProviders.some((id) => id === provider.id)
   const noAPIKeyInputProviders = ['copilot', 'vertexai'] as const satisfies SystemProviderId[]
   const hideApiKeyInput = noAPIKeyInputProviders.some((id) => id === provider.id)
-  const updateWebSearchProviderOverride = useUpdateWebSearchProviderOverride()
+  const syncZhipuWebSearchApiKeys = useSyncZhipuWebSearchApiKeys()
 
   const providerConfig = PROVIDER_URLS[provider.id]
   const officialWebsite = providerConfig?.websites?.official
@@ -147,30 +147,26 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
     checking: false
   })
 
-  const updateWebSearchProviderKey = useCallback(
-    ({ apiKey }: { apiKey: string }) => {
-      if (provider.id === 'zhipu') {
-        void updateWebSearchProviderOverride('zhipu', { apiKey: apiKey.split(',')[0] }).catch((error) => {
-          logger.error('Failed to update Zhipu web-search provider preference override', { error })
-          window.toast.error(t('error.diagnosis.unknown'))
-        })
-      }
-    },
-    [provider.id, t, updateWebSearchProviderOverride]
-  )
-
   // Store callbacks in ref to avoid recreating debounce function when dependencies change
-  const callbacks = { updateProvider, updateWebSearchProviderKey, isOnboarding, providerEnabled: provider.enabled }
+  const callbacks = {
+    updateProvider,
+    providerId,
+    syncZhipuWebSearchApiKeys,
+    isOnboarding,
+    providerEnabled: provider.enabled
+  }
   const callbacksRef = useRef(callbacks)
   callbacksRef.current = callbacks
 
   const debouncedUpdateApiKey = useMemo(
     () =>
       debounce((value: string) => {
-        const { updateProvider, updateWebSearchProviderKey, isOnboarding, providerEnabled } = callbacksRef.current
+        const { updateProvider, providerId, syncZhipuWebSearchApiKeys, isOnboarding, providerEnabled } =
+          callbacksRef.current
         const formattedKey = formatApiKeys(value)
         updateProvider({ apiKey: formattedKey })
-        updateWebSearchProviderKey({ apiKey: formattedKey })
+        // Zhipu web search shares the LLM provider API key; keep its web-search override in sync.
+        syncZhipuWebSearchApiKeys(providerId, formattedKey)
         // Auto-enable provider when apiKey is updated in onboarding mode
         if (isOnboarding && formattedKey && !providerEnabled) {
           updateProvider({ enabled: true })
@@ -263,7 +259,10 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
 
   const openApiKeyList = async () => {
     if (localApiKey !== provider.apiKey) {
-      updateProvider({ apiKey: formatApiKeys(localApiKey) })
+      const formattedKey = formatApiKeys(localApiKey)
+      updateProvider({ apiKey: formattedKey })
+      // Zhipu web search shares the LLM provider API key; keep its web-search override in sync.
+      syncZhipuWebSearchApiKeys(providerId, formattedKey)
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
 

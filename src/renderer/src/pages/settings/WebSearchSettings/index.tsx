@@ -1,11 +1,7 @@
 import { Badge, MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getWebSearchProviderLogo } from '@renderer/config/webSearchProviders'
-import {
-  useDefaultFetchUrlsProvider,
-  useDefaultWebSearchProvider,
-  useWebSearchProviders
-} from '@renderer/hooks/useWebSearchProviders'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import type { FC } from 'react'
@@ -22,9 +18,11 @@ import {
 
 const WebSearchSettings: FC = () => {
   const { t } = useTranslation()
-  const { providers } = useWebSearchProviders()
-  const { provider: defaultProvider } = useDefaultWebSearchProvider()
-  const { provider: defaultFetchUrlsProvider } = useDefaultFetchUrlsProvider()
+  const {
+    defaultSearchKeywordsProvider: defaultProvider,
+    defaultFetchUrlsProvider,
+    providers
+  } = useWebSearchProviders()
   const navigate = useNavigate()
   const location = useLocation()
 

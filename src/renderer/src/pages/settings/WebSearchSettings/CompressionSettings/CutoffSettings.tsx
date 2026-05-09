@@ -1,5 +1,5 @@
 import { InfoTooltip, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
+import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
 import { useTranslation } from 'react-i18next'
