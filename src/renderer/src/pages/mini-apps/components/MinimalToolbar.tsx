@@ -7,7 +7,8 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isDev } from '@renderer/config/constant'
@@ -18,7 +19,6 @@ import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('MinimalToolbar')
 
@@ -233,44 +233,66 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   }, [currentUrl, app.url])
 
   return (
-    <ToolbarContainer>
-      <LeftSection>
-        <ButtonGroup>
+    <div className="flex h-8.75 shrink-0 items-center justify-between bg-background px-3">
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-0.5">
           <Tooltip content={t('miniApp.popup.goBack')} placement="bottom">
-            <ToolbarButton
+            <Button
+              variant="ghost"
+              size="icon-sm"
               onClick={handleGoBack}
-              $disabled={!canGoBack}
+              disabled={!canGoBack}
               aria-label={t('miniApp.popup.goBack')}
-              aria-disabled={!canGoBack}>
+              className={cn(
+                'text-xs transition-all duration-200',
+                !canGoBack && 'cursor-default text-foreground-muted',
+                canGoBack && 'text-foreground-secondary hover:bg-accent hover:text-foreground active:scale-95'
+              )}>
               <ArrowLeftOutlined />
-            </ToolbarButton>
+            </Button>
           </Tooltip>
 
           <Tooltip content={t('miniApp.popup.goForward')} placement="bottom">
-            <ToolbarButton
+            <Button
+              variant="ghost"
+              size="icon-sm"
               onClick={handleGoForward}
-              $disabled={!canGoForward}
+              disabled={!canGoForward}
               aria-label={t('miniApp.popup.goForward')}
-              aria-disabled={!canGoForward}>
+              className={cn(
+                'text-xs transition-all duration-200',
+                !canGoForward && 'cursor-default text-foreground-muted',
+                canGoForward && 'text-foreground-secondary hover:bg-accent hover:text-foreground active:scale-95'
+              )}>
               <ArrowRightOutlined />
-            </ToolbarButton>
+            </Button>
           </Tooltip>
 
           <Tooltip content={t('miniApp.popup.refresh')} placement="bottom">
-            <ToolbarButton onClick={onReload} aria-label={t('miniApp.popup.refresh')}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onReload}
+              aria-label={t('miniApp.popup.refresh')}
+              className="text-foreground-secondary text-xs transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-95">
               <ReloadOutlined />
-            </ToolbarButton>
+            </Button>
           </Tooltip>
-        </ButtonGroup>
-      </LeftSection>
+        </div>
+      </div>
 
-      <RightSection>
-        <ButtonGroup>
+      <div className="flex items-center">
+        <div className="flex items-center gap-0.5">
           {canOpenExternalLink && (
             <Tooltip content={t('miniApp.popup.openExternal')} placement="bottom">
-              <ToolbarButton onClick={handleOpenLink} aria-label={t('miniApp.popup.openExternal')}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleOpenLink}
+                aria-label={t('miniApp.popup.openExternal')}
+                className="text-foreground-secondary text-xs transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-95">
                 <ExportOutlined />
-              </ToolbarButton>
+              </Button>
             </Tooltip>
           )}
 
@@ -278,13 +300,20 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
             <Tooltip
               content={isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')}
               placement="bottom">
-              <ToolbarButton
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 onClick={handleTogglePin}
-                $active={isPinned}
                 aria-label={isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')}
-                aria-pressed={isPinned}>
+                aria-pressed={isPinned}
+                className={cn(
+                  'text-xs transition-all duration-200 active:scale-95',
+                  isPinned
+                    ? 'text-primary hover:text-primary'
+                    : 'text-foreground-secondary hover:bg-accent hover:text-foreground'
+                )}>
                 <PushpinOutlined />
-              </ToolbarButton>
+              </Button>
             </Tooltip>
           )}
 
@@ -293,84 +322,40 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
               openLinkExternal ? t('miniApp.popup.open_link_external_on') : t('miniApp.popup.open_link_external_off')
             }
             placement="bottom">
-            <ToolbarButton
+            <Button
+              variant="ghost"
+              size="icon-sm"
               onClick={handleToggleOpenExternal}
-              $active={openLinkExternal}
               aria-label={
                 openLinkExternal ? t('miniApp.popup.open_link_external_on') : t('miniApp.popup.open_link_external_off')
               }
-              aria-pressed={openLinkExternal}>
+              aria-pressed={openLinkExternal}
+              className={cn(
+                'text-xs transition-all duration-200 active:scale-95',
+                openLinkExternal
+                  ? 'text-primary hover:text-primary'
+                  : 'text-foreground-secondary hover:bg-accent hover:text-foreground'
+              )}>
               <LinkOutlined />
-            </ToolbarButton>
+            </Button>
           </Tooltip>
 
           {isDev && (
             <Tooltip content={t('miniApp.popup.devtools')} placement="bottom">
-              <ToolbarButton onClick={onOpenDevTools} aria-label={t('miniApp.popup.devtools')}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onOpenDevTools}
+                aria-label={t('miniApp.popup.devtools')}
+                className="text-foreground-secondary text-xs transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-95">
                 <CodeOutlined />
-              </ToolbarButton>
+              </Button>
             </Tooltip>
           )}
-        </ButtonGroup>
-      </RightSection>
-    </ToolbarContainer>
+        </div>
+      </div>
+    </div>
   )
 }
-
-const ToolbarContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 35px;
-  padding: 0 12px;
-  background-color: var(--color-background);
-  flex-shrink: 0;
-`
-
-const LeftSection = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
-
-const RightSection = styled.div`
-  display: flex;
-  align-items: center;
-`
-
-const ButtonGroup = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 2px;
-`
-
-const ToolbarButton = styled.button<{
-  $disabled?: boolean
-  $active?: boolean
-}>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: ${({ $disabled, $active }) =>
-    $disabled ? 'var(--color-text-3)' : $active ? 'var(--color-primary)' : 'var(--color-text-2)'};
-  cursor: ${({ $disabled }) => ($disabled ? 'default' : 'pointer')};
-  transition: all 0.2s ease;
-  font-size: 12px;
-
-  &:hover {
-    background: ${({ $disabled }) => ($disabled ? 'transparent' : 'var(--color-background-soft)')};
-    color: ${({ $disabled, $active }) =>
-      $disabled ? 'var(--color-text-3)' : $active ? 'var(--color-primary)' : 'var(--color-text-1)'};
-  }
-
-  &:active {
-    transform: ${({ $disabled }) => ($disabled ? 'none' : 'scale(0.95)')};
-  }
-`
 
 export default MinimalToolbar

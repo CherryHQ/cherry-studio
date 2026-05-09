@@ -1,8 +1,7 @@
-import { Switch, Tooltip } from '@cherrystudio/ui'
+import { Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
-import { Slider } from 'antd'
 import { Undo2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
@@ -70,11 +69,13 @@ const MiniAppDisplaySettings: FC = () => {
           </Tooltip>
           <Slider
             className="flex-1"
+            size="sm"
             min={1}
             max={10}
-            value={maxKeepAlive}
-            onChange={handleCacheChange}
-            tooltip={{ formatter: (value) => `${value}` }}
+            value={[maxKeepAlive]}
+            onValueChange={([v]) => handleCacheChange(v)}
+            showValueLabel
+            formatValueLabel={(value) => `${value}`}
           />
           <span className="w-6 text-right text-[10px] text-muted-foreground/60">{maxKeepAlive}</span>
         </div>

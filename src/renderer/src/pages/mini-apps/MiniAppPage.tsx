@@ -11,7 +11,6 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
-import styled from 'styled-components'
 
 // Tab mode page shell — relies on the global MiniAppTabsPool instead of creating WebViews directly
 import MinimalToolbar from './components/MinimalToolbar'
@@ -122,11 +121,11 @@ const MiniAppPage: FC = () => {
   // While loading, show a loading indicator instead of returning null
   if (isLoading) {
     return (
-      <ShellContainer>
-        <LoadingMask>
-          <BeatLoader color="var(--color-text-2)" size={8} />
-        </LoadingMask>
-      </ShellContainer>
+      <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
+        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-background">
+          <BeatLoader color="var(--color-foreground-secondary)" size={8} />
+        </div>
+      </div>
     )
   }
 
@@ -134,11 +133,13 @@ const MiniAppPage: FC = () => {
   if (error) {
     const isNotFound = error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
     return (
-      <ShellContainer>
-        <LoadingMask>
-          <ErrorText>{t(isNotFound ? 'miniApp.error.not_found' : 'miniApp.error.load_failed')}</ErrorText>
-        </LoadingMask>
-      </ShellContainer>
+      <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
+        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-background">
+          <span className="text-foreground-secondary text-sm">
+            {t(isNotFound ? 'miniApp.error.not_found' : 'miniApp.error.load_failed')}
+          </span>
+        </div>
+      </div>
     )
   }
 
@@ -146,11 +147,11 @@ const MiniAppPage: FC = () => {
   // instead of redirecting away, so the user sees what happened.
   if (!app) {
     return (
-      <ShellContainer>
-        <LoadingMask>
-          <ErrorText>{t('miniApp.error.not_found')}</ErrorText>
-        </LoadingMask>
-      </ShellContainer>
+      <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
+        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-background">
+          <span className="text-sm text-text-2">{t('miniApp.error.not_found')}</span>
+        </div>
+      </div>
     )
   }
 
@@ -169,8 +170,8 @@ const MiniAppPage: FC = () => {
   }
 
   return (
-    <ShellContainer>
-      <ToolbarWrapper>
+    <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
+      <div className="shrink-0">
         <MinimalToolbar
           app={app}
           webviewRef={webviewRef}
@@ -179,49 +180,15 @@ const MiniAppPage: FC = () => {
           onReload={handleReload}
           onOpenDevTools={handleOpenDevTools}
         />
-      </ToolbarWrapper>
+      </div>
       <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.appId} />
       {!isReady && (
-        <LoadingMask>
+        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-background">
           <LogoAvatar logo={app.logo} size={60} />
-          <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
-        </LoadingMask>
+          <BeatLoader color="var(--color-foreground-secondary)" size={8} style={{ marginTop: 12 }} />
+        </div>
       )}
-    </ShellContainer>
+    </div>
   )
 }
-const ShellContainer = styled.div`
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  width: 100%;
-  z-index: 3; /* Above the webviews in the pool */
-  pointer-events: none; /* Let lower webviews be interactive by default */
-  > * {
-    pointer-events: auto;
-  }
-`
-
-const ToolbarWrapper = styled.div`
-  flex-shrink: 0;
-`
-
-const LoadingMask = styled.div`
-  position: absolute;
-  inset: 35px 0 0 0; /* Avoid toolbar height */
-  display: flex;
-  flex-direction: column; /* Vertical stacking */
-  align-items: center;
-  justify-content: center;
-  background: var(--color-background);
-  z-index: 4;
-  gap: 12px;
-`
-
-const ErrorText = styled.div`
-  color: var(--color-text-2);
-  font-size: 14px;
-`
-
 export default MiniAppPage
