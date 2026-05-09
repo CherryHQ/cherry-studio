@@ -30,6 +30,7 @@ import type { CreateDirectoryOptions, FileStat } from 'webdav'
 import { getDataPath } from '../utils'
 import { isPathInside, resolveAndValidatePath } from '../utils/file'
 import S3Storage from './S3Storage'
+import selectionService from './SelectionService'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
 
@@ -641,6 +642,7 @@ class BackupManager {
 
       logger.info('[restoreDirect] Restore staged successfully, relaunching app to apply...')
 
+      selectionService?.quit()
       app.relaunch()
       app.exit(0)
     } catch (error) {
