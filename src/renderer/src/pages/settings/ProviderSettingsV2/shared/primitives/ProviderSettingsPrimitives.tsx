@@ -232,8 +232,7 @@ export const modelListClasses = {
   chipLabel: 'min-w-0 truncate text-[length:var(--font-size-chip-label)] leading-[var(--line-height-caption)]',
   chipCount:
     'shrink-0 text-[length:var(--font-size-chip-count)] leading-[var(--line-height-body-xs)] opacity-70 tabular-nums',
-  subsectionRow: 'flex items-center gap-2 px-3 py-[4px]',
-  subsectionRule: 'h-px flex-1 bg-foreground/[0.08]',
+  subsectionRow: 'flex items-center gap-2 py-[4px]',
   subsectionTitleEnabled:
     'font-medium text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground/75',
   subsectionCountEnabled:
@@ -245,7 +244,7 @@ export const modelListClasses = {
   emptyState:
     'flex min-h-40 items-center justify-center rounded-2xl border border-(--color-border) border-dashed bg-[var(--color-surface-fg-sunken)] px-4 text-center text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] text-(--color-muted-foreground)',
   listScroller:
-    '-mx-1 min-h-0 min-w-0 w-full flex-1 overflow-x-hidden overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:bg-border/20 [&::-webkit-scrollbar]:w-[2px]',
+    'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:bg-border/20 [&::-webkit-scrollbar]:w-[2px]',
   /**
    * `ModelServicePage` `ModelManagementPanel` — grouped catalog inside manage drawer (flat headers, no collapse).
    */
@@ -274,15 +273,19 @@ export const modelListClasses = {
   manageDrawerBulkGhostEnableHover: 'hover:!text-primary',
   /** Disable-all hover — destructive (design draft). */
   manageDrawerBulkGhostDisableHover: 'hover:!text-destructive',
-  groupShell: 'min-w-0 w-full group [&_.ant-collapse-content-box]:!p-0',
-  groupHeaderLabel: 'flex min-w-0 flex-1 items-center gap-2 overflow-hidden',
+  /**
+   * Provider-grouped card (design: bordered shell with collapsible header — provider name + chevron at end).
+   * Replaces the antd-coupled wrapper; rows render inside the same card on expand.
+   */
+  groupCard:
+    'min-w-0 w-full rounded-[length:var(--radius-lg)] border border-[color:var(--color-border-fg-muted)] bg-transparent px-3 py-2',
+  groupHeader:
+    'flex w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
   groupTitle:
-    'min-w-0 flex-shrink truncate text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground/78 font-[weight:var(--font-weight-medium)]',
-  groupHeaderRule: 'h-px flex-1 bg-foreground/[0.06]',
-  groupCount:
-    'shrink-0 text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground/58 tabular-nums',
-  groupActionButton:
-    'h-6 min-h-0 rounded-md px-1.5 py-0 text-muted-foreground/65 opacity-0 shadow-none transition-all hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover:opacity-100',
+    'min-w-0 flex-1 truncate text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-muted-foreground font-[weight:var(--font-weight-normal)]',
+  groupChevron: 'size-4 shrink-0 text-muted-foreground/65 transition-transform duration-150',
+  groupChevronOpen: 'rotate-90',
+  groupBody: 'mt-1.5 flex flex-col gap-0.5',
   row: 'group flex cursor-pointer items-start gap-3 rounded-xl px-3 py-[10px] text-foreground leading-none transition-colors hover:bg-[var(--color-surface-fg-subtle)]',
   rowMain: 'min-w-0 flex-1 items-start gap-3',
   rowAvatar: 'h-[26px] w-[26px] shrink-0 rounded-lg',

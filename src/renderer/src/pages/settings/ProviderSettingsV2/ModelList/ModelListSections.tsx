@@ -60,7 +60,6 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
           <div className="space-y-2.5">
             <div className={modelListClasses.subsectionRow}>
               <p className={modelListClasses.subsectionTitleEnabled}>{t('settings.models.check.enabled')}</p>
-              <span className={modelListClasses.subsectionRule} />
               <span className={modelListClasses.subsectionCountEnabled}>{displayEnabledModelCount}</span>
             </div>
             <div className="flex flex-col gap-3">
@@ -83,7 +82,6 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
           <div className="space-y-2.5">
             <div className={modelListClasses.subsectionRow}>
               <p className={modelListClasses.subsectionTitleDisabled}>{t('settings.models.check.disabled')}</p>
-              <span className={modelListClasses.subsectionRule} />
               <span className={modelListClasses.subsectionCountDisabled}>{displayDisabledModelCount}</span>
             </div>
             <div className="flex flex-col gap-3">

@@ -1,7 +1,7 @@
-import { Flex } from '@cherrystudio/ui'
-import CustomCollapse from '@renderer/components/CustomCollapse'
+import { cn } from '@renderer/utils'
 import type { Model } from '@shared/data/types/model'
-import React, { memo } from 'react'
+import { ChevronRight } from 'lucide-react'
+import React, { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
@@ -29,32 +29,21 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   onToggleModel
 }) => {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(defaultOpen)
   const groupLabel = getModelGroupLabel(groupName, t)
 
+  const toggleOpen = useCallback(() => {
+    setOpen((prev) => !prev)
+  }, [])
+
   return (
-    <div className={modelListClasses.groupShell}>
-      <CustomCollapse
-        defaultActiveKey={defaultOpen ? ['1'] : []}
-        label={
-          <Flex className={modelListClasses.groupHeaderLabel}>
-            <span className={modelListClasses.groupTitle}>{groupLabel}</span>
-            <span className={modelListClasses.groupHeaderRule} />
-            <span className={modelListClasses.groupCount}>{items.length}</span>
-          </Flex>
-        }
-        extra={null}
-        styles={{
-          header: {
-            padding:
-              'var(--space-stack-2xs) calc(var(--padding-x-list-group) - 2px) var(--space-stack-2xs) var(--padding-x-list-group)',
-            background: 'transparent'
-          }
-        }}
-        style={{
-          border: 'none',
-          background: 'transparent'
-        }}>
-        <div className="flex w-full min-w-0 flex-col gap-1 px-3 pt-[2px] pb-[2px]">
+    <div className={modelListClasses.groupCard}>
+      <button type="button" className={modelListClasses.groupHeader} aria-expanded={open} onClick={toggleOpen}>
+        <span className={modelListClasses.groupTitle}>{groupLabel}</span>
+        <ChevronRight className={cn(modelListClasses.groupChevron, open && modelListClasses.groupChevronOpen)} />
+      </button>
+      {open && (
+        <div className={modelListClasses.groupBody}>
           {items.map(({ model }) => (
             <ModelListItem
               key={model.id}
@@ -65,7 +54,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
             />
           ))}
         </div>
-      </CustomCollapse>
+      )}
     </div>
   )
 }
