@@ -170,6 +170,53 @@ describe('TagService', () => {
     })
   })
 
+  describe('getTagsByEntities', () => {
+    it('should return full Tag objects keyed by entityId, alphabetical within each group', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 1000, updatedAt: 1000 },
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1001, updatedAt: 1001 },
+        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_3, createdAt: 2000, updatedAt: 2000 }
+      ])
+
+      const result = await tagService.getTagsByEntities('assistant', [ASSISTANT_1, ASSISTANT_2, TOPIC_1])
+
+      expect(result.get(ASSISTANT_1)?.map((t) => t.name)).toEqual(['personal', 'work'])
+      expect(result.get(ASSISTANT_1)?.[0]).toMatchObject({ id: TAG_2, color: null })
+      expect(result.get(ASSISTANT_2)?.map((t) => t.name)).toEqual(['coding'])
+      expect(result.get(TOPIC_1)).toEqual([])
+    })
+
+    it('should ignore bindings of other entity types', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 },
+        { entityType: 'topic', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 2, updatedAt: 2 }
+      ])
+
+      const result = await tagService.getTagsByEntities('assistant', [ASSISTANT_1])
+
+      expect(result.get(ASSISTANT_1)?.map((t) => t.id)).toEqual([TAG_1])
+    })
+
+    it('should return an empty map for empty input without querying entity rows', async () => {
+      const result = await tagService.getTagsByEntities('assistant', [])
+      expect(result.size).toBe(0)
+    })
+
+    it('should observe writes from a passed-in transaction', async () => {
+      await seedTags()
+
+      await dbh.db.transaction(async (tx) => {
+        await tx
+          .insert(entityTagTable)
+          .values({ entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 })
+        const result = await tagService.getTagsByEntities('assistant', [ASSISTANT_1], tx)
+        expect(result.get(ASSISTANT_1)?.map((t) => t.id)).toEqual([TAG_1])
+      })
+    })
+  })
+
   describe('syncEntityTags', () => {
     it('should diff associations and preserve createdAt for unchanged tags', async () => {
       await seedTags()
