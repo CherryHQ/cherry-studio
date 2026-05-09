@@ -1,28 +1,49 @@
-import { LoadingOutlined } from '@ant-design/icons'
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { translateText } from '@renderer/services/TranslateService'
-import type { ModalProps } from 'antd'
-import { Modal } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
-import type { TextAreaProps } from 'antd/lib/input'
-import type { TextAreaRef } from 'antd/lib/input/TextArea'
-import { Languages } from 'lucide-react'
+import { Languages, Loader2 } from 'lucide-react'
+import type { ComponentProps, CSSProperties, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { TopView } from '../TopView'
+import { useTopViewClose } from './useTopViewClose'
 
 const logger = loggerService.withContext('TextEditPopup')
 
+interface PopupButtonProps {
+  className?: string
+  disabled?: boolean
+  style?: CSSProperties
+}
+
+interface PopupProps {
+  afterClose?: () => void
+  cancelButtonProps?: PopupButtonProps
+  cancelText?: ReactNode
+  className?: string
+  closable?: boolean
+  keyboard?: boolean
+  maskClosable?: boolean
+  okButtonProps?: PopupButtonProps
+  okText?: ReactNode
+  rootClassName?: string
+  style?: CSSProperties
+  title?: ReactNode
+  width?: number | string
+}
+
+type TextEditTextareaProps = ComponentProps<typeof Textarea.Input>
+
 interface ShowParams {
-  text: string
-  textareaProps?: TextAreaProps
-  modalProps?: ModalProps
-  showTranslate?: boolean
   children?: (props: { onOk?: () => void; onCancel?: () => void }) => React.ReactNode
+  modalProps?: PopupProps
+  showTranslate?: boolean
+  text: string
+  textareaProps?: TextEditTextareaProps
 }
 
 interface Props extends ShowParams {
@@ -43,10 +64,19 @@ const PopupContainer: React.FC<Props> = ({
   const { getLanguageByLangcode } = useTranslate()
   const [textValue, setTextValue] = useState(text)
   const [isTranslating, setIsTranslating] = useState(false)
-  const textareaRef = useRef<TextAreaRef>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [targetLanguage] = usePreference('feature.translate.chat.target_language')
   const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const isMounted = useRef(true)
+  const {
+    className: textareaClassName,
+    onChange: handleTextareaChange,
+    onInput: handleTextareaInput,
+    rows = 2,
+    style: textareaStyle,
+    ...restTextareaProps
+  } = textareaProps ?? {}
+  const close = useTopViewClose({ afterClose: modalProps?.afterClose, resolve, setOpen, topViewKey: TopViewKey })
 
   useEffect(() => {
     return () => {
@@ -54,21 +84,20 @@ const PopupContainer: React.FC<Props> = ({
     }
   }, [])
 
+  const settle = (result: string | null) => {
+    close(result)
+  }
+
   const onOk = () => {
-    setOpen(false)
-    resolve(textValue)
+    settle(textValue)
   }
 
   const onCancel = () => {
-    setOpen(false)
-  }
-
-  const onClose = () => {
-    resolve(null)
+    settle(null)
   }
 
   const resizeTextArea = () => {
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
+    const textArea = textareaRef.current
     const maxHeight = innerHeight * 0.6
     if (textArea) {
       textArea.style.height = 'auto'
@@ -81,16 +110,20 @@ const PopupContainer: React.FC<Props> = ({
     return () => clearTimeout(timer)
   }, [])
 
-  const handleAfterOpenChange = (visible: boolean) => {
-    if (visible) {
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
+  useEffect(() => {
+    if (!open) return
+
+    const timer = window.setTimeout(() => {
+      const textArea = textareaRef.current
       if (textArea) {
         textArea.focus()
         const length = textArea.value.length
         textArea.setSelectionRange(length, length)
       }
-    }
-  }
+    }, 200)
+
+    return () => window.clearTimeout(timer)
+  }, [open])
 
   const handleTranslate = async () => {
     if (!textValue.trim() || isTranslating) return
@@ -125,79 +158,89 @@ const PopupContainer: React.FC<Props> = ({
 
   TextEditPopup.hide = onCancel
 
+  const title = modalProps?.title ?? t('common.edit')
+  const width = modalProps?.width ?? '60vw'
+  const contentStyle: CSSProperties = {
+    maxHeight: '70vh',
+    ...modalProps?.style,
+    width
+  }
+
   return (
-    <Modal
-      title={t('common.edit')}
-      width="60vw"
-      style={{ maxHeight: '70vh' }}
-      transitionName="animation-move-down"
-      okText={t('common.save')}
-      {...modalProps}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      afterOpenChange={handleAfterOpenChange}
-      centered>
-      <TextAreaContainer>
-        <TextArea
-          ref={textareaRef}
-          rows={2}
-          autoFocus
-          spellCheck={false}
-          {...textareaProps}
-          value={textValue}
-          onInput={resizeTextArea}
-          onChange={(e) => setTextValue(e.target.value)}
-        />
-        {showTranslate && (
-          <TranslateButton
-            onClick={handleTranslate}
-            aria-label={t('common.translate_text')}
-            disabled={isTranslating || !textValue.trim()}>
-            {isTranslating ? <LoadingOutlined spin /> : <Languages size={16} />}
-          </TranslateButton>
-        )}
-      </TextAreaContainer>
-      <ChildrenContainer>{children && children({ onOk, onCancel })}</ChildrenContainer>
-    </Modal>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
+      <DialogContent
+        showCloseButton={modalProps?.closable !== false}
+        className={cn('max-h-[70vh] overflow-y-auto sm:max-w-none', modalProps?.rootClassName, modalProps?.className)}
+        style={contentStyle}
+        onEscapeKeyDown={(event) => {
+          if (modalProps?.keyboard === false) {
+            event.preventDefault()
+          }
+        }}
+        onPointerDownOutside={(event) => {
+          if (modalProps?.maskClosable === false) {
+            event.preventDefault()
+          }
+        }}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="relative">
+          <Textarea.Input
+            {...restTextareaProps}
+            ref={textareaRef}
+            rows={rows}
+            autoFocus
+            spellCheck={false}
+            value={textValue}
+            onInput={(event) => {
+              handleTextareaInput?.(event)
+              resizeTextArea()
+            }}
+            onChange={(event) => {
+              handleTextareaChange?.(event)
+              setTextValue(event.target.value)
+            }}
+            style={textareaStyle}
+            className={cn(showTranslate && 'pr-10', textareaClassName)}
+          />
+          {showTranslate && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={handleTranslate}
+              aria-label={t('common.translate_text')}
+              className="absolute top-2 right-2 text-muted-foreground hover:text-foreground"
+              disabled={isTranslating || !textValue.trim()}>
+              {isTranslating ? <Loader2 className="size-4 animate-spin" /> : <Languages size={16} />}
+            </Button>
+          )}
+        </div>
+        <div className="relative">{children && children({ onOk, onCancel })}</div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            disabled={modalProps?.cancelButtonProps?.disabled}
+            className={modalProps?.cancelButtonProps?.className}
+            style={modalProps?.cancelButtonProps?.style}
+            onClick={onCancel}>
+            {modalProps?.cancelText ?? t('common.cancel')}
+          </Button>
+          <Button
+            disabled={modalProps?.okButtonProps?.disabled}
+            className={modalProps?.okButtonProps?.className}
+            style={modalProps?.okButtonProps?.style}
+            onClick={onOk}>
+            {modalProps?.okText ?? t('common.save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
 const TopViewKey = 'TextEditPopup'
-
-const ChildrenContainer = styled.div`
-  position: relative;
-`
-
-const TextAreaContainer = styled.div`
-  position: relative;
-`
-
-const TranslateButton = styled.button`
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  background: none;
-  border: none;
-  padding: 4px;
-  cursor: pointer;
-  color: var(--color-icon);
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  &:hover {
-    background-color: var(--color-background-mute);
-    color: var(--color-text-1);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-`
 
 export default class TextEditPopup {
   static topviewId = 0
@@ -206,16 +249,7 @@ export default class TextEditPopup {
   }
   static show(props: ShowParams) {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

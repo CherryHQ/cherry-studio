@@ -23,10 +23,10 @@ import { pyodideService } from '@renderer/services/PyodideService'
 import { getExtensionByLanguage } from '@renderer/utils/code-language'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
+import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled, { css } from 'styled-components'
 
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import StatusBar from './StatusBar'
@@ -202,6 +202,8 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     return viewMode !== 'source' && hasSpecialView
   }, [hasSpecialView, viewMode])
 
+  const hasStatusBar = isExecutable && !!executionResult
+
   // 复制按钮
   useCopyTool({
     showPreviewTools,
@@ -328,15 +330,17 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {
-      return <CodeHeader $isInSpecialView>{''}</CodeHeader>
+      return (
+        <div className="mt-1.5 flex h-4 items-center rounded-t-lg bg-transparent px-2.5 font-bold text-foreground text-sm leading-none" />
+      )
     }
     const ext = getExtensionByLanguage(language)
     const iconName = getFileIconName(`file${ext}`)
     return (
-      <CodeHeader $isInSpecialView={false}>
+      <div className="flex h-[34px] items-center rounded-t-lg bg-muted px-2.5 font-bold text-foreground text-sm leading-none">
         <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
         {language.charAt(0).toUpperCase() + language.slice(1)}
-      </CodeHeader>
+      </div>
     )
   }, [isInSpecialView, language])
 
@@ -346,18 +350,31 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     const showSourceView = !specialView || viewMode !== 'special'
 
     return (
-      <SplitViewWrapper
-        className="split-view-wrapper"
-        $isSpecialView={showSpecialView && !showSourceView}
-        $isSplitView={showSpecialView && showSourceView}>
+      <div
+        className={cn(
+          'split-view-wrapper flex [&>*]:w-full [&>*]:flex-[1_1_auto]',
+          !hasStatusBar && (showSpecialView && !showSourceView ? 'rounded-lg' : 'rounded-b-lg'),
+          !hasStatusBar && '[&_.code-viewer]:rounded-[inherit]',
+          showSpecialView &&
+            showSourceView &&
+            "before:-translate-x-1/2 relative before:absolute before:top-0 before:bottom-0 before:left-1/2 before:z-[1] before:w-px before:bg-muted before:content-['']"
+        )}>
         {showSpecialView && specialView}
         {showSourceView && sourceView}
-      </SplitViewWrapper>
+      </div>
     )
-  }, [specialView, sourceView, viewMode])
+  }, [hasStatusBar, specialView, sourceView, viewMode])
 
   return (
-    <CodeBlockWrapper className="code-block" $isInSpecialView={isInSpecialView}>
+    <div
+      className={cn(
+        'code-block relative w-full min-w-[35ch]',
+        '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',
+        '[&:hover_.code-toolbar]:opacity-100 [&_.code-toolbar.show]:opacity-100',
+        isInSpecialView
+          ? '[&_.code-toolbar]:rounded-none [&_.code-toolbar]:bg-transparent'
+          : '[&_.code-toolbar]:rounded-[4px] [&_.code-toolbar]:bg-muted'
+      )}>
       {renderHeader}
       <CodeToolbar tools={tools} />
       {renderContent}
@@ -369,86 +386,6 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           )}
         </StatusBar>
       )}
-    </CodeBlockWrapper>
+    </div>
   )
 })
-
-const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
-  position: relative;
-  width: 100%;
-  /* FIXME: 最小宽度用于解决两个问题。
-   * 一是 CodeViewer 在气泡样式下的用户消息中无法撑开气泡，
-   * 二是 代码块内容过少时 toolbar 会和 title 重叠。
-   */
-  min-width: 35ch;
-
-  .code-toolbar {
-    background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
-    border-radius: ${(props) => (props.$isInSpecialView ? '0' : '4px')};
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    transform: translateZ(0);
-    will-change: opacity;
-    &.show {
-      opacity: 1;
-    }
-  }
-  &:hover {
-    .code-toolbar {
-      opacity: 1;
-    }
-  }
-`
-
-const CodeHeader = styled.div<{ $isInSpecialView?: boolean }>`
-  display: flex;
-  align-items: center;
-  color: var(--color-text);
-  font-size: 14px;
-  line-height: 1;
-  font-weight: bold;
-  padding: 0 10px;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  margin-top: ${(props) => (props.$isInSpecialView ? '6px' : '0')};
-  height: ${(props) => (props.$isInSpecialView ? '16px' : '34px')};
-  background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
-`
-
-const SplitViewWrapper = styled.div<{ $isSpecialView: boolean; $isSplitView: boolean }>`
-  display: flex;
-
-  > * {
-    flex: 1 1 auto;
-    width: 100%;
-  }
-
-  &:not(:has(+ [class*='Container'])) {
-    // 特殊视图的 header 会隐藏，所以全都使用圆角
-    border-radius: ${(props) => (props.$isSpecialView ? '8px' : '0 0 8px 8px')};
-    // FIXME: 滚动条边缘会溢出，可以考虑增加 padding，但是要保证代码主题颜色铺满容器。
-    // overflow: hidden;
-    .code-viewer {
-      border-radius: inherit;
-    }
-  }
-
-  // 在 split 模式下添加中间分隔线
-  ${(props) =>
-    props.$isSplitView &&
-    css`
-      position: relative;
-
-      &:before {
-        content: '';
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        left: 50%;
-        width: 1px;
-        background-color: var(--color-background-mute);
-        transform: translateX(-50%);
-        z-index: 1;
-      }
-    `}
-`

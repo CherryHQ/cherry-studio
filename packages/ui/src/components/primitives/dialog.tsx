@@ -39,9 +39,9 @@ type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> &
 
 function DialogContent({
   className,
-  overlayClassName,
   children,
   showCloseButton = true,
+  overlayClassName,
   ...props
 }: DialogContentProps) {
   return (

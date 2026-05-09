@@ -4,11 +4,11 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { uuid } from '@renderer/utils'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
+import { cn } from '@renderer/utils/style'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { debounce } from 'lodash'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import type { ThemedToken } from 'shiki/core'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('CodeViewer')
 
@@ -430,16 +430,14 @@ const CodeViewer = ({
 
   return (
     <div ref={shikiThemeRef} style={expanded ? undefined : { height }}>
-      <ScrollContainer
+      <div
         ref={scrollerRef}
-        className="shiki-scroller"
-        $wrap={wrapped}
-        $expand={expanded}
-        $lineHeight={estimateSize()}
+        className="shiki-scroller relative block overflow-x-auto rounded-[inherit] py-[0.5em] pr-0 pl-[1em]"
         onScroll={handleScroll}
         style={
           {
             '--gutter-width': `${gutterDigits}ch`,
+            '--line-height': `${estimateSize()}px`,
             fontSize,
             height: expanded ? undefined : height,
             maxHeight: expanded ? undefined : maxHeight,
@@ -467,13 +465,15 @@ const CodeViewer = ({
                   rawLine={rawLines[virtualItem.index]}
                   tokenLine={tokenLines[virtualItem.index]}
                   showLineNumbers={lineNumbers}
+                  expanded={expanded}
+                  wrapped={wrapped}
                   index={virtualItem.index}
                 />
               </div>
             ))}
           </div>
         </div>
-      </ScrollContainer>
+      </div>
     </div>
   )
 }
@@ -492,13 +492,15 @@ interface VirtualizedRowData {
   rawLine: string
   tokenLine?: ThemedToken[]
   showLineNumbers: boolean
+  expanded: boolean
+  wrapped: boolean
 }
 
 /**
  * 单行代码渲染
  */
 const VirtualizedRow = memo(
-  ({ rawLine, tokenLine, showLineNumbers, index }: VirtualizedRowData & { index: number }) => {
+  ({ rawLine, tokenLine, showLineNumbers, expanded, wrapped, index }: VirtualizedRowData & { index: number }) => {
     // 补全代码行 tokens，把原始内容拼接到高亮内容之后，确保渲染出整行来。
     const completeTokenLine = useMemo(() => {
       // 如果出现空行，补一个空元素保证行高
@@ -532,9 +534,24 @@ const VirtualizedRow = memo(
     }, [rawLine, tokenLine])
 
     return (
-      <div className="line">
-        {showLineNumbers && <span className="line-number">{index + 1}</span>}
-        <span className="line-content">
+      <div
+        className="line flex w-full items-start leading-[var(--line-height)]"
+        style={{
+          contain: wrapped ? 'content' : 'none',
+          willChange: !wrapped && !expanded ? 'transform' : 'auto'
+        }}>
+        {showLineNumbers && (
+          <span
+            className="line-number mr-4 shrink-0 select-none overflow-hidden text-right font-[inherit] tabular-nums opacity-[0.35]"
+            style={{ width: 'var(--gutter-width, 1.2ch)' }}>
+            {index + 1}
+          </span>
+        )}
+        <span
+          className={cn(
+            'line-content flex-1 whitespace-pre pr-[1em]',
+            wrapped ? '[&_*]:whitespace-pre-wrap [&_*]:break-words' : '[&_*]:whitespace-pre [&_*]:break-normal'
+          )}>
           {completeTokenLine.map((token, tokenIndex) => (
             <span key={tokenIndex} style={getReactStyleFromToken(token)}>
               {token.content}
@@ -547,50 +564,5 @@ const VirtualizedRow = memo(
 )
 
 VirtualizedRow.displayName = 'VirtualizedRow'
-
-const ScrollContainer = styled.div<{
-  $wrap?: boolean
-  $expand?: boolean
-  $lineHeight?: number
-}>`
-  display: block;
-  overflow-x: auto;
-  position: relative;
-  border-radius: inherit;
-  /* padding right 下沉到 line-content 中 */
-  padding: 0.5em 0 0.5em 1em;
-
-  .line {
-    display: flex;
-    align-items: flex-start;
-    width: 100%;
-    line-height: ${(props) => props.$lineHeight}px;
-    /* contain 优化 wrap 时滚动性能，will-change 优化 unwrap 时滚动性能 */
-    contain: ${(props) => (props.$wrap ? 'content' : 'none')};
-    will-change: ${(props) => (!props.$wrap && !props.$expand ? 'transform' : 'auto')};
-
-    .line-number {
-      width: var(--gutter-width, 1.2ch);
-      text-align: right;
-      opacity: 0.35;
-      margin-right: 1rem;
-      user-select: none;
-      flex-shrink: 0;
-      overflow: hidden;
-      font-family: inherit;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .line-content {
-      flex: 1;
-      padding-right: 1em;
-      white-space: pre;
-      * {
-        white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
-        overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};
-      }
-    }
-  }
-`
 
 export default memo(CodeViewer)

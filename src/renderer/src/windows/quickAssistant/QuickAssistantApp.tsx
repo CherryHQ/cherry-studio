@@ -2,7 +2,7 @@ import '@renderer/databases'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { getToastUtilities } from '@renderer/components/TopView/toast'
+import { ToastProvider, useToasts } from '@renderer/components/TopView/toast'
 import store, { persistor } from '@renderer/store'
 import { useEffect } from 'react'
 import { Provider } from 'react-redux'
@@ -16,6 +16,11 @@ import HomeWindow from './home/HomeWindow'
 // Inner component that uses the hook after Redux is initialized
 function QuickAssistantContent(): React.ReactElement {
   const [customCss] = usePreference('ui.custom_css')
+  const toast = useToasts()
+
+  useEffect(() => {
+    window.toast = toast
+  }, [toast])
 
   useEffect(() => {
     let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
@@ -35,10 +40,6 @@ function QuickAssistantContent(): React.ReactElement {
 }
 
 function QuickAssistantApp(): React.ReactElement {
-  useEffect(() => {
-    window.toast = getToastUtilities()
-  }, [])
-
   return (
     <Provider store={store}>
       <ThemeProvider>
@@ -46,7 +47,9 @@ function QuickAssistantApp(): React.ReactElement {
           <CodeStyleProvider>
             <PersistGate loading={null} persistor={persistor}>
               <ErrorBoundary>
-                <QuickAssistantContent />
+                <ToastProvider>
+                  <QuickAssistantContent />
+                </ToastProvider>
               </ErrorBoundary>
             </PersistGate>
           </CodeStyleProvider>
