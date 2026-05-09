@@ -32,10 +32,12 @@ function parseDurationToMinutes(duration: string): number {
   return totalMinutes
 }
 
+const systemTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
 const CRON_TOOL: Tool = {
   name: 'cron',
   description:
-    "Manage scheduled tasks. Use action 'add' to create a recurring or one-time job, 'list' to see all jobs, or 'remove' to delete a job. For one-time jobs, use the 'at' field with an RFC3339 timestamp.",
+    "Manage scheduled tasks. Use action 'add' to create a recurring or one-time job, 'list' to see all jobs, or 'remove' to delete a job. For one-time jobs, use the 'at' field with an RFC3339 timestamp. For cron expressions, the 'timezone' parameter controls when the job fires — if omitted, it defaults to UTC. Always pass the user's local timezone (check USER.md) so cron expressions like '0 9 * * *' fire at 9am local time, not 9am UTC.",
   inputSchema: {
     type: 'object',
     properties: {
@@ -64,6 +66,10 @@ const CRON_TOOL: Tool = {
         type: 'string',
         description:
           "RFC3339 timestamp for a one-time job, e.g. '2024-01-15T14:30:00+08:00' (use at OR cron OR every, not combined)"
+      },
+      timezone: {
+        type: 'string',
+        description: `IANA timezone for cron expressions, e.g. '${systemTimezone}', 'Asia/Shanghai', 'America/New_York'. If omitted, cron expressions are interpreted in UTC. Not needed for 'every' (interval) or 'at' (one-time) jobs.`
       },
       channel_ids: {
         type: 'array',
@@ -301,6 +307,7 @@ class ClawServer {
     const cronExpr = args.cron as string | undefined
     const every = args.every as string | undefined
     const at = args.at as string | undefined
+    const timezone = args.timezone as string | undefined
     const rawChannelIds = args.channel_ids as string[] | undefined
     const timeoutMinutes = args.timeout_minutes as number | undefined
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add")
@@ -342,6 +349,7 @@ class ClawServer {
       schedule_type: scheduleType,
       schedule_value: scheduleValue,
       timeout_minutes: timeoutMinutes && timeoutMinutes > 0 ? timeoutMinutes : undefined,
+      timezone: timezone || undefined,
       channel_ids: channelIds && channelIds.length > 0 ? channelIds : undefined
     })
 
