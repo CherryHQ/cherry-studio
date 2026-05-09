@@ -172,34 +172,6 @@ function rowToRuntimeModel(row: UserModel): Model {
 }
 
 class ModelService {
-  async existsById(id: string, tx: Pick<DbType, 'select'> = application.get('DbService').getDb()): Promise<boolean> {
-    const [row] = await tx
-      .select({ id: userModelTable.id })
-      .from(userModelTable)
-      .where(eq(userModelTable.id, id))
-      .limit(1)
-    return !!row
-  }
-
-  async getNamesByUniqueIds(
-    uniqueIds: (string | null | undefined)[],
-    tx: Pick<DbType, 'select'> = application.get('DbService').getDb()
-  ): Promise<Map<string, string>> {
-    const result = new Map<string, string>()
-    const ids = Array.from(new Set(uniqueIds.filter((id): id is string => typeof id === 'string' && id.length > 0)))
-    if (ids.length === 0) return result
-
-    const rows = await tx
-      .select({ id: userModelTable.id, name: userModelTable.name })
-      .from(userModelTable)
-      .where(inArray(userModelTable.id, ids))
-
-    for (const row of rows) {
-      if (row.name) result.set(row.id, row.name)
-    }
-    return result
-  }
-
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModel {
     const presetModel = registryData?.presetModel ?? null
     const registryOverride = registryData?.registryOverride ?? null
