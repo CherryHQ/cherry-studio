@@ -67,7 +67,7 @@ describe('useProviderModelList', () => {
     })
 
     await act(async () => {
-      result.current.header.onToggleVisibleModels(true)
+      void result.current.header.onToggleVisibleModels(true)
       await Promise.resolve()
     })
 
@@ -184,7 +184,7 @@ describe('useProviderModelList', () => {
     const { result, rerender, unmount } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
     await act(async () => {
-      result.current.header.onToggleVisibleModels(false)
+      void result.current.header.onToggleVisibleModels(false)
       await Promise.resolve()
     })
 
