@@ -4,7 +4,7 @@ import '@ant-design/v5-patch-for-react-19'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { getToastUtilities } from '@renderer/components/TopView/toast'
+import { ToastProvider, useToasts } from '@renderer/components/TopView/toast'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
@@ -29,19 +29,26 @@ await preferenceService.preload([
   'feature.selection.action_window_opacity'
 ])
 
-const App: FC = () => {
-  //actionWindow should register its own message component
-  useEffect(() => {
-    window.toast = getToastUtilities()
-  }, [])
+const SelectionActionContent: FC = () => {
+  const toast = useToasts()
 
+  useEffect(() => {
+    window.toast = toast
+  }, [toast])
+
+  return <SelectionActionApp />
+}
+
+const App: FC = () => {
   return (
     <Provider store={store}>
       <ThemeProvider>
         <AntdProvider>
           <CodeStyleProvider>
             <PersistGate loading={null} persistor={persistor}>
-              <SelectionActionApp />
+              <ToastProvider>
+                <SelectionActionContent />
+              </ToastProvider>
             </PersistGate>
           </CodeStyleProvider>
         </AntdProvider>

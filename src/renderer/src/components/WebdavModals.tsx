@@ -1,5 +1,5 @@
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { backupToWebdav } from '@renderer/services/BackupService'
-import { Input, Modal } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -69,19 +69,25 @@ export function WebdavBackupModal({
   const { t } = useTranslation()
 
   return (
-    <Modal
-      title={customLabels?.modalTitle || t('settings.data.webdav.backup.modal.title')}
-      open={isModalVisible}
-      onOk={handleBackup}
-      onCancel={handleCancel}
-      okButtonProps={{ loading: backuping }}
-      transitionName="animation-move-down"
-      centered>
-      <Input
-        value={customFileName}
-        onChange={(e) => setCustomFileName(e.target.value)}
-        placeholder={customLabels?.filenamePlaceholder || t('settings.data.webdav.backup.modal.filename.placeholder')}
-      />
-    </Modal>
+    <Dialog open={isModalVisible} onOpenChange={(nextOpen) => !nextOpen && handleCancel()}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>{customLabels?.modalTitle || t('settings.data.webdav.backup.modal.title')}</DialogTitle>
+        </DialogHeader>
+        <Input
+          value={customFileName}
+          onChange={(e) => setCustomFileName(e.target.value)}
+          placeholder={customLabels?.filenamePlaceholder || t('settings.data.webdav.backup.modal.filename.placeholder')}
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={handleCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button loading={backuping} onClick={handleBackup}>
+            {t('common.confirm')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

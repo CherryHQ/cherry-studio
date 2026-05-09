@@ -1,280 +1,212 @@
-import styled, { css, keyframes } from 'styled-components'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import * as React from 'react'
 
-/**
- * 拖拽上下文菜单样式组件
- */
+type MenuContainerProps = React.ComponentPropsWithoutRef<'div'> & {
+  $visible: boolean
+}
 
-// 动画定义
-const fadeInUp = keyframes`
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-`
+export const MenuContainer = ({
+  ref,
+  $visible,
+  className,
+  ...props
+}: MenuContainerProps & { ref?: React.RefObject<HTMLDivElement | null> }) =>
+  React.createElement('div', {
+    ref,
+    className: cn(
+      'fixed z-[2000] max-h-[400px] min-w-[280px] max-w-[320px] overflow-hidden rounded-md border border-border bg-background shadow-lg',
+      'max-[480px]:min-w-[240px] max-[480px]:max-w-[280px]',
+      $visible
+        ? 'fade-in-0 slide-in-from-bottom-2 animate-in duration-150'
+        : 'fade-out-0 slide-out-to-bottom-2 pointer-events-none animate-out duration-150',
+      className
+    ),
+    ...props
+  })
+MenuContainer.displayName = 'MenuContainer'
 
-const fadeOut = keyframes`
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-`
+export const MenuGroupTitle = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { ref?: React.RefObject<HTMLDivElement | null> }) =>
+  React.createElement('div', {
+    ref,
+    className: cn(
+      'border-border px-4 pt-2 pb-1 font-medium text-muted-foreground text-xs uppercase tracking-[0.5px]',
+      '[&:not(:first-child)]:mt-2 [&:not(:first-child)]:border-t [&:not(:first-child)]:pt-3',
+      className
+    ),
+    ...props
+  })
+MenuGroupTitle.displayName = 'MenuGroupTitle'
 
-/**
- * 菜单容器
- */
-export const MenuContainer = styled.div<{ $visible: boolean }>`
-  position: fixed;
-  z-index: 2000;
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow:
-    0 6px 16px rgba(0, 0, 0, 0.12),
-    0 3px 6px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-  min-width: 280px;
-  max-width: 320px;
-  max-height: 400px;
+export const MenuGroup = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { ref?: React.RefObject<HTMLDivElement | null> }) =>
+  React.createElement('div', {
+    ref,
+    className: cn('border-border py-1 [&:not(:last-child)]:border-b', className),
+    ...props
+  })
+MenuGroup.displayName = 'MenuGroup'
 
-  ${(props) =>
-    props.$visible
-      ? css`
-          animation: ${fadeInUp} 0.15s ease-out;
-        `
-      : css`
-          animation: ${fadeOut} 0.15s ease-out;
-          pointer-events: none;
-        `}
+type MenuItemProps = React.ComponentPropsWithoutRef<'button'> & {
+  $danger?: boolean
+}
 
-  /* 响应式调整 */
-  @media (max-width: 480px) {
-    min-width: 240px;
-    max-width: 280px;
-  }
-`
+export const MenuItem = ({
+  ref,
+  $danger,
+  className,
+  ...props
+}: MenuItemProps & { ref?: React.RefObject<HTMLButtonElement | null> }) =>
+  React.createElement('button', {
+    ref,
+    className: cn(
+      'flex w-full cursor-pointer items-center gap-3 border-none bg-transparent px-4 py-2 text-left text-sm transition-colors',
+      'focus:bg-primary/10 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent',
+      $danger ? 'text-destructive hover:bg-destructive/10 hover:text-destructive' : 'text-foreground hover:bg-accent',
+      className
+    ),
+    ...props
+  })
+MenuItem.displayName = 'MenuItem'
 
-/**
- * 菜单组标题
- */
-export const MenuGroupTitle = styled.div`
-  padding: 8px 16px 4px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--color-text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-bottom: none;
+export const MenuItemIcon = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { ref?: React.RefObject<HTMLDivElement | null> }) =>
+  React.createElement('div', {
+    ref,
+    className: cn('flex size-4 shrink-0 items-center justify-center', className),
+    ...props
+  })
+MenuItemIcon.displayName = 'MenuItemIcon'
 
-  &:not(:first-child) {
-    margin-top: 8px;
-    padding-top: 12px;
-    border-top: 1px solid var(--color-border-secondary);
-  }
-`
+export const MenuItemLabel = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'span'> & { ref?: React.RefObject<HTMLSpanElement | null> }) =>
+  React.createElement('span', {
+    ref,
+    className: cn('flex-1 font-normal', className),
+    ...props
+  })
+MenuItemLabel.displayName = 'MenuItemLabel'
 
-/**
- * 菜单项容器
- */
-export const MenuGroup = styled.div`
-  padding: 4px 0;
+export const MenuItemShortcut = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'span'> & { ref?: React.RefObject<HTMLSpanElement | null> }) =>
+  React.createElement('span', {
+    ref,
+    className: cn('ml-auto font-mono text-muted-foreground text-xs', className),
+    ...props
+  })
+MenuItemShortcut.displayName = 'MenuItemShortcut'
 
-  &:not(:last-child) {
-    border-bottom: 1px solid var(--color-border-secondary);
-  }
-`
+type DragHandleContainerProps = React.ComponentPropsWithoutRef<'div'> & {
+  $visible: boolean
+}
 
-/**
- * 菜单项
- */
-export const MenuItem = styled.button<{ $danger?: boolean }>`
-  width: 100%;
-  display: flex;
-  align-items: center;
-  padding: 8px 16px;
-  border: none;
-  background: transparent;
-  color: var(--color-text);
-  font-size: 14px;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-  gap: 12px;
+export const DragHandleContainer = ({
+  ref,
+  $visible,
+  className,
+  ...props
+}: DragHandleContainerProps & { ref?: React.RefObject<HTMLDivElement | null> }) =>
+  React.createElement('div', {
+    ref,
+    className: cn(
+      '-translate-y-1/2 absolute top-1/2 left-[-60px] z-10 flex items-center gap-1 p-0.5 transition-opacity duration-150',
+      $visible ? 'opacity-100' : 'opacity-0',
+      className
+    ),
+    ...props
+  })
+DragHandleContainer.displayName = 'DragHandleContainer'
 
-  ${(props) =>
-    props.$danger &&
-    css`
-      color: var(--color-error);
+const handleButtonClassName =
+  'flex size-6 cursor-pointer items-center justify-center rounded border-none bg-background p-0 text-muted-foreground transition-colors duration-150 hover:bg-accent focus:bg-primary/10 focus:outline-none'
 
-      &:hover {
-        background: var(--color-error-bg);
-        color: var(--color-error);
-      }
-    `}
+export const PlusButton = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'button'> & { ref?: React.RefObject<HTMLButtonElement | null> }) =>
+  React.createElement('button', {
+    ref,
+    className: cn(handleButtonClassName, className),
+    ...props
+  })
+PlusButton.displayName = 'PlusButton'
 
-  &:hover {
-    background: var(--color-hover);
-  }
+export const DragHandleButton = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { ref?: React.RefObject<HTMLDivElement | null> }) =>
+  React.createElement('div', {
+    ref,
+    className: cn(
+      handleButtonClassName,
+      'cursor-grab active:cursor-grabbing [&[draggable=true]]:select-none',
+      className
+    ),
+    ...props
+  })
+DragHandleButton.displayName = 'DragHandleButton'
 
-  &:focus {
-    outline: none;
-    background: var(--color-primary-bg);
-  }
+export const LoadingIndicator = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { ref?: React.RefObject<HTMLDivElement | null> }) =>
+  React.createElement('div', {
+    ref,
+    className: cn('flex items-center justify-center p-4 text-muted-foreground text-sm', className),
+    ...props
+  })
+LoadingIndicator.displayName = 'LoadingIndicator'
 
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+export const ErrorMessage = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { ref?: React.RefObject<HTMLDivElement | null> }) =>
+  React.createElement('div', {
+    ref,
+    className: cn('m-2 rounded bg-destructive/10 px-4 py-3 text-center text-destructive text-sm', className),
+    ...props
+  })
+ErrorMessage.displayName = 'ErrorMessage'
 
-    &:hover {
-      background: transparent;
-    }
-  }
-`
+export const EmptyState = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { ref?: React.RefObject<HTMLDivElement | null> }) =>
+  React.createElement('div', {
+    ref,
+    className: cn('px-4 py-6 text-center text-muted-foreground text-sm', className),
+    ...props
+  })
+EmptyState.displayName = 'EmptyState'
 
-/**
- * 菜单项图标
- */
-export const MenuItemIcon = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-`
-
-/**
- * 菜单项标签
- */
-export const MenuItemLabel = styled.span`
-  flex: 1;
-  font-weight: 400;
-`
-
-/**
- * 菜单项快捷键
- */
-export const MenuItemShortcut = styled.span`
-  font-size: 12px;
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  margin-left: auto;
-`
-
-/**
- * 拖拽手柄容器样式
- */
-export const DragHandleContainer = styled.div<{ $visible: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  opacity: ${(props) => (props.$visible ? 1 : 0)};
-  transition: opacity 0.15s ease;
-  position: absolute;
-  left: -60px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 10;
-  padding: 2px;
-`
-
-/**
- * 手柄按钮基础样式
- */
-const handleButtonBase = css`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 0.25rem;
-  border: none;
-  background: var(--color-background);
-  color: var(--color-text-3);
-  cursor: pointer;
-  transition: background 0.15s ease;
-  padding: 0;
-
-  &:hover {
-    background: var(--color-hover);
-  }
-
-  &:focus {
-    outline: none;
-    background: var(--color-primary-bg);
-  }
-`
-
-/**
- * 加号按钮
- */
-export const PlusButton = styled.button`
-  ${handleButtonBase}
-`
-
-/**
- * 拖拽手柄
- */
-export const DragHandleButton = styled.div`
-  ${handleButtonBase}
-  cursor: grab;
-
-  &:active {
-    cursor: grabbing;
-  }
-
-  &[draggable='true'] {
-    user-select: none;
-  }
-`
-
-/**
- * 加载状态指示器
- */
-export const LoadingIndicator = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  color: var(--color-text-3);
-  font-size: 14px;
-`
-
-/**
- * 错误状态显示
- */
-export const ErrorMessage = styled.div`
-  padding: 12px 16px;
-  color: var(--color-error);
-  background: var(--color-error-bg);
-  border-radius: 4px;
-  margin: 8px;
-  font-size: 14px;
-  text-align: center;
-`
-
-/**
- * 空状态显示
- */
-export const EmptyState = styled.div`
-  padding: 24px 16px;
-  text-align: center;
-  color: var(--color-text-3);
-  font-size: 14px;
-`
-
-/**
- * 分隔线
- */
-export const MenuDivider = styled.hr`
-  border: none;
-  border-top: 1px solid var(--color-border-secondary);
-  margin: 4px 0;
-`
+export const MenuDivider = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'hr'> & { ref?: React.RefObject<HTMLHRElement | null> }) =>
+  React.createElement('hr', {
+    ref,
+    className: cn('my-1 border-0 border-border border-t', className),
+    ...props
+  })
+MenuDivider.displayName = 'MenuDivider'

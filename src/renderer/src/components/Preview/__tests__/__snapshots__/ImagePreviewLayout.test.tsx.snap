@@ -3,14 +3,10 @@
 exports[`ImagePreviewLayout > should match snapshot 1`] = `
 <div>
   <div
-    data-testid="spin"
+    data-testid="preview-container"
   >
-    <div
-      data-testid="preview-container"
-    >
-      <div>
-        Test Content
-      </div>
+    <div>
+      Test Content
     </div>
   </div>
 </div>
