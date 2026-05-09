@@ -17,7 +17,6 @@
 import type { Stats } from 'node:fs'
 
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { WebDavConfig } from '@types'
 import type { S3Config } from '@types'
@@ -99,6 +98,10 @@ class BackupManager {
       const hasIndexedDBRestore = await fs.pathExists(indexedDBRestore)
       const hasLocalStorageRestore = await fs.pathExists(localStorageRestore)
       const hasDataRestore = await fs.pathExists(dataRestore)
+
+      if (!hasIndexedDBRestore && !hasLocalStorageRestore && !hasDataRestore) {
+        return
+      }
 
       // Restore IndexedDB
       if (hasIndexedDBRestore) {
@@ -558,12 +561,18 @@ class BackupManager {
   }
 
   /**
-   * Restore from direct backup format (version 6+)
-   * Directly replaces IndexedDB and Local Storage directories.
-   * On Windows, uses .restore suffix to avoid file lock issues - handled on next startup.
+   * Restore from direct backup format (version 6+).
+   * Writes to `*.restore` directories; `handleStartupRestore` performs the atomic
+   * swap on next launch, before any DB connection or window opens. Avoids
+   * overwriting live IndexedDB / libsql files (issue #14774).
    */
   private async restoreDirect(): Promise<void> {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
+
+    const userDataPath = app.getPath('userData')
+    const indexedDBDest = path.join(userDataPath, 'IndexedDB.restore')
+    const localStorageDest = path.join(userDataPath, 'Local Storage.restore')
+    const dataDest = path.join(userDataPath, 'Data.restore')
 
     try {
       // Read and validate metadata
@@ -586,24 +595,12 @@ class BackupManager {
 
       onProgress({ stage: 'restoring_database', progress: 30, total: 100 })
 
-      const userDataPath = app.getPath('userData')
-
-      // Restore IndexedDB and Local Storage
-      // On Windows, use .restore suffix to avoid file lock issues - handled on next startup
-      // On macOS/Linux, use direct replacement
-      const restoreSuffix = isWin ? '.restore' : ''
-
       // IndexedDB & Local Storage Path
       const indexedDBSource = path.join(this.tempDir, 'IndexedDB')
-      const indexedDBDest = path.join(userDataPath, 'IndexedDB' + restoreSuffix)
       const localStorageSource = path.join(this.tempDir, 'Local Storage')
-      const localStorageDest = path.join(userDataPath, 'Local Storage' + restoreSuffix)
 
-      logger.debug('[restoreDirect] Restoring database directories...')
+      logger.debug('[restoreDirect] Staging database directories...')
 
-      // Windows: copy to .restore suffix directories (swap happens on next startup)
-      // macOS/Linux: copy directly to target directories
-      // Always remove target directory first to ensure clean overwrite
       if (await fs.pathExists(indexedDBSource)) {
         await fs.remove(indexedDBDest).catch(() => {})
         await fs.copy(indexedDBSource, indexedDBDest)
@@ -618,16 +615,15 @@ class BackupManager {
 
       //  Restore Data directory
       const dataSource = path.join(this.tempDir, 'Data')
-      const dataDest = path.join(userDataPath, 'Data' + restoreSuffix)
       const dataExists = await fs.pathExists(dataSource)
       const dataFiles = dataExists ? await fs.readdir(dataSource) : []
 
       if (dataExists && dataFiles.length > 0) {
-        logger.debug('[restoreDirect] Restoring Data directory...')
+        logger.debug('[restoreDirect] Staging Data directory...')
 
         const totalSize = await this.getDirSize(dataSource, { dereferenceSymlinks: false })
 
-        await fs.remove(dataDest)
+        await fs.remove(dataDest).catch(() => {})
 
         await this.copyDirWithProgress(
           dataSource,
@@ -643,14 +639,18 @@ class BackupManager {
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
-      logger.info('[restoreDirect] Restore completed successfully, relaunching app...')
+      logger.info('[restoreDirect] Restore staged successfully, relaunching app to apply...')
 
-      // Relaunch app to load restored data
       app.relaunch()
       app.exit(0)
     } catch (error) {
       logger.error('[restoreDirect] Restore failed:', error as Error)
-      await fs.remove(this.tempDir).catch(() => {})
+      await Promise.all([
+        fs.remove(this.tempDir).catch(() => {}),
+        fs.remove(indexedDBDest).catch(() => {}),
+        fs.remove(localStorageDest).catch(() => {}),
+        fs.remove(dataDest).catch(() => {})
+      ])
       throw error
     }
   }
@@ -674,11 +674,9 @@ class BackupManager {
 
       logger.debug('[restoreLegacy] restore Data directory')
 
-      // Restore Data directory
-      const restoreSuffix = isWin ? '.restore' : ''
       const userDataPath = app.getPath('userData')
       const dataSourcePath = path.join(this.tempDir, 'Data')
-      const dataDestPath = path.join(userDataPath, 'Data' + restoreSuffix)
+      const dataDestPath = path.join(userDataPath, 'Data.restore')
 
       const dataExists = await fs.pathExists(dataSourcePath)
       const dataFiles = dataExists ? await fs.readdir(dataSourcePath) : []
@@ -687,7 +685,7 @@ class BackupManager {
         // Get total size of source directory
         const dataTotalSize = await this.getDirSize(dataSourcePath, { dereferenceSymlinks: false })
 
-        await fs.remove(dataDestPath)
+        await fs.remove(dataDestPath).catch(() => {})
 
         // Use streaming copy
         await this.copyDirWithProgress(
@@ -906,13 +904,11 @@ class BackupManager {
   }
 
   /**
-   * Create a empty restore data path, it will be reset after app relaunch
+   * Stage an empty Data directory; handleStartupRestore swaps it in on next launch.
+   * Avoids races with libsql / MemoryService / KnowledgeService recreating files
+   * before relaunch.
    */
   public async resetData() {
-    if (!isWin) {
-      return await fs.remove(getDataPath()).catch(() => {})
-    }
-
     const dataRestorePath = getDataPath() + '.restore'
     await fs.remove(dataRestorePath).catch(() => {})
     await fs.ensureDir(dataRestorePath)
