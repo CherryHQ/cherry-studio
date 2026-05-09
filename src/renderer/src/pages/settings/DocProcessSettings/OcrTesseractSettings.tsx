@@ -25,7 +25,7 @@ export const OcrTesseractSettings = () => {
       languages
         ?.map((lang) => ({
           value: TESSERACT_LANG_MAP[lang.langCode],
-          label: getLabel(lang)
+          label: getLabel(lang) ?? lang.langCode
         }))
         .filter((option) => option.value) ?? [],
     [languages, getLabel]

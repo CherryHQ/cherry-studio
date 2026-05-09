@@ -31,7 +31,7 @@ export const OcrSystemSettings = () => {
     () =>
       languages?.map((lang) => ({
         value: lang.langCode,
-        label: getLabel(lang)
+        label: getLabel(lang) ?? lang.langCode
       })) ?? [],
     [getLabel, languages]
   )
@@ -62,7 +62,7 @@ export const OcrSystemSettings = () => {
 
   const onChange = useCallback(
     (value: string | string[]) => {
-      const nextLangs = (Array.isArray(value) ? value : []) as TranslateLangCode[]
+      const nextLangs = Array.isArray(value) ? value : []
       startTransition(() => {
         setLangs(nextLangs)
       })

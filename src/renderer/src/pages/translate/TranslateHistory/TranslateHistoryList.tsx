@@ -140,10 +140,10 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
             </PopoverConfirm>
           )}
         </DrawerHeader>
-        <div className="w-full flex flex-1 flex-col overflow-hidden pr-1 pb-1">
+        <div className="flex w-full flex-1 flex-col overflow-hidden pr-1 pb-1">
           {/* Search Bar */}
-          <RowFlex className="border-b border-border px-3">
-            <InputGroup className="h-12 rounded-none border-0 shadow-none focus-within:ring-0 has-[[data-slot=input-group-control]:focus-visible]:ring-0 has-[[data-slot=input-group-control]:focus-visible]:border-transparent">
+          <RowFlex className="border-border border-b px-3">
+            <InputGroup className="h-12 rounded-none border-0 shadow-none focus-within:ring-0 has-[[data-slot=input-group-control]:focus-visible]:border-transparent has-[[data-slot=input-group-control]:focus-visible]:ring-0">
               <InputGroupAddon>
                 <SearchIcon size={18} />
               </InputGroupAddon>
@@ -171,7 +171,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                 {renderItem}
               </DynamicVirtualList>
               {isLoadingMore && (
-                <div className="absolute bottom-1 left-1/2 -translate-x-1/2">
+                <div className="-translate-x-1/2 absolute bottom-1 left-1/2">
                   <Loader2 size={20} className="animate-spin text-muted-foreground" />
                 </div>
               )}

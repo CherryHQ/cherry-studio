@@ -2,6 +2,7 @@ import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { useDeleteLanguage, useLanguages } from '@renderer/hooks/translate'
+import { SettingRowTitle } from '@renderer/pages/settings'
 import type { TranslateLanguageVo } from '@renderer/types'
 import type { TableProps } from 'antd'
 import { Popconfirm, Space, Table } from 'antd'
@@ -9,7 +10,6 @@ import { memo, startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingRowTitle } from '..'
 import TranslateLanguagesModal from './TranslateLanguagesModal'
 
 const ItemActions = ({
