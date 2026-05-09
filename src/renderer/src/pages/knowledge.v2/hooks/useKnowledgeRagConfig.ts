@@ -12,7 +12,7 @@ import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues } from
 
 const KNOWLEDGE_V2_FILE_PROCESSORS = PRESETS_FILE_PROCESSORS.filter((preset) =>
   preset.capabilities.some(
-    (capability) => capability.feature === 'markdown_conversion' && capability.inputs.includes('document')
+    (capability) => capability.feature === 'document_to_markdown' && capability.inputs.includes('document')
   )
 )
 
