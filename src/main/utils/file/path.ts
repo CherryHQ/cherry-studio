@@ -4,6 +4,9 @@
  * Path utilities — validation and resolution helpers.
  */
 
+import path from 'node:path'
+
+import { application } from '@application'
 import type { FilePath } from '@shared/file/types'
 
 const notImplemented = (op: string): never => {
@@ -15,9 +18,30 @@ export function resolvePath(_base: string, _relative: string): string {
   return notImplemented('resolvePath')
 }
 
-/** Check if a path is inside a given directory. */
-export function isPathInside(_child: string, _parent: string): boolean {
-  return notImplemented('isPathInside')
+/**
+ * True iff `child` is a strict descendant of `parent`.
+ *
+ * Equality returns false (a directory is not "inside" itself).
+ * Both paths are resolved before comparison so `..` segments behave correctly.
+ */
+export function isPathInside(child: string, parent: string): boolean {
+  const childResolved = path.resolve(child)
+  const parentResolved = path.resolve(parent)
+  if (childResolved === parentResolved) return false
+  const rel = path.relative(parentResolved, childResolved)
+  return rel.length > 0 && !rel.startsWith('..') && !path.isAbsolute(rel)
+}
+
+/**
+ * Guard: returns true iff `target` lives under `application.getPath('feature.files.data')`.
+ *
+ * Use to defensively reject raw paths that point at internal UUID storage —
+ * callers should reach internal entries via `FileEntryHandle`, not paths.
+ */
+export function isUnderInternalStorage(target: string): boolean {
+  const internalRoot = application.getPath('feature.files.data')
+  if (!internalRoot) return false
+  return isPathInside(target, internalRoot)
 }
 
 /** Check if a directory path is writable. */
