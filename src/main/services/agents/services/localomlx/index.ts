@@ -3,6 +3,8 @@ import { getDataPath } from '@main/utils'
 import fs from 'fs'
 import path from 'path'
 
+import { readLocalOmlxConfig } from './config'
+
 const logger = loggerService.withContext('LocalOmlxService')
 
 const SAFE_EXTS = new Set(['.md', '.txt', '.json', '.yaml', '.yml', '.html', '.css', '.js', '.ts'])
@@ -103,10 +105,15 @@ ${userMessage}
 }
 
 export async function runLocalOmlxAgent(options: LocalOmlxRunOptions): Promise<string> {
-  const apiUrl = options.apiUrl ?? process.env.OMLX_API_URL ?? 'http://127.0.0.1:8000/v1/chat/completions'
-  const apiKey = options.apiKey ?? process.env.OMLX_API_KEY ?? '123456789'
+  const config = readLocalOmlxConfig()
+  const apiUrl = options.apiUrl ?? config.chatUrl
+  const apiKey = options.apiKey ?? config.apiKey
   const rawModel = process.env.OMLX_MODEL ?? options.model ?? 'Qwen3.6-27B-UD-MLX-4bit'
   const model = rawModel.includes(':') ? rawModel.split(':').slice(1).join(':') : rawModel
+
+  if (!apiKey) {
+    throw new Error(`Local oMLX API key not found. Set OMLX_API_KEY or check ~/.omlx/settings.json`)
+  }
 
   const prompt = buildPrompt(options.agentId, options.userMessage)
 
@@ -114,6 +121,7 @@ export async function runLocalOmlxAgent(options: LocalOmlxRunOptions): Promise<s
     agentId: options.agentId,
     model,
     apiUrl,
+    configSource: config.source,
     promptChars: prompt.length,
     claudeCodeInvoked: false
   })
