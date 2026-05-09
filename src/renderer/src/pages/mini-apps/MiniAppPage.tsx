@@ -191,4 +191,5 @@ const MiniAppPage: FC = () => {
     </div>
   )
 }
+
 export default MiniAppPage

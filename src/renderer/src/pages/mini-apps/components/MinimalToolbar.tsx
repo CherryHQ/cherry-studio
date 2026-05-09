@@ -1,12 +1,3 @@
-import {
-  ArrowLeftOutlined,
-  ArrowRightOutlined,
-  CodeOutlined,
-  ExportOutlined,
-  LinkOutlined,
-  PushpinOutlined,
-  ReloadOutlined
-} from '@ant-design/icons'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
@@ -16,6 +7,7 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { isDataApiError, toDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { WebviewTag } from 'electron'
+import { ArrowLeft, ArrowRight, Code2, ExternalLink, Link, Pin, RotateCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -248,7 +240,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
                 !canGoBack && 'cursor-default text-foreground-muted',
                 canGoBack && 'text-foreground-secondary hover:bg-accent hover:text-foreground active:scale-95'
               )}>
-              <ArrowLeftOutlined />
+              <ArrowLeft size={14} />
             </Button>
           </Tooltip>
 
@@ -264,7 +256,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
                 !canGoForward && 'cursor-default text-foreground-muted',
                 canGoForward && 'text-foreground-secondary hover:bg-accent hover:text-foreground active:scale-95'
               )}>
-              <ArrowRightOutlined />
+              <ArrowRight size={14} />
             </Button>
           </Tooltip>
 
@@ -275,7 +267,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
               onClick={onReload}
               aria-label={t('miniApp.popup.refresh')}
               className="text-foreground-secondary text-xs transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-95">
-              <ReloadOutlined />
+              <RotateCw size={14} />
             </Button>
           </Tooltip>
         </div>
@@ -291,7 +283,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
                 onClick={handleOpenLink}
                 aria-label={t('miniApp.popup.openExternal')}
                 className="text-foreground-secondary text-xs transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-95">
-                <ExportOutlined />
+                <ExternalLink size={14} />
               </Button>
             </Tooltip>
           )}
@@ -312,7 +304,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
                     ? 'text-primary hover:text-primary'
                     : 'text-foreground-secondary hover:bg-accent hover:text-foreground'
                 )}>
-                <PushpinOutlined />
+                <Pin size={14} />
               </Button>
             </Tooltip>
           )}
@@ -336,7 +328,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
                   ? 'text-primary hover:text-primary'
                   : 'text-foreground-secondary hover:bg-accent hover:text-foreground'
               )}>
-              <LinkOutlined />
+              <Link size={14} />
             </Button>
           </Tooltip>
 
@@ -348,7 +340,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
                 onClick={onOpenDevTools}
                 aria-label={t('miniApp.popup.devtools')}
                 className="text-foreground-secondary text-xs transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-95">
-                <CodeOutlined />
+                <Code2 size={14} />
               </Button>
             </Tooltip>
           )}
