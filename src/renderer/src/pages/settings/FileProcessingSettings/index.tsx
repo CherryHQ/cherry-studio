@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { ProcessorPanel } from './components/ProcessorPanel'
 import { ProcessorSidebar } from './components/ProcessorSidebar'
+import { useAvailableFileProcessors } from './hooks/useAvailableFileProcessors'
 import { useFileProcessingPreferences } from './hooks/useFileProcessingPreferences'
 import { flattenFeatureSections, getFeatureSections } from './utils/fileProcessingMeta'
 
@@ -22,7 +23,11 @@ const FileProcessingSettings: FC = () => {
     setLanguageOptions
   } = useFileProcessingPreferences()
 
-  const featureSections = useMemo(() => getFeatureSections(processors), [processors])
+  const availableProcessorIds = useAvailableFileProcessors()
+  const featureSections = useMemo(
+    () => getFeatureSections(processors, availableProcessorIds),
+    [availableProcessorIds, processors]
+  )
   const menuEntries = useMemo(() => flattenFeatureSections(featureSections), [featureSections])
 
   const [activeKey, setActiveKey] = useState(() => menuEntries[0]?.key ?? '')

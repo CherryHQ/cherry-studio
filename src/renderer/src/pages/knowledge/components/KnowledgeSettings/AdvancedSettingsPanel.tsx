@@ -44,14 +44,14 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({
     <SettingsPanel>
       <SettingsItem>
         <div className="settings-label">
-          {t('settings.tool.preprocess.title')}
-          <InfoTooltip title={t('settings.tool.preprocess.tooltip')} placement="right" />
+          {t('settings.tool.file_processing.knowledge.title')}
+          <InfoTooltip title={t('settings.tool.file_processing.knowledge.tooltip')} placement="right" />
         </div>
         <Select
           value={selectedDocPreprocessProvider?.id}
           style={{ width: '100%' }}
           onChange={handleDocPreprocessChange}
-          placeholder={t('settings.tool.preprocess.provider_placeholder')}
+          placeholder={t('settings.tool.file_processing.knowledge.provider_placeholder')}
           options={docPreprocessSelectOptions}
           allowClear
         />

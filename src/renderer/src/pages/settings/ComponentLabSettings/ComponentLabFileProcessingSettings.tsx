@@ -14,6 +14,7 @@ import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAvailableFileProcessors } from '../FileProcessingSettings/hooks/useAvailableFileProcessors'
 import { getProcessorNameKey } from '../FileProcessingSettings/utils/fileProcessingMeta'
 
 const FILE_PROCESSING_KEYS = {
@@ -87,9 +88,16 @@ function sleep(ms: number): Promise<void> {
 
 function getProcessorsForFeature(
   processors: readonly FileProcessorMerged[],
-  feature: LabFeature
+  feature: LabFeature,
+  availableProcessorIds: ReadonlySet<FileProcessorId> | null
 ): FileProcessorMerged[] {
-  return processors.filter((processor) => processor.capabilities.some((capability) => capability.feature === feature))
+  return processors.filter((processor) => {
+    if (processor.id === 'ovocr' && availableProcessorIds?.has('ovocr') !== true) {
+      return false
+    }
+
+    return processor.capabilities.some((capability) => capability.feature === feature)
+  })
 }
 
 function getDurationSeconds(durationMs: number | undefined): string {
@@ -234,13 +242,14 @@ function ProcessorResultCard({ processor, state }: { processor: FileProcessorMer
 const ComponentLabFileProcessingSettings: FC = () => {
   const { t } = useTranslation()
   const [preferences] = useMultiplePreferences(FILE_PROCESSING_KEYS, { optimistic: false })
+  const availableProcessorIds = useAvailableFileProcessors()
   const processors = useMemo(() => mergeFileProcessorPresets(preferences.overrides ?? {}), [preferences.overrides])
   const processorsByFeature = useMemo(() => {
     return {
-      image_to_text: getProcessorsForFeature(processors, 'image_to_text'),
-      document_to_markdown: getProcessorsForFeature(processors, 'document_to_markdown')
+      image_to_text: getProcessorsForFeature(processors, 'image_to_text', availableProcessorIds),
+      document_to_markdown: getProcessorsForFeature(processors, 'document_to_markdown', availableProcessorIds)
     } satisfies Record<LabFeature, FileProcessorMerged[]>
-  }, [processors])
+  }, [availableProcessorIds, processors])
 
   const [selectedFiles, setSelectedFiles] = useState<Partial<Record<LabFeature, FileMetadata>>>({})
   const [runStates, setRunStates] = useState<RunStateByFeature>({

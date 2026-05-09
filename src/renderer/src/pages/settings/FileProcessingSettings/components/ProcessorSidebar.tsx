@@ -28,7 +28,7 @@ export function ProcessorSidebar({
     <aside className="flex min-h-0 min-w-[calc(var(--settings-width)+10px)] shrink-0 flex-col border-foreground/[0.05] border-r">
       <div className="shrink-0 px-3.5 pt-4 pb-2">
         <p className="text-foreground/40 text-xs leading-tight" style={{ fontWeight: 500 }}>
-          {t('settings.tool.file_processing.service')}
+          {t('settings.tool.file_processing.sidebar_title')}
         </p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-3 [&::-webkit-scrollbar-thumb]:bg-border/20 [&::-webkit-scrollbar]:w-[2px]">
@@ -40,8 +40,8 @@ export function ProcessorSidebar({
                   className="px-3 pt-2.5 pb-1 text-foreground/25 text-xs uppercase leading-tight tracking-wider first:pt-1"
                   style={{ fontWeight: 500 }}>
                   {feature === 'image_to_text'
-                    ? t('settings.tool.file_processing.features.image_to_text')
-                    : t('settings.tool.file_processing.features.document_to_markdown')}
+                    ? t('settings.tool.file_processing.features.image_to_text.title')
+                    : t('settings.tool.file_processing.features.document_to_markdown.title')}
                 </p>
                 {entries.map((entry) => {
                   const active = activeKey === entry.key

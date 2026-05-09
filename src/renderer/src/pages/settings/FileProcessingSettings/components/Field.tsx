@@ -104,8 +104,8 @@ export function PasswordField({
             className="ml-1.5 shrink-0 text-foreground/20 transition-colors hover:text-foreground/40"
             aria-label={
               visible
-                ? t('settings.tool.file_processing.hide_api_key')
-                : t('settings.tool.file_processing.show_api_key')
+                ? t('settings.tool.file_processing.actions.hide_api_key')
+                : t('settings.tool.file_processing.actions.show_api_key')
             }
             onClick={(event) => {
               event.preventDefault()

@@ -26,9 +26,9 @@ exports[`AdvancedSettingsPanel > basic rendering > should match snapshot 1`] = `
     <div
       class="settings-label"
     >
-      文档预处理
+      文件处理
       <div>
-        settings.tool.preprocess.tooltip
+        settings.tool.file_processing.knowledge.tooltip
       </div>
     </div>
     <select
@@ -37,7 +37,7 @@ exports[`AdvancedSettingsPanel > basic rendering > should match snapshot 1`] = `
       <option
         value=""
       >
-        settings.tool.preprocess.provider_placeholder
+        settings.tool.file_processing.knowledge.provider_placeholder
       </option>
     </select>
   </div>

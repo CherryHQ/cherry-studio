@@ -9,6 +9,7 @@ import ComponentLabSettings from '../ComponentLabSettings'
 const selectFileMock = vi.hoisted(() => vi.fn())
 const startTaskMock = vi.hoisted(() => vi.fn())
 const getTaskMock = vi.hoisted(() => vi.fn())
+const listAvailableProcessorsMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -139,6 +140,10 @@ describe('ComponentLabFileProcessingSettings', () => {
     selectFileMock.mockReset()
     startTaskMock.mockReset()
     getTaskMock.mockReset()
+    listAvailableProcessorsMock.mockReset()
+    listAvailableProcessorsMock.mockResolvedValue({
+      processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru']
+    })
 
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -149,7 +154,8 @@ describe('ComponentLabFileProcessingSettings', () => {
         fileProcessing: {
           startTask: startTaskMock,
           getTask: getTaskMock,
-          cancelTask: vi.fn()
+          cancelTask: vi.fn(),
+          listAvailableProcessors: listAvailableProcessorsMock
         }
       }
     })
@@ -194,6 +200,55 @@ describe('ComponentLabFileProcessingSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: /settings.componentLab.fileProcessing.ocr.start/ }))
 
     await waitFor(() => {
+      expect(startTaskMock).toHaveBeenCalledTimes(4)
+    })
+
+    expect(startTaskMock.mock.calls.map(([payload]) => payload.processorId).sort()).toEqual([
+      'mistral',
+      'paddleocr',
+      'system',
+      'tesseract'
+    ])
+    expect(startTaskMock.mock.calls.every(([payload]) => payload.feature === 'image_to_text')).toBe(true)
+    expect(startTaskMock.mock.calls.every(([payload]) => payload.file === imageFile)).toBe(true)
+  })
+
+  it('includes OV OCR in Component Lab only when file processing reports it as available', async () => {
+    listAvailableProcessorsMock.mockResolvedValueOnce({
+      processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru', 'ovocr']
+    })
+    selectFileMock.mockResolvedValueOnce([imageFile])
+    startTaskMock.mockImplementation(({ processorId }) =>
+      Promise.resolve({
+        taskId: `ocr-${processorId}`,
+        feature: 'image_to_text',
+        processorId,
+        progress: 0,
+        status: 'pending'
+      })
+    )
+    getTaskMock.mockImplementation(({ taskId }) =>
+      Promise.resolve({
+        taskId,
+        feature: 'image_to_text',
+        processorId: taskId.replace('ocr-', ''),
+        progress: 100,
+        status: 'completed',
+        artifacts: [{ kind: 'text', format: 'plain', text: `result-${taskId}` }]
+      })
+    )
+
+    render(<ComponentLabFileProcessingSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.componentLab.fileProcessing.ocr.select/ }))
+
+    await waitFor(() => {
+      expect(screen.getByText('/tmp/sample.png')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.componentLab.fileProcessing.ocr.start/ }))
+
+    await waitFor(() => {
       expect(startTaskMock).toHaveBeenCalledTimes(5)
     })
 
@@ -204,8 +259,6 @@ describe('ComponentLabFileProcessingSettings', () => {
       'system',
       'tesseract'
     ])
-    expect(startTaskMock.mock.calls.every(([payload]) => payload.feature === 'image_to_text')).toBe(true)
-    expect(startTaskMock.mock.calls.every(([payload]) => payload.file === imageFile)).toBe(true)
   })
 
   it('starts every document-to-markdown processor after selecting a Markdown test file', async () => {

@@ -72,7 +72,9 @@ export function TesseractLanguagePacks({ options, selectedLanguages, onChange }:
               variant="ghost"
               size="icon-sm"
               className="h-auto w-auto shrink-0 p-0 text-emerald-500/30 shadow-none hover:bg-transparent hover:text-emerald-500/60"
-              aria-label={t('settings.tool.file_processing.tesseract.remove_language', { language: item.label })}
+              aria-label={t('settings.tool.file_processing.processors.tesseract.actions.remove_language', {
+                language: item.label
+              })}
               onClick={() => removeLanguage(item.value)}>
               <X size={9} />
             </Button>
@@ -87,7 +89,7 @@ export function TesseractLanguagePacks({ options, selectedLanguages, onChange }:
               size="sm"
               className="h-auto rounded-lg border-foreground/15 border-dashed px-2.5 py-[4px] text-foreground/35 text-xs leading-tight shadow-none hover:border-foreground/25 hover:bg-transparent hover:text-foreground/55">
               <Plus size={9} />
-              <span>{t('settings.tool.file_processing.tesseract.add_language')}</span>
+              <span>{t('settings.tool.file_processing.processors.tesseract.actions.add_language')}</span>
             </Button>
           </PopoverTrigger>
           <PopoverContent align="start" className="w-60 p-1">

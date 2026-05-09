@@ -255,6 +255,14 @@ export class FileProcessingTaskService extends BaseService {
     return toTaskResult(this.getRequiredTask(taskId))
   }
 
+  listAvailableProcessorIds(): FileProcessorId[] {
+    return Object.entries(processorRegistry)
+      .filter(([, processor]) =>
+        typeof processor.isAvailable === 'function' ? processor.isAvailable() : processor.isAvailable
+      )
+      .map(([processorId]) => processorId as FileProcessorId)
+  }
+
   private getCapabilityHandler<Feature extends FileProcessorFeature>(
     processorId: FileProcessorId,
     feature: Feature

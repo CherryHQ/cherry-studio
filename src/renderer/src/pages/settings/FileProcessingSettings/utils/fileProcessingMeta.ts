@@ -40,50 +40,50 @@ type ProcessorDisplayMeta = {
 
 const PROCESSOR_DISPLAY_META: Record<FileProcessorId, ProcessorDisplayMeta> = {
   system: {
-    nameKey: 'settings.tool.file_processing.processors.system',
-    descriptionKey: 'settings.tool.file_processing.provider_descriptions.system',
+    nameKey: 'settings.tool.file_processing.processors.system.name',
+    descriptionKey: 'settings.tool.file_processing.processors.system.description',
     logo: Application,
     apiKeyWebsite: null
   },
   tesseract: {
-    nameKey: 'settings.tool.file_processing.processors.tesseract',
-    descriptionKey: 'settings.tool.file_processing.provider_descriptions.tesseract',
+    nameKey: 'settings.tool.file_processing.processors.tesseract.name',
+    descriptionKey: 'settings.tool.file_processing.processors.tesseract.description',
     logo: TesseractJs,
     apiKeyWebsite: null
   },
   paddleocr: {
-    nameKey: 'settings.tool.file_processing.processors.paddleocr',
-    descriptionKey: 'settings.tool.file_processing.provider_descriptions.paddleocr',
+    nameKey: 'settings.tool.file_processing.processors.paddleocr.name',
+    descriptionKey: 'settings.tool.file_processing.processors.paddleocr.description',
     logo: Paddleocr,
     apiKeyWebsite: 'https://aistudio.baidu.com/paddleocr/'
   },
   ovocr: {
-    nameKey: 'settings.tool.file_processing.processors.ovocr',
-    descriptionKey: 'settings.tool.file_processing.provider_descriptions.ovocr',
+    nameKey: 'settings.tool.file_processing.processors.ovocr.name',
+    descriptionKey: 'settings.tool.file_processing.processors.ovocr.description',
     logo: Intel,
     apiKeyWebsite: null
   },
   mineru: {
-    nameKey: 'settings.tool.file_processing.processors.mineru',
-    descriptionKey: 'settings.tool.file_processing.provider_descriptions.mineru',
+    nameKey: 'settings.tool.file_processing.processors.mineru.name',
+    descriptionKey: 'settings.tool.file_processing.processors.mineru.description',
     logo: Mineru,
     apiKeyWebsite: 'https://mineru.net/apiManage'
   },
   doc2x: {
-    nameKey: 'settings.tool.file_processing.processors.doc2x',
-    descriptionKey: 'settings.tool.file_processing.provider_descriptions.doc2x',
+    nameKey: 'settings.tool.file_processing.processors.doc2x.name',
+    descriptionKey: 'settings.tool.file_processing.processors.doc2x.description',
     logo: Doc2x,
     apiKeyWebsite: 'https://open.noedgeai.com/apiKeys'
   },
   mistral: {
-    nameKey: 'settings.tool.file_processing.processors.mistral',
-    descriptionKey: 'settings.tool.file_processing.provider_descriptions.mistral',
+    nameKey: 'settings.tool.file_processing.processors.mistral.name',
+    descriptionKey: 'settings.tool.file_processing.processors.mistral.description',
     logo: Mistral,
     apiKeyWebsite: 'https://mistral.ai/api-keys'
   },
   'open-mineru': {
-    nameKey: 'settings.tool.file_processing.processors.open_mineru',
-    descriptionKey: 'settings.tool.file_processing.provider_descriptions.mineru',
+    nameKey: 'settings.tool.file_processing.processors.open_mineru.name',
+    descriptionKey: 'settings.tool.file_processing.processors.open_mineru.description',
     logo: Mineru,
     apiKeyWebsite: 'https://github.com/opendatalab/MinerU/'
   }
@@ -91,7 +91,8 @@ const PROCESSOR_DISPLAY_META: Record<FileProcessorId, ProcessorDisplayMeta> = {
 
 export function createMenuEntry(
   processor: FileProcessorMerged,
-  feature: FileProcessorFeature
+  feature: FileProcessorFeature,
+  availableProcessorIds: ReadonlySet<string> | null = null
 ): FileProcessingMenuEntry | null {
   const capability = processor.capabilities.find((item) => item.feature === feature)
 
@@ -99,7 +100,7 @@ export function createMenuEntry(
     return null
   }
 
-  if (processor.id === 'ovocr') {
+  if (processor.id === 'ovocr' && availableProcessorIds?.has('ovocr') !== true) {
     return null
   }
 
@@ -137,10 +138,13 @@ export function sortEntriesByFeatureOrder(entries: FileProcessingMenuEntry[]): F
   })
 }
 
-export function getFeatureSections(processors: readonly FileProcessorMerged[]): FileProcessingFeatureSection[] {
+export function getFeatureSections(
+  processors: readonly FileProcessorMerged[],
+  availableProcessorIds: ReadonlySet<string> | null = null
+): FileProcessingFeatureSection[] {
   return FILE_PROCESSING_FEATURE_SECTIONS.map(({ feature }) => {
     const entries = processors
-      .map((processor) => createMenuEntry(processor, feature))
+      .map((processor) => createMenuEntry(processor, feature, availableProcessorIds))
       .filter((entry): entry is FileProcessingMenuEntry => Boolean(entry))
 
     return {

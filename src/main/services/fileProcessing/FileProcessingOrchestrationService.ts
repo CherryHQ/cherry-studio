@@ -12,6 +12,7 @@ import type {
   FileProcessingTaskStartResult,
   GetFileProcessingTaskInput,
   GetFileProcessingTaskOptions,
+  ListAvailableFileProcessorsResult,
   StartFileProcessingTaskInput,
   StartFileProcessingTaskOptions
 } from './types'
@@ -82,6 +83,12 @@ export class FileProcessingOrchestrationService extends BaseService {
     return application.get('FileProcessingTaskService').cancelTask(input)
   }
 
+  listAvailableProcessors(): ListAvailableFileProcessorsResult {
+    return {
+      processorIds: application.get('FileProcessingTaskService').listAvailableProcessorIds()
+    }
+  }
+
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.FileProcessing_StartTask, async (_, payload: unknown) => {
       return await this.startTask(StartTaskPayloadSchema.parse(payload))
@@ -91,6 +98,9 @@ export class FileProcessingOrchestrationService extends BaseService {
     })
     this.ipcHandle(IpcChannel.FileProcessing_CancelTask, async (_, payload: unknown) => {
       return await this.cancelTask(CancelTaskPayloadSchema.parse(payload))
+    })
+    this.ipcHandle(IpcChannel.FileProcessing_ListAvailableProcessors, () => {
+      return this.listAvailableProcessors()
     })
   }
 }

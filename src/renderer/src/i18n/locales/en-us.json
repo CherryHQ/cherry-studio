@@ -4077,7 +4077,7 @@
           "starting": "Starting"
         },
         "taskId": "Task ID",
-        "title": "File Processing"
+        "title": "Document Parsing"
       },
       "label": "Component Lab",
       "modelSelector": {
@@ -5847,124 +5847,88 @@
     "title": "Settings",
     "tool": {
       "file_processing": {
-        "api_base_url": "API Base URL",
-        "api_key_label": "API Key",
-        "feature_descriptions": {
-          "document_to_markdown": "Convert documents into Markdown for retrieval, editing, and downstream processing.",
-          "image_to_text": "Extract plain text from images, screenshots, and scanned content."
+        "actions": {
+          "hide_api_key": "Hide API key",
+          "set_as_default": "Set as default",
+          "show_api_key": "Show API key"
         },
         "features": {
-          "document_to_markdown": "Document Processing",
-          "image_to_text": "OCR"
+          "document_to_markdown": {
+            "title": "Document Processing"
+          },
+          "image_to_text": {
+            "title": "OCR"
+          }
         },
-        "hide_api_key": "Hide API key",
-        "model_id": "Model ID",
-        "paddleocr": {
-          "deployment_description": "You can deploy PaddleOCR locally with the officially supported Docker image, then enter the API address here.",
-          "docker_deployment_docs": "View Docker deployment docs",
-          "parse_model": "Parse Model"
+        "fields": {
+          "api_base_url": "API Base URL",
+          "api_key": "API Key",
+          "api_keys_placeholder": "Separate multiple keys with commas"
         },
-        "placeholders": {
-          "api_keys": "Separate multiple keys with commas"
+        "knowledge": {
+          "provider": "File processor",
+          "provider_placeholder": "Choose a file processor",
+          "title": "File Processing",
+          "tooltip": "Configure a file processor in Settings -> Tools to improve retrieval for complex files and scanned files."
         },
         "processors": {
-          "doc2x": "Doc2x",
-          "mineru": "MinerU",
-          "mistral": "Mistral",
-          "open_mineru": "Open MinerU",
-          "ovocr": "Intel OV OCR",
-          "paddleocr": "PaddleOCR",
-          "system": "System OCR",
-          "tesseract": "Tesseract OCR"
-        },
-        "provider_descriptions": {
-          "doc2x": "Advanced document restoration engine.",
-          "mineru": "OpenDataLab's open-source high-quality PDF extraction tool.",
-          "mistral": "Document parsing and understanding.",
-          "ovocr": "Intel OpenVINO OCR engine that runs locally with NPU acceleration.",
-          "paddleocr": "Baidu Paddle OCR recognition system.",
-          "system": "Native operating system OCR engine.",
-          "tesseract": "Google's open-source OCR engine that runs fully locally."
+          "doc2x": {
+            "description": "Advanced file restoration engine.",
+            "name": "Doc2x"
+          },
+          "mineru": {
+            "description": "OpenDataLab's open-source high-quality PDF extraction tool.",
+            "name": "MinerU"
+          },
+          "mistral": {
+            "description": "File parsing and understanding service.",
+            "name": "Mistral"
+          },
+          "open_mineru": {
+            "description": "Self-hostable MinerU service for teams that want more control over the processing pipeline.",
+            "name": "Open MinerU"
+          },
+          "ovocr": {
+            "description": "Intel OpenVINO OCR engine that runs locally with NPU acceleration.",
+            "name": "Intel OV OCR"
+          },
+          "paddleocr": {
+            "deployment": {
+              "description": "You can deploy PaddleOCR locally with the officially supported Docker image, then enter the API address here.",
+              "docs": "View Docker deployment docs"
+            },
+            "description": "Baidu PaddleOCR recognition system.",
+            "fields": {
+              "parse_model": "Parse Model"
+            },
+            "name": "PaddleOCR"
+          },
+          "system": {
+            "description": "Native operating system OCR engine.",
+            "name": "System OCR",
+            "status": {
+              "available": "Detected available macOS Live Text / Windows OCR engine.",
+              "no_configuration": "System OCR requires no configuration and calls the native system engine directly. It is fastest, but accuracy depends on the OS version."
+            }
+          },
+          "tesseract": {
+            "actions": {
+              "add_language": "Add language",
+              "remove_language": "Remove {{language}}"
+            },
+            "description": "Google's open-source OCR engine that runs fully locally.",
+            "name": "Tesseract OCR"
+          }
         },
         "sections": {
           "authentication": "Authentication",
-          "connection": "Connection Settings",
           "description": "Description",
           "language_packs": "Language Packs",
-          "languages": "Languages",
           "model_parameters": "Model Parameters",
           "status": "Status"
         },
-        "service": "File services",
-        "show_api_key": "Show API key",
-        "system": {
-          "no_configuration": "System OCR requires no configuration and calls the native system engine directly. It is fastest, but accuracy depends on the OS version.",
-          "status_available": "Detected available macOS Live Text / Windows OCR engine."
-        },
-        "tesseract": {
-          "add_language": "Add language",
-          "remove_language": "Remove {{language}}"
-        },
-        "title": "File Processing"
-      },
-      "ocr": {
-        "common": {
-          "langs": "Supported languages"
-        },
-        "error": {
-          "not_system": "System OCR only supports Windows and MacOS"
-        },
-        "features": {
-          "paddleocr": "Stronger for Chinese text and better suited for receipts, scans, and images with more complex layouts.",
-          "system": {
-            "macos": "Uses the built-in macOS OCR engine with zero setup, ideal for screenshots and lightweight text extraction.",
-            "windows": "Uses the native Windows OCR engine with strong OS integration for basic local recognition tasks."
-          },
-          "tesseract": "A classic local OCR option with customizable language packs, well suited for offline and multilingual workflows."
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "The provider does not exist"
-          },
-          "system": {
-            "no_need_configure": "MacOS requires no configuration"
-          },
-          "title": "Image"
-        },
-        "image_provider": "OCR service provider",
-        "paddleocr": {
-          "aistudio_access_token": "Access token of AI Studio Community",
-          "api_url": "API URL",
-          "api_url_label": "Obtain Access Token and API URL"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Dependent on Windows to provide services, you need to download language packs in the system to support the relevant languages."
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "Read the documentation to learn which custom languages are supported"
-        },
-        "title": "OCR service"
-      },
-      "preprocess": {
-        "features": {
-          "doc2x": "Well suited for converting PDFs into cleaner Markdown or editable text for downstream retrieval and editing.",
-          "mineru": "Optimized for higher-fidelity layout recovery, especially useful for academic PDFs, tables, and formulas.",
-          "mistral": "Strong cloud-based document understanding, suitable for structured extraction, multi-page files, and complex layouts.",
-          "open_mineru": "An open deployment option that fits teams wanting self-hosting or tighter control over the processing pipeline.",
-          "paddleocr": "A lighter integration choice that works well for Chinese documents, scans, and common receipt-style content."
-        },
-        "paddleocr": {
-          "aistudio_access_token": "Access token of AI Studio Community",
-          "api_url": "API URL",
-          "api_url_label": "Obtain Access Token and API URL",
-          "paddleocr_url_label": "PaddleOCR Official Website"
-        },
-        "provider": "Doc Provider",
-        "provider_placeholder": "Choose a doc provider",
-        "title": "Doc Process",
-        "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
+        "sidebar_title": "Document Services",
+        "title": "Document Parsing"
       },
       "title": "Other Settings",
       "websearch": {

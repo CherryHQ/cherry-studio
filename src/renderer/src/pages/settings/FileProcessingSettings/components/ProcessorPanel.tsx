@@ -144,7 +144,7 @@ export function ProcessorPanel({
           </Badge>
         ) : (
           <Button variant="outline" size="sm" onClick={handleSetDefault}>
-            {t('settings.tool.websearch.set_as_default')}
+            {t('settings.tool.file_processing.actions.set_as_default')}
           </Button>
         )}
       </div>
@@ -152,11 +152,11 @@ export function ProcessorPanel({
       {supportsApiSettings(processor) ? (
         <SettingsSection title={t('settings.tool.file_processing.sections.authentication')}>
           <PasswordField
-            label={t('settings.tool.file_processing.api_key_label')}
+            label={t('settings.tool.file_processing.fields.api_key')}
             value={apiKeysInput}
             onChange={setApiKeysInput}
             onBlur={handleApiKeysBlur}
-            placeholder={t('settings.tool.file_processing.placeholders.api_keys')}
+            placeholder={t('settings.tool.file_processing.fields.api_keys_placeholder')}
             action={
               apiKeyWebsite ? (
                 <a
@@ -171,7 +171,7 @@ export function ProcessorPanel({
           />
           {entry.capability.apiHost !== undefined ? (
             <TextField
-              label={t('settings.tool.file_processing.api_base_url')}
+              label={t('settings.tool.file_processing.fields.api_base_url')}
               value={apiHostInput}
               onChange={setApiHostInput}
               onBlur={handleApiHostBlur}
@@ -193,10 +193,10 @@ export function ProcessorPanel({
             <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-emerald-500" />
             <div>
               <p className="font-medium text-emerald-600 text-xs leading-tight dark:text-emerald-400">
-                {t('settings.tool.file_processing.system.status_available')}
+                {t('settings.tool.file_processing.processors.system.status.available')}
               </p>
               <p className="mt-1 text-foreground/35 text-xs leading-tight">
-                {t('settings.tool.file_processing.system.no_configuration')}
+                {t('settings.tool.file_processing.processors.system.status.no_configuration')}
               </p>
             </div>
           </div>

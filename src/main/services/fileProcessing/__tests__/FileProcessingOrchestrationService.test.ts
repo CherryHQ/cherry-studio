@@ -49,7 +49,7 @@ describe('FileProcessingOrchestrationService', () => {
     expect(getDependencies(FileProcessingOrchestrationService)).toEqual(['FileProcessingTaskService'])
   })
 
-  it('registers only the three unified file processing IPC handlers', () => {
+  it('registers the unified file processing IPC handlers', () => {
     const service = new FileProcessingOrchestrationService()
     const ipcHandleSpy = vi.spyOn(service as any, 'ipcHandle').mockReturnValue({ dispose: vi.fn() })
     ;(service as any).onInit()
@@ -59,7 +59,8 @@ describe('FileProcessingOrchestrationService', () => {
     expect(handlerCalls).toEqual([
       'file-processing:start-task',
       'file-processing:get-task',
-      'file-processing:cancel-task'
+      'file-processing:cancel-task',
+      'file-processing:list-available-processors'
     ])
   })
 

@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => {
           'knowledge.chunk_overlap': '分块重叠',
           'knowledge.threshold': '检索相似度阈值',
           'knowledge.chunk_size_change_warning': '避免修改这个高级设置。',
-          'settings.tool.preprocess.title': '文档预处理',
+          'settings.tool.file_processing.knowledge.title': '文件处理',
           'models.rerank_model': '重排模型',
           'settings.models.empty': '未选择'
         }

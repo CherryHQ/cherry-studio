@@ -54,8 +54,8 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
 
   const docPreprocessSelectOptions = useMemo(() => {
     const preprocessOptions = {
-      label: t('settings.tool.preprocess.provider'),
-      title: t('settings.tool.preprocess.provider'),
+      label: t('settings.tool.file_processing.knowledge.provider'),
+      title: t('settings.tool.file_processing.knowledge.provider'),
       options: preprocessProviders
         .filter((p) => p.apiKey !== '' || ['mineru', 'open-mineru', 'paddleocr'].includes(p.id))
         .map((p) => ({ value: p.id, label: p.name }))

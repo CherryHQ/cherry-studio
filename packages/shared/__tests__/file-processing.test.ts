@@ -18,7 +18,8 @@ import { FILE_TYPE } from '../data/types/file'
 import {
   FileProcessingArtifactSchema,
   FileProcessingTaskResultSchema,
-  FileProcessingTaskStartResultSchema
+  FileProcessingTaskStartResultSchema,
+  ListAvailableFileProcessorsResultSchema
 } from '../data/types/fileProcessing'
 
 describe('FileProcessorFeatureCapabilitySchema', () => {
@@ -250,6 +251,24 @@ describe('FileProcessingTaskStartResultSchema', () => {
 
     expect(result.taskId).toBe('task-1')
     expect(result.processorId).toBe('mineru')
+  })
+})
+
+describe('ListAvailableFileProcessorsResultSchema', () => {
+  it('accepts known processor ids', () => {
+    expect(() =>
+      ListAvailableFileProcessorsResultSchema.parse({
+        processorIds: ['system', 'ovocr']
+      })
+    ).not.toThrow()
+  })
+
+  it('rejects unknown processor ids', () => {
+    const result = ListAvailableFileProcessorsResultSchema.safeParse({
+      processorIds: ['missing']
+    })
+
+    expect(result.success).toBe(false)
   })
 })
 
