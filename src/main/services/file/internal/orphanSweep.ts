@@ -42,7 +42,7 @@ import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
 import type { OrphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
 import { loggerService } from '@logger'
-import type { FileEntryId, FileEntryOrigin, FileRefSourceType } from '@shared/data/types/file'
+import { allSourceTypes, type FileEntryId, type FileEntryOrigin, type FileRefSourceType } from '@shared/data/types/file'
 
 const logger = loggerService.withContext('file/orphanSweep')
 
@@ -99,11 +99,10 @@ export class OrphanRefScanner {
    * 'partial'` at the umbrella level.
    */
   async scanAll(): Promise<OrphanRefScanResult> {
-    const sourceTypes = Object.keys(this.deps.registry) as FileRefSourceType[]
     const byType: Partial<Record<FileRefSourceType, number>> = {}
     const errorsByType: Partial<Record<FileRefSourceType, string>> = {}
     let total = 0
-    for (const sourceType of sourceTypes) {
+    for (const sourceType of allSourceTypes) {
       try {
         const removed = await this.scanOneType(sourceType)
         byType[sourceType] = removed

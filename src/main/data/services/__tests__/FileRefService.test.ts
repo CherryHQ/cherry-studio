@@ -214,4 +214,54 @@ describe('FileRefService', () => {
       expect(remaining.map((r) => r.sourceId)).toEqual(['s2'])
     })
   })
+
+  describe('listDistinctSourceIds', () => {
+    it('returns distinct sourceIds for a sourceType (de-duplicates within source)', async () => {
+      const entryA = '019606a0-0000-7000-8000-00000000dd10' as FileEntryId
+      const entryB = '019606a0-0000-7000-8000-00000000dd11' as FileEntryId
+      await seedEntry(entryA)
+      await seedEntry(entryB)
+      // Same sourceId 'sess-shared' referenced by two entries → must dedupe
+      await fileRefService.create({
+        fileEntryId: entryA,
+        sourceType: 'temp_session',
+        sourceId: 'sess-shared',
+        role: 'pending'
+      })
+      await fileRefService.create({
+        fileEntryId: entryB,
+        sourceType: 'temp_session',
+        sourceId: 'sess-shared',
+        role: 'pending'
+      })
+      await fileRefService.create({
+        fileEntryId: entryA,
+        sourceType: 'temp_session',
+        sourceId: 'sess-other',
+        role: 'pending'
+      })
+      const ids = await fileRefService.listDistinctSourceIds('temp_session')
+      expect(new Set(ids)).toEqual(new Set(['sess-shared', 'sess-other']))
+    })
+
+    it('returns empty array when no refs exist for the sourceType', async () => {
+      expect(await fileRefService.listDistinctSourceIds('temp_session')).toEqual([])
+    })
+
+    it('scopes by sourceType — refs with a different sourceType are excluded', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000dd20' as FileEntryId
+      await seedEntry(entryId)
+      await fileRefService.create({
+        fileEntryId: entryId,
+        sourceType: 'temp_session',
+        sourceId: 'in-temp',
+        role: 'pending'
+      })
+      // Other sourceTypes deliberately not seeded — their checker stubs in
+      // Phase 1b.4 don't have schema variants yet; this test just verifies
+      // that a query for them returns empty.
+      expect(await fileRefService.listDistinctSourceIds('chat_message')).toEqual([])
+      expect(await fileRefService.listDistinctSourceIds('temp_session')).toEqual(['in-temp'])
+    })
+  })
 })

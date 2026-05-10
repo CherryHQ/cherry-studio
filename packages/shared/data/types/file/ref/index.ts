@@ -58,7 +58,7 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
  * (OrphanRefScanner, DataApi param typing) do not change when new variants
  * land — only the `FileRefSchema` discriminated union grows additively.
  */
-const allSourceTypes = [
+export const allSourceTypes = [
   tempSessionSourceType,
   'chat_message',
   'knowledge_item',

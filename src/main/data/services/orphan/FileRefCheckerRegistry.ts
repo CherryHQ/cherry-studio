@@ -56,16 +56,41 @@ export const chatMessageChecker: SourceTypeChecker<'chat_message'> = makeStubChe
 export const paintingChecker: SourceTypeChecker<'painting'> = makeStubChecker('painting')
 export const noteChecker: SourceTypeChecker<'note'> = makeStubChecker('note')
 
+/**
+ * SQLite parameter cap is configurable but defaults to 999; keep batches well
+ * under that for `inArray()` even with comparison overhead. Long-tenured users
+ * accumulating thousands of knowledge items would otherwise blow up a single-
+ * shot lookup.
+ */
+const SQLITE_INARRAY_CHUNK = 500
+
+/** One transient-busy retry — SQLITE_BUSY at startup is realistic when other services are also writing. */
+const BUSY_RETRY_DELAY_MS = 50
+
 export const knowledgeItemChecker: SourceTypeChecker<'knowledge_item'> = {
   sourceType: 'knowledge_item',
   checkExists: async (sourceIds) => {
     if (sourceIds.length === 0) return new Set()
     const db = application.get('DbService').getDb()
-    const rows = await db
-      .select({ id: knowledgeItemTable.id })
-      .from(knowledgeItemTable)
-      .where(inArray(knowledgeItemTable.id, sourceIds as string[]))
-    return new Set(rows.map((r) => r.id))
+    const alive = new Set<string>()
+    for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
+      const chunk = sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+      const rows = await runWithBusyRetry(() =>
+        db.select({ id: knowledgeItemTable.id }).from(knowledgeItemTable).where(inArray(knowledgeItemTable.id, chunk))
+      )
+      for (const r of rows) alive.add(r.id)
+    }
+    return alive
+  }
+}
+
+async function runWithBusyRetry<T>(op: () => Promise<T>): Promise<T> {
+  try {
+    return await op()
+  } catch (err) {
+    if ((err as { code?: string }).code !== 'SQLITE_BUSY') throw err
+    await new Promise((resolve) => setTimeout(resolve, BUSY_RETRY_DELAY_MS))
+    return op()
   }
 }
 
