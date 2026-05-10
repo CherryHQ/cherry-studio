@@ -7,12 +7,12 @@
  * with `session.agentId`.
  *
  * Companion hooks for derived/lifecycle state (not CRUD):
- *  - {@link import('./useActiveSession').useActiveSession}
  *  - {@link import('./useCreateDefaultSession').useCreateDefaultSession}
  *  - {@link import('./useAgentSessionInitializer').useAgentSessionInitializer}
  *  - {@link import('./useAgentSessionSync').useAgentSessionSync}
  */
 
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useInfiniteFlatItems, useInfiniteQuery, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import type { CreateSessionForm, UpdateSessionForm } from '@renderer/types'
@@ -43,6 +43,20 @@ export const useSession = (sessionId: string | null) => {
   })
 
   return { session, error, isLoading, mutate }
+}
+
+/**
+ * Reads the single active-session pointer and returns the resolved session.
+ * Active agent is derived from `session.agentId` — see {@link useActiveAgent}.
+ */
+export const useActiveSession = () => {
+  const [activeSessionId, setActiveSessionIdAction] = useCache('agent.active_session_id')
+  const setActiveSessionId = useCallback(
+    (id: string | null) => setActiveSessionIdAction(id),
+    [setActiveSessionIdAction]
+  )
+  const result = useSession(activeSessionId)
+  return { ...result, activeSessionId, setActiveSessionId }
 }
 
 /**
