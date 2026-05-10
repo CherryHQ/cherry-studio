@@ -1,11 +1,11 @@
 import i18next from 'i18next'
 import { isEmpty } from 'lodash'
 
-import NavigationService from '../../../services/NavigationService'
+import { openSettingsWindow } from '../../../services/SettingsWindowService'
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
 
 function navigateToProviderSettings(providerId: string) {
-  void NavigationService.navigate?.({ to: '/settings/provider', search: { id: providerId } })
+  void openSettingsWindow(`/settings/provider?id=${encodeURIComponent(providerId)}`)
 }
 
 export async function checkProviderEnabled(provider: PaintingProviderRuntime): Promise<string> {

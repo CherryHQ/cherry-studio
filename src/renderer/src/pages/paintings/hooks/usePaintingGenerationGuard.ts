@@ -9,6 +9,7 @@ import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
 export type PaintingGenerationGuardReason =
   | 'provider_disabled'
+  | 'no_api_key'
   | 'mode_unsupported'
   | 'model_missing'
   | 'model_unavailable'
@@ -38,6 +39,11 @@ export function usePaintingGenerationGuard({
     // UX: PaintingModelSelector does not pre-block when disabled (sponsor flows). This is the enforcement point.
     if (!provider.isEnabled) {
       return { ok: false, reason: 'provider_disabled' }
+    }
+
+    const apiKey = await provider.getApiKey()
+    if (!apiKey.trim()) {
+      return { ok: false, reason: 'no_api_key' }
     }
 
     const definition = resolvePaintingProviderDefinition(providerId)
@@ -75,7 +81,7 @@ export function usePaintingGenerationGuard({
     }
 
     return { ok: true }
-  }, [ensureCurrentCatalog, mode, modelId, provider.isEnabled, providerId, selectorData.models])
+  }, [ensureCurrentCatalog, mode, modelId, provider, providerId, selectorData.models])
 
   return { validateBeforeGenerate }
 }

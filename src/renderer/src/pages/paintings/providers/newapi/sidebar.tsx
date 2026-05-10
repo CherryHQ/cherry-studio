@@ -1,6 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
-import NavigationService from '@renderer/services/NavigationService'
+import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
@@ -27,7 +27,7 @@ function renderEmptyModelState(providerId: string, t: TFunction) {
       <Button
         variant="default"
         onClick={() => {
-          void NavigationService.navigate?.({ to: '/settings/provider', search: { id: providerId } })
+          void openSettingsWindow(`/settings/provider?id=${encodeURIComponent(providerId)}`)
         }}>
         {t('paintings.go_to_settings')}
       </Button>
