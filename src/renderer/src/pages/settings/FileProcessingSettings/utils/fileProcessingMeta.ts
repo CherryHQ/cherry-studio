@@ -92,7 +92,7 @@ const PROCESSOR_DISPLAY_META: Record<FileProcessorId, ProcessorDisplayMeta> = {
 export function createMenuEntry(
   processor: FileProcessorMerged,
   feature: FileProcessorFeature,
-  availableProcessorIds: ReadonlySet<string> | null = null
+  availableProcessorIds: ReadonlySet<string>
 ): FileProcessingMenuEntry | null {
   const capability = processor.capabilities.find((item) => item.feature === feature)
 
@@ -100,7 +100,7 @@ export function createMenuEntry(
     return null
   }
 
-  if (processor.id === 'ovocr' && availableProcessorIds?.has('ovocr') !== true) {
+  if (processor.id === 'ovocr' && !availableProcessorIds.has('ovocr')) {
     return null
   }
 
@@ -140,7 +140,7 @@ export function sortEntriesByFeatureOrder(entries: FileProcessingMenuEntry[]): F
 
 export function getFeatureSections(
   processors: readonly FileProcessorMerged[],
-  availableProcessorIds: ReadonlySet<string> | null = null
+  availableProcessorIds: ReadonlySet<string>
 ): FileProcessingFeatureSection[] {
   return FILE_PROCESSING_FEATURE_SECTIONS.map(({ feature }) => {
     const entries = processors

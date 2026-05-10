@@ -7,6 +7,7 @@ import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOCRDeploymentInfo'
 
 const setPreferencesMock = vi.hoisted(() => vi.fn())
 const listAvailableProcessorsMock = vi.hoisted(() => vi.fn())
+const loggerWarnMock = vi.hoisted(() => vi.fn())
 const topViewShowMock = vi.hoisted(() => vi.fn())
 const topViewHideMock = vi.hoisted(() => vi.fn())
 const selectMockState = vi.hoisted(() => ({
@@ -54,7 +55,7 @@ vi.mock('@data/hooks/usePreference', () => ({
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      warn: vi.fn()
+      warn: loggerWarnMock
     })
   }
 }))
@@ -158,6 +159,7 @@ describe('FileProcessingSettings', () => {
     selectMockState.value = undefined
     setPreferencesMock.mockReset()
     setPreferencesMock.mockResolvedValue(undefined)
+    loggerWarnMock.mockReset()
     topViewShowMock.mockReset()
     topViewHideMock.mockReset()
     listAvailableProcessorsMock.mockReset()
@@ -238,6 +240,29 @@ describe('FileProcessingSettings', () => {
         screen.getByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
       ).toBeInTheDocument()
     })
+  })
+
+  it('keeps OV OCR hidden and logs when available processor lookup fails', async () => {
+    listAvailableProcessorsMock.mockRejectedValueOnce(new Error('IPC failed'))
+
+    render(<FileProcessingSettings />)
+
+    expect(
+      screen.getByRole('button', { name: /settings.tool.file_processing.processors.system.name/ })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
+    ).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(loggerWarnMock).toHaveBeenCalledWith(
+        'Failed to list available file processors',
+        expect.objectContaining({ message: 'IPC failed' })
+      )
+    })
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
+    ).not.toBeInTheDocument()
   })
 
   it('stores API key input as file processing overrides', async () => {

@@ -89,10 +89,10 @@ function sleep(ms: number): Promise<void> {
 function getProcessorsForFeature(
   processors: readonly FileProcessorMerged[],
   feature: LabFeature,
-  availableProcessorIds: ReadonlySet<FileProcessorId> | null
+  availableProcessorIds: ReadonlySet<FileProcessorId>
 ): FileProcessorMerged[] {
   return processors.filter((processor) => {
-    if (processor.id === 'ovocr' && availableProcessorIds?.has('ovocr') !== true) {
+    if (processor.id === 'ovocr' && !availableProcessorIds.has('ovocr')) {
       return false
     }
 
@@ -242,14 +242,18 @@ function ProcessorResultCard({ processor, state }: { processor: FileProcessorMer
 const ComponentLabFileProcessingSettings: FC = () => {
   const { t } = useTranslation()
   const [preferences] = useMultiplePreferences(FILE_PROCESSING_KEYS, { optimistic: false })
-  const availableProcessorIds = useAvailableFileProcessors()
+  const availableProcessors = useAvailableFileProcessors()
   const processors = useMemo(() => mergeFileProcessorPresets(preferences.overrides ?? {}), [preferences.overrides])
   const processorsByFeature = useMemo(() => {
     return {
-      image_to_text: getProcessorsForFeature(processors, 'image_to_text', availableProcessorIds),
-      document_to_markdown: getProcessorsForFeature(processors, 'document_to_markdown', availableProcessorIds)
+      image_to_text: getProcessorsForFeature(processors, 'image_to_text', availableProcessors.processorIds),
+      document_to_markdown: getProcessorsForFeature(
+        processors,
+        'document_to_markdown',
+        availableProcessors.processorIds
+      )
     } satisfies Record<LabFeature, FileProcessorMerged[]>
-  }, [availableProcessorIds, processors])
+  }, [availableProcessors.processorIds, processors])
 
   const [selectedFiles, setSelectedFiles] = useState<Partial<Record<LabFeature, FileMetadata>>>({})
   const [runStates, setRunStates] = useState<RunStateByFeature>({

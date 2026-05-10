@@ -23,10 +23,10 @@ const FileProcessingSettings: FC = () => {
     setLanguageOptions
   } = useFileProcessingPreferences()
 
-  const availableProcessorIds = useAvailableFileProcessors()
+  const availableProcessors = useAvailableFileProcessors()
   const featureSections = useMemo(
-    () => getFeatureSections(processors, availableProcessorIds),
-    [availableProcessorIds, processors]
+    () => getFeatureSections(processors, availableProcessors.processorIds),
+    [availableProcessors.processorIds, processors]
   )
   const menuEntries = useMemo(() => flattenFeatureSections(featureSections), [featureSections])
 

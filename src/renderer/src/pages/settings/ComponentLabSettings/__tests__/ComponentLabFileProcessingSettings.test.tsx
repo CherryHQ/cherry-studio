@@ -10,6 +10,7 @@ const selectFileMock = vi.hoisted(() => vi.fn())
 const startTaskMock = vi.hoisted(() => vi.fn())
 const getTaskMock = vi.hoisted(() => vi.fn())
 const listAvailableProcessorsMock = vi.hoisted(() => vi.fn())
+const loggerWarnMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -33,6 +34,14 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/context/ThemeProvider', () => ({
   useTheme: () => ({ theme: 'light' })
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      warn: loggerWarnMock
+    })
+  }
 }))
 
 vi.mock('../..', () => ({
@@ -141,6 +150,7 @@ describe('ComponentLabFileProcessingSettings', () => {
     startTaskMock.mockReset()
     getTaskMock.mockReset()
     listAvailableProcessorsMock.mockReset()
+    loggerWarnMock.mockReset()
     listAvailableProcessorsMock.mockResolvedValue({
       processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru']
     })
@@ -255,6 +265,58 @@ describe('ComponentLabFileProcessingSettings', () => {
     expect(startTaskMock.mock.calls.map(([payload]) => payload.processorId).sort()).toEqual([
       'mistral',
       'ovocr',
+      'paddleocr',
+      'system',
+      'tesseract'
+    ])
+  })
+
+  it('excludes OV OCR from Component Lab when available processor lookup fails', async () => {
+    listAvailableProcessorsMock.mockRejectedValueOnce(new Error('IPC failed'))
+    selectFileMock.mockResolvedValueOnce([imageFile])
+    startTaskMock.mockImplementation(({ processorId }) =>
+      Promise.resolve({
+        taskId: `ocr-${processorId}`,
+        feature: 'image_to_text',
+        processorId,
+        progress: 0,
+        status: 'pending'
+      })
+    )
+    getTaskMock.mockImplementation(({ taskId }) =>
+      Promise.resolve({
+        taskId,
+        feature: 'image_to_text',
+        processorId: taskId.replace('ocr-', ''),
+        progress: 100,
+        status: 'completed',
+        artifacts: [{ kind: 'text', format: 'plain', text: `result-${taskId}` }]
+      })
+    )
+
+    render(<ComponentLabFileProcessingSettings />)
+
+    await waitFor(() => {
+      expect(loggerWarnMock).toHaveBeenCalledWith(
+        'Failed to list available file processors',
+        expect.objectContaining({ message: 'IPC failed' })
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.componentLab.fileProcessing.ocr.select/ }))
+
+    await waitFor(() => {
+      expect(screen.getByText('/tmp/sample.png')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.componentLab.fileProcessing.ocr.start/ }))
+
+    await waitFor(() => {
+      expect(startTaskMock).toHaveBeenCalledTimes(4)
+    })
+
+    expect(startTaskMock.mock.calls.map(([payload]) => payload.processorId).sort()).toEqual([
+      'mistral',
       'paddleocr',
       'system',
       'tesseract'

@@ -1,8 +1,19 @@
+import { loggerService } from '@logger'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { useEffect, useState } from 'react'
 
-export function useAvailableFileProcessors(): ReadonlySet<FileProcessorId> | null {
-  const [availableProcessorIds, setAvailableProcessorIds] = useState<ReadonlySet<FileProcessorId> | null>(null)
+const logger = loggerService.withContext('useAvailableFileProcessors')
+
+export type AvailableFileProcessorsState = {
+  processorIds: ReadonlySet<FileProcessorId>
+  status: 'loading' | 'ready' | 'error'
+}
+
+export function useAvailableFileProcessors(): AvailableFileProcessorsState {
+  const [availableProcessors, setAvailableProcessors] = useState<AvailableFileProcessorsState>(() => ({
+    processorIds: new Set(),
+    status: 'loading'
+  }))
 
   useEffect(() => {
     let mounted = true
@@ -11,12 +22,19 @@ export function useAvailableFileProcessors(): ReadonlySet<FileProcessorId> | nul
       .listAvailableProcessors()
       .then(({ processorIds }) => {
         if (mounted) {
-          setAvailableProcessorIds(new Set(processorIds))
+          setAvailableProcessors({
+            processorIds: new Set(processorIds),
+            status: 'ready'
+          })
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        logger.warn('Failed to list available file processors', error as Error)
         if (mounted) {
-          setAvailableProcessorIds(null)
+          setAvailableProcessors({
+            processorIds: new Set(),
+            status: 'error'
+          })
         }
       })
 
@@ -25,5 +43,5 @@ export function useAvailableFileProcessors(): ReadonlySet<FileProcessorId> | nul
     }
   }, [])
 
-  return availableProcessorIds
+  return availableProcessors
 }
