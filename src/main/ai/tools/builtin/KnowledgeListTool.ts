@@ -49,8 +49,12 @@ Returns each base's name, emoji, group, item count, and a few sample sources (fi
 
     const groupFiltered = groupId !== undefined ? scopedBases.filter((base) => base.groupId === groupId) : scopedBases
 
-    const items: KbListOutputItem[] = await Promise.all(
-      groupFiltered.map(async (base) => buildOutputItem(base, orchestrator))
+    // Cap concurrency: a user with 50+ KBs would otherwise fire 50 concurrent
+    // listRootItems queries against SQLite + the vector store on every kb__list
+    // call. 8 in-flight is enough to keep the agent loop responsive without
+    // overwhelming the orchestrator.
+    const items: KbListOutputItem[] = await mapWithConcurrency(groupFiltered, 8, (base) =>
+      buildOutputItem(base, orchestrator)
     )
 
     const lowered = query?.toLowerCase()
@@ -131,6 +135,25 @@ function deriveSampleSource(item: KnowledgeItem): string | null {
 function matchesQuery(item: KbListOutputItem, lowered: string): boolean {
   if (item.name.toLowerCase().includes(lowered)) return true
   return item.sampleSources.some((source) => source.toLowerCase().includes(lowered))
+}
+
+/** Run `mapper` over `items` with at most `limit` in flight at once. */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  mapper: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const i = cursor++
+      if (i >= items.length) return
+      results[i] = await mapper(items[i])
+    }
+  })
+  await Promise.all(workers)
+  return results
 }
 
 export function createKbListToolEntry(): ToolEntry {
