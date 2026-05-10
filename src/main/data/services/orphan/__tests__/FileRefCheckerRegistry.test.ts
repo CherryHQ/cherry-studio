@@ -8,7 +8,9 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { knowledgeItemChecker, tempSessionChecker } = await import('../FileRefCheckerRegistry')
+const { chatMessageChecker, knowledgeItemChecker, noteChecker, paintingChecker, tempSessionChecker } = await import(
+  '../FileRefCheckerRegistry'
+)
 
 describe('FileRefCheckerRegistry', () => {
   const dbh = setupTestDatabase()
@@ -78,6 +80,28 @@ describe('FileRefCheckerRegistry', () => {
 
     it('declares its sourceType', () => {
       expect(knowledgeItemChecker.sourceType).toBe('knowledge_item')
+    })
+  })
+
+  describe('unmigrated source types (conservative no-op stubs)', () => {
+    it.each([
+      ['chat_message' as const, () => chatMessageChecker],
+      ['painting' as const, () => paintingChecker],
+      ['note' as const, () => noteChecker]
+    ])('%s: returns every input id as alive (preserves all refs)', async (sourceType, getChecker) => {
+      const checker = getChecker()
+      expect(checker.sourceType).toBe(sourceType)
+      const alive = await checker.checkExists(['x', 'y', 'z'])
+      expect(alive).toEqual(new Set(['x', 'y', 'z']))
+    })
+
+    it.each([
+      ['chat_message' as const, () => chatMessageChecker],
+      ['painting' as const, () => paintingChecker],
+      ['note' as const, () => noteChecker]
+    ])('%s: empty input → empty output', async (_sourceType, getChecker) => {
+      const alive = await getChecker().checkExists([])
+      expect(alive.size).toBe(0)
     })
   })
 })

@@ -40,6 +40,22 @@ export const tempSessionChecker: SourceTypeChecker<'temp_session'> = {
   checkExists: async () => new Set()
 }
 
+/**
+ * Conservative no-op stub: returns every input id as alive, so the orphan
+ * scanner deletes nothing for this sourceType. Replace with a real DB lookup
+ * once the owning v2 table lands (Phase 2 batch migration).
+ */
+function makeStubChecker<T extends FileRefSourceType>(sourceType: T): SourceTypeChecker<T> {
+  return {
+    sourceType,
+    checkExists: async (sourceIds) => new Set(sourceIds)
+  }
+}
+
+export const chatMessageChecker: SourceTypeChecker<'chat_message'> = makeStubChecker('chat_message')
+export const paintingChecker: SourceTypeChecker<'painting'> = makeStubChecker('painting')
+export const noteChecker: SourceTypeChecker<'note'> = makeStubChecker('note')
+
 export const knowledgeItemChecker: SourceTypeChecker<'knowledge_item'> = {
   sourceType: 'knowledge_item',
   checkExists: async (sourceIds) => {
