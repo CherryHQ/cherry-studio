@@ -8,32 +8,40 @@
 
 import { parsePersistedLangCode, type PersistedLangCode } from '../preference/preferenceTypes'
 
+type BuiltinPersistedLangCode<T extends string> = PersistedLangCode & { readonly __builtinLangCode: T }
+
+const parseBuiltinLangCode = <T extends string>(value: T): BuiltinPersistedLangCode<T> =>
+  parsePersistedLangCode(value) as BuiltinPersistedLangCode<T>
+
 /**
  * Enum-like constant object of all builtin translate languages.
  * Access individual languages via `BUILTIN_LANGUAGE.enUS`, `BUILTIN_LANGUAGE.zhCN`, etc.
  */
 export const BUILTIN_LANGUAGE = {
-  enUS: { langCode: parsePersistedLangCode('en-us'), value: 'English', emoji: '🇺🇸' },
-  zhCN: { langCode: parsePersistedLangCode('zh-cn'), value: 'Chinese (Simplified)', emoji: '🇨🇳' },
-  zhTW: { langCode: parsePersistedLangCode('zh-tw'), value: 'Chinese (Traditional)', emoji: '🇭🇰' },
-  jaJP: { langCode: parsePersistedLangCode('ja-jp'), value: 'Japanese', emoji: '🇯🇵' },
-  koKR: { langCode: parsePersistedLangCode('ko-kr'), value: 'Korean', emoji: '🇰🇷' },
-  frFR: { langCode: parsePersistedLangCode('fr-fr'), value: 'French', emoji: '🇫🇷' },
-  deDE: { langCode: parsePersistedLangCode('de-de'), value: 'German', emoji: '🇩🇪' },
-  itIT: { langCode: parsePersistedLangCode('it-it'), value: 'Italian', emoji: '🇮🇹' },
-  esES: { langCode: parsePersistedLangCode('es-es'), value: 'Spanish', emoji: '🇪🇸' },
-  ptPT: { langCode: parsePersistedLangCode('pt-pt'), value: 'Portuguese', emoji: '🇵🇹' },
-  ruRU: { langCode: parsePersistedLangCode('ru-ru'), value: 'Russian', emoji: '🇷🇺' },
-  plPL: { langCode: parsePersistedLangCode('pl-pl'), value: 'Polish', emoji: '🇵🇱' },
-  arSA: { langCode: parsePersistedLangCode('ar-sa'), value: 'Arabic', emoji: '🇸🇦' },
-  trTR: { langCode: parsePersistedLangCode('tr-tr'), value: 'Turkish', emoji: '🇹🇷' },
-  thTH: { langCode: parsePersistedLangCode('th-th'), value: 'Thai', emoji: '🇹🇭' },
-  viVN: { langCode: parsePersistedLangCode('vi-vn'), value: 'Vietnamese', emoji: '🇻🇳' },
-  idID: { langCode: parsePersistedLangCode('id-id'), value: 'Indonesian', emoji: '🇮🇩' },
-  urPK: { langCode: parsePersistedLangCode('ur-pk'), value: 'Urdu', emoji: '🇵🇰' },
-  msMY: { langCode: parsePersistedLangCode('ms-my'), value: 'Malay', emoji: '🇲🇾' },
-  ukUA: { langCode: parsePersistedLangCode('uk-ua'), value: 'Ukrainian', emoji: '🇺🇦' }
+  enUS: { langCode: parseBuiltinLangCode('en-us'), value: 'English', emoji: '🇺🇸' },
+  zhCN: { langCode: parseBuiltinLangCode('zh-cn'), value: 'Chinese (Simplified)', emoji: '🇨🇳' },
+  zhTW: { langCode: parseBuiltinLangCode('zh-tw'), value: 'Chinese (Traditional)', emoji: '🇭🇰' },
+  jaJP: { langCode: parseBuiltinLangCode('ja-jp'), value: 'Japanese', emoji: '🇯🇵' },
+  koKR: { langCode: parseBuiltinLangCode('ko-kr'), value: 'Korean', emoji: '🇰🇷' },
+  frFR: { langCode: parseBuiltinLangCode('fr-fr'), value: 'French', emoji: '🇫🇷' },
+  deDE: { langCode: parseBuiltinLangCode('de-de'), value: 'German', emoji: '🇩🇪' },
+  itIT: { langCode: parseBuiltinLangCode('it-it'), value: 'Italian', emoji: '🇮🇹' },
+  esES: { langCode: parseBuiltinLangCode('es-es'), value: 'Spanish', emoji: '🇪🇸' },
+  ptPT: { langCode: parseBuiltinLangCode('pt-pt'), value: 'Portuguese', emoji: '🇵🇹' },
+  ruRU: { langCode: parseBuiltinLangCode('ru-ru'), value: 'Russian', emoji: '🇷🇺' },
+  plPL: { langCode: parseBuiltinLangCode('pl-pl'), value: 'Polish', emoji: '🇵🇱' },
+  arSA: { langCode: parseBuiltinLangCode('ar-sa'), value: 'Arabic', emoji: '🇸🇦' },
+  trTR: { langCode: parseBuiltinLangCode('tr-tr'), value: 'Turkish', emoji: '🇹🇷' },
+  thTH: { langCode: parseBuiltinLangCode('th-th'), value: 'Thai', emoji: '🇹🇭' },
+  viVN: { langCode: parseBuiltinLangCode('vi-vn'), value: 'Vietnamese', emoji: '🇻🇳' },
+  idID: { langCode: parseBuiltinLangCode('id-id'), value: 'Indonesian', emoji: '🇮🇩' },
+  urPK: { langCode: parseBuiltinLangCode('ur-pk'), value: 'Urdu', emoji: '🇵🇰' },
+  msMY: { langCode: parseBuiltinLangCode('ms-my'), value: 'Malay', emoji: '🇲🇾' },
+  ukUA: { langCode: parseBuiltinLangCode('uk-ua'), value: 'Ukrainian', emoji: '🇺🇦' }
 } as const satisfies Record<string, { langCode: PersistedLangCode; value: string; emoji: string }>
+
+type BuiltinLangCode<T> = T extends { readonly __builtinLangCode: infer Code extends string } ? Code : never
+type BuiltinTranslateLangCode = BuiltinLangCode<(typeof BUILTIN_LANGUAGE)[keyof typeof BUILTIN_LANGUAGE]['langCode']>
 
 /** Flat array of all builtin translate languages, derived from {@link BUILTIN_LANGUAGE}. */
 export const BUILTIN_TRANSLATE_LANGUAGES = Object.values(BUILTIN_LANGUAGE)
@@ -62,5 +70,5 @@ export const langCodeToI18nKey = new Map(
     'ms-my': 'languages.malay',
     'uk-ua': 'languages.ukrainian',
     unknown: 'languages.unknown'
-  } satisfies Record<string, string>)
+  } satisfies Record<BuiltinTranslateLangCode | 'unknown', string>)
 )
