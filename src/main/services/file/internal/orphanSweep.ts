@@ -181,6 +181,12 @@ function isTmpResidueName(name: string): boolean {
 /** mtime gate per architecture §10.3 — files newer than this are presumed in-flight. */
 const FRESHNESS_GATE_MS = 5 * 60 * 1000
 
+/** Architecture §10.4 safety thresholds — absolute floor below which any plan is fine. */
+const SMALL_RESIDUE_COUNT_FLOOR = 20
+const SMALL_RESIDUE_BYTES_FLOOR = 10 * 1024 * 1024
+/** Above the floor, abort if the plan covers more than this fraction of total. */
+const ABORT_FRACTION = 0.5
+
 export interface RunStartupFileSweepDeps {
   readonly fileEntryService: Pick<FileEntryService, 'listAllIds'>
   /** Test seam — defaults to `Date.now`. */
@@ -188,12 +194,16 @@ export interface RunStartupFileSweepDeps {
 }
 
 export interface FileSweepReport {
-  readonly outcome: 'completed' | 'failed'
+  readonly outcome: 'completed' | 'aborted' | 'failed'
   readonly entriesInDb: number
   readonly filesOnDisk: number
+  readonly bytesOnDisk: number
   readonly plannedDeleteCount: number
+  readonly plannedDeleteBytes: number
   readonly actualDeleteCount: number
+  readonly actualDeleteBytes: number
   readonly scanDurationMs: number
+  readonly abortReason?: 'count-fraction' | 'byte-fraction'
   readonly errorMessage?: string
 }
 
@@ -227,26 +237,53 @@ export async function runStartupFileSweep(deps: RunStartupFileSweepDeps): Promis
     }
 
     const now = (deps.now ?? Date.now)()
-    const planned: string[] = []
+    const planned: { path: string; bytes: number }[] = []
+    let bytesOnDisk = 0
     for (const name of dirents) {
       const fullPath = path.join(filesDir, name)
+      let st
+      try {
+        st = await stat(fullPath)
+      } catch {
+        continue
+      }
+      bytesOnDisk += st.size
       const uuid = isUuidFileName(name)
       const isCandidate = uuid ? !idSnapshot.has(uuid.id as FileEntryId) : isTmpResidueName(name)
       if (!isCandidate) continue
-      try {
-        const st = await stat(fullPath)
-        if (now - st.mtimeMs <= FRESHNESS_GATE_MS) continue
-        planned.push(fullPath)
-      } catch {
-        // racing with another process / OS junk; skip
+      if (now - st.mtimeMs <= FRESHNESS_GATE_MS) continue
+      planned.push({ path: fullPath, bytes: st.size })
+    }
+
+    const plannedBytes = planned.reduce((s, p) => s + p.bytes, 0)
+    const abortReason = pickAbortReason({
+      planned: planned.length,
+      plannedBytes,
+      filesOnDisk: dirents.length,
+      bytesOnDisk
+    })
+    if (abortReason) {
+      return {
+        outcome: 'aborted',
+        entriesInDb: idSnapshot.size,
+        filesOnDisk: dirents.length,
+        bytesOnDisk,
+        plannedDeleteCount: planned.length,
+        plannedDeleteBytes: plannedBytes,
+        actualDeleteCount: 0,
+        actualDeleteBytes: 0,
+        scanDurationMs: Date.now() - startedAt,
+        abortReason
       }
     }
 
     let actualDeleted = 0
+    let actualBytes = 0
     for (const target of planned) {
       try {
-        await unlink(target)
+        await unlink(target.path)
         actualDeleted++
+        actualBytes += target.bytes
       } catch {
         // best-effort; missing file is fine
       }
@@ -256,8 +293,11 @@ export async function runStartupFileSweep(deps: RunStartupFileSweepDeps): Promis
       outcome: 'completed',
       entriesInDb: idSnapshot.size,
       filesOnDisk: dirents.length,
+      bytesOnDisk,
       plannedDeleteCount: planned.length,
+      plannedDeleteBytes: plannedBytes,
       actualDeleteCount: actualDeleted,
+      actualDeleteBytes: actualBytes,
       scanDurationMs: Date.now() - startedAt
     }
   } catch (err) {
@@ -265,12 +305,30 @@ export async function runStartupFileSweep(deps: RunStartupFileSweepDeps): Promis
       outcome: 'failed',
       entriesInDb: 0,
       filesOnDisk: 0,
+      bytesOnDisk: 0,
       plannedDeleteCount: 0,
+      plannedDeleteBytes: 0,
       actualDeleteCount: 0,
+      actualDeleteBytes: 0,
       scanDurationMs: Date.now() - startedAt,
       errorMessage: (err as Error).message
     }
   }
+}
+
+function pickAbortReason(args: {
+  planned: number
+  plannedBytes: number
+  filesOnDisk: number
+  bytesOnDisk: number
+}): 'count-fraction' | 'byte-fraction' | undefined {
+  const { planned, plannedBytes, filesOnDisk, bytesOnDisk } = args
+  if (planned < SMALL_RESIDUE_COUNT_FLOOR && plannedBytes < SMALL_RESIDUE_BYTES_FLOOR) return undefined
+  const countFraction = planned / Math.max(1, filesOnDisk)
+  if (countFraction > ABORT_FRACTION) return 'count-fraction'
+  const byteFraction = plannedBytes / Math.max(1, bytesOnDisk)
+  if (byteFraction > ABORT_FRACTION) return 'byte-fraction'
+  return undefined
 }
 
 export type FileManagerDepsForSweep = FileManagerDeps

@@ -397,6 +397,61 @@ describe('runStartupFileSweep (FS-level)', () => {
     expect(report.actualDeleteCount).toBe(1)
     await expect(stat(tmpPath)).rejects.toThrow(/ENOENT/)
   })
+
+  it('aborts when the planned deletion exceeds the safety threshold (>20 files at >50%)', async () => {
+    // 25 orphan UUID files on disk, 0 entries in DB — exceeds both the 20-count
+    // residue floor AND the 50% fraction. Architecture §10.4 → outcome=aborted.
+    const ids = Array.from({ length: 25 }, (_, i) => `019606a0-0000-7000-8000-${String(i).padStart(12, '0')}`)
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    for (const id of ids) {
+      const p = path.join(filesDir, `${id}.txt`)
+      await writeFile(p, 'x')
+      await utimes(p, ancient, ancient)
+    }
+
+    const report = await runStartupFileSweep({ fileEntryService })
+    expect(report.outcome).toBe('aborted')
+    expect(report.abortReason).toBe('count-fraction')
+    expect(report.actualDeleteCount).toBe(0)
+
+    // All files preserved.
+    for (const id of ids) {
+      expect((await stat(path.join(filesDir, `${id}.txt`))).size).toBe(1)
+    }
+  })
+
+  it('aborts on byte-fraction when total bytes exceed the bytes floor', async () => {
+    // 21 files of 600KB each (12.6 MB > 10MB floor) AND 100% planned → abort.
+    const ids = Array.from({ length: 21 }, (_, i) => `019606a0-0000-7000-8000-${String(i + 100).padStart(12, '0')}`)
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    const big = Buffer.alloc(600 * 1024, 'x')
+    for (const id of ids) {
+      const p = path.join(filesDir, `${id}.txt`)
+      await writeFile(p, big)
+      await utimes(p, ancient, ancient)
+    }
+
+    const report = await runStartupFileSweep({ fileEntryService })
+    expect(report.outcome).toBe('aborted')
+    // Either count-fraction or byte-fraction may trigger first; both are valid.
+    expect(['count-fraction', 'byte-fraction']).toContain(report.abortReason)
+    expect(report.actualDeleteCount).toBe(0)
+  })
+
+  it('proceeds normally for small residue (under the 20-file floor)', async () => {
+    // 5 orphan UUID files, 0 entries — small enough to bypass abort.
+    const ids = Array.from({ length: 5 }, (_, i) => `019606a0-0000-7000-8000-${String(i + 200).padStart(12, '0')}`)
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    for (const id of ids) {
+      const p = path.join(filesDir, `${id}.txt`)
+      await writeFile(p, 'x')
+      await utimes(p, ancient, ancient)
+    }
+
+    const report = await runStartupFileSweep({ fileEntryService })
+    expect(report.outcome).toBe('completed')
+    expect(report.actualDeleteCount).toBe(5)
+  })
 })
 
 function registryStub() {
