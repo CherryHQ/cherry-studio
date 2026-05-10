@@ -134,6 +134,21 @@ describe('internal/entry/lifecycle', () => {
       await permanentDelete(deps, id)
       expect(await fileEntryService.findById(id)).toBeNull()
     })
+
+    it('removes the entry from DanglingCache reverse index when external', async () => {
+      const id = await makeExternal()
+      const entry = await fileEntryService.getById(id)
+      vi.mocked(deps.danglingCache.removeEntry).mockClear()
+      await permanentDelete(deps, id)
+      expect(deps.danglingCache.removeEntry).toHaveBeenCalledWith(id, entry.externalPath)
+    })
+
+    it('does not call removeEntry for internal entries', async () => {
+      const id = await makeInternal()
+      vi.mocked(deps.danglingCache.removeEntry).mockClear()
+      await permanentDelete(deps, id)
+      expect(deps.danglingCache.removeEntry).not.toHaveBeenCalled()
+    })
   })
 
   describe('batch ops', () => {

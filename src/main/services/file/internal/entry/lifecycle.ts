@@ -42,6 +42,9 @@ export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): P
   const physical = entry.origin === 'internal' ? (resolvePhysicalPath(entry) as FilePath) : undefined
   await deps.fileEntryService.delete(id)
   deps.versionCache.invalidate(id)
+  if (entry.origin === 'external' && entry.externalPath) {
+    deps.danglingCache.removeEntry(id, entry.externalPath as FilePath)
+  }
   if (physical !== undefined) {
     try {
       await fsRemove(physical)
