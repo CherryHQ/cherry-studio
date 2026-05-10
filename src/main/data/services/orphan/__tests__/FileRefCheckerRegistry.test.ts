@@ -18,6 +18,8 @@ const {
   tempSessionChecker
 } = await import('../FileRefCheckerRegistry')
 
+import type { OrphanCheckerRegistry } from '../FileRefCheckerRegistry'
+
 describe('FileRefCheckerRegistry', () => {
   const dbh = setupTestDatabase()
 
@@ -127,6 +129,43 @@ describe('FileRefCheckerRegistry', () => {
       expect(orphanCheckerRegistry.chat_message).toBe(chatMessageChecker)
       expect(orphanCheckerRegistry.painting).toBe(paintingChecker)
       expect(orphanCheckerRegistry.note).toBe(noteChecker)
+    })
+  })
+
+  /**
+   * Type-level exhaustiveness — RFC §9.6 exit criterion: "Adding a new
+   * FileRefSourceType variant without a checker triggers a TS build error".
+   *
+   * The `@ts-expect-error` markers below MUST trigger TypeScript errors;
+   * if a future refactor weakens the registry shape (e.g. drops the
+   * Record<FileRefSourceType, ...> annotation), tsc will report the
+   * comments as unused expectations and CI typecheck will fail — which is
+   * exactly the signal we want.
+   */
+  describe('type-level exhaustiveness (RFC §9.6 compile-time invariant)', () => {
+    it('rejects a registry literal missing any FileRefSourceType key', () => {
+      // @ts-expect-error — `note` is missing → TS2741
+      const incomplete: OrphanCheckerRegistry = {
+        temp_session: tempSessionChecker,
+        chat_message: chatMessageChecker,
+        knowledge_item: knowledgeItemChecker,
+        painting: paintingChecker
+        // note: noteChecker  ← intentionally omitted
+      }
+      expect(incomplete).toBeDefined()
+    })
+
+    it('rejects assigning a checker of the wrong sourceType brand', () => {
+      const wrongBrand: OrphanCheckerRegistry = {
+        // @ts-expect-error — chatMessageChecker is SourceTypeChecker<'chat_message'>,
+        // not assignable to slot keyed 'temp_session'
+        temp_session: chatMessageChecker,
+        chat_message: chatMessageChecker,
+        knowledge_item: knowledgeItemChecker,
+        painting: paintingChecker,
+        note: noteChecker
+      }
+      expect(wrongBrand).toBeDefined()
     })
   })
 })

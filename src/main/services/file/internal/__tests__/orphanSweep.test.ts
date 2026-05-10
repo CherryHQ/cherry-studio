@@ -479,7 +479,9 @@ describe('runStartupFileSweep (FS-level)', () => {
 
     const report = await runStartupFileSweep({ fileEntryService })
     expect(report.outcome).toBe('aborted')
-    expect(report.abortReason).toBe('count-fraction')
+    if (report.outcome === 'aborted') {
+      expect(report.abortReason).toBe('count-fraction')
+    }
     expect(report.actualDeleteCount).toBe(0)
 
     // All files preserved.
@@ -501,8 +503,10 @@ describe('runStartupFileSweep (FS-level)', () => {
 
     const report = await runStartupFileSweep({ fileEntryService })
     expect(report.outcome).toBe('aborted')
-    // Either count-fraction or byte-fraction may trigger first; both are valid.
-    expect(['count-fraction', 'byte-fraction']).toContain(report.abortReason)
+    if (report.outcome === 'aborted') {
+      // Either count-fraction or byte-fraction may trigger first; both are valid.
+      expect(['count-fraction', 'byte-fraction']).toContain(report.abortReason)
+    }
     expect(report.actualDeleteCount).toBe(0)
   })
 
@@ -616,7 +620,7 @@ describe('runStartupFileSweep (FS-level)', () => {
       listAllIds: async () => {
         throw new Error('db-down')
       }
-    } as typeof fileEntryService
+    } as unknown as typeof fileEntryService
     const report = await runStartupFileSweep({ fileEntryService: failingEntryService })
     expect(report.outcome).toBe('failed')
     if (report.outcome === 'failed') {
