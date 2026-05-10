@@ -201,8 +201,8 @@ export function PaintingFieldRenderer({
               key={String(option.value)}
               className={`rounded-[6px] border px-[6px] py-[2px] transition-all ${
                 currentValue === String(option.value)
-                  ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
-                  : 'border-[var(--color-border)] bg-[var(--color-background)] hover:bg-[var(--color-hover,#f0f0f0)]'
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-background hover:bg-accent'
               }`}
               onClick={() => {
                 if (toggleMode === 'single' && currentValue === String(option.value)) {

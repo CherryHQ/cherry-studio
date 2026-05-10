@@ -85,6 +85,8 @@ export interface ZhipuPaintingData extends PaintingDataBase {
   numImages?: number
   seed?: string
   quality?: string
+  customWidth?: number
+  customHeight?: number
 }
 
 export interface GeneratePaintingFields {

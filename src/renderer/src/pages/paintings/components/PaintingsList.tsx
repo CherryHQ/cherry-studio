@@ -72,8 +72,7 @@ const PaintingsList: FC<PaintingsListProps> = ({
   return (
     <>
       <div
-        className="flex h-[calc(100vh-var(--navbar-height))] max-w-[108px] shrink-0 flex-col items-center gap-2.5 overflow-y-auto overflow-x-hidden border-border border-l bg-muted/15 p-2.5"
-        style={{ paddingBottom: dragging ? 80 : 12 }}>
+        className={`flex h-[calc(100vh-var(--navbar-height))] max-w-[108px] shrink-0 flex-col items-center gap-2.5 overflow-y-auto overflow-x-hidden border-border border-l bg-muted/15 p-2.5 ${dragging ? 'pb-20' : 'pb-3'}`}>
         {!dragging && (
           <button
             type="button"

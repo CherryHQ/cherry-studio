@@ -34,10 +34,10 @@ export const CreatePaintingSchema = z
     providerId: OptionalTrimmedStringSchema,
     modelId: OptionalNullableTrimmedStringSchema.optional(),
     mode: PaintingModeSchema,
-    mediaType: PaintingMediaTypeSchema.optional(),
-    prompt: z.string().optional(),
-    params: PaintingParamsSchema.optional(),
-    files: PaintingFilesSchema.optional()
+    mediaType: PaintingMediaTypeSchema,
+    prompt: z.string(),
+    params: PaintingParamsSchema,
+    files: PaintingFilesSchema
   })
   .strict()
 export type CreatePaintingDto = z.infer<typeof CreatePaintingSchema>

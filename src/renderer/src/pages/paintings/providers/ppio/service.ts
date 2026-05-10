@@ -282,9 +282,11 @@ class PpioService {
   }
 
   private buildSeedreamEditParams(painting: PpioPainting): Record<string, unknown> {
+    const rawImage = painting.imageFile ?? ''
+    const base64Image = rawImage.replace(/^data:[^;]+;base64,/, '')
     return {
       prompt: painting.prompt,
-      image: painting.imageFile ? [painting.imageFile] : [],
+      image: base64Image ? [base64Image] : [],
       size: painting.size || '2048x2048',
       watermark: painting.addWatermark ?? true,
       sequential_image_generation: 'disabled'

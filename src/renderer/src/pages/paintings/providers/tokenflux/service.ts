@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types'
 import md5 from 'md5'
 
+import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import type { TokenFluxModel } from './config'
 
 const logger = loggerService.withContext('TokenFluxService')
@@ -59,29 +60,32 @@ export class TokenFluxService {
 
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
-      throw new Error(errorData.message || `HTTP ${response.status}: Request failed`)
+      const errorData = await response.json().catch(() => ({ message: '' }))
+      throw createPaintingGenerateError('REMOTE_ERROR', {
+        message: errorData.message || `HTTP ${response.status}: Request failed`
+      })
     }
     return response.json()
   }
 
-  async fetchModels(): Promise<TokenFluxModel[]> {
+  async fetchModels(signal?: AbortSignal): Promise<TokenFluxModel[]> {
     const cacheKey = `tokenflux_models_${this.apiHost}_${md5(this.apiKey || 'anonymous')}`
     const cachedModels = modelsCache.get(cacheKey)
     if (cachedModels && cachedModels.expiresAt > Date.now()) {
       return cachedModels.models
     }
 
-    const response = await fetch(`${TOKENFLUX_IMAGE_API_HOST}/v1/images/models`, {
+    const response = await fetch(`${this.apiHost}/v1/images/models`, {
       headers: {
         Authorization: `Bearer ${this.apiKey}`
-      }
+      },
+      signal
     })
 
     const data: TokenFluxModelsResponse = await this.handleResponse(response)
 
     if (!data.success || !data.data) {
-      throw new Error('Failed to fetch models')
+      throw createPaintingGenerateError('REMOTE_ERROR', { message: 'Failed to fetch models' })
     }
 
     modelsCache.set(cacheKey, {

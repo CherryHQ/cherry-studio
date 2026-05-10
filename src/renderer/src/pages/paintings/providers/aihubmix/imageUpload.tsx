@@ -16,8 +16,12 @@ export function getAihubmixUploadedFile(path?: string | null) {
 export function createAihubmixImageUploadHandler(
   patchPainting: (updates: Partial<PaintingData>) => void,
   key: string,
-  file: File
+  file: File,
+  prevPath?: string | null
 ) {
+  if (prevPath?.startsWith('blob:')) {
+    URL.revokeObjectURL(prevPath)
+  }
   const path = URL.createObjectURL(file)
   setAihubmixUploadedFile(path, file)
   patchPainting({ [key]: path } as Partial<PaintingData>)
@@ -32,9 +36,10 @@ export const aihubmixImagePlaceholder = <img src={IcImageUp} className="mt-2" />
 export function handleAihubmixImageUpload(
   key: string,
   file: File,
-  patchPainting: (updates: Partial<PaintingData>) => void
+  patchPainting: (updates: Partial<PaintingData>) => void,
+  prevPath?: string | null
 ) {
-  createAihubmixImageUploadHandler(patchPainting, key, file)
+  createAihubmixImageUploadHandler(patchPainting, key, file, prevPath)
 }
 
 export function getAihubmixPreviewSrc(key: string, painting: PaintingData) {

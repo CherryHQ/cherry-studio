@@ -51,7 +51,7 @@ export function paintingDataToCreateDto(painting: CreatePaintingData): CreatePai
     providerId: painting.providerId,
     modelId: typeof painting.model === 'string' && painting.model.trim() ? painting.model : undefined,
     mode: painting.mode,
-    mediaType: painting.mediaType,
+    mediaType: painting.mediaType ?? 'image',
     prompt: painting.prompt,
     params: paintingParamsForPersistence(painting),
     files: {

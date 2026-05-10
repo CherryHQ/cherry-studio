@@ -1,6 +1,7 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { uuid } from '@renderer/utils'
 import type { TFunction } from 'i18next'
+import { t } from 'i18next'
 
 import { SettingHelpLink } from '../../../settings'
 import type { DmxapiPaintingData as DmxapiPainting } from '../../model/types/paintingData'
@@ -46,8 +47,12 @@ export const dmxapiProvider: PaintingProviderDefinition = createMultiModeProvide
       type: 'async' as const,
       loader: async () => {
         if (!getDmxapiModelGroups()) {
-          const data = await GetModelGroup()
-          setDmxapiModelGroups(data)
+          const result = await GetModelGroup()
+          if (result.status === 'error') {
+            window.toast.error(t('paintings.req_error_model'))
+            return []
+          }
+          setDmxapiModelGroups(result.groups)
         }
 
         const groups = getDmxapiModelOptionsForMode(tab, getDmxapiModelGroups())

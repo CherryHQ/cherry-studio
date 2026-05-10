@@ -8,8 +8,6 @@
 
 import { application } from '@application'
 import { type NewPainting, type Painting as PaintingRow, paintingTable } from '@data/db/schemas/painting'
-import { userModelTable } from '@data/db/schemas/userModel'
-import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -59,32 +57,9 @@ function rowToPainting(row: PaintingRow): Painting {
   }
 }
 
-type ModelLookupDb = Pick<DbType, 'select'>
-
-function resolveCandidateModelId(providerId: string, modelId: string | null | undefined): string | null {
-  if (!modelId) {
-    return null
-  }
-
+function normalizeModelId(providerId: string, modelId: string | null | undefined): string | null {
+  if (!modelId) return null
   return isUniqueModelId(modelId) ? modelId : createUniqueModelId(providerId, modelId)
-}
-
-async function resolveExistingModelId(
-  db: ModelLookupDb,
-  providerId: string,
-  modelId: string | null | undefined
-): Promise<string | null> {
-  const candidate = resolveCandidateModelId(providerId, modelId)
-  if (!candidate) {
-    return null
-  }
-
-  const [model] = await db
-    .select({ id: userModelTable.id })
-    .from(userModelTable)
-    .where(eq(userModelTable.id, candidate))
-    .limit(1)
-  return model?.id ?? null
 }
 
 class PaintingService {
@@ -146,12 +121,12 @@ class PaintingService {
         {
           id: dto.id,
           providerId: dto.providerId,
-          modelId: await resolveExistingModelId(tx, dto.providerId, dto.modelId),
+          modelId: normalizeModelId(dto.providerId, dto.modelId),
           mode: dto.mode,
-          mediaType: dto.mediaType ?? 'image',
-          prompt: dto.prompt ?? '',
-          params: dto.params ?? {},
-          files: { output: dto.files?.output ?? [], input: dto.files?.input ?? [] }
+          mediaType: dto.mediaType,
+          prompt: dto.prompt,
+          params: dto.params,
+          files: dto.files
         },
         {
           pkColumn: paintingTable.id,
@@ -184,7 +159,7 @@ class PaintingService {
     }
 
     if (dto.modelId !== undefined) {
-      updates.modelId = await resolveExistingModelId(db, updates.providerId ?? existing.providerId, dto.modelId)
+      updates.modelId = normalizeModelId(updates.providerId ?? existing.providerId, dto.modelId)
     } else if (dto.providerId !== undefined && dto.providerId !== existing.providerId) {
       updates.modelId = null
     }

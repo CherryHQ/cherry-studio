@@ -3,13 +3,13 @@ import type { Model } from '@renderer/types'
 
 import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import { runPainting } from '../../model/paintingGenerationService'
+import type { ZhipuPaintingData } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import type { GenerateInput } from '../types'
 import { ZHIPU_PAINTING_MODELS } from './config'
 
-export async function generateWithZhipu(input: GenerateInput) {
-  const { painting: rawPainting, provider, abortController } = input
-  const painting = rawPainting as any
+export async function generateWithZhipu(input: GenerateInput<ZhipuPaintingData>) {
+  const { painting, provider, abortController } = input
 
   const apiKey = await checkProviderEnabled(provider)
 
@@ -17,13 +17,16 @@ export async function generateWithZhipu(input: GenerateInput) {
     throw createPaintingGenerateError('PROMPT_REQUIRED')
   }
 
+  const modelId = painting.model
+  if (!modelId) return []
+
   return runPainting(async () => {
     const model =
-      ZHIPU_PAINTING_MODELS.find((item) => item.id === painting.model) ||
+      ZHIPU_PAINTING_MODELS.find((item) => item.id === modelId) ||
       ({
-        id: painting.model,
+        id: modelId,
         provider: provider.id,
-        name: painting.model,
+        name: modelId,
         group: ''
       } as Model)
     const aiProvider = new AiProvider(model, {
@@ -62,11 +65,11 @@ export async function generateWithZhipu(input: GenerateInput) {
     }
 
     const images = await aiProvider.generateImage({
-      model: painting.model,
+      model: modelId,
       prompt: painting.prompt,
       negativePrompt: painting.negativePrompt,
-      imageSize: actualImageSize,
-      batchSize: painting.numImages,
+      imageSize: actualImageSize ?? '1024x1024',
+      batchSize: painting.numImages ?? 1,
       quality: painting.quality,
       signal: abortController.signal
     })

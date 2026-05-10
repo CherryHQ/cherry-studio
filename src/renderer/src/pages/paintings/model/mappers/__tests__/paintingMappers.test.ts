@@ -118,7 +118,30 @@ describe('paintingMappers', () => {
       }
     })
 
-    expect(paintingDataToCreateDto({ ...paintingData, mediaType: undefined }).mediaType).toBeUndefined()
+    expect(paintingDataToCreateDto({ ...paintingData, mediaType: undefined }).mediaType).toBe('image')
+  })
+
+  it('should handle modelId: null — model resolves to undefined and round-trips as absent modelId', async () => {
+    const nullModelRecord: PaintingRecord = {
+      ...record,
+      id: 'painting-null-model',
+      modelId: null,
+      params: {}
+    }
+
+    const paintingData = await recordToPaintingData(nullModelRecord)
+    expect(paintingData.model).toBeUndefined()
+
+    const createDto = paintingDataToCreateDto({ ...paintingData, providerId: 'silicon', mode: 'generate' })
+    expect(createDto.modelId).toBeUndefined()
+
+    const updateDto = paintingDataToUpdateDto(paintingData)
+    expect(updateDto.modelId).toBeUndefined()
+  })
+
+  it('should strip reserved keys from DTO params and update DTO', async () => {
+    const paintingDataList = await recordsToPaintingDataList([record])
+    const paintingData = paintingDataList[0]
 
     expect(paintingDataToUpdateDto(paintingData)).toEqual({
       providerId: 'silicon',

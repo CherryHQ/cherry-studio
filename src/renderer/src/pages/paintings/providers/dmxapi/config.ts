@@ -1,5 +1,4 @@
 import { uuid } from '@renderer/utils'
-import { t } from 'i18next'
 
 import type { DmxapiPaintingData as DmxapiPainting } from '../../model/types/paintingData'
 import { generationModeType } from '../../model/types/paintingData'
@@ -82,22 +81,22 @@ export const MODEOPTIONS = [
   { labelKey: 'paintings.mode.merge', value: generationModeType.MERGE }
 ]
 
+export type GetModelGroupResult = { status: 'ok'; groups: DMXApiModelGroups } | { status: 'error'; cause?: unknown }
+
 // 获取模型分组数据
-export const GetModelGroup = async (): Promise<DMXApiModelGroups> => {
+export const GetModelGroup = async (): Promise<GetModelGroupResult> => {
   try {
     const response = await fetch('https://dmxapi.cn/cherry_painting_models_v3.json')
 
     if (response.ok) {
       const data = await response.json()
-
       if (data) {
-        return data
+        return { status: 'ok', groups: data }
       }
     }
-  } catch {
-    /* empty */
-  }
-  window.toast.error(t('paintings.req_error_model'))
 
-  return {}
+    return { status: 'error' }
+  } catch (cause) {
+    return { status: 'error', cause }
+  }
 }

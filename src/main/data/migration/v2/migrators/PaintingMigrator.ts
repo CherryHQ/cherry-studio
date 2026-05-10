@@ -1,5 +1,4 @@
 import { paintingTable } from '@data/db/schemas/painting'
-import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
@@ -13,7 +12,6 @@ import {
   type NormalizedPaintingRow,
   transformLegacyPaintingRecord
 } from './mappings/PaintingMappings'
-import { legacyModelToUniqueId, resolveModelReference } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('PaintingMigrator')
 
@@ -126,53 +124,25 @@ export class PaintingMigrator extends BaseMigrator {
     }
 
     try {
-      const existingModelIds = new Set(
-        (await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id)
-      )
-      let droppedModelRefs = 0
-      const sanitizedPaintings = this.preparedPaintings.map((painting) => {
-        const modelId = legacyModelToUniqueId(
-          { id: painting.modelId ?? undefined, provider: painting.providerId },
-          painting.modelId
-        )
-        const resolution = resolveModelReference(modelId, existingModelIds)
-        if (resolution.kind === 'resolved') {
-          return { ...painting, modelId: resolution.modelId }
-        }
+      const paintings = this.preparedPaintings
 
-        if (resolution.kind === 'dangling') {
-          droppedModelRefs++
-        }
-
-        return { ...painting, modelId: null }
-      })
-
-      const withFiles = sanitizedPaintings.filter((p) => p.files && p.files.output.length > 0)
-      const withoutFiles = sanitizedPaintings.filter((p) => !p.files || p.files.output.length === 0)
-      logger.info('[execute] insert summary', {
-        total: sanitizedPaintings.length,
-        withFiles: withFiles.length,
-        withoutFiles: withoutFiles.length,
-        droppedModelRefs
-      })
+      logger.info('[execute] insert summary', { total: paintings.length })
 
       await ctx.db.transaction(async (tx) => {
-        for (let index = 0; index < sanitizedPaintings.length; index += INSERT_BATCH_SIZE) {
-          const batch = sanitizedPaintings.slice(index, index + INSERT_BATCH_SIZE)
+        for (let index = 0; index < paintings.length; index += INSERT_BATCH_SIZE) {
+          const batch = paintings.slice(index, index + INSERT_BATCH_SIZE)
           await tx.insert(paintingTable).values(batch)
 
           this.reportProgress(
-            Math.round(
-              (Math.min(index + INSERT_BATCH_SIZE, sanitizedPaintings.length) / sanitizedPaintings.length) * 100
-            ),
-            `Migrated ${Math.min(index + INSERT_BATCH_SIZE, sanitizedPaintings.length)}/${sanitizedPaintings.length} painting records`
+            Math.round((Math.min(index + INSERT_BATCH_SIZE, paintings.length) / paintings.length) * 100),
+            `Migrated ${Math.min(index + INSERT_BATCH_SIZE, paintings.length)}/${paintings.length} painting records`
           )
         }
       })
 
       return {
         success: true,
-        processedCount: sanitizedPaintings.length
+        processedCount: paintings.length
       }
     } catch (error) {
       logger.error('Execute failed', error as Error)

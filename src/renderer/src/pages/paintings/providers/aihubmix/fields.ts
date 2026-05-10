@@ -1,4 +1,5 @@
-import type { AihubmixMode } from './config'
+import type { BaseConfigItem } from '../shared/providerFieldSchema'
+import type { AihubmixMode, ConfigItem } from './config'
 import { createModeConfigs } from './config'
 
 const modeConfigs = createModeConfigs()
@@ -9,11 +10,15 @@ const MODE_TO_CONFIG: Record<'generate' | 'remix' | 'upscale', AihubmixMode> = {
   upscale: 'aihubmix_image_upscale'
 }
 
-export const aihubmixFields: Record<string, any[]> = {
-  generate: modeConfigs.aihubmix_image_generate.filter((item) => item.key !== 'model') as any[],
-  remix: modeConfigs.aihubmix_image_remix.filter((item) => item.key !== 'model') as any[],
-  upscale: modeConfigs.aihubmix_image_upscale.filter((item) => item.key !== 'model') as any[]
+// ConfigItem extends the shared BaseConfigItem schema with aihubmix-specific field types.
+// The cast is safe: the renderer field pipeline reads ConfigItem fields at runtime.
+export const aihubmixFields: Record<string, BaseConfigItem[]> = {
+  generate: modeConfigs.aihubmix_image_generate.filter((item) => item.key !== 'model') as unknown as BaseConfigItem[],
+  remix: modeConfigs.aihubmix_image_remix.filter((item) => item.key !== 'model') as unknown as BaseConfigItem[],
+  upscale: modeConfigs.aihubmix_image_upscale.filter((item) => item.key !== 'model') as unknown as BaseConfigItem[]
 }
+
+export type { ConfigItem }
 
 export function getStaticModelsForAihubmixMode(mode: 'generate' | 'remix' | 'upscale') {
   const configKey = MODE_TO_CONFIG[mode]

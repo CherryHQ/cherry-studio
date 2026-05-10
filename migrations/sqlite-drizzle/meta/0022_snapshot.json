@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7c02e915-1733-4d62-9b31-261f29ff7ac4",
+  "id": "78e9c5f8-3850-44d4-b66e-93c496cb0dc7",
   "prevId": "adf49fb7-cac0-487e-8e22-c94ea17d55bd",
   "tables": {
     "agent": {
@@ -2306,17 +2306,7 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {
-        "painting_model_id_user_model_id_fk": {
-          "name": "painting_model_id_user_model_id_fk",
-          "tableFrom": "painting",
-          "tableTo": "user_model",
-          "columnsFrom": ["model_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {

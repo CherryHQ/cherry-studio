@@ -2,27 +2,28 @@ import { AiProvider } from '@renderer/aiCore'
 import type { Model } from '@renderer/types'
 
 import { runPainting } from '../../model/paintingGenerationService'
+import type { SiliconPaintingData } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import type { GenerateInput } from '../types'
 import { TEXT_TO_IMAGES_MODELS } from './defaults'
 
-export async function generateWithSilicon(input: GenerateInput) {
-  const { painting: rawPainting, provider, abortController } = input
-  const painting = rawPainting as any
+export async function generateWithSilicon(input: GenerateInput<SiliconPaintingData>) {
+  const { painting, provider, abortController } = input
 
   const apiKey = await checkProviderEnabled(provider)
 
   const prompt = painting.prompt || ''
+  const modelId = painting.model
 
-  if (!painting.model) return []
+  if (!modelId) return []
 
   return runPainting(async () => {
     const model =
-      TEXT_TO_IMAGES_MODELS.find((item) => item.id === painting.model) ||
+      TEXT_TO_IMAGES_MODELS.find((item) => item.id === modelId) ||
       ({
-        id: painting.model,
+        id: modelId,
         provider: provider.id,
-        name: painting.model,
+        name: modelId,
         group: ''
       } as Model)
     const AI = new AiProvider(model, {
@@ -37,7 +38,7 @@ export async function generateWithSilicon(input: GenerateInput) {
     const numImages = Number(painting.numImages) || 1
 
     const urls = await AI.generateImage({
-      model: painting.model,
+      model: modelId,
       prompt,
       negativePrompt: painting.negativePrompt || '',
       imageSize: painting.imageSize || '1024x1024',

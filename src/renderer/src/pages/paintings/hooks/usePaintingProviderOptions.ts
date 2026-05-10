@@ -17,14 +17,24 @@ const DEFAULT_OVMS_STATE: OvmsState = { supported: false, status: 'not-running' 
 let cachedOvmsState: OvmsState | undefined
 let inflightOvmsPromise: Promise<OvmsState> | undefined
 
+export function resetOvmsCache(): void {
+  cachedOvmsState = undefined
+  inflightOvmsPromise = undefined
+}
+
 async function loadOvmsState(): Promise<OvmsState> {
   if (cachedOvmsState) return cachedOvmsState
   if (!inflightOvmsPromise) {
     inflightOvmsPromise = (async () => {
-      const supported = await window.api.ovms.isSupported()
-      const status: OvmsStatus = supported ? await window.api.ovms.getStatus() : 'not-running'
-      cachedOvmsState = { supported, status }
-      return cachedOvmsState
+      try {
+        const supported = await window.api.ovms.isSupported()
+        const status: OvmsStatus = supported ? await window.api.ovms.getStatus() : 'not-running'
+        cachedOvmsState = { supported, status }
+        return cachedOvmsState
+      } finally {
+        // Clear inflight so a failed load can be retried next render cycle.
+        inflightOvmsPromise = undefined
+      }
     })()
   }
   return inflightOvmsPromise

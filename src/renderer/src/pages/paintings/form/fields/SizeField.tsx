@@ -33,7 +33,7 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
           max={validation.maxWidth}
           className="flex-1"
         />
-        <span className="text-[12px] text-muted-foreground">x</span>
+        <span className="text-xs text-muted-foreground">x</span>
         <Input
           placeholder="H"
           type="number"
@@ -50,7 +50,7 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
           max={validation.maxHeight}
           className="flex-1"
         />
-        <span className="text-[12px] text-muted-foreground">px</span>
+        <span className="text-xs text-muted-foreground">px</span>
       </RowFlex>
     </div>
   )

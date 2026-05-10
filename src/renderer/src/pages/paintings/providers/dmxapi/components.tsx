@@ -32,6 +32,8 @@ export const DmxapiSetting: FC<{
       const currentPaths = [...prev.paths]
 
       if (index !== undefined) {
+        const prevPath = currentPaths[index]
+        if (prevPath?.startsWith('blob:')) URL.revokeObjectURL(prevPath)
         currentFiles[index] = file as unknown as FileMetadata
         currentPaths[index] = path
       } else {
@@ -47,6 +49,8 @@ export const DmxapiSetting: FC<{
     setDmxapiFileMap((prev) => {
       const newPaths = [...prev.paths]
       const newFiles = [...prev.imageFiles]
+      const removedPath = newPaths[index]
+      if (removedPath?.startsWith('blob:')) URL.revokeObjectURL(removedPath)
       newPaths.splice(index, 1)
       newFiles.splice(index, 1)
       return { imageFiles: newFiles, paths: newPaths }

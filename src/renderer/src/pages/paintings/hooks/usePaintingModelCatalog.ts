@@ -187,7 +187,8 @@ export function usePaintingModelCatalog({
       } catch (error) {
         const nextError = toError(error)
         logger.error('Failed to load painting model catalog', nextError, { providerId })
-        asyncCatalogCache.set(key, { status: 'error', options: [], error: nextError })
+        // Do not persist error entries — drop so the next call retries the loader.
+        asyncCatalogCache.delete(key)
         setCatalogVersion((version) => version + 1)
         throw nextError
       }

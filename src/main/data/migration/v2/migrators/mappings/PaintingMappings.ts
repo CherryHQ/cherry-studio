@@ -90,6 +90,19 @@ function getFileIds(value: unknown): string[] {
   })
 }
 
+function getLegacyModelId(value: unknown): string | undefined {
+  const stringValue = getNonEmptyString(value)
+  if (stringValue) {
+    return stringValue
+  }
+
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+
+  return getNonEmptyString((value as Record<string, unknown>).id)
+}
+
 function omitUndefinedValues(input: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined))
 }
@@ -262,7 +275,7 @@ export function transformLegacyPaintingRecord(
     value: {
       id,
       providerId: scope.providerId,
-      modelId: getNonEmptyString(record.modelId) ?? getNonEmptyString(record.model) ?? null,
+      modelId: getLegacyModelId(record.modelId) ?? getLegacyModelId(record.model) ?? null,
       mode: scope.mode,
       mediaType: 'image',
       prompt,

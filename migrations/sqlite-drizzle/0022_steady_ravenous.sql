@@ -10,7 +10,6 @@ CREATE TABLE `painting` (
 	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
 	CONSTRAINT "painting_media_type_check" CHECK("painting"."media_type" IN ('image', 'video'))
 );
 --> statement-breakpoint

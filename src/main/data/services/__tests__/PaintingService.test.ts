@@ -11,6 +11,21 @@ import { paintingService } from '../PaintingService'
 describe('PaintingService', () => {
   const dbh = setupTestDatabase()
 
+  function p(fields: {
+    providerId: string
+    mode: string
+    prompt: string
+    modelId?: string
+    mediaType?: 'image' | 'video'
+  }) {
+    return {
+      mediaType: 'image' as const,
+      params: {},
+      files: { output: [], input: [] },
+      ...fields
+    }
+  }
+
   async function insertModel(providerId = 'aihubmix', modelId = 'gpt-image-1') {
     const uniqueModelId = createUniqueModelId(providerId, modelId)
     await dbh.db.insert(userProviderTable).values({
@@ -27,16 +42,8 @@ describe('PaintingService', () => {
   }
 
   it('assigns global order keys when creating paintings and inserts new items first', async () => {
-    const first = await paintingService.create({
-      providerId: 'aihubmix',
-      mode: 'generate',
-      prompt: 'first'
-    })
-    const second = await paintingService.create({
-      providerId: 'aihubmix',
-      mode: 'generate',
-      prompt: 'second'
-    })
+    const first = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' }))
+    const second = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'second' }))
 
     expect(first.orderKey).toBeTruthy()
     expect(first.orderKey > second.orderKey).toBe(true)
@@ -46,16 +53,8 @@ describe('PaintingService', () => {
   })
 
   it('uses one global order sequence across providers and modes', async () => {
-    const generate = await paintingService.create({
-      providerId: 'aihubmix',
-      mode: 'generate',
-      prompt: 'generate'
-    })
-    const edit = await paintingService.create({
-      providerId: 'aihubmix',
-      mode: 'edit',
-      prompt: 'edit'
-    })
+    const generate = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'generate' }))
+    const edit = await paintingService.create(p({ providerId: 'aihubmix', mode: 'edit', prompt: 'edit' }))
 
     expect(generate.orderKey > edit.orderKey).toBe(true)
 
@@ -64,9 +63,9 @@ describe('PaintingService', () => {
   })
 
   it('lists filtered paintings ordered by global orderKey', async () => {
-    const first = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' })
-    const second = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'second' })
-    await paintingService.create({ providerId: 'aihubmix', mode: 'edit', prompt: 'other mode' })
+    const first = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' }))
+    const second = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'second' }))
+    await paintingService.create(p({ providerId: 'aihubmix', mode: 'edit', prompt: 'other mode' }))
 
     const result = await paintingService.list({
       providerId: 'aihubmix',
@@ -80,23 +79,16 @@ describe('PaintingService', () => {
   })
 
   it('defaults new paintings to image media type', async () => {
-    const painting = await paintingService.create({
-      providerId: 'aihubmix',
-      mode: 'generate',
-      prompt: 'image'
-    })
+    const painting = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'image' }))
 
     expect(painting.mediaType).toBe('image')
   })
 
   it('declares nullable model references for painting history', async () => {
     const modelId = await insertModel()
-    const painting = await paintingService.create({
-      providerId: 'aihubmix',
-      modelId,
-      mode: 'generate',
-      prompt: 'with model'
-    })
+    const painting = await paintingService.create(
+      p({ providerId: 'aihubmix', modelId, mode: 'generate', prompt: 'with model' })
+    )
 
     await dbh.db.delete(userModelTable).where(eq(userModelTable.id, modelId))
 
@@ -104,30 +96,22 @@ describe('PaintingService', () => {
     expect(stored.prompt).toBe('with model')
   })
 
-  it('stores null for unknown model ids instead of failing FK insertion', async () => {
-    const painting = await paintingService.create({
-      providerId: 'aihubmix',
-      modelId: createUniqueModelId('aihubmix', 'missing-model'),
-      mode: 'generate',
-      prompt: 'unknown model'
-    })
+  it('preserves model id regardless of whether it exists in user_model', async () => {
+    const modelId = createUniqueModelId('aihubmix', 'missing-model')
+    const painting = await paintingService.create(
+      p({ providerId: 'aihubmix', modelId, mode: 'generate', prompt: 'unknown model' })
+    )
 
-    expect(painting.modelId).toBeNull()
+    expect(painting.modelId).toBe(modelId)
   })
 
   it('creates, updates, and filters by video media type', async () => {
-    const image = await paintingService.create({
-      providerId: 'aihubmix',
-      mode: 'generate',
-      mediaType: 'image',
-      prompt: 'image'
-    })
-    const video = await paintingService.create({
-      providerId: 'aihubmix',
-      mode: 'generate',
-      mediaType: 'video',
-      prompt: 'video'
-    })
+    const image = await paintingService.create(
+      p({ providerId: 'aihubmix', mode: 'generate', mediaType: 'image', prompt: 'image' })
+    )
+    const video = await paintingService.create(
+      p({ providerId: 'aihubmix', mode: 'generate', mediaType: 'video', prompt: 'video' })
+    )
 
     const videos = await paintingService.list({
       providerId: 'aihubmix',
@@ -145,12 +129,9 @@ describe('PaintingService', () => {
 
   it('clears stale model reference when provider changes without an explicit model', async () => {
     const modelId = await insertModel('aihubmix', 'gpt-image-1')
-    const painting = await paintingService.create({
-      providerId: 'aihubmix',
-      modelId,
-      mode: 'generate',
-      prompt: 'with model'
-    })
+    const painting = await paintingService.create(
+      p({ providerId: 'aihubmix', modelId, mode: 'generate', prompt: 'with model' })
+    )
 
     const updated = await paintingService.update(painting.id, { providerId: 'zhipu' })
 
@@ -159,9 +140,9 @@ describe('PaintingService', () => {
   })
 
   it("moves a painting to the first position via { position: 'first' }", async () => {
-    const first = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' })
-    const second = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'second' })
-    const third = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'third' })
+    const first = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' }))
+    const second = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'second' }))
+    const third = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'third' }))
 
     await paintingService.reorder(first.id, { position: 'first' })
 
@@ -175,8 +156,8 @@ describe('PaintingService', () => {
   })
 
   it('allows anchors across providers and modes', async () => {
-    const generate = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'generate' })
-    const edit = await paintingService.create({ providerId: 'aihubmix', mode: 'edit', prompt: 'edit' })
+    const generate = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'generate' }))
+    const edit = await paintingService.create(p({ providerId: 'aihubmix', mode: 'edit', prompt: 'edit' }))
 
     await paintingService.reorder(generate.id, { after: edit.id })
 
@@ -185,9 +166,9 @@ describe('PaintingService', () => {
   })
 
   it('applies batch moves against the global order', async () => {
-    const first = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' })
-    const second = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'second' })
-    const third = await paintingService.create({ providerId: 'dmxapi', mode: 'edit', prompt: 'third' })
+    const first = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' }))
+    const second = await paintingService.create(p({ providerId: 'aihubmix', mode: 'generate', prompt: 'second' }))
+    const third = await paintingService.create(p({ providerId: 'dmxapi', mode: 'edit', prompt: 'third' }))
 
     await paintingService.reorderBatch([
       { id: third.id, anchor: { position: 'first' } },

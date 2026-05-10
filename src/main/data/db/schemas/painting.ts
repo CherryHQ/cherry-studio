@@ -3,14 +3,13 @@ import { sql } from 'drizzle-orm'
 import { check, index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, uuidPrimaryKey } from './_columnHelpers'
-import { userModelTable } from './userModel'
 
 export const paintingTable = sqliteTable(
   'painting',
   {
     id: uuidPrimaryKey(),
     providerId: text('provider_id').notNull(),
-    modelId: text('model_id').references(() => userModelTable.id, { onDelete: 'set null' }),
+    modelId: text('model_id'),
     // Provider workflow key: keep queryable at the top level, but do not CHECK
     // it so future providers can add modes without a schema migration.
     mode: text().$type<PaintingMode>().notNull(),
