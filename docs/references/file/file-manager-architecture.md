@@ -14,7 +14,7 @@
 
 FileManager provides file management capabilities for two origins; callers choose based on their own needs:
 
-- **`internal`**: Cherry owns the file content, stored at `{userData}/files/{id}.{ext}`. The caller hands the source content to FileManager, which copies it and takes over the lifecycle.
+- **`internal`**: Cherry owns the file content, stored at `{userData}/Data/Files/{id}.{ext}`. The caller hands the source content to FileManager, which copies it and takes over the lifecycle.
 - **`external`**: Cherry only records an absolute path reference on the user's side; does not copy content. File availability and content changes are determined by the user side.
 
 **The caller decides the origin**; FileManager makes no assumptions about the business layer.
@@ -45,7 +45,7 @@ The `origin` field of each FileEntry defines **content ownership**:
 
 | origin | Physical location | Ownership | Mutability |
 |---|---|---|---|
-| `internal` | `{userData}/files/{id}.{ext}` | Fully owned by Cherry | Read-write |
+| `internal` | `{userData}/Data/Files/{id}.{ext}` | Fully owned by Cherry | Read-write |
 | `external` | Absolute path pointed to by `externalPath` | Owned by user, referenced by Cherry | **Changeable by explicit user action** (write / rename / permanentDelete apply, delegated to the FS primitives); Cherry does no automatic/watcher-driven modifications; **does not track external rename/move**—external changes cause the entry to naturally go dangling |
 
 **Path uniqueness**: at most one entry can exist for the same `externalPath` **in a non-trashed state**. Implemented via SQLite partial unique index: `UNIQUE(externalPath) WHERE origin='external' AND trashedAt IS NULL`.
@@ -171,7 +171,7 @@ When a business object is deleted, the business Service is responsible for clean
 
 AI SDK `SharedV4ProviderReference` integration and the `file_upload` table are **deferred** until the Vercel AI SDK Files API stabilises. The module-level DataApi surface (`ensureUploaded` / `buildProviderReference` / `invalidate`) is outlined in [`architecture.md §3.5`](./architecture.md#35-ai-sdk-integration-deferred); the detailed schema and FileUploadService API are retained here in [§9 AI SDK Integration](#9-ai-sdk-integration-fileuploadservice--deferred) for the eventual landing PR.
 
-### 1.6 FileManager Implementation Layout (Facade + Private Internals) `[1a ✅ skeleton]` `[1b.1-1b.4 impl]`
+### 1.6 FileManager Implementation Layout (Facade + Private Internals) `[1a ✅ skeleton]` `[1b.1-1b.4 ✅]`
 
 FileManager is the **sole public entry point** of the file module but is not a 30-method God class. The implementation uses a **facade + private pure-function modules** pattern.
 
@@ -355,7 +355,7 @@ private registerIpcHandlers() {
 | FileManager public API switched to handle-native | ❌ | IPC and Main-side call contracts need not share shape; main-side business services using entry-native directly is more intuitive, without needing a `createFileEntryHandle` wrapper |
 | Extract versionCache as a module singleton | ❌ | As a FileManager private field, it naturally supports test isolation (new instance = fresh cache) |
 
-#### 1.6.8 Event Emission & Broadcast `[1b.2 impl]`
+#### 1.6.8 Event Emission & Broadcast `[deferred]`
 
 FileManager exposes three typed `Event<T>` on its instance surface and forwards each to every live renderer window. The public contract and queryKey invalidation table live in [`architecture.md §3.6`](./architecture.md#36-mutation-propagation-to-renderer); this section pins down the emission mechanics that the FileManager implementation must satisfy.
 
@@ -425,27 +425,27 @@ Physical paths are not persisted; resolved at runtime based on `origin`:
 ```typescript
 function resolvePhysicalPath(entry: FileEntry): string {
   if (entry.origin === 'internal') {
-    return application.getPath('files', `${entry.id}${entry.ext ? '.' + entry.ext : ''}`)
+    return application.getPath('feature.files.data', `${entry.id}${entry.ext ? '.' + entry.ext : ''}`)
   }
   return entry.externalPath!
 }
 ```
 
-**internal** physical paths are always flat: `{userData}/files/{uuid}.{ext}`, and do not change with the FileEntry's `name`. UUID naming makes internal files **invisible and not manually organizable by the user**—this is an intentional design choice.
+**internal** physical paths are always flat: `{userData}/Data/Files/{uuid}.{ext}`, and do not change with the FileEntry's `name`. UUID naming makes internal files **invisible and not manually organizable by the user**—this is an intentional design choice.
 
 **external** physical paths are entirely determined by the user; Cherry does not touch them.
 
 ### 2.2 Physical Directory Structure
 
 ```
-{userData}/files/
+{userData}/Data/Files/
 ├── {uuid-1}.pdf
 ├── {uuid-2}.png
 ├── ...
 └── {uuid-n}.tmp-{uuid}      ← Temporary files for atomic writes (abnormal residues cleaned by startup sweep)
 ```
 
-Cherry creates no subdirectories under `{userData}/files/`. All internal files are stored flat.
+Cherry creates no subdirectories under `{userData}/Data/Files/`. All internal files are stored flat.
 
 ### 2.3 Temporary File Handling
 
@@ -502,7 +502,7 @@ When an external file does not exist on disk (or is inaccessible), the correspon
 
 ---
 
-## 4. Version Detection and Concurrency Control `[1a ✅ FileVersion type]` `[1b.1 statVersion]` `[1b.2 VersionCache + writeIfUnchanged]`
+## 4. Version Detection and Concurrency Control `[1a ✅ FileVersion type]` `[1b.1 ✅ statVersion]` `[1b.2 ✅ VersionCache + writeIfUnchanged]`
 
 ### 4.1 FileVersion
 
@@ -568,7 +568,7 @@ FileManager maintains `Map<FileEntryId, CachedVersion>` internally (LRU, ~2000 e
 
 ---
 
-## 5. Atomic Writes `[1a ✅ signatures + JSDoc]` `[1b.2 impl]`
+## 5. Atomic Writes `[1a ✅ signatures + JSDoc]` `[1b.2 ✅]`
 
 ### 5.1 tmp + fsync + rename Flow
 
@@ -603,7 +603,7 @@ The `atomicWriteFile` / `atomicWriteIfUnchanged` / `createAtomicWriteStream` pri
 
 ---
 
-## 6. Deletion and Recycle Bin `[1a ✅ schema + CHECK]` `[1b.2 impl]`
+## 6. Deletion and Recycle Bin `[1a ✅ schema + CHECK]` `[1b.2 ✅]`
 
 ### 6.1 trashedAt Model
 
@@ -611,13 +611,15 @@ All soft deletes are implemented via the `trashedAt` timestamp, without physical
 
 | Operation | Physical impact (internal) | Physical impact (external) |
 |---|---|---|
-| `trash(id)` | None | **None** (DB marks only; user file untouched) |
-| `restore(id)` | None | **None** (DB clears trashedAt) |
-| `permanentDelete(id)` | unlink FS + delete from DB | **`remove(externalPath)` (via `@main/utils/file/fs`) + delete from DB** |
+| `trash(id)` | None | **N/A** (`fe_external_no_trash` CHECK rejects; external rows cannot be trashed) |
+| `restore(id)` | None | **N/A** (no trashed external rows to restore) |
+| `permanentDelete(id)` | DB delete + best-effort `remove(physicalPath)` (`@main/utils/file/fs`) | **DB delete only — user's file is never modified** (matches `architecture.md §3.4`) |
 
-**trash / restore only touch DB for both origins**—soft delete is a "reversible temporary hide", at which point FS is not touched to preserve reversibility.
+**trash / restore are internal-only.** External entries cannot be trashed by definition (`fe_external_no_trash` CHECK enforces this); the trash semantics make sense only for files Cherry owns.
 
-**permanentDelete deletes FS for both origins**—this is an explicit "fully clean up" user action. permanentDelete on external delegates to `remove(externalPath)` (from `@main/utils/file/fs`), really deleting the user file. Unlink failures (ENOENT, insufficient permissions, etc.) are logged but do not block DB deletion, keeping the DB-FS final state consistent (neither side has it).
+**permanentDelete on internal**: DB row is removed first, then the physical file at `{userData}/Data/Files/{id}.{ext}` is best-effort unlinked. Unlink failures (ENOENT, insufficient permissions, etc.) are logged but do not block — the DB-row-gone outcome is what callers observe; any orphaned blob is later cleaned by the startup file sweep (§10).
+
+**permanentDelete on external**: DB row is removed; the user's file at `externalPath` is **never** modified — Cherry only owns the reference, not the content. This is the only safe contract: silently deleting user files from inside the app would violate the "best-effort external reference" semantics (§1.0.2 in `architecture.md`). Users who actually want the underlying file gone do so through their OS file manager.
 
 ### 6.2 Auto Expiry
 
@@ -629,8 +631,8 @@ Query: `WHERE trashedAt < now() - retentionMs` → batch permanentDelete.
 
 | Scenario | Handling |
 |---|---|
-| unlink fails on permanentDelete (file already missing, permission issue) | Ignore ENOENT idempotently; log warn for others; proceed with DB delete |
-| externalPath not writable on permanentDelete external (read-only mounted drive, insufficient permissions) | log error; still delete DB record; from the user's perspective it disappears from Cherry but remains on disk |
+| unlink fails on permanentDelete internal (file already missing, permission issue) | Log warn; the DB row is already gone, so the failure surfaces only as an orphan blob that the startup file sweep will reclaim |
+| permanentDelete on external | DB-only by design; the user's file at `externalPath` is never touched — Cherry owns only the reference |
 | `ensureExternalEntry(path)` when an entry for the same path already exists | Entry point first calls `canonicalizeExternalPath(raw)`; upsert returns the existing row. External entries cannot be trashed, so there is no "restore" branch. |
 | **Two entries for the same file due to case / NFC differences** (macOS APFS, Windows NTFS, or NFD ↔ NFC input) | Phase 1b canonicalize closes the NFC window; case-insensitive FS dedup not implemented (see §1.2 "Phase 1b normalization scope")—will add `fs.realpath` + one-off migration when there is concrete user feedback |
 | External file at original path externally replaced with a different file | Cherry does not check content consistency (best-effort). `name` / `ext` on the row are derived from `externalPath` and do not change; `size` is always served live by `getMetadata`. DanglingCache flips to `'present'` on the next stat, so the UI just renders the new file under the existing reference. |
@@ -639,7 +641,7 @@ Query: `WHERE trashedAt < now() - retentionMs` → batch permanentDelete.
 
 ---
 
-## 7. Reference Cleanup Mechanism `[1a ✅ FileRefSourceType union]` `[1b.4 FileRefCheckerRegistry impl]`
+## 7. Reference Cleanup Mechanism `[1a ✅ FileRefSourceType union]` `[1b.4 ✅ FileRefCheckerRegistry]`
 
 Three layers of protection, with each layer as a fallback for the next:
 
@@ -678,7 +680,7 @@ There is **one narrow exception**: external entries whose physical file is confi
 | `external` | `'missing'` | >0 | **Preserve** — business objects still reference this entry. Automatic deletion would CASCADE-drop `file_ref` rows and silently mutate user data (messages' attachment count drops, UI state shifts). The business service owning those refs is the right layer to decide replacement / removal policy, not the file module. Reference-oriented UI surfaces (§3.4 UI filter convention) show these as "file missing" so the user can act. |
 | `external` | `'missing'` | 0 | **Auto-clean after retention window** — both sides are gone, no user-visible impact; see §7.2 |
 
-### 7.2 Dangling External Auto-Cleanup (Layer 3 Extension) `[1b.4 impl]`
+### 7.2 Dangling External Auto-Cleanup (Layer 3 Extension) `[deferred]`
 
 As part of the same Layer-3 scanner pass — not a separate background task — after cleaning orphan refs, the scanner scans for external entries eligible under row `('external', 'missing', 0)` of the policy matrix above:
 
@@ -732,7 +734,7 @@ Mirrors the orphan sweep's observability contract (§10.5) — one record per sc
 
 ---
 
-## 8. DirectoryWatcher `[1a ✅ factory signature]` `[1b.3 impl]`
+## 8. DirectoryWatcher `[1a ✅ factory signature]` `[1b.3 ✅]`
 
 ### 8.1 Positioning
 
@@ -890,7 +892,7 @@ interface IFileUploadService {
 
 ---
 
-## 10. Startup Orphan Sweep (FileManager Background Task) `[1b.4]`
+## 10. Startup Orphan Sweep (FileManager Background Task) `[1b.4 ✅]`
 
 ### 10.1 Positioning
 
@@ -912,7 +914,7 @@ protected override onInit(): void {
 
 private async runOrphanSweep(): Promise<void> {
   // 1. Snapshot file_entry.id set via a single SELECT (see §10.2)
-  // 2. Enumerate {userData}/files/* via readdir
+  // 2. Enumerate {userData}/Data/Files/* via readdir
   // 3. Build the deletion plan:
   //      UUID v7 file  AND not in snapshot AND mtime > 5min → unlink
   //      *.tmp-<uuidv7> file                AND mtime > 5min → unlink
@@ -935,7 +937,7 @@ The sweep uses a **single snapshot** of `file_entry.id` taken at sweep start, no
 SELECT id FROM file_entry  -- one query, held in an in-memory Set for the duration of the sweep
 ```
 
-It then diffs `readdir({userData}/files/)` against the snapshot in memory. Chosen properties:
+It then diffs `readdir({userData}/Data/Files/)` against the snapshot in memory. Chosen properties:
 
 - **Simple and fast**: one SQL round-trip vs N round-trips; for <10k internal entries the cost is sub-10ms.
 - **Race window is bounded and explicit**: entries inserted *after* the snapshot but *before* the sweep reaches their file appear as "not in DB". The `mtime > 5min` filter in §10.3 is the only thing that protects them — the snapshot strategy makes this reliance explicit rather than hiding it behind DB isolation levels.
@@ -1000,7 +1002,7 @@ function shouldAbort(
 - The service remains available — abort is a controlled outcome, not a failure; no `Error` is thrown into the `.catch()` handler.
 - The next startup re-evaluates the plan after the upstream issue is resolved.
 
-**Scope note**: the threshold defends against internal bugs, not user-side manipulation of `{userData}/files/`. Users are not expected or encouraged to edit the storage directory (all file operations should go through the in-app entry system). The threshold's job is to ensure "nothing Cherry itself does, internally, silently deletes the bulk of a user's library".
+**Scope note**: the threshold defends against internal bugs, not user-side manipulation of `{userData}/Data/Files/`. Users are not expected or encouraged to edit the storage directory (all file operations should go through the in-app entry system). The threshold's job is to ensure "nothing Cherry itself does, internally, silently deletes the bulk of a user's library".
 
 ### 10.5 Observability
 
@@ -1069,16 +1071,16 @@ file_module's crash window is very narrow:
 | createInternalEntry | FS write UUID file → DB insert | Orphan file | Orphan sweep |
 | write (internal) | atomic tmp+rename + DB update | One of new/old files preserved | Naturally consistent |
 | trash / restore / rename | DB only | None | None |
-| permanentDelete (internal) | FS unlink → DB delete | Dangling (truly dangling; manifests as read failure) | Naturally discovered on DanglingCache query |
+| permanentDelete (internal) | DB delete → best-effort FS unlink | Crash after DB delete leaves an orphan blob | Orphan sweep |
 | copy (internal) | FS copy → DB insert | Orphan file | Orphan sweep |
-| ensureExternalEntry | DB insert / reuse / restore (doesn't touch user file) | None | None |
-| permanentDelete (external) | DB delete + `remove(externalPath)` | DB deleted but FS not / vice versa; final state "absent" on both sides is fine | Naturally consistent |
+| ensureExternalEntry | DB insert / reuse (doesn't touch user file) | None | None |
+| permanentDelete (external) | DB delete only | None — user's file at `externalPath` is never modified | None needed |
 
 No WAL / pending_fs_ops table needed. Orphan sweep covers the internal crash residue; the external side naturally doesn't need it (delete failure just leaves it on disk).
 
 ---
 
-## 11. DanglingCache (External Presence Tracker) `[1a ✅ interface]` `[1b.3 impl]`
+## 11. DanglingCache (External Presence Tracker) `[1a ✅ interface]` `[1b.3 ✅]`
 
 ### 11.1 Positioning
 
@@ -1251,7 +1253,7 @@ async function batchGetDanglingStates(ids: FileEntryId[]): Promise<Record<FileEn
 
 **Known residual case — stale `'present'` with `refs > 0`**: if an external file is deleted outside Cherry, without any watcher or ops observation to signal it, and no UI ever queries `getDanglingState` for that entry, the cache stays `'present'` past TTL boundaries (first query after TTL will re-stat and fix). Business services that depend on referenced files MUST re-validate at use time (read will surface ENOENT anyway) — this is the explicit "use-site check" side of the F-1 / F-2 policy split and is not attempted to be hidden behind cache semantics.
 
-### 11.7 Reactivity — Event Emission `[1b.3 impl]`
+### 11.7 Reactivity — Event Emission `[deferred]`
 
 DanglingCache exposes `onDanglingStateChanged: Event<DanglingStateChangedEvent>` fired on every **genuine** state transition (watcher event, cold-path `fs.stat` observation after a cache miss, explicit `ops` observation):
 
@@ -1273,7 +1275,7 @@ FileManager subscribes in `onInit` (see §1.6.8) and fans the event out to all r
 
 **Staleness backstop retained**: the `staleTime ≤ 5min` contract from [architecture.md §4.1.1](./architecture.md#411-dataapi-boundary-sql-only-fixed-shape) still applies. Events accelerate refresh; a lost event is bounded by React Query's natural refetch cadence. DanglingCache's emission is therefore an optimization over pure pull, not a replacement for the pull path.
 
-### 11.8 Observability `[1b.3 impl]`
+### 11.8 Observability `[deferred]`
 
 DanglingCache emits a structured `info`-level log record at a fixed cadence (every 10 minutes, driven by a simple timer in `onInit`) summarizing its recent activity. This mirrors the F-2 scanner and orphan sweep observability contracts (§7.2, §10.5) — one periodic record plus opportunistic `warn` / `error` on anomalies, no separate metrics pipeline.
 

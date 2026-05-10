@@ -85,7 +85,7 @@
  * - permanentDelete on external: **DB row only** — the physical file is left
  *   untouched. Entry-level deletion is decoupled from physical deletion;
  *   callers wanting to delete the file on disk should invoke the path-level
- *   unmanaged `ops.remove(path)` separately.
+ *   unmanaged `@main/utils/file/fs.remove(path)` separately.
  */
 
 import * as z from 'zod'
@@ -221,7 +221,7 @@ export const ExternalEntrySchema = z.object({
    * External entries cannot be trashed; this is always `null`. Mirrors the
    * `fe_external_no_trash` CHECK constraint at the DB level. Removal is
    * always immediate via `permanentDelete` (DB-only — the physical file is
-   * left untouched; path-level `ops.remove` is a separate, explicit call).
+   * left untouched; path-level `@main/utils/file/fs.remove` is a separate, explicit call).
    */
   trashedAt: z.null()
 })
@@ -256,7 +256,7 @@ export type ExternalFileEntry = z.infer<typeof ExternalEntrySchema>
  * Not persisted in DB. Queried at runtime via File IPC
  * `getDanglingState` / `batchGetDanglingStates` — DataApi never exposes dangling
  * because it requires FS IO (cold-path `fs.stat`) which violates the DataApi
- * SQL-only boundary. See [file-manager-architecture.md](../../../../docs/zh/references/file/file-manager-architecture.md#11-dangling-detection).
+ * SQL-only boundary. See [file-manager-architecture.md §11](../../../../docs/references/file/file-manager-architecture.md).
  */
 export const DanglingStateSchema = z.enum(['present', 'missing', 'unknown'])
 export type DanglingState = z.infer<typeof DanglingStateSchema>

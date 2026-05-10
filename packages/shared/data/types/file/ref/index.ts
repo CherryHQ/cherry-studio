@@ -34,25 +34,23 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
 // ─── SourceType type (load-bearing — keys the OrphanRefScanner registry) ───
 
 /**
- * All expected FileRef source types, including variants whose full Zod schema
- * has not yet been registered (Phase 1a status).
+ * All expected FileRef source types — the complete type union.
  *
  * The tuple form is required so `FileRefSourceType` infers as a union of
  * string literals rather than `string` — this lets `Record<FileRefSourceType, …>`
- * enforce exhaustive coverage at compile time (e.g. OrphanRefScanner's
- * checker registry in Phase 1b.4 compile-fails when a sourceType is missing
- * its checker).
+ * enforce exhaustive coverage at compile time. OrphanRefScanner's checker
+ * registry uses this property: a new variant in `allSourceTypes` without a
+ * matching `SourceTypeChecker` is a compile error.
  *
- * ## Phase-by-phase registration
+ * ## Variant registration status
  *
- * - `temp_session` — Phase 1a (schema + runtime). Transient paste/draft refs.
- * - `chat_message` — Phase 1b.2 (bucket P per `filemetadata-consumer-audit.md`).
- *   Currently: tuple entry only; discriminated-union variant not landed.
- * - `knowledge_item` — Phase 1b.2 (bucket P).
- * - `painting` — Phase 1b.2 (bucket P).
- * - `note` — Phase 1b.2 (narrow cross-domain: Notes referencing an external
- *   FileEntry; Notes' own FS tree remains self-managed and does NOT create
- *   file_refs).
+ * - `temp_session` — full Zod schema variant landed (`./tempSession.ts`).
+ *   Transient paste/draft refs.
+ * - `chat_message` / `knowledge_item` / `painting` / `note` — tuple entry only;
+ *   the discriminated `FileRefSchema` union does not yet include their
+ *   variant schemas. `OrphanRefScanner` ships a conservative no-op stub
+ *   checker for each so the type union and the runtime registry stay in sync;
+ *   the real checkers come online when the owning DB tables migrate to v2.
  *
  * The type union stays complete now so registries keyed by `FileRefSourceType`
  * (OrphanRefScanner, DataApi param typing) do not change when new variants
@@ -70,11 +68,11 @@ export type FileRefSourceType = (typeof allSourceTypes)[number]
 // ─── Discriminated Union ───
 
 /**
- * Runtime-validated FileRef schema. Phase 1a registers only `tempSession`;
+ * Runtime-validated FileRef schema. Today only `tempSession` is registered;
  * other variants listed in `FileRefSourceType` are intentionally absent here
  * until their schema files land. Constructing a FileRef for an unregistered
  * sourceType via `FileRefSchema.parse` will throw — which is the desired
- * behavior (Phase 1a producers are restricted to tempSession refs).
+ * behavior (current producers are restricted to tempSession refs).
  */
 export const FileRefSchema = z.discriminatedUnion('sourceType', [tempSessionFileRefSchema])
 export type FileRef = z.infer<typeof FileRefSchema>

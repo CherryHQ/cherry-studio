@@ -1,8 +1,6 @@
 /**
  * FileEntryService — pure DB repository for the `file_entry` table.
  *
- * Phase status: Phase 1b.2 lands all CRUD methods.
- *
  * ## Scope
  *
  * - **Pure DB.** No FS IO, no path resolution, no canonicalization. Callers
@@ -11,13 +9,13 @@
  * - **Produces branded `FileEntry`.** Every returned row passes
  *   `FileEntrySchema.parse()` so the brand contract holds — downstream
  *   consumers cannot receive a raw object literal that satisfies the shape
- *   but bypasses validation (RFC §4.5.2 runtime brand contract).
+ *   but bypasses validation.
  * - **No side effects beyond DB.** Dangling updates, watcher invalidation,
  *   and cache invalidation are orchestrated by FileManager — this service
  *   is strictly query/insert/update/delete.
  *
- * See [architecture.md](../../../docs/references/file/architecture.md#11) and
- * RFC §9.3 for the Phase 1b.1 deliverables.
+ * See [architecture.md](../../../docs/references/file/architecture.md) for the
+ * module-level layering rules.
  */
 
 import { application } from '@application'

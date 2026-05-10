@@ -19,7 +19,7 @@
  * Internal entries are always `'present'` — the cache is external-only.
  *
  * See [file-manager-architecture.md §11](../../../docs/references/file/file-manager-architecture.md)
- * for the full design; see RFC §9.5 for Phase 1b.3 deliverables.
+ * for the full design.
  */
 
 import type { Event } from '@main/core/lifecycle'

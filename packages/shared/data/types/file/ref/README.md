@@ -36,7 +36,7 @@ export const chatMessageSourceType = 'chat_message' as const
 
 export const chatMessageRoles = ['attachment', 'inline_image'] as const
 
-/** Business fields only — used by both FileRefSchema and CreateFileRefDtoSchema */
+/** Business fields only — passed into `createRefSchema(...)` to attach common fields */
 export const chatMessageRefFields = {
   sourceType: z.literal(chatMessageSourceType),
   sourceId: z.uuidv7(),
@@ -49,13 +49,15 @@ export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
 ### 2. Register in `index.ts`
 
 ```diff
-+ import { chatMessageFileRefSchema, chatMessageRefFields, chatMessageRoles, chatMessageSourceType } from './chatMessage'
++ import { chatMessageFileRefSchema, chatMessageSourceType } from './chatMessage'
 
-- const allSourceTypes = [tempSessionSourceType] as const
-+ const allSourceTypes = [tempSessionSourceType, chatMessageSourceType] as const
-
-- const allRoles = [...tempSessionRoles] as const
-+ const allRoles = [...tempSessionRoles, ...chatMessageRoles] as const
+  export const allSourceTypes = [
+    tempSessionSourceType,
+    'chat_message',  // already listed today as a tuple-only entry; no change
+    'knowledge_item',
+    'painting',
+    'note'
+  ] as const
 
   export const FileRefSchema = z.discriminatedUnion('sourceType', [
     tempSessionFileRefSchema,
@@ -63,25 +65,19 @@ export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
   ])
 ```
 
-### 3. Register in `CreateFileRefDtoSchema` (`api/schemas/files.ts`)
+### 3. Register a real `SourceTypeChecker`
 
-```diff
-  export const CreateFileRefDtoSchema = z.discriminatedUnion('sourceType', [
-    z.object(tempSessionRefFields),
-+   z.object(chatMessageRefFields),
-  ])
-```
-
-Four things to update:
-
-1. **`index.ts` — `allSourceTypes`** — spread the new `sourceType` constant
-2. **`index.ts` — `allRoles`** — spread the new roles array
-3. **`index.ts` — `FileRefSchema`** — add the new schema to the discriminated union
-4. **`files.ts` — `CreateFileRefDtoSchema`** — add `z.object(*RefFields)` to the discriminated union
+In `src/main/data/services/orphan/FileRefCheckerRegistry.ts`, replace the
+conservative no-op stub for the new variant with a real DB-backed checker
+(see `knowledgeItemChecker` as a template). The
+`Record<FileRefSourceType, SourceTypeChecker<...>>` mapped type makes this a
+compile-time gate: missing the checker is a build error.
 
 ### 4. Done
 
-The new variant is now part of `FileRefSchema` and `CreateFileRefDtoSchema`. Consumers parsing `FileRef` will automatically dispatch to the correct variant based on `sourceType`, and the create DTO will narrow `role` per source type.
+The new variant is now part of `FileRefSchema`. Consumers parsing `FileRef`
+will automatically dispatch to the correct variant based on `sourceType`,
+and OrphanRefScanner stops treating its refs as orphans.
 
 ## Naming Conventions
 
@@ -96,7 +92,7 @@ The new variant is now part of `FileRefSchema` and `CreateFileRefDtoSchema`. Con
 ## Design Notes
 
 - **`sourceType` must be a string literal** (`z.literal(...)`) — required for the discriminated union to dispatch correctly.
-- **`role` is scoped per sourceType** — different domains define different valid roles. The standalone `FileRefRoleSchema` is the flat union of all roles across all domains; prefer validating through `FileRefSchema` when possible.
+- **`role` is scoped per sourceType** — different domains define different valid roles. There is intentionally no global `allRoles` aggregator; each variant's `role` is validated locally by its own `z.enum(variantRoles)` inside `createRefSchema`. Prefer validating through `FileRefSchema` for any cross-variant work.
 - **`sourceId` format is domain-dependent** — each variant decides its own schema (e.g. `z.uuidv7()`, `z.uuidv4()`, `z.string().min(1)`) based on the business entity's ID format.
 - **Common fields are frozen** — `refCommonFields` is `Object.freeze()`-d to prevent accidental mutation.
-- **`*RefFields` serves dual purpose** — used by both `createRefSchema()` (full schema with common fields) and `CreateFileRefDtoSchema` (business fields only via `z.object()`).
+- **`*RefFields`** is passed to `createRefSchema(...)` which composes the common fields onto the variant's business fields — consumers always validate through the resulting `*FileRefSchema`, never against the bare fields object.

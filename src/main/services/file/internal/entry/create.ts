@@ -6,7 +6,7 @@
  * variant resolves to a normalized `{ name, ext, bytes }` triple, then writes
  * via `atomicWriteFile` and inserts the row through `fileEntryService.create`.
  * On DB failure the just-written physical file is best-effort unlinked so the
- * `{userData}/Files/` tree never carries orphan internal blobs from a failed
+ * `{userData}/Data/Files/` tree never carries orphan internal blobs from a failed
  * create flow.
  */
 
@@ -99,7 +99,7 @@ function urlTail(url: string): string {
 
 /**
  * Create a Cherry-owned (internal) FileEntry. The physical file lives at
- * `{userData}/Files/{newId}{.ext}`. DB-insert failure best-effort unlinks
+ * `{userData}/Data/Files/{newId}{.ext}`. DB-insert failure best-effort unlinks
  * the just-written physical file to avoid orphan blobs.
  */
 export async function createInternal(deps: FileManagerDeps, params: CreateInternalEntryParams): Promise<FileEntry> {

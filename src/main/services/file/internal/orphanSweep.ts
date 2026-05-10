@@ -3,16 +3,17 @@
  *
  * Two surfaces composed under one module:
  *
- * 1. **OrphanRefScanner** (DB-level, RFC §6.4): walks `file_ref.sourceId`
- *    distinct values per sourceType, asks the corresponding
- *    `SourceTypeChecker` which ones still exist, deletes the rest. Adding a
- *    new `FileRefSourceType` without a checker is a compile error
- *    (Record<FileRefSourceType, SourceTypeChecker<...>>).
+ * 1. **OrphanRefScanner** (DB-level, file-manager-architecture §7 Layer 3):
+ *    walks `file_ref.sourceId` distinct values per sourceType, asks the
+ *    corresponding `SourceTypeChecker` which ones still exist, deletes the
+ *    rest. Adding a new `FileRefSourceType` without a checker is a compile
+ *    error (Record<FileRefSourceType, SourceTypeChecker<...>>).
  *
- * 2. **runStartupFileSweep** (FS-level, architecture §10): enumerates
- *    `{userData}/files/` for UUID-named files without a matching DB entry
- *    and abandoned `*.tmp-<uuid>` residue, applies the `mtime > 5min`
- *    heuristic and the safety threshold, then unlinks the survivors.
+ * 2. **runStartupFileSweep** (FS-level, file-manager-architecture §10):
+ *    enumerates `{userData}/Data/Files/` for UUID-named files without a
+ *    matching DB entry and abandoned `*.tmp-<uuid>` residue, applies the
+ *    `mtime > 5min` heuristic and the safety threshold, then unlinks the
+ *    survivors.
  *
  * Both surfaces emit a single structured log record per run via
  * `loggerService` — `orphan-sweep` for the DB pass (architecture §10.5

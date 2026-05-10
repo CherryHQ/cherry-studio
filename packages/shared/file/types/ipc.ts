@@ -20,7 +20,7 @@
  * at the type-signature level — they encode the choice in the handle instead.
  * The handler dispatches:
  * - `{ kind: 'entry', entryId }` → FileManager method (entry-aware)
- * - `{ kind: 'path', path }`     → `ops/*` direct (entry-agnostic)
+ * - `{ kind: 'path', path }`     → `@main/utils/file/*` direct (entry-agnostic)
  *
  * Operations that only make sense against a FileEntry row (trash, rename,
  * enrichment queries, etc.) take `FileEntryId` directly.
@@ -245,7 +245,7 @@ export interface FileIpcApi {
   /** Get lightweight FileVersion (live `fs.stat`-backed). */
   getVersion(handle: FileHandle): Promise<FileVersion>
 
-  /** Compute xxhash-128 of file content. */
+  /** Compute xxhash-h64 of file content. */
   getContentHash(handle: FileHandle): Promise<string>
 
   // ─── D. Write (accepts FileHandle; both branches land in ops' atomic write) ───
@@ -273,12 +273,12 @@ export interface FileIpcApi {
 
   /**
    * Permanently delete.
-   * - Entry handle, internal origin: unlinks `{userData}/files/{id}.{ext}`, then deletes DB row.
+   * - Entry handle, internal origin: unlinks `{userData}/Data/Files/{id}.{ext}`, then deletes DB row.
    * - Entry handle, external origin: **DB-only** — the user's physical file
    *   is left untouched. Entry-level deletion is deliberately decoupled from
    *   physical deletion; callers wanting to also delete the file on disk
    *   should invoke the path-handle branch below separately.
-   * - Path handle: removes the file at the given path (delegates to `ops.remove`).
+   * - Path handle: removes the file at the given path (delegates to `@main/utils/file/fs.remove`).
    *
    * **⚠️ UX label warning**: the literal name `permanentDelete` is misleading
    * for the external-entry branch, where nothing is "permanently deleted"
@@ -376,7 +376,7 @@ export interface FileIpcApi {
 
   /**
    * Resolve the absolute filesystem path of a FileEntry. For internal-origin
-   * entries this is `{userData}/files/{id}.{ext}`; for external-origin entries
+   * entries this is `{userData}/Data/Files/{id}.{ext}`; for external-origin entries
    * it returns `entry.externalPath`.
    *
    * ## Intended uses

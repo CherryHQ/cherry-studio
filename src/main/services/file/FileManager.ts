@@ -1,32 +1,26 @@
 /**
- * FileManager — contract surface for the planned sole public entry point for
- * all file operations.
+ * FileManager — sole public entry point for all file operations.
  *
- * Phase status:
- * - **Current phase**: this file is contract-first. It exports the public
- *   types, method signatures, and architectural JSDoc that later phases must
- *   implement.
- * - **Planned Phase 1b+**: a concrete `FileManager extends BaseService`
- *   lifecycle service will live here, be registered in `serviceRegistry.ts`,
- *   and be resolved at runtime via `application.get('FileManager')`.
+ * Registered as a lifecycle service (`@Injectable('FileManager')`,
+ * `@ServicePhase(Phase.WhenReady)`); resolved at runtime via
+ * `application.get('FileManager')`.
  *
  * Every FileEntry has an `origin`:
- * - `internal`: Cherry owns the content (stored at `{userData}/files/{id}.{ext}`)
+ * - `internal`: Cherry owns the content (stored at `{userData}/Data/Files/{id}.{ext}`)
  * - `external`: Cherry references a user-provided absolute path
  *
  * ## Facade pattern
  *
- * In the target implementation, FileManager is a **thin facade** — it exposes
- * the public IPC-backed API and delegates every method to pure-function
- * modules under `./internal/*`. The concrete class will only own:
+ * FileManager is a **thin facade** — it exposes the public IPC-backed API and
+ * delegates every method to pure-function modules under `./internal/*`. The
+ * class only owns:
  * - lifecycle (`onInit` / `onStop`; IPC handler registration via `BaseService`)
- * - `versionCache` (LRU backing `writeIfUnchanged` / `getVersion`)
+ * - per-instance `versionCache` (LRU backing `writeIfUnchanged` / `getVersion`)
  * - `FileHandle.kind` dispatch at the IPC boundary
  *
- * In the target implementation, external Main callers will go through the
- * lifecycle-managed singleton via `application.get('FileManager')`. This
- * module currently exposes the type surface only; `internal/*` remains a
- * private implementation area and is not re-exported via `src/main/services/file/index.ts`.
+ * External Main callers go through the lifecycle-managed singleton via
+ * `application.get('FileManager')`. The `internal/*` tree is a private
+ * implementation area and is not re-exported via `src/main/services/file/index.ts`.
  *
  * See `docs/references/file/file-manager-architecture.md §1.6` for the full
  * implementation-layout decision.
@@ -41,9 +35,8 @@
  * variants select the *reference form* — `FileEntryHandle` routes through the
  * entry system, `FilePathHandle` hits `@main/utils/file/*` directly). Dispatching on
  * `handle.kind` is treated as the IPC adapter's legitimate responsibility
- * (translating request shape), not business orchestration. In the planned
- * lifecycle implementation, `FileManager.onInit()` will register handlers with
- * the private `dispatchHandle` helper:
+ * (translating request shape), not business orchestration. The IPC adapter
+ * uses the private `dispatchHandle` helper:
  *
  * - `{ kind: 'entry', entryId }` → the corresponding FileManager public
  *   method (e.g. `this.read(entryId, opts)`)
@@ -187,7 +180,7 @@ export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
  *
  * When `writeIfUnchanged` suspects second-precision mtime ambiguity
  * (observed mtime has ms === 0 AND size matches expected), the implementation
- * MUST fall back to a xxhash-128 `contentHash` comparison before committing.
+ * MUST fall back to a xxhash-h64 `contentHash` comparison before committing.
  * Hash computation is deliberately deferred to this corner case — for the
  * common case (sub-second mtime resolution or size difference) the
  * `(mtime, size)` pair is sufficient.
@@ -246,7 +239,7 @@ export interface AtomicWriteStream extends Writable {
  * Thrown by `writeIfUnchanged` when the current file version does not match the
  * caller's expected version. Caller should refresh or present a conflict UX.
  *
- * Note: the Phase 1b.2 implementation uses the xxhash-128 fallback path
+ * Note: the Phase 1b.2 implementation uses the xxhash-h64 fallback path
  * described on `FileVersion` when mtime resolution is ambiguous — a
  * `StaleVersionError` under that branch means the hash also diverged, i.e.
  * the content genuinely differs even when `(mtime, size)` looked equal.
@@ -285,13 +278,11 @@ export interface IFileManager {
    * that type-gates which of `name`/`ext` each content source may supply —
    * fields derivable from the source are **absent** from the branch; only
    * non-derivable fields (e.g. `name` for base64 / bytes, `ext` for bytes) are
-   * exposed. See `@shared/file/types/ipc.ts` for the full matrix and
-   * `v2-refactor-temp/docs/file-manager/file-arch-problems-response.md` (A-7
-   * extension) for the decision rationale.
+   * exposed. See `@shared/file/types/ipc.ts` for the full matrix.
    *
    * FileManager resolves the derived fields, writes bytes to
-   * `{userData}/files/{newUuid}.{ext}`, and inserts a fresh DB row. No conflict
-   * resolution — every call produces an independent entry.
+   * `{userData}/Data/Files/{newUuid}.{ext}`, and inserts a fresh DB row. No
+   * conflict resolution — every call produces an independent entry.
    */
   createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry>
 
@@ -353,7 +344,7 @@ export interface IFileManager {
   /** Get FileVersion (stat-based) — live for both origins. */
   getVersion(id: FileEntryId): Promise<FileVersion>
 
-  /** Compute xxhash-128 of file content. Reads full file. */
+  /** Compute xxhash-h64 of file content. Reads full file. */
   getContentHash(id: FileEntryId): Promise<string>
 
   // ─── Writing ───
@@ -500,8 +491,9 @@ export class FileManager extends BaseService {
   }
 
   /**
-   * Run both the FS-level orphan sweep (architecture §10) and the DB-level
-   * orphan-ref/entry sweep (RFC §6.4) concurrently, returning once both
+   * Run both the FS-level orphan sweep (file-manager-architecture §10) and
+   * the DB-level orphan-ref/entry sweep (file-manager-architecture §7 Layer 3)
+   * concurrently, returning once both
    * settle. The fire-and-forget call site in `onInit` (line above) is what
    * keeps the ready signal unblocked — this method itself awaits both
    * branches so tests and explicit callers can deterministically observe

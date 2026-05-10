@@ -28,7 +28,7 @@
 
 The `origin` field on a FileEntry defines content ownership, with two values:
 
-- **`internal`**: Cherry owns the file content, physically stored at `{userData}/files/{id}.{ext}`. The caller hands a Buffer/Stream/source file to FileManager, which copies and takes ownership. `name` / `ext` / `size` are authoritative on the row (atomic writes keep DB and FS in sync).
+- **`internal`**: Cherry owns the file content, physically stored at `{userData}/Data/Files/{id}.{ext}`. The caller hands a Buffer/Stream/source file to FileManager, which copies and takes ownership. `name` / `ext` / `size` are authoritative on the row (atomic writes keep DB and FS in sync).
 - **`external`**: Cherry only records an absolute path reference on the user's side, does not copy content, and does not own the file. `name` / `ext` on the row are pure projections of `externalPath` (basename / extname); `size` is **not stored** (always `null`) — live value is obtained via File IPC `getMetadata`. File availability and content changes are determined by the user side.
 
 Which origin to pick is the **caller's** decision; FileManager makes no assumption about the business layer.
@@ -45,7 +45,7 @@ File Module (src/main/services/file/)
 ├── index.ts              ← [1a ✅] module barrel; exports only FileManager + public types
 │                           (internal/* is not exported; external imports can't reach it)
 │
-├── FileManager.ts        ← [1a ✅ skeleton] [1b.1-4 impl] contract surface in Phase 1a; becomes the
+├── FileManager.ts        ← [1a ✅ skeleton] [1b.1-4 ✅] contract surface in Phase 1a; becomes the
 │     │                     sole lifecycle service + public facade incrementally in Phase 1b.x
 │     │                     public methods are thin delegates to internal/*; owns versionCache
 │     │                     responsible for IPC registration and FileHandle.kind dispatch
@@ -74,15 +74,15 @@ File Module (src/main/services/file/)
 │     │    └── tempCopy.ts      — withTempCopy  [1b.2]
 │     └── orphanSweep.ts        — startup orphan scan task  [1b.4]
 │
-├── versionCache.ts       ← [1a ✅ interface] [1b.2 impl] LRU type definition; instance held as private field on FileManager
+├── versionCache.ts       ← [1a ✅ interface] [1b.2 ✅] LRU type definition; instance held as private field on FileManager
 │
-├── danglingCache.ts (singleton)  [1a ✅ interface] [1b.3 impl]
+├── danglingCache.ts (singleton)  [1a ✅ interface] [1b.3 ✅]
 │     ├── check(entry): DanglingState — query in-memory / cold-path stat
 │     ├── onFsEvent(path, state) — receives watcher events
 │     ├── Reverse index Map<path, Set<entryId>> (populated from DB at file_module startup)
 │     └── Queried by DataApi handler; automatically wired by the watcher factory
 │
-└── watcher/              [1a ✅ factory signature] [1b.3 impl]
+└── watcher/              [1a ✅ factory signature] [1b.3 ✅]
       └── DirectoryWatcher (not a service, a generic FS monitoring primitive)
           ↳ factory createDirectoryWatcher() auto-wires events into danglingCache
 
@@ -98,8 +98,8 @@ Pure FS primitives (src/main/utils/file/) — sole FS owner, open to the entire 
 └── index.ts      — barrel: re-exports `./legacyFile` so cross-module callers can `import from '@main/utils/file'`
 
 Data Module dependencies (src/main/data/)
-├── FileEntryService (data repository, pure DB) — file_entry table  [1a ✅ interface] [1b.1 impl]
-├── FileRefService (data repository, pure DB) — file_ref table      [1a ✅ interface] [1b.1 impl]
+├── FileEntryService (data repository, pure DB) — file_entry table  [1a ✅ interface] [1b.1 ✅]
+├── FileRefService (data repository, pure DB) — file_ref table      [1a ✅ interface] [1b.1 ✅]
 └── DataApi Handler (files.ts) — pure SQL read-only endpoints; no FS access, no main-side resolvers  [1a ✅ schema + stub handlers] [1b.1 read endpoints]
 ```
 
@@ -174,7 +174,7 @@ Data-shape layer    FileEntry                          FileInfo
 Picking a handle variant is a **call-site choice of reference form**, not a statement about the file itself. Crucially, **the two axes are orthogonal**:
 
 - **Reference form** (this layer): `FileEntryHandle` routes through the entry system (FileManager, versionCache, DanglingCache updates); `FilePathHandle` bypasses it and hits the `@main/utils/file/*` primitives directly.
-- **Content ownership** (`FileEntry.origin`, not visible in the handle): `internal` means Cherry owns `{userData}/files/{id}.{ext}`; `external` means Cherry only records a reference to a user-owned path.
+- **Content ownership** (`FileEntry.origin`, not visible in the handle): `internal` means Cherry owns `{userData}/Data/Files/{id}.{ext}`; `external` means Cherry only records a reference to a user-owned path.
 
 The **same physical external file** can therefore be reached by either handle variant. A `FileEntryHandle` to its entry goes through the entry-aware code path (dangling updates, version cache, identity-tracked operations); a `FilePathHandle` to the same absolute path goes through pure FS. Picking one is a matter of which subsystem the caller wants in the loop — not a property of the file.
 
@@ -268,7 +268,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 
 | Method | Description |
 |---|---|
-| `createInternalEntry` / `batchCreateInternalEntries` | Create a new Cherry-owned FileEntry (writes to `{userData}/files/{id}.{ext}`; each call produces an independent new entry, no conflict possible) |
+| `createInternalEntry` / `batchCreateInternalEntries` | Create a new Cherry-owned FileEntry (writes to `{userData}/Data/Files/{id}.{ext}`; each call produces an independent new entry, no conflict possible) |
 | `ensureExternalEntry` / `batchEnsureExternalEntries` | Pure upsert by `externalPath`—the entry point first `canonicalizeExternalPath(raw)` normalizes it (see `pathResolver.ts`); reuses the existing entry with the same path or inserts a new one. Idempotent by design—callers may safely repeat calls. No "restore" branch: external entries cannot be trashed. External rows carry no stored `size` (always `null`); live values come from `getMetadata`. |
 | `trash` / `restore` | Soft delete based on trashedAt (DB only). **Internal-origin only** — external-origin entries cannot be trashed (`fe_external_no_trash` CHECK); passing an external id throws. |
 | `batchTrash` / `batchRestore` | Batch versions of `trash` / `restore` — same internal-origin-only rule. |
@@ -348,7 +348,7 @@ FilesPage and similar user-facing **list surfaces** SHOULD hide external entries
 | `buildProviderReference(entryId)`   | Build SharedV4ProviderReference  |
 | `invalidate(entryId)`               | Clear cache (on content change)  |
 
-### 3.6 Mutation Propagation to Renderer `[1b.2 impl]`
+### 3.6 Mutation Propagation to Renderer `[deferred]`
 
 Every main-side mutation that changes an entry's DB row, a file's physical content, or the dangling state of an external path invalidates zero or more renderer-side React Query caches. Manual per-caller invalidation is brittle — if any business caller forgets to invalidate after `rename`/`write`/`permanentDelete`, the UI shows stale data for up to the `staleTime` window.
 
@@ -761,7 +761,7 @@ Renderer                          Main
 
 Business services interact with the file module through three channels:
 
-- **No-FS-side-effect operations** (entry queries, reference management) → import data repositories directly (`fileEntrySafe` / `fileRefService`)
+- **No-FS-side-effect operations** (entry queries, reference management) → import data repositories directly (`fileEntryService` / `fileRefService`)
 - **FS-involving operations** (read/write file content, create/delete entry) → **FileManager**
 - **External directory monitoring** (if needed) → call the `createDirectoryWatcher()` factory (provided by file_module); the factory auto-wires events into DanglingCache; the business only subscribes to events it cares about
 
@@ -821,8 +821,8 @@ export const fileRefCheckers: Record<FileRefSourceType, SourceTypeChecker> = {
 BusinessService
     |
     +-- direct import (no FS side effect)
-    |   +-- fileEntrySafe.getById(entryId)          -> FileEntry
-    |   +-- fileEntrySafe.list(filter)              -> FileEntry[]
+    |   +-- fileEntryService.getById(entryId)       -> FileEntry
+    |   +-- fileEntryService.findMany(query)        -> FileEntry[]
     |   +-- fileRefService.create(dto)              -> FileRef
     |   +-- fileRefService.cleanupBySource(...)     -> void
     |
@@ -838,7 +838,7 @@ BusinessService
     |
     x-- fs.readFile / writeFile / unlink                 -> FORBIDDEN for FileEntry paths
     x-- @main/utils/file/fs direct on FileEntry-backed paths -> FORBIDDEN (same reason)
-    x-- FilePathHandle pointing at {userData}/files/{uuid}.{ext}
+    x-- FilePathHandle pointing at {userData}/Data/Files/{uuid}.{ext}
                                                    -> FORBIDDEN for writes — silently desyncs
                                                        FileEntry.size on internal entries
 ```
@@ -846,11 +846,11 @@ BusinessService
 **Why business services are forbidden from directly operating on the physical files backing a FileEntry**:
 
 - **Path opacity**: the physical path is determined by origin (internal = UUID-based; external = user-provided); business services must not assume it
-- **DB consistency (internal only)**: `FileEntry.size` is authoritative for internal rows and is kept in sync by FileManager's atomic write path. Writing the UUID-backed file directly (via `@main/utils/file/fs` or a `FilePathHandle` to `{userData}/files/...`) leaves the stored `size` stale relative to the physical file — a silent DataApi drift with no type-system guard.
+- **DB consistency (internal only)**: `FileEntry.size` is authoritative for internal rows and is kept in sync by FileManager's atomic write path. Writing the UUID-backed file directly (via `@main/utils/file/fs` or a `FilePathHandle` to `{userData}/Data/Files/...`) leaves the stored `size` stale relative to the physical file — a silent DataApi drift with no type-system guard.
 - **Cache consistency**: FileManager maintains an in-memory `versionCache`; bypassing it leaves `getVersion` returning stale `(mtime, size)` until the next write/reconcile. `writeIfUnchanged` is unaffected (it always re-stats — see [`file-manager-architecture.md §4.4`](./file-manager-architecture.md#44-lru-version-cache)), but UI surfaces that display cached mtime can show stale values.
 - **Atomicity guarantee**: writes must go through FileManager's atomic write path
 
-**Enforcement model** — this is a **convention-only constraint**: neither the type system nor `@main/utils/file/fs` runtime checks the target path against the internal-storage tree. Legitimate consumers of the primitives outside the file module (BootConfig, MCP oauth, etc.) operate on their own directories and are unaffected; the scope of the rule is specifically "do not point writes at `{userData}/files/`". Violations are caught by code review.
+**Enforcement model** — this is a **convention-only constraint**: neither the type system nor `@main/utils/file/fs` runtime checks the target path against the internal-storage tree. Legitimate consumers of the primitives outside the file module (BootConfig, MCP oauth, etc.) operate on their own directories and are unaffected; the scope of the rule is specifically "do not point writes at `{userData}/Data/Files/`". Violations are caught by code review.
 
 The scope of this constraint is **physical files backing a FileEntry**. Other modules' own files (Knowledge vector index, Agent workspace, MCP config, Notes, etc.) are outside this constraint.
 
@@ -944,7 +944,7 @@ Any business service that consumes FileManager needs `@DependsOn(FileManager)`:
 ```
 <AnyBusinessService>
   @DependsOn(FileManager)
-  +-- queries entries via fileEntrySafe (no FS side effect)
+  +-- queries entries via fileEntryService (no FS side effect)
   +-- creates/cleans refs via fileRefService (pure DB)
   +-- reads file content via FileManager (FS)
   +-- (optional) owns DirectoryWatcher instances via the factory
@@ -959,7 +959,7 @@ Specific services and their dependency declarations are registered by each busin
 ```
 src/main/data/                        -- data layer (pure DB)
   services/
-    FileEntryService.ts               -- repository: exports fileEntryService + fileEntrySafe
+    FileEntryService.ts               -- repository: exports fileEntryService
     FileRefService.ts                 -- repository: exports fileRefService
   api/handlers/
     files.ts                          -- DataApi handler, no FS side effect
@@ -1001,7 +1001,7 @@ src/main/utils/file/                  -- pure FS primitives, sole FS owner, open
 - **Cherry does not track rename/move of external files**: an external rename turns the entry dangling; the user must re-@ to establish a new reference
 - **External entry DB row carries no `size`**: `size` is `null` on every external row by design (enforced by `fe_size_internal_only` CHECK). `name` / `ext` are pure projections of `externalPath` and do not drift. Live `size` / `mtime` are served by File IPC `getMetadata(id)` via `fs.stat`; DataApi never exposes them.
 - **Dangling state exposed via DanglingCache + File IPC query methods** (`getDanglingState` / `batchGetDanglingStates`); never exposed via DataApi: not persisted to DB; watcher events + cold-path stat push updates
-- **Physical paths are not persisted**: internal is derived from `application.getPath('files', ...)`; external is read from the `externalPath` column
+- **Physical paths are not persisted**: internal is derived from `application.getPath('feature.files.data', ...)`; external is read from the `externalPath` column
 - **FileRef polymorphism has no FK**: `sourceId` points into different business tables and relies on application-layer cleanup + orphan scanning as fallback
 - **File Module does not do directory import / bidirectional sync**: business modules implement this with DirectoryWatcher + their own mapping tables
 - **File Module does not start any chokidar watcher**: watcher lifecycles are managed by business modules; when created via the factory, DanglingCache is automatically wired

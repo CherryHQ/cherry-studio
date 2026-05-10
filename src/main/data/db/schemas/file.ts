@@ -54,7 +54,7 @@ export const fileEntryTable = sqliteTable(
      * check constraint). Their lifecycle is monotonic: create via
      * `ensureExternalEntry`, update in place, or remove immediately via
      * `permanentDelete` (DB-only — the physical file is left untouched;
-     * path-level deletion is a separate, explicit unmanaged `ops.remove(path)`).
+     * path-level deletion is a separate, explicit unmanaged `@main/utils/file/fs.remove(path)`).
      */
     trashedAt: integer(),
 
@@ -78,7 +78,7 @@ export const fileEntryTable = sqliteTable(
     ),
     // External entries cannot be trashed — trash/restore is internal-only.
     // External removal is always immediate via permanentDelete (DB-only; the
-    // physical file is left untouched, path-level ops.remove is a separate call).
+    // physical file is left untouched, path-level @main/utils/file/fs.remove is a separate call).
     check('fe_external_no_trash', sql`${t.origin} != 'external' OR ${t.trashedAt} IS NULL`),
     // Size semantics are origin-dependent: internal rows carry an authoritative
     // byte count (non-null, ≥ 0); external rows must leave size NULL and read

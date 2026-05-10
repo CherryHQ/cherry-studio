@@ -136,7 +136,6 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): string {
  * If user reports of "same file, two entries" materialize, extend this
  * function with `fs.realpath` (making the signature `Promise<CanonicalExternalPath>`)
  * and ship a one-off migration per the RULE-EVOLUTION DISCIPLINE above.
- * See `rfc-file-manager.md §11` risks for context.
  *
  * @param raw user-provided absolute (or resolvable) path
  * @returns canonical form stored in `file_entry.externalPath`

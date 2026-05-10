@@ -3,7 +3,7 @@
  *
  * Primary path: extension-based mapping.
  * Fallback: buffer detection (isBinaryFile + chardet) for unknown extensions —
- * deferred to Phase 1b.2; Phase 1b.1 ships extension-only.
+ * deferred (no consumer yet); current detection is extension-only.
  */
 
 import path from 'node:path'
@@ -11,7 +11,7 @@ import path from 'node:path'
 import { FILE_TYPE, type FilePath, type FileType, getFileTypeByExt } from '@shared/file/types'
 import mime from 'mime'
 
-/** Detect file type from extension. Buffer-sniff fallback deferred to 1b.2. */
+/** Detect file type from extension. Buffer-sniff fallback deferred (no consumer yet). */
 export async function getFileType(target: FilePath): Promise<FileType> {
   const ext = path.extname(target)
   return getFileTypeByExt(ext)

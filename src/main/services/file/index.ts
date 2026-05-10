@@ -3,11 +3,12 @@
  *
  * The file module uses a **facade + private internals** pattern:
  *
- * - `FileManager` is the planned single public entry point for all file
- *   operations. In the current phase, this barrel exposes the public contract
- *   surface only (types / errors), not a concrete lifecycle-service class.
- *   Once the lifecycle implementation lands, Main runtime code will resolve
- *   the singleton instance via `application.get('FileManager')`.
+ * - `FileManager` is the single public entry point for all file operations,
+ *   registered as a lifecycle service (`@Injectable('FileManager')`,
+ *   `@ServicePhase(Phase.WhenReady)`). Main runtime code resolves the
+ *   singleton via `application.get('FileManager')`. This barrel exports the
+ *   public contract types / errors only — the class itself is reached
+ *   through the container, not by direct import.
  * - Implementation lives under `./internal/*` (entry / content / system ops)
  *   as pure-function modules. These are **NOT** re-exported from this barrel
  *   and MUST NOT be imported from outside the file module.
@@ -34,10 +35,10 @@ export type {
 } from './FileManager'
 export { StaleVersionError } from './FileManager'
 
-// DanglingCache: interface and singleton are both exported for Phase 1b.3
-// callers (DataApi handler, orphanSweep). External imports of the singleton
-// should stay narrow — treat the barrel-exported value as read-only from
-// outside the file module.
+// DanglingCache: interface and singleton are both exported for in-process
+// callers (orphanSweep, business services querying live state). External
+// imports of the singleton should stay narrow — treat the barrel-exported
+// value as read-only from outside the file module.
 export type {
   DanglingCache,
   DanglingCacheOptions,
@@ -47,8 +48,9 @@ export type {
 } from './danglingCache'
 export { createDanglingCacheImpl, danglingCache } from './danglingCache'
 
-// VersionCache: interface only. The runtime instance is a private field on
-// FileManager and is not exposed via the barrel.
+// VersionCache: interface only. The runtime instance is a private class
+// field on each `FileManager` (not a module singleton) and is not exposed
+// via the barrel — see file-manager-architecture.md §1.6.1 / §12.
 export type { VersionCache } from './versionCache'
 
 // Watcher primitive — business modules (future NoteService, KB watcher, etc.)

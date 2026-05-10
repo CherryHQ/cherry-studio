@@ -1,8 +1,9 @@
 /**
  * Compute content hash for a managed FileEntry or a raw FilePath.
  *
- * Algorithm: MD5 streamed via `@main/utils/file/fs.hash`. Migration to
- * xxhash-128 is deferred to Phase 1b.2 (versionCache content-hash fallback).
+ * Algorithm: xxhash-h64 streamed via `@main/utils/file/fs.hash` —
+ * non-cryptographic, fast, sufficient for the `writeIfUnchanged`
+ * second-precision fallback that compares hashes when mtimes are ambiguous.
  */
 
 import { resolvePhysicalPath } from '@data/utils/pathResolver'

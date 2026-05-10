@@ -2,9 +2,10 @@
  * FileManagerDeps — the dependency bundle every `internal/*` pure-function
  * module receives as its first argument.
  *
- * Phase status: Phase 1a exports the type only. The actual construction
- * (wiring service singletons, versionCache instance, danglingCache singleton)
- * happens inside the future `FileManager.onInit` (Phase 1b.x).
+ * Construction wires the service singletons (`fileEntryService`,
+ * `fileRefService`, `danglingCache`, `orphanCheckerRegistry`) plus a fresh
+ * per-FileManager `VersionCache`; the bundle is built once inside
+ * `FileManager`'s class body and forwarded to every internal call.
  *
  * ## Design
  *

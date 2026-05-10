@@ -6,7 +6,7 @@
  * - `FileEntryHandle` carries a `FileEntryId` — the call goes through the
  *   entry system (FileManager, versionCache, DanglingCache, …).
  * - `FilePathHandle` carries an absolute `FilePath` — the call bypasses the
- *   entry system and hits `ops/*` directly.
+ *   entry system and hits `@main/utils/file/*` directly.
  *
  * The same physical file can be referenced by either form. In particular, an
  * external file that has a FileEntry can also be reached via a `FilePathHandle`
@@ -21,11 +21,11 @@
  *
  * ```ts
  * const h1 = createFileEntryHandle(entry.id)               // routes via FileManager
- * const h2 = createFilePathHandle('/Users/me/doc.pdf')     // routes via ops/*
+ * const h2 = createFilePathHandle('/Users/me/doc.pdf')     // routes via @main/utils/file/*
  *
  * // IPC / service methods accept either
  * await window.api.file.read(h1)     // FileManager.read — entry-aware
- * await window.api.file.read(h2)     // ops.read(path)   — entry-agnostic
+ * await window.api.file.read(h2)     // raw FS read       — entry-agnostic
  * ```
  */
 
@@ -67,7 +67,7 @@ export function createFileEntryHandle(entryId: FileEntryId): FileEntryHandle {
  * is a compile-time hint, but untyped entry points (IPC payloads, `as FilePath`
  * casts, renderer-side dynamic construction) can bypass it. This factory runs
  * a cheap runtime check so a bad path fails at wrap time rather than surfacing
- * as a confusing failure inside `ops.read` / FileManager several layers down.
+ * as a confusing failure inside `@main/utils/file/fs.read` / FileManager several layers down.
  *
  * Rejected inputs:
  * - Relative paths (`./foo`, `foo/bar`)
