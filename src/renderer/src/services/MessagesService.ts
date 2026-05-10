@@ -1,8 +1,8 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
-import store from '@renderer/store'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getTitleFromString } from '@renderer/utils/export'
@@ -37,7 +37,12 @@ export function getMessageModelId(message: Message) {
 export async function getMessageTitle(message: Message, length = 30): Promise<string> {
   const content = getMainTextContent(message)
 
-  if ((store.getState().settings as any).useTopicNamingForMessageTitle) {
+  // Read from v2 Preference (`data.export.markdown.use_topic_naming_for_message_title`)
+  // — the v1 Redux key was migrated; the renderer settings page reads the
+  // same Preference key, so a stale Redux read here would diverge from the
+  // settings UI value.
+  const useTopicNaming = await preferenceService.get('data.export.markdown.use_topic_naming_for_message_title')
+  if (useTopicNaming) {
     try {
       const tempMessage = resetMessage(message, {
         status: AssistantMessageStatus.SUCCESS,
