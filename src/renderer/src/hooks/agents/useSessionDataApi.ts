@@ -122,8 +122,12 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
     [applyReorderedList, t]
   )
 
-  const { trigger: pinTrigger } = useMutation('POST', '/pins', { refresh: ['/pins'] })
-  const { trigger: unpinTrigger } = useMutation('DELETE', '/pins/:id', { refresh: ['/pins'] })
+  // Server returns pinned-first via the two-section cursor in
+  // `SessionService.listByCursor`, so pin-state changes affect `/sessions`
+  // page ordering, not just `/pins` membership. Refresh both keys so the
+  // row visibly relocates after pin/unpin.
+  const { trigger: pinTrigger } = useMutation('POST', '/pins', { refresh: ['/pins', '/sessions'] })
+  const { trigger: unpinTrigger } = useMutation('DELETE', '/pins/:id', { refresh: ['/pins', '/sessions'] })
   const togglePin = useCallback(
     async (sessionId: string) => {
       const pinId = pinIdBySessionId.get(sessionId)
