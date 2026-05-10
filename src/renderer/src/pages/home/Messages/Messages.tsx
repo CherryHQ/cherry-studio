@@ -41,7 +41,13 @@ import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
 import Prompt from './Prompt'
-import { getPreservedDisplayCount, keepElementTop, shouldKeepPreservingAnchor } from './scrollAnchor'
+import {
+  getAnchorTargetTop,
+  getPreservedDisplayCount,
+  keepElementTop,
+  type ScrollAnchorAlignment,
+  shouldKeepPreservingAnchor
+} from './scrollAnchor'
 import { MessagesContainer, ScrollContainer } from './shared'
 
 interface MessagesProps {
@@ -55,6 +61,7 @@ interface MessagesProps {
 const logger = loggerService.withContext('Messages')
 
 type PreserveMessageAnchorPayload = {
+  alignment?: ScrollAnchorAlignment
   elementId?: string
   messageId?: string
 }
@@ -178,7 +185,22 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       }
 
       const elementId = typeof payload === 'string' ? undefined : payload?.elementId
+      const alignment = typeof payload === 'string' ? 'preserve' : (payload?.alignment ?? 'preserve')
       const anchorElement = elementId ? document.getElementById(elementId) : getRegisteredMessageElement(messageId)
+      const container = scrollContainerRef.current
+      const anchorTop = anchorElement?.getBoundingClientRect().top
+      const targetTop =
+        anchorTop !== undefined && container
+          ? getAnchorTargetTop({
+              alignment,
+              anchorTop,
+              containerTop: container.getBoundingClientRect().top
+            })
+          : anchorTop
+
+      if (container && anchorElement && targetTop !== undefined) {
+        keepElementTop(container, anchorElement, targetTop)
+      }
 
       stopPreservingAnchor()
       anchorRef.current = {
@@ -187,11 +209,11 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
         idleFrames: 0,
         messageId,
         missingFrames: anchorElement ? 0 : 1,
-        top: anchorElement?.getBoundingClientRect().top
+        top: targetTop
       }
       anchorRef.current.rafId = requestAnimationFrame(preserveAnchorPosition)
     },
-    [getRegisteredMessageElement, preserveAnchorPosition, stopPreservingAnchor]
+    [getRegisteredMessageElement, preserveAnchorPosition, scrollContainerRef, stopPreservingAnchor]
   )
 
   const handleMessagesScroll = useCallback(() => {

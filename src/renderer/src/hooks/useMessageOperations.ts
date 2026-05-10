@@ -49,9 +49,9 @@ export const selectNewDisplayCount = createSelector(
 export function useMessageOperations(topic: Topic) {
   const dispatch = useAppDispatch()
 
-  const preserveMessageAnchor = useCallback((messageId?: string) => {
+  const preserveMessageAnchor = useCallback((messageId?: string, options: { alignment?: 'preserve' | 'top' } = {}) => {
     if (messageId) {
-      void EventEmitter.emit(EVENT_NAMES.PRESERVE_MESSAGE_ANCHOR, { messageId })
+      void EventEmitter.emit(EVENT_NAMES.PRESERVE_MESSAGE_ANCHOR, { messageId, ...options })
     }
   }, [])
 
@@ -188,7 +188,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const appendAssistantResponse = useCallback(
     async (existingAssistantMessage: Message, newModel: Model, assistant: Assistant) => {
-      preserveMessageAnchor(existingAssistantMessage.askId)
+      preserveMessageAnchor(existingAssistantMessage.askId, { alignment: 'top' })
       await appendMessageTrace(existingAssistantMessage, newModel)
       if (existingAssistantMessage.role !== 'assistant') {
         logger.error('appendAssistantResponse should only be called for an existing assistant message.')
