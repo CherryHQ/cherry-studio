@@ -63,9 +63,9 @@ export const authConnectionClasses = {
  * Mirrors `ModelServicePage` provider column scroll: `flex-1 overflow-y-auto px-5 py-4` … `gap-4` / `space-y-4`.
  */
 export const providerDetailColumnClasses = {
-  headerPad: 'shrink-0 px-5 py-3.5',
+  headerPad: 'shrink-0 px-5 pb-2 pt-3',
   scrollStrip:
-    'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/20 [&::-webkit-scrollbar]:w-[3px]',
+    'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 pb-4 pt-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/20 [&::-webkit-scrollbar]:w-[3px]',
   sectionStack: 'flex min-h-full w-full min-w-0 flex-col gap-4'
 } as const
 
@@ -83,7 +83,7 @@ export const actionClasses = {
 /** Provider list rows + detached menus; popover content must re-enter `.provider-settings-default-scope`. */
 export const providerListClasses = {
   shell:
-    'flex h-full w-[clamp(220px,20vw,250px)] shrink-0 basis-[clamp(220px,20vw,250px)] flex-col border-r border-[color:var(--section-border)] bg-(--color-background)',
+    'flex h-full w-[clamp(220px,20vw,250px)] shrink-0 basis-[clamp(220px,20vw,250px)] flex-col border-r border-[color:var(--section-border)]',
   header: 'mb-2 flex shrink-0 items-center justify-between gap-2 px-3 pb-0 pt-3.5',
   headerTitle:
     'min-w-0 flex-1 truncate text-sm leading-[1.3] font-[weight:var(--font-weight-semibold)] text-foreground',
@@ -290,7 +290,7 @@ export const modelListClasses = {
   rowMain: 'min-w-0 flex-1 items-start gap-3',
   rowAvatar: 'h-[26px] w-[26px] shrink-0 rounded-lg',
   rowBody: 'min-w-0 max-w-full flex-1 overflow-hidden',
-  /** Model name / ID line — hover + click to copy (design `ModelServicePage` `ModelRow`). */
+  /** Model name opens the edit drawer; copy stays on explicit trailing controls. */
   rowNameCopyable: 'cursor-pointer transition-colors hover:text-primary',
   /** Shown when model id !== name; hidden in narrow container via `.ps-model-list-id` rule. */
   modelIdBadge:
@@ -535,7 +535,6 @@ export function ProviderSettingsContainer({
     <div
       className={cn(
         'flex min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-        'bg-(--color-background)',
         className
       )}>
       {children}

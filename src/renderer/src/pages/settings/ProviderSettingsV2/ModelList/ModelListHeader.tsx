@@ -47,7 +47,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
   actions
 }) => {
   const { t } = useTranslation()
-  const [showModelSearch, setShowModelSearch] = useState(true)
+  const [showModelSearch, setShowModelSearch] = useState(false)
   const [showCapFilter, setShowCapFilter] = useState(false)
 
   const toggleVisibleModelsLabel = allEnabled ? t('settings.models.bulk_disable') : t('settings.models.bulk_enable')

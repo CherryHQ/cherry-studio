@@ -1,7 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import { AiProvider } from '@renderer/aiCore'
 import { toV1ProviderShim } from '@renderer/pages/settings/ProviderSettingsV2/utils/v1ProviderShim'
-import { fetchModels } from '@renderer/services/ApiService'
 import type { Model as LegacyModel, ModelCapability as LegacyModelCapability } from '@renderer/types'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
@@ -40,6 +40,12 @@ const LEGACY_ENDPOINT_TO_V2: Record<string, RuntimeEndpointType> = {
   gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK
+}
+
+async function fetchModelsStrict(provider: Provider): Promise<LegacyModel[]> {
+  const ai = new AiProvider(provider)
+
+  return await ai.models({ throwOnError: true })
 }
 
 export function toCreateModelDto(
@@ -188,7 +194,7 @@ export async function fetchResolvedProviderModels(providerId: string, provider: 
     logger.info('Fetching raw provider models from upstream provider SDK', {
       providerId
     })
-    const fetched = await fetchModels(toV1ProviderShim(provider, { apiKey }))
+    const fetched = await fetchModelsStrict(toV1ProviderShim(provider, { apiKey }))
     logger.info('Fetched raw provider models from upstream provider SDK', {
       providerId,
       fetchedModelCount: fetched.length

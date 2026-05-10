@@ -320,8 +320,8 @@ export default class AiProvider {
    * 获取模型列表
    * 使用 ModelListService 统一处理各 Provider 的模型列表获取
    */
-  public async models(): Promise<Model[]> {
-    return await listModels(this.actualProvider)
+  public async models(options?: { throwOnError?: boolean }): Promise<Model[]> {
+    return await listModels(this.actualProvider, undefined, options)
   }
 
   /**

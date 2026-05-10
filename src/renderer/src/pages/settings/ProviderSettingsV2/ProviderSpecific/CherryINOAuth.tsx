@@ -4,7 +4,6 @@ import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProviders'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettingsV2/shared/primitives/ProviderSettingsPrimitives'
 import { hasApiKeys } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
-import { getErrorMessage } from '@renderer/utils/error'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
 import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
@@ -76,11 +75,10 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     } catch (error) {
       logger.warn('Failed to fetch balance:', error as Error)
       setBalanceInfo(null)
-      window.toast.error(`${t('settings.provider.oauth.balance_error')}: ${getErrorMessage(error)}`)
     } finally {
       setIsLoadingData(false)
     }
-  }, [t])
+  }, [])
 
   useEffect(() => {
     if (isOAuthLoggedIn) {

@@ -521,7 +521,11 @@ function isUnsupported(provider: Provider): boolean {
 
 // === Public API ===
 
-export async function listModels(provider: Provider, abortSignal?: AbortSignal): Promise<Model[]> {
+export async function listModels(
+  provider: Provider,
+  abortSignal?: AbortSignal,
+  options?: { throwOnError?: boolean }
+): Promise<Model[]> {
   try {
     if (isUnsupported(provider)) {
       logger.warn('Provider does not support model listing via listModels', { providerId: provider.id })
@@ -532,6 +536,9 @@ export async function listModels(provider: Provider, abortSignal?: AbortSignal):
     return await fetcher.fetch(provider, abortSignal)
   } catch (error) {
     logger.error('Error listing models:', error as Error, { providerId: provider.id })
+    if (options?.throwOnError) {
+      throw error
+    }
     return []
   }
 }

@@ -1,9 +1,10 @@
-import { Avatar, AvatarFallback, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getModelLogo } from '@renderer/pages/settings/ProviderSettingsV2/config/models'
 import { getModelClipboardId } from '@renderer/pages/settings/ProviderSettingsV2/ModelList/utils'
 import { cn } from '@renderer/utils'
 import type { Model } from '@shared/data/types/model'
+import { Copy } from 'lucide-react'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -64,14 +65,24 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
         })()}
         <div className={modelListClasses.rowBody}>
           <Tooltip content={t('settings.models.copy_model_id_tooltip', { id: copyId })} placement="top">
-            <span
-              className={cn(
-                'block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]',
-                modelListClasses.rowNameCopyable
-              )}
-              onClick={handleCopyName}>
-              {model.name}
-            </span>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span
+                className={cn(
+                  'block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]',
+                  modelListClasses.rowNameCopyable
+                )}>
+                {model.name}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-5 shrink-0 rounded-md p-0 text-muted-foreground/35 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                aria-label={t('settings.models.copy_model_id_tooltip', { id: copyId })}
+                onClick={handleCopyName}>
+                <Copy className="size-2.5" />
+              </Button>
+            </div>
           </Tooltip>
         </div>
       </RowFlex>
