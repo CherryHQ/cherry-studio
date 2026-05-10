@@ -170,8 +170,9 @@ class DanglingCacheImpl implements DanglingCache {
     return state
   }
 
-  async forceRecheck(_entry: FileEntry): Promise<DanglingState> {
-    throw new Error('DanglingCache.forceRecheck: not implemented yet (Phase 1b.3 in progress)')
+  async forceRecheck(entry: FileEntry): Promise<DanglingState> {
+    if (entry.origin === 'internal') return 'present'
+    return this.doStatAndUpdate(entry, 'forceRecheck')
   }
 
   onFsEvent(_path: FilePath, _state: ObservedPresence, _source?: CachedState['source']): void {

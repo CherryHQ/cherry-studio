@@ -79,3 +79,20 @@ describe('DanglingCache.check', () => {
     expect(statProbe).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('DanglingCache.forceRecheck', () => {
+  it('always re-stats, even within TTL', async () => {
+    const statProbe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('present')
+    const cache = createDanglingCacheImpl({ statProbe, now: () => 0, ttlMs: 60_000 })
+    await cache.check(externalEntry('e-5', '/c.txt'))
+    await cache.forceRecheck(externalEntry('e-5', '/c.txt'))
+    expect(statProbe).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns "present" for internal entries without probing', async () => {
+    const statProbe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>()
+    const cache = createDanglingCacheImpl({ statProbe })
+    expect(await cache.forceRecheck(internalEntry('i-2'))).toBe('present')
+    expect(statProbe).not.toHaveBeenCalled()
+  })
+})
