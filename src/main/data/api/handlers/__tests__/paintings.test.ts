@@ -150,7 +150,9 @@ describe('paintingHandlers', () => {
       providerId: 'aihubmix',
       mode: 'generate',
       mediaType: 'video',
-      prompt: 'hello'
+      prompt: 'hello',
+      params: {},
+      files: { output: [], input: [] }
     })
     expect(reorderPaintingMock).toHaveBeenCalledWith('painting-2', { after: 'painting-1' })
     expect(reorderPaintingBatchMock).toHaveBeenCalledWith([
