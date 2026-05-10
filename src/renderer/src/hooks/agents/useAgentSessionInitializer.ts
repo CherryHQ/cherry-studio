@@ -1,9 +1,6 @@
-import { loggerService } from '@logger'
-import { dataApiService } from '@renderer/data/DataApiService'
+import { useQuery } from '@data/hooks/useDataApi'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useEffect } from 'react'
-
-const logger = loggerService.withContext('useAgentSessionInitializer')
 
 /**
  * On startup, if no active session is set, pick the most-recently-ordered one
@@ -11,24 +8,21 @@ const logger = loggerService.withContext('useAgentSessionInitializer')
  * sessions sorted by `(orderKey, id)` ASC and `createSession` inserts at
  * position `'first'`, so the first item is what the user touched most
  * recently (or the first pinned one — pinning floats above otherwise).
+ *
+ * Read via `useQuery` (SWR-deduped) instead of a raw `dataApiService.get`
+ * inside an effect — multiple windows on first launch would otherwise each
+ * fire a fetch and stomp each other's `setActiveSessionId` write.
  */
 export const useAgentSessionInitializer = () => {
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
+  const { data } = useQuery('/sessions', {
+    query: { limit: 1 },
+    enabled: !activeSessionId
+  })
 
   useEffect(() => {
     if (activeSessionId) return
-    let cancelled = false
-    ;(async () => {
-      try {
-        const { items: sessions } = await dataApiService.get('/sessions', { query: { limit: 1 } })
-        if (cancelled) return
-        if (sessions.length > 0) setActiveSessionId(sessions[0].id)
-      } catch (error) {
-        logger.error('Failed to seed active session', error as Error)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [activeSessionId, setActiveSessionId])
+    const first = data?.items?.[0]?.id
+    if (first) setActiveSessionId(first)
+  }, [activeSessionId, data, setActiveSessionId])
 }
