@@ -17,9 +17,13 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
-vi.mock('@data/services/ProviderRegistryService', () => ({
-  providerRegistryService: {}
-}))
+vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@data/services/ProviderRegistryService')>()
+  return {
+    ...actual,
+    providerRegistryService: {}
+  }
+})
 
 function providerRow(providerId: string, name: string, orderKey = generateOrderKeyBetween(null, null)) {
   return { providerId, name, orderKey }

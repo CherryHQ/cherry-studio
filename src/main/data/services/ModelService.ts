@@ -14,6 +14,7 @@ import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/user
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
+import { mergePresetModel } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
@@ -27,7 +28,6 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ReasoningFormatType } from '@shared/data/types/provider'
-import { mergeModelWithUser } from '@shared/data/utils/modelMerger'
 import { and, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
@@ -40,6 +40,83 @@ const logger = loggerService.withContext('DataApi:ModelService')
 type CreateModelRegistryData = ModelLookupResult & {
   reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   defaultChatEndpoint?: EndpointType
+}
+
+/**
+ * Subset of user-row fields that can override registry-derived baseline values.
+ *
+ * Status fields (`isEnabled`, `isHidden`) are intentionally excluded: they are
+ * user state managed via `PATCH /models/:id`, not preset baseline overrides.
+ * They flow through `...row` spread in the migrator and through the
+ * `mergedModelToNewUserModel` projection in `ModelService.buildCreateValues`.
+ */
+export interface UserModelOverlay {
+  name?: string | null
+  description?: string | null
+  group?: string | null
+  capabilities?: ModelCapability[] | null
+  inputModalities?: Modality[] | null
+  outputModalities?: Modality[] | null
+  endpointTypes?: EndpointType[] | null
+  contextWindow?: number | null
+  maxInputTokens?: number | null
+  maxOutputTokens?: number | null
+  supportsStreaming?: boolean | null
+  // Persisted reasoning rows may have optional fields the runtime type requires;
+  // applyUserOverlay narrows it via cast on copy.
+  reasoning?: Partial<RuntimeReasoning> | null
+}
+
+/**
+ * Apply user-row values on top of a registry-derived baseline Model.
+ *
+ * Composed with `providerRegistryService.mergePresetModel` to produce the
+ * final merged Model that gets persisted: the registry service handles
+ * preset → override resolution, and this overlay handles user precedence.
+ * Truthy/non-null user values win. Empty arrays and null are treated as
+ * "not set" so the registry baseline shows through.
+ */
+export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Model {
+  const result: Model = { ...baseline }
+
+  if (overlay.capabilities && overlay.capabilities.length > 0) {
+    result.capabilities = [...overlay.capabilities]
+  }
+  if (overlay.endpointTypes && overlay.endpointTypes.length > 0) {
+    result.endpointTypes = [...overlay.endpointTypes]
+  }
+  if (overlay.inputModalities && overlay.inputModalities.length > 0) {
+    result.inputModalities = [...overlay.inputModalities]
+  }
+  if (overlay.outputModalities && overlay.outputModalities.length > 0) {
+    result.outputModalities = [...overlay.outputModalities]
+  }
+  if (overlay.name) {
+    result.name = overlay.name
+  }
+  if (overlay.description) {
+    result.description = overlay.description
+  }
+  if (overlay.contextWindow != null) {
+    result.contextWindow = overlay.contextWindow
+  }
+  if (overlay.maxInputTokens != null) {
+    result.maxInputTokens = overlay.maxInputTokens
+  }
+  if (overlay.maxOutputTokens != null) {
+    result.maxOutputTokens = overlay.maxOutputTokens
+  }
+  if (overlay.reasoning) {
+    result.reasoning = overlay.reasoning as RuntimeReasoning
+  }
+  if (overlay.supportsStreaming != null) {
+    result.supportsStreaming = overlay.supportsStreaming
+  }
+  if (overlay.group) {
+    result.group = overlay.group
+  }
+
+  return result
 }
 
 export interface CreateModelInput {
@@ -181,21 +258,17 @@ function rowToRuntimeModel(row: UserModel): Model {
 class ModelService {
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModel {
     const presetModel = registryData?.presetModel ?? null
-    const registryOverride = registryData?.registryOverride ?? null
-    const reasoningFormatTypes = registryData?.reasoningFormatTypes
-    const defaultChatEndpoint = registryData?.defaultChatEndpoint
-
     const dtoValues = dtoToNewUserModel(dto)
 
     if (presetModel) {
-      const merged = mergeModelWithUser(
-        { ...dtoValues, presetModelId: presetModel.id },
-        registryOverride,
+      const baseline = mergePresetModel(
         presetModel,
+        registryData?.registryOverride ?? null,
         dto.providerId,
-        reasoningFormatTypes,
-        defaultChatEndpoint
+        registryData?.reasoningFormatTypes,
+        registryData?.defaultChatEndpoint
       )
+      const merged = applyUserOverlay(baseline, dtoValues)
 
       return mergedModelToNewUserModel(dto.providerId, dto.modelId, presetModel.id, merged)
     }

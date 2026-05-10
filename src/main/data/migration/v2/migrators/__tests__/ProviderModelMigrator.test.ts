@@ -9,6 +9,33 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+const registryFixtures = {
+  models: new Map<string, unknown>(),
+  overrides: new Map<string, unknown>(),
+  providers: [] as unknown[]
+}
+
+vi.mock('@cherrystudio/provider-registry/node', () => {
+  class RegistryLoader {
+    findModel(modelId: string) {
+      return registryFixtures.models.get(modelId) ?? null
+    }
+    findOverride(providerId: string, modelId: string) {
+      return registryFixtures.overrides.get(`${providerId}::${modelId}`) ?? null
+    }
+    loadModels() {
+      return []
+    }
+    loadProviders() {
+      return registryFixtures.providers
+    }
+    loadProviderModels() {
+      return []
+    }
+  }
+  return { RegistryLoader }
+})
+
 interface MockContextOptions {
   failOnPinInsert?: boolean
 }
@@ -77,6 +104,9 @@ describe('ProviderModelMigrator', () => {
 
   beforeEach(() => {
     migrator = new ProviderModelMigrator()
+    registryFixtures.models.clear()
+    registryFixtures.overrides.clear()
+    registryFixtures.providers = []
   })
 
   describe('prepare', () => {
@@ -202,6 +232,131 @@ describe('ProviderModelMigrator', () => {
       expect(pinRows.map((row) => row.entityId)).toEqual(['openai::gpt-4o', 'anthropic::claude-3'])
       expect(pinRows.every((row) => row.orderKey.length > 0)).toBe(true)
       expect(pinRows[0].orderKey < pinRows[1].orderKey).toBe(true)
+    })
+
+    it('enriches provider rows with registry baseline (endpointConfigs/apiFeatures/defaultChatEndpoint)', async () => {
+      registryFixtures.providers = [
+        {
+          id: 'openai',
+          name: 'OpenAI',
+          endpointConfigs: {
+            'openai-chat-completions': {
+              baseUrl: 'https://api.openai.com/v1',
+              reasoningFormat: { type: 'openai-chat' }
+            },
+            'openai-responses': {
+              baseUrl: 'https://api.openai.com/v1',
+              reasoningFormat: { type: 'openai-responses' }
+            }
+          },
+          defaultChatEndpoint: 'openai-chat-completions',
+          apiFeatures: { serviceTier: false }
+        }
+      ]
+
+      const ctx = createMockContext({
+        llm: {
+          providers: [
+            {
+              id: 'openai',
+              name: 'OpenAI',
+              type: 'openai',
+              enabled: true,
+              apiHost: 'https://my-proxy.com/v1',
+              models: []
+            }
+          ]
+        }
+      })
+      await migrator.prepare(ctx)
+      const result = await migrator.execute(ctx)
+
+      expect(result.success).toBe(true)
+
+      const inserted = (ctx as unknown as { _insertValues: unknown[][] })._insertValues
+      const providerRow = inserted[0][0] as Record<string, unknown>
+      const endpointConfigs = providerRow.endpointConfigs as Record<
+        string,
+        { baseUrl?: string; reasoningFormatType?: string }
+      >
+
+      // Legacy apiHost wins on the chat endpoint, registry reasoningFormat is preserved
+      expect(endpointConfigs['openai-chat-completions'].baseUrl).toBe('https://my-proxy.com/v1')
+      expect(endpointConfigs['openai-chat-completions'].reasoningFormatType).toBe('openai-chat')
+      // Registry-only endpoint survives migration
+      expect(endpointConfigs['openai-responses'].baseUrl).toBe('https://api.openai.com/v1')
+      expect(endpointConfigs['openai-responses'].reasoningFormatType).toBe('openai-responses')
+      // apiFeatures baseline filled from registry
+      expect(providerRow.apiFeatures).toEqual({ serviceTier: false })
+    })
+
+    it('leaves custom provider rows untouched when registry has no matching preset', async () => {
+      registryFixtures.providers = [{ id: 'openai', name: 'OpenAI', endpointConfigs: {} }]
+
+      const ctx = createMockContext({
+        llm: {
+          providers: [makeProvider('custom-provider')]
+        }
+      })
+      await migrator.prepare(ctx)
+      const result = await migrator.execute(ctx)
+
+      expect(result.success).toBe(true)
+      const inserted = (ctx as unknown as { _insertValues: unknown[][] })._insertValues
+      const providerRow = inserted[0][0] as Record<string, unknown>
+      // No registry baseline applied — apiFeatures stays null (transformProvider default)
+      expect(providerRow.apiFeatures).toBeNull()
+    })
+
+    it('enriches model rows with registry preset metadata when a preset is found', async () => {
+      registryFixtures.models.set('gpt-4o', {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        description: 'OpenAI flagship model',
+        capabilities: ['function-call', 'image-recognition'],
+        inputModalities: ['text', 'image'],
+        outputModalities: ['text'],
+        contextWindow: 128_000,
+        maxOutputTokens: 16_384
+      })
+
+      const ctx = createMockContext({
+        llm: {
+          providers: [makeProvider('openai', [{ id: 'gpt-4o' }])]
+        }
+      })
+      await migrator.prepare(ctx)
+      const result = await migrator.execute(ctx)
+
+      expect(result.success).toBe(true)
+
+      const inserted = (ctx as unknown as { _insertValues: unknown[][] })._insertValues
+      const modelRow = inserted[1][0] as Record<string, unknown>
+      expect(modelRow.presetModelId).toBe('gpt-4o')
+      expect(modelRow.contextWindow).toBe(128_000)
+      expect(modelRow.maxOutputTokens).toBe(16_384)
+      expect(modelRow.inputModalities).toEqual(['text', 'image'])
+      expect(modelRow.outputModalities).toEqual(['text'])
+      expect(modelRow.capabilities).toEqual(['function-call', 'image-recognition'])
+      expect(modelRow.description).toBe('OpenAI flagship model')
+    })
+
+    it('leaves rows untouched when no registry preset matches', async () => {
+      const ctx = createMockContext({
+        llm: {
+          providers: [makeProvider('custom-provider', [{ id: 'unknown-model' }])]
+        }
+      })
+      await migrator.prepare(ctx)
+      const result = await migrator.execute(ctx)
+
+      expect(result.success).toBe(true)
+
+      const inserted = (ctx as unknown as { _insertValues: unknown[][] })._insertValues
+      const modelRow = inserted[1][0] as Record<string, unknown>
+      expect(modelRow.contextWindow).toBeNull()
+      expect(modelRow.inputModalities).toBeNull()
+      expect(modelRow.outputModalities).toBeNull()
     })
 
     it('rolls back provider and model inserts when pin insertion fails', async () => {

@@ -8,13 +8,22 @@
  * data would be written twice.
  */
 
+import { application } from '@application'
+import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
+import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
+import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { pinTable } from '@data/db/schemas/pin'
+import type { NewUserModel } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
+import type { NewUserProvider } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
+import { applyUserOverlay } from '@data/services/ModelService'
+import { extractReasoningFormatTypes, mergePresetModel } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { ApiFeatures, EndpointConfig } from '@shared/data/types/provider'
 import type { Provider as LegacyProvider } from '@types'
 import { eq, sql } from 'drizzle-orm'
 
@@ -25,6 +34,8 @@ import { type OldLlmSettings, transformModel, transformProvider } from './mappin
 const logger = loggerService.withContext('ProviderModelMigrator')
 
 const BATCH_SIZE = 100
+
+type NewUserProviderInput = Omit<NewUserProvider, 'orderKey'>
 
 interface LlmState {
   providers?: LegacyProvider[]
@@ -105,12 +116,114 @@ export class ProviderModelMigrator extends BaseMigrator {
   private settings: OldLlmSettings = {}
   private totalModelCount = 0
   private pinnedModelIds: UniqueModelId[] = []
+  private loader: RegistryLoader | null = null
 
   override reset(): void {
     this.providers = []
     this.settings = {}
     this.totalModelCount = 0
     this.pinnedModelIds = []
+  }
+
+  private getLoader(): RegistryLoader {
+    if (!this.loader) {
+      this.loader = new RegistryLoader({
+        models: application.getPath('feature.provider_registry.data', 'models.json'),
+        providers: application.getPath('feature.provider_registry.data', 'providers.json'),
+        providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
+      })
+    }
+    return this.loader
+  }
+
+  /**
+   * Enrich a legacy-mapped provider row with registry preset baseline.
+   *
+   * `transformProvider` only derives from legacy data, so migrated rows for
+   * system providers (those present in providers.json) miss the registry
+   * baseline that fresh installs get from `PresetProviderSeeder`. Specifically
+   * this fills in non-default endpoint configs (e.g. OPENAI_RESPONSES baseUrl
+   * + reasoningFormat), `defaultChatEndpoint` precision, and `apiFeatures`
+   * defaults (e.g. providers that explicitly don't support `serviceTier`).
+   * Legacy fields win — they capture user customization from v1.
+   */
+  private enrichProviderRow(row: NewUserProviderInput, legacy: LegacyProvider): NewUserProviderInput {
+    const preset = this.getLoader()
+      .loadProviders()
+      .find((p) => p.id === legacy.id)
+    if (!preset) return row
+
+    const presetEndpointConfigs = buildRuntimeEndpointConfigs(preset.endpointConfigs) as Partial<
+      Record<EndpointType, EndpointConfig>
+    > | null
+    const userEndpointConfigs = row.endpointConfigs ?? null
+    const allEndpointKeys = new Set([
+      ...Object.keys(presetEndpointConfigs ?? {}),
+      ...Object.keys(userEndpointConfigs ?? {})
+    ])
+    const mergedEndpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = {}
+    for (const k of allEndpointKeys) {
+      const ep = k as EndpointType
+      mergedEndpointConfigs[ep] = {
+        ...presetEndpointConfigs?.[ep],
+        ...userEndpointConfigs?.[ep]
+      }
+    }
+
+    const presetApiFeatures = (preset.apiFeatures ?? null) as ApiFeatures | null
+    const mergedApiFeatures = presetApiFeatures || row.apiFeatures ? { ...presetApiFeatures, ...row.apiFeatures } : null
+
+    return {
+      ...row,
+      endpointConfigs: Object.keys(mergedEndpointConfigs).length > 0 ? mergedEndpointConfigs : null,
+      defaultChatEndpoint: row.defaultChatEndpoint ?? preset.defaultChatEndpoint ?? null,
+      apiFeatures: mergedApiFeatures
+    }
+  }
+
+  /**
+   * Enrich a legacy-mapped model row with registry preset data.
+   *
+   * Legacy v1 rows leave registry-derived fields (modalities, contextWindow,
+   * limits, etc.) null. Without enrichment, migrated users end up with
+   * skeleton model rows. Composes `mergePresetModel` (registry preset →
+   * override) with `applyUserOverlay` (user fields win) — the same chain
+   * `ModelService.create` uses for new models.
+   */
+  private enrichModelRow(row: NewUserModel, providerRow: NewUserProvider): NewUserModel {
+    const loader = this.getLoader()
+    const presetModel = loader.findModel(row.modelId)
+    if (!presetModel) return row
+
+    const registryOverride = loader.findOverride(row.providerId, row.modelId)
+    const reasoningFormatTypes = extractReasoningFormatTypes(providerRow.endpointConfigs)
+    const defaultChatEndpoint = providerRow.defaultChatEndpoint ?? undefined
+
+    const baseline = mergePresetModel(
+      presetModel,
+      registryOverride,
+      row.providerId,
+      reasoningFormatTypes,
+      defaultChatEndpoint
+    )
+    const merged = applyUserOverlay(baseline, row)
+
+    return {
+      ...row,
+      presetModelId: presetModel.id,
+      name: merged.name,
+      description: merged.description ?? null,
+      capabilities: merged.capabilities as ModelCapability[],
+      inputModalities: (merged.inputModalities ?? null) as Modality[] | null,
+      outputModalities: (merged.outputModalities ?? null) as Modality[] | null,
+      endpointTypes: (merged.endpointTypes ?? null) as EndpointType[] | null,
+      contextWindow: merged.contextWindow ?? null,
+      maxInputTokens: merged.maxInputTokens ?? null,
+      maxOutputTokens: merged.maxOutputTokens ?? null,
+      supportsStreaming: merged.supportsStreaming,
+      reasoning: merged.reasoning ?? null,
+      pricing: merged.pricing ?? row.pricing
+    }
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -193,12 +306,13 @@ export class ProviderModelMigrator extends BaseMigrator {
     try {
       await ctx.db.transaction(async (tx) => {
         const providerRows = assignOrderKeysInSequence(
-          this.providers.map((provider) => transformProvider(provider, this.settings))
+          this.providers.map((provider) => this.enrichProviderRow(transformProvider(provider, this.settings), provider))
         )
 
         for (let providerIndex = 0; providerIndex < this.providers.length; providerIndex++) {
           const provider = this.providers[providerIndex]
-          await tx.insert(userProviderTable).values(providerRows[providerIndex])
+          const providerRow = providerRows[providerIndex]
+          await tx.insert(userProviderTable).values(providerRow)
           processedProviders++
 
           const uniqueModels = Array.from(new Map((provider.models ?? []).map((model) => [model.id, model])).values())
@@ -206,7 +320,9 @@ export class ProviderModelMigrator extends BaseMigrator {
           for (let modelIndex = 0; modelIndex < uniqueModels.length; modelIndex += BATCH_SIZE) {
             const batch = uniqueModels
               .slice(modelIndex, modelIndex + BATCH_SIZE)
-              .map((model, batchIndex) => transformModel(model, provider.id, modelIndex + batchIndex))
+              .map((model, batchIndex) =>
+                this.enrichModelRow(transformModel(model, provider.id, modelIndex + batchIndex), providerRow)
+              )
 
             if (batch.length > 0) {
               await tx.insert(userModelTable).values(batch)

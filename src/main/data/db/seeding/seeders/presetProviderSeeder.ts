@@ -18,9 +18,10 @@ import type { DbType, ISeeder } from '../../types'
  * `azure-openai-chat-completions` / `vertex-generate-content`. Vendor URL routing is
  * driven by `authType` (`iam-azure` → AI SDK `createAzure`, `iam-gcp` → Vertex SDK).
  *
- * `defaultChatEndpoint` here only feeds `modelMerger.resolveReasoningEndpointType`,
- * i.e. it picks the reasoning format (`openai-chat`, `gemini`, `anthropic`, ...).
- * So the seed must match each provider's wire-format reasoning shape:
+ * `defaultChatEndpoint` here only feeds the reasoning endpoint resolution inside
+ * `ProviderRegistryService.mergePresetModel`, i.e. it picks the reasoning format
+ * (`openai-chat`, `gemini`, `anthropic`, ...). So the seed must match each
+ * provider's wire-format reasoning shape:
  *   - Vertex AI runs Gemini models → `google-generate-content` (gemini thinking)
  *   - Azure OpenAI runs OpenAI models → `openai-chat-completions` (openai effort)
  */
