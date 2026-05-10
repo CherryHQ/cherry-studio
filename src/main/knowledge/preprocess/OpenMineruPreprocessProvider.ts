@@ -85,12 +85,10 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
     // Find the main file after extraction
     let finalPath = ''
     let finalName = file.origin_name.replace('.pdf', '.md')
-    // Find the corresponding folder by file id
-    outputPath = path.join(outputPath, file.id)
     try {
-      const files = fs.readdirSync(outputPath)
-
-      const mdFile = files.find((f) => f.endsWith('.md'))
+      // MinerU's ZIP output structure changed from {name}/{name}.md to {name}/{parse_method}/{name}.md
+      // (see opendatalab/MinerU commit 40a52da3cf, 2026-03-25), so we need to search recursively.
+      const mdFile = this.findMdFileRecursively(outputPath)
       if (mdFile) {
         const originalMdPath = path.join(outputPath, mdFile)
         const newMdPath = path.join(outputPath, finalName)
@@ -104,12 +102,16 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
           logger.warn(`Failed to rename file ${mdFile} to ${finalName}: ${renameError}`)
           // If rename fails, use the original file
           finalPath = originalMdPath
-          finalName = mdFile
+          finalName = path.basename(mdFile)
         }
       }
     } catch (error) {
       logger.warn(`Failed to read output directory ${outputPath}:`, error as Error)
-      finalPath = path.join(outputPath, `${file.id}.md`)
+    }
+
+    if (!finalPath) {
+      logger.warn(`No markdown file found in ${outputPath}`)
+      finalPath = path.join(outputPath, finalName)
     }
 
     return {
@@ -119,6 +121,25 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
       ext: '.md',
       size: fs.existsSync(finalPath) ? fs.statSync(finalPath).size : 0
     }
+  }
+
+  /**
+   * Recursively search for the first .md file in the output directory.
+   * Returns the relative path from outputPath to the .md file, or undefined if not found.
+   */
+  private findMdFileRecursively(dir: string, basePath: string = ''): string | undefined {
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      const relativePath = basePath ? `${basePath}/${entry.name}` : entry.name
+      if (entry.isFile() && entry.name.endsWith('.md')) {
+        return relativePath
+      }
+      if (entry.isDirectory()) {
+        const found = this.findMdFileRecursively(path.join(dir, entry.name), relativePath)
+        if (found) return found
+      }
+    }
+    return undefined
   }
 
   private async uploadFileAndExtract(
