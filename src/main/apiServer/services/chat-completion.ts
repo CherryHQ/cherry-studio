@@ -2,7 +2,7 @@ import OpenAI from '@cherrystudio/openai'
 import type { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from '@cherrystudio/openai/resources'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 const logger = loggerService.withContext('ChatCompletionService')
@@ -57,7 +57,10 @@ export class ChatCompletionService {
     }
 
     const apiKey = await providerService.getRotatedApiKey(provider.id)
-    const endpointConfig = provider.endpointConfigs ? Object.values(provider.endpointConfigs)[0] : undefined
+    // OpenAI-compatible chat-completions route — pick by key, not Object.values()[0].
+    // Mixed providers (aihubmix, new-api, cherryin) ship multiple endpoint keys;
+    // the previous code could hand an Anthropic baseURL to an OpenAI client.
+    const endpointConfig = provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
     const baseURL = endpointConfig?.baseUrl || undefined
 
     const client = new OpenAI({
