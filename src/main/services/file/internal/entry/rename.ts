@@ -37,12 +37,18 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   if (await exists(target as FilePath)) {
     throw new Error(`rename: target path already exists: ${target}`)
   }
-  await fsMove(entry.externalPath as FilePath, target as FilePath)
+  const oldPath = entry.externalPath as FilePath
+  await fsMove(oldPath, target as FilePath)
   const canonical = canonicalizeExternalPath(target)
   // FileEntryService.update intentionally excludes `externalPath` from its
   // typed contract (immutable to outside callers). The rename flow is the
   // single sanctioned mutation site for that column, handled here directly.
   const db = application.get('DbService').getDb()
   await db.update(fileEntryTable).set({ externalPath: canonical }).where(eq(fileEntryTable.id, id))
+  // Reverse-index swap. The old path is fully invalidated; the new path
+  // takes over with a fresh 'present' observation since fsMove just succeeded.
+  deps.danglingCache.removeEntry(id, oldPath)
+  deps.danglingCache.addEntry(id, canonical as FilePath)
+  deps.danglingCache.onFsEvent(canonical as FilePath, 'present', 'ops')
   return deps.fileEntryService.update(id, { name: newName })
 }

@@ -102,4 +102,17 @@ describe('internal/entry/rename', () => {
     expect(await readFile(original, 'utf-8')).toBe('A')
     expect(await readFile(collision, 'utf-8')).toBe('B')
   })
+
+  it('reindexes the DanglingCache reverse index on external rename (oldPath → newPath)', async () => {
+    const original = path.join(tmp, 'reindex-old.txt')
+    await writeFile(original, 'hi')
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    vi.mocked(deps.danglingCache.removeEntry).mockClear()
+    vi.mocked(deps.danglingCache.addEntry).mockClear()
+    vi.mocked(deps.danglingCache.onFsEvent).mockClear()
+    await rename(deps, entry.id, 'reindex-new')
+    expect(deps.danglingCache.removeEntry).toHaveBeenCalledWith(entry.id, original)
+    expect(deps.danglingCache.addEntry).toHaveBeenCalledWith(entry.id, expect.stringContaining('reindex-new'))
+    expect(deps.danglingCache.onFsEvent).toHaveBeenCalledWith(expect.stringContaining('reindex-new'), 'present', 'ops')
+  })
 })
