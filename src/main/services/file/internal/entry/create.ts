@@ -154,13 +154,20 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   }
   const name = params.name ?? defaultNameFromPath(params.externalPath)
   const ext = extWithoutDot(params.externalPath)
-  return deps.fileEntryService.create({
+  const inserted = await deps.fileEntryService.create({
     origin: 'external',
     name,
     ext,
     size: null,
     externalPath: canonical
   })
+  // Reverse-index hook: subsequent watcher / opportunistic ops events for
+  // `canonical` should reach this entry id. The fs.stat above succeeded —
+  // record a fresh 'present' observation so any imminent UI query short-
+  // circuits the cold-stat path.
+  deps.danglingCache.addEntry(inserted.id, canonical as FilePath)
+  deps.danglingCache.onFsEvent(canonical as FilePath, 'present', 'ops')
+  return inserted
 }
 
 function defaultNameFromPath(p: string): string {

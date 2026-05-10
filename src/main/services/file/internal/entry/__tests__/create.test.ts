@@ -1,7 +1,8 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import type { FilePath } from '@shared/file/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,7 +15,7 @@ vi.mock('@application', async () => {
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { createInternal } = await import('../create')
+const { createInternal, ensureExternal } = await import('../create')
 
 import type { FileManagerDeps } from '../../deps'
 
@@ -96,6 +97,28 @@ describe('internal/entry/create.createInternal', () => {
       expect(entry.size).toBe(4)
       expect(entry.ext).toBe('png')
       expect(entry.name.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('ensureExternal DanglingCache wiring', () => {
+    it('on insert: registers the entry in the reverse index AND records a "present" observation', async () => {
+      const file = path.join(tmp, 'ext-new.txt')
+      await writeFile(file, 'hello')
+      const e = await ensureExternal(deps, { externalPath: file as FilePath })
+      expect(deps.danglingCache.addEntry).toHaveBeenCalledWith(e.id, expect.any(String))
+      expect(deps.danglingCache.onFsEvent).toHaveBeenCalledWith(expect.any(String), 'present', 'ops')
+    })
+
+    it('on reuse (same canonical path): does NOT add a duplicate index entry', async () => {
+      const file = path.join(tmp, 'ext-reuse.txt')
+      await writeFile(file, 'hello')
+      await ensureExternal(deps, { externalPath: file as FilePath })
+      vi.mocked(deps.danglingCache.addEntry).mockClear()
+      vi.mocked(deps.danglingCache.onFsEvent).mockClear()
+      // Second call resolves to the already-inserted row.
+      await ensureExternal(deps, { externalPath: file as FilePath })
+      expect(deps.danglingCache.addEntry).not.toHaveBeenCalled()
+      expect(deps.danglingCache.onFsEvent).not.toHaveBeenCalled()
     })
   })
 })
