@@ -4,11 +4,10 @@ import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModels'
 import { matchKeywordsInString } from '@renderer/utils'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { Select } from 'antd'
 import type { FC } from 'react'
 import { useMemo } from 'react'
@@ -31,17 +30,11 @@ const QuickAssistantSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { assistants } = useAssistants()
-  const { assistant: _defaultAssistant } = useAssistant(DEFAULT_ASSISTANT_ID)
+  const { assistant: defaultAssistant } = useDefaultAssistant()
   const { defaultModel: apiDefaultModel } = useDefaultModel()
   const v1DefaultModel = useMemo(
     () => (apiDefaultModel ? fromSharedModel(apiDefaultModel) : undefined),
     [apiDefaultModel]
-  )
-
-  // Take the "default assistant" from the assistant list first.
-  const defaultAssistant = useMemo(
-    () => assistants.find((a) => a.id === _defaultAssistant?.id) || _defaultAssistant,
-    [assistants, _defaultAssistant]
   )
 
   const handleEnableQuickAssistant = async (enable: boolean) => {

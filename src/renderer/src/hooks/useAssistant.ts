@@ -1,10 +1,12 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { useAssistantApiById, useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistantDataApi'
 import { useDefaultModel, useModelById } from '@renderer/hooks/useModels'
-import type { AssistantSettings, Model } from '@renderer/types'
+import { composeDefaultAssistant } from '@renderer/services/defaultAssistant'
+import type { Assistant, AssistantSettings, Model } from '@renderer/types'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 
 export function useAssistants() {
   const { assistants, isLoading, error, refetch } = useAssistantsApi()
@@ -19,6 +21,21 @@ export function useAssistants() {
     removeAssistant: (id: string) => deleteAssistant(id),
     updateAssistant: (id: string, patch: UpdateAssistantDto) => updateAssistant(id, patch)
   }
+}
+
+/**
+ * Runtime-composed default assistant. v2 stores no `id='default'` row in
+ * SQLite — the default assistant is always synthesized from a static template
+ * plus the live `chat.default_model_id` preference. Returned `assistant` is
+ * always defined (no loading state). Resolve the underlying `Model` via
+ * {@link useDefaultModel} when needed; this hook intentionally does not
+ * return it to keep responsibilities separate.
+ */
+export function useDefaultAssistant(): { assistant: Assistant } {
+  const [defaultModelId] = usePreference('chat.default_model_id')
+  const modelId = (defaultModelId ?? null) as UniqueModelId | null
+  const assistant = useMemo(() => composeDefaultAssistant(modelId), [modelId])
+  return { assistant }
 }
 
 export function useAssistant(id: string) {

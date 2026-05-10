@@ -5,7 +5,7 @@ import ModelSelector from '@renderer/components/ModelSelectorLegacy'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
@@ -13,7 +13,6 @@ import TranslateSettingsPopup from '@renderer/pages/translate/components/Transla
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { find } from 'lodash'
 import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -36,7 +35,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
 }) => {
   const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
     useDefaultModel()
-  const { assistant: defaultAssistant } = useAssistant(DEFAULT_ASSISTANT_ID)
+  const { assistant: defaultAssistant } = useDefaultAssistant()
   const { providers } = useProviders()
   const allModels = providers.map((p) => p.models).flat()
   const { theme } = useTheme()

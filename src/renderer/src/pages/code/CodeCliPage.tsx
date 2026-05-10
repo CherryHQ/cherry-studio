@@ -4,7 +4,7 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -18,7 +18,6 @@ import { formatProviderApiHost } from '@renderer/utils/providerHost'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeCLI, terminalApps } from '@shared/config/constant'
 import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { Check, Code2, Download, FolderOpen, Search, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -79,13 +78,8 @@ const CodeCliPage: FC = () => {
   } = useCodeCli()
   const { setTimeoutTimer } = useTimer()
 
-  const { assistant: defaultAssistant } = useAssistant(DEFAULT_ASSISTANT_ID)
-  const { maxTokens, reasoning_effort } = useMemo(() => {
-    if (!defaultAssistant) {
-      return { maxTokens: undefined, reasoning_effort: undefined }
-    }
-    return getAssistantSettings(defaultAssistant)
-  }, [defaultAssistant])
+  const { assistant: defaultAssistant } = useDefaultAssistant()
+  const { maxTokens, reasoning_effort } = useMemo(() => getAssistantSettings(defaultAssistant), [defaultAssistant])
 
   const [isLaunching, setIsLaunching] = useState(false)
   const [launchSuccess, setLaunchSuccess] = useState(false)

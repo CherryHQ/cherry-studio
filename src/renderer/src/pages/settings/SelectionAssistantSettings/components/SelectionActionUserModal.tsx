@@ -2,10 +2,9 @@ import { Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CopyButton from '@renderer/components/CopyButton'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
-import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModels'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { Col, Input, Modal, Radio, Row, Select, Space } from 'antd'
 import { CircleHelp, Dices, OctagonX } from 'lucide-react'
 import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
@@ -29,7 +28,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
 }) => {
   const { t } = useTranslation()
   const { assistants: userPredefinedAssistants } = useAssistants()
-  const { assistant: defaultAssistant } = useAssistant(DEFAULT_ASSISTANT_ID)
+  const { assistant: defaultAssistant } = useDefaultAssistant()
   const { defaultModel: apiDefaultModel } = useDefaultModel()
   const v1DefaultModel = apiDefaultModel ? fromSharedModel(apiDefaultModel) : undefined
 

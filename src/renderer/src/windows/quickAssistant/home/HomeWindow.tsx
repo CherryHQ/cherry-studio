@@ -4,9 +4,10 @@ import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { collectLiveAssistants, useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
+import { useDefaultModel } from '@renderer/hooks/useModels'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import i18n from '@renderer/i18n'
@@ -16,7 +17,6 @@ import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMe
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { defaultLanguage } from '@shared/config/constant'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
@@ -65,12 +65,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  // DataApi-backed read; falls back to the seeded DEFAULT_ASSISTANT_ID when no
-  // quick-assistant has been chosen. `useAssistant` already composes the
-  // assistant + its resolved Model (with default-model fallback for unset
-  // `modelId`).
-  const effectiveAssistantId = quickAssistantId || DEFAULT_ASSISTANT_ID
-  const { assistant: currentAssistant, model: currentApiModel } = useAssistant(effectiveAssistantId)
+  const { assistant: defaultAssistant } = useDefaultAssistant()
+  const { defaultModel: defaultApiModel } = useDefaultModel()
+  const { assistant: chosenAssistant, model: chosenApiModel } = useAssistant(quickAssistantId ?? '')
+  const currentAssistant = chosenAssistant ?? defaultAssistant
+  const currentApiModel = chosenApiModel ?? defaultApiModel
   const currentModel = useMemo(
     () => (currentApiModel ? fromSharedModel(currentApiModel) : undefined),
     [currentApiModel]
@@ -82,7 +81,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     topicId: temporaryTopicId,
     ready: isTopicReady,
     reset: resetTemporaryTopic
-  } = useTemporaryTopic(currentAssistant?.id ?? effectiveAssistantId)
+  } = useTemporaryTopic(currentAssistant.id)
 
   const referenceText = clipboardText || userInputText
 

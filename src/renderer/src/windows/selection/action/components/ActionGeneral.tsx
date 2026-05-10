@@ -3,7 +3,7 @@ import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
-import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
@@ -16,7 +16,6 @@ import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
@@ -37,11 +36,12 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const [language] = usePreference('app.language')
   const [showOriginal, setShowOriginal] = useState(false)
 
-  const effectiveAssistantId = action.assistantId || DEFAULT_ASSISTANT_ID
-  const { assistant: activeAssistant } = useAssistant(effectiveAssistantId)
+  const { assistant: defaultAssistant } = useDefaultAssistant()
+  const { assistant: chosenAssistant } = useAssistant(action.assistantId ?? '')
+  const activeAssistant = chosenAssistant ?? defaultAssistant
 
   // Temporary in-memory topic — never touches SQLite, released on unmount.
-  const { topicId: temporaryTopicId, ready } = useTemporaryTopic(activeAssistant?.id ?? effectiveAssistantId)
+  const { topicId: temporaryTopicId, ready } = useTemporaryTopic(activeAssistant.id)
 
   const promptContent = useMemo(() => {
     let userContent = ''

@@ -1,6 +1,6 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
-import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useSystemAssistantPresets } from '@renderer/pages/store/assistants/presets'
@@ -31,7 +31,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const { t } = useTranslation()
   const { presets: userPresets } = useAssistantPresets()
   const [searchText, setSearchText] = useState('')
-  const { assistant: defaultAssistant } = useAssistant(DEFAULT_ASSISTANT_ID)
+  const { assistant: defaultAssistant } = useDefaultAssistant()
   const { assistants, addAssistant } = useAssistants()
   const inputRef = useRef<InputRef>(null)
   const systemPresets = useSystemAssistantPresets()
@@ -42,7 +42,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const presets = useMemo(() => {
     const allPresets = [...userPresets, ...systemPresets] as AssistantPreset[]
-    const base: AssistantPreset[] = defaultAssistant ? [defaultAssistant as AssistantPreset] : []
+    const base: AssistantPreset[] = [defaultAssistant as AssistantPreset]
     const list = [...base, ...allPresets.filter((preset) => !assistants.map((a) => a.id).includes(preset.id))]
     const filtered = searchText
       ? list.filter(

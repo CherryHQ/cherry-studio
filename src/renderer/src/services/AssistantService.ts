@@ -16,12 +16,10 @@ import type {
   Model,
   TranslateLanguage
 } from '@renderer/types'
-import {
-  DEFAULT_ASSISTANT_ID,
-  DEFAULT_ASSISTANT_SETTINGS as SHARED_DEFAULT_ASSISTANT_SETTINGS
-} from '@shared/data/types/assistant'
+import { DEFAULT_ASSISTANT_SETTINGS as SHARED_DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { v4 as uuid } from 'uuid'
 
+import { composeDefaultAssistant } from './defaultAssistant'
 import { getProviderByModel } from './ProviderService'
 
 export { getProviderByModel }
@@ -45,27 +43,9 @@ const logger = loggerService.withContext('AssistantService')
  *  schema; re-exported here for legacy import paths until consumers migrate. */
 export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = SHARED_DEFAULT_ASSISTANT_SETTINGS
 
-/**
- * Transient placeholder for windows that may render before any assistant is
- * loaded (quick-assistant / selection). Real DataApi-backed code should use
- * `useAssistantApiById(DEFAULT_ASSISTANT_ID)` — Phase 0 seeds that record on
- * first launch.
- */
+/** v1 Redux store seed only — kept until the legacy assistants slice is removed. */
 export function getDefaultAssistant(): Assistant {
-  const now = new Date().toISOString()
-  return {
-    id: DEFAULT_ASSISTANT_ID,
-    name: i18n.t('chat.default.name'),
-    emoji: '😀',
-    prompt: '',
-    description: '',
-    settings: DEFAULT_ASSISTANT_SETTINGS,
-    modelId: null,
-    mcpServerIds: [],
-    knowledgeBaseIds: [],
-    createdAt: now,
-    updatedAt: now
-  }
+  return composeDefaultAssistant(null)
 }
 
 /**
