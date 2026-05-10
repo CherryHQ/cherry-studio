@@ -161,8 +161,8 @@ export function ImagePreviewDialog({
             </Button>
           )}
           <ImagePreviewContextMenu actions={actions} context={actionContext} item={item} onActionError={onActionError}>
-            <div className="pointer-events-none flex h-full max-h-full w-full max-w-full items-center justify-center">
-              <div className="pointer-events-auto max-h-full max-w-full">
+            <div className="pointer-events-none flex h-full max-h-full min-h-0 w-full max-w-full items-center justify-center">
+              <div className="pointer-events-auto flex h-full max-h-full min-h-0 w-full max-w-full items-center justify-center">
                 {renderImage ? (
                   renderImage(item, { transform: transformControls })
                 ) : (
