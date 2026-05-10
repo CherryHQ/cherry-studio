@@ -5,7 +5,16 @@ import path from 'node:path'
 import type { FilePath } from '@shared/file/types'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { atomicWriteFile, atomicWriteIfUnchanged, exists, hash, PathStaleVersionError, read, stat } from '../fs'
+import {
+  atomicWriteFile,
+  atomicWriteIfUnchanged,
+  createAtomicWriteStream,
+  exists,
+  hash,
+  PathStaleVersionError,
+  read,
+  stat
+} from '../fs'
 
 describe('stat', () => {
   let tmp: string
@@ -275,5 +284,56 @@ describe('atomicWriteIfUnchanged', () => {
       PathStaleVersionError
     )
     expect(await readFile(target, 'utf-8')).toBe('aaaa')
+  })
+})
+
+describe('createAtomicWriteStream', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-fs-test-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('commits target on .end() and leaves no tmp residue', async () => {
+    const target = path.join(tmp, 'a.txt') as FilePath
+    const stream = createAtomicWriteStream(target)
+    stream.write('hel')
+    stream.write('lo')
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', resolve)
+      stream.on('error', reject)
+      stream.end()
+    })
+    expect(await readFile(target, 'utf-8')).toBe('hello')
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+  })
+
+  it('aborts cleanly on .abort() — no target write, no tmp residue', async () => {
+    const target = path.join(tmp, 'b.txt') as FilePath
+    const stream = createAtomicWriteStream(target)
+    stream.write('partial')
+    await stream.abort()
+    expect(await exists(target)).toBe(false)
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+  })
+
+  it('cleans up tmp file when destroyed with an error', async () => {
+    const target = path.join(tmp, 'c.txt') as FilePath
+    const stream = createAtomicWriteStream(target)
+    stream.write('partial')
+    await new Promise<void>((resolve) => {
+      stream.on('error', () => resolve())
+      stream.on('close', () => resolve())
+      stream.destroy(new Error('intentional'))
+    })
+    // Wait one tick for cleanup unlink to settle
+    await new Promise((r) => setTimeout(r, 50))
+    expect(await exists(target)).toBe(false)
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
   })
 })

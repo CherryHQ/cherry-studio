@@ -26,9 +26,10 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { createReadStream } from 'node:fs'
+import { createReadStream, createWriteStream as nodeCreateWriteStream } from 'node:fs'
 import { access, constants, open as fsOpen, readFile, rename, stat as fsStat, unlink } from 'node:fs/promises'
 import path from 'node:path'
+import { Writable } from 'node:stream'
 
 import type { FilePath } from '@shared/file/types'
 import md5 from 'md5'
@@ -142,6 +143,104 @@ export async function atomicWriteFile(target: FilePath, data: string | Uint8Arra
   } catch {
     // Windows / unsupported FS — non-fatal; rename already committed.
   }
+}
+
+/**
+ * Atomic write stream — pipes through a tmp file and renames onto the target
+ * on `.end()`. On `.destroy(err)` or `.abort()` the tmp file is unlinked and
+ * no rename happens, so the target is either untouched or fully replaced.
+ *
+ * The stream is a Writable that consumers can `pipe()` into. `.abort()` is
+ * the explicit "cancel" entry point — awaitable; idempotent. See
+ * `FileManager.AtomicWriteStream` JSDoc for the full lifecycle contract.
+ */
+export interface AtomicWriteStream extends Writable {
+  abort(): Promise<void>
+}
+
+class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
+  private readonly target: string
+  private readonly tmp: string
+  private readonly underlying: ReturnType<typeof nodeCreateWriteStream>
+  private aborted = false
+  private committed = false
+
+  constructor(target: string) {
+    super()
+    this.target = target
+    this.tmp = tmpNameFor(target)
+    this.underlying = nodeCreateWriteStream(this.tmp)
+    this.underlying.on('error', (err) => this.destroy(err))
+  }
+
+  override _write(chunk: unknown, encoding: BufferEncoding, callback: (err?: Error | null) => void): void {
+    this.underlying.write(chunk as Buffer | string, encoding, callback)
+  }
+
+  override _final(callback: (err?: Error | null) => void): void {
+    this.underlying.end(async () => {
+      try {
+        const fd = await fsOpen(this.tmp, 'r+')
+        try {
+          await fd.sync()
+        } finally {
+          await fd.close()
+        }
+        await rename(this.tmp, this.target)
+        try {
+          const dirHandle = await fsOpen(path.dirname(this.target), 'r')
+          try {
+            await dirHandle.sync()
+          } finally {
+            await dirHandle.close()
+          }
+        } catch {
+          // Windows / unsupported FS — non-fatal.
+        }
+        this.committed = true
+        callback()
+      } catch (err) {
+        await unlink(this.tmp).catch(() => undefined)
+        callback(err as Error)
+      }
+    })
+  }
+
+  override _destroy(err: Error | null, callback: (err: Error | null) => void): void {
+    if (this.committed) {
+      callback(err)
+      return
+    }
+    const cleanup = () => {
+      unlink(this.tmp)
+        .catch(() => undefined)
+        .finally(() => callback(err))
+    }
+    if (this.underlying.destroyed) {
+      cleanup()
+    } else {
+      this.underlying.once('close', cleanup)
+      this.underlying.destroy()
+    }
+  }
+
+  async abort(): Promise<void> {
+    if (this.aborted || this.committed) return
+    this.aborted = true
+    return new Promise<void>((resolve) => {
+      this.once('close', () => resolve())
+      this.destroy()
+    })
+  }
+}
+
+/**
+ * Create an `AtomicWriteStream` that buffers to a tmp file and atomically
+ * commits onto `target` on `.end()`. See `AtomicWriteStream` JSDoc for the
+ * full lifecycle contract.
+ */
+export function createAtomicWriteStream(target: FilePath): AtomicWriteStream {
+  return new AtomicWriteStreamImpl(target)
 }
 
 /**
