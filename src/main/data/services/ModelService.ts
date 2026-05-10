@@ -230,25 +230,15 @@ class ModelService {
   }
 
   /**
-   * Cheap existence check by UniqueModelId (`providerId::modelId`).
+   * Nullable lookup by UniqueModelId (`providerId::modelId`).
    *
-   * Foreign services (e.g. AssistantService) call this to validate FK targets
-   * before writing — pre-validation surfaces a `VALIDATION_ERROR` with a
-   * field-level message instead of letting SQLite's FK constraint surface as
-   * a raw `DrizzleQueryError`. The error message itself is the caller's
-   * responsibility (different domains want different field-level messages),
-   * so this method only returns the boolean.
-   *
-   * `tx` lets callers reuse an in-flight transaction so the check and the
-   * subsequent write land atomically.
+   * Foreign services call this inside their own transaction when they need a
+   * soft fallback instead of a thrown not-found error. The caller owns the
+   * domain-specific validation message; this method only returns the row.
    */
-  async existsById(id: string, tx: Pick<DbType, 'select'> = application.get('DbService').getDb()): Promise<boolean> {
-    const [row] = await tx
-      .select({ id: userModelTable.id })
-      .from(userModelTable)
-      .where(eq(userModelTable.id, id))
-      .limit(1)
-    return !!row
+  async findByIdTx(tx: Pick<DbType, 'select'>, id: string): Promise<Model | null> {
+    const [row] = await tx.select().from(userModelTable).where(eq(userModelTable.id, id)).limit(1)
+    return row ? rowToRuntimeModel(row) : null
   }
 
   /**
@@ -266,11 +256,12 @@ class ModelService {
    * are filtered and the unique non-empty set is queried in a single
    * `IN (...)`.
    *
-   * `tx` lets callers reuse an in-flight transaction.
+   * The `Tx` suffix and tx-first argument match the service-layer convention
+   * for methods that may be composed inside another service's transaction.
    */
-  async getNamesByUniqueIds(
-    uniqueIds: (string | null | undefined)[],
-    tx: Pick<DbType, 'select'> = application.get('DbService').getDb()
+  async getNamesByUniqueIdsTx(
+    tx: Pick<DbType, 'select'>,
+    uniqueIds: (string | null | undefined)[]
   ): Promise<Map<string, string>> {
     const result = new Map<string, string>()
     const ids = Array.from(new Set(uniqueIds.filter((id): id is string => typeof id === 'string' && id.length > 0)))

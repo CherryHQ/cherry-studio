@@ -583,13 +583,13 @@ describe('ModelService.getByKey', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ModelService.existsById — FK pre-validation helper
+// ModelService.findByIdTx — tx-aware nullable model lookup
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('ModelService.existsById', () => {
+describe('ModelService.findByIdTx', () => {
   const dbh = setupTestDatabase()
 
-  it('returns true when the unique model id exists', async () => {
+  it('returns the model when the unique model id exists', async () => {
     await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI' })
     const uid = createUniqueModelId('openai', 'gpt-4o')
     await dbh.db.insert(userModelTable).values({
@@ -599,11 +599,14 @@ describe('ModelService.existsById', () => {
       name: 'GPT-4o'
     })
 
-    await expect(modelService.existsById(uid)).resolves.toBe(true)
+    await expect(modelService.findByIdTx(dbh.db, uid)).resolves.toMatchObject({
+      id: uid,
+      name: 'GPT-4o'
+    })
   })
 
-  it('returns false when the unique model id is missing', async () => {
-    await expect(modelService.existsById('openai::nope')).resolves.toBe(false)
+  it('returns null when the unique model id is missing', async () => {
+    await expect(modelService.findByIdTx(dbh.db, 'openai::nope')).resolves.toBeNull()
   })
 
   it('observes a freshly-inserted row inside the same transaction', async () => {
@@ -617,16 +620,16 @@ describe('ModelService.existsById', () => {
         modelId: 'gpt-4o',
         name: 'GPT-4o'
       })
-      await expect(modelService.existsById(uid, tx)).resolves.toBe(true)
+      await expect(modelService.findByIdTx(tx, uid)).resolves.toMatchObject({ id: uid })
     })
   })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ModelService.getNamesByUniqueIds — batch name resolution for embeds
+// ModelService.getNamesByUniqueIdsTx — tx-aware batch name resolution for embeds
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('ModelService.getNamesByUniqueIds', () => {
+describe('ModelService.getNamesByUniqueIdsTx', () => {
   const dbh = setupTestDatabase()
 
   it('returns a map of names keyed by UniqueModelId', async () => {
@@ -638,7 +641,7 @@ describe('ModelService.getNamesByUniqueIds', () => {
       { id: uid2, providerId: 'openai', modelId: 'gpt-4o-mini', name: 'GPT-4o mini' }
     ])
 
-    const result = await modelService.getNamesByUniqueIds([uid1, uid2, 'openai::missing'])
+    const result = await modelService.getNamesByUniqueIdsTx(dbh.db, [uid1, uid2, 'openai::missing'])
 
     expect(result.get(uid1)).toBe('GPT-4o')
     expect(result.get(uid2)).toBe('GPT-4o mini')
@@ -650,7 +653,7 @@ describe('ModelService.getNamesByUniqueIds', () => {
     const uid = createUniqueModelId('openai', 'gpt-4o')
     await dbh.db.insert(userModelTable).values({ id: uid, providerId: 'openai', modelId: 'gpt-4o', name: 'GPT-4o' })
 
-    const result = await modelService.getNamesByUniqueIds([uid, uid, null, undefined, ''])
+    const result = await modelService.getNamesByUniqueIdsTx(dbh.db, [uid, uid, null, undefined, ''])
 
     expect(result.size).toBe(1)
     expect(result.get(uid)).toBe('GPT-4o')
@@ -665,14 +668,14 @@ describe('ModelService.getNamesByUniqueIds', () => {
       { id: uidEmpty, providerId: 'openai', modelId: 'gpt-empty', name: '' }
     ])
 
-    const result = await modelService.getNamesByUniqueIds([uidNull, uidEmpty])
+    const result = await modelService.getNamesByUniqueIdsTx(dbh.db, [uidNull, uidEmpty])
 
     expect(result.has(uidNull)).toBe(false)
     expect(result.has(uidEmpty)).toBe(false)
   })
 
   it('returns an empty map for empty input without querying', async () => {
-    const result = await modelService.getNamesByUniqueIds([])
+    const result = await modelService.getNamesByUniqueIdsTx(dbh.db, [])
     expect(result.size).toBe(0)
   })
 })
