@@ -7,6 +7,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
+import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import type { UpdateModelDto } from '@shared/data/api/schemas/models'
@@ -18,7 +19,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
 vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@data/services/ProviderRegistryService')>()
+  const actual = await importOriginal<typeof ProviderRegistryServiceModule>()
   return {
     ...actual,
     providerRegistryService: {}
