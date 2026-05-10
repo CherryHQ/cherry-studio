@@ -145,6 +145,8 @@ export interface SettingsState {
   showTranslateConfirm: boolean
   enableTopicNaming: boolean
   customCss: string
+  /** Experimental RTL/LTR mixed text rendering fix (opt-in, off by default) */
+  experimentalRtlTextFix: boolean
   topicNamingPrompt: string
   // 消息操作确认设置
   confirmDeleteMessage: boolean
@@ -340,6 +342,7 @@ export const initialState: SettingsState = {
   showTranslateConfirm: true,
   enableTopicNaming: true,
   customCss: '',
+  experimentalRtlTextFix: false,
   topicNamingPrompt: '',
   sidebarIcons: {
     visible: DEFAULT_SIDEBAR_ICONS,
@@ -521,6 +524,9 @@ const settingsSlice = createSlice({
     },
     setCustomCss: (state, action: PayloadAction<string>) => {
       state.customCss = action.payload
+    },
+    setExperimentalRtlTextFix: (state, action: PayloadAction<boolean>) => {
+      state.experimentalRtlTextFix = action.payload
     },
     setUserTheme: (state, action: PayloadAction<UserTheme>) => {
       state.userTheme = action.payload
@@ -970,6 +976,7 @@ export const {
   setEnableTopicNaming,
   setPasteLongTextThreshold,
   setCustomCss,
+  setExperimentalRtlTextFix,
   setTopicNamingPrompt,
   setSidebarIcons,
   setNarrowMode,

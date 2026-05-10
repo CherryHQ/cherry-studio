@@ -13,6 +13,7 @@ import type {
   ThinkingMessageBlock,
   TranslationMessageBlock
 } from '@renderer/types/newMessage'
+import { type BidiDir, detectBidiDirFromText } from '@renderer/utils/bidi'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
@@ -41,6 +42,36 @@ const ALLOWED_ELEMENTS =
   /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup|details|summary)/i
 const DISALLOWED_ELEMENTS = ['iframe', 'script']
 
+const nodeToPlainText = (node: any): string => {
+  if (!node) return ''
+
+  // hast "text" node
+  if (node.type === 'text' && typeof node.value === 'string') return node.value
+
+  // hast "element" node
+  if (node.type === 'element') {
+    const tagName = String(node.tagName || '').toLowerCase()
+    if (tagName === 'pre' || tagName === 'code' || tagName === 'mjx-container' || tagName === 'svg') return ''
+
+    const className = node.properties?.className
+    const classNames = Array.isArray(className)
+      ? className
+      : typeof className === 'string'
+        ? className.split(/\s+/)
+        : []
+    if (classNames.includes('katex') || classNames.includes('katex-display') || classNames.includes('math')) return ''
+    if (classNames.includes('hljs') || classNames.includes('shiki')) return ''
+  }
+
+  if (Array.isArray(node.children)) return node.children.map(nodeToPlainText).join('')
+  return ''
+}
+
+const dirForMarkdownNode = (node: any): BidiDir => {
+  const text = nodeToPlainText(node).trim()
+  return detectBidiDirFromText(text)
+}
+
 interface Props {
   // message: Message & { content: string }
   block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock | CompactMessageBlock
@@ -50,7 +81,7 @@ interface Props {
 
 const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { t } = useTranslation()
-  const { mathEngine, mathEnableSingleDollar } = useSettings()
+  const { mathEngine, mathEnableSingleDollar, experimentalRtlTextFix } = useSettings()
 
   const isTrulyDone = 'status' in block && block.status === 'success'
   const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
@@ -134,15 +165,62 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
       code: (props: any) => <CodeBlock {...props} blockId={block.id} />,
       table: (props: any) => <Table {...props} blockId={block.id} />,
       img: (props: any) => <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} {...props} />,
-      pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
+      pre: (props: any) => (
+        <pre
+          {...props}
+          dir={experimentalRtlTextFix ? 'ltr' : undefined}
+          style={{ overflow: 'visible', ...props?.style }}
+        />
+      ),
       p: (props) => {
+        const dir = experimentalRtlTextFix ? dirForMarkdownNode(props?.node) : undefined
         const hasImage = props?.node?.children?.some((child: any) => child.tagName === 'img')
-        if (hasImage) return <div {...props} />
-        return <p {...props} />
+        if (hasImage) return <div {...props} dir={dir} />
+        return <p {...props} dir={dir} />
+      },
+      li: (props: any) => {
+        const dir = experimentalRtlTextFix ? dirForMarkdownNode(props?.node) : undefined
+        return <li {...props} dir={dir} />
+      },
+      ul: (props: any) => {
+        const dir = experimentalRtlTextFix ? dirForMarkdownNode(props?.node) : undefined
+        return <ul {...props} dir={dir} />
+      },
+      ol: (props: any) => {
+        const dir = experimentalRtlTextFix ? dirForMarkdownNode(props?.node) : undefined
+        return <ol {...props} dir={dir} />
+      },
+      blockquote: (props: any) => {
+        const dir = experimentalRtlTextFix ? dirForMarkdownNode(props?.node) : undefined
+        return <blockquote {...props} dir={dir} />
+      },
+      h1: (props: any) => {
+        const dir = experimentalRtlTextFix ? dirForMarkdownNode(props?.node) : undefined
+        return <h1 {...props} dir={dir} />
+      },
+      h2: (props: any) => {
+        const dir = experimentalRtlTextFix ? dirForMarkdownNode(props?.node) : undefined
+        return <h2 {...props} dir={dir} />
+      },
+      h3: (props: any) => {
+        const dir = experimentalRtlTextFix ? dirForMarkdownNode(props?.node) : undefined
+        return <h3 {...props} dir={dir} />
+      },
+      h4: (props: any) => {
+        const dir = experimentalRtlTextFix ? dirForMarkdownNode(props?.node) : undefined
+        return <h4 {...props} dir={dir} />
+      },
+      h5: (props: any) => {
+        const dir = experimentalRtlTextFix ? dirForMarkdownNode(props?.node) : undefined
+        return <h5 {...props} dir={dir} />
+      },
+      h6: (props: any) => {
+        const dir = experimentalRtlTextFix ? dirForMarkdownNode(props?.node) : undefined
+        return <h6 {...props} dir={dir} />
       },
       svg: MarkdownSvgRenderer
     } as Partial<Components>
-  }, [block.id])
+  }, [block.id, experimentalRtlTextFix])
 
   if (/<style\b[^>]*>/i.test(messageContent)) {
     components.style = MarkdownShadowDOMRenderer as any
