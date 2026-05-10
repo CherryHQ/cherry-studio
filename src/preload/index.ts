@@ -997,7 +997,8 @@ const api = {
   },
   agent: {
     runTask: (agentId: string, taskId: string) => ipcRenderer.invoke(IpcChannel.Agent_RunTask, agentId, taskId),
-    getModels: (filter: unknown) => ipcRenderer.invoke(IpcChannel.Agent_GetModels, filter)
+    getModels: (filter: unknown) => ipcRenderer.invoke(IpcChannel.Agent_GetModels, filter),
+    listTools: (request: unknown) => ipcRenderer.invoke(IpcChannel.Agent_ListTools, request)
   }
 }
 
