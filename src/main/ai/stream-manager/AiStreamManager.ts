@@ -140,6 +140,13 @@ function errorFromStreamChunk(errorText: string): SerializedError {
  * Each ActiveStream contains one or more StreamExecutions (one per model).
  * Streaming is just one state of a topic; all subscribers subscribe to the topic.
  */
+// `AiService` looks this service up at IPC-handler runtime; declaring it
+// via `@DependsOn(['AiStreamManager'])` keeps init order explicit. The
+// reverse direction — `runExecutionLoop` calls `application.get('AiService')`
+// — is a runtime back-edge: every `send()` caller routes through AiService
+// first, so AiService is guaranteed initialized when stream-manager looks
+// it up. Do NOT add `@DependsOn(['AiService'])` here; that would close the
+// cycle at init time and the container cannot resolve circular deps.
 @Injectable('AiStreamManager')
 @ServicePhase(Phase.WhenReady)
 export class AiStreamManager extends BaseService {

@@ -148,7 +148,16 @@ export interface AiEmbedResult {
  */
 @Injectable('AiService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['McpService'])
+// AiStreamManager has no upstream service deps and initializes first.
+// AiService looks it up at IPC-handler runtime (Ai_Stream_Open,
+// Ai_ToolApproval_Respond) — declaring the dep makes the init order
+// explicit. The reverse lookup (AiStreamManager → AiService inside
+// runExecutionLoop) stays lazy: every `send()` caller routes through
+// AiService, so by that point AiService is already initialized. This
+// runtime back-edge is intentional; do NOT mirror this @DependsOn on
+// AiStreamManager — that would close the cycle into a real init-time
+// circular dependency the container cannot resolve.
+@DependsOn(['McpService', 'AiStreamManager'])
 export class AiService extends BaseService {
   protected async onInit(): Promise<void> {
     registerBuiltinTools()
