@@ -254,8 +254,9 @@ describe('FileManager (integration)', () => {
     await utimes(orphanPath, ancient, ancient)
 
     await fm._doInit()
-    // Allow the fire-and-forget sweep to complete. A short wait suffices in tests.
-    await new Promise((r) => setTimeout(r, 50))
+    // The public method itself awaits both sweeps — used here for deterministic
+    // observation of side effects without sleep-based timing.
+    await fm.runStartupSweeps()
 
     const { stat } = await import('node:fs/promises')
     await expect(stat(orphanPath)).rejects.toThrow(/ENOENT/)
@@ -287,8 +288,10 @@ describe('FileManager (integration)', () => {
       updatedAt: now
     })
 
-    await fm._doInit()
-    await new Promise((r) => setTimeout(r, 50))
+    // Call runStartupSweeps directly so we observe the orphan deletion in
+    // the same instance whose lastDbSweepReport we then read. (onInit's
+    // fire-and-forget invocation is covered by INT-11.)
+    await fm.runStartupSweeps()
 
     // The orphan ref has been cleaned by runDbSweep (temp_session checker → empty Set).
     const remaining = await dbh.db.select().from(fileRefTable)
@@ -298,6 +301,32 @@ describe('FileManager (integration)', () => {
     const report = fm.getOrphanReport()
     expect(report.orphanRefsByType.temp_session).toBe(1)
     expect(report.orphanEntriesByOrigin.internal ?? 0).toBeGreaterThanOrEqual(1)
+    // lastRunAt should reflect the actual sweep completion, not the read time.
+    expect(report.lastRunAt).not.toBeNull()
+    expect(typeof report.lastRunAt).toBe('number')
+  })
+
+  it('INT-13: getOrphanReport returns empty default with lastRunAt=null before any sweep', () => {
+    // The fresh fm built in beforeEach has not run a sweep yet — verify
+    // the empty-default shape is correct.
+    const report = fm.getOrphanReport()
+    expect(report).toEqual({
+      orphanRefsByType: {},
+      orphanRefsTotal: 0,
+      orphanEntriesByOrigin: {},
+      orphanEntriesTotal: 0,
+      lastRunAt: null
+    })
+  })
+
+  it('INT-14: getOrphanReport().lastRunAt does NOT advance between calls (sweep-time, not read-time)', async () => {
+    await fm.runStartupSweeps()
+    const first = fm.getOrphanReport().lastRunAt
+    expect(first).not.toBeNull()
+    // Wait a beat then re-read; lastRunAt must NOT change.
+    await new Promise((r) => setTimeout(r, 5))
+    const second = fm.getOrphanReport().lastRunAt
+    expect(second).toBe(first)
   })
 
   it('INT-8: batchGetDanglingStates returns "unknown" for ids that have no entry', async () => {
