@@ -43,7 +43,17 @@ describe('internal/entry/lifecycle', () => {
     deps = {
       fileEntryService,
       fileRefService,
-      danglingCache: { check: vi.fn(), onFsEvent: vi.fn(), subscribe: vi.fn(() => () => {}), clear: vi.fn() },
+      danglingCache: {
+        check: vi.fn(),
+        forceRecheck: vi.fn(),
+        onFsEvent: vi.fn(),
+        addEntry: vi.fn(),
+        removeEntry: vi.fn(),
+        initFromDb: vi.fn(),
+        subscribe: vi.fn(() => () => {}),
+        onDanglingStateChanged: vi.fn(() => ({ dispose: () => {} })),
+        clear: vi.fn()
+      },
       versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() }
     }
   })
