@@ -2,7 +2,6 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -76,7 +75,7 @@ describe('internal/entry/create.createInternal', () => {
 
     it('writes a row that survives schema parse (brand contract)', async () => {
       const entry = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0]), name: 'x', ext: null })
-      const found = await fileEntryService.getById(entry.id as FileEntryId)
+      const found = await fileEntryService.getById(entry.id)
       expect(found.id).toBe(entry.id)
       expect(found.size).toBe(1)
     })

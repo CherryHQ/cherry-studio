@@ -117,7 +117,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
   }
   try {
     return await deps.fileEntryService.create({
-      id: id as FileEntry['id'],
+      id,
       origin: 'internal',
       name: source.name,
       ext: source.ext,
@@ -140,7 +140,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   const canonical = canonicalizeExternalPath(params.externalPath)
   const existing = await deps.fileEntryService.findByExternalPath(canonical)
   if (existing) return existing
-  await fsStat(params.externalPath as FilePath)
+  await fsStat(params.externalPath)
   try {
     const peers = await deps.fileEntryService.findCaseInsensitivePeers(canonical)
     if (peers.length > 0) {

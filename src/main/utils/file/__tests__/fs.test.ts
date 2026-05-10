@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, readdir, readFile, rm, stat as fsStatPromise, utimes, writeFile } from 'node:fs/promises'
+import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -467,7 +468,7 @@ describe('mkdir / ensureDir / removeDir', () => {
 
 describe('download', () => {
   let tmp: string
-  let server: import('node:http').Server
+  let server: Server
   let baseUrl: string
   let routes: Map<string, { status: number; body: Uint8Array | string; type?: string }>
 

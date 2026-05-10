@@ -65,7 +65,7 @@ class VersionCacheImpl implements VersionCache {
     if (this.store.has(id)) this.store.delete(id)
     this.store.set(id, version)
     if (this.store.size > this.capacity) {
-      const oldest = this.store.keys().next().value as FileEntryId | undefined
+      const oldest = this.store.keys().next().value
       if (oldest !== undefined) this.store.delete(oldest)
     }
   }

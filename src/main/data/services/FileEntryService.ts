@@ -182,7 +182,7 @@ class FileEntryServiceImpl implements FileEntryService {
 
   async create(values: CreateFileEntryRow): Promise<FileEntry> {
     const now = Date.now()
-    const id = (values.id ?? uuidv7()) as FileEntryId
+    const id = values.id ?? uuidv7()
     const rows = await this.getDb()
       .insert(fileEntryTable)
       .values({

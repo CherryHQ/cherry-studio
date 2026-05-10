@@ -2,7 +2,6 @@ import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -73,9 +72,9 @@ describe('internal/content/write', () => {
         name: 'a',
         ext: 'bin'
       })
-      const next = await write(deps, e.id as FileEntryId, new Uint8Array([0x01, 0x02, 0x03]))
+      const next = await write(deps, e.id, new Uint8Array([0x01, 0x02, 0x03]))
       expect(next.size).toBe(3)
-      const refreshed = await fileEntryService.getById(e.id as FileEntryId)
+      const refreshed = await fileEntryService.getById(e.id)
       expect(refreshed.size).toBe(3)
       expect(cacheStore.get(e.id)).toEqual(next)
     })
@@ -84,10 +83,10 @@ describe('internal/content/write', () => {
       const file = path.join(tmp, 'ext.txt')
       await writeFile(file, 'old')
       const e = await ensureExternal(deps, { externalPath: file as FilePath })
-      const next = await write(deps, e.id as FileEntryId, 'new-payload')
+      const next = await write(deps, e.id, 'new-payload')
       expect(next.size).toBe('new-payload'.length)
       expect(await readFile(file, 'utf-8')).toBe('new-payload')
-      const refreshed = await fileEntryService.getById(e.id as FileEntryId)
+      const refreshed = await fileEntryService.getById(e.id)
       expect(refreshed.size).toBeNull()
     })
   })
@@ -99,15 +98,15 @@ describe('internal/content/write', () => {
       const { stat: fsStat } = await import('node:fs/promises')
       const s = await fsStat(physical)
       const expected: FileVersion = { mtime: Math.floor(s.mtimeMs), size: s.size }
-      const next = await writeIfUnchanged(deps, e.id as FileEntryId, new Uint8Array([1, 2]), expected)
+      const next = await writeIfUnchanged(deps, e.id, new Uint8Array([1, 2]), expected)
       expect(next.size).toBe(2)
     })
 
     it('throws StaleVersionError on size mismatch', async () => {
       const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([1, 2, 3]), name: 'a', ext: 'bin' })
-      await expect(
-        writeIfUnchanged(deps, e.id as FileEntryId, new Uint8Array([9]), { mtime: 1, size: 9999 })
-      ).rejects.toBeInstanceOf(StaleVersionError)
+      await expect(writeIfUnchanged(deps, e.id, new Uint8Array([9]), { mtime: 1, size: 9999 })).rejects.toBeInstanceOf(
+        StaleVersionError
+      )
     })
 
     it('does NOT trust the cache — re-stats on every call', async () => {
@@ -124,7 +123,7 @@ describe('internal/content/write', () => {
       const s = await fsStat(physical)
       const expected: FileVersion = { mtime: Math.floor(s.mtimeMs), size: s.size }
       // Should still succeed because the OCC compare uses fresh stat, not the poisoned cache
-      const next = await writeIfUnchanged(deps, e.id as FileEntryId, 'next', expected)
+      const next = await writeIfUnchanged(deps, e.id, 'next', expected)
       expect(next.size).toBe(4)
     })
 
@@ -138,7 +137,7 @@ describe('internal/content/write', () => {
       const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
       await utimes(physical, 1700000000, 1700000000)
       const expected: FileVersion = { mtime: 1700000000_000, size: 4 }
-      const next = await writeIfUnchanged(deps, e.id as FileEntryId, new Uint8Array([5, 6, 7, 8]), expected)
+      const next = await writeIfUnchanged(deps, e.id, new Uint8Array([5, 6, 7, 8]), expected)
       expect(next.size).toBe(4)
       expect(Array.from(await readFile(physical))).toEqual([5, 6, 7, 8])
     })

@@ -5,7 +5,7 @@ import type { FileVersion } from '../FileManager'
 import { createVersionCacheImpl, versionCache } from '../versionCache'
 
 const mkVersion = (mtime: number, size: number): FileVersion => ({ mtime, size })
-const mkId = (n: number): FileEntryId => `019606a0-0000-7000-8000-${n.toString().padStart(12, '0')}` as FileEntryId
+const mkId = (n: number): FileEntryId => `019606a0-0000-7000-8000-${n.toString().padStart(12, '0')}`
 
 describe('versionCache (default singleton)', () => {
   beforeEach(() => versionCache.clear())

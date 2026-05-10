@@ -2,7 +2,6 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -59,7 +58,7 @@ describe('internal/entry/copy', () => {
       name: 'src',
       ext: 'bin'
     })
-    const dst = await copy(deps, { id: src.id as FileEntryId })
+    const dst = await copy(deps, { id: src.id })
     expect(dst.id).not.toBe(src.id)
     expect(dst.origin).toBe('internal')
     expect(dst.size).toBe(4)
@@ -70,7 +69,7 @@ describe('internal/entry/copy', () => {
 
   it('respects newName override', async () => {
     const src = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0]), name: 'orig', ext: 'txt' })
-    const dst = await copy(deps, { id: src.id as FileEntryId, newName: 'renamed' })
+    const dst = await copy(deps, { id: src.id, newName: 'renamed' })
     expect(dst.name).toBe('renamed')
   })
 
@@ -78,7 +77,7 @@ describe('internal/entry/copy', () => {
     const ext = path.join(tmp, 'ext.txt')
     await writeFile(ext, 'external-content')
     const src = await ensureExternal(deps, { externalPath: ext as FilePath })
-    const dst = await copy(deps, { id: src.id as FileEntryId })
+    const dst = await copy(deps, { id: src.id })
     expect(dst.origin).toBe('internal')
     const dstPhysical = path.join(filesDir, `${dst.id}.txt`)
     expect(await readFile(dstPhysical, 'utf-8')).toBe('external-content')

@@ -13,10 +13,10 @@
  */
 
 import { resolvePhysicalPath } from '@data/utils/pathResolver'
+import type { AtomicWriteStream } from '@main/utils/file/fs'
 import {
   atomicWriteFile,
   atomicWriteIfUnchanged,
-  AtomicWriteStream,
   createAtomicWriteStream,
   PathStaleVersionError,
   stat as fsStat

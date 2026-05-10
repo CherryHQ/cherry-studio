@@ -2,7 +2,6 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -56,7 +55,7 @@ describe('internal/system/tempCopy', () => {
   it('runs fn with a tmp path that contains a copy of the source content', async () => {
     const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x42]), name: 'a', ext: 'bin' })
     const seen: string[] = []
-    const result = await withTempCopy(deps, e.id as FileEntryId, async (tmpPath) => {
+    const result = await withTempCopy(deps, e.id, async (tmpPath) => {
       seen.push(tmpPath)
       const buf = await readFile(tmpPath)
       expect(buf[0]).toBe(0x42)
@@ -71,7 +70,7 @@ describe('internal/system/tempCopy', () => {
     const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'a', ext: 'bin' })
     let seenPath = ''
     await expect(
-      withTempCopy(deps, e.id as FileEntryId, async (tmpPath) => {
+      withTempCopy(deps, e.id, async (tmpPath) => {
         seenPath = tmpPath
         throw new Error('library failed')
       })
@@ -82,7 +81,7 @@ describe('internal/system/tempCopy', () => {
   it('writes by the library to the tmp copy do not affect the source', async () => {
     const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'a', ext: 'bin' })
     const sourcePhysical = path.join(filesDir, `${e.id}.bin`)
-    await withTempCopy(deps, e.id as FileEntryId, async (tmpPath) => {
+    await withTempCopy(deps, e.id, async (tmpPath) => {
       await writeFile(tmpPath, new Uint8Array([0xff, 0xff, 0xff]))
     })
     const after = await readFile(sourcePhysical)

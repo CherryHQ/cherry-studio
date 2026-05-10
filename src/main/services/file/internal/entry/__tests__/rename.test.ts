@@ -2,7 +2,6 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -59,7 +58,7 @@ describe('internal/entry/rename', () => {
       name: 'old',
       ext: 'txt'
     })
-    const renamed = await rename(deps, created.id as FileEntryId, 'new')
+    const renamed = await rename(deps, created.id, 'new')
     expect(renamed.name).toBe('new')
     expect(renamed.ext).toBe('txt')
     // physical path is still UUID-based; the file exists at the same place
@@ -72,7 +71,7 @@ describe('internal/entry/rename', () => {
     const original = path.join(tmp, 'before.txt')
     await writeFile(original, 'hello')
     const entry = await ensureExternal(deps, { externalPath: original as FilePath })
-    const renamed = await rename(deps, entry.id as FileEntryId, 'after')
+    const renamed = await rename(deps, entry.id, 'after')
     expect(renamed.name).toBe('after')
     const expectedPath = path.join(tmp, 'after.txt')
     expect(renamed.externalPath).toBe(expectedPath)
@@ -85,8 +84,8 @@ describe('internal/entry/rename', () => {
     await writeFile(original, 'A')
     await writeFile(collision, 'B')
     const entry = await ensureExternal(deps, { externalPath: original as FilePath })
-    await expect(rename(deps, entry.id as FileEntryId, 'b')).rejects.toThrow()
-    const stored = await fileEntryService.getById(entry.id as FileEntryId)
+    await expect(rename(deps, entry.id, 'b')).rejects.toThrow()
+    const stored = await fileEntryService.getById(entry.id)
     expect(stored.name).toBe('a')
     expect(stored.externalPath).toBe(original)
     // Both files still exist with their original content
