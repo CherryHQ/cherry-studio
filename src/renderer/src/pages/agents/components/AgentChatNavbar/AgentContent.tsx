@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
@@ -16,12 +16,11 @@ import { useProviderDisplayName } from '@renderer/hooks/useProviders'
 import { AgentLabel } from '@renderer/pages/agents/AgentSettings/shared'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model as SharedModel, UniqueModelId } from '@shared/data/types/model'
-import { Tooltip } from 'antd'
-import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose } from 'lucide-react'
 import { ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import AgentSidePanelDrawer from '../AgentSidePanelDrawer'
 import OpenExternalAppButton from './OpenExternalAppButton'
@@ -33,6 +32,7 @@ type AgentContentProps = {
 }
 
 const AgentContent = ({ activeAgent }: AgentContentProps) => {
+  const { t } = useTranslation()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { isTopNavbar } = useNavbarPosition()
@@ -68,14 +68,14 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
     <div className="flex w-full justify-between pr-2">
       <div className="flex min-w-0 shrink items-center">
         {isTopNavbar && showSidebar && (
-          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
             <NavbarIcon onClick={toggleShowSidebar}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {isTopNavbar && !showSidebar && (
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8} placement="right">
+          <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
             <NavbarIcon onClick={toggleShowSidebar} style={{ marginRight: 8 }}>
               <PanelRightClose size={18} />
             </NavbarIcon>
