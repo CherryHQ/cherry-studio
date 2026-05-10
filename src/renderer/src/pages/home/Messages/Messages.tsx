@@ -41,7 +41,7 @@ import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
 import Prompt from './Prompt'
-import { keepElementTop } from './scrollAnchor'
+import { keepElementTop, shouldKeepPreservingAnchor } from './scrollAnchor'
 import { MessagesContainer, ScrollContainer } from './shared'
 
 interface MessagesProps {
@@ -80,6 +80,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messagesRef = useRef<Message[]>(messages)
   const anchorRef = useRef<{
+    frameCount: number
     idleFrames: number
     messageId: string
     missingFrames: number
@@ -118,6 +119,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       return
     }
 
+    anchor.frameCount += 1
+
     const anchorElement = getRegisteredMessageElement(anchor.messageId)
     if (!anchorElement) {
       anchor.missingFrames += 1
@@ -142,7 +145,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
     anchor.idleFrames = hasProcessingResponse ? 0 : anchor.idleFrames + 1
 
-    if (hasProcessingResponse || anchor.idleFrames < 10) {
+    if (
+      shouldKeepPreservingAnchor({
+        frameCount: anchor.frameCount,
+        hasProcessingResponse,
+        idleFrames: anchor.idleFrames
+      })
+    ) {
       anchor.rafId = requestAnimationFrame(preserveAnchorPosition)
       return
     }
@@ -161,6 +170,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
       stopPreservingAnchor()
       anchorRef.current = {
+        frameCount: 0,
         idleFrames: 0,
         messageId,
         missingFrames: anchorElement ? 0 : 1,
