@@ -33,6 +33,10 @@ export function useAppInit() {
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
+    // Paired with `console.time('init')` in index.html's bootstrap script.
+    // Both run in the browser console for dev DX (DevTools timer); the
+    // timing isn't useful for production logs, so loggerService is not
+    // appropriate here.
     // eslint-disable-next-line no-restricted-syntax
     console.timeEnd('init')
   }, [])
