@@ -1482,6 +1482,9 @@
       "delete": {
         "shortcut": "Hold {{key}} to delete directly"
       },
+      "duplicate": "Duplicate Topic",
+      "duplicate_error": "Failed to duplicate topic",
+      "duplicate_success": "Topic duplicated",
       "edit": {
         "placeholder": "Enter new name",
         "title": "Edit Name",

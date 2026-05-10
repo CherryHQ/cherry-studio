@@ -1482,6 +1482,9 @@
       "delete": {
         "shortcut": "按住 {{key}} 可直接删除"
       },
+      "duplicate": "复制话题",
+      "duplicate_error": "话题复制失败",
+      "duplicate_success": "话题复制成功",
       "edit": {
         "placeholder": "输入新名称",
         "title": "编辑话题名",
