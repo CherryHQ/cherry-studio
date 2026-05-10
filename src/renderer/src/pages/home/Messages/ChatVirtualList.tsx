@@ -215,7 +215,14 @@ export function ChatVirtualList<T>({
 
   const stickyObserverRef = useRef<ResizeObserver | null>(null)
   const observedItemsRef = useRef<Set<HTMLElement>>(new Set())
-  if (stickyObserverRef.current === null && typeof ResizeObserver !== 'undefined') {
+
+  // Observer construction lives in `useLayoutEffect` so the side effect
+  // is no longer mixed into the render body. `useLayoutEffect` (vs
+  // `useEffect`) guarantees the observer exists before the next paint —
+  // any items measured via `measureItem` during the same commit need it
+  // already-present.
+  useLayoutEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return
     stickyObserverRef.current = new ResizeObserver(() => {
       if (!wasAtBottomRef.current) return
       const node = scrollerRef.current
@@ -235,9 +242,6 @@ export function ChatVirtualList<T>({
       const target = lastBottom - scrollerRect.top + node.scrollTop - node.clientHeight
       node.scrollTop = Math.max(0, target)
     })
-  }
-
-  useEffect(() => {
     return () => {
       stickyObserverRef.current?.disconnect()
       stickyObserverRef.current = null
