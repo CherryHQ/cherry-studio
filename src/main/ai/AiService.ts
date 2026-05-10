@@ -148,8 +148,6 @@ export interface AiEmbedResult {
  */
 @Injectable('AiService')
 @ServicePhase(Phase.WhenReady)
-// `PreferenceService` is BeforeReady — phase ordering is auto-enforced by
-// the container, so it must NOT be listed in `@DependsOn` (CLAUDE.md).
 @DependsOn(['McpService'])
 export class AiService extends BaseService {
   protected async onInit(): Promise<void> {
