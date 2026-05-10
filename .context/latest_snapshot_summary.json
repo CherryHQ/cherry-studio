@@ -1,93 +1,110 @@
 {
-  "generated_at": "2026-05-09T00:00:00Z",
-  "snapshot_date": "2026-05-09",
+  "generated_at": "2026-05-10T00:00:00Z",
+  "data_as_of": "2026-05-10",
   "repository": "CherryHQ/cherry-studio",
-  "issues": {
-    "open_total": 842,
-    "closed_last_30d": 374,
-    "unclassified": {
-      "count": 80,
-      "pct": 9.5
-    },
-    "health": {
-      "active_7d": 191,
-      "aging_7_30d": 360,
-      "stale_30_90d": 296,
-      "zombie_90d_plus": 4,
-      "note": "Based on last-updated date; counts use GitHub search API and may sum to ~851 due to boundary rounding"
-    },
-    "health_pct": {
-      "active": 22.7,
-      "aging": 42.8,
-      "stale": 35.2,
-      "zombie": 0.5
-    },
-    "p1_issues": [
-      {
-        "number": 14899,
-        "title": "[Feature]: Unified Notification Center",
-        "labels": ["P1", "Planned", "feature", "UI/UX"],
-        "milestone": "v2.4.0",
-        "author": "SiinXu",
-        "created_at": "2026-05-07T05:01:00Z",
-        "updated_at": "2026-05-07T05:52:49Z",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/14899",
-        "health": "active"
-      },
-      {
-        "number": 13608,
-        "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "labels": ["P1", "Models"],
-        "milestone": "v1.8.1 (closed)",
-        "author": "lsy08",
-        "created_at": "2026-03-18T14:34:38Z",
-        "updated_at": "2026-03-19T14:22:09Z",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
-        "health": "stale",
-        "comments": 8
-      },
-      {
-        "number": 13193,
-        "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions",
-        "labels": ["P1", "Models"],
-        "assignee": "DeJeune",
-        "author": "simplezhao",
-        "created_at": "2026-03-04T05:07:40Z",
-        "updated_at": "2026-03-05T08:47:59Z",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
-        "health": "stale",
-        "comments": 1
-      }
+  "open_issues": {
+    "total": 839,
+    "bug_label": 114,
+    "no_label": 79,
+    "no_label_pct": 9.4,
+    "top_labels": [
+      {"label": "inactive", "count": "~290 (est.)"},
+      {"label": "UI/UX", "count": "~252 (est.)"},
+      {"label": "Models", "count": "~227 (est.)"},
+      {"label": "Assistant", "count": "~126 (est.)"},
+      {"label": "discussion", "count": "~80 (est.)"},
+      {"label": "help wanted", "count": "~76 (est.)"},
+      {"label": "RAG", "count": "~63 (est.)"},
+      {"label": "MCP", "count": "~59 (est.)"},
+      {"label": "feature", "count": "~50 (est.)"},
+      {"label": "Data", "count": "~50 (est.)"}
     ],
-    "label_distribution_top10": [
-      ["UI/UX", "most common (sample: 33/100)"],
-      ["Models", "24/100"],
-      ["inactive", "22/100"],
-      ["Assistant", "18/100"],
-      ["help wanted", "10/100"],
-      ["discussion", "10/100"],
-      ["feature", "10/100"],
-      ["RAG", "9/100"],
-      ["MCP", "8/100"],
-      ["Data", "6/100"]
+    "note": "Label counts are extrapolated from 200-issue sample (most recently updated). Raw counts from sample: inactive=69, UI/UX=60, Models=54, Assistant=30."
+  },
+  "closed_issues_30d": {
+    "total": 379,
+    "note": "Issues closed between 2026-04-10 and 2026-05-10"
+  },
+  "open_prs": {
+    "total": 100,
+    "by_base": {
+      "main": 62,
+      "v2": 37,
+      "other": 1
+    },
+    "stale_prs_gt14d": [
+      {"number": 14313, "title": "feat(data): migrate paintings to v2 data architecture", "base": "v2", "days_old": 24},
+      {"number": 12060, "title": "feat: context menu", "base": "v2", "days_old": 140},
+      {"number": 13451, "title": "feat(file): Add schema and foundation for new file module", "base": "v2", "days_old": 57},
+      {"number": 10090, "title": "[WIP] feat: terminal", "base": "v2", "days_old": 242}
     ]
   },
-  "pull_requests": {
-    "open_total": 300,
-    "merged_last_30d": 139,
-    "v2_branch": {
-      "open": 71,
-      "open_drafts": 16,
-      "open_ready": 55,
-      "merged_last_30d": 46
-    },
-    "main_branch": {
-      "open_estimate": 229,
-      "note": "Estimate = total open (300) minus v2 open (71)"
-    }
-  },
   "branch_strategy": {
-    "main": "code freeze - hotfix/* only",
-    "v2": "active development branch"
+    "main_status": "CODE FREEZE — hotfix/* only",
+    "v2_status": "Active development",
+    "effective_date": "2026-04-03"
+  },
+  "p1_issues": [
+    {
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "updated": "2026-05-07T05:52:49Z",
+      "priority": "P1"
+    },
+    {
+      "number": 13727,
+      "title": "[Bug]: npm-installed OpenClaw triggers spurious update prompt",
+      "labels": ["BUG", "inactive", "OpenClaw"],
+      "updated": "2026-05-10T01:05:16Z",
+      "priority": "P1-Bug"
+    },
+    {
+      "number": 14122,
+      "title": "[Bug]: OpenClaw needs to be updated — misleading prompt",
+      "labels": ["BUG", "inactive", "OpenClaw"],
+      "updated": "2026-05-10T01:04:22Z",
+      "priority": "P1-Bug"
+    },
+    {
+      "number": 13292,
+      "title": "[Bug]: Multi Element MCP Tool Results are not processed properly",
+      "labels": ["BUG", "MCP", "needs-repro", "inactive"],
+      "updated": "2026-05-09T00:59:48Z",
+      "priority": "P1-Bug"
+    },
+    {
+      "number": 11688,
+      "title": "[Bug]: Model API returns context-length error when Agent automatically sends oversized messages",
+      "labels": ["BUG", "Models"],
+      "updated": "2026-05-05T16:47:25Z",
+      "priority": "P1-Bug"
+    },
+    {
+      "number": 12645,
+      "title": "[Bug]: There is a problem with the # at the end of the API address",
+      "labels": ["BUG", "Models", "inactive"],
+      "updated": "2026-05-09T00:59:52Z",
+      "priority": "P1-Bug"
+    },
+    {
+      "number": 13655,
+      "title": "[Bug]: Incorrect OpenClaw version message",
+      "labels": ["BUG", "inactive", "OpenClaw"],
+      "updated": "2026-05-09T00:59:46Z",
+      "priority": "P1-Bug"
+    },
+    {
+      "number": 12079,
+      "title": "[Bug]: cherry-studio cannot read the file since today",
+      "labels": ["BUG", "inactive"],
+      "updated": "2026-05-07T01:00:36Z",
+      "priority": "P1-Bug"
+    }
+  ],
+  "meta": {
+    "data_sources": ["GitHub MCP API", "list_issues (pages 1-2)", "search_issues (bug, no-label, closed-30d)", "list_pull_requests (open, v2-open, v2-closed)"],
+    "sample_coverage": "200 of 839 open issues analyzed in detail (most recently updated)",
+    "note": "gh CLI unavailable; data collected via GitHub MCP tools. Discussions API not available via MCP."
   }
 }

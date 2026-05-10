@@ -1,67 +1,102 @@
 {
-  "generated_at": "2026-05-09T00:00:00Z",
-  "report_date": "2026-05-09",
+  "generated_at": "2026-05-10T00:00:00Z",
+  "report_date": "2026-05-10",
   "repository": "CherryHQ/cherry-studio",
-  "summary": {
-    "total_open": 842,
-    "health_breakdown": {
-      "active": { "count": 191, "pct": 22.7, "definition": "updated within last 7 days" },
-      "aging": { "count": 360, "pct": 42.8, "definition": "updated 7-30 days ago" },
-      "stale": { "count": 296, "pct": 35.2, "definition": "updated 30-90 days ago" },
-      "zombie": { "count": 4, "pct": 0.5, "definition": "not updated in 90+ days" }
+  "health_summary": {
+    "total_open": 839,
+    "health_buckets": {
+      "Active": {
+        "definition": "Updated within last 7 days",
+        "count": 189,
+        "note": "From 200-issue sample (most recently updated). Likely close to actual Active count since pages 1-2 cover May 2–10."
+      },
+      "Aging": {
+        "definition": "Updated 7–30 days ago",
+        "count": 11,
+        "note": "From 200-issue sample. Real count likely higher (remaining pages cover Apr 10 – May 2)."
+      },
+      "Stale": {
+        "definition": "Updated 30–90 days ago",
+        "count_estimated": "~300–400",
+        "note": "Not directly counted. Issues from pages 3–7 likely fall here (updated Feb 10 – Apr 10)."
+      },
+      "Zombie": {
+        "definition": "Updated >90 days ago (before Feb 9, 2026)",
+        "count_estimated": "~239–339",
+        "note": "Not directly counted. Oldest issues fall here."
+      }
     },
-    "unclassified": { "count": 80, "pct": 9.5, "definition": "issues with no labels" }
+    "inactive_label_count": 114,
+    "inactive_label_note": "GitHub 'inactive' label applied automatically; 69 of 200 sampled issues carry it."
   },
-  "p1_urgent": [
+  "label_health": {
+    "top_open_labels_sample": [
+      {"label": "inactive", "count_in_200": 69},
+      {"label": "UI/UX", "count_in_200": 60},
+      {"label": "Models", "count_in_200": 54},
+      {"label": "Assistant", "count_in_200": 30},
+      {"label": "discussion", "count_in_200": 19},
+      {"label": "help wanted", "count_in_200": 18},
+      {"label": "RAG", "count_in_200": 15},
+      {"label": "MCP", "count_in_200": 14},
+      {"label": "feature", "count_in_200": 12},
+      {"label": "Data", "count_in_200": 12},
+      {"label": "needs-repro", "count_in_200": 11},
+      {"label": "Connectivity", "count_in_200": 9},
+      {"label": "BUG", "count_in_200": 7},
+      {"label": "Blocked: v2", "count_in_200": 6},
+      {"label": "Performance", "count_in_200": 6},
+      {"label": "P2", "count_in_200": 4},
+      {"label": "OpenClaw", "count_in_200": 3},
+      {"label": "Agent", "count_in_200": 3},
+      {"label": "P3", "count_in_200": 3},
+      {"label": "Planned", "count_in_200": 2}
+    ],
+    "top_closed_30d_labels": [
+      {"label": "inactive", "count": 50},
+      {"label": "Models", "count": 20},
+      {"label": "UI/UX", "count": 18},
+      {"label": "feature", "count": 18},
+      {"label": "Blocked: v2", "count": 14},
+      {"label": "RAG", "count": 12},
+      {"label": "Assistant", "count": 12},
+      {"label": "Data", "count": 9},
+      {"label": "help wanted", "count": 9},
+      {"label": "discussion", "count": 9},
+      {"label": "BUG", "count": 7},
+      {"label": "MCP", "count": 6}
+    ]
+  },
+  "unlabeled": {
+    "total": 79,
+    "pct_of_total": 9.4,
+    "status": "OK — under 10% unlabeled"
+  },
+  "bug_triage": {
+    "total_open_bugs": 114,
+    "pct_of_total": 13.6,
+    "notable_clusters": [
+      "OpenClaw version/update prompt bugs (#13727, #14122, #13655) — 3 issues, possibly same root cause",
+      "MCP tool result processing (#13292)",
+      "Agent oversized message context-length error (#11688)",
+      "File read regression (#12079)"
+    ]
+  },
+  "p_priority_issues": [
     {
+      "priority": "P1",
       "number": 14899,
       "title": "[Feature]: Unified Notification Center",
-      "health": "active",
-      "labels": ["P1", "Planned", "feature", "UI/UX"],
-      "milestone": "v2.4.0",
-      "author": "SiinXu",
-      "days_since_update": 2,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
-    },
-    {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "health": "stale",
-      "labels": ["P1", "Models"],
-      "milestone": "v1.8.1 (closed milestone - issue not resolved)",
-      "days_since_update": 51,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
-      "action_required": "Stale P1 bug in closed milestone - needs triage"
-    },
-    {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions",
-      "health": "stale",
-      "labels": ["P1", "Models"],
-      "assignee": "DeJeune",
-      "days_since_update": 65,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
-      "action_required": "Assigned P1 bug stale 65 days - follow up with assignee"
+      "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "updated": "2026-05-07T05:52:49Z"
     }
   ],
-  "zombie_issues": [
-    {
-      "number": 11578,
-      "title": "Upgrade to the MCP protocol by November 25, 2025.",
-      "labels": ["MCP"],
-      "assignee": "DeJeune",
-      "created_at": "2025-11-30T10:29:08Z",
-      "last_updated": "2025-11-30T10:29:08Z",
-      "days_stale": 160,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/11578",
-      "action_required": "Review if completed or close as wontfix"
-    }
-  ],
+  "p2_issues_count": 4,
+  "p3_issues_count": 3,
   "recommendations": [
-    "2 stale P1 bugs (#13608, #13193) need immediate triage - both in Models category",
-    "80 unclassified issues (9.5%) need label triage",
-    "360 aging issues (42.8%) risk becoming stale - consider triage sprint",
-    "4 zombie issues should be reviewed for close/reopen decision",
-    "DeJeune assigned to 2 P1 issues - check capacity"
+    "Investigate and consolidate the 3 OpenClaw update-prompt bug reports (#13727, #14122, #13655) — likely same underlying issue",
+    "Triage Agent oversized-message context-length error (#11688) — affects AI core reliability",
+    "79 unlabeled issues (9.4%) — acceptable but worth a weekly triage pass",
+    "~639 issues not in recent activity window — consider a Zombie triage initiative for issues older than 90 days"
   ]
 }

@@ -1,71 +1,55 @@
 {
-  "generated_at": "2026-05-09T00:00:00Z",
-  "report_date": "2026-05-09",
+  "generated_at": "2026-05-10T00:00:00Z",
+  "report_date": "2026-05-10",
   "repository": "CherryHQ/cherry-studio",
   "branch": "v2",
-  "strategy_note": "main branch is under code freeze (hotfix/* only). All new features on v2 branch.",
+  "branch_policy": "All new features, refactoring, and optimizations. New features blocked until current feature set is fully refactored.",
   "pr_stats": {
-    "open": {
-      "total": 71,
-      "drafts": 16,
-      "ready_for_review": 55,
-      "label_breakdown": {
-        "v2": 59,
-        "Blocked_v2": 2,
-        "Pending": 1,
-        "ready_to_merge": 1
-      }
-    },
-    "merged_last_30d": {
-      "total": 46,
-      "label_breakdown": {
-        "v2": 38,
-        "UI_UX": 2,
-        "ready_to_merge": 1
-      }
-    }
+    "v2_open_prs": 37,
+    "v2_merged_last_30d": 39,
+    "v2_closed_total_fetched": 100,
+    "main_open_prs": 62,
+    "note": "v2_closed_total_fetched covers the 100 most recently closed v2 PRs. Actual historical total is higher."
   },
-  "recent_notable_prs": [
-    {
-      "number": 14968,
-      "title": "refactor(miniapp): migrate from antd/styled-components to Tailwind + @cherrystudio/ui",
-      "author": "chengcheng84",
-      "state": "open",
-      "draft": false,
-      "labels": ["v2"],
-      "created_at": "2026-05-09T15:04:40Z",
-      "url": "https://github.com/CherryHQ/cherry-studio/pull/14968",
-      "summary": "UI framework migration: antd+styled-components to Tailwind+Shadcn UI"
-    }
+  "open_v2_prs": [
+    {"number": 14982, "title": "docs(gh-pr-review): add Cherry-specific review guidance", "author": "DeJeune", "created": "2026-05-10T16:03:25Z", "age_days": 0, "category": "docs"},
+    {"number": 14970, "title": "feat(agents): add optional PowerShell tool for Windows agent sessions", "author": "AloneAtWar", "created": "2026-05-09T19:24:41Z", "age_days": 1, "category": "feat"},
+    {"number": 14968, "title": "refactor(miniapp): migrate from antd/styled-components to Tailwind + @cherrystudio/ui", "author": "chengcheng84", "created": "2026-05-09T15:04:40Z", "age_days": 1, "category": "refactor"},
+    {"number": 14943, "title": "feat(app-shell): open chat by default", "author": "kangfenmao", "created": "2026-05-08T14:01:15Z", "age_days": 2, "category": "feat"},
+    {"number": 14911, "title": "refactor(ai-service): consolidate AI runtime to main process", "author": "DeJeune", "created": "2026-05-07T11:05:01Z", "age_days": 3, "category": "refactor"},
+    {"number": 14886, "title": "fix(mcp-service): sanitize MCP call arguments to avoid unhashable type", "author": "404-Page-Found", "created": "2026-05-07T02:11:19Z", "age_days": 3, "category": "fix"},
+    {"number": 14864, "title": "feat: pin chat session name to prevent auto-renames", "author": "LWWZH", "created": "2026-05-06T11:03:58Z", "age_days": 4, "category": "feat"},
+    {"number": 14862, "title": "chore(style-reminders): add Tailwind canonical checks", "author": "kangfenmao", "created": "2026-05-06T08:50:51Z", "age_days": 4, "category": "chore"},
+    {"number": 14858, "title": "feat(i18n): add unused key cleaner", "author": "kangfenmao", "created": "2026-05-06T07:47:03Z", "age_days": 4, "category": "feat"},
+    {"number": 14788, "title": "feat: add Duplicate Topic feature", "author": "LWWZH", "created": "2026-05-02T09:16:55Z", "age_days": 8, "category": "feat"},
+    {"number": 14760, "title": "fix(chat-layout): restore chat composer sizing and anchor messages to bottom", "author": "ousugo", "created": "2026-04-30T22:05:46Z", "age_days": 10, "category": "fix"},
+    {"number": 14734, "title": "feat(v2): knowledge ui migration", "author": "eeee0717", "created": "2026-04-30T02:27:50Z", "age_days": 10, "category": "feat"},
+    {"number": 14728, "title": "feat(provider): support Responses API endpoint for Volcengine provider", "author": "Saigut", "created": "2026-04-29T16:40:28Z", "age_days": 11, "category": "feat"},
+    {"number": 14631, "title": "Refactor provider settings with v2 data layer and UI", "author": "jidan745le", "created": "2026-04-26T16:22:56Z", "age_days": 14, "category": "refactor"},
+    {"number": 14562, "title": "fix(code-tools): improve dark mode visibility", "author": "Raymond8196", "created": "2026-04-24T10:02:33Z", "age_days": 16, "category": "fix"},
+    {"number": 14351, "title": "refactor(translate): rebuild translate page on @cherrystudio/ui", "author": "zhangjiadi225", "created": "2026-04-17T13:28:56Z", "age_days": 23, "category": "refactor"},
+    {"number": 14313, "title": "feat(data): migrate paintings to v2 data architecture", "author": "jidan745le", "created": "2026-04-16T11:44:41Z", "age_days": 24, "category": "feat", "flag": "long-running"},
+    {"number": 13451, "title": "feat(file): Add schema and foundation for new file module", "author": "EurFelux", "created": "2026-03-14T06:13:45Z", "age_days": 57, "category": "feat", "flag": "long-running"},
+    {"number": 12060, "title": "feat: context menu", "author": "DeJeune", "created": "2025-12-21T11:04:10Z", "age_days": 140, "category": "feat", "flag": "long-running"},
+    {"number": 10090, "title": "[WIP] feat: terminal", "author": "EurFelux", "created": "2025-09-10T14:38:38Z", "age_days": 242, "category": "feat", "flag": "WIP — very long-running"}
   ],
-  "recent_merged": [
-    {
-      "number": 14965,
-      "title": "hotfix(agents): report 1M context for DeepSeek V4+ pro on official host",
-      "author": "DeJeune",
-      "merged_at": "2026-05-09T13:20:57Z",
-      "base": "main (hotfix)",
-      "url": "https://github.com/CherryHQ/cherry-studio/pull/14965",
-      "summary": "Fix DeepSeek V4+ context window showing 200K instead of 1M for api.deepseek.com"
-    }
+  "active_contributors_v2": [
+    "kangfenmao", "DeJeune", "jidan745le", "LWWZH", "EurFelux",
+    "eeee0717", "chengcheng84", "AloneAtWar", "zhangjiadi225"
   ],
-  "milestones": [
-    {
-      "title": "v2.4.0",
-      "state": "open",
-      "open_issues": 2,
-      "closed_issues": 0,
-      "created_at": "2026-04-30T05:29:58Z",
-      "note": "Contains P1 Notification Center feature (#14899)"
-    }
+  "v2_refactor_areas_in_progress": [
+    "Data architecture — paintings (PR #14313)",
+    "Provider settings UI (PR #14631)",
+    "Knowledge UI migration (PR #14734)",
+    "Translate page (@cherrystudio/ui, PR #14351)",
+    "MiniApp — Tailwind migration (PR #14968)",
+    "AI service consolidation to main process (PR #14911)",
+    "App shell / chat layout (PR #14943, #14760)"
   ],
-  "v2_blocked_issues": {
-    "count": 6,
-    "note": "Issues labeled 'Blocked: v2' on page-1 sample; full count may be higher"
-  },
-  "velocity": {
-    "merged_prs_last_30d_v2_branch": 46,
-    "merged_prs_last_30d_all": 139,
-    "v2_share_pct": 33.1
-  }
+  "long_running_pr_alerts": [
+    {"number": 10090, "title": "[WIP] feat: terminal", "age_days": 242, "author": "EurFelux"},
+    {"number": 12060, "title": "feat: context menu", "age_days": 140, "author": "DeJeune"},
+    {"number": 13451, "title": "feat(file): Add schema and foundation for new file module", "age_days": 57, "author": "EurFelux"},
+    {"number": 14313, "title": "feat(data): migrate paintings to v2 data architecture", "age_days": 24, "author": "jidan745le"}
+  ]
 }
