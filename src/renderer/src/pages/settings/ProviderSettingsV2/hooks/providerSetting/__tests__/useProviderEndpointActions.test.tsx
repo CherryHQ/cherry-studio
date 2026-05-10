@@ -102,7 +102,7 @@ describe('useProviderEndpointActions', () => {
     )
 
     await act(async () => {
-      result.current.commitApiHost()
+      await result.current.commitApiHost()
       await flushEndpointAction()
     })
 
@@ -143,7 +143,7 @@ describe('useProviderEndpointActions', () => {
     expect(patchProviderMock).toHaveBeenCalledTimes(1)
 
     await act(async () => {
-      result.current.commitApiHost()
+      await result.current.commitApiHost()
       await flushEndpointAction()
     })
 
@@ -169,7 +169,7 @@ describe('useProviderEndpointActions', () => {
     )
 
     await act(async () => {
-      result.current.commitApiHost()
+      await result.current.commitApiHost()
       await flushEndpointAction()
     })
 
@@ -209,7 +209,7 @@ describe('useProviderEndpointActions', () => {
     )
 
     await act(async () => {
-      result.current.commitApiHost()
+      await result.current.commitApiHost()
       await flushEndpointAction()
     })
 
