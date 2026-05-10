@@ -99,10 +99,10 @@ const RetrievalSection = ({
       ) : null}
 
       <div>
-        <RagFieldLabel label={t('models.rerank_model')} hint={t('knowledge_v2.rag.hints.rerank_model')} />
+        <RagFieldLabel label={t('knowledge_v2.rag.rerank_model')} hint={t('knowledge_v2.rag.hints.rerank_model')} />
         <RagSelectField
           value={rerankModelId ?? EMPTY_OPTION_VALUE}
-          options={[{ value: EMPTY_OPTION_VALUE, label: t('knowledge_v2.not_set') }, ...rerankModelOptions]}
+          options={[{ value: EMPTY_OPTION_VALUE, label: t('knowledge_v2.rag.rerank_disabled') }, ...rerankModelOptions]}
           onValueChange={(value) => onRerankModelChange(value === EMPTY_OPTION_VALUE ? null : value)}
         />
       </div>

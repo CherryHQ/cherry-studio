@@ -1,5 +1,6 @@
 import { Button, Scrollbar } from '@cherrystudio/ui'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -9,6 +10,8 @@ import ChunkingSection from './ChunkingSection'
 import EmbeddingSection from './EmbeddingSection'
 import FileProcessingSection from './FileProcessingSection'
 import RetrievalSection from './RetrievalSection'
+
+const RAG_SECTION_DIVIDER = <div className="border-border/15 border-t" />
 
 export interface KnowledgeRestoreBaseInitialValues {
   embeddingModelId?: string | null
@@ -81,7 +84,7 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
 
     try {
       await save(values)
-      window.toast.success(t('common.saved'))
+      window.toast.success(t('knowledge_v2.rag.saved'))
     } catch {
       window.toast.error(t('knowledge_v2.error.failed_to_edit'))
     }
@@ -98,6 +101,8 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
           }
         />
 
+        {RAG_SECTION_DIVIDER}
+
         <ChunkingSection
           chunkSize={values.chunkSize}
           chunkOverlap={values.chunkOverlap}
@@ -111,6 +116,8 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
           }
         />
 
+        {RAG_SECTION_DIVIDER}
+
         <EmbeddingSection
           embeddingModelId={values.embeddingModelId}
           embeddingModelOptions={embeddingModelOptions}
@@ -123,6 +130,8 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
             setValues((currentValues) => ({ ...currentValues, dimensions: dimensions.replace(/\D/g, '') }))
           }
         />
+
+        {RAG_SECTION_DIVIDER}
 
         <RetrievalSection
           searchModeOptions={searchModeOptions}
@@ -144,17 +153,19 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
             type="button"
             variant="ghost"
             disabled={!isDirty || isLoading}
-            className="h-6 min-h-6 rounded-md px-3 text-muted-foreground/50 text-sm leading-5 shadow-none hover:bg-accent/60 hover:text-foreground"
+            className="h-8 min-h-8 rounded-xl px-3 text-muted-foreground text-sm leading-5 shadow-none hover:bg-accent hover:text-foreground"
             onClick={() => setValues(initialValues)}>
-            {t('common.reset')}
+            <RotateCcw className="size-3.5" />
+            {t('knowledge_v2.rag.reset_action')}
           </Button>
           <Button
             type="button"
+            variant="default"
             loading={isLoading}
             disabled={!canSave}
-            className="h-6 min-h-6 rounded-md bg-emerald-400 px-3 text-sm text-white leading-5 shadow-none hover:bg-emerald-500"
+            className="h-8 min-h-8 rounded-xl px-6 text-sm leading-5 shadow-none"
             onClick={handleSave}>
-            {embeddingConfigChanged ? t('knowledge_v2.restore.submit') : t('common.save')}
+            {embeddingConfigChanged ? t('knowledge_v2.restore.submit') : t('knowledge_v2.rag.save_action')}
           </Button>
         </div>
       </div>

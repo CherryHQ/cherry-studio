@@ -101,9 +101,6 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       (
         ({
-          'common.reset': '重置',
-          'common.save': '保存',
-          'common.saved': '已保存',
           'knowledge_v2.error.failed_base_unknown': '该知识库迁移失败，请重建知识库并选择新的嵌入模型。',
           'knowledge_v2.error.failed_to_edit': '保存失败',
           'knowledge_v2.error.missing_embedding_model':
@@ -115,11 +112,13 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.restore.submit': '重建',
           'knowledge_v2.status.failed': '失败',
           'knowledge.dimensions_error_invalid': '无效的嵌入维度',
-          'models.rerank_model': 'Rerank 模型',
-          'knowledge_v2.rag.document_count': '文档数量',
-          'knowledge_v2.rag.file_processing': '文件处理',
+          'knowledge_v2.rag.dimensions': '向量维度',
+          'knowledge_v2.rag.document_count': '请求文档片段数 (Top K)',
+          'knowledge_v2.rag.embedding_model': 'Embedding 模型',
+          'knowledge_v2.rag.embedding_model_select': '模型选择',
+          'knowledge_v2.rag.file_processing': '文档预处理',
           'knowledge_v2.rag.file_processing_hint':
-            '文件处理会在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量',
+            '文档预处理将在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量',
           'knowledge_v2.rag.processor': '处理服务商',
           'knowledge_v2.rag.chunk_size': '分块大小',
           'knowledge_v2.rag.chunk_overlap': '分块重叠',
@@ -134,6 +133,12 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.rag.search_mode.hybrid': '混合检索（推荐）',
           'knowledge_v2.rag.hybrid_alpha': 'Hybrid Alpha',
           'knowledge_v2.rag.hybrid_alpha_hint': '仅在 Hybrid 检索模式下可配置',
+          'knowledge_v2.rag.refresh_dimensions': '刷新向量维度',
+          'knowledge_v2.rag.rerank_disabled': '不使用',
+          'knowledge_v2.rag.rerank_model': '重排模型 (Rerank)',
+          'knowledge_v2.rag.reset_action': '恢复默认',
+          'knowledge_v2.rag.save_action': '保存',
+          'knowledge_v2.rag.saved': '已保存',
           'knowledge_v2.rag.hints.embedding_model': '用于将知识库内容转换为向量。',
           'knowledge_v2.rag.hints.dimensions': '当前嵌入模型输出的向量维度。',
           'knowledge_v2.rag.hints.processor': '导入文件时使用的解析处理服务。',
@@ -231,7 +236,7 @@ describe('RagConfigPanel', () => {
       'justify-center'
     )
     expect(screen.getByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')).toBeInTheDocument()
-    expect(screen.queryByText('文件处理')).not.toBeInTheDocument()
+    expect(screen.queryByText('文档预处理')).not.toBeInTheDocument()
     expect(screen.queryByText('分块规则')).not.toBeInTheDocument()
     expect(screen.queryByText('Embedding 模型')).not.toBeInTheDocument()
     expect(screen.queryByText('检索设置')).not.toBeInTheDocument()
@@ -246,8 +251,14 @@ describe('RagConfigPanel', () => {
     renderRagConfigPanel()
 
     expect(screen.queryByText('separatorRule')).not.toBeInTheDocument()
+    expect(screen.queryByText('分隔符规则')).not.toBeInTheDocument()
+    expect(screen.getByText('文档预处理')).toBeInTheDocument()
+    expect(screen.getByText('请求文档片段数 (Top K)')).toBeInTheDocument()
+    expect(screen.getByText('重排模型 (Rerank)')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '不使用' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'text-embedding-3-small · openai' })).toBeInTheDocument()
     expect(screen.getByDisplayValue('1536')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '刷新向量维度' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '获取嵌入维度' })).not.toBeInTheDocument()
     expect(screen.getByDisplayValue('512')).toBeInTheDocument()
     expect(screen.getByDisplayValue('64')).toBeInTheDocument()

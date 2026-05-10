@@ -1,4 +1,5 @@
-import { DatabaseZap } from 'lucide-react'
+import { Button } from '@cherrystudio/ui'
+import { Cpu, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { KnowledgeSelectOption } from '../../types'
@@ -25,11 +26,14 @@ const EmbeddingSection = ({
 
   return (
     <section className="space-y-2.5">
-      <RagSectionTitle title={t('knowledge_v2.embedding_model')} icon={DatabaseZap} />
+      <RagSectionTitle title={t('knowledge_v2.rag.embedding_model')} icon={Cpu} />
 
       <div className="grid grid-cols-[minmax(0,1fr)_8.75rem] gap-2">
         <div>
-          <RagFieldLabel label={t('knowledge_v2.embedding_model')} hint={t('knowledge_v2.rag.hints.embedding_model')} />
+          <RagFieldLabel
+            label={t('knowledge_v2.rag.embedding_model_select')}
+            hint={t('knowledge_v2.rag.hints.embedding_model')}
+          />
           <RagSelectField
             value={embeddingModelId ?? undefined}
             options={embeddingModelOptions}
@@ -39,12 +43,22 @@ const EmbeddingSection = ({
         </div>
 
         <div>
-          <RagNumericField
-            label={t('knowledge_v2.dimensions')}
-            value={dimensions}
-            hint={t('knowledge_v2.rag.hints.dimensions')}
-            onChange={onDimensionsChange}
-          />
+          <div>
+            <RagFieldLabel label={t('knowledge_v2.rag.dimensions')} hint={t('knowledge_v2.rag.hints.dimensions')} />
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <RagNumericField value={dimensions} onChange={onDimensionsChange} />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label={t('knowledge_v2.rag.refresh_dimensions')}
+                className="size-7.5 min-h-0 shrink-0 rounded-md border-border/40 p-0 text-muted-foreground/40 shadow-none hover:bg-accent hover:text-foreground">
+                <RefreshCw className="size-2.5" />
+              </Button>
+            </div>
+          </div>
           {dimensionsErrorCode === 'dimensionsInvalid' ? (
             <div className="mt-1 text-destructive text-sm leading-4">{t('knowledge.dimensions_error_invalid')}</div>
           ) : null}

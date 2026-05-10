@@ -1,5 +1,5 @@
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
-import { Bot } from 'lucide-react'
+import { MessageSquare } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { RagFieldLabel, RagHintText, RagSectionTitle, RagSelectField } from './panelPrimitives'
@@ -21,7 +21,7 @@ const FileProcessingSection = ({
 
   return (
     <section className="space-y-2.5">
-      <RagSectionTitle title={t('knowledge_v2.rag.file_processing')} icon={Bot} />
+      <RagSectionTitle title={t('knowledge_v2.rag.file_processing')} icon={MessageSquare} />
 
       <div>
         <RagFieldLabel label={t('knowledge_v2.rag.processor')} hint={t('knowledge_v2.rag.hints.processor')} />

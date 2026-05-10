@@ -1,4 +1,4 @@
-import { Layers3 } from 'lucide-react'
+import { Layers } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { KnowledgeRagChunkValidationErrorCode } from '../../utils'
@@ -37,7 +37,7 @@ const ChunkingSection = ({
 
   return (
     <section className="space-y-2.5">
-      <RagSectionTitle title={t('knowledge_v2.rag.chunking')} icon={Layers3} />
+      <RagSectionTitle title={t('knowledge_v2.rag.chunking')} icon={Layers} />
 
       <div className="grid grid-cols-2 gap-2">
         <RagNumericField
