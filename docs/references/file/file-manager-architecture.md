@@ -1009,27 +1009,33 @@ function shouldAbort(
 
 ### 10.5 Observability
 
-Every sweep run emits one structured log record through `loggerService` — `info` on normal completion, `warn` on abort, `error` on unexpected failure caught by `.catch()`:
+Every sweep run emits one structured log record through `loggerService` — `info` on normal completion, `warn` on partial / aborted outcomes, `error` on unexpected failure caught by `.catch()`:
 
 ```typescript
 {
-  event: 'orphan-sweep',
-  outcome: 'completed' | 'aborted' | 'failed',
+  event: 'orphan-file-sweep',          // disambiguates from the DB-side 'orphan-sweep' (§7 / RFC §6.4)
+  outcome: 'completed' | 'partial' | 'aborted' | 'failed',
   entriesInDb: number,
-  filesOnDisk: number,          // UUID files + tmp files enumerated
-  bytesOnDisk: number,
+  direntsScanned: number,              // total readdir entries (informational)
+  filesOnDisk: number,                 // UUID files + tmp residue candidates only
+  bytesOnDisk: number,                 // bytes of candidates (drives the abort fraction math)
   plannedDeleteCount: number,
   plannedDeleteBytes: number,
-  actualDeleteCount: number,    // 0 on aborted / failed
+  actualDeleteCount: number,           // 0 on aborted / failed
   actualDeleteBytes: number,
-  oldestDeletedMtime?: number,  // ms epoch of the oldest file unlinked this run
+  oldestDeletedMtime?: number,         // ms epoch of the oldest file unlinked this run
+  statFailedCount: number,             // non-ENOENT stat errors during planning
   scanDurationMs: number,
-  abortReason?: 'count-fraction' | 'byte-fraction',
-  errorMessage?: string,        // only on 'failed'
+  // outcome-specific fields (discriminated union):
+  // 'partial':  failedDeleteCount: number, failedSamples: readonly string[]  (capped at 5)
+  // 'aborted':  abortReason: 'count-fraction' | 'byte-fraction'
+  // 'failed':   errorMessage: string
 }
 ```
 
-This record is the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — one record per app startup is a trivial volume for log aggregation.
+The DB-side sweep emits a parallel record under `event: 'orphan-sweep'` — same outcome union (minus `'aborted'`, which only applies to the FS sweep's safety threshold) and `errorsByType: Partial<Record<FileRefSourceType, string>>` on the `'partial'` branch (per-sourceType isolation per RFC §6.4).
+
+These two records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — at most two records per app startup is a trivial volume for log aggregation.
 
 ### 10.6 DanglingCache Initialization
 
