@@ -5,7 +5,6 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuItemContent,
   ContextMenuSeparator,
   ContextMenuTrigger,
   EmptyState,
@@ -604,16 +603,15 @@ const SkillsSettings: FC = () => {
                           <ContextMenuItem onSelect={() => setMultiSelectMode(true)}>
                             {t('settings.skills.multiSelect')}
                           </ContextMenuItem>
-                          {!isBuiltin && (
+                          {!isBuiltin ? (
                             <>
                               <ContextMenuSeparator />
                               <ContextMenuItem variant="destructive" onSelect={() => handleContextMenuUninstall(skill)}>
-                                <ContextMenuItemContent icon={<Trash2 size={14} />}>
-                                  {t('settings.skills.uninstall')}
-                                </ContextMenuItemContent>
+                                <Trash2 size={14} />
+                                {t('settings.skills.uninstall')}
                               </ContextMenuItem>
                             </>
-                          )}
+                          ) : null}
                         </ContextMenuContent>
                       </ContextMenu>
                     )

@@ -1,12 +1,4 @@
-import {
-  Button,
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -15,6 +7,7 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import { Dropdown } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -145,35 +138,37 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               key={item.id}
               fileInfo={{
                 name: (
-                  <ContextMenu>
-                    <ContextMenuTrigger asChild>
-                      <ClickableSpan>
-                        <Tooltip content={item.content as string}>
-                          <Ellipsis>
-                            <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                              {item.remark || (item.content as string)}
-                            </a>
-                          </Ellipsis>
-                        </Tooltip>
-                      </ClickableSpan>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>
-                      <ContextMenuItem onSelect={() => handleEditRemark(item)}>
-                        <ContextMenuItemContent icon={<EditIcon size={14} />}>
-                          {t('knowledge.edit_remark')}
-                        </ContextMenuItemContent>
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        onSelect={() => {
-                          void navigator.clipboard.writeText(item.content as string)
-                          window.toast.success(t('message.copied'))
-                        }}>
-                        <ContextMenuItemContent icon={<CopyIcon size={14} />}>
-                          {t('common.copy')}
-                        </ContextMenuItemContent>
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                  </ContextMenu>
+                  <Dropdown
+                    menu={{
+                      items: [
+                        {
+                          key: 'edit',
+                          icon: <EditIcon size={14} />,
+                          label: t('knowledge.edit_remark'),
+                          onClick: () => handleEditRemark(item)
+                        },
+                        {
+                          key: 'copy',
+                          icon: <CopyIcon size={14} />,
+                          label: t('common.copy'),
+                          onClick: () => {
+                            void navigator.clipboard.writeText(item.content as string)
+                            window.toast.success(t('message.copied'))
+                          }
+                        }
+                      ]
+                    }}
+                    trigger={['contextMenu']}>
+                    <ClickableSpan>
+                      <Tooltip content={item.content as string}>
+                        <Ellipsis>
+                          <a href={item.content as string} target="_blank" rel="noopener noreferrer">
+                            {item.remark || (item.content as string)}
+                          </a>
+                        </Ellipsis>
+                      </Tooltip>
+                    </ClickableSpan>
+                  </Dropdown>
                 ),
                 ext: '.url',
                 extra: getDisplayTime(item),
