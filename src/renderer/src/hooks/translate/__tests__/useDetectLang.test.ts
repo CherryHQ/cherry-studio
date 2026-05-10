@@ -1,10 +1,10 @@
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { mockUsePreference } from '@test-mocks/renderer/usePreference'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { mockRendererLoggerService } from '../../../../../../tests/__mocks__/RendererLoggerService'
 import type { Chunk } from '../../../types/chunk'
 import { ChunkType } from '../../../types/chunk'
 import { UNKNOWN_LANG_CODE } from '../../../utils/translate'
