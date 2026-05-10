@@ -380,7 +380,7 @@ export class SkillService {
     try {
       const entries = await fs.promises.readdir(skillsDir, { withFileTypes: true })
       for (const entry of entries) {
-        if (!entry.isDirectory()) continue
+        if (!(await this.isLocalSkillDirectoryEntry(skillsDir, entry))) continue
         try {
           const skillPath = path.join(skillsDir, entry.name)
           const metadata = await parseSkillMetadata(skillPath, entry.name, 'skills')
@@ -403,6 +403,53 @@ export class SkillService {
     }
 
     return results
+  }
+
+  /**
+   * `listLocal` is only for user/project-owned workspace skills that already
+   * live under `.claude/skills/`. Those entries can be real directories or
+   * user-created symlinks to directories.
+   *
+   * Cherry-managed skills also appear under `.claude/skills/` as symlinks when
+   * enabled for Claude SDK discovery, but their source of truth is
+   * `agent_global_skill` and they are rendered by `list({ agentId })`. Keep
+   * them out of this local-only list.
+   */
+  private async isLocalSkillDirectoryEntry(skillsDir: string, entry: fs.Dirent): Promise<boolean> {
+    if (entry.isDirectory()) return true
+    if (!entry.isSymbolicLink()) return false
+
+    const entryPath = path.join(skillsDir, entry.name)
+    try {
+      const stats = await fs.promises.stat(entryPath)
+      if (!stats.isDirectory()) return false
+      if (await this.isManagedSkillSymlinkTarget(entryPath)) return false
+      return true
+    } catch (error) {
+      logger.warn('Failed to resolve local skill symlink; skipping', {
+        skillsDir,
+        entry: entry.name,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return false
+    }
+  }
+
+  /**
+   * `linkSkill()` creates workspace symlinks that point back into the app-owned
+   * global skill storage. Those are managed DB-backed skills, not independent
+   * local workspace skills.
+   */
+  private async isManagedSkillSymlinkTarget(entryPath: string): Promise<boolean> {
+    try {
+      const [entryRealPath, skillsRootRealPath] = await Promise.all([
+        fs.promises.realpath(entryPath),
+        fs.promises.realpath(application.getPath('feature.agents.skills'))
+      ])
+      return entryRealPath === skillsRootRealPath || entryRealPath.startsWith(skillsRootRealPath + path.sep)
+    } catch {
+      return false
+    }
   }
 
   // ===========================================================================
