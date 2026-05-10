@@ -1,20 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getAllMock, getByIdMock, createMock, updateMock, deleteMock, reorderMock, reorderBatchMock } = vi.hoisted(
-  () => ({
-    getAllMock: vi.fn(),
-    getByIdMock: vi.fn(),
-    createMock: vi.fn(),
-    updateMock: vi.fn(),
-    deleteMock: vi.fn(),
-    reorderMock: vi.fn(),
-    reorderBatchMock: vi.fn()
-  })
-)
+const { listMock, getByIdMock, createMock, updateMock, deleteMock, reorderMock, reorderBatchMock } = vi.hoisted(() => ({
+  listMock: vi.fn(),
+  getByIdMock: vi.fn(),
+  createMock: vi.fn(),
+  updateMock: vi.fn(),
+  deleteMock: vi.fn(),
+  reorderMock: vi.fn(),
+  reorderBatchMock: vi.fn()
+}))
 
 vi.mock('@data/services/PromptService', () => ({
   promptService: {
-    getAll: getAllMock,
+    list: listMock,
     getById: getByIdMock,
     create: createMock,
     update: updateMock,
@@ -41,10 +39,26 @@ describe('promptHandlers', () => {
   })
 
   describe('/prompts', () => {
-    it('should delegate GET to promptService.getAll', async () => {
-      getAllMock.mockResolvedValueOnce([{ id: PROMPT_ID, title: 't', content: 'c' }])
+    it('should delegate GET to promptService.list', async () => {
+      listMock.mockResolvedValueOnce([{ id: PROMPT_ID, title: 't', content: 'c' }])
       await expect(promptHandlers['/prompts'].GET({} as never)).resolves.toMatchObject([{ id: PROMPT_ID }])
-      expect(getAllMock).toHaveBeenCalledOnce()
+      expect(listMock).toHaveBeenCalledWith({})
+    })
+
+    it('should parse and forward search query to promptService.list', async () => {
+      listMock.mockResolvedValueOnce([])
+
+      await expect(promptHandlers['/prompts'].GET({ query: { search: ' daily ' } } as never)).resolves.toEqual([])
+
+      expect(listMock).toHaveBeenCalledWith({ search: 'daily' })
+    })
+
+    it('should reject empty search query before calling the service', async () => {
+      await expect(promptHandlers['/prompts'].GET({ query: { search: '   ' } } as never)).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
+      expect(listMock).not.toHaveBeenCalled()
     })
 
     it('should delegate POST with title/content only', async () => {

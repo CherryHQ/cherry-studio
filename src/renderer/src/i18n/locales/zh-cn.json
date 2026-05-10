@@ -938,6 +938,7 @@
         "agent": "导出助手"
       },
       "import": {
+        "action": "导入助手",
         "button": "导入",
         "error": {
           "fetch_failed": "从 URL 获取数据失败",
@@ -2232,6 +2233,470 @@
   "launchpad": {
     "apps": "应用",
     "miniApps": "小程序"
+  },
+  "library": {
+    "action": {
+      "create": "新建",
+      "delete": "删除",
+      "disable": "禁用",
+      "duplicate": "复制",
+      "edit": "编辑",
+      "enable": "启用",
+      "manage_tags": "管理标签",
+      "uninstall": "卸载"
+    },
+    "assistant_catalog": {
+      "add": "添加",
+      "add_failed": "添加助手失败",
+      "browse_label": "助手分类",
+      "empty_description": "这个分类下暂时没有助手预设",
+      "empty_title": "暂无可添加助手",
+      "mine": "我的",
+      "no_match_description": "尝试其他搜索关键词",
+      "no_match_title": "未找到匹配的助手",
+      "preview": "预览",
+      "preview_description": "简介",
+      "preview_prompt": "提示词",
+      "scroll_left": "向左滚动分类",
+      "scroll_right": "向右滚动分类"
+    },
+    "badge": {
+      "update": "更新"
+    },
+    "config": {
+      "agent": {
+        "create_banner": "保存后才能绑定工具和 MCP 服务",
+        "create_title": "新建智能体",
+        "field": {
+          "accessible_paths": {
+            "add": "添加目录",
+            "empty": "未设置（将使用默认工作区）",
+            "hint": "限制 Agent 可访问的目录",
+            "label": "可访问目录"
+          },
+          "allowed_tools": {
+            "add": "添加工具",
+            "empty": "留空则使用权限模式默认值",
+            "label": "允许使用的工具"
+          },
+          "avatar": {
+            "hint": "用于资源库和会话识别"
+          },
+          "description": {
+            "hint": "帮助你快速识别用途",
+            "label": "描述",
+            "placeholder": "这个 Agent 的用途…"
+          },
+          "env_vars": {
+            "help": "每行一个 KEY=VALUE",
+            "label": "环境变量"
+          },
+          "heartbeat_enabled": {
+            "label": "心跳检测"
+          },
+          "heartbeat_interval": {
+            "label": "心跳间隔 (分钟)"
+          },
+          "instructions": {
+            "hint": "定义 Agent 的角色和行为边界",
+            "label": "系统提示词",
+            "placeholder": "告诉 Agent 它是谁、它能做什么…"
+          },
+          "max_turns": {
+            "help": "0 表示使用默认值",
+            "label": "最大对话轮数"
+          },
+          "mcps": {
+            "add": "添加 MCP 服务",
+            "empty": "未绑定",
+            "label": "MCP 服务 (id)"
+          },
+          "model": {
+            "help": "UniqueModelId,后续版本将改为从 /models 选择",
+            "hint": "负责主要推理和执行",
+            "label": "主模型 (必填)"
+          },
+          "name": {
+            "hint": "展示在资源库和会话列表中",
+            "label": "Agent 名称",
+            "placeholder": "给 Agent 起个名字"
+          },
+          "permission_mode": {
+            "help": "切换到 bypassPermissions 等同于启用 Soul 模式",
+            "label": "权限模式",
+            "option": {
+              "acceptEdits": "接受编辑",
+              "bypassPermissions": "绕过权限 (Soul)",
+              "default": "默认",
+              "plan": "Plan 模式"
+            }
+          },
+          "plan_model": {
+            "hint": "负责任务拆解和决策",
+            "label": "Plan 模型 (可选)"
+          },
+          "small_model": {
+            "hint": "负责简单判断和格式化",
+            "label": "Small 模型 (可选)"
+          },
+          "soul_enabled": {
+            "help": "启用后自动授予 bypassPermissions 权限",
+            "label": "Soul 模式"
+          }
+        },
+        "model_config": "模型配置",
+        "section": {
+          "advanced": {
+            "desc": "最大轮次与环境变量",
+            "label": "高级设置",
+            "title": "高级设置"
+          },
+          "basic": {
+            "desc": "名称、头像、模型、目录、运行时",
+            "label": "基础设置",
+            "title": "基础设置"
+          },
+          "permission": {
+            "desc": "控制 Agent 可执行操作的授权范围",
+            "label": "权限模式",
+            "title": "权限模式"
+          },
+          "prompt": {
+            "desc": "系统提示词 / 行为约束",
+            "label": "提示词",
+            "title": "提示词"
+          },
+          "tools": {
+            "add": "添加",
+            "desc": "配置智能体可使用的工具和 MCP Server",
+            "label": "工具",
+            "no_builtin_enabled": "未启用任何内置工具",
+            "no_mcp_bound": "未绑定任何 MCP 服务",
+            "no_skills_enabled": "未启用任何技能",
+            "search_placeholder": "搜索工具或 Server...",
+            "skills_coming_soon": "Skill 绑定即将支持",
+            "skills_require_save": "保存后才能启用技能",
+            "tab": {
+              "mcp": "MCP Server",
+              "skills": "Skills",
+              "tools": "内置工具"
+            },
+            "title": "能力扩展"
+          }
+        }
+      },
+      "basic": {
+        "context_count": "上下文数",
+        "creative": "创意",
+        "custom_params": "自定义参数",
+        "custom_params_add": "添加参数",
+        "custom_params_name": "参数名",
+        "default_value": "模型默认",
+        "desc": "填写头像、名称、简介和系统提示词",
+        "description_label": "简介",
+        "field": {
+          "avatar": {
+            "hint": "用于在资源库和对话中识别助手"
+          },
+          "context_count": {
+            "hint": "保留为上下文的最近消息数量"
+          },
+          "custom_params": {
+            "hint": "随请求发送给模型服务商的额外参数"
+          },
+          "description": {
+            "hint": "帮助快速区分这个助手的用途",
+            "placeholder": "这个助手的用途..."
+          },
+          "max_tokens": {
+            "hint": "启用后限制回复长度"
+          },
+          "max_tool_calls": {
+            "hint": "启用后限制工具调用轮次"
+          },
+          "model": {
+            "hint": "覆盖该助手使用的全局默认模型"
+          },
+          "name": {
+            "hint": "展示在资源库和助手选择器中",
+            "placeholder": "给助手起个名字"
+          },
+          "stream_output": {
+            "hint": "生成时逐步显示回复内容"
+          },
+          "tags": {
+            "hint": "用于筛选和整理助手"
+          },
+          "temperature": {
+            "hint": "启用后控制回复随机性"
+          },
+          "tool_use_mode": {
+            "hint": "控制工具如何暴露给模型"
+          },
+          "top_p": {
+            "hint": "启用后限制采样范围"
+          }
+        },
+        "json_invalid": "JSON 格式错误",
+        "max_tokens": "最大 Token 数",
+        "max_tool_calls": "最大工具调用次数",
+        "model": "默认模型",
+        "model_clear": "清空",
+        "model_not_found": "模型未找到(可能被删除):{{id}}",
+        "model_pick": "+ 选择模型",
+        "pick_avatar": "选择头像",
+        "precise": "精确",
+        "stream_output": "流式输出",
+        "tag_empty": "没有可选的标签",
+        "tag_hint": "如需新增标签,请在资源库顶部栏的「+ 标签」入口创建",
+        "tag_placeholder": "选择标签",
+        "tag_search": "搜索标签",
+        "tags": "标签",
+        "temperature": "模型温度",
+        "title": "基础设置",
+        "tool_use_function": "函数",
+        "tool_use_mode": "工具调用方式",
+        "tool_use_prompt": "Prompt",
+        "top_p": "Top-P",
+        "unlimited": "不限"
+      },
+      "breadcrumb": "资源库",
+      "knowledge": {
+        "add": "添加知识库",
+        "desc": "关联一个或多个知识库,对话时会在知识库中检索相关内容",
+        "doc_count": "{{count}} 文档",
+        "empty_desc": "关联知识库后,助手可以根据文档内容回答问题",
+        "empty_title": "暂未关联知识库",
+        "invalid_suffix": "... (已失效)",
+        "linked": "已关联知识库",
+        "linked_hint": "控制该助手可以检索哪些知识库",
+        "no_more": "没有更多可用的知识库",
+        "remove_aria": "移除",
+        "search": "搜索知识库...",
+        "title": "知识库关联"
+      },
+      "prompt": {
+        "create_title": "新建 Prompt",
+        "dblclick_hint": "双击预览区可切回编辑",
+        "desc": "系统提示词将作为该助手的上下文开头发送给模型",
+        "edit_title": "编辑 Prompt",
+        "field": {
+          "content": {
+            "label": "内容",
+            "too_long": "内容不能超过 {{max}} 个字符"
+          },
+          "name": {
+            "label": "名称",
+            "too_long": "名称不能超过 {{max}} 个字符"
+          }
+        },
+        "generate": "生成提示词",
+        "insert_variable": "插入变量",
+        "label": "系统提示词",
+        "placeholder": "在这里输入系统提示词,支持 {{date}} / {{model_name}} 等变量...",
+        "title": "提示词",
+        "tokens_label": "Tokens: ",
+        "variables_title": "可用的变量",
+        "vars": {
+          "arch": "CPU 架构",
+          "date": "日期",
+          "datetime": "日期和时间",
+          "language": "语言",
+          "model_name": "模型名称",
+          "os": "操作系统",
+          "time": "时间",
+          "username": "用户名"
+        }
+      },
+      "save_failed": "保存失败",
+      "saving": "保存中...",
+      "section": {
+        "basic": {
+          "desc": "头像、名称、简介、系统提示词",
+          "label": "基础设置"
+        },
+        "knowledge": {
+          "desc": "关联知识库、检索策略",
+          "label": "知识库"
+        },
+        "more": {
+          "desc": "模型、标签和参数",
+          "label": "更多设置"
+        },
+        "prompt": {
+          "desc": "系统提示词与变量",
+          "label": "提示词"
+        },
+        "tools": {
+          "desc": "MCP 服务与工具配置",
+          "label": "工具"
+        }
+      },
+      "tools": {
+        "add_mcp": "添加 MCP 服务",
+        "added": "已添加的 MCP 服务",
+        "added_hint": "手动模式只会暴露这里添加的服务",
+        "desc": "配置该助手在对话中可以调用的 MCP 服务",
+        "empty_desc": "添加 MCP 服务后,助手可以调用外部工具",
+        "empty_title": "暂未添加 MCP 服务",
+        "inactive_badge": "未启用",
+        "info_main": "MCP (Model Context Protocol) 允许模型安全地调用外部工具。",
+        "info_sub": "仅启用必要的服务可以提高安全性和响应速度。",
+        "mode": {
+          "auto": {
+            "desc": "由模型按需决定调用哪些已启用的 MCP 工具",
+            "label": "自动"
+          },
+          "disabled": {
+            "desc": "对话中不启用任何 MCP 工具",
+            "label": "禁用"
+          },
+          "manual": {
+            "desc": "只暴露下方被勾选的 MCP 服务",
+            "label": "手动"
+          }
+        },
+        "no_more": "没有更多可用的服务",
+        "search": "搜索可用服务...",
+        "switch_title_active": "关闭以移除",
+        "switch_title_inactive": "该服务在 MCP 设置中未启用,移除后可重新添加",
+        "title": "工具"
+      }
+    },
+    "create_menu": {
+      "create": "新建{{type}}",
+      "import": "导入{{type}}"
+    },
+    "delete": {
+      "agent": {
+        "content": "确定要删除这个 Agent 吗？该操作不可撤销。",
+        "title": "删除 Agent"
+      },
+      "skill": {
+        "content": "确定要卸载这个技能吗？将从全局库移除并清理所有 Agent 工作区下的软链接。",
+        "title": "卸载技能"
+      }
+    },
+    "delete_confirm": {
+      "cancel": "取消",
+      "confirm": "删除",
+      "description": "确定要删除「{{name}}」吗？此操作无法撤销。",
+      "title": "确认删除"
+    },
+    "duplicate_assistant_failed": "复制助手失败",
+    "duplicate_name": "{{name}} (副本)",
+    "empty_state": {
+      "description": "点击「新建」创建你的第一个资源",
+      "empty_description": "创建你的第一个智能体或助手",
+      "empty_title": "还没有任何资源",
+      "no_match_description": "尝试其他搜索关键词",
+      "no_match_title": "未找到匹配的资源",
+      "title": "暂无资源"
+    },
+    "export_assistant_failed": "导出助手失败",
+    "import_dialog": {
+      "clipboard": {
+        "button": "解析并导入",
+        "placeholder": "在此粘贴 JSON 配置内容..."
+      },
+      "error": {
+        "content_too_large": "内容过大(>5 MB)",
+        "file_too_large": "文件过大(>5 MB)",
+        "invalid_url": "无效的 URL",
+        "response_too_large": "响应内容过大(>5 MB)",
+        "timeout": "请求超时,请检查 URL 是否可达",
+        "unsupported_protocol": "仅支持 http 或 https 协议的 URL"
+      },
+      "failure": "导入失败:{{error}}",
+      "file": {
+        "drop_hint": "拖放文件到此处,或点击选择文件",
+        "formats": "支持 .json"
+      },
+      "partial_success": "部分导入成功:成功 {{success}} 个,失败 {{failed}} 个({{first_name}}: {{first_error}})",
+      "subtitle": "支持 JSON 格式的配置文件",
+      "success": "成功导入: {{name}}",
+      "tab": {
+        "clipboard": "剪贴板",
+        "file": "文件上传",
+        "url": "URL 导入"
+      },
+      "url": {
+        "button": "获取并导入",
+        "hint": "从 GitHub Gist、GitHub 仓库或任何公开 URL 导入配置",
+        "supports": "支持 raw 文件链接"
+      }
+    },
+    "import_skill_dialog": {
+      "local": {
+        "drop_hint": "拖放 ZIP 文件或目录到此处,或点击选择 ZIP",
+        "formats": "支持 .zip 文件或包含 SKILL.md 的目录"
+      },
+      "subtitle": "从 ZIP 文件或目录安装技能",
+      "title": "导入技能"
+    },
+    "no_match": "无匹配结果",
+    "pending_backend": {
+      "description": "该资源的写入操作即将上线,当前仅展示占位。",
+      "title": "数据层接入中"
+    },
+    "sidebar": {
+      "all_resources": "所有资源",
+      "all_tags": "全部标签",
+      "no_tags": "暂无标签",
+      "subtitle": "管理你的 AI 资源",
+      "tags": "标签",
+      "title": "资源库"
+    },
+    "skill_detail": {
+      "created_at": "创建时间",
+      "delete_description": "移除此技能及其所有配置,此操作不可恢复",
+      "delete_title": "删除技能",
+      "description": "描述",
+      "file_preview": "文件预览",
+      "installed": "已安装",
+      "no_description": "暂无描述",
+      "source_files": "源文件",
+      "updated_at": "最近更新"
+    },
+    "sort": {
+      "created": "按创建时间",
+      "name": "按名称",
+      "updated": "按更新时间"
+    },
+    "subtitle": "管理你的助手、智能体与技能",
+    "tag_picker": {
+      "no_tags": "暂无标签",
+      "placeholder": "新标签名..."
+    },
+    "tag_sync_failed": "标签同步失败",
+    "time_ago": {
+      "days": "{{count}} 天前",
+      "hours": "{{count}} 小时前",
+      "just_now": "刚刚",
+      "minutes": "{{count}} 分钟前",
+      "months": "{{count}} 个月前"
+    },
+    "title": "资源库",
+    "toolbar": {
+      "add_tag_placeholder": "标签名...",
+      "new_resource": "新建资源",
+      "search_placeholder": "搜索资源名称、描述...",
+      "tag_button": "标签"
+    },
+    "type": {
+      "agent": "智能体",
+      "assistant": "助手",
+      "new_agent": "新智能体",
+      "new_assistant": "新助手",
+      "new_prompt": "新 Prompt",
+      "prompt": "提示词",
+      "skill": "技能"
+    },
+    "uninstall_failed": "卸载失败",
+    "view": {
+      "grid": "网格视图",
+      "list": "列表视图"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {

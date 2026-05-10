@@ -43,17 +43,44 @@ describe('PromptService', () => {
     })
   })
 
-  describe('getAll', () => {
+  describe('list', () => {
     it('should return prompts ordered by orderKey', async () => {
       const a = await seedPrompt('A', 'a')
       const b = await seedPrompt('B', 'b')
 
-      const all = await promptService.getAll()
+      const all = await promptService.list()
       expect(all.map((p) => p.id)).toEqual([a.id, b.id])
     })
 
     it('should return an empty array when no prompts exist', async () => {
-      await expect(promptService.getAll()).resolves.toEqual([])
+      await expect(promptService.list()).resolves.toEqual([])
+    })
+
+    it('should filter by search on title', async () => {
+      await seedPrompt('Daily Report', 'body')
+      await seedPrompt('Meeting Notes', 'body')
+
+      const all = await promptService.list({ search: 'daily' })
+      expect(all.map((p) => p.title)).toEqual(['Daily Report'])
+    })
+
+    it('should filter by search on content', async () => {
+      await seedPrompt('A', 'Summarize unread email')
+      await seedPrompt('B', 'Draft changelog')
+
+      const all = await promptService.list({ search: 'email' })
+      expect(all.map((p) => p.title)).toEqual(['A'])
+    })
+
+    it('should treat %/_ in search as literals, not wildcards', async () => {
+      await seedPrompt('percent_100', 'exact')
+      await seedPrompt('noMatch', 'exact')
+
+      const underscore = await promptService.list({ search: 'percent_' })
+      expect(underscore.map((p) => p.title)).toEqual(['percent_100'])
+
+      const literalMiss = await promptService.list({ search: '_Match' })
+      expect(literalMiss).toHaveLength(0)
     })
   })
 
@@ -127,7 +154,7 @@ describe('PromptService', () => {
 
       await promptService.reorder(c.id, { position: 'first' })
 
-      const ids = (await promptService.getAll()).map((p) => p.id)
+      const ids = (await promptService.list()).map((p) => p.id)
       expect(ids).toEqual([c.id, a.id, b.id])
     })
 
@@ -138,7 +165,7 @@ describe('PromptService', () => {
 
       await promptService.reorder(c.id, { before: b.id })
 
-      const ids = (await promptService.getAll()).map((p) => p.id)
+      const ids = (await promptService.list()).map((p) => p.id)
       expect(ids).toEqual([a.id, c.id, b.id])
     })
 
@@ -186,7 +213,7 @@ describe('PromptService', () => {
         { id: a.id, anchor: { position: 'last' } }
       ])
 
-      const ids = (await promptService.getAll()).map((p) => p.id)
+      const ids = (await promptService.list()).map((p) => p.id)
       expect(ids).toEqual([c.id, b.id, a.id])
     })
 

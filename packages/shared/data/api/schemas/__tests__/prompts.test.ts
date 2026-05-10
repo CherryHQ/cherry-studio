@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '../../../types/prompt'
-import { CreatePromptSchema, UpdatePromptSchema } from '../prompts'
+import { CreatePromptSchema, ListPromptsQuerySchema, UpdatePromptSchema } from '../prompts'
 
 describe('prompt DTO schemas', () => {
   it('accepts create with title and content', () => {
@@ -59,5 +59,14 @@ describe('prompt DTO schemas', () => {
     expect(() => UpdatePromptSchema.parse({ currentVersion: 2 })).toThrow()
     expect(() => UpdatePromptSchema.parse({ assistantId: 'assistant-1' })).toThrow()
     expect(() => UpdatePromptSchema.parse({ variables: [] })).toThrow()
+  })
+
+  it('accepts and trims list search query', () => {
+    expect(ListPromptsQuerySchema.parse({ search: ' daily ' })).toEqual({ search: 'daily' })
+  })
+
+  it('rejects empty list search query and unknown query fields', () => {
+    expect(() => ListPromptsQuerySchema.parse({ search: '   ' })).toThrow()
+    expect(() => ListPromptsQuerySchema.parse({ tagIds: ['tag-1'] })).toThrow()
   })
 })

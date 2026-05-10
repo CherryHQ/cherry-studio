@@ -938,6 +938,7 @@
         "agent": "Export Assistant"
       },
       "import": {
+        "action": "Import Assistant",
         "button": "Import",
         "error": {
           "fetch_failed": "Failed to fetch from URL",
@@ -2232,6 +2233,470 @@
   "launchpad": {
     "apps": "Apps",
     "miniApps": "MiniApps"
+  },
+  "library": {
+    "action": {
+      "create": "New",
+      "delete": "Delete",
+      "disable": "Disable",
+      "duplicate": "Duplicate",
+      "edit": "Edit",
+      "enable": "Enable",
+      "manage_tags": "Manage tags",
+      "uninstall": "Uninstall"
+    },
+    "assistant_catalog": {
+      "add": "Add",
+      "add_failed": "Failed to add assistant",
+      "browse_label": "Assistant categories",
+      "empty_description": "This category has no assistant presets yet.",
+      "empty_title": "No assistants to add",
+      "mine": "Mine",
+      "no_match_description": "Try a different search keyword",
+      "no_match_title": "No matching assistants",
+      "preview": "Preview",
+      "preview_description": "Overview",
+      "preview_prompt": "Prompt",
+      "scroll_left": "Scroll categories left",
+      "scroll_right": "Scroll categories right"
+    },
+    "badge": {
+      "update": "Update"
+    },
+    "config": {
+      "agent": {
+        "create_banner": "Save before binding tools and MCP servers",
+        "create_title": "New agent",
+        "field": {
+          "accessible_paths": {
+            "add": "Add directory",
+            "empty": "Not set (defaults to the workspace root)",
+            "hint": "Limits directories the agent can access",
+            "label": "Accessible directories"
+          },
+          "allowed_tools": {
+            "add": "Add tool",
+            "empty": "Leave empty to use the permission mode default",
+            "label": "Allowed tools"
+          },
+          "avatar": {
+            "hint": "Used to identify it in the library and sessions"
+          },
+          "description": {
+            "hint": "Helps identify what this agent is for",
+            "label": "Description",
+            "placeholder": "What this agent is for…"
+          },
+          "env_vars": {
+            "help": "One KEY=VALUE per line",
+            "label": "Environment variables"
+          },
+          "heartbeat_enabled": {
+            "label": "Heartbeat check"
+          },
+          "heartbeat_interval": {
+            "label": "Heartbeat interval (minutes)"
+          },
+          "instructions": {
+            "hint": "Defines the agent's role and behavior boundaries",
+            "label": "System prompt",
+            "placeholder": "Tell the agent who it is and what it can do…"
+          },
+          "max_turns": {
+            "help": "0 means use the default",
+            "label": "Max conversation turns"
+          },
+          "mcps": {
+            "add": "Add MCP server",
+            "empty": "None bound",
+            "label": "MCP servers (id)"
+          },
+          "model": {
+            "help": "UniqueModelId; will switch to a picker backed by /models later",
+            "hint": "Main reasoning and execution",
+            "label": "Primary model (required)"
+          },
+          "name": {
+            "hint": "Shown in the library and session lists",
+            "label": "Agent name",
+            "placeholder": "Give the agent a name"
+          },
+          "permission_mode": {
+            "help": "Switching to bypassPermissions is equivalent to enabling Soul mode",
+            "label": "Permission mode",
+            "option": {
+              "acceptEdits": "Accept edits",
+              "bypassPermissions": "Bypass permissions (Soul)",
+              "default": "Default",
+              "plan": "Plan mode"
+            }
+          },
+          "plan_model": {
+            "hint": "Task decomposition and planning",
+            "label": "Plan model (optional)"
+          },
+          "small_model": {
+            "hint": "Lightweight checks and formatting",
+            "label": "Small model (optional)"
+          },
+          "soul_enabled": {
+            "help": "When enabled, automatically grants bypassPermissions",
+            "label": "Soul mode"
+          }
+        },
+        "model_config": "Model configuration",
+        "section": {
+          "advanced": {
+            "desc": "Max turns and environment variables",
+            "label": "Advanced",
+            "title": "Advanced"
+          },
+          "basic": {
+            "desc": "Name, avatar, model, directories, runtime",
+            "label": "Basic",
+            "title": "Basic"
+          },
+          "permission": {
+            "desc": "Authorization scope for agent actions",
+            "label": "Permission mode",
+            "title": "Permission mode"
+          },
+          "prompt": {
+            "desc": "System prompt and behavioral constraints",
+            "label": "Prompt",
+            "title": "Prompt"
+          },
+          "tools": {
+            "add": "Add",
+            "desc": "Configure tools and MCP servers the agent can use",
+            "label": "Tools",
+            "no_builtin_enabled": "No built-in tools enabled",
+            "no_mcp_bound": "No MCP servers bound",
+            "no_skills_enabled": "No skills enabled",
+            "search_placeholder": "Search tools or servers...",
+            "skills_coming_soon": "Skill bindings coming soon",
+            "skills_require_save": "Save before enabling skills",
+            "tab": {
+              "mcp": "MCP Server",
+              "skills": "Skills",
+              "tools": "Built-in tools"
+            },
+            "title": "Capabilities"
+          }
+        }
+      },
+      "basic": {
+        "context_count": "Context count",
+        "creative": "Creative",
+        "custom_params": "Custom parameters",
+        "custom_params_add": "Add parameter",
+        "custom_params_name": "Parameter name",
+        "default_value": "Model default",
+        "desc": "Fill in the avatar, name, description, and system prompt",
+        "description_label": "Description",
+        "field": {
+          "avatar": {
+            "hint": "Used to identify the assistant in the library and chats"
+          },
+          "context_count": {
+            "hint": "Number of recent messages kept as context"
+          },
+          "custom_params": {
+            "hint": "Extra provider parameters sent with requests"
+          },
+          "description": {
+            "hint": "Helps distinguish what this assistant is for",
+            "placeholder": "What this assistant is for..."
+          },
+          "max_tokens": {
+            "hint": "Caps response length when enabled"
+          },
+          "max_tool_calls": {
+            "hint": "Limits tool-call loops when enabled"
+          },
+          "model": {
+            "hint": "Overrides the global default model for this assistant"
+          },
+          "name": {
+            "hint": "Shown in the library and assistant selectors",
+            "placeholder": "Give the assistant a name"
+          },
+          "stream_output": {
+            "hint": "Shows responses as they are generated"
+          },
+          "tags": {
+            "hint": "Used for filtering and organizing assistants"
+          },
+          "temperature": {
+            "hint": "Controls randomness when enabled"
+          },
+          "tool_use_mode": {
+            "hint": "Controls how tools are exposed to the model"
+          },
+          "top_p": {
+            "hint": "Limits token sampling range when enabled"
+          }
+        },
+        "json_invalid": "Invalid JSON format",
+        "max_tokens": "Max tokens",
+        "max_tool_calls": "Max tool calls",
+        "model": "Default model",
+        "model_clear": "Clear",
+        "model_not_found": "Model not found (may have been removed): {{id}}",
+        "model_pick": "+ Pick model",
+        "pick_avatar": "Pick avatar",
+        "precise": "Precise",
+        "stream_output": "Stream output",
+        "tag_empty": "No tags available",
+        "tag_hint": "To add a new tag, use the \"+ Tag\" entry in the library top bar",
+        "tag_placeholder": "Select tags",
+        "tag_search": "Search tags",
+        "tags": "Tags",
+        "temperature": "Temperature",
+        "title": "Basic settings",
+        "tool_use_function": "Function",
+        "tool_use_mode": "Tool call mode",
+        "tool_use_prompt": "Prompt",
+        "top_p": "Top-P",
+        "unlimited": "Unlimited"
+      },
+      "breadcrumb": "Library",
+      "knowledge": {
+        "add": "Add knowledge base",
+        "desc": "Link one or more knowledge bases; relevant snippets will be retrieved during chat",
+        "doc_count": "{{count}} docs",
+        "empty_desc": "Once linked, the assistant can answer based on document content",
+        "empty_title": "No knowledge bases linked",
+        "invalid_suffix": "... (unavailable)",
+        "linked": "Linked knowledge bases",
+        "linked_hint": "Controls which knowledge bases this assistant can retrieve from",
+        "no_more": "No more knowledge bases available",
+        "remove_aria": "Remove",
+        "search": "Search knowledge bases...",
+        "title": "Knowledge bases"
+      },
+      "prompt": {
+        "create_title": "New Prompt",
+        "dblclick_hint": "Double-click the preview to switch back to edit",
+        "desc": "The system prompt is sent as the opening context of the assistant",
+        "edit_title": "Edit Prompt",
+        "field": {
+          "content": {
+            "label": "Content",
+            "too_long": "Content must be {{max}} characters or fewer"
+          },
+          "name": {
+            "label": "Name",
+            "too_long": "Name must be {{max}} characters or fewer"
+          }
+        },
+        "generate": "Generate prompt",
+        "insert_variable": "Insert variable",
+        "label": "System prompt",
+        "placeholder": "Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
+        "title": "Prompt",
+        "tokens_label": "Tokens: ",
+        "variables_title": "Available variables",
+        "vars": {
+          "arch": "CPU architecture",
+          "date": "Date",
+          "datetime": "Date and time",
+          "language": "Language",
+          "model_name": "Model name",
+          "os": "Operating system",
+          "time": "Time",
+          "username": "Username"
+        }
+      },
+      "save_failed": "Save failed",
+      "saving": "Saving...",
+      "section": {
+        "basic": {
+          "desc": "Avatar, name, description, and system prompt",
+          "label": "Basic"
+        },
+        "knowledge": {
+          "desc": "Linked knowledge bases and retrieval",
+          "label": "Knowledge"
+        },
+        "more": {
+          "desc": "Model, tags, and parameters",
+          "label": "More settings"
+        },
+        "prompt": {
+          "desc": "System prompt and variables",
+          "label": "Prompt"
+        },
+        "tools": {
+          "desc": "MCP servers and tool configuration",
+          "label": "Tools"
+        }
+      },
+      "tools": {
+        "add_mcp": "Add MCP server",
+        "added": "Added MCP servers",
+        "added_hint": "Manual mode exposes only the servers in this list",
+        "desc": "Configure the MCP servers this assistant can call during chat",
+        "empty_desc": "Once added, the assistant can invoke external tools",
+        "empty_title": "No MCP servers added",
+        "inactive_badge": "Inactive",
+        "info_main": "MCP (Model Context Protocol) lets the model safely invoke external tools.",
+        "info_sub": "Enabling only necessary servers improves safety and response speed.",
+        "mode": {
+          "auto": {
+            "desc": "The model decides which enabled MCP tools to call",
+            "label": "Auto"
+          },
+          "disabled": {
+            "desc": "No MCP tools are available during chat",
+            "label": "Disabled"
+          },
+          "manual": {
+            "desc": "Expose only the MCP servers selected below",
+            "label": "Manual"
+          }
+        },
+        "no_more": "No more servers available",
+        "search": "Search available servers...",
+        "switch_title_active": "Toggle off to remove",
+        "switch_title_inactive": "This server is disabled in MCP settings; remove it to re-add later",
+        "title": "Tools"
+      }
+    },
+    "create_menu": {
+      "create": "New {{type}}",
+      "import": "Import {{type}}"
+    },
+    "delete": {
+      "agent": {
+        "content": "Are you sure you want to delete this agent? This action cannot be undone.",
+        "title": "Delete agent"
+      },
+      "skill": {
+        "content": "Are you sure you want to uninstall this skill? It will be removed from the global library and all agent workspace symlinks will be cleaned up.",
+        "title": "Uninstall skill"
+      }
+    },
+    "delete_confirm": {
+      "cancel": "Cancel",
+      "confirm": "Delete",
+      "description": "Delete \"{{name}}\"? This action cannot be undone.",
+      "title": "Delete"
+    },
+    "duplicate_assistant_failed": "Failed to duplicate assistant",
+    "duplicate_name": "{{name}} (copy)",
+    "empty_state": {
+      "description": "Click \"New\" to create your first resource.",
+      "empty_description": "Create your first agent or assistant",
+      "empty_title": "No resources yet",
+      "no_match_description": "Try a different search keyword",
+      "no_match_title": "No matching resources",
+      "title": "No resources"
+    },
+    "export_assistant_failed": "Failed to export assistant",
+    "import_dialog": {
+      "clipboard": {
+        "button": "Parse and import",
+        "placeholder": "Paste JSON configuration here..."
+      },
+      "error": {
+        "content_too_large": "Content too large (>5 MB)",
+        "file_too_large": "File too large (>5 MB)",
+        "invalid_url": "Invalid URL",
+        "response_too_large": "Response too large (>5 MB)",
+        "timeout": "Request timed out. Check that the URL is reachable.",
+        "unsupported_protocol": "Only http or https URLs are supported"
+      },
+      "failure": "Import failed: {{error}}",
+      "file": {
+        "drop_hint": "Drag and drop a file here, or click to pick one",
+        "formats": "Supports .json"
+      },
+      "partial_success": "Partial success: {{success}} imported, {{failed}} failed ({{first_name}}: {{first_error}})",
+      "subtitle": "JSON configuration files are supported",
+      "success": "Imported successfully: {{name}}",
+      "tab": {
+        "clipboard": "Clipboard",
+        "file": "File upload",
+        "url": "Import from URL"
+      },
+      "url": {
+        "button": "Fetch and import",
+        "hint": "Import from a GitHub Gist, GitHub repo, or any public URL",
+        "supports": "Raw file URLs are supported"
+      }
+    },
+    "import_skill_dialog": {
+      "local": {
+        "drop_hint": "Drop a ZIP or directory here, or click to choose a ZIP",
+        "formats": "Supports .zip files and directories containing SKILL.md"
+      },
+      "subtitle": "Install a skill from a ZIP file or directory",
+      "title": "Import skill"
+    },
+    "no_match": "No matching results",
+    "pending_backend": {
+      "description": "Write operations for this resource are coming soon. This view is a placeholder.",
+      "title": "Backend setup in progress"
+    },
+    "sidebar": {
+      "all_resources": "All resources",
+      "all_tags": "All tags",
+      "no_tags": "No tags yet",
+      "subtitle": "Manage your AI resources",
+      "tags": "Tags",
+      "title": "Library"
+    },
+    "skill_detail": {
+      "created_at": "Created",
+      "delete_description": "Remove this skill and all of its configuration. This action cannot be undone.",
+      "delete_title": "Delete skill",
+      "description": "Description",
+      "file_preview": "File preview",
+      "installed": "Installed",
+      "no_description": "No description",
+      "source_files": "Source files",
+      "updated_at": "Recently updated"
+    },
+    "sort": {
+      "created": "Sort by created",
+      "name": "Sort by name",
+      "updated": "Sort by updated"
+    },
+    "subtitle": "Manage your assistants, agents and skills",
+    "tag_picker": {
+      "no_tags": "No tags yet",
+      "placeholder": "New tag name..."
+    },
+    "tag_sync_failed": "Failed to sync tags",
+    "time_ago": {
+      "days": "{{count}} day(s) ago",
+      "hours": "{{count}} hour(s) ago",
+      "just_now": "Just now",
+      "minutes": "{{count}} minute(s) ago",
+      "months": "{{count}} month(s) ago"
+    },
+    "title": "Library",
+    "toolbar": {
+      "add_tag_placeholder": "Tag name...",
+      "new_resource": "New resource",
+      "search_placeholder": "Search by name or description...",
+      "tag_button": "Tag"
+    },
+    "type": {
+      "agent": "Agent",
+      "assistant": "Assistant",
+      "new_agent": "New agent",
+      "new_assistant": "New assistant",
+      "new_prompt": "New Prompt",
+      "prompt": "Prompt",
+      "skill": "Skill"
+    },
+    "uninstall_failed": "Failed to uninstall",
+    "view": {
+      "grid": "Grid view",
+      "list": "List view"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {
