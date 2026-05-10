@@ -282,22 +282,24 @@ export class MessagesService {
       errorMessage = error.message
     }
 
-    // Infer error type from message if not from Anthropic API
+    // Without a structured Anthropic error, fall back to a generic 500.
+    // Don't regex-match `error.message`: the SDK and other upstreams already
+    // expose `.status`/`.code` (see anthropicStatus branch above), and a
+    // genuine 500 whose message happens to mention "connection" must not
+    // be remapped to 502.
     if (!anthropicStatus && error instanceof Error) {
-      const errorMessageText = error.message ?? ''
-
-      if (errorMessageText.includes('API key') || errorMessageText.includes('authentication')) {
-        statusCode = 401
-        errorType = 'authentication_error'
-      } else if (errorMessageText.includes('rate limit') || errorMessageText.includes('quota')) {
-        statusCode = 429
-        errorType = 'rate_limit_error'
-      } else if (errorMessageText.includes('timeout') || errorMessageText.includes('connection')) {
-        statusCode = 502
-        errorType = 'api_error'
-      } else if (errorMessageText.includes('validation') || errorMessageText.includes('invalid')) {
-        statusCode = 400
-        errorType = 'invalid_request_error'
+      const errAny = error as unknown as { status?: unknown }
+      const status = typeof errAny.status === 'number' ? errAny.status : null
+      if (status !== null) {
+        statusCode = status
+        errorType =
+          status === 401 || status === 403
+            ? 'authentication_error'
+            : status === 429
+              ? 'rate_limit_error'
+              : status >= 500 && status < 600
+                ? 'api_error'
+                : 'invalid_request_error'
       }
     }
 

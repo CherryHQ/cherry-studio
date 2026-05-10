@@ -55,33 +55,31 @@ const mapChatCompletionError = (error: unknown): { status: number; body: ErrorRe
   }
 
   if (error instanceof Error) {
-    let statusCode = 500
-    let errorType = 'server_error'
-    let errorCode = 'internal_error'
+    // Trust the SDK's structured `.status` rather than regex-matching
+    // `.message`. The OpenAI / Anthropic SDKs throw subclasses of `APIError`
+    // with `.status`, `.code`, and a stable name. A genuine 500 whose
+    // message happens to contain "connection" must not be remapped to 502.
+    const errAny = error as unknown as { status?: unknown; code?: unknown }
+    const status = typeof errAny.status === 'number' ? errAny.status : 500
+    const code = typeof errAny.code === 'string' ? errAny.code : 'internal_error'
+    const errorType =
+      status === 401 || status === 403
+        ? 'authentication_error'
+        : status === 429
+          ? 'rate_limit_error'
+          : status >= 500 && status < 600
+            ? 'server_error'
+            : 'invalid_request_error'
 
-    if (error.message.includes('API key') || error.message.includes('authentication')) {
-      statusCode = 401
-      errorType = 'authentication_error'
-      errorCode = 'invalid_api_key'
-    } else if (error.message.includes('rate limit') || error.message.includes('quota')) {
-      statusCode = 429
-      errorType = 'rate_limit_error'
-      errorCode = 'rate_limit_exceeded'
-    } else if (error.message.includes('timeout') || error.message.includes('connection')) {
-      statusCode = 502
-      errorType = 'server_error'
-      errorCode = 'upstream_error'
-    }
-
-    logger.error('Chat completion error', { error })
+    logger.error('Chat completion error', error)
 
     return {
-      status: statusCode,
+      status,
       body: {
         error: {
           message: error.message || 'Internal server error',
           type: errorType,
-          code: errorCode
+          code
         }
       }
     }
