@@ -61,6 +61,7 @@ import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
+import { withDeepSeek1mSuffix } from './utils'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -194,6 +195,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       return withoutTrailingApiVersion(provider.anthropicApiHost?.trim() || provider.apiHost)
     }
     const anthropicBaseUrl = resolveAnthropicBaseUrl()
+    const sdkModelId = withDeepSeek1mSuffix(modelInfo.modelId, provider.anthropicApiHost)
 
     const env = {
       ...loginShellEnv,
@@ -207,11 +209,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       ANTHROPIC_API_KEY: provider.apiKey,
       ANTHROPIC_AUTH_TOKEN: provider.apiKey,
       ANTHROPIC_BASE_URL: anthropicBaseUrl,
-      ANTHROPIC_MODEL: modelInfo.modelId,
-      ANTHROPIC_DEFAULT_OPUS_MODEL: modelInfo.modelId,
-      ANTHROPIC_DEFAULT_SONNET_MODEL: modelInfo.modelId,
+      ANTHROPIC_MODEL: sdkModelId,
+      ANTHROPIC_DEFAULT_OPUS_MODEL: sdkModelId,
+      ANTHROPIC_DEFAULT_SONNET_MODEL: sdkModelId,
       // TODO: support set small model in UI
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: modelInfo.modelId,
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: sdkModelId,
       ELECTRON_RUN_AS_NODE: '1',
       ELECTRON_NO_ATTACH_CONSOLE: '1',
       // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues
@@ -569,10 +571,10 @@ class ClaudeCodeService implements AgentServiceInterface {
       options.strictMcpConfig = true
     }
 
-    // Inject @cherry/browser MCP for all agents (replaces SDK built-in WebSearch/WebFetch)
     if (!options.mcpServers) options.mcpServers = {}
 
-    // Inject Exa MCP for structured web search (free tier, no API key required)
+    // Inject Exa MCP for structured web search (free tier, no API key required).
+    // Replaces the SDK built-in WebSearch/WebFetch tools disabled via GLOBALLY_DISALLOWED_TOOLS.
     options.mcpServers.exa = {
       type: 'http',
       url: 'https://mcp.exa.ai/mcp'

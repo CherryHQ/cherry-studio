@@ -1,4 +1,4 @@
-/** Tools disabled for ALL agents — replaced by @cherry/browser MCP */
+/** Tools disabled for ALL agents — replaced by Exa MCP (`mcp__exa__web_search_exa`) */
 export const GLOBALLY_DISALLOWED_TOOLS = ['WebSearch', 'WebFetch'] as const
 
 /**
