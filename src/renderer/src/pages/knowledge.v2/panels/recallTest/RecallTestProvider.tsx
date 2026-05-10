@@ -1,10 +1,11 @@
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { ReactNode } from 'react'
 import { createContext, use, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { formatKnowledgeActionError, normalizeKnowledgeError } from '../../utils'
+import { normalizeKnowledgeError } from '../../utils'
 import type { RecallResultItem, RecallTestContextValue } from './types'
 import { mapRecallResult, prependHistoryQuery } from './utils'
 
@@ -96,7 +97,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
       if (!isCurrentSearch()) {
         return
       }
-      window.toast.error(formatKnowledgeActionError(normalizedError, t('knowledge_v2.recall.search_failed')))
+      window.toast.error(formatErrorMessageWithPrefix(normalizedError, t('knowledge_v2.recall.search_failed')))
       setResults([])
     }
 

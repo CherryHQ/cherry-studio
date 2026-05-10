@@ -9,7 +9,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { KnowledgeRagConfigFormValues, KnowledgeSelectOption } from '../types'
-import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues } from '../utils'
+import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues, normalizeKnowledgeError } from '../utils'
 
 const logger = loggerService.withContext('useKnowledgeRagConfig')
 
@@ -83,12 +83,12 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
         body: patch
       })
     } catch (saveError) {
-      logger.error('Failed to update knowledge RAG config', {
+      const normalizedError = normalizeKnowledgeError(saveError)
+      logger.error('Failed to update knowledge RAG config', normalizedError, {
         baseId: base.id,
-        updates: patch,
-        error: saveError
+        updates: patch
       })
-      throw saveError
+      throw normalizedError
     }
   }
 

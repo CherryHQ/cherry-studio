@@ -4,6 +4,8 @@ import type { UpdateGroupDto } from '@shared/data/api/schemas/groups'
 import type { Group } from '@shared/data/types/group'
 import { useCallback, useMemo } from 'react'
 
+import { normalizeKnowledgeError } from '../utils'
+
 const logger = loggerService.withContext('useKnowledgeGroups')
 
 export const useKnowledgeGroups = () => {
@@ -46,11 +48,11 @@ export const useCreateKnowledgeGroup = () => {
           }
         })
       } catch (error) {
-        logger.error('Failed to create knowledge group', {
-          name: normalizedName,
-          error
+        const normalizedError = normalizeKnowledgeError(error)
+        logger.error('Failed to create knowledge group', normalizedError, {
+          name: normalizedName
         })
-        throw error
+        throw normalizedError
       }
     },
     [createTrigger]
@@ -80,12 +82,12 @@ export const useUpdateKnowledgeGroup = () => {
           body: updates
         })
       } catch (error) {
-        logger.error('Failed to update knowledge group', {
+        const normalizedError = normalizeKnowledgeError(error)
+        logger.error('Failed to update knowledge group', normalizedError, {
           groupId,
-          updates,
-          error
+          updates
         })
-        throw error
+        throw normalizedError
       }
     },
     [updateTrigger]
@@ -114,11 +116,11 @@ export const useDeleteKnowledgeGroup = () => {
           params: { id: groupId }
         })
       } catch (error) {
-        logger.error('Failed to delete knowledge group', {
-          groupId,
-          error
+        const normalizedError = normalizeKnowledgeError(error)
+        logger.error('Failed to delete knowledge group', normalizedError, {
+          groupId
         })
-        throw error
+        throw normalizedError
       }
     },
     [deleteTrigger]

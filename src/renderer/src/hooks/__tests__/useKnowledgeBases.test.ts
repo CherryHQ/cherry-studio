@@ -209,11 +209,10 @@ describe('useCreateKnowledgeBase', () => {
     expect(mockInvalidateCache).not.toHaveBeenCalled()
     expect(result.current.isCreating).toBe(false)
     expect(result.current.createError).toBe(createError)
-    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to create knowledge base', {
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to create knowledge base', createError, {
       name: 'Base 4',
       groupId: undefined,
-      embeddingModelId: 'openai::text-embedding-3-small',
-      error: createError
+      embeddingModelId: 'openai::text-embedding-3-small'
     })
   })
 })
@@ -286,11 +285,10 @@ describe('useRestoreKnowledgeBase', () => {
     expect(mockInvalidateCache).not.toHaveBeenCalled()
     expect(result.current.isRestoring).toBe(false)
     expect(result.current.restoreError).toBe(restoreError)
-    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to restore knowledge base', {
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to restore knowledge base', restoreError, {
       sourceBaseId: 'source-base',
       name: 'Legacy KB_bak',
-      embeddingModelId: 'openai::text-embedding-3-small',
-      error: restoreError
+      embeddingModelId: 'openai::text-embedding-3-small'
     })
   })
 })
@@ -380,9 +378,8 @@ describe('useDeleteKnowledgeBase', () => {
     expect(mockInvalidateCache).not.toHaveBeenCalled()
     expect(result.current.isDeleting).toBe(false)
     expect(result.current.deleteError).toBe(deleteError)
-    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to delete knowledge base', {
-      baseId: 'base-1',
-      error: deleteError
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to delete knowledge base', deleteError, {
+      baseId: 'base-1'
     })
   })
 })

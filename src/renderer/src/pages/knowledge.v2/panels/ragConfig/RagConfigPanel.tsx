@@ -1,16 +1,12 @@
 import { Button, Scrollbar } from '@cherrystudio/ui'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useKnowledgeRagConfig } from '../../hooks'
-import {
-  formatKnowledgeActionError,
-  getKnowledgeBaseFailureReason,
-  getKnowledgeRagConfigFormState,
-  parseRequiredInteger
-} from '../../utils'
+import { getKnowledgeBaseFailureReason, getKnowledgeRagConfigFormState, parseRequiredInteger } from '../../utils'
 import ChunkingSection from './ChunkingSection'
 import EmbeddingSection from './EmbeddingSection'
 import FileProcessingSection from './FileProcessingSection'
@@ -91,7 +87,7 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
       await save(values)
       window.toast.success(t('knowledge_v2.rag.saved'))
     } catch (error) {
-      window.toast.error(formatKnowledgeActionError(error, t('knowledge_v2.error.failed_to_edit')))
+      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge_v2.error.failed_to_edit')))
     }
   }
 

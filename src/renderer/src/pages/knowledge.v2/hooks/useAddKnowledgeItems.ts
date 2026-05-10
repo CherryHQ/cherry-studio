@@ -3,15 +3,9 @@ import { loggerService } from '@logger'
 import type { KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { normalizeKnowledgeError } from '../utils'
+
 const logger = loggerService.withContext('useAddKnowledgeItems')
-
-const normalizeError = (error: unknown): Error => {
-  if (error instanceof Error) {
-    return error
-  }
-
-  return new Error(String(error))
-}
 
 export const useAddKnowledgeItems = (baseId: string) => {
   const [error, setError] = useState<Error | undefined>()
@@ -46,22 +40,24 @@ export const useAddKnowledgeItems = (baseId: string) => {
         try {
           await invalidateCache(`/knowledge-bases/${baseId}/items`)
         } catch (invalidateError) {
-          logger.error('Failed to refresh knowledge source list after submit', {
-            baseId,
-            error: normalizeError(invalidateError)
-          })
+          logger.error(
+            'Failed to refresh knowledge source list after submit',
+            normalizeKnowledgeError(invalidateError),
+            {
+              baseId
+            }
+          )
         }
 
         if (isMountedRef.current) {
           setIsSubmitting(false)
         }
       } catch (error) {
-        const submitError = normalizeError(error)
+        const submitError = normalizeKnowledgeError(error)
 
-        logger.error('Failed to add knowledge sources', {
+        logger.error('Failed to add knowledge sources', submitError, {
           baseId,
-          sourceCount: items.length,
-          error: submitError
+          sourceCount: items.length
         })
 
         if (isMountedRef.current) {

@@ -17,14 +17,13 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useModels } from '@renderer/hooks/useModels'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'
 import type { CreateKnowledgeBaseDto, KnowledgeBase, KnowledgeBaseEmoji } from '@shared/data/types/knowledge'
 import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { formatKnowledgeActionError } from '../utils'
 
 interface CreateKnowledgeBaseDialogProps {
   open: boolean
@@ -223,7 +222,7 @@ const CreateKnowledgeBaseDialogRoot = ({
     try {
       createdBase = await createBase(createInput)
     } catch (error) {
-      setSubmitError(formatKnowledgeActionError(error, t('knowledge_v2.error.failed_to_create')))
+      setSubmitError(formatErrorMessageWithPrefix(error, t('knowledge_v2.error.failed_to_create')))
       return
     }
 

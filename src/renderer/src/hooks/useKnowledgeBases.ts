@@ -97,9 +97,8 @@ export const useCreateKnowledgeBase = () => {
         try {
           await invalidateCache('/knowledge-bases')
         } catch (invalidateError) {
-          logger.error('Failed to refresh knowledge base list after create', {
-            baseId: createdBase.id,
-            error: normalizeError(invalidateError)
+          logger.error('Failed to refresh knowledge base list after create', normalizeError(invalidateError), {
+            baseId: createdBase.id
           })
         }
 
@@ -107,11 +106,10 @@ export const useCreateKnowledgeBase = () => {
         return createdBase
       } catch (error) {
         const normalizedError = normalizeError(error)
-        logger.error('Failed to create knowledge base', {
+        logger.error('Failed to create knowledge base', normalizedError, {
           name,
           groupId,
-          embeddingModelId,
-          error: normalizedError
+          embeddingModelId
         })
         setCreateError(normalizedError)
         setIsCreating(false)
@@ -171,10 +169,9 @@ export const useRestoreKnowledgeBase = () => {
         try {
           await invalidateCache('/knowledge-bases')
         } catch (invalidateError) {
-          logger.error('Failed to refresh knowledge base list after restore', {
+          logger.error('Failed to refresh knowledge base list after restore', normalizeError(invalidateError), {
             sourceBaseId,
-            restoredBaseId: restoredBase.id,
-            error: normalizeError(invalidateError)
+            restoredBaseId: restoredBase.id
           })
         }
 
@@ -182,11 +179,10 @@ export const useRestoreKnowledgeBase = () => {
         return restoredBase
       } catch (error) {
         const normalizedError = normalizeError(error)
-        logger.error('Failed to restore knowledge base', {
+        logger.error('Failed to restore knowledge base', normalizedError, {
           sourceBaseId,
           name,
-          embeddingModelId,
-          error: normalizedError
+          embeddingModelId
         })
         setRestoreError(normalizedError)
         setIsRestoring(false)
@@ -220,12 +216,12 @@ export const useUpdateKnowledgeBase = () => {
           body: updates
         })
       } catch (error) {
-        logger.error('Failed to update knowledge base', {
+        const normalizedError = normalizeError(error)
+        logger.error('Failed to update knowledge base', normalizedError, {
           baseId,
-          updates,
-          error
+          updates
         })
-        throw error
+        throw normalizedError
       }
     },
     [updateTrigger]
@@ -252,9 +248,8 @@ export const useDeleteKnowledgeBase = () => {
         await window.api.knowledgeRuntime.deleteBase(baseId)
       } catch (error) {
         const normalizedError = normalizeError(error)
-        logger.error('Failed to delete knowledge base', {
-          baseId,
-          error: normalizedError
+        logger.error('Failed to delete knowledge base', normalizedError, {
+          baseId
         })
         setDeleteError(normalizedError)
         setIsDeleting(false)
@@ -264,9 +259,8 @@ export const useDeleteKnowledgeBase = () => {
       try {
         await invalidateCache('/knowledge-bases')
       } catch (invalidateError) {
-        logger.error('Failed to refresh knowledge base list after delete', {
-          baseId,
-          error: normalizeError(invalidateError)
+        logger.error('Failed to refresh knowledge base list after delete', normalizeError(invalidateError), {
+          baseId
         })
       }
 

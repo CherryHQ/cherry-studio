@@ -1,12 +1,12 @@
 import { Button, MenuItem, MenuList, NormalTooltip, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, MoreHorizontal, RefreshCw, Trash2 } from 'lucide-react'
 import type { ComponentProps, MouseEvent, ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { formatKnowledgeActionError } from '../../utils'
 import type { DataSourceIconMeta, DataSourceStatusViewModel } from './utils/models'
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 
@@ -239,7 +239,7 @@ const KnowledgeItemRowMoreMenu = ({
     void Promise.resolve()
       .then(onReindex)
       .catch((error) => {
-        window.toast.error(formatKnowledgeActionError(error, t('knowledge_v2.data_source.reindex_failed')))
+        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge_v2.data_source.reindex_failed')))
       })
   }
 

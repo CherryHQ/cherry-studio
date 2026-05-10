@@ -55,10 +55,9 @@ describe('useDeleteKnowledgeItem', () => {
     expect(mockInvalidateCache).not.toHaveBeenCalled()
     expect(result.current.error).toBe(deleteError)
     expect(result.current.isDeleting).toBe(false)
-    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to delete knowledge source', {
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to delete knowledge source', deleteError, {
       baseId: 'base-1',
-      itemId: 'note-1',
-      error: deleteError
+      itemId: 'note-1'
     })
   })
 })

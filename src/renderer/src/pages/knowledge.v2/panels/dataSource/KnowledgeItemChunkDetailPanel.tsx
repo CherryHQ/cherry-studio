@@ -154,10 +154,9 @@ const KnowledgeItemChunkDetailPanel = ({
         const normalizedError = normalizeKnowledgeError(chunkError)
 
         if (isActive) {
-          logger.error('Failed to list knowledge item chunks', {
+          logger.error('Failed to list knowledge item chunks', normalizedError, {
             baseId,
-            itemId,
-            error: normalizedError
+            itemId
           })
           setChunks([])
           setError(normalizedError)
@@ -196,11 +195,10 @@ const KnowledgeItemChunkDetailPanel = ({
     } catch (chunkError) {
       const normalizedError = normalizeKnowledgeError(chunkError)
 
-      logger.error('Failed to delete knowledge item chunk', {
+      logger.error('Failed to delete knowledge item chunk', normalizedError, {
         baseId,
         itemId: chunk.itemId,
-        chunkId: chunk.id,
-        error: normalizedError
+        chunkId: chunk.id
       })
       setError(normalizedError)
     } finally {

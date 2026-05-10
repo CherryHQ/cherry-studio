@@ -55,10 +55,9 @@ describe('useReindexKnowledgeItem', () => {
     expect(mockInvalidateCache).not.toHaveBeenCalled()
     expect(result.current.error).toBe(reindexError)
     expect(result.current.isReindexing).toBe(false)
-    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to reindex knowledge source', {
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to reindex knowledge source', reindexError, {
       baseId: 'base-1',
-      itemId: 'note-1',
-      error: reindexError
+      itemId: 'note-1'
     })
   })
 })

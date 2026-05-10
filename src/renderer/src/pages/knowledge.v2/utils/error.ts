@@ -1,4 +1,3 @@
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL, type KnowledgeBase } from '@shared/data/types/knowledge'
 
 type KnowledgeErrorTranslator = (
@@ -19,8 +18,4 @@ export const normalizeKnowledgeError = (error: unknown): Error => {
   }
 
   return new Error(String(error))
-}
-
-export const formatKnowledgeActionError = (error: unknown, prefix: string) => {
-  return formatErrorMessageWithPrefix(error, prefix)
 }

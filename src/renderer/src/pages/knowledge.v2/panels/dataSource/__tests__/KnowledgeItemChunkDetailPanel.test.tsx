@@ -282,11 +282,10 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByText('真实 chunk 内容一')).toBeInTheDocument()
     expect(screen.getByText('真实 chunk 内容二')).toBeInTheDocument()
-    expect(mockLogger.error).toHaveBeenCalledWith('Failed to delete knowledge item chunk', {
+    expect(mockLogger.error).toHaveBeenCalledWith('Failed to delete knowledge item chunk', deleteError, {
       baseId: 'base-1',
       itemId: 'file-1',
-      chunkId: 'chunk-1',
-      error: deleteError
+      chunkId: 'chunk-1'
     })
   })
 
@@ -299,10 +298,9 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('list failed')).toBeInTheDocument()
     })
-    expect(mockLogger.error).toHaveBeenCalledWith('Failed to list knowledge item chunks', {
+    expect(mockLogger.error).toHaveBeenCalledWith('Failed to list knowledge item chunks', listError, {
       baseId: 'base-1',
-      itemId: 'file-1',
-      error: listError
+      itemId: 'file-1'
     })
   })
 

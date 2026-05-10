@@ -121,11 +121,10 @@ describe('usePreviewKnowledgeSource', () => {
     })
 
     expect(mockToastError).toHaveBeenCalledWith('预览原文失败: open failed')
-    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to preview knowledge source', {
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to preview knowledge source', previewError, {
       itemId: 'file-1',
       itemType: 'file',
-      source: '/Users/me/report.pdf',
-      error: previewError
+      source: '/Users/me/report.pdf'
     })
   })
 })

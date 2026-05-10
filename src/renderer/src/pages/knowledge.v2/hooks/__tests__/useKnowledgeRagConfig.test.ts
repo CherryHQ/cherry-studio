@@ -205,10 +205,9 @@ describe('useKnowledgeRagConfig', () => {
     const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
 
     await expect(result.current.save(result.current.initialValues)).rejects.toBe(saveError)
-    expect(mockLogger.error).toHaveBeenCalledWith('Failed to update knowledge RAG config', {
+    expect(mockLogger.error).toHaveBeenCalledWith('Failed to update knowledge RAG config', saveError, {
       baseId: 'base-1',
-      updates: {},
-      error: saveError
+      updates: {}
     })
   })
 

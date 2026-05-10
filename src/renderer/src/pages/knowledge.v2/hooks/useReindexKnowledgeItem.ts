@@ -3,15 +3,9 @@ import { loggerService } from '@logger'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { useCallback, useState } from 'react'
 
+import { normalizeKnowledgeError } from '../utils'
+
 const logger = loggerService.withContext('useReindexKnowledgeItem')
-
-const normalizeError = (error: unknown): Error => {
-  if (error instanceof Error) {
-    return error
-  }
-
-  return new Error(String(error))
-}
 
 export const useReindexKnowledgeItem = (baseId: string) => {
   const [error, setError] = useState<Error | undefined>()
@@ -33,21 +27,23 @@ export const useReindexKnowledgeItem = (baseId: string) => {
         try {
           await invalidateCache(`/knowledge-bases/${baseId}/items`)
         } catch (invalidateError) {
-          logger.error('Failed to refresh knowledge source list after reindex', {
-            baseId,
-            itemId: item.id,
-            error: normalizeError(invalidateError)
-          })
+          logger.error(
+            'Failed to refresh knowledge source list after reindex',
+            normalizeKnowledgeError(invalidateError),
+            {
+              baseId,
+              itemId: item.id
+            }
+          )
         }
 
         setIsReindexing(false)
       } catch (error) {
-        const reindexError = normalizeError(error)
+        const reindexError = normalizeKnowledgeError(error)
 
-        logger.error('Failed to reindex knowledge source', {
+        logger.error('Failed to reindex knowledge source', reindexError, {
           baseId,
-          itemId: item.id,
-          error: reindexError
+          itemId: item.id
         })
 
         setError(reindexError)

@@ -9,11 +9,10 @@ import {
   Input,
   Label
 } from '@cherrystudio/ui'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { formatKnowledgeActionError } from '../utils'
 
 export interface KnowledgeEntityNameDialogProps {
   open: boolean
@@ -73,7 +72,7 @@ const KnowledgeEntityNameDialog = ({
     try {
       await onSubmit(normalizedName)
     } catch (error) {
-      setSubmitError(formatKnowledgeActionError(error, submitErrorMessage))
+      setSubmitError(formatErrorMessageWithPrefix(error, submitErrorMessage))
     }
   }
 

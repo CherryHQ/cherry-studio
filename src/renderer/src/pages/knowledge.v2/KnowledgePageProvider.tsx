@@ -5,6 +5,7 @@ import {
   useRestoreKnowledgeBase,
   useUpdateKnowledgeBase
 } from '@renderer/hooks/useKnowledgeBases'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import {
@@ -30,7 +31,6 @@ import {
 } from './hooks'
 import type { KnowledgeRestoreBaseInitialValues } from './panels/ragConfig/RagConfigPanel'
 import type { KnowledgeTabKey } from './types'
-import { formatKnowledgeActionError } from './utils'
 
 const NAVIGATOR_DEFAULT_WIDTH = 180
 const NAVIGATOR_MIN_WIDTH = 180
@@ -306,7 +306,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       try {
         await updateBase(baseId, { groupId })
       } catch (error) {
-        window.toast.error(formatKnowledgeActionError(error, t('knowledge_v2.error.failed_to_move')))
+        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge_v2.error.failed_to_move')))
       }
     },
     [t, updateBase]
@@ -317,7 +317,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       try {
         await deleteBase(baseId)
       } catch (error) {
-        window.toast.error(formatKnowledgeActionError(error, t('knowledge_v2.error.failed_to_delete')))
+        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge_v2.error.failed_to_delete')))
       }
     },
     [deleteBase, t]
@@ -328,7 +328,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       try {
         await deleteGroup(groupId)
       } catch (error) {
-        window.toast.error(formatKnowledgeActionError(error, t('knowledge_v2.groups.error.failed_to_delete')))
+        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge_v2.groups.error.failed_to_delete')))
       }
     },
     [deleteGroup, t]

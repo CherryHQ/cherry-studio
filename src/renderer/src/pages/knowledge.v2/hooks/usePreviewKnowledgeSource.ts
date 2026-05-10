@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { formatKnowledgeActionError, normalizeKnowledgeError } from '../utils'
+import { normalizeKnowledgeError } from '../utils'
 
 const logger = loggerService.withContext('usePreviewKnowledgeSource')
 
@@ -49,13 +50,12 @@ export const usePreviewKnowledgeSource = () => {
       } catch (error) {
         const previewError = normalizeKnowledgeError(error)
 
-        logger.error('Failed to preview knowledge source', {
+        logger.error('Failed to preview knowledge source', previewError, {
           itemId: item.id,
           itemType: item.type,
-          source,
-          error: previewError
+          source
         })
-        window.toast.error(formatKnowledgeActionError(previewError, t('knowledge_v2.data_source.preview.failed')))
+        window.toast.error(formatErrorMessageWithPrefix(previewError, t('knowledge_v2.data_source.preview.failed')))
       }
     },
     [t]

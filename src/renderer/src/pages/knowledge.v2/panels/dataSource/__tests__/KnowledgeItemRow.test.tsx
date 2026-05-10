@@ -6,9 +6,12 @@ import KnowledgeItemRow from '../KnowledgeItemRow'
 import { createFileItem, createUrlItem } from './testUtils'
 
 vi.mock('@renderer/pages/knowledge.v2/utils', () => ({
-  formatKnowledgeActionError: (error: unknown, prefix: string) =>
-    `${prefix}: ${error instanceof Error ? error.message : String(error)}`,
   formatRelativeTime: () => '刚刚'
+}))
+
+vi.mock('@renderer/utils/error', () => ({
+  formatErrorMessageWithPrefix: (error: unknown, prefix: string) =>
+    `${prefix}: ${error instanceof Error ? error.message : String(error)}`
 }))
 
 vi.mock('@renderer/utils', () => ({

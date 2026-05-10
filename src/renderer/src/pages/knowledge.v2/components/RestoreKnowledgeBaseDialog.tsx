@@ -13,13 +13,13 @@ import {
 import type { RestoreKnowledgeBaseInput } from '@renderer/hooks/useKnowledgeBases'
 import { useModels } from '@renderer/hooks/useModels'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { formatKnowledgeActionError } from '../utils'
 import CreateKnowledgeBaseDialog, {
   formatKnowledgeModelOptionLabel,
   KNOWLEDGE_BASE_DEFAULT_DIMENSIONS
@@ -101,7 +101,7 @@ const RestoreKnowledgeBaseDialog = ({
         dimensions: initialDimensions ?? KNOWLEDGE_BASE_DEFAULT_DIMENSIONS
       })
     } catch (error) {
-      setSubmitError(formatKnowledgeActionError(error, t('knowledge_v2.restore.failed_to_restore')))
+      setSubmitError(formatErrorMessageWithPrefix(error, t('knowledge_v2.restore.failed_to_restore')))
       return
     }
 

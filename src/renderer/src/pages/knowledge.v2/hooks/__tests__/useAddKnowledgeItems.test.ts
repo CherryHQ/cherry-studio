@@ -87,10 +87,9 @@ describe('useAddKnowledgeItems', () => {
     expect(mockInvalidateCache).not.toHaveBeenCalled()
     expect(result.current.error).toBe(submitError)
     expect(result.current.isSubmitting).toBe(false)
-    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to add knowledge sources', {
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to add knowledge sources', submitError, {
       baseId: 'base-1',
-      sourceCount: 1,
-      error: submitError
+      sourceCount: 1
     })
   })
 })
