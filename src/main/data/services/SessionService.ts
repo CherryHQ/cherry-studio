@@ -28,7 +28,7 @@ function rowToSession(row: SessionRow): AgentSessionEntity {
     id: row.id,
     agentId: row.agentId,
     name: row.name,
-    description: row.description || undefined,
+    description: row.description,
     accessiblePaths: row.accessiblePaths,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
