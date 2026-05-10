@@ -35,7 +35,7 @@ export default class MistralPreprocessProvider extends BasePreprocessProvider {
     }
     clientManager.initializeClient(aiProvider)
     this.sdk = clientManager.getClient()
-    this.fileService = new MistralService(aiProvider)
+    this.fileService = new MistralService(provider.apiKey!, provider.apiHost)
   }
 
   private async preupload(file: FileMetadata): Promise<PreuploadResponse> {

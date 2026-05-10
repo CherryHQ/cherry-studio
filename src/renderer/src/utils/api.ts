@@ -13,8 +13,13 @@ export {
   withoutTrailingSlash
 } from '@shared/utils/api'
 
-// Re-export from shared, for backward compatibility
-export { formatAzureOpenAIApiHost, formatOllamaApiHost } from '@shared/ai/provider/utils'
+export function formatOllamaApiHost(host: string): string {
+  const normalizedHost = withoutTrailingSlash(host)
+    ?.replace(/\/v1$/, '')
+    ?.replace(/\/api$/, '')
+    ?.replace(/\/chat$/, '')
+  return formatApiHost(normalizedHost + '/api', false)
+}
 
 // NOTE: Since #13194, it depends on the store state in renderer, so it cannot be moved to shared now.
 export function formatVertexApiHost(provider: VertexProvider): string {

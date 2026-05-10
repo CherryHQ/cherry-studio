@@ -19,7 +19,7 @@ import {
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
-import type { FileMetadata, Notification, Provider } from '@types'
+import type { Notification } from '@types'
 import checkDiskSpace from 'check-disk-space'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
@@ -38,7 +38,6 @@ import { knowledgeService } from './services/KnowledgeService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
-import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { vertexAIService } from './services/VertexAIService'
 import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
@@ -439,27 +438,6 @@ export async function registerIpc() {
 
   // pdf
   ipcMain.handle(IpcChannel.Pdf_ExtractText, (_, data: Uint8Array | ArrayBuffer | string) => extractPdfText(data))
-
-  // file service
-  ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {
-    const service = fileServiceManager.getService(provider)
-    return await service.uploadFile(file)
-  })
-
-  ipcMain.handle(IpcChannel.FileService_List, async (_, provider: Provider) => {
-    const service = fileServiceManager.getService(provider)
-    return await service.listFiles()
-  })
-
-  ipcMain.handle(IpcChannel.FileService_Delete, async (_, provider: Provider, fileId: string) => {
-    const service = fileServiceManager.getService(provider)
-    return await service.deleteFile(fileId)
-  })
-
-  ipcMain.handle(IpcChannel.FileService_Retrieve, async (_, provider: Provider, fileId: string) => {
-    const service = fileServiceManager.getService(provider)
-    return await service.retrieveFile(fileId)
-  })
 
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))
