@@ -338,7 +338,7 @@ describe('DataSourcePanel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('forwards row reindex actions', () => {
+  it('forwards row reindex actions', async () => {
     const onReindex = vi.fn()
 
     render(
@@ -354,10 +354,12 @@ describe('DataSourcePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
-    expect(onReindex).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
+    await waitFor(() => {
+      expect(onReindex).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
+    })
   })
 
-  it('does not forward menu actions as row clicks', () => {
+  it('does not forward menu actions as row clicks', async () => {
     const onItemClick = vi.fn()
     const onReindex = vi.fn()
 
@@ -375,7 +377,9 @@ describe('DataSourcePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
-    expect(onReindex).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
+    await waitFor(() => {
+      expect(onReindex).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
+    })
     expect(onItemClick).not.toHaveBeenCalled()
   })
 })

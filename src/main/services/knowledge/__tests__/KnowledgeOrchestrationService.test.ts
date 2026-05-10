@@ -422,6 +422,7 @@ describe('KnowledgeOrchestrationService', () => {
     await expect(
       service.restoreBase({
         sourceBaseId: sourceBase.id,
+        name: restoredBase.name,
         embeddingModelId: restoredBase.embeddingModelId,
         dimensions: restoredBase.dimensions
       })
@@ -447,6 +448,7 @@ describe('KnowledgeOrchestrationService', () => {
     await expect(
       service.restoreBase({
         sourceBaseId: 'source-kb',
+        name: 'Source KB_bak',
         embeddingModelId: 'openai::text-embedding-3-large',
         dimensions: sourceBase.dimensions
       })
@@ -472,6 +474,7 @@ describe('KnowledgeOrchestrationService', () => {
     await expect(
       service.restoreBase({
         sourceBaseId: 'source-kb',
+        name: 'Source KB_bak',
         embeddingModelId: sourceBase.embeddingModelId,
         dimensions: 3072
       })
@@ -495,6 +498,7 @@ describe('KnowledgeOrchestrationService', () => {
     await expect(
       service.restoreBase({
         sourceBaseId: 'source-kb',
+        name: 'Source KB_bak',
         embeddingModelId: sourceBase.embeddingModelId,
         dimensions: sourceBase.dimensions
       })
@@ -520,6 +524,7 @@ describe('KnowledgeOrchestrationService', () => {
     await expect(
       service.restoreBase({
         sourceBaseId: 'source-kb',
+        name: 'Legacy KB_bak',
         embeddingModelId: 'openai::text-embedding-3-large',
         dimensions: 3072
       })
@@ -541,6 +546,7 @@ describe('KnowledgeOrchestrationService', () => {
     await expect(
       service.restoreBase({
         sourceBaseId: 'source-kb',
+        name: 'Legacy KB_bak',
         embeddingModelId: 'openai::text-embedding-3-large',
         dimensions: 3072
       })
@@ -564,6 +570,7 @@ describe('KnowledgeOrchestrationService', () => {
     await expect(
       service.restoreBase({
         sourceBaseId: 'source-kb',
+        name: 'Legacy KB_bak',
         embeddingModelId: 'openai::text-embedding-3-large',
         dimensions: 3072
       })
@@ -602,6 +609,7 @@ describe('KnowledgeOrchestrationService', () => {
     await expect(
       service.restoreBase({
         sourceBaseId: 'source-kb',
+        name: 'Legacy KB_bak',
         embeddingModelId: 'openai::text-embedding-3-large',
         dimensions: 3072
       })
@@ -634,6 +642,7 @@ describe('KnowledgeOrchestrationService', () => {
     await expect(
       service.restoreBase({
         sourceBaseId: 'source-kb',
+        name: 'Legacy KB_bak',
         embeddingModelId: 'openai::text-embedding-3-large',
         dimensions: 3072
       })

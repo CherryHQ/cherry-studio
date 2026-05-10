@@ -306,7 +306,7 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).not.toHaveBeenCalled()
   })
 
-  it('calls onReindex without calling onClick when the reindex action is clicked', () => {
+  it('calls onReindex without calling onClick when the reindex action is clicked', async () => {
     const handleClick = vi.fn()
     const handleReindex = vi.fn()
 
@@ -322,7 +322,9 @@ describe('KnowledgeItemRow', () => {
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
-    expect(handleReindex).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(handleReindex).toHaveBeenCalledTimes(1)
+    })
     expect(handleClick).not.toHaveBeenCalled()
   })
 
