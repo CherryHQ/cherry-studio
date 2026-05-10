@@ -1,7 +1,5 @@
-import type { Tool } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ToolEntry } from '../../../tools/types'
 import { collectFromFeatures } from '../collectFromFeatures'
 import type { RequestFeature } from '../feature'
 import type { RequestScope } from '../scope'
@@ -21,51 +19,41 @@ function makeScope(): RequestScope {
   }
 }
 
-function makeEntry(name: string): ToolEntry {
-  return {
-    name,
-    namespace: 'test',
-    description: `${name} description`,
-    defer: 'never',
-    tool: { description: '' } as unknown as Tool
-  }
-}
-
 describe('collectFromFeatures', () => {
   it('runs every feature whose applies returns true (or is absent)', () => {
-    const a = vi.fn(() => [makeEntry('a')])
-    const b = vi.fn(() => [makeEntry('b')])
+    const a = vi.fn(() => [{ name: 'plugin-a' } as never])
+    const b = vi.fn(() => [{ name: 'plugin-b' } as never])
     const features: RequestFeature[] = [
-      { name: 'always-on', contributeTools: a },
-      { name: 'gated-on', applies: () => true, contributeTools: b }
+      { name: 'always-on', contributeModelAdapters: a },
+      { name: 'gated-on', applies: () => true, contributeModelAdapters: b }
     ]
     const out = collectFromFeatures(makeScope(), features)
-    expect(out.ephemeralEntries.map((e) => e.name)).toEqual(['a', 'b'])
+    expect(out.modelAdapters).toHaveLength(2)
     expect(a).toHaveBeenCalledTimes(1)
     expect(b).toHaveBeenCalledTimes(1)
   })
 
   it('skips a feature whose applies returns false', () => {
-    const contribute = vi.fn(() => [makeEntry('skipped')])
+    const contribute = vi.fn(() => [{ name: 'skipped' } as never])
     const out = collectFromFeatures(makeScope(), [
-      { name: 'gated-off', applies: () => false, contributeTools: contribute }
+      { name: 'gated-off', applies: () => false, contributeModelAdapters: contribute }
     ])
-    expect(out.ephemeralEntries).toEqual([])
+    expect(out.modelAdapters).toEqual([])
     expect(contribute).not.toHaveBeenCalled()
   })
 
   it('treats a thrown applies as not applicable (does not crash)', () => {
-    const contribute = vi.fn(() => [makeEntry('x')])
+    const contribute = vi.fn(() => [{ name: 'x' } as never])
     const out = collectFromFeatures(makeScope(), [
       {
         name: 'flaky-applies',
         applies: () => {
           throw new Error('boom')
         },
-        contributeTools: contribute
+        contributeModelAdapters: contribute
       }
     ])
-    expect(out.ephemeralEntries).toEqual([])
+    expect(out.modelAdapters).toEqual([])
     expect(contribute).not.toHaveBeenCalled()
   })
 
@@ -73,42 +61,36 @@ describe('collectFromFeatures', () => {
     const out = collectFromFeatures(makeScope(), [
       {
         name: 'partial-failure',
-        contributeTools: () => {
-          throw new Error('tool failure')
+        contributeModelAdapters: () => {
+          throw new Error('plugin failure')
         },
-        contributeSystemSection: () => ({ key: 'fallback', text: 'still here' })
+        contributeHooks: () => ({ onFinish: () => {} })
       }
     ])
-    expect(out.ephemeralEntries).toEqual([])
-    expect(out.systemSections).toEqual([{ key: 'fallback', text: 'still here' }])
+    expect(out.modelAdapters).toEqual([])
+    expect(out.hookParts).toHaveLength(1)
   })
 
   it('isolates errors in one feature — other features unaffected', () => {
     const out = collectFromFeatures(makeScope(), [
       {
         name: 'broken',
-        contributeTools: () => {
+        contributeModelAdapters: () => {
           throw new Error('boom')
         }
       },
       {
         name: 'healthy',
-        contributeTools: () => [makeEntry('survives')]
+        contributeModelAdapters: () => [{ name: 'survives' } as never]
       }
     ])
-    expect(out.ephemeralEntries.map((e) => e.name)).toEqual(['survives'])
+    expect(out.modelAdapters).toHaveLength(1)
   })
 
   it('aggregates contributions across multiple features and aspects', () => {
     const out = collectFromFeatures(makeScope(), [
       {
-        name: 'kb',
-        contributeTools: () => [makeEntry('kb__search')],
-        contributeSystemSection: () => ({ key: 'kb-hint', text: 'use kb' })
-      },
-      {
         name: 'web',
-        contributeTools: () => [makeEntry('web__search'), makeEntry('web__fetch')],
         contributeModelAdapters: () => [{ name: 'web-plugin' } as never]
       },
       {
@@ -116,26 +98,24 @@ describe('collectFromFeatures', () => {
         contributeHooks: () => ({ onFinish: () => {} })
       }
     ])
-    expect(out.ephemeralEntries.map((e) => e.name)).toEqual(['kb__search', 'web__search', 'web__fetch'])
-    expect(out.systemSections).toEqual([{ key: 'kb-hint', text: 'use kb' }])
     expect(out.modelAdapters).toHaveLength(1)
     expect(out.hookParts).toHaveLength(1)
   })
 
   it('returns empty contributions when no features supplied', () => {
     const out = collectFromFeatures(makeScope(), [])
-    expect(out).toEqual({ ephemeralEntries: [], systemSections: [], modelAdapters: [], hookParts: [] })
+    expect(out).toEqual({ modelAdapters: [], hookParts: [] })
   })
 
   it('skips contribute methods that return undefined', () => {
     const out = collectFromFeatures(makeScope(), [
       {
         name: 'no-op',
-        contributeTools: () => undefined as never,
-        contributeSystemSection: () => undefined as never
+        contributeModelAdapters: () => undefined as never,
+        contributeHooks: () => undefined as never
       }
     ])
-    expect(out.ephemeralEntries).toEqual([])
-    expect(out.systemSections).toEqual([])
+    expect(out.modelAdapters).toEqual([])
+    expect(out.hookParts).toEqual([])
   })
 })

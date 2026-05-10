@@ -11,7 +11,6 @@
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 
-import type { ToolEntry } from '../../tools/types'
 import type { AgentLoopHooks } from '../loop'
 import type { RequestFeature } from './feature'
 import type { RequestScope } from './scope'
@@ -19,30 +18,18 @@ import type { RequestScope } from './scope'
 const logger = loggerService.withContext('collectFromFeatures')
 
 export interface FeatureContributions {
-  /** Ephemeral tool entries from feature.contributeTools — does NOT include
-   *  registry-resident tools, the orchestrator merges those separately. */
-  ephemeralEntries: ToolEntry[]
-  systemSections: Array<{ key: string; text: string }>
   modelAdapters: AiPlugin[]
   hookParts: Array<Partial<AgentLoopHooks>>
 }
 
 export function collectFromFeatures(scope: RequestScope, features: readonly RequestFeature[]): FeatureContributions {
   const out: FeatureContributions = {
-    ephemeralEntries: [],
-    systemSections: [],
     modelAdapters: [],
     hookParts: []
   }
 
   for (const feature of features) {
     if (!shouldRun(feature, scope)) continue
-
-    const ephemeralEntries = invokeContribution(feature, 'contributeTools', scope)
-    if (ephemeralEntries) out.ephemeralEntries.push(...ephemeralEntries)
-
-    const systemSection = invokeContribution(feature, 'contributeSystemSection', scope)
-    if (systemSection) out.systemSections.push(systemSection)
 
     const modelAdapters = invokeContribution(feature, 'contributeModelAdapters', scope)
     if (modelAdapters) out.modelAdapters.push(...modelAdapters)
@@ -64,7 +51,7 @@ function shouldRun(feature: RequestFeature, scope: RequestScope): boolean {
   }
 }
 
-type ContributionMethod = 'contributeTools' | 'contributeSystemSection' | 'contributeModelAdapters' | 'contributeHooks'
+type ContributionMethod = 'contributeModelAdapters' | 'contributeHooks'
 
 function invokeContribution<M extends ContributionMethod>(
   feature: RequestFeature,
