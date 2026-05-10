@@ -3740,6 +3740,9 @@
         "summary": "请总结下面的内容。要求：使用 {{language}} 语言进行回复；请不要包含对本提示词的任何解释，直接给出回复： \n\n"
       },
       "translate": {
+        "error": {
+          "no_selected_text": "未选中要翻译的文本"
+        },
         "smart_translate_tips": "智能翻译：内容将优先翻译为目标语言；内容已是目标语言的，将翻译为备选语言"
       },
       "window": {
@@ -6116,8 +6119,12 @@
     "detecting": "检测中...",
     "empty": "翻译内容为空",
     "error": {
+      "auto_copy_failed": "自动复制翻译结果失败",
       "chat_qwen_mt": "Qwen MT 模型不可在对话中使用，请转至翻译页面",
       "detect": {
+        "empty": "检测到的语言为空",
+        "failed": "语言检测失败",
+        "invalid": "检测到的语言不受支持",
         "qwen_mt": "QwenMT模型不能用于语言检测",
         "unknown": "检测到未知语言",
         "update_setting": "设置失败"
@@ -6125,6 +6132,7 @@
       "empty": "翻译结果为空内容",
       "failed": "翻译失败",
       "invalid_source": "无效的源语言",
+      "languages_load_failed": "翻译模块初始化失败，部分功能可能不可用",
       "not_configured": "翻译模型未配置",
       "not_supported": "不支持的语言 {{language}}",
       "unknown": "翻译过程中遇到未知错误"
@@ -6137,6 +6145,7 @@
       "error": {
         "check_type": "检查文件类型时发生错误",
         "multiple": "不允许上传多个文件",
+        "ocr": "识别图片文字失败",
         "too_large": "文件过大",
         "unknown": "读取文件内容失败"
       },
@@ -6148,11 +6157,20 @@
       "delete": "删除翻译历史",
       "empty": "暂无翻译历史",
       "error": {
+        "add": "添加翻译历史失败",
+        "clear": "清空翻译历史失败",
         "delete": "删除失败",
+        "load": "加载翻译历史失败",
         "save": "保存翻译历史失败"
       },
       "search": {
         "placeholder": "搜索翻译历史"
+      },
+      "success": {
+        "add": "已添加到历史",
+        "clear": "已清空",
+        "delete": "删除成功",
+        "update": "已保存"
       },
       "title": "翻译历史"
     },
@@ -6182,6 +6200,9 @@
       "autoCopy": "翻译完成后自动复制",
       "bidirectional": "双向翻译设置",
       "bidirectional_tip": "开启后，仅支持在源语言和目标语言之间进行双向翻译",
+      "error": {
+        "save": "保存翻译设置失败"
+      },
       "model": "模型设置",
       "model_desc": "翻译服务使用的模型",
       "model_placeholder": "选择翻译模型",

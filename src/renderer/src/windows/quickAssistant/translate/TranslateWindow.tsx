@@ -1,14 +1,11 @@
 import { SwapOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { LanguagesEnum } from '@renderer/config/translate'
-import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
-import useTranslate from '@renderer/hooks/useTranslate'
 import { translateText } from '@renderer/services/TranslateService'
-import type { TranslateLanguage } from '@renderer/types'
-import { runAsyncFunction } from '@renderer/utils'
+import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { Select } from 'antd'
 import { isEmpty } from 'lodash'
 import type { FC } from 'react'
@@ -23,17 +20,12 @@ interface Props {
   text: string
 }
 
-let _targetLanguage = (await db.settings.get({ id: 'translate:target:language' }))?.value || LanguagesEnum.zhCN
-
 const Translate: FC<Props> = ({ text }) => {
   const [result, setResult] = useState('')
-  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(_targetLanguage)
+  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.mini_window.target_lang')
   const { translateModel } = useDefaultModel()
   const { t } = useTranslation()
   const translatingRef = useRef(false)
-  const { getLanguageByLangcode } = useTranslate()
-
-  _targetLanguage = targetLanguage
 
   const translate = useCallback(async () => {
     if (!text.trim() || !translateModel) return
@@ -47,18 +39,16 @@ const Translate: FC<Props> = ({ text }) => {
 
       translatingRef.current = false
     } catch (error) {
-      logger.error('Error fetching result:', error as Error)
+      // User-initiated aborts shouldn't look like failures; anything else gets
+      // the upstream message prefixed so the user sees why it failed.
+      if (!isAbortError(error)) {
+        logger.error('Error fetching result:', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
+      }
     } finally {
       translatingRef.current = false
     }
-  }, [text, targetLanguage, translateModel])
-
-  useEffect(() => {
-    void runAsyncFunction(async () => {
-      const targetLang = await db.settings.get({ id: 'translate:target:language' })
-      targetLang && setTargetLanguage(getLanguageByLangcode(targetLang.value))
-    })
-  }, [getLanguageByLangcode])
+  }, [text, targetLanguage, translateModel, t])
 
   useEffect(() => {
     void translate()
@@ -83,12 +73,11 @@ const Translate: FC<Props> = ({ text }) => {
         <SwapOutlined />
         <LanguageSelect
           showSearch
-          value={targetLanguage.langCode}
+          value={targetLanguage}
           style={{ maxWidth: 200, minWidth: 130, flex: 1 }}
           optionFilterProp="label"
           onChange={async (value) => {
-            await db.settings.put({ id: 'translate:target:language', value })
-            setTargetLanguage(getLanguageByLangcode(value))
+            return await setTargetLanguage(value)
           }}
         />
       </MenuContainer>
