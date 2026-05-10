@@ -184,9 +184,10 @@ export class AiService extends BaseService {
       }
 
       const controller = new AbortController()
-      port.on('message', (msg) => {
-        if ((msg.data as { type?: string } | undefined)?.type === 'abort') controller.abort()
-      })
+      const onAbortMessage = (msg: { data?: { type?: string } }) => {
+        if (msg.data?.type === 'abort') controller.abort()
+      }
+      port.on('message', onAbortMessage)
       port.start()
 
       void (async () => {
@@ -199,6 +200,9 @@ export class AiService extends BaseService {
         } catch (err) {
           port.postMessage({ type: 'error', error: serializeError(err) })
         } finally {
+          // Drop the listener explicitly so it doesn't keep the closure (and
+          // the AbortController) reachable until the port itself is GC'd.
+          port.off('message', onAbortMessage)
           port.close()
         }
       })()
