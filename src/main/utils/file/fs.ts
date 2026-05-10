@@ -27,7 +27,17 @@
 
 import { randomUUID } from 'node:crypto'
 import { createReadStream, createWriteStream as nodeCreateWriteStream } from 'node:fs'
-import { access, constants, open as fsOpen, readFile, rename, stat as fsStat, unlink } from 'node:fs/promises'
+import {
+  access,
+  constants,
+  mkdir as fsMkdirPromise,
+  open as fsOpen,
+  readFile,
+  rename,
+  rm as fsRm,
+  stat as fsStat,
+  unlink
+} from 'node:fs/promises'
 import path from 'node:path'
 import { Writable } from 'node:stream'
 
@@ -333,19 +343,19 @@ export async function remove(target: FilePath): Promise<void> {
   }
 }
 
-/** Remove a directory recursively. */
-export async function removeDir(_path: FilePath): Promise<void> {
-  return notImplemented('removeDir')
+/** Remove a directory recursively. Idempotent on missing path. */
+export async function removeDir(target: FilePath): Promise<void> {
+  await fsRm(target, { recursive: true, force: true })
 }
 
-/** Create a directory (recursive). */
-export async function mkdir(_path: FilePath): Promise<void> {
-  return notImplemented('mkdir')
+/** Create a single directory. Throws if it already exists. */
+export async function mkdir(target: FilePath): Promise<void> {
+  await fsMkdirPromise(target)
 }
 
-/** Ensure a directory exists (no-op if already present). */
-export async function ensureDir(_path: FilePath): Promise<void> {
-  return notImplemented('ensureDir')
+/** Ensure a directory exists, creating any missing ancestors. Idempotent. */
+export async function ensureDir(target: FilePath): Promise<void> {
+  await fsMkdirPromise(target, { recursive: true })
 }
 
 /** Compress an image (sharp). Returns the output path. */

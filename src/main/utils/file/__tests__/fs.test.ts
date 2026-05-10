@@ -10,12 +10,15 @@ import {
   atomicWriteIfUnchanged,
   copy as fsCopy,
   createAtomicWriteStream,
+  ensureDir,
   exists,
   hash,
+  mkdir as fsMkdir,
   move as fsMove,
   PathStaleVersionError,
   read,
   remove as fsRemove,
+  removeDir,
   stat,
   write as fsWrite
 } from '../fs'
@@ -405,6 +408,44 @@ describe('remove', () => {
   it('is idempotent on a missing path (no throw)', async () => {
     const target = path.join(tmp, 'nope.txt') as FilePath
     await expect(fsRemove(target)).resolves.toBeUndefined()
+  })
+})
+
+describe('mkdir / ensureDir / removeDir', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-fs-test-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('mkdir creates a single nested directory', async () => {
+    const target = path.join(tmp, 'a') as FilePath
+    await fsMkdir(target)
+    const s = await stat(target)
+    expect(s.isDirectory).toBe(true)
+  })
+
+  it('ensureDir creates a deeply nested path and is idempotent', async () => {
+    const target = path.join(tmp, 'a', 'b', 'c') as FilePath
+    await ensureDir(target)
+    expect((await stat(target)).isDirectory).toBe(true)
+    // Idempotent — second call must not throw.
+    await ensureDir(target)
+    expect((await stat(target)).isDirectory).toBe(true)
+  })
+
+  it('removeDir recursively removes a tree', async () => {
+    const root = path.join(tmp, 'r')
+    await mkdir(path.join(root, 'sub'), { recursive: true })
+    await writeFile(path.join(root, 'sub', 'f.txt'), 'x')
+    await removeDir(root as FilePath)
+    expect(await exists(root as FilePath)).toBe(false)
+  })
+
+  it('removeDir is idempotent on a missing path', async () => {
+    await expect(removeDir(path.join(tmp, 'nope') as FilePath)).resolves.toBeUndefined()
   })
 })
 
