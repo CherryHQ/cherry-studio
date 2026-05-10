@@ -65,7 +65,7 @@ describe('ModelListHeader', () => {
 
     expect(screen.getByText('settings.models.list_title')).toBeInTheDocument()
     expect(screen.getByText(/1\/3 common\.enabled/)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('models.search.placeholder')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('models.search.placeholder')).not.toBeInTheDocument()
     expect(screen.getByText('external-action')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.bulk_enable' }))
@@ -90,9 +90,11 @@ describe('ModelListHeader', () => {
     expect(screen.getByRole('button', { name: 'settings.models.bulk_disable' })).toBeInTheDocument()
   })
 
-  it('shows search by default and collapses it when the search toggle is activated', () => {
+  it('keeps search collapsed by default and expands it when the search toggle is activated', () => {
     render(<ModelListHeader {...baseProps} />)
 
+    expect(screen.queryByPlaceholderText('models.search.placeholder')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'models.search.tooltip' }))
     expect(screen.getByPlaceholderText('models.search.placeholder')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'models.search.tooltip' }))
     expect(screen.queryByPlaceholderText('models.search.placeholder')).not.toBeInTheDocument()

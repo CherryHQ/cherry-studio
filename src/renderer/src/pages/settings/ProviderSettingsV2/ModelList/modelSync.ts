@@ -2,7 +2,11 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { AiProvider } from '@renderer/aiCore'
 import { toV1ProviderShim } from '@renderer/pages/settings/ProviderSettingsV2/utils/v1ProviderShim'
-import type { Model as LegacyModel, ModelCapability as LegacyModelCapability } from '@renderer/types'
+import type {
+  Model as LegacyModel,
+  ModelCapability as LegacyModelCapability,
+  Provider as LegacyProvider
+} from '@renderer/types'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
@@ -42,7 +46,7 @@ const LEGACY_ENDPOINT_TO_V2: Record<string, RuntimeEndpointType> = {
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK
 }
 
-async function fetchModelsStrict(provider: Provider): Promise<LegacyModel[]> {
+async function fetchModelsStrict(provider: LegacyProvider): Promise<LegacyModel[]> {
   const ai = new AiProvider(provider)
 
   return await ai.models({ throwOnError: true })
