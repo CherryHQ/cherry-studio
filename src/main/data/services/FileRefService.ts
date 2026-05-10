@@ -71,6 +71,14 @@ export interface FileRefService {
   listDistinctSourceIds(sourceType: FileRefSourceType): Promise<string[]>
 }
 
+/**
+ * SQLite parameter cap is configurable but defaults to 999; keep batches well
+ * under that for `inArray()` even with comparison overhead. Same constant lives
+ * in `FileRefCheckerRegistry.knowledgeItemChecker` — kept lexically separate
+ * because the two callers can diverge as their query shapes evolve.
+ */
+const SQLITE_INARRAY_CHUNK = 500
+
 type FileRefRow = typeof fileRefTable.$inferSelect
 
 function rowToFileRef(row: FileRefRow): FileRef {
@@ -143,11 +151,19 @@ class FileRefServiceImpl implements FileRefService {
 
   async cleanupBySourceBatch(sourceType: FileRefSourceType, sourceIds: readonly string[]): Promise<number> {
     if (sourceIds.length === 0) return 0
-    const rows = await this.getDb()
-      .delete(fileRefTable)
-      .where(and(eq(fileRefTable.sourceType, sourceType), inArray(fileRefTable.sourceId, sourceIds as string[])))
-      .returning({ id: fileRefTable.id })
-    return rows.length
+    let total = 0
+    // SQLite caps `IN (?, ?, …)` at SQLITE_LIMIT_VARIABLE_NUMBER (default 999;
+    // sometimes 32766). Chunk so a long-tenured user with thousands of
+    // orphaned source ids doesn't blow up the single-statement DELETE.
+    for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
+      const chunk = sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+      const rows = await this.getDb()
+        .delete(fileRefTable)
+        .where(and(eq(fileRefTable.sourceType, sourceType), inArray(fileRefTable.sourceId, chunk)))
+        .returning({ id: fileRefTable.id })
+      total += rows.length
+    }
+    return total
   }
 
   async listDistinctSourceIds(sourceType: FileRefSourceType): Promise<string[]> {

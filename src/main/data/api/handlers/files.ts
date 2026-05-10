@@ -22,6 +22,9 @@ function getDb() {
   return application.get('DbService').getDb()
 }
 
+/** Same SQLite `IN (?, …)` parameter-cap rationale as in FileRefService. */
+const SQLITE_INARRAY_CHUNK = 500
+
 export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/entries': {
     GET: async ({ query }) => {
@@ -78,15 +81,21 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
     GET: async ({ query }) => {
       const entryIds = query.entryIds
       if (entryIds.length === 0) return []
-      const rows = await getDb()
-        .select({
-          entryId: fileRefTable.fileEntryId,
-          refCount: count()
-        })
-        .from(fileRefTable)
-        .where(inArray(fileRefTable.fileEntryId, entryIds))
-        .groupBy(fileRefTable.fileEntryId)
-      const counts = new Map(rows.map((r) => [r.entryId, r.refCount]))
+      const counts = new Map<string, number>()
+      // Chunk against SQLite's IN-list parameter cap; renderer batches from
+      // long lists (e.g. KnowledgeBase view enumerating thousands of items).
+      for (let i = 0; i < entryIds.length; i += SQLITE_INARRAY_CHUNK) {
+        const chunk = entryIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+        const rows = await getDb()
+          .select({
+            entryId: fileRefTable.fileEntryId,
+            refCount: count()
+          })
+          .from(fileRefTable)
+          .where(inArray(fileRefTable.fileEntryId, chunk))
+          .groupBy(fileRefTable.fileEntryId)
+        for (const r of rows) counts.set(r.entryId, r.refCount)
+      }
       return entryIds.map((id) => ({ entryId: id, refCount: counts.get(id) ?? 0 }))
     }
   },

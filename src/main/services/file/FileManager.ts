@@ -154,7 +154,7 @@ import { rename as internalRename } from './internal/entry/rename'
 import { type DbSweepReport, type OrphanReport, runDbSweep, runStartupFileSweep } from './internal/orphanSweep'
 import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
-import { versionCache } from './versionCache'
+import { createVersionCacheImpl, type VersionCache } from './versionCache'
 
 const fileManagerLogger = loggerService.withContext('FileManager')
 
@@ -468,11 +468,16 @@ export interface IFileManager {
 @Injectable('FileManager')
 @ServicePhase(Phase.WhenReady)
 export class FileManager extends BaseService {
+  // Per-instance VersionCache so each `new FileManager()` (e.g. in tests) gets
+  // a fresh cache — file-manager-architecture.md §1.6.1 / §12 mandate this is
+  // a class private field, not a module singleton, for test-isolation reasons.
+  private readonly _versionCache: VersionCache = createVersionCacheImpl(2000)
+
   private readonly deps: FileManagerDeps = {
     fileEntryService,
     fileRefService,
     danglingCache,
-    versionCache,
+    versionCache: this._versionCache,
     orphanRegistry: orphanCheckerRegistry
   }
 
@@ -667,7 +672,7 @@ export class FileManager extends BaseService {
         if (!cached) seen.set(canonical, entry)
         succeeded.push(entry.id)
       } catch (err) {
-        failed.push({ id: params.externalPath as unknown as FileEntryId, error: (err as Error).message })
+        failed.push({ sourceRef: params.externalPath, error: (err as Error).message })
       }
     }
     return { succeeded, failed }
@@ -795,12 +800,14 @@ async function aggregateCreate<P>(
 ): Promise<BatchOperationResult> {
   const succeeded: FileEntryId[] = []
   const failed: BatchOperationResult['failed'] = []
-  for (const params of items) {
+  for (let i = 0; i < items.length; i++) {
     try {
-      const entry = await op(params)
+      const entry = await op(items[i])
       succeeded.push(entry.id)
     } catch (err) {
-      failed.push({ id: '' as FileEntryId, error: (err as Error).message })
+      // No FileEntryId yet (insert never happened); report by input index so
+      // callers can correlate with the original `items` array.
+      failed.push({ sourceRef: `#${i}`, error: (err as Error).message })
     }
   }
   return { succeeded, failed }

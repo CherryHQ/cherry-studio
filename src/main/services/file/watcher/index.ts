@@ -31,16 +31,19 @@
  * breaking existing subscribers.
  *
  * See [file-manager-architecture.md §8](../../../../docs/references/file/file-manager-architecture.md)
- * for the full design and RFC §9.5 for Phase 1b.3 deliverables.
+ * for the full design.
  */
 
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
 import type { FilePath } from '@shared/file/types'
 import { type FSWatcher, watch as chokidarWatch } from 'chokidar'
 
 import { danglingCache } from '../danglingCache'
+
+const logger = loggerService.withContext('file/watcher')
 
 /**
  * Normalized FS event. Rename is represented as `unlink` + `add` — consumers
@@ -104,7 +107,13 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
     this.fsw.on('change', (p) => this.handle({ kind: 'change', path: p as FilePath }))
     this.fsw.on('unlink', (p) => this.handle({ kind: 'unlink', path: p as FilePath }))
     this.fsw.on('ready', () => this.emitter.fire({ kind: 'ready' }))
-    this.fsw.on('error', (err) => this.emitter.fire({ kind: 'error', error: err as Error }))
+    this.fsw.on('error', (err) => {
+      // Log proactively: chokidar errors (EMFILE, lost permissions on a
+      // parent dir, etc.) silently stop event delivery; without this log a
+      // dead watcher leaves the cache stale with no diagnostic trace.
+      logger.error('chokidar error', err as Error)
+      this.emitter.fire({ kind: 'error', error: err as Error })
+    })
   }
 
   /**

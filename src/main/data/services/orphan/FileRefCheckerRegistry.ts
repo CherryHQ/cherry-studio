@@ -15,8 +15,11 @@
 
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { loggerService } from '@logger'
 import type { FileRefSourceType } from '@shared/data/types/file'
 import { inArray } from 'drizzle-orm'
+
+const logger = loggerService.withContext('file/orphan/checker-registry')
 
 export interface SourceTypeChecker<T extends FileRefSourceType = FileRefSourceType> {
   readonly sourceType: T
@@ -89,6 +92,7 @@ async function runWithBusyRetry<T>(op: () => Promise<T>): Promise<T> {
     return await op()
   } catch (err) {
     if ((err as { code?: string }).code !== 'SQLITE_BUSY') throw err
+    logger.warn('orphan-sweep: SQLITE_BUSY, retrying once', { delayMs: BUSY_RETRY_DELAY_MS })
     await new Promise((resolve) => setTimeout(resolve, BUSY_RETRY_DELAY_MS))
     return op()
   }

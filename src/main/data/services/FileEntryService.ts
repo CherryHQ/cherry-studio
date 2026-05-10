@@ -115,6 +115,14 @@ export interface FileEntryService {
   /** Update mutable columns. Returns the refreshed row. Throws if not found. */
   update(id: FileEntryId, values: UpdateFileEntryRow): Promise<FileEntry>
 
+  /**
+   * Atomically rewrite both `externalPath` and `name` for an external entry.
+   * The rename flow is the **only** sanctioned mutation site for `externalPath`;
+   * doing it as a single statement keeps the (path, name) pair consistent under
+   * partial-failure scenarios (transient lock, schema constraint).
+   */
+  setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): Promise<FileEntry>
+
   /** Remove the row (CASCADE drops dependent `file_ref`s). No-op if already gone. */
   delete(id: FileEntryId): Promise<void>
 }
@@ -240,6 +248,23 @@ class FileEntryServiceImpl implements FileEntryService {
     if (values.size !== undefined) updates.size = values.size
     if (values.trashedAt !== undefined) updates.trashedAt = values.trashedAt
     const rows = await this.getDb().update(fileEntryTable).set(updates).where(eq(fileEntryTable.id, id)).returning()
+    if (rows.length === 0) {
+      throw new Error(`FileEntry not found: ${id}`)
+    }
+    return rowToFileEntry(rows[0])
+  }
+
+  /**
+   * Atomically rewrite both `externalPath` and `name` for an external entry —
+   * the only sanctioned mutation site for `externalPath`. Used by the rename
+   * flow so the (path, name) pair stays consistent under failure.
+   */
+  async setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): Promise<FileEntry> {
+    const rows = await this.getDb()
+      .update(fileEntryTable)
+      .set({ externalPath, name, updatedAt: Date.now() })
+      .where(eq(fileEntryTable.id, id))
+      .returning()
     if (rows.length === 0) {
       throw new Error(`FileEntry not found: ${id}`)
     }
