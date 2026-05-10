@@ -1,10 +1,15 @@
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import { mapApiTopicToRendererTopic, useAllTopics } from '@renderer/hooks/useTopicDataApi'
-import { fetchMessagesFromDataApi } from '@renderer/services/db/DataApiMessageDataSource'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Message, Topic } from '@renderer/types'
+import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
+import { ErrorCode } from '@shared/data/api/apiErrors'
+import type { BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+
+const logger = loggerService.withContext('useTopic')
 
 export function useActiveTopic(topic?: Topic, options: { autoPickFirst?: boolean } = {}) {
   const { autoPickFirst = true } = options
@@ -118,18 +123,93 @@ export const finishTopicRenaming = (topicId: string) => {
   }, 700)
 }
 
+// Per-page size for `getTopicMessages`. Consumers (export, knowledge
+// analysis, topic rename) want the full branch — `getTopicMessages`
+// follows nextCursor until the server has nothing left rather than
+// hard-capping at one large page.
+const MESSAGES_PAGE_SIZE = 200
+
 /**
  * Load and return all messages for a topic.
  *
- * Fetches directly from DataApi (SQLite). Each returned `Message` carries
- * its `parts` (V2 source-of-truth), so `find.ts` / `filters.ts` utils
- * resolve content from `message.parts` without touching the renderer's
- * legacy `messageBlocks` Redux slice.
+ * Fetches directly from DataApi (SQLite) and follows the cursor to
+ * completion. Each returned `Message` carries its `parts` (V2
+ * source-of-truth), so `find.ts` / `filters.ts` utils resolve content
+ * from `message.parts` without touching the renderer's legacy
+ * `messageBlocks` Redux slice.
+ *
+ * Pagination semantics (`getBranchMessages` in main):
+ *   - "before cursor" → first page = newest tail, each subsequent page
+ *     walks older toward the root.
+ *   - Items within a page are root-style ordered (oldest first).
+ * To return the full branch in chronological order, we collect pages and
+ * concat in reverse fetch order (oldest page first, newest last).
  *
  * Used by one-off consumers (export, knowledge analysis, topic rename
  * pre-check). The main chat UI reads messages via `useTopicMessagesV2`.
  */
 export async function getTopicMessages(id: string): Promise<Message[]> {
-  const { messages } = await fetchMessagesFromDataApi(id)
-  return messages
+  try {
+    const pages: Message[][] = []
+    let assistantId = ''
+    let cursor: string | undefined
+
+    do {
+      const response = (await dataApiService.get(`/topics/${id}/messages`, {
+        query: { limit: MESSAGES_PAGE_SIZE, includeSiblings: true, cursor }
+      })) as BranchMessagesResponse
+
+      // Topic-level fields are stable across pages; first response wins.
+      if (!cursor) assistantId = response.assistantId ?? ''
+
+      const pageMessages: Message[] = []
+      for (const item of response.items) {
+        pageMessages.push(convertSharedMessage(item.message, assistantId))
+        if (item.siblingsGroup) {
+          for (const sibling of item.siblingsGroup) {
+            pageMessages.push(convertSharedMessage(sibling, assistantId))
+          }
+        }
+      }
+      pages.push(pageMessages)
+
+      cursor = response.nextCursor
+    } while (cursor)
+
+    return pages.reverse().flat()
+  } catch (error: unknown) {
+    if (error instanceof Object && 'code' in error && error.code === ErrorCode.NOT_FOUND) {
+      logger.debug(`Topic ${id} not found in Data API, returning empty`)
+      return []
+    }
+    logger.error(`Failed to fetch messages from Data API for topic ${id}:`, error as Error)
+    throw error
+  }
+}
+
+/**
+ * Project a shared `Message` (Data API) onto the renderer's `Message`. The
+ * `parts` field carries the V2 source-of-truth straight through; `blocks`
+ * is left empty because the legacy Redux blocks slice is no longer
+ * consulted by `find.ts` / `filters.ts` when `parts` is present.
+ */
+function convertSharedMessage(shared: SharedMessage, assistantId: string): Message {
+  return {
+    id: shared.id,
+    assistantId,
+    topicId: shared.topicId,
+    role: shared.role,
+    status: shared.status as Message['status'],
+    blocks: [],
+    parts: shared.data?.parts ?? [],
+    createdAt: shared.createdAt,
+    updatedAt: shared.updatedAt,
+    askId: shared.parentId ?? undefined,
+    modelId: shared.modelId ?? undefined,
+    traceId: shared.traceId ?? undefined,
+    ...(shared.stats && {
+      usage: statsToUsage(shared.stats),
+      metrics: statsToMetrics(shared.stats)
+    })
+  }
 }
