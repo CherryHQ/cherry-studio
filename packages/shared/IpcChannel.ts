@@ -253,6 +253,9 @@ export enum IpcChannel {
   File_ResumeWatcher = 'file:resumeWatcher',
   File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
   File_ShowInFolder = 'file:showInFolder',
+  // FileManager v2 surface (Phase 1b.3)
+  File_GetDanglingState = 'file:getDanglingState',
+  File_BatchGetDanglingStates = 'file:batchGetDanglingStates',
 
   // PDF
   Pdf_ExtractText = 'pdf:extractText',

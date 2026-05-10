@@ -123,6 +123,7 @@ import type {
   FileURLString,
   PhysicalFileMetadata
 } from '@shared/file/types'
+import { IpcChannel } from '@shared/IpcChannel'
 import mime from 'mime'
 
 import { danglingCache } from './danglingCache'
@@ -467,6 +468,14 @@ export class FileManager extends BaseService {
     fileRefService,
     danglingCache,
     versionCache
+  }
+
+  protected override async onInit(): Promise<void> {
+    await this.deps.danglingCache.initFromDb()
+    this.ipcHandle(IpcChannel.File_GetDanglingState, (_e, params: { id: FileEntryId }) => this.getDanglingState(params))
+    this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params: { ids: FileEntryId[] }) =>
+      this.batchGetDanglingStates(params)
+    )
   }
 
   // ─── Entry queries ───

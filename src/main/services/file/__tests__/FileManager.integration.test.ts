@@ -205,6 +205,31 @@ describe('FileManager (integration)', () => {
     expect(await fm.getDanglingState({ id: ext.id })).toBe('missing')
   })
 
+  it('INT-10: onInit seeds DanglingCache from DB so subsequent unlink events reach external entries', async () => {
+    const file = path.join(tmp, 'preexisting.txt')
+    await writeFile(file, 'p')
+    // Pre-insert the external entry directly via DB (simulates a prior session).
+    const id = '019606a0-0000-7000-8000-00000000ff20' as FileEntryId
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'external',
+      name: 'preexisting',
+      ext: 'txt',
+      size: null,
+      externalPath: file,
+      trashedAt: null,
+      createdAt: 0,
+      updatedAt: 0
+    })
+    // The cache is empty (cleared in beforeEach). Simulate boot by invoking
+    // the lifecycle init path the container would normally drive.
+    await fm._doInit()
+    // After initFromDb, an onFsEvent for the indexed path must reach the entry
+    // and flip cache → 'missing' (cache hit, no cold stat needed).
+    danglingCache.onFsEvent(file as never, 'missing', 'watcher')
+    expect(await fm.getDanglingState({ id })).toBe('missing')
+  })
+
   it('INT-9: subscribeDangling delivers transitions for the subscribed external entry', async () => {
     const file = path.join(tmp, 'sub.txt')
     await writeFile(file, 'sub')
