@@ -25,8 +25,10 @@
  * See `docs/references/file/architecture.md §5.2` for the full rationale.
  */
 
+import { randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { access, constants, readFile, stat as fsStat } from 'node:fs/promises'
+import { access, constants, open as fsOpen, readFile, rename, stat as fsStat, unlink } from 'node:fs/promises'
+import path from 'node:path'
 
 import type { FilePath } from '@shared/file/types'
 import md5 from 'md5'
@@ -69,6 +71,51 @@ export async function exists(path: FilePath): Promise<boolean> {
 /** Write content to a file path. Creates parent directories if needed. */
 export async function write(_path: FilePath, _data: string | Uint8Array): Promise<void> {
   return notImplemented('write')
+}
+
+function tmpNameFor(target: string): string {
+  return `${target}.tmp-${randomUUID()}`
+}
+
+/**
+ * Atomic write: tmp + fsync + rename + fsync(dir).
+ *
+ * Follows the POSIX atomic flow documented in
+ * `docs/references/file/file-manager-architecture.md §5.1`:
+ * 1. open `{target}.tmp-{uuid}` in the same directory
+ * 2. write data, fsync the tmp fd
+ * 3. rename(tmp, target) — atomic replacement on POSIX
+ * 4. fsync(dir fd) — flush rename metadata; ignored on Windows
+ *
+ * On rename failure the tmp file is best-effort unlinked before the error
+ * is rethrown. The target file is therefore never partially written —
+ * callers either see the previous content or the new content.
+ */
+export async function atomicWriteFile(target: FilePath, data: string | Uint8Array): Promise<void> {
+  const tmp = tmpNameFor(target)
+  const tmpHandle = await fsOpen(tmp, 'w')
+  try {
+    await tmpHandle.writeFile(data)
+    await tmpHandle.sync()
+  } finally {
+    await tmpHandle.close()
+  }
+  try {
+    await rename(tmp, target)
+  } catch (err) {
+    await unlink(tmp).catch(() => undefined)
+    throw err
+  }
+  try {
+    const dirHandle = await fsOpen(path.dirname(target), 'r')
+    try {
+      await dirHandle.sync()
+    } finally {
+      await dirHandle.close()
+    }
+  } catch {
+    // Windows / unsupported FS — non-fatal; rename already committed.
+  }
 }
 
 /** Get file/directory stats. */

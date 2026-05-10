@@ -1,11 +1,11 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { FilePath } from '@shared/file/types'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { exists, hash, read, stat } from '../fs'
+import { atomicWriteFile, exists, hash, read, stat } from '../fs'
 
 describe('stat', () => {
   let tmp: string
@@ -161,5 +161,59 @@ describe('hash', () => {
     await writeFile(f, 'sample')
     const h = await hash(f as FilePath)
     expect(h).toMatch(/^[0-9a-f]+$/)
+  })
+})
+
+describe('atomicWriteFile', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-fs-test-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('writes string content to a fresh path and leaves no .tmp- residue', async () => {
+    const target = path.join(tmp, 'a.txt') as FilePath
+    await atomicWriteFile(target, 'hello')
+    expect(await readFile(target, 'utf-8')).toBe('hello')
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+  })
+
+  it('writes Uint8Array content', async () => {
+    const target = path.join(tmp, 'b.bin') as FilePath
+    const data = new Uint8Array([0x01, 0x02, 0x03])
+    await atomicWriteFile(target, data)
+    const buf = await readFile(target)
+    expect(Buffer.from(buf).equals(Buffer.from(data))).toBe(true)
+  })
+
+  it('overwrites an existing target atomically', async () => {
+    const target = path.join(tmp, 'c.txt') as FilePath
+    await atomicWriteFile(target, 'first')
+    await atomicWriteFile(target, 'second')
+    expect(await readFile(target, 'utf-8')).toBe('second')
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+  })
+
+  it('cleans up the tmp file when rename fails', async () => {
+    // Make the target directory read-only after pre-creating an existing file there,
+    // then attempt to overwrite — rename(tmp → target) cannot succeed because the
+    // directory is read-only on POSIX. Skip on Windows where chmod semantics differ.
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'd.txt') as FilePath
+    await atomicWriteFile(target, 'baseline')
+    const { chmod } = await import('node:fs/promises')
+    await chmod(tmp, 0o555)
+    try {
+      await expect(atomicWriteFile(target, 'second')).rejects.toThrow()
+    } finally {
+      await chmod(tmp, 0o755)
+    }
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+    expect(await readFile(target, 'utf-8')).toBe('baseline')
   })
 })
