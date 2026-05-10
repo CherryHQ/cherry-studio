@@ -1,5 +1,3 @@
-/* oxlint-disable no-unused-vars -- TODO(phase-1b.2): mutation method stubs (write / trash / batch* / open / showInFolder / withTempCopy / createReadStream / createAtomicWriteStream / createInternalEntry / ensureExternalEntry) keep their parameters to lock the public signature; bodies + parameter use land in Phase 1b.2. */
-
 /**
  * FileManager — contract surface for the planned sole public entry point for
  * all file operations.
@@ -107,6 +105,7 @@
  * of successful/failed stats.
  */
 
+import { createReadStream as nodeCreateReadStream } from 'node:fs'
 import type { Readable, Writable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
 
@@ -129,7 +128,28 @@ import mime from 'mime'
 import { danglingCache } from './danglingCache'
 import { hash as internalHash } from './internal/content/hash'
 import { read as internalRead } from './internal/content/read'
+import {
+  createWriteStream as internalCreateWriteStream,
+  write as internalWrite,
+  writeIfUnchanged as internalWriteIfUnchanged
+} from './internal/content/write'
 import type { FileManagerDeps } from './internal/deps'
+import { copy as internalCopy } from './internal/entry/copy'
+import {
+  createInternal as internalCreateInternal,
+  ensureExternal as internalEnsureExternal
+} from './internal/entry/create'
+import {
+  batchPermanentDelete as internalBatchPermanentDelete,
+  batchRestore as internalBatchRestore,
+  batchTrash as internalBatchTrash,
+  permanentDelete as internalPermanentDelete,
+  restore as internalRestore,
+  trash as internalTrash
+} from './internal/entry/lifecycle'
+import { rename as internalRename } from './internal/entry/rename'
+import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
+import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { versionCache } from './versionCache'
 
 // Main-side parameter types are structurally identical to the IPC variants —
@@ -425,18 +445,12 @@ export interface IFileManager {
 
 // ─── Runtime ───
 
-const notImplemented1b2 = (op: string): never => {
-  throw new Error(`FileManager.${op}: not implemented (Phase 1b.1 ships read path; ${op} lands in Phase 1b.2)`)
-}
-
 /**
  * Lifecycle-managed FileManager singleton.
  *
- * Phase 1b.1 implements the **read path** only — getById / findById /
- * findByExternalPath / read / getMetadata / getVersion / getContentHash /
- * getUrl / getPhysicalPath / ensureExternalEntry-read-side. Mutation methods
- * (createInternalEntry, write, trash, …) throw `notImplemented1b2` until
- * Phase 1b.2.
+ * Phase 1b.2 implements the full read + write surface — every IFileManager
+ * method delegates to a pure function under `./internal/*` taking the deps
+ * bundle this class owns.
  *
  * Internal ops live as pure functions under `./internal/*` and receive a
  * `FileManagerDeps` bundle. The class owns lifecycle (BaseService) and
@@ -469,12 +483,8 @@ export class FileManager extends BaseService {
     return this.deps.fileEntryService.findByExternalPath(canonicalizeExternalPath(rawPath))
   }
 
-  /**
-   * Read-side only in Phase 1b.1: returns existing entry by canonical path,
-   * or throws because the create branch lands with the write path in 1b.2.
-   */
-  async ensureExternalEntry(_params: EnsureExternalEntryParams): Promise<FileEntry> {
-    return notImplemented1b2('ensureExternalEntry')
+  async ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
+    return internalEnsureExternal(this.deps, params)
   }
 
   // ─── Read ───
@@ -546,71 +556,122 @@ export class FileManager extends BaseService {
 
   // ─── Mutation methods (Phase 1b.2) ───
 
-  async createInternalEntry(_params: CreateInternalEntryParams): Promise<FileEntry> {
-    return notImplemented1b2('createInternalEntry')
+  async createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry> {
+    return internalCreateInternal(this.deps, params)
   }
 
-  async batchCreateInternalEntries(_items: CreateInternalEntryParams[]): Promise<BatchOperationResult> {
-    return notImplemented1b2('batchCreateInternalEntries')
+  async batchCreateInternalEntries(items: CreateInternalEntryParams[]): Promise<BatchOperationResult> {
+    return aggregateCreate(items, (p) => this.createInternalEntry(p))
   }
 
-  async batchEnsureExternalEntries(_items: EnsureExternalEntryParams[]): Promise<BatchOperationResult> {
-    return notImplemented1b2('batchEnsureExternalEntries')
+  async batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchOperationResult> {
+    // Within-batch path duplicates resolve to the same entry per the public
+    // contract; the second occurrence reuses the just-inserted row. The
+    // canonical-path memoization here ensures both items end up in
+    // `succeeded` even though only one DB insert happens.
+    const seen = new Map<string, FileEntry>()
+    const succeeded: FileEntryId[] = []
+    const failed: BatchOperationResult['failed'] = []
+    for (const params of items) {
+      try {
+        const canonical = canonicalizeExternalPath(params.externalPath)
+        const cached = seen.get(canonical)
+        const entry = cached ?? (await this.ensureExternalEntry(params))
+        if (!cached) seen.set(canonical, entry)
+        succeeded.push(entry.id)
+      } catch (err) {
+        failed.push({ id: params.externalPath as unknown as FileEntryId, error: (err as Error).message })
+      }
+    }
+    return { succeeded, failed }
   }
 
-  async createReadStream(_id: FileEntryId): Promise<Readable> {
-    return notImplemented1b2('createReadStream')
+  async createReadStream(id: FileEntryId): Promise<Readable> {
+    const entry = await this.deps.fileEntryService.getById(id)
+    return nodeCreateReadStream(resolvePhysicalPath(entry))
   }
 
-  async write(_id: FileEntryId, _data: string | Uint8Array): Promise<FileVersion> {
-    return notImplemented1b2('write')
+  async write(id: FileEntryId, data: string | Uint8Array): Promise<FileVersion> {
+    return internalWrite(this.deps, id, data)
   }
 
   async writeIfUnchanged(
-    _id: FileEntryId,
-    _data: string | Uint8Array,
-    _expectedVersion: FileVersion
+    id: FileEntryId,
+    data: string | Uint8Array,
+    expectedVersion: FileVersion
   ): Promise<FileVersion> {
-    return notImplemented1b2('writeIfUnchanged')
+    return internalWriteIfUnchanged(this.deps, id, data, expectedVersion)
   }
 
-  async createAtomicWriteStream(_id: FileEntryId): Promise<AtomicWriteStream> {
-    return notImplemented1b2('createAtomicWriteStream')
+  async createWriteStream(id: FileEntryId): Promise<AtomicWriteStream> {
+    return internalCreateWriteStream(this.deps, id)
   }
 
-  async trash(_id: FileEntryId): Promise<void> {
-    return notImplemented1b2('trash')
+  /** Alias kept for backwards compatibility; prefer `createWriteStream`. */
+  async createAtomicWriteStream(id: FileEntryId): Promise<AtomicWriteStream> {
+    return this.createWriteStream(id)
   }
 
-  async restore(_id: FileEntryId): Promise<FileEntry> {
-    return notImplemented1b2('restore')
+  async trash(id: FileEntryId): Promise<void> {
+    return internalTrash(this.deps, id)
   }
 
-  async permanentDelete(_id: FileEntryId): Promise<void> {
-    return notImplemented1b2('permanentDelete')
+  async restore(id: FileEntryId): Promise<FileEntry> {
+    return internalRestore(this.deps, id)
   }
 
-  async batchTrash(_ids: FileEntryId[]): Promise<BatchOperationResult> {
-    return notImplemented1b2('batchTrash')
+  async permanentDelete(id: FileEntryId): Promise<void> {
+    return internalPermanentDelete(this.deps, id)
   }
 
-  async batchRestore(_ids: FileEntryId[]): Promise<BatchOperationResult> {
-    return notImplemented1b2('batchRestore')
+  async batchTrash(ids: FileEntryId[]): Promise<BatchOperationResult> {
+    return internalBatchTrash(this.deps, ids)
   }
 
-  async batchPermanentDelete(_ids: FileEntryId[]): Promise<BatchOperationResult> {
-    return notImplemented1b2('batchPermanentDelete')
+  async batchRestore(ids: FileEntryId[]): Promise<BatchOperationResult> {
+    return internalBatchRestore(this.deps, ids)
   }
 
-  async withTempCopy<T>(_id: FileEntryId, _fn: (tempPath: string) => Promise<T>): Promise<T> {
-    return notImplemented1b2('withTempCopy')
+  async batchPermanentDelete(ids: FileEntryId[]): Promise<BatchOperationResult> {
+    return internalBatchPermanentDelete(this.deps, ids)
   }
 
-  async open(_id: FileEntryId): Promise<void> {
-    return notImplemented1b2('open')
+  async rename(id: FileEntryId, newName: string): Promise<FileEntry> {
+    return internalRename(this.deps, id, newName)
   }
 
-  async showInFolder(_id: FileEntryId): Promise<void> {
-    return notImplemented1b2('showInFolder')
+  async copy(params: { id: FileEntryId; newName?: string }): Promise<FileEntry> {
+    return internalCopy(this.deps, params)
   }
+
+  async withTempCopy<T>(id: FileEntryId, fn: (tempPath: string) => Promise<T>): Promise<T> {
+    return internalWithTempCopy(this.deps, id, fn)
+  }
+
+  async open(id: FileEntryId): Promise<void> {
+    const entry = await this.deps.fileEntryService.getById(id)
+    return internalShellOpen(resolvePhysicalPath(entry) as FilePath)
+  }
+
+  async showInFolder(id: FileEntryId): Promise<void> {
+    const entry = await this.deps.fileEntryService.getById(id)
+    return internalShellShowInFolder(resolvePhysicalPath(entry) as FilePath)
+  }
+}
+
+async function aggregateCreate<P>(
+  items: readonly P[],
+  op: (p: P) => Promise<FileEntry>
+): Promise<BatchOperationResult> {
+  const succeeded: FileEntryId[] = []
+  const failed: BatchOperationResult['failed'] = []
+  for (const params of items) {
+    try {
+      const entry = await op(params)
+      succeeded.push(entry.id)
+    } catch (err) {
+      failed.push({ id: '' as FileEntryId, error: (err as Error).message })
+    }
+  }
+  return { succeeded, failed }
 }

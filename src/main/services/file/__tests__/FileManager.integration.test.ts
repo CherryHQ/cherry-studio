@@ -130,9 +130,47 @@ describe('FileManager (integration)', () => {
     await expect(fm.read(id)).rejects.toThrow(/ENOENT/)
   })
 
-  it('write methods throw notImplemented (deferred to 1b.2)', async () => {
-    await expect(fm.createInternalEntry({} as never)).rejects.toThrow(/Phase 1b\.2/)
-    await expect(fm.write('x' as FileEntryId, 'y')).rejects.toThrow(/Phase 1b\.2/)
-    await expect(fm.trash('x' as FileEntryId)).rejects.toThrow(/Phase 1b\.2/)
+  it('INT-4: write path round-trip — create internal, write, read, trash, restore, permanentDelete', async () => {
+    const created = await fm.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([0x01, 0x02]),
+      name: 'note',
+      ext: 'txt'
+    })
+    expect(created.size).toBe(2)
+    expect(created.origin).toBe('internal')
+
+    const v = await fm.write(created.id, new Uint8Array([0xaa, 0xbb, 0xcc]))
+    expect(v.size).toBe(3)
+
+    const read = await fm.read(created.id, { encoding: 'binary' })
+    expect(Array.from(read.content)).toEqual([0xaa, 0xbb, 0xcc])
+
+    await fm.trash(created.id)
+    expect((await fm.getById(created.id)).trashedAt).not.toBeNull()
+
+    const restored = await fm.restore(created.id)
+    expect(restored.trashedAt).toBeNull()
+
+    await fm.permanentDelete(created.id)
+    await expect(fm.getById(created.id)).rejects.toThrow(/not found/i)
+  })
+
+  it('INT-5: trash on external entry is blocked by DB CHECK fe_external_no_trash', async () => {
+    const file = path.join(tmp, 'ext.txt')
+    await writeFile(file, 'x')
+    const e = await fm.ensureExternalEntry({ externalPath: file as never })
+    await expect(fm.trash(e.id)).rejects.toThrow()
+    expect((await fm.getById(e.id)).trashedAt).toBeNull()
+  })
+
+  it('INT-6: permanentDelete on external leaves user file untouched', async () => {
+    const file = path.join(tmp, 'ext-keep.txt')
+    await writeFile(file, 'preserve me')
+    const e = await fm.ensureExternalEntry({ externalPath: file as never })
+    await fm.permanentDelete(e.id)
+    await expect(fm.getById(e.id)).rejects.toThrow(/not found/i)
+    const { readFile } = await import('node:fs/promises')
+    expect(await readFile(file, 'utf-8')).toBe('preserve me')
   })
 })
