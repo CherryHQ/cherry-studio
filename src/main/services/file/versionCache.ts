@@ -40,21 +40,34 @@ export interface VersionCache {
 }
 
 /**
- * Minimal Map-backed implementation for Phase 1b.1.
+ * LRU implementation backed by JavaScript's insertion-ordered Map.
  *
- * No size bound, no eviction — sufficient for read-path consumers that only
- * need stable get/set semantics. The full LRU + writeIfUnchanged integration
- * lands in Phase 1b.2.
+ * Recency is updated on every successful `get` (the entry is removed and
+ * re-inserted to move it to the tail) and every `set` (already-present keys
+ * are deleted before re-insert). When the store size exceeds `capacity`, the
+ * head of the map (the least-recently used entry) is evicted.
+ *
+ * The default singleton uses capacity 2000 per architecture.md §4.4.
  */
 class VersionCacheImpl implements VersionCache {
   private readonly store = new Map<FileEntryId, FileVersion>()
+  constructor(private readonly capacity: number) {}
 
   get(id: FileEntryId): FileVersion | undefined {
-    return this.store.get(id)
+    const v = this.store.get(id)
+    if (v === undefined) return undefined
+    this.store.delete(id)
+    this.store.set(id, v)
+    return v
   }
 
   set(id: FileEntryId, version: FileVersion): void {
+    if (this.store.has(id)) this.store.delete(id)
     this.store.set(id, version)
+    if (this.store.size > this.capacity) {
+      const oldest = this.store.keys().next().value as FileEntryId | undefined
+      if (oldest !== undefined) this.store.delete(oldest)
+    }
   }
 
   invalidate(id: FileEntryId): void {
@@ -66,4 +79,9 @@ class VersionCacheImpl implements VersionCache {
   }
 }
 
-export const versionCache: VersionCache = new VersionCacheImpl()
+/** Test/dev helper — production code should use the `versionCache` singleton. */
+export function createVersionCacheImpl(capacity: number): VersionCache {
+  return new VersionCacheImpl(capacity)
+}
+
+export const versionCache: VersionCache = new VersionCacheImpl(2000)
