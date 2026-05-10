@@ -53,7 +53,7 @@ export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 // `accessiblePaths` is optional at create time — when omitted, the service
 // inherits from the latest sibling session of the same agent.
 export const CreateSessionSchema = z.strictObject({
-  agentId: z.string(),
+  agentId: z.string().min(1),
   name: AgentNameAtomSchema,
   description: z.string().optional(),
   accessiblePaths: z.array(z.string()).optional()
