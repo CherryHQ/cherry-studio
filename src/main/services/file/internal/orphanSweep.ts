@@ -216,6 +216,18 @@ export interface FileSweepReport {
  * mtime>5min freshness gate; D-3 layers on the safety threshold.
  */
 export async function runStartupFileSweep(deps: RunStartupFileSweepDeps): Promise<FileSweepReport> {
+  const report = await runStartupFileSweepInner(deps)
+  if (report.outcome === 'aborted') {
+    logger.warn('orphan-file-sweep', { event: 'orphan-file-sweep', ...report })
+  } else if (report.outcome === 'failed') {
+    logger.error('orphan-file-sweep', { event: 'orphan-file-sweep', ...report })
+  } else {
+    logger.info('orphan-file-sweep', { event: 'orphan-file-sweep', ...report })
+  }
+  return report
+}
+
+async function runStartupFileSweepInner(deps: RunStartupFileSweepDeps): Promise<FileSweepReport> {
   const startedAt = Date.now()
   try {
     const filesDir = application.getPath('feature.files.data')

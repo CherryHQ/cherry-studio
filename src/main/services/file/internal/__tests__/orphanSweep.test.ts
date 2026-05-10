@@ -438,6 +438,37 @@ describe('runStartupFileSweep (FS-level)', () => {
     expect(report.actualDeleteCount).toBe(0)
   })
 
+  it('emits one structured orphan-file-sweep log on completion', async () => {
+    const orphanId = '019606a0-0000-7000-8000-00000000ee60'
+    const orphanPath = path.join(filesDir, `${orphanId}.txt`)
+    await writeFile(orphanPath, 'o')
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    await utimes(orphanPath, ancient, ancient)
+
+    const infoSpy = vi.spyOn(loggerService, 'info')
+    await runStartupFileSweep({ fileEntryService })
+    expect(infoSpy).toHaveBeenCalledWith(
+      'orphan-file-sweep',
+      expect.objectContaining({ event: 'orphan-file-sweep', outcome: 'completed' })
+    )
+  })
+
+  it('emits warn-level record on aborted outcome', async () => {
+    const ids = Array.from({ length: 25 }, (_, i) => `019606a0-0000-7000-8000-${String(i + 300).padStart(12, '0')}`)
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    for (const id of ids) {
+      const p = path.join(filesDir, `${id}.txt`)
+      await writeFile(p, 'x')
+      await utimes(p, ancient, ancient)
+    }
+    const warnSpy = vi.spyOn(loggerService, 'warn')
+    await runStartupFileSweep({ fileEntryService })
+    expect(warnSpy).toHaveBeenCalledWith(
+      'orphan-file-sweep',
+      expect.objectContaining({ event: 'orphan-file-sweep', outcome: 'aborted' })
+    )
+  })
+
   it('proceeds normally for small residue (under the 20-file floor)', async () => {
     // 5 orphan UUID files, 0 entries — small enough to bypass abort.
     const ids = Array.from({ length: 5 }, (_, i) => `019606a0-0000-7000-8000-${String(i + 200).padStart(12, '0')}`)
