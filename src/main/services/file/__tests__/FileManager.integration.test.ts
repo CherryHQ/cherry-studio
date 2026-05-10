@@ -245,6 +245,61 @@ describe('FileManager (integration)', () => {
     expect(seen).toEqual(['missing']) // unsubscribed
   })
 
+  it('INT-11: onInit fires runStartupFileSweep — orphan UUID files are unlinked', async () => {
+    const orphanId = '019606a0-0000-7000-8000-00000000ff30'
+    const orphanPath = path.join(internalRoot, `${orphanId}.txt`)
+    await writeFile(orphanPath, 'o')
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    const { utimes } = await import('node:fs/promises')
+    await utimes(orphanPath, ancient, ancient)
+
+    await fm._doInit()
+    // Allow the fire-and-forget sweep to complete. A short wait suffices in tests.
+    await new Promise((r) => setTimeout(r, 50))
+
+    const { stat } = await import('node:fs/promises')
+    await expect(stat(orphanPath)).rejects.toThrow(/ENOENT/)
+  })
+
+  it('INT-12: onInit fires runDbSweep — orphan refs deleted, orphan-entry report exposed', async () => {
+    // Seed an orphan temp_session ref pointing at a real file_entry.
+    const id = '019606a0-0000-7000-8000-00000000ff31' as FileEntryId
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'internal',
+      name: 'k',
+      ext: 'txt',
+      size: 1,
+      externalPath: null,
+      trashedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+    const { fileRefTable } = await import('@data/db/schemas/file')
+    await dbh.db.insert(fileRefTable).values({
+      id: '44444444-4444-4444-8444-000000000031',
+      fileEntryId: id,
+      sourceType: 'temp_session',
+      sourceId: 'sess-orphan',
+      role: 'pending',
+      createdAt: now,
+      updatedAt: now
+    })
+
+    await fm._doInit()
+    await new Promise((r) => setTimeout(r, 50))
+
+    // The orphan ref has been cleaned by runDbSweep (temp_session checker → empty Set).
+    const remaining = await dbh.db.select().from(fileRefTable)
+    expect(remaining.length).toBe(0)
+
+    // The entry — now without any ref — appears in getOrphanReport().
+    const report = await fm.getOrphanReport()
+    expect(report.orphanRefsByType.temp_session).toBe(1)
+    expect(report.orphanEntriesByOrigin.internal ?? 0).toBeGreaterThanOrEqual(1)
+  })
+
   it('INT-8: batchGetDanglingStates returns "unknown" for ids that have no entry', async () => {
     const known = '019606a0-0000-7000-8000-00000000ff11' as FileEntryId
     const ghost = '019606a0-0000-7000-8000-00000000ff99' as FileEntryId

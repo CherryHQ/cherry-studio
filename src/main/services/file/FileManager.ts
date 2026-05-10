@@ -113,6 +113,7 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { orphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
 import { canonicalizeExternalPath, resolvePhysicalPath } from '@data/utils/pathResolver'
+import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
@@ -150,9 +151,12 @@ import {
   trash as internalTrash
 } from './internal/entry/lifecycle'
 import { rename as internalRename } from './internal/entry/rename'
+import { type DbSweepReport, runDbSweep, runStartupFileSweep } from './internal/orphanSweep'
 import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { versionCache } from './versionCache'
+
+const fileManagerLogger = loggerService.withContext('FileManager')
 
 // Main-side parameter types are structurally identical to the IPC variants —
 // `CreateInternalEntryIpcParams` is a discriminated union on `source`
@@ -472,12 +476,76 @@ export class FileManager extends BaseService {
     orphanRegistry: orphanCheckerRegistry
   }
 
+  /**
+   * Last DbSweepReport produced by the fire-and-forget runDbSweep at startup
+   * (or by an explicit runStartupSweeps call). Exposed via getOrphanReport
+   * for the cleanup UI surface; remains null until the first sweep completes.
+   */
+  private lastDbSweepReport: DbSweepReport | null = null
+
   protected override async onInit(): Promise<void> {
     await this.deps.danglingCache.initFromDb()
     this.ipcHandle(IpcChannel.File_GetDanglingState, (_e, params: { id: FileEntryId }) => this.getDanglingState(params))
     this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params: { ids: FileEntryId[] }) =>
       this.batchGetDanglingStates(params)
     )
+    void this.runStartupSweeps()
+  }
+
+  /**
+   * Fire-and-forget startup data-consistency pass. Runs both the FS-level
+   * orphan sweep (architecture §10) and the DB-level orphan-ref/entry sweep
+   * (RFC §6.4). Failure of either is logged but never blocks ready.
+   * Synchronously waits in tests via `await fm.runStartupSweeps()`.
+   */
+  async runStartupSweeps(): Promise<void> {
+    await Promise.all([
+      runStartupFileSweep({ fileEntryService: this.deps.fileEntryService }).catch((err) => {
+        fileManagerLogger.error('Startup file sweep failed', err)
+      }),
+      runDbSweep({
+        fileEntryService: this.deps.fileEntryService,
+        fileRefService: this.deps.fileRefService,
+        registry: this.deps.orphanRegistry
+      })
+        .then((report) => {
+          this.lastDbSweepReport = report
+        })
+        .catch((err) => {
+          fileManagerLogger.error('DB orphan sweep failed', err)
+        })
+    ])
+  }
+
+  /**
+   * The most recent DbSweepReport, or an empty default before the first
+   * sweep completes. The cleanup UI consumes this to surface orphan refs
+   * (already deleted by the sweep) and orphan entries (preserved per
+   * §7.1; user decides). `lastRunAt` is null until the first run.
+   */
+  getOrphanReport(): {
+    orphanRefsByType: DbSweepReport['orphanRefsByType']
+    orphanRefsTotal: number
+    orphanEntriesByOrigin: DbSweepReport['orphanEntriesByOrigin']
+    orphanEntriesTotal: number
+    lastRunAt: number | null
+  } {
+    if (!this.lastDbSweepReport) {
+      return {
+        orphanRefsByType: {},
+        orphanRefsTotal: 0,
+        orphanEntriesByOrigin: {},
+        orphanEntriesTotal: 0,
+        lastRunAt: null
+      }
+    }
+    return {
+      orphanRefsByType: this.lastDbSweepReport.orphanRefsByType,
+      orphanRefsTotal: this.lastDbSweepReport.orphanRefsTotal,
+      orphanEntriesByOrigin: this.lastDbSweepReport.orphanEntriesByOrigin,
+      orphanEntriesTotal: this.lastDbSweepReport.orphanEntriesTotal,
+      lastRunAt: Date.now()
+    }
   }
 
   // ─── Entry queries ───
