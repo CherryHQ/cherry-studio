@@ -156,6 +156,13 @@ export class AiService extends BaseService {
     logger.info('AiService initialized')
   }
 
+  protected async onStop(): Promise<void> {
+    // Drain any tool-approval entries the renderer never decided so the
+    // `canUseTool` promises don't hang their resolve callbacks across a
+    // service restart.
+    toolApprovalRegistry.clear('ai-service-stop')
+  }
+
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.Ai_GenerateText, async (_, request: AiGenerateRequest) => {
       return this.generateText(request)

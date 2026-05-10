@@ -80,6 +80,23 @@ class ToolApprovalRegistry {
     return aborted
   }
 
+  /**
+   * Drop every pending approval. Call from the owning service's shutdown
+   * path so the resolve callbacks don't strand dangling closures (and the
+   * `canUseTool` promises don't hang forever) across a service restart.
+   */
+  clear(reason = 'service-shutdown'): number {
+    const count = this.pending.size
+    if (count === 0) return 0
+    for (const [, entry] of this.pending) {
+      this.detachAbort(entry)
+      entry.resolve({ behavior: 'deny', message: reason })
+    }
+    this.pending.clear()
+    logger.info('Cleared all pending approvals', { count, reason })
+    return count
+  }
+
   size(): number {
     return this.pending.size
   }
