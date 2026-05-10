@@ -1,11 +1,7 @@
-/* oxlint-disable no-unused-vars -- TODO(phase-1b.2): mutation stubs (create / update / delete) keep their parameters to lock the public signature until 1b.2 lands the impl. */
-
 /**
  * FileEntryService — pure DB repository for the `file_entry` table.
  *
- * Phase status: Phase 1a exported the **interface only**. Phase 1b.1 lands
- * the read-method implementation; create/update/delete remain stubs until
- * Phase 1b.2 (write path).
+ * Phase status: Phase 1b.2 lands all CRUD methods.
  *
  * ## Scope
  *
@@ -29,6 +25,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import { FileEntrySchema } from '@shared/data/types/file'
 import { and, asc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
 
 /** Columns a caller may provide on insert (id defaults to a fresh UUID v7 when omitted). */
 export interface CreateFileEntryRow {
@@ -108,10 +105,6 @@ export interface FileEntryService {
   delete(id: FileEntryId): Promise<void>
 }
 
-const notImplemented = (op: string): never => {
-  throw new Error(`fileEntryService.${op}: not implemented (Phase 1a skeleton, lands in Phase 1b.2)`)
-}
-
 type FileEntryRow = typeof fileEntryTable.$inferSelect
 
 function rowToFileEntry(row: FileEntryRow): FileEntry {
@@ -187,16 +180,43 @@ class FileEntryServiceImpl implements FileEntryService {
     return rows.map(rowToFileEntry)
   }
 
-  async create(_values: CreateFileEntryRow): Promise<FileEntry> {
-    return notImplemented('create')
+  async create(values: CreateFileEntryRow): Promise<FileEntry> {
+    const now = Date.now()
+    const id = (values.id ?? uuidv7()) as FileEntryId
+    const rows = await this.getDb()
+      .insert(fileEntryTable)
+      .values({
+        id,
+        origin: values.origin,
+        name: values.name,
+        ext: values.ext,
+        size: values.size,
+        externalPath: values.externalPath,
+        trashedAt: values.trashedAt ?? null,
+        createdAt: now,
+        updatedAt: now
+      })
+      .returning()
+    return rowToFileEntry(rows[0])
   }
 
-  async update(_id: FileEntryId, _values: UpdateFileEntryRow): Promise<FileEntry> {
-    return notImplemented('update')
+  async update(id: FileEntryId, values: UpdateFileEntryRow): Promise<FileEntry> {
+    const updates: Partial<typeof fileEntryTable.$inferInsert> = {
+      updatedAt: Date.now()
+    }
+    if (values.name !== undefined) updates.name = values.name
+    if (values.ext !== undefined) updates.ext = values.ext
+    if (values.size !== undefined) updates.size = values.size
+    if (values.trashedAt !== undefined) updates.trashedAt = values.trashedAt
+    const rows = await this.getDb().update(fileEntryTable).set(updates).where(eq(fileEntryTable.id, id)).returning()
+    if (rows.length === 0) {
+      throw new Error(`FileEntry not found: ${id}`)
+    }
+    return rowToFileEntry(rows[0])
   }
 
-  async delete(_id: FileEntryId): Promise<void> {
-    return notImplemented('delete')
+  async delete(id: FileEntryId): Promise<void> {
+    await this.getDb().delete(fileEntryTable).where(eq(fileEntryTable.id, id))
   }
 }
 

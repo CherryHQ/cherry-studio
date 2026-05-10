@@ -271,4 +271,120 @@ describe('FileEntryService', () => {
       expect(page).toHaveLength(2)
     })
   })
+
+  describe('create', () => {
+    it('inserts an internal row and returns a parsed FileEntry', async () => {
+      const id = '019606a0-0000-7000-8000-000000000a01' as FileEntryId
+      const entry = await fileEntryService.create({
+        id,
+        origin: 'internal',
+        name: 'note',
+        ext: 'txt',
+        size: 11,
+        externalPath: null
+      })
+      expect(entry.id).toBe(id)
+      expect(entry.origin).toBe('internal')
+      expect(entry.size).toBe(11)
+      expect(entry.createdAt).toBeGreaterThan(0)
+      expect(entry.updatedAt).toBeGreaterThan(0)
+    })
+
+    it('inserts an external row with size=null', async () => {
+      const id = '019606a0-0000-7000-8000-000000000a02' as FileEntryId
+      const entry = await fileEntryService.create({
+        id,
+        origin: 'external',
+        name: 'doc',
+        ext: 'pdf',
+        size: null,
+        externalPath: '/Users/me/doc.pdf'
+      })
+      expect(entry.origin).toBe('external')
+      expect(entry.size).toBeNull()
+      expect(entry.externalPath).toBe('/Users/me/doc.pdf')
+    })
+
+    it('throws when external row has non-null size (CHECK fe_size_internal_only)', async () => {
+      const id = '019606a0-0000-7000-8000-000000000a03' as FileEntryId
+      await expect(
+        fileEntryService.create({
+          id,
+          origin: 'external',
+          name: 'doc',
+          ext: 'pdf',
+          size: 100,
+          externalPath: '/Users/me/doc2.pdf'
+        })
+      ).rejects.toThrow()
+    })
+
+    it('throws when internal row has externalPath (CHECK fe_origin_consistency)', async () => {
+      const id = '019606a0-0000-7000-8000-000000000a04' as FileEntryId
+      await expect(
+        fileEntryService.create({
+          id,
+          origin: 'internal',
+          name: 'note',
+          ext: 'txt',
+          size: 1,
+          externalPath: '/some/path' as string
+        })
+      ).rejects.toThrow()
+    })
+  })
+
+  describe('update', () => {
+    it('updates name and refreshes updatedAt', async () => {
+      const id = '019606a0-0000-7000-8000-000000000b01' as FileEntryId
+      await fileEntryService.create({ id, origin: 'internal', name: 'old', ext: 'txt', size: 1, externalPath: null })
+      const original = await fileEntryService.getById(id)
+      await new Promise((r) => setTimeout(r, 5))
+      const updated = await fileEntryService.update(id, { name: 'new' })
+      expect(updated.name).toBe('new')
+      expect(updated.updatedAt).toBeGreaterThanOrEqual(original.updatedAt)
+    })
+
+    it('throws when entry does not exist', async () => {
+      await expect(
+        fileEntryService.update('019606a0-0000-7000-8000-000000000bff' as FileEntryId, { name: 'x' })
+      ).rejects.toThrow(/not found/i)
+    })
+
+    it('updates trashedAt for soft delete', async () => {
+      const id = '019606a0-0000-7000-8000-000000000b02' as FileEntryId
+      await fileEntryService.create({ id, origin: 'internal', name: 'tmp', ext: 'txt', size: 1, externalPath: null })
+      const trashedAt = Date.now()
+      const updated = await fileEntryService.update(id, { trashedAt })
+      expect(updated.trashedAt).toBe(trashedAt)
+    })
+
+    it('throws when setting trashedAt on an external row (CHECK fe_external_no_trash)', async () => {
+      const id = '019606a0-0000-7000-8000-000000000b03' as FileEntryId
+      await fileEntryService.create({
+        id,
+        origin: 'external',
+        name: 'ext',
+        ext: 'txt',
+        size: null,
+        externalPath: '/x/y.txt'
+      })
+      await expect(fileEntryService.update(id, { trashedAt: Date.now() })).rejects.toThrow()
+    })
+  })
+
+  describe('delete', () => {
+    it('removes an existing row', async () => {
+      const id = '019606a0-0000-7000-8000-000000000c01' as FileEntryId
+      await fileEntryService.create({ id, origin: 'internal', name: 'd', ext: 'txt', size: 1, externalPath: null })
+      await fileEntryService.delete(id)
+      expect(await fileEntryService.findById(id)).toBeNull()
+    })
+
+    it('is idempotent on missing id', async () => {
+      await expect(
+        fileEntryService.delete('019606a0-0000-7000-8000-000000000cff' as FileEntryId)
+      ).resolves.toBeUndefined()
+    })
+  })
 })
