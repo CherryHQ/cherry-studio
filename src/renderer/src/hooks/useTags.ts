@@ -16,7 +16,7 @@ export interface CreateTagOptions {
   color?: string | null
 }
 
-export interface UseDataTagsOptions {
+export interface UseTagsOptions {
   getDefaultColor?: () => string
 }
 
@@ -50,7 +50,7 @@ export function useTagList(): TagListResult {
  * `getDefaultColor` lets product surfaces keep their own visual defaulting
  * policy without making palette constants part of the generic tag data hook.
  */
-export function useEnsureTags(options: UseDataTagsOptions = {}) {
+export function useEnsureTags(options: UseTagsOptions = {}) {
   const { getDefaultColor } = options
   const { tags: cachedTags } = useTagList()
   const { trigger: createTrigger } = useMutation('POST', '/tags', {

@@ -52,7 +52,7 @@ export function ModelSelectorField({ label, hint, value, allowClear = false, err
               selectionType="id"
               value={selectorValue}
               filter={filter}
-              visibleItemCount={8}
+              listVisibleCount={8}
               onSelect={handleSelect}
               trigger={
                 <Button
