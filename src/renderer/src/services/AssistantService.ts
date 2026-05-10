@@ -1,3 +1,10 @@
+// This module currently mixes v1 (Redux) and v2 (Preference) reads:
+//   v2 / Preference: chat.* keys via `preferenceService`
+//   v1 / Redux:      `store.getState().llm.translateModel`,
+//                    `getStoreProviders` (assistants slice + provider list)
+// The v1 reads stay until the corresponding migrators land — see the
+// Coexistence Mindset in CLAUDE.md. Don't add new v1 reads.
+
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { MAX_CONTEXT_COUNT, UNLIMITED_CONTEXT_COUNT } from '@renderer/config/constant'
