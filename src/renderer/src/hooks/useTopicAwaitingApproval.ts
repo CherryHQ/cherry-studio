@@ -16,7 +16,12 @@ export function useTopicAwaitingApproval(topicId: string): boolean {
   const { status: streamStatus } = useTopicStreamStatus(topicId)
   const partsMap = usePartsMap()
 
-  const hasPendingApproval = useMemo(() => {
+  // Fold the streamStatus short-circuit INTO the memo so the scan is
+  // skipped while the stream is live (where partsMap churns per chunk).
+  // Hook order forbids an early `return` between the hooks above and the
+  // memo, so the gate has to live inside the dependency.
+  return useMemo(() => {
+    if (streamStatus === 'pending' || streamStatus === 'streaming') return false
     if (!partsMap) return false
     for (const parts of Object.values(partsMap)) {
       for (const part of parts) {
@@ -25,8 +30,5 @@ export function useTopicAwaitingApproval(topicId: string): boolean {
       }
     }
     return false
-  }, [partsMap])
-
-  if (streamStatus === 'pending' || streamStatus === 'streaming') return false
-  return hasPendingApproval
+  }, [partsMap, streamStatus])
 }
