@@ -1,42 +1,44 @@
 import type { FileEntryId } from '@shared/data/types/file'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { FileVersion } from '../FileManager'
-import { createVersionCacheImpl, versionCache } from '../versionCache'
+import { createVersionCacheImpl, type VersionCache } from '../versionCache'
 
 const mkVersion = (mtime: number, size: number): FileVersion => ({ mtime, size })
 const mkId = (n: number): FileEntryId => `019606a0-0000-7000-8000-${n.toString().padStart(12, '0')}`
 
-describe('versionCache (default singleton)', () => {
-  beforeEach(() => versionCache.clear())
-  afterEach(() => versionCache.clear())
+describe('versionCache CRUD', () => {
+  let cache: VersionCache
+  beforeEach(() => {
+    cache = createVersionCacheImpl(2000)
+  })
 
   it('round-trips set/get', () => {
     const id = mkId(1)
-    versionCache.set(id, mkVersion(100, 10))
-    expect(versionCache.get(id)).toEqual({ mtime: 100, size: 10 })
+    cache.set(id, mkVersion(100, 10))
+    expect(cache.get(id)).toEqual({ mtime: 100, size: 10 })
   })
 
   it('overwrites existing entries', () => {
     const id = mkId(2)
-    versionCache.set(id, mkVersion(100, 10))
-    versionCache.set(id, mkVersion(200, 20))
-    expect(versionCache.get(id)).toEqual({ mtime: 200, size: 20 })
+    cache.set(id, mkVersion(100, 10))
+    cache.set(id, mkVersion(200, 20))
+    expect(cache.get(id)).toEqual({ mtime: 200, size: 20 })
   })
 
   it('invalidates a single key', () => {
     const id = mkId(3)
-    versionCache.set(id, mkVersion(1, 1))
-    versionCache.invalidate(id)
-    expect(versionCache.get(id)).toBeUndefined()
+    cache.set(id, mkVersion(1, 1))
+    cache.invalidate(id)
+    expect(cache.get(id)).toBeUndefined()
   })
 
   it('clear empties everything', () => {
-    versionCache.set(mkId(4), mkVersion(1, 1))
-    versionCache.set(mkId(5), mkVersion(2, 2))
-    versionCache.clear()
-    expect(versionCache.get(mkId(4))).toBeUndefined()
-    expect(versionCache.get(mkId(5))).toBeUndefined()
+    cache.set(mkId(4), mkVersion(1, 1))
+    cache.set(mkId(5), mkVersion(2, 2))
+    cache.clear()
+    expect(cache.get(mkId(4))).toBeUndefined()
+    expect(cache.get(mkId(5))).toBeUndefined()
   })
 })
 
