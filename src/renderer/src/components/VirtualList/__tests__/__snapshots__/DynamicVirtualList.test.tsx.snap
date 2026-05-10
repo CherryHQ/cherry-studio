@@ -1,22 +1,12 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`DynamicVirtualList > basic rendering > snapshot test 1`] = `
-.c0::-webkit-scrollbar-thumb {
-  transition: background 0.3s ease-in-out;
-  will-change: background;
-  background: var(--color-scrollbar-thumb);
-}
-
-.c0::-webkit-scrollbar-thumb:hover {
-  background: var(--color-scrollbar-thumb-hover);
-}
-
 <div>
   <div
     aria-hidden="false"
-    class="c0 dynamic-virtual-list"
+    class="dynamic-virtual-list [&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-thumb]:ease-in-out [&::-webkit-scrollbar-thumb]:will-change-[background] [&::-webkit-scrollbar-thumb]:bg-[var(--color-scrollbar-thumb)]"
     role="region"
-    style="overflow: auto; height: 100%;"
+    style="overflow: auto; scrollbar-color: var(--color-scrollbar-thumb) transparent; height: 100%;"
   >
     <div
       style="position: relative; width: 100%; height: 150px;"

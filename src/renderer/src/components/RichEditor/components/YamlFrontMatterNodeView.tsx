@@ -1,21 +1,24 @@
 import {
+  Checkbox,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuItemContent,
   ContextMenuSeparator,
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
-  ContextMenuTrigger
+  ContextMenuTrigger,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger
 } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react'
-import { Checkbox, Dropdown, Input, type MenuProps } from 'antd'
 import { Calendar, Check, FileText, Hash, MoreHorizontal, Plus, Tag as TagIcon, Trash2, Type, X } from 'lucide-react'
 import React, { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 import { parse, stringify } from 'yaml'
 
 const logger = loggerService.withContext('YamlFrontMatterNodeView')
@@ -68,22 +71,53 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
   }, [node.attrs.content])
 
   // Get icon for property type
-  const getPropertyIcon = (type: ParsedProperty['type']) => {
+  const getPropertyIcon = (type: ParsedProperty['type'], size = 16) => {
     switch (type) {
       case 'array':
-        return <TagIcon size={16} />
+        return <TagIcon size={size} />
       case 'date':
-        return <Calendar size={16} />
+        return <Calendar size={size} />
       case 'number':
-        return <Hash size={16} />
+        return <Hash size={size} />
       case 'string':
-        return <FileText size={16} />
+        return <FileText size={size} />
       case 'boolean':
-        return <Check size={16} />
+        return <Check size={size} />
       default:
-        return <FileText size={16} />
+        return <FileText size={size} />
     }
   }
+
+  const typeOptions = useMemo(
+    () => [
+      {
+        type: 'string' as const,
+        label: t('richEditor.frontMatter.changeToText'),
+        icon: <FileText size={14} />
+      },
+      {
+        type: 'number' as const,
+        label: t('richEditor.frontMatter.changeToNumber'),
+        icon: <Hash size={14} />
+      },
+      {
+        type: 'boolean' as const,
+        label: t('richEditor.frontMatter.changeToBoolean'),
+        icon: <Check size={14} />
+      },
+      {
+        type: 'array' as const,
+        label: t('richEditor.frontMatter.changeToTags'),
+        icon: <TagIcon size={14} />
+      },
+      {
+        type: 'date' as const,
+        label: t('richEditor.frontMatter.changeToDate', 'Date'),
+        icon: <Calendar size={14} />
+      }
+    ],
+    [t]
+  )
 
   // Update YAML content from properties
   const updateYamlFromProperties = useCallback(
@@ -204,123 +238,84 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
     [parsedProperties, updateYamlFromProperties]
   )
 
-  // Create context menu for property
-  const getPropertyMenu = useCallback(
-    (property: ParsedProperty): MenuProps => {
-      return {
-        items: [
-          {
-            key: 'edit',
-            label: (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Type size={14} />
-                {t('richEditor.frontMatter.editValue')}
-              </span>
-            ),
-            onClick: () => {
-              setEditingProperty(property.key)
-              setOpenDropdown(null)
-            }
-          },
-          {
-            type: 'divider'
-          },
-          {
-            key: 'type',
-            label: t('richEditor.frontMatter.changeType'),
-            children: [
-              {
-                key: 'string',
-                label: (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <FileText size={14} />
-                    {t('richEditor.frontMatter.changeToText')}
-                  </span>
-                ),
-                disabled: property.type === 'string',
-                onClick: () => {
-                  handleChangePropertyType(property.key, 'string')
-                  setOpenDropdown(null)
-                }
-              },
-              {
-                key: 'number',
-                label: (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Hash size={14} />
-                    {t('richEditor.frontMatter.changeToNumber')}
-                  </span>
-                ),
-                disabled: property.type === 'number',
-                onClick: () => {
-                  handleChangePropertyType(property.key, 'number')
-                  setOpenDropdown(null)
-                }
-              },
-              {
-                key: 'boolean',
-                label: (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Check size={14} />
-                    {t('richEditor.frontMatter.changeToBoolean')}
-                  </span>
-                ),
-                disabled: property.type === 'boolean',
-                onClick: () => {
-                  handleChangePropertyType(property.key, 'boolean')
-                  setOpenDropdown(null)
-                }
-              },
-              {
-                key: 'array',
-                label: (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <TagIcon size={14} />
-                    {t('richEditor.frontMatter.changeToTags')}
-                  </span>
-                ),
-                disabled: property.type === 'array',
-                onClick: () => {
-                  handleChangePropertyType(property.key, 'array')
-                  setOpenDropdown(null)
-                }
-              },
-              {
-                key: 'date',
-                label: (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Calendar size={14} />
-                    {t('richEditor.frontMatter.changeToDate', 'Date')}
-                  </span>
-                ),
-                disabled: property.type === 'date',
-                onClick: () => {
-                  handleChangePropertyType(property.key, 'date')
-                  setOpenDropdown(null)
-                }
-              }
-            ]
-          },
-          {
-            type: 'divider'
-          },
-          {
-            key: 'delete',
-            label: (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#ef4444' }}>
-                <Trash2 size={14} />
-                {t('richEditor.frontMatter.deleteProperty')}
-              </span>
-            ),
-            onClick: () => {
-              handleDeleteProperty(property.key)
-              setOpenDropdown(null)
-            }
-          }
-        ]
-      }
-    },
-    [t, handleChangePropertyType, handleDeleteProperty]
+  const renderContextMenu = (property: ParsedProperty) => (
+    <ContextMenuContent className="w-52">
+      <ContextMenuItem
+        onSelect={() => {
+          setEditingProperty(property.key)
+        }}>
+        <Type size={14} />
+        {t('richEditor.frontMatter.editValue')}
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuSub>
+        <ContextMenuSubTrigger>{t('richEditor.frontMatter.changeType')}</ContextMenuSubTrigger>
+        <ContextMenuSubContent className="w-44">
+          {typeOptions.map((option) => (
+            <ContextMenuItem
+              key={option.type}
+              disabled={property.type === option.type}
+              onSelect={() => {
+                handleChangePropertyType(property.key, option.type)
+              }}>
+              {option.icon}
+              {option.label}
+            </ContextMenuItem>
+          ))}
+        </ContextMenuSubContent>
+      </ContextMenuSub>
+      <ContextMenuSeparator />
+      <ContextMenuItem
+        variant="destructive"
+        onSelect={() => {
+          handleDeleteProperty(property.key)
+        }}>
+        <Trash2 size={14} />
+        {t('richEditor.frontMatter.deleteProperty')}
+      </ContextMenuItem>
+    </ContextMenuContent>
+  )
+
+  const renderActionMenu = (property: ParsedProperty) => (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+        onClick={() => {
+          setEditingProperty(property.key)
+          setOpenDropdown(null)
+        }}>
+        <Type size={14} />
+        {t('richEditor.frontMatter.editValue')}
+      </button>
+      <div className="-mx-1 my-1 h-px bg-border" />
+      <div className="px-2 py-1 text-muted-foreground text-xs">{t('richEditor.frontMatter.changeType')}</div>
+      {typeOptions.map((option) => (
+        <button
+          key={option.type}
+          type="button"
+          disabled={property.type === option.type}
+          className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+          onClick={() => {
+            handleChangePropertyType(property.key, option.type)
+            setOpenDropdown(null)
+          }}>
+          {option.icon}
+          {option.label}
+        </button>
+      ))}
+      <div className="-mx-1 my-1 h-px bg-border" />
+      <button
+        type="button"
+        className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-destructive text-sm hover:bg-destructive/10"
+        onClick={() => {
+          handleDeleteProperty(property.key)
+          setOpenDropdown(null)
+        }}>
+        <Trash2 size={14} />
+        {t('richEditor.frontMatter.deleteProperty')}
+      </button>
+    </div>
   )
 
   // Render property value based on type
@@ -331,17 +326,22 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
       const isShowingInput = showArrayInput[property.key]
 
       return (
-        <TagContainer>
+        <div className="flex flex-1 flex-wrap items-center gap-1.5">
           {property.value.map((item, index) => (
-            <Tag key={index}>
+            <span
+              key={index}
+              className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-foreground text-xs hover:bg-accent">
               {String(item)}
-              <TagRemove onClick={() => handleRemoveArrayItem(property.key, index)}>
+              <button
+                type="button"
+                className="flex items-center text-muted-foreground hover:text-destructive"
+                onClick={() => handleRemoveArrayItem(property.key, index)}>
                 <X size={12} />
-              </TagRemove>
-            </Tag>
+              </button>
+            </span>
           ))}
           {isShowingInput ? (
-            <ArrayInput
+            <Input
               placeholder={t('richEditor.frontMatter.addTag')}
               value={arrayInputValues[property.key] || ''}
               onChange={(e) => setArrayInputValues((prev) => ({ ...prev, [property.key]: e.target.value }))}
@@ -363,29 +363,33 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
                 }
               }}
               autoFocus
+              className="h-6 min-w-20 max-w-30 rounded-full px-2 py-0 text-xs"
             />
           ) : (
-            <AddTagButton onClick={() => setShowArrayInput((prev) => ({ ...prev, [property.key]: true }))}>
+            <button
+              type="button"
+              className="inline-flex size-5 items-center justify-center rounded-full border border-border border-dashed text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+              onClick={() => setShowArrayInput((prev) => ({ ...prev, [property.key]: true }))}>
               <Plus size={12} />
-            </AddTagButton>
+            </button>
           )}
-        </TagContainer>
+        </div>
       )
     }
 
     if (property.type === 'boolean') {
       return (
         <Checkbox
-          style={{ paddingLeft: 8 }}
-          checked={property.value}
-          onChange={(e) => handlePropertyChange(property.key, e.target.checked)}
+          className="ml-2"
+          checked={!!property.value}
+          onCheckedChange={(checked) => handlePropertyChange(property.key, checked === true)}
         />
       )
     }
 
     if (isEditing) {
       return (
-        <StyledInput
+        <Input
           defaultValue={String(property.value)}
           onBlur={(e) => {
             let newValue: any = e.target.value
@@ -404,18 +408,22 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
             }
           }}
           autoFocus
+          className="h-auto min-h-5 flex-1 border-none bg-transparent px-2 py-1 shadow-none focus-visible:border-transparent focus-visible:ring-0"
         />
       )
     }
 
     return (
-      <PropertyValue onClick={() => setEditingProperty(property.key)}>
+      <button
+        type="button"
+        className="flex min-h-5 flex-1 items-center rounded px-2 py-1 text-left text-foreground text-sm"
+        onClick={() => setEditingProperty(property.key)}>
         {property.value ? (
           String(property.value)
         ) : (
-          <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>{t('richEditor.frontMatter.empty')}</span>
+          <span className="text-muted-foreground italic">{t('richEditor.frontMatter.empty')}</span>
         )}
-      </PropertyValue>
+      </button>
     )
   }
 
@@ -433,8 +441,8 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
           e.preventDefault()
         }
       }}>
-      <PropertiesContainer
-        hasContent={hasContent}
+      <div
+        className="group/frontmatter my-4 flex flex-col p-0"
         onClick={(e) => {
           // Prevent node selection when clicking inside properties
           e.stopPropagation()
@@ -442,94 +450,49 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
         {parsedProperties.map((property) => (
           <ContextMenu key={property.key}>
             <ContextMenuTrigger asChild>
-              <PropertyRow
+              <div
+                className="group flex min-h-8 items-center rounded-md px-2 py-1.5 hover:bg-accent"
                 onContextMenu={(e) => {
                   e.stopPropagation()
                 }}>
-                <PropertyIcon>{getPropertyIcon(property.type)}</PropertyIcon>
-                <PropertyName>{property.key}</PropertyName>
+                <div className="mr-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
+                  {getPropertyIcon(property.type)}
+                </div>
+                <div className="mr-3 w-[100px] shrink-0 truncate font-medium text-foreground text-sm capitalize">
+                  {property.key}
+                </div>
                 {renderPropertyValue(property)}
-                <PropertyActions>
-                  <Dropdown
-                    menu={getPropertyMenu(property)}
-                    trigger={['click']}
-                    placement="bottomRight"
+                <div className="mr-1 ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <Popover
                     open={openDropdown === `action-${property.key}`}
                     onOpenChange={(open) => {
                       setOpenDropdown(open ? `action-${property.key}` : null)
                     }}>
-                    <ActionButton onClick={(e) => e.stopPropagation()} title={t('richEditor.frontMatter.moreActions')}>
-                      <MoreHorizontal size={14} />
-                    </ActionButton>
-                  </Dropdown>
-                </PropertyActions>
-              </PropertyRow>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex items-center rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        onClick={(e) => e.stopPropagation()}
+                        title={t('richEditor.frontMatter.moreActions')}>
+                        <MoreHorizontal size={14} />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-52 p-1">
+                      {renderActionMenu(property)}
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
             </ContextMenuTrigger>
-            <ContextMenuContent>
-              <ContextMenuItem
-                onSelect={() => {
-                  setEditingProperty(property.key)
-                }}>
-                <ContextMenuItemContent icon={<Type size={14} />}>
-                  {t('richEditor.frontMatter.editValue')}
-                </ContextMenuItemContent>
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-              <ContextMenuSub>
-                <ContextMenuSubTrigger>{t('richEditor.frontMatter.changeType')}</ContextMenuSubTrigger>
-                <ContextMenuSubContent>
-                  <ContextMenuItem
-                    disabled={property.type === 'string'}
-                    onSelect={() => handleChangePropertyType(property.key, 'string')}>
-                    <ContextMenuItemContent icon={<FileText size={14} />}>
-                      {t('richEditor.frontMatter.changeToText')}
-                    </ContextMenuItemContent>
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    disabled={property.type === 'number'}
-                    onSelect={() => handleChangePropertyType(property.key, 'number')}>
-                    <ContextMenuItemContent icon={<Hash size={14} />}>
-                      {t('richEditor.frontMatter.changeToNumber')}
-                    </ContextMenuItemContent>
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    disabled={property.type === 'boolean'}
-                    onSelect={() => handleChangePropertyType(property.key, 'boolean')}>
-                    <ContextMenuItemContent icon={<Check size={14} />}>
-                      {t('richEditor.frontMatter.changeToBoolean')}
-                    </ContextMenuItemContent>
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    disabled={property.type === 'array'}
-                    onSelect={() => handleChangePropertyType(property.key, 'array')}>
-                    <ContextMenuItemContent icon={<TagIcon size={14} />}>
-                      {t('richEditor.frontMatter.changeToTags')}
-                    </ContextMenuItemContent>
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    disabled={property.type === 'date'}
-                    onSelect={() => handleChangePropertyType(property.key, 'date')}>
-                    <ContextMenuItemContent icon={<Calendar size={14} />}>
-                      {t('richEditor.frontMatter.changeToDate', 'Date')}
-                    </ContextMenuItemContent>
-                  </ContextMenuItem>
-                </ContextMenuSubContent>
-              </ContextMenuSub>
-              <ContextMenuSeparator />
-              <ContextMenuItem variant="destructive" onSelect={() => handleDeleteProperty(property.key)}>
-                <ContextMenuItemContent icon={<Trash2 size={14} />}>
-                  {t('richEditor.frontMatter.deleteProperty')}
-                </ContextMenuItemContent>
-              </ContextMenuItem>
-            </ContextMenuContent>
+            {renderContextMenu(property)}
           </ContextMenu>
         ))}
 
         {showAddProperty ? (
-          <PropertyRow>
-            <PropertyIcon>
+          <div className="flex min-h-8 items-center rounded-md px-2 py-1.5 hover:bg-accent">
+            <div className="mr-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
               <Plus size={16} />
-            </PropertyIcon>
+            </div>
             <Input
               placeholder={t('richEditor.frontMatter.propertyName')}
               value={newPropertyName}
@@ -551,285 +514,24 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
               }}
               autoFocus
             />
-          </PropertyRow>
+          </div>
         ) : (
-          <AddPropertyRow hasContent={hasContent} onClick={() => setShowAddProperty(true)}>
-            <PropertyIcon>
+          <button
+            type="button"
+            className={cn(
+              'flex min-h-8 w-full items-center rounded-md px-2 py-1.5 text-left transition-opacity hover:bg-accent',
+              hasContent ? 'opacity-0 group-hover/frontmatter:opacity-100' : 'opacity-100'
+            )}
+            onClick={() => setShowAddProperty(true)}>
+            <div className="mr-2 flex size-6 shrink-0 items-center justify-center text-muted-foreground">
               <Plus size={16} />
-            </PropertyIcon>
-            <AddPropertyText>{t('richEditor.frontMatter.addProperty')}</AddPropertyText>
-          </AddPropertyRow>
+            </div>
+            <div className="text-muted-foreground text-sm">{t('richEditor.frontMatter.addProperty')}</div>
+          </button>
         )}
-      </PropertiesContainer>
+      </div>
     </NodeViewWrapper>
   )
 }
-
-const PropertiesContainer = styled.div<{ hasContent?: boolean }>`
-  margin: 16px 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-`
-
-const PropertyRow = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 6px 8px;
-  margin: 0 -8px;
-  min-height: 32px;
-  border-radius: 6px;
-
-  &:hover {
-    background-color: var(--color-hover);
-  }
-`
-
-const PropertyIcon = styled.div`
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 8px;
-  color: var(--color-icon);
-`
-
-const PropertyName = styled.div`
-  min-width: 100px;
-  max-width: 100px;
-  font-size: 14px;
-  font-family: var(--font-family);
-  font-weight: 500;
-  color: var(--color-text);
-  margin-right: 12px;
-  text-transform: capitalize;
-`
-
-const PropertyValue = styled.div`
-  flex: 1;
-  font-size: 14px;
-  font-family: var(--font-family);
-  color: var(--color-text);
-  cursor: pointer;
-  padding: 6px 8px;
-  margin: -2px 0;
-  border-radius: 4px;
-  min-height: 20px;
-  display: flex;
-  align-items: center;
-`
-
-const TagContainer = styled.div`
-  flex: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-`
-
-const Tag = styled.span`
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  background-color: var(--color-background-mute);
-  border-radius: 12px;
-  font-size: 12px;
-  font-family: var(--font-family);
-  color: var(--color-text);
-  gap: 4px;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-  }
-`
-
-const TagRemove = styled.button`
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  color: var(--color-icon);
-  display: flex;
-  align-items: center;
-
-  &:hover {
-    color: var(--color-error);
-  }
-`
-
-const StyledInput = styled(Input)`
-  border: none !important;
-  outline: none !important;
-  background: transparent !important;
-  font-size: 14px;
-  font-family: var(--font-family);
-  color: var(--color-text);
-  width: 100%;
-  padding: 6px 8px;
-  margin: -2px 0;
-  border-radius: 4px;
-  min-height: 20px;
-  cursor: text;
-  box-shadow: none !important;
-
-  &::placeholder {
-    color: #9ca3af;
-  }
-
-  &:hover {
-    background-color: var(--color-hover) !important;
-    border: none !important;
-    box-shadow: none !important;
-  }
-
-  &:focus {
-    border: none !important;
-    box-shadow: none !important;
-  }
-
-  &.ant-input {
-    border: none !important;
-    box-shadow: none !important;
-  }
-
-  &.ant-input:hover {
-    border: none !important;
-    box-shadow: none !important;
-  }
-
-  &.ant-input:focus {
-    border: none !important;
-    box-shadow: none !important;
-  }
-`
-
-const AddTagButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  background: none;
-  border: 1px dashed #d1d5db;
-  border-radius: 10px;
-  color: #9ca3af;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    border-color: var(--color-primary);
-    color: #3b82f6;
-    background-color: rgba(59, 130, 246, 0.05);
-  }
-`
-
-const ArrayInput = styled(Input)`
-  display: inline-flex;
-  border: 1px solid #e5e7eb !important;
-  outline: none !important;
-  background: transparent !important;
-  font-size: 12px;
-  font-family: var(--font-family);
-  padding: 2px 8px !important;
-  border-radius: 12px;
-  min-width: 80px;
-  max-width: 120px;
-  height: 24px;
-  cursor: text;
-  box-shadow: none !important;
-  vertical-align: top;
-
-  &::placeholder {
-    color: #9ca3af;
-    font-size: 12px;
-  }
-
-  &:hover {
-    border-color: var(--color-border) !important;
-    box-shadow: none !important;
-  }
-
-  &:focus {
-    border-color: var(--color-primary) !important;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
-  }
-
-  &.ant-input {
-    font-size: 12px;
-    height: 24px;
-    display: inline-flex;
-    vertical-align: top;
-  }
-
-  &.ant-input:hover {
-    border-color: var(--color-border) !important;
-    box-shadow: none !important;
-  }
-
-  &.ant-input:focus {
-    border-color: var(--color-primary) !important;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
-  }
-`
-
-const AddPropertyRow = styled.button<{ hasContent?: boolean }>`
-  display: flex;
-  align-items: center;
-  padding: 6px 8px;
-  margin: 0 -8px;
-  min-height: 32px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  border-radius: 6px;
-  width: 100%;
-  opacity: ${({ hasContent }) => (hasContent ? 0 : 1)};
-  transition: opacity 0.2s;
-
-  &:hover {
-    background-color: var(--color-hover);
-  }
-
-  ${PropertiesContainer}:hover & {
-    opacity: 1;
-  }
-`
-
-const AddPropertyText = styled.div`
-  font-size: 14px;
-  font-family: var(--font-family);
-  color: var(--color-text-secondary);
-`
-
-const PropertyActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.2s;
-  margin-left: auto;
-  margin-right: 4px;
-
-  ${PropertyRow}:hover & {
-    opacity: 1;
-  }
-`
-
-const ActionButton = styled.button`
-  background: none;
-  border: none;
-  padding: 4px;
-  cursor: pointer;
-  color: #6b7280;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-
-  &:hover {
-    background-color: var(--color-hover);
-    color: #374151;
-  }
-`
 
 export default YamlFrontMatterNodeView

@@ -1,8 +1,7 @@
+import { cn } from '@cherrystudio/ui/lib/utils'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { cn } from '@renderer/utils'
 import { ChevronRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import styled from 'styled-components'
 
 /**
  * 水平滚动容器
@@ -100,91 +99,38 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
   }, dependencies)
 
   return (
-    <Container
-      className={cn(className, classNames?.container)}
-      $expandable={expandable}
-      $disableHoverButton={isScrolledToEnd}
-      onClick={expandable ? handleContainerClick : undefined}>
-      <ScrollContent
-        ref={scrollRef}
-        $gap={gap}
-        $isExpanded={isExpanded}
-        $expandable={expandable}
-        className={cn(classNames?.content)}>
-        {children}
-      </ScrollContent>
-      {canScroll && !isExpanded && !isScrolledToEnd && (
-        <ScrollButton onClick={handleScrollRight} className="scroll-right-button">
-          <ChevronRight size={14} />
-        </ScrollButton>
+    <div
+      className={cn(
+        'group/container relative flex min-w-0 max-w-full flex-1 items-center',
+        expandable ? 'cursor-pointer' : 'cursor-default',
+        className,
+        classNames?.container
       )}
-    </Container>
+      onClick={expandable ? handleContainerClick : undefined}>
+      <Scrollbar
+        ref={scrollRef}
+        className={cn('flex min-w-0 flex-1 overflow-y-hidden', classNames?.content)}
+        style={{
+          gap,
+          overflowX: expandable && isExpanded ? 'hidden' : 'auto',
+          whiteSpace: expandable && isExpanded ? 'normal' : 'nowrap',
+          flexWrap: expandable && isExpanded ? 'wrap' : 'nowrap',
+          scrollbarWidth: 'none'
+        }}>
+        {children}
+      </Scrollbar>
+      {canScroll && !isExpanded && !isScrolledToEnd && (
+        <div
+          onClick={handleScrollRight}
+          className={cn(
+            'scroll-right-button -translate-y-1/2 absolute top-1/2 right-2 z-[1] flex size-6 cursor-pointer items-center justify-center rounded-full bg-background opacity-0 shadow-[0_6px_16px_0_rgba(0,0,0,0.08),0_3px_6px_-4px_rgba(0,0,0,0.12),0_9px_28px_8px_rgba(0,0,0,0.05)] transition-opacity hover:bg-accent',
+            !isScrolledToEnd && 'group-hover/container:opacity-100'
+          )}>
+          <ChevronRight size={14} className="text-muted-foreground hover:text-foreground" />
+        </div>
+      )}
+    </div>
   )
 }
-
-const Container = styled.div<{ $expandable?: boolean; $disableHoverButton?: boolean }>`
-  display: flex;
-  align-items: center;
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 100%;
-  position: relative;
-  cursor: ${(props) => (props.$expandable ? 'pointer' : 'default')};
-
-  ${(props) =>
-    !props.$disableHoverButton &&
-    `
-    &:hover {
-      .scroll-right-button {
-        opacity: 1;
-      }
-    }
-  `}
-`
-
-const ScrollContent = styled(Scrollbar)<{
-  $gap: string
-  $isExpanded?: boolean
-  $expandable?: boolean
-}>`
-  display: flex;
-  overflow-x: ${(props) => (props.$expandable && props.$isExpanded ? 'hidden' : 'auto')};
-  overflow-y: hidden;
-  white-space: ${(props) => (props.$expandable && props.$isExpanded ? 'normal' : 'nowrap')};
-  gap: ${(props) => props.$gap};
-  flex-wrap: ${(props) => (props.$expandable && props.$isExpanded ? 'wrap' : 'nowrap')};
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`
-
-const ScrollButton = styled.div`
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
-  opacity: 0;
-  transition: opacity 0.2s ease-in-out;
-  cursor: pointer;
-  background: var(--color-background);
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow:
-    0 6px 16px 0 rgba(0, 0, 0, 0.08),
-    0 3px 6px -4px rgba(0, 0, 0, 0.12),
-    0 9px 28px 8px rgba(0, 0, 0, 0.05);
-  color: var(--color-text-2);
-
-  &:hover {
-    color: var(--color-text);
-    background: var(--color-list-item);
-  }
-`
 
 export default HorizontalScrollContainer

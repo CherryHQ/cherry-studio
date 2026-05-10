@@ -201,7 +201,7 @@ export class AgentService {
         database.transaction(async (tx) => {
           await tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
           if (rawOldAgent) {
-            await this.syncSettingsToSessions(tx, id, rawOldAgent, updates)
+            await this.syncSettingsToSessionsTx(tx, id, rawOldAgent, updates)
           }
         }),
       defaultHandlersFor('Agent', id)
@@ -214,7 +214,7 @@ export class AgentService {
    * Sync agent settings to all sessions that haven't been individually customized.
    * Must be called inside a transaction so agent update and session sync are atomic.
    */
-  private async syncSettingsToSessions(
+  private async syncSettingsToSessionsTx(
     tx: DbOrTx,
     agentId: string,
     rawOldAgent: Record<string, unknown>,
@@ -279,7 +279,7 @@ export class AgentService {
     const result = await withSqliteErrors(
       async () =>
         database.transaction(async (tx) => {
-          await pinService.purgeForEntity(tx, 'agent', id)
+          await pinService.purgeForEntityTx(tx, 'agent', id)
           return tx.delete(agentsTable).where(eq(agentsTable.id, id))
         }),
       defaultHandlersFor('Agent', id)
