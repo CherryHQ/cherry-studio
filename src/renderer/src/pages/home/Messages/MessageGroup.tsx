@@ -66,6 +66,13 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
   const setSelectedMessage = useCallback(
     (message: Message, options: SelectMessageOptions = {}) => {
+      if (message.askId) {
+        void EventEmitter.emit(EVENT_NAMES.PRESERVE_MESSAGE_ANCHOR, {
+          elementId: `message-group-${message.askId}`,
+          messageId: message.askId
+        })
+      }
+
       // 前一个
       void editMessage(selectedMessageId, { foldSelected: false })
       // 当前选中的消息

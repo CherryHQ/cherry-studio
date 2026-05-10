@@ -55,6 +55,7 @@ interface MessagesProps {
 const logger = loggerService.withContext('Messages')
 
 type PreserveMessageAnchorPayload = {
+  elementId?: string
   messageId?: string
 }
 
@@ -80,6 +81,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messagesRef = useRef<Message[]>(messages)
   const anchorRef = useRef<{
+    elementId?: string
     frameCount: number
     idleFrames: number
     messageId: string
@@ -104,6 +106,15 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     return messageElements.current.get(messageId) ?? document.getElementById(`message-${messageId}`)
   }, [])
 
+  const getAnchorElement = useCallback(
+    (anchor: { elementId?: string; messageId: string }) => {
+      return anchor.elementId
+        ? document.getElementById(anchor.elementId)
+        : getRegisteredMessageElement(anchor.messageId)
+    },
+    [getRegisteredMessageElement]
+  )
+
   const stopPreservingAnchor = useCallback(() => {
     if (anchorRef.current?.rafId) {
       cancelAnimationFrame(anchorRef.current.rafId)
@@ -121,7 +132,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
     anchor.frameCount += 1
 
-    const anchorElement = getRegisteredMessageElement(anchor.messageId)
+    const anchorElement = getAnchorElement(anchor)
     if (!anchorElement) {
       anchor.missingFrames += 1
       if (anchor.missingFrames > 30) {
@@ -157,7 +168,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     }
 
     stopPreservingAnchor()
-  }, [getRegisteredMessageElement, scrollContainerRef, stopPreservingAnchor])
+  }, [getAnchorElement, scrollContainerRef, stopPreservingAnchor])
 
   const startPreservingAnchor = useCallback(
     (payload: PreserveMessageAnchorPayload | string | undefined) => {
@@ -166,10 +177,12 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
         return
       }
 
-      const anchorElement = getRegisteredMessageElement(messageId)
+      const elementId = typeof payload === 'string' ? undefined : payload?.elementId
+      const anchorElement = elementId ? document.getElementById(elementId) : getRegisteredMessageElement(messageId)
 
       stopPreservingAnchor()
       anchorRef.current = {
+        elementId,
         frameCount: 0,
         idleFrames: 0,
         messageId,

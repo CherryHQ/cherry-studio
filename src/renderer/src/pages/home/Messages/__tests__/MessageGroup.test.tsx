@@ -123,7 +123,8 @@ vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     LOCATE_MESSAGE: 'locate-message',
     EDIT_MESSAGE: 'edit-message',
-    NEW_CONTEXT: 'new-context'
+    NEW_CONTEXT: 'new-context',
+    PRESERVE_MESSAGE_ANCHOR: 'preserve-message-anchor'
   },
   EventEmitter: mocks.EventEmitter
 }))
@@ -329,6 +330,10 @@ describe('MessageGroup', () => {
 
     fireEvent.click(getByRole('button', { name: 'select second model' }))
 
+    expect(mocks.EventEmitter.emit).toHaveBeenCalledWith('preserve-message-anchor', {
+      elementId: 'message-group-ask-1',
+      messageId: 'ask-1'
+    })
     expect(mocks.editMessage).toHaveBeenCalledWith('msg-1', { foldSelected: false })
     expect(mocks.editMessage).toHaveBeenCalledWith('msg-2', { foldSelected: true })
     expect(mocks.setTimeoutTimer).not.toHaveBeenCalledWith(
