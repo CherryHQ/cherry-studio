@@ -22,6 +22,7 @@ import type {
   AgentMessagePersistInput,
   AgentPersistedMessage
 } from '@shared/data/types/agentMessage'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { and, desc, eq, isNotNull, lt, or, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('SessionMessageService')
@@ -293,7 +294,7 @@ export class AgentSessionMessageService {
     sessionId: string,
     agentId: string,
     modelId: string | undefined,
-    agentSessionId: string,
+    agentSessionId: string | null,
     userContent: string,
     assistantContent: string,
     images?: Array<{ data: string; media_type: string }>
@@ -301,76 +302,46 @@ export class AgentSessionMessageService {
     const now = new Date().toISOString()
     const userMsgId = randomUUID()
     const assistantMsgId = randomUUID()
-    const userBlockId = randomUUID()
-    const assistantBlockId = randomUUID()
     const topicId = `agent-session:${sessionId}`
 
-    const imageBlocks: Array<{
-      id: string
-      messageId: string
-      type: string
-      createdAt: string
-      status: string
-      url: string
-    }> = []
+    // v2 envelope: parts under `data.parts`, `blocks` empty.
+    const userParts: CherryMessagePart[] = [{ type: 'text', text: userContent, state: 'done' }]
     if (images && images.length > 0) {
       for (const img of images) {
-        imageBlocks.push({
-          id: randomUUID(),
-          messageId: userMsgId,
-          type: 'image',
-          createdAt: now,
-          status: 'success',
+        userParts.push({
+          type: 'file',
+          mediaType: img.media_type,
           url: `data:${img.media_type};base64,${img.data}`
         })
       }
     }
 
-    const userPayload = {
+    const userPayload: AgentPersistedMessage = {
       message: {
         id: userMsgId,
-        role: 'user' as const,
+        role: 'user',
         assistantId: agentId,
         topicId,
         createdAt: now,
         status: 'success',
-        blocks: [userBlockId, ...imageBlocks.map((b) => b.id)]
+        data: { parts: userParts }
       },
-      blocks: [
-        {
-          id: userBlockId,
-          messageId: userMsgId,
-          type: 'main_text',
-          createdAt: now,
-          status: 'success',
-          content: userContent
-        },
-        ...imageBlocks
-      ]
-    } as AgentPersistedMessage
+      blocks: []
+    }
 
-    const assistantPayload = {
+    const assistantPayload: AgentPersistedMessage = {
       message: {
         id: assistantMsgId,
-        role: 'assistant' as const,
+        role: 'assistant',
         assistantId: agentId,
         topicId,
         createdAt: now,
         status: 'success',
-        blocks: [assistantBlockId],
-        modelId
+        modelId,
+        data: { parts: [{ type: 'text', text: assistantContent, state: 'done' }] }
       },
-      blocks: [
-        {
-          id: assistantBlockId,
-          messageId: assistantMsgId,
-          type: 'main_text',
-          createdAt: now,
-          status: 'success',
-          content: assistantContent
-        }
-      ]
-    } as AgentPersistedMessage
+      blocks: []
+    }
 
     return this.persistExchange({
       sessionId,
