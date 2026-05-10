@@ -1,4 +1,5 @@
-import { DescriptionSwitch, HelpTooltip } from '@cherrystudio/ui'
+import { DescriptionSwitch, HelpTooltip, Slider } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -13,10 +14,9 @@ import type { CodeStyleVarious, MathEngine } from '@renderer/types'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Col, Row, Slider } from 'antd'
+import type { ComponentPropsWithoutRef } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const ChatPreferencesTab = () => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
@@ -102,7 +102,7 @@ const ChatPreferencesTab = () => {
   )
 
   return (
-    <Container className="settings-tab">
+    <Scrollbar className="settings-tab mt-[3px] flex flex-1 flex-col pt-0.5 pr-0 pb-2.5 pl-2">
       <CollapsibleSettingGroup title={t('settings.messages.title')} defaultExpanded={true}>
         <SettingGroup>
           <SettingRow>
@@ -150,23 +150,21 @@ const ChatPreferencesTab = () => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.font_size.title')}</SettingRowTitleSmall>
           </SettingRow>
-          <Row align="middle" gutter={10}>
-            <Col span={24}>
-              <Slider
-                value={fontSizeValue}
-                onChange={(value) => setFontSizeValue(value)}
-                onChangeComplete={(value) => setFontSize(value)}
-                min={12}
-                max={22}
-                step={1}
-                marks={{
-                  12: <span style={{ fontSize: '12px' }}>A</span>,
-                  14: <span style={{ fontSize: '14px' }}>{t('common.default')}</span>,
-                  22: <span style={{ fontSize: '18px' }}>A</span>
-                }}
-              />
-            </Col>
-          </Row>
+          <div className="w-full px-2 pb-4">
+            <Slider
+              value={[fontSizeValue]}
+              onValueChange={(values) => setFontSizeValue(values[0])}
+              onValueCommit={(values) => setFontSize(values[0])}
+              min={12}
+              max={22}
+              step={1}
+              marks={[
+                { value: 12, label: <span style={{ fontSize: '12px' }}>A</span> },
+                { value: 14, label: <span style={{ fontSize: '14px' }}>{t('common.default')}</span> },
+                { value: 22, label: <span style={{ fontSize: '18px' }}>A</span> }
+              ]}
+            />
+          </div>
           <SettingDivider />
         </SettingGroup>
       </CollapsibleSettingGroup>
@@ -434,32 +432,20 @@ const ChatPreferencesTab = () => {
           </SettingRow>
         </SettingGroup>
       </CollapsibleSettingGroup>
-    </Container>
+    </Scrollbar>
   )
 }
 
-const Container = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  padding: 0 8px;
-  padding-right: 0;
-  padding-top: 2px;
-  padding-bottom: 10px;
-  margin-top: 3px;
-`
+// Local, theme-agnostic wrappers — equivalent to the previous
+// styled-components blocks (`Container`, `SettingRowTitleSmall`,
+// `SettingGroup`), now Tailwind-only to drop the `styled-components`
+// import per v2 design-system rules.
+const SettingRowTitleSmall = ({ className, ...rest }: ComponentPropsWithoutRef<typeof SettingRowTitle>) => (
+  <SettingRowTitle className={cn('gap-1 text-[13px]', className)} {...rest} />
+)
 
-const SettingRowTitleSmall = styled(SettingRowTitle)`
-  font-size: 13px;
-  gap: 4px;
-`
-
-const SettingGroup = styled.div<{ theme?: ThemeMode }>`
-  padding: 0 5px;
-  width: 100%;
-  margin-top: 0;
-  border-radius: 8px;
-  margin-bottom: 10px;
-`
+const SettingGroup = ({ className, ...rest }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-2.5 w-full rounded-lg px-[5px]', className)} {...rest} />
+)
 
 export default ChatPreferencesTab
