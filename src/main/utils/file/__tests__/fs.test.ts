@@ -10,6 +10,7 @@ import {
   atomicWriteIfUnchanged,
   copy as fsCopy,
   createAtomicWriteStream,
+  download as fsDownload,
   ensureDir,
   exists,
   hash,
@@ -446,6 +447,54 @@ describe('mkdir / ensureDir / removeDir', () => {
 
   it('removeDir is idempotent on a missing path', async () => {
     await expect(removeDir(path.join(tmp, 'nope') as FilePath)).resolves.toBeUndefined()
+  })
+})
+
+describe('download', () => {
+  let tmp: string
+  let server: import('node:http').Server
+  let baseUrl: string
+  let routes: Map<string, { status: number; body: Uint8Array | string; type?: string }>
+
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-fs-test-'))
+    routes = new Map()
+    const http = await import('node:http')
+    server = http.createServer((req, res) => {
+      const route = routes.get(req.url ?? '/')
+      if (!route) {
+        res.statusCode = 404
+        res.end('not found')
+        return
+      }
+      res.statusCode = route.status
+      if (route.type) res.setHeader('Content-Type', route.type)
+      res.end(route.body)
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const addr = server.address() as { port: number }
+    baseUrl = `http://127.0.0.1:${addr.port}`
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  })
+
+  it('downloads response body to dest atomically', async () => {
+    routes.set('/file.bin', { status: 200, body: Buffer.from([0x01, 0x02, 0x03]), type: 'application/octet-stream' })
+    const dest = path.join(tmp, 'out.bin') as FilePath
+    await fsDownload(`${baseUrl}/file.bin`, dest)
+    const buf = await readFile(dest)
+    expect(Array.from(buf)).toEqual([0x01, 0x02, 0x03])
+  })
+
+  it('throws and leaves no dest file on a non-2xx response', async () => {
+    routes.set('/missing', { status: 404, body: 'gone' })
+    const dest = path.join(tmp, 'out.bin') as FilePath
+    await expect(fsDownload(`${baseUrl}/missing`, dest)).rejects.toThrow()
+    expect(await exists(dest)).toBe(false)
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
   })
 })
 

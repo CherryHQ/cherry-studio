@@ -363,9 +363,42 @@ export async function compressImage(_input: FilePath | Uint8Array, _output: File
   return notImplemented('compressImage')
 }
 
-/** Download a URL to a local file path. */
-export async function download(_url: string, _dest: FilePath): Promise<void> {
-  return notImplemented('download')
+/**
+ * Download `url` to `dest`. Streams the response body into an atomic writer
+ * (tmp + rename), so an interrupted download leaves no partially-written
+ * dest file. Throws on non-2xx responses.
+ */
+export async function download(url: string, dest: FilePath): Promise<void> {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`download(${url}): HTTP ${response.status} ${response.statusText}`)
+  }
+  if (!response.body) {
+    throw new Error(`download(${url}): response has no body`)
+  }
+  const writer = createAtomicWriteStream(dest)
+  const reader = response.body.getReader()
+  await new Promise<void>((resolve, reject) => {
+    writer.on('error', reject)
+    writer.on('finish', resolve)
+    const pump = async () => {
+      try {
+        for (;;) {
+          const { value, done } = await reader.read()
+          if (done) {
+            writer.end()
+            return
+          }
+          if (!writer.write(Buffer.from(value))) {
+            await new Promise<void>((r) => writer.once('drain', r))
+          }
+        }
+      } catch (err) {
+        writer.destroy(err as Error)
+      }
+    }
+    void pump()
+  })
 }
 
 /**
