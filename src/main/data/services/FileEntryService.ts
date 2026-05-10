@@ -208,7 +208,7 @@ class FileEntryServiceImpl implements FileEntryService {
 
   async listAllIds(): Promise<Set<FileEntryId>> {
     const rows = await this.getDb().select({ id: fileEntryTable.id }).from(fileEntryTable)
-    return new Set(rows.map((r) => r.id as FileEntryId))
+    return new Set(rows.map((r) => r.id))
   }
 
   async create(values: CreateFileEntryRow): Promise<FileEntry> {

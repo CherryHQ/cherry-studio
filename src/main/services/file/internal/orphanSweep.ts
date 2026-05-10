@@ -264,7 +264,7 @@ async function runStartupFileSweepInner(deps: RunStartupFileSweepDeps): Promise<
       }
       bytesOnDisk += st.size
       const uuid = isUuidFileName(name)
-      const isCandidate = uuid ? !idSnapshot.has(uuid.id as FileEntryId) : isTmpResidueName(name)
+      const isCandidate = uuid ? !idSnapshot.has(uuid.id) : isTmpResidueName(name)
       if (!isCandidate) continue
       if (now - st.mtimeMs <= FRESHNESS_GATE_MS) continue
       planned.push({ path: fullPath, bytes: st.size })

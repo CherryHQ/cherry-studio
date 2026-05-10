@@ -295,7 +295,7 @@ describe('FileManager (integration)', () => {
     expect(remaining.length).toBe(0)
 
     // The entry — now without any ref — appears in getOrphanReport().
-    const report = await fm.getOrphanReport()
+    const report = fm.getOrphanReport()
     expect(report.orphanRefsByType.temp_session).toBe(1)
     expect(report.orphanEntriesByOrigin.internal ?? 0).toBeGreaterThanOrEqual(1)
   })
