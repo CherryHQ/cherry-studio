@@ -4,6 +4,7 @@ import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
@@ -212,8 +213,24 @@ export class TopicService {
 
   async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
     const db = application.get('DbService').getDb()
+    await db.transaction((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
+    logger.info('Set active node', { topicId, activeNodeId: nodeId })
+    return { activeNodeId: nodeId }
+  }
 
-    await db.transaction(async (tx) => {
+  /**
+   * Tx-aware variant — composes inside a caller's transaction (e.g.
+   * MessageService.create / fork). Validates the topic is not soft-deleted
+   * and the message belongs to it. Skip validation by passing `assumeValid`
+   * when the caller has already verified the (topicId, nodeId) pair.
+   */
+  async setActiveNodeTx(
+    tx: DbOrTx,
+    topicId: string,
+    nodeId: string,
+    options: { assumeValid?: boolean } = {}
+  ): Promise<void> {
+    if (!options.assumeValid) {
       const [topic] = await tx
         .select({ id: topicTable.id })
         .from(topicTable)
@@ -229,18 +246,14 @@ export class TopicService {
       if (!message || message.topicId !== topicId) {
         throw DataApiErrorFactory.notFound('Message', nodeId)
       }
+    }
 
-      const updated = await tx
-        .update(topicTable)
-        .set({ activeNodeId: nodeId })
-        .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
-        .returning({ id: topicTable.id })
-      if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
-    })
-
-    logger.info('Set active node', { topicId, activeNodeId: nodeId })
-
-    return { activeNodeId: nodeId }
+    const updated = await tx
+      .update(topicTable)
+      .set({ activeNodeId: nodeId })
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .returning({ id: topicTable.id })
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
   }
 
   /**

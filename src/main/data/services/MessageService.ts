@@ -31,6 +31,7 @@ import type {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
+import { topicService } from './TopicService'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
@@ -618,7 +619,7 @@ export class MessageService {
         })
         .returning()
 
-      await tx.update(topicTable).set({ activeNodeId: row.id }).where(eq(topicTable.id, source.topicId))
+      await topicService.setActiveNodeTx(tx, source.topicId, row.id, { assumeValid: true })
 
       logger.info('Created sibling message', {
         sourceId,
@@ -731,7 +732,7 @@ export class MessageService {
 
       // Update activeNodeId if setAsActive is not explicitly false
       if (dto.setAsActive !== false) {
-        await tx.update(topicTable).set({ activeNodeId: row.id }).where(eq(topicTable.id, topicId))
+        await topicService.setActiveNodeTx(tx, topicId, row.id, { assumeValid: true })
       }
 
       logger.info('Created message', { id: row.id, topicId, role: dto.role, setAsActive: dto.setAsActive !== false })
@@ -862,7 +863,7 @@ export class MessageService {
 
       // 4. Point activeNodeId at the last placeholder (or user message if N=0)
       const newActiveNodeId = placeholders.at(-1)?.id ?? userMessage.id
-      await tx.update(topicTable).set({ activeNodeId: newActiveNodeId }).where(eq(topicTable.id, input.topicId))
+      await topicService.setActiveNodeTx(tx, input.topicId, newActiveNodeId, { assumeValid: true })
 
       logger.info('Reserved assistant turn', {
         topicId: input.topicId,
@@ -1031,7 +1032,13 @@ export class MessageService {
 
       // Update topic.activeNodeId if needed
       if (newActiveNodeId !== undefined) {
-        await tx.update(topicTable).set({ activeNodeId: newActiveNodeId }).where(eq(topicTable.id, message.topicId))
+        if (newActiveNodeId === null) {
+          // No remaining message to anchor to — clear directly. setActiveNodeTx
+          // would reject null because it can't validate "no message".
+          await tx.update(topicTable).set({ activeNodeId: null }).where(eq(topicTable.id, message.topicId))
+        } else {
+          await topicService.setActiveNodeTx(tx, message.topicId, newActiveNodeId, { assumeValid: true })
+        }
 
         logger.info('Updated topic activeNodeId after message deletion', {
           topicId: message.topicId,
