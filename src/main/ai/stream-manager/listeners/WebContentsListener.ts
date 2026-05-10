@@ -47,6 +47,12 @@ export class WebContentsListener implements StreamListener {
     private readonly topicId: string
   ) {
     this.id = `wc:${wc.id}:${topicId}`
+    // If the window dies mid-stream we don't want a queued 16ms flush
+    // timer keeping a closed reference alive. `discardPending` is also
+    // called by `isAlive()` and `onChunk` when they detect destruction,
+    // but those only fire on the next event — without this hook a stream
+    // that ends quietly never clears the timer.
+    this.wc.once('destroyed', () => this.discardPending())
   }
 
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void {
