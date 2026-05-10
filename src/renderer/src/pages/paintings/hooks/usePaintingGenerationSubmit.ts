@@ -40,11 +40,11 @@ export function usePaintingGenerationSubmit({
   const submit = useCallback(async () => {
     const guardResult = await validateBeforeGenerate()
     if (!guardResult.ok) {
-      presentPaintingGenerationGuardFeedback(guardResult.reason, guardResult.error)
+      presentPaintingGenerationGuardFeedback(guardResult.reason, guardResult.error, painting.providerId)
       return
     }
     await generate()
-  }, [generate, validateBeforeGenerate])
+  }, [generate, painting.providerId, validateBeforeGenerate])
 
   return { generating, submit, cancel }
 }

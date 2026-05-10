@@ -174,11 +174,13 @@ export function PaintingFieldRenderer({
               }`}>
               <RadioGroupItem value={String(option.value)} id={`${fieldKey}-${option.value}`} className="sr-only" />
               {option.icon && (
-                <div className="flex items-center justify-center bg-transparent">
-                  <img
-                    src={option.icon}
-                    alt={option.label}
-                    className={`h-3 w-3 transition-opacity ${value === String(option.value) ? 'opacity-100' : 'opacity-60'}`}
+                <div className="flex items-center justify-center bg-transparent" aria-hidden>
+                  <span
+                    className={`h-3 w-3 bg-current transition-opacity ${value === String(option.value) ? 'opacity-100' : 'opacity-60'}`}
+                    style={{
+                      mask: `url(${option.icon}) center / contain no-repeat`,
+                      WebkitMask: `url(${option.icon}) center / contain no-repeat`
+                    }}
                   />
                 </div>
               )}

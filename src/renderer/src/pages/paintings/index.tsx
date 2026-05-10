@@ -1,7 +1,7 @@
 import './painting-theme.css'
 
 import Scrollbar from '@renderer/components/Scrollbar'
-import { type FC, useCallback, useMemo, useState } from 'react'
+import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import PaintingModelSelector from './components/PaintingModelSelector'
 import { PaintingModeTabs } from './components/PaintingModeTabs'
@@ -73,6 +73,14 @@ const PaintingPage: FC = () => {
   })
 
   const onCancel = useCallback(() => cancelGeneration(currentPainting.id), [cancelGeneration, currentPainting.id])
+  const saveCurrentRef = useRef(list.saveCurrent)
+  saveCurrentRef.current = list.saveCurrent
+
+  useEffect(() => {
+    return () => {
+      void saveCurrentRef.current()
+    }
+  }, [])
 
   return (
     <div className={paintingClasses.page}>
@@ -116,7 +124,7 @@ const PaintingPage: FC = () => {
               <PaintingStrip
                 selectedPaintingId={currentPainting.id}
                 onDeletePainting={list.remove}
-                onSelectPainting={setCurrentPainting}
+                onSelectPainting={list.select}
                 onAddPainting={list.add}
               />
             </div>

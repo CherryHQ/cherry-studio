@@ -2,11 +2,11 @@ import { SILICON_IMAGE_SIZES } from './defaults'
 
 export const siliconFields = [
   {
-    type: 'iconRadio',
+    type: 'sizeChips',
     key: 'imageSize',
     title: 'paintings.image.size',
     columns: 3,
-    options: SILICON_IMAGE_SIZES.map((size) => ({ label: size.label, value: size.value, icon: size.icon })),
+    options: SILICON_IMAGE_SIZES.map((size) => ({ label: size.label, value: size.value })),
     initialValue: '1024x1024'
   },
   {

@@ -4,6 +4,7 @@ import type { PaintingMode } from '@shared/data/types/painting'
 import { useCallback, useRef } from 'react'
 
 import { paintingDataToCreateDto } from '../model/mappers/paintingDataToCreateDto'
+import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
 import { recordToPaintingData } from '../model/mappers/recordToPaintingData'
 import { presentPaintingGenerateError } from '../model/paintingGenerateError'
 import type { PaintingData } from '../model/types/paintingData'
@@ -38,13 +39,41 @@ export function usePaintingList({
   modelOptions,
   cancelGeneration
 }: UsePaintingListInput) {
-  const { createPainting, deletePainting, refresh } = usePaintings()
+  const { createPainting, updatePainting, deletePainting, refresh } = usePaintings()
   const modelOptionsRef = useRef<ModelOption[]>([])
+  const paintingRef = useRef(painting)
   modelOptionsRef.current = modelOptions
+  paintingRef.current = painting
+
+  const saveCurrent = useCallback(async () => {
+    const current = paintingRef.current
+    if (!current.persistedAt) {
+      return true
+    }
+
+    try {
+      await updatePainting(current.id, paintingDataToUpdateDto(current))
+      return true
+    } catch (error) {
+      presentPaintingGenerateError(error)
+      return false
+    }
+  }, [updatePainting])
+
+  const select = useCallback(
+    async (target: PaintingData) => {
+      const current = paintingRef.current
+      if (target.id === current.id) return
+      if (!(await saveCurrent())) return
+      setCurrentPainting(target)
+    },
+    [saveCurrent, setCurrentPainting]
+  )
 
   const add = useCallback(async () => {
+    const current = paintingRef.current
     const nextTab =
-      resolvePaintingTabForMode(currentProviderDefinition, painting.mode) ?? currentProviderDefinition.mode.defaultTab
+      resolvePaintingTabForMode(currentProviderDefinition, current.mode) ?? currentProviderDefinition.mode.defaultTab
     const nextPainting = currentProviderDefinition.mode.createPaintingData({
       tab: nextTab,
       modelOptions: modelOptionsRef.current.length > 0 ? modelOptionsRef.current : undefined
@@ -60,7 +89,7 @@ export function usePaintingList({
     } catch (error) {
       presentPaintingGenerateError(error)
     }
-  }, [createPainting, currentProviderDefinition, painting.mode, refresh, setCurrentPainting])
+  }, [createPainting, currentProviderDefinition, refresh, setCurrentPainting])
 
   const selectNextAfterDelete = useCallback(
     async (deletedId: string) => {
@@ -89,5 +118,5 @@ export function usePaintingList({
     [cancelGeneration, deletePainting, painting.id, refresh, selectNextAfterDelete]
   )
 
-  return { add, remove }
+  return { add, remove, select, saveCurrent }
 }

@@ -1,7 +1,12 @@
 import i18next from 'i18next'
 import { isEmpty } from 'lodash'
 
+import NavigationService from '../../../services/NavigationService'
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
+
+function navigateToProviderSettings(providerId: string) {
+  void NavigationService.navigate?.({ to: '/settings/provider', search: { id: providerId } })
+}
 
 export async function checkProviderEnabled(provider: PaintingProviderRuntime): Promise<string> {
   if (!provider.isEnabled) {
@@ -12,7 +17,7 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
         closable: true,
         okText: i18next.t('common.go_to_settings'),
         onOk: () => {
-          void window.navigate({ to: '/settings/provider', search: { id: provider.id } })
+          navigateToProviderSettings(provider.id)
           reject('Provider disabled')
         },
         onCancel: () => reject('Provider disabled')
@@ -32,7 +37,7 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
       closable: true,
       okText: i18next.t('common.go_to_settings'),
       onOk: () => {
-        void window.navigate({ to: '/settings/provider', search: { id: provider.id } })
+        navigateToProviderSettings(provider.id)
         reject('Provider disabled')
       },
       onCancel: () => reject('Provider disabled')
