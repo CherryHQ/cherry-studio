@@ -1,7 +1,11 @@
+import { Button } from '@cherrystudio/ui'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ProviderActions from '../../shared/primitives/ProviderActions'
 import ProviderSettingsDrawer from '../../shared/primitives/ProviderSettingsDrawer'
-import AddModelFormPanel from './AddModelFormPanel'
+import { drawerClasses } from '../../shared/primitives/ProviderSettingsPrimitives'
+import AddModelFormPanel, { type AddModelDrawerFooterBinding } from './AddModelFormPanel'
 import type { AddModelDrawerPrefill } from './types'
 
 interface AddModelDrawerProps {
@@ -18,10 +22,29 @@ interface AddModelDrawerProps {
  */
 export default function AddModelDrawer({ providerId, open, prefill, onClose }: AddModelDrawerProps) {
   const { t } = useTranslation()
+  const [footerBinding, setFooterBinding] = useState<AddModelDrawerFooterBinding | null>(null)
+
+  const footer =
+    footerBinding != null ? (
+      <ProviderActions className={drawerClasses.footer}>
+        <Button variant="outline" type="button" disabled={footerBinding.isSubmitting} onClick={footerBinding.cancel}>
+          {t('common.cancel')}
+        </Button>
+        <Button type="button" loading={footerBinding.isSubmitting} onClick={() => footerBinding.submit()}>
+          {t('settings.models.add.add_model')}
+        </Button>
+      </ProviderActions>
+    ) : null
 
   return (
-    <ProviderSettingsDrawer open={open} onClose={onClose} title={t('settings.models.add.add_model')}>
-      <AddModelFormPanel providerId={providerId} prefill={prefill} onSuccess={onClose} onCancel={onClose} />
+    <ProviderSettingsDrawer open={open} onClose={onClose} title={t('settings.models.add.add_model')} footer={footer}>
+      <AddModelFormPanel
+        providerId={providerId}
+        prefill={prefill}
+        onSuccess={onClose}
+        onCancel={onClose}
+        onDrawerFooterBinding={setFooterBinding}
+      />
     </ProviderSettingsDrawer>
   )
 }

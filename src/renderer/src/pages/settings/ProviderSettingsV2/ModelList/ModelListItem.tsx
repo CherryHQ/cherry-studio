@@ -64,32 +64,30 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
           )
         })()}
         <div className={modelListClasses.rowBody}>
-          <Tooltip content={t('settings.models.copy_model_id_tooltip', { id: copyId })} placement="top">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <span
-                className={cn(
-                  'block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]',
-                  modelListClasses.rowNameCopyable
-                )}>
-                {model.name}
-              </span>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
+              {model.name}
+            </span>
+            <Tooltip content={t('settings.models.copy_model_id_tooltip', { id: copyId })} placement="top">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="size-5 shrink-0 rounded-md p-0 text-muted-foreground/35 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                className="size-5 shrink-0 rounded-md p-0 text-muted-foreground/35 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
                 aria-label={t('settings.models.copy_model_id_tooltip', { id: copyId })}
                 onClick={handleCopyName}>
                 <Copy className="size-2.5" />
               </Button>
-            </div>
-          </Tooltip>
+            </Tooltip>
+          </div>
         </div>
       </RowFlex>
       <RowFlex className={modelListClasses.rowActions}>
         <div className={modelListClasses.rowActionsCluster}>
           <div className={modelListClasses.rowCapabilityStrip}>
-            <ModelTagsWithLabelV2 model={model} size={8} showLabel={false} style={{ flexWrap: 'nowrap' }} />
+            <div className={modelListClasses.rowCapabilityTagCluster}>
+              <ModelTagsWithLabelV2 model={model} size={8} showLabel={false} style={{ flexWrap: 'nowrap' }} />
+            </div>
             <FreeTrialModelTagV2 modelId={model.id} providerId={model.providerId} />
           </div>
           <div onClick={(event) => event.stopPropagation()}>

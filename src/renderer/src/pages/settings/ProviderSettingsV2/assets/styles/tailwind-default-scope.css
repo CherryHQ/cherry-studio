@@ -16,6 +16,7 @@
 .provider-settings-default-scope {
   --font-size: 16px;
   --background: var(--cs-background);
+  --drawer-background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: var(--cs-card);
   --card-foreground: oklch(0.145 0 0);
@@ -96,6 +97,8 @@
   --padding-y-control-compact: 0.1875rem;
   --icon-size-caption: 0.8125rem;
   --icon-size-body-xs: 0.75rem;
+  /* Model list capability glyphs — match CustomTag `size` (e.g. 8px) for lucide SVG + iconfont */
+  --icon-size-model-list-cap: 0.5rem;
   --color-border-default-soft: color-mix(in srgb, var(--border) 25%, transparent);
   --color-fg-subtle: color-mix(in srgb, var(--foreground) 70%, transparent);
   /* 1rem (16px): block title (e.g. 模型); stays above caption tier; not shrinking to smaller design-only specs */
@@ -140,6 +143,7 @@
    */
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+  --color-drawer-background: var(--drawer-background);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -165,6 +169,7 @@
 /* Dark: same scope node; only semantic palette overrides (atoms above inherit unless reset here). */
 .dark .provider-settings-default-scope {
   --background: var(--cs-background);
+  --drawer-background: oklch(0 0 0);
   --foreground: oklch(0.985 0 0);
   --card: var(--cs-card);
   --card-foreground: oklch(0.985 0 0);
@@ -212,6 +217,14 @@
   --cherry-primary-hover: #d1d5db;
   --cherry-primary-dark: #6b7280;
   --cherry-text-muted: rgba(156, 163, 175, 0.7);
+}
+
+/*
+ * PageSidePanel defaults to `bg-card`, while Provider Settings page background can be translucent in dark mode
+ * through `--cs-background`. Drawer surfaces must stay opaque because they sit above live settings content.
+ */
+.provider-settings-default-scope[data-slot='page-side-panel'] {
+  background-color: var(--drawer-background) !important;
 }
 
 /*
@@ -264,4 +277,20 @@
   .provider-settings-default-scope .ps-model-list-cq .ps-model-list-health .ant-typography {
     display: none !important;
   }
+}
+
+/*
+ * Inline model row — one footprint for capability glyphs.
+ * ReasoningTag uses `i.iconfont`, not SVG; CustomTag wraps icons with inline `font-size`, so iconfont needs explicit override.
+ */
+.provider-settings-default-scope .ps-model-list-cap-strip svg {
+  flex-shrink: 0;
+  width: var(--icon-size-model-list-cap);
+  height: var(--icon-size-model-list-cap);
+}
+
+.provider-settings-default-scope .ps-model-list-cap-strip i.iconfont {
+  flex-shrink: 0;
+  font-size: var(--icon-size-model-list-cap) !important;
+  line-height: 1 !important;
 }

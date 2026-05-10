@@ -55,6 +55,12 @@ vi.mock('../../components/ModelTagsWithLabelV2', () => ({
 describe('ModelListItem', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined)
+      }
+    })
     ;(window as any).toast = {
       error: vi.fn()
     }
@@ -85,5 +91,36 @@ describe('ModelListItem', () => {
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
     })
+  })
+
+  it('opens the model drawer from the model name and only copies from the copy button', async () => {
+    const onEdit = vi.fn()
+
+    render(
+      <ModelListItem
+        model={
+          {
+            id: 'openai::alpha',
+            providerId: 'openai',
+            name: 'Alpha',
+            isEnabled: true,
+            capabilities: []
+          } as any
+        }
+        onEdit={onEdit}
+        onToggleEnabled={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByText('Alpha'))
+
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
+
+    onEdit.mockClear()
+    fireEvent.click(screen.getByLabelText('settings.models.copy_model_id_tooltip'))
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('alpha')
+    expect(onEdit).not.toHaveBeenCalled()
   })
 })

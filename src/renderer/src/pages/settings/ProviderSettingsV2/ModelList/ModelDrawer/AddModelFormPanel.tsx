@@ -5,7 +5,7 @@ import { getDefaultGroupName } from '@renderer/utils'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { FormEvent } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderActions from '../../shared/primitives/ProviderActions'
@@ -16,24 +16,34 @@ import { ModelBasicFields, ModelContextWindowFields } from './content'
 import { getInitialAddModelFormState, splitModelIds } from './helpers'
 import type { AddModelDrawerPrefill, ModelBasicFormState, ModelDrawerMode } from './types'
 
+/** Wired by `AddModelDrawer` into `ProviderSettingsDrawer` footer (same pattern as `EditModelDrawer`). */
+export interface AddModelDrawerFooterBinding {
+  isSubmitting: boolean
+  cancel: () => void
+  submit: () => void
+}
+
 export interface AddModelFormPanelProps {
   providerId: string
   prefill: AddModelDrawerPrefill | null
   onSuccess: () => void
   onCancel: () => void
+  /** When set, primary/cancel actions are rendered in the drawer footer slot instead of below the form. */
+  onDrawerFooterBinding?: (binding: AddModelDrawerFooterBinding | null) => void
   formId?: string
   'data-testid'?: string
 }
 
 /**
  * Domain container: add-model form + create mutation (no drawer chrome).
- * Used inside `ManageModelsDrawer` and optionally wrapped by `AddModelDrawer` for tests/legacy.
+ * `AddModelDrawer` passes `onDrawerFooterBinding` so actions render in `ProviderSettingsDrawer` footer (see `EditModelDrawer`).
  */
 export default function AddModelFormPanel({
   providerId,
   prefill,
   onSuccess,
   onCancel,
+  onDrawerFooterBinding,
   formId = 'provider-settings-model-add-form',
   'data-testid': dataTestId = 'provider-settings-model-add-drawer-content'
 }: AddModelFormPanelProps) {
@@ -161,66 +171,108 @@ export default function AddModelFormPanel({
     [submitAddModel]
   )
 
+  const submitRunnerRef = useRef(submitAddModel)
+  submitRunnerRef.current = submitAddModel
+
+  const runSubmit = useCallback(() => {
+    void submitRunnerRef.current()
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!onDrawerFooterBinding) {
+      return
+    }
+
+    if (!provider) {
+      onDrawerFooterBinding(null)
+      return
+    }
+
+    onDrawerFooterBinding({
+      isSubmitting,
+      cancel: onCancel,
+      submit: runSubmit
+    })
+  }, [provider, isSubmitting, onCancel, onDrawerFooterBinding, runSubmit])
+
+  useEffect(() => {
+    if (!onDrawerFooterBinding) {
+      return
+    }
+
+    return () => {
+      onDrawerFooterBinding(null)
+    }
+  }, [onDrawerFooterBinding])
+
   if (!provider) {
     return null
   }
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <form
-        id={formId}
-        data-testid={dataTestId}
-        className={drawerClasses.form}
-        onSubmit={(event) => void handleFormSubmit(event)}>
+  const form = (
+    <form
+      id={formId}
+      data-testid={dataTestId}
+      className={drawerClasses.form}
+      onSubmit={(event) => void handleFormSubmit(event)}>
+      <ProviderSection className={drawerClasses.section}>
+        <div className={drawerClasses.fieldList}>
+          <ModelBasicFields
+            values={formState}
+            showEndpointType={mode === 'new-api'}
+            endpointTypeError={endpointTypeTouched ? t('settings.models.add.endpoint_type.required') : undefined}
+            onModelIdChange={handleModelIdChange}
+            onNameChange={(value) => setFormState((current) => ({ ...current, name: value }))}
+            onGroupChange={(value) => setFormState((current) => ({ ...current, group: value }))}
+            onEndpointTypesChange={(next) => {
+              setEndpointTypeTouched(false)
+              setFormState((current) => ({ ...current, endpointTypes: [...next] }))
+            }}
+          />
+        </div>
+      </ProviderSection>
+
+      <ProviderActions>
+        <Button
+          type="button"
+          variant="outline"
+          className={drawerClasses.toggleButton}
+          onClick={() => setShowMoreSettings((current) => !current)}>
+          {t('settings.moresetting.label')}
+          {showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </Button>
+      </ProviderActions>
+
+      {showMoreSettings && (
         <ProviderSection className={drawerClasses.section}>
           <div className={drawerClasses.fieldList}>
-            <ModelBasicFields
-              values={formState}
-              showEndpointType={mode === 'new-api'}
-              endpointTypeError={endpointTypeTouched ? t('settings.models.add.endpoint_type.required') : undefined}
-              onModelIdChange={handleModelIdChange}
-              onNameChange={(value) => setFormState((current) => ({ ...current, name: value }))}
-              onGroupChange={(value) => setFormState((current) => ({ ...current, group: value }))}
-              onEndpointTypesChange={(next) => {
-                setEndpointTypeTouched(false)
-                setFormState((current) => ({ ...current, endpointTypes: [...next] }))
-              }}
+            <ModelContextWindowFields
+              maxInputTokens={formState.maxInputTokens}
+              maxOutputTokens={formState.maxOutputTokens}
+              onMaxInputTokensChange={(value) => setFormState((current) => ({ ...current, maxInputTokens: value }))}
+              onMaxOutputTokensChange={(value) => setFormState((current) => ({ ...current, maxOutputTokens: value }))}
             />
           </div>
         </ProviderSection>
+      )}
+    </form>
+  )
 
-        <ProviderActions>
-          <Button
-            type="button"
-            variant="outline"
-            className={drawerClasses.toggleButton}
-            onClick={() => setShowMoreSettings((current) => !current)}>
-            {t('settings.moresetting.label')}
-            {showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+  if (!onDrawerFooterBinding) {
+    return (
+      <>
+        {form}
+        <ProviderActions className={drawerClasses.footer}>
+          <Button variant="outline" type="button" disabled={isSubmitting} onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="button" loading={isSubmitting} onClick={() => void submitAddModel()}>
+            {t('settings.models.add.add_model')}
           </Button>
         </ProviderActions>
+      </>
+    )
+  }
 
-        {showMoreSettings && (
-          <ProviderSection className={drawerClasses.section}>
-            <div className={drawerClasses.fieldList}>
-              <ModelContextWindowFields
-                maxInputTokens={formState.maxInputTokens}
-                maxOutputTokens={formState.maxOutputTokens}
-                onMaxInputTokensChange={(value) => setFormState((current) => ({ ...current, maxInputTokens: value }))}
-                onMaxOutputTokensChange={(value) => setFormState((current) => ({ ...current, maxOutputTokens: value }))}
-              />
-            </div>
-          </ProviderSection>
-        )}
-      </form>
-      <ProviderActions className={`${drawerClasses.footer} mt-auto pt-2`}>
-        <Button variant="outline" type="button" disabled={isSubmitting} onClick={onCancel}>
-          {t('common.cancel')}
-        </Button>
-        <Button type="button" loading={isSubmitting} onClick={() => void submitAddModel()}>
-          {t('settings.models.add.add_model')}
-        </Button>
-      </ProviderActions>
-    </div>
-  )
+  return form
 }

@@ -1,4 +1,5 @@
 export { default as AddModelDrawer } from './AddModelDrawer'
+export type { AddModelDrawerFooterBinding } from './AddModelFormPanel'
 export { default as AddModelFormPanel } from './AddModelFormPanel'
 export { default as EditModelDrawer } from './EditModelDrawer'
 export * from './types'

@@ -77,7 +77,7 @@ export default function ProviderSettingsDrawer({
       }
       backdropClassName="!bottom-[-16px] bg-black/10 backdrop-blur-[1px]"
       contentClassName={cn(
-        'provider-settings-default-scope top-3 right-3 bottom-3 rounded-2xl bg-background',
+        'provider-settings-default-scope top-3 right-3 bottom-3 rounded-2xl bg-[var(--drawer-background)]',
         isManageLayout ? 'border-[color:var(--section-border)] shadow-2xl' : 'border-(--color-border) shadow-xl',
         drawerSizeClasses[size],
         contentClassName

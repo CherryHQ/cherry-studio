@@ -128,7 +128,8 @@ export default defineConfig([
       'src/renderer/src/ui/**',
       'src/renderer/src/routeTree.gen.ts',
       'packages/**/dist',
-      'v2-refactor-temp/**'
+      'v2-refactor-temp/**',
+      '.tmp/**'
     ]
   },
   // turn off oxlint supported rules.

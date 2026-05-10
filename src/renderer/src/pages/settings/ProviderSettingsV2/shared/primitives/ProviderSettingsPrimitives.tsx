@@ -286,8 +286,8 @@ export const modelListClasses = {
   groupChevron: 'size-4 shrink-0 text-muted-foreground/65 transition-transform duration-150',
   groupChevronOpen: 'rotate-90',
   groupBody: 'mt-1.5 flex flex-col gap-0.5',
-  row: 'group flex cursor-pointer items-start gap-3 rounded-xl px-3 py-[10px] text-foreground leading-none transition-colors hover:bg-[var(--color-surface-fg-subtle)]',
-  rowMain: 'min-w-0 flex-1 items-start gap-3',
+  row: 'group flex cursor-pointer items-center gap-3 rounded-xl px-3 py-[10px] text-foreground leading-none transition-colors hover:bg-[var(--color-surface-fg-subtle)]',
+  rowMain: 'min-w-0 flex-1 items-center gap-3',
   rowAvatar: 'h-[26px] w-[26px] shrink-0 rounded-lg',
   rowBody: 'min-w-0 max-w-full flex-1 overflow-hidden',
   /** Model name opens the edit drawer; copy stays on explicit trailing controls. */
@@ -299,6 +299,8 @@ export const modelListClasses = {
   /** Capability / trial tags to the left of the enable switch; design: single line with the toggle. */
   rowCapabilityStrip:
     'flex min-w-0 max-w-[min(100%,20rem)] shrink items-center gap-1.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
+  /** Wraps `ModelTagsWithLabelV2` only; pairs with `.ps-model-list-cap-strip` rules in `tailwind-default-scope.css`. */
+  rowCapabilityTagCluster: 'ps-model-list-cap-strip flex min-w-0 shrink items-center',
   rowMeta:
     'ps-model-list-meta mt-[3px] block min-w-0 max-w-full truncate text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground/65',
   /** Wraps `HealthStatusIndicator` so latency (antd Typography) can be hidden via container query. */
