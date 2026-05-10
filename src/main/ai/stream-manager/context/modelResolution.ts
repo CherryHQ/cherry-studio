@@ -7,6 +7,16 @@ import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
+// Monotonic counter so two regenerate clicks within the same millisecond
+// don't collide on `Date.now()` and get treated as one sibling group. The
+// counter resets per process — that's fine because the value only needs to
+// be unique within an open chat session.
+let siblingsGroupCounter = 0
+function nextSiblingsGroupId(): number {
+  siblingsGroupCounter = (siblingsGroupCounter + 1) % 1000
+  return Date.now() * 1000 + siblingsGroupCounter
+}
+
 /** Resolve the Model list from an optional `@mentioned` list, falling back to the assistant default. */
 export async function resolveModels(
   mentionedModelIds: UniqueModelId[] | undefined,
@@ -41,10 +51,10 @@ export async function resolvePersistentSiblingsGroupId(
   isRegenerate: boolean,
   userMessageId: string
 ): Promise<number | undefined> {
-  if (models.length > 1) return Date.now()
+  if (models.length > 1) return nextSiblingsGroupId()
   if (!isRegenerate) return undefined
 
   const children = await messageService.getChildrenByParentId(userMessageId)
   const existingGroup = children.find((m) => m.siblingsGroupId > 0)?.siblingsGroupId
-  return existingGroup ?? Date.now()
+  return existingGroup ?? nextSiblingsGroupId()
 }
