@@ -28,7 +28,7 @@ interface Props {
   setMultiModelMessageStyle: (style: MultiModelMessageStyle) => void
   messages: Message[]
   selectMessageId: string
-  setSelectedMessage: (message: Message) => void
+  setSelectedMessage: (message: Message, options?: { scroll?: boolean }) => void
   topic: Topic
 }
 

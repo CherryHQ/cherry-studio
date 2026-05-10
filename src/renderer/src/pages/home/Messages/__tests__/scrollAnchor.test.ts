@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { keepElementTop, shouldKeepPreservingAnchor } from '../scrollAnchor'
+import { getPreservedDisplayCount, keepElementTop, shouldKeepPreservingAnchor } from '../scrollAnchor'
 
 describe('scrollAnchor', () => {
   it('adjusts the scroll container by the anchor movement', () => {
@@ -73,5 +73,13 @@ describe('scrollAnchor', () => {
         idleFrames: 40
       })
     ).toBe(false)
+  })
+
+  it('preserves the currently loaded message window when it is larger than the default display count', () => {
+    expect(getPreservedDisplayCount(10, 24)).toBe(24)
+  })
+
+  it('uses the default display count when no larger message window has been loaded', () => {
+    expect(getPreservedDisplayCount(10, 0)).toBe(10)
   })
 })

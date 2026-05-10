@@ -24,3 +24,7 @@ export function shouldKeepPreservingAnchor({
 }) {
   return hasProcessingResponse || frameCount < MIN_ANCHOR_PRESERVE_FRAMES || idleFrames < IDLE_ANCHOR_PRESERVE_FRAMES
 }
+
+export function getPreservedDisplayCount(displayCount: number, currentDisplayLength: number) {
+  return Math.max(displayCount, currentDisplayLength)
+}

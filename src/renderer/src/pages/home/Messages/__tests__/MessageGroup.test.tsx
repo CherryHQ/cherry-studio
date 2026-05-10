@@ -31,7 +31,14 @@ const mocks = vi.hoisted(() => ({
     startEditing: vi.fn(),
     stopEditing: vi.fn()
   }),
-  MessageGroupMenuBar: vi.fn(() => <div className="group-menu-bar">menu</div>),
+  MessageGroupMenuBar: vi.fn(({ messages, setSelectedMessage }: any) => (
+    <div className="group-menu-bar">
+      menu
+      <button type="button" onClick={() => setSelectedMessage(messages[1])}>
+        select second model
+      </button>
+    </div>
+  )),
   HorizontalScrollContainer: vi.fn(({ children }: { children: ReactNode }) => <div>{children}</div>),
   MessageContent: vi.fn(() => <div style={{ minHeight: 600 }}>Long message content</div>),
   MessageEditor: vi.fn(() => <div>editor</div>),
@@ -302,5 +309,33 @@ describe('MessageGroup', () => {
     const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
     expect(contentContainer).not.toBeNull()
     expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('visible')
+  })
+
+  it('does not scroll the chat when switching the selected folded model from the model list', () => {
+    mocks.useSettings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+
+    const messages = [createMessage('msg-1', 0, 'fold'), createMessage('msg-2', 1, 'fold')]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { getByRole } = render(<MessageGroup messages={messages} topic={topic} />)
+
+    fireEvent.click(getByRole('button', { name: 'select second model' }))
+
+    expect(mocks.editMessage).toHaveBeenCalledWith('msg-1', { foldSelected: false })
+    expect(mocks.editMessage).toHaveBeenCalledWith('msg-2', { foldSelected: true })
+    expect(mocks.setTimeoutTimer).not.toHaveBeenCalledWith(
+      'setSelectedMessage',
+      expect.any(Function),
+      expect.anything()
+    )
+    expect(mocks.scrollIntoView).not.toHaveBeenCalled()
   })
 })

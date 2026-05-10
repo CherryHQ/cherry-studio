@@ -18,7 +18,7 @@ import styled from 'styled-components'
 interface MessageGroupModelListProps {
   messages: Message[]
   selectMessageId: string
-  setSelectedMessage: (message: Message) => void
+  setSelectedMessage: (message: Message, options?: { scroll?: boolean }) => void
 }
 
 type DisplayMode = 'compact' | 'expanded'

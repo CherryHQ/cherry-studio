@@ -26,6 +26,10 @@ interface Props {
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
 }
 
+type SelectMessageOptions = {
+  scroll?: boolean
+}
+
 const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const messageLength = messages.length
 
@@ -61,11 +65,15 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   }, [messages])
 
   const setSelectedMessage = useCallback(
-    (message: Message) => {
+    (message: Message, options: SelectMessageOptions = {}) => {
       // 前一个
       void editMessage(selectedMessageId, { foldSelected: false })
       // 当前选中的消息
       void editMessage(message.id, { foldSelected: true })
+
+      if (!options.scroll) {
+        return
+      }
 
       setTimeoutTimer(
         'setSelectedMessage',
@@ -98,7 +106,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         // 使用setSelectedMessage函数来切换标签，这是处理foldSelected的关键
         const targetMessage = messages[targetIndex]
         if (targetMessage) {
-          setSelectedMessage(targetMessage)
+          setSelectedMessage(targetMessage, { scroll: true })
         }
       }
     }
@@ -128,7 +136,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
           if (display === 'none') {
             // 如果消息隐藏，先切换标签
-            setSelectedMessage(message)
+            setSelectedMessage(message, { scroll: true })
           } else {
             // 直接滚动
             scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })

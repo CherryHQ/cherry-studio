@@ -41,7 +41,7 @@ import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
 import Prompt from './Prompt'
-import { keepElementTop, shouldKeepPreservingAnchor } from './scrollAnchor'
+import { getPreservedDisplayCount, keepElementTop, shouldKeepPreservingAnchor } from './scrollAnchor'
 import { MessagesContainer, ScrollContainer } from './shared'
 
 interface MessagesProps {
@@ -186,9 +186,12 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   }, [handleScrollPosition])
 
   useEffect(() => {
-    const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
-    setDisplayMessages(newDisplayMessages)
-    setHasMore(messages.length > displayCount)
+    setDisplayMessages((prev) => {
+      const nextDisplayCount = getPreservedDisplayCount(displayCount, prev.length)
+      const newDisplayMessages = computeDisplayMessages(messages, 0, nextDisplayCount)
+      setHasMore(messages.length > nextDisplayCount)
+      return newDisplayMessages
+    })
   }, [messages, displayCount])
 
   // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置
