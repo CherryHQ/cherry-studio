@@ -114,23 +114,11 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
 
     logger.info('Version compatibility check', { currentVersion: app.getVersion(), previousVersion, versionLogExists })
 
-    // Dev escape hatch: skip the version policy when running prod data
-    // through a dev build (e.g. previousVersion is a pre-release that the
-    // policy treats as "too old"). Set via the `dev:prod-data` npm script.
-    const skipVersionCheck = process.env.CHERRY_DEV_SKIP_VERSION_CHECK === '1'
-    if (skipVersionCheck) {
-      logger.warn('Version compatibility check skipped (CHERRY_DEV_SKIP_VERSION_CHECK=1)', {
-        currentVersion: app.getVersion(),
-        previousVersion
-      })
-    }
-    const versionCheck = skipVersionCheck
-      ? ({ outcome: 'pass' } as const)
-      : checkUpgradePathCompatibility({
-          currentAppVersion: app.getVersion(),
-          previousVersion,
-          versionLogExists
-        })
+    const versionCheck = checkUpgradePathCompatibility({
+      currentAppVersion: app.getVersion(),
+      previousVersion,
+      versionLogExists
+    })
 
     if (versionCheck.outcome === 'block') {
       logger.warn('Version compatibility check failed, showing version incompatible UI', {

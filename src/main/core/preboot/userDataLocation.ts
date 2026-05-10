@@ -107,17 +107,6 @@ export function getNormalizedExecutablePath(): string {
  */
 export function resolveUserDataLocation(): void {
   if (!app.isPackaged) {
-    // Escape hatch: skip the Dev suffix so the dev process reads/writes
-    // the same userData a packaged build would use. Useful for testing
-    // migration against real production data without rebuilding. Set via
-    // the `dev:prod-data` npm script — see package.json.
-    if (process.env.CHERRY_DEV_USE_PROD_USERDATA === '1') {
-      logger.warn('Dev mode using production userData (CHERRY_DEV_USE_PROD_USERDATA=1)', {
-        userData: app.getPath('userData')
-      })
-      return
-    }
-
     // Dev mode: isolate dev data from production by appending 'Dev'.
     // Capture into a local before setPath so we log the value we wrote
     // (matches the local-variable pattern used by the portable branch).

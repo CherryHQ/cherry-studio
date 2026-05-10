@@ -15,17 +15,12 @@ import { application, serviceList } from '@application'
 // Preboot phase — order matters. See core/preboot/README.md.
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
-import { seedDevIndexedDbFromProd } from '@main/core/preboot/devProdIndexedDbSeed'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
 
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
-// Dev-only no-op outside `dev:prod-data`. Must run after userData is set
-// and before any BrowserWindow is created (otherwise Chromium locks the
-// dev-origin leveldb dir and the copy aborts).
-seedDevIndexedDbFromProd()
 requireSingleInstance()
 configureChromiumFlags()
 initCrashTelemetry()
