@@ -10,9 +10,13 @@ import {
 } from '@renderer/config/webSearchProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
-import { webSearchService } from '@renderer/services/WebSearchService'
-import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys } from '@renderer/utils'
+import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
+import {
+  checkWebSearchAvailability,
+  getProviderApiHost,
+  stringifyApiKeys
+} from '@shared/data/utils/webSearchPreferences'
 import { List } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -37,8 +41,10 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const { provider, updateProvider } = useWebSearchProvider(providerId)
   const { provider: defaultProvider, setDefaultProvider } = useDefaultWebSearchProvider()
   const { t } = useTranslation()
-  const [apiKey, setApiKey] = useState(provider.apiKey || '')
-  const [apiHost, setApiHost] = useState(provider.apiHost || '')
+  const providerApiKey = stringifyApiKeys(provider.apiKeys)
+  const providerApiHost = getProviderApiHost(provider) ?? ''
+  const [apiKey, setApiKey] = useState(providerApiKey)
+  const [apiHost, setApiHost] = useState(providerApiHost)
   const [apiChecking, setApiChecking] = useState(false)
   const [basicAuthUsername, setBasicAuthUsername] = useState(provider.basicAuthUsername || '')
   const [basicAuthPassword, setBasicAuthPassword] = useState(provider.basicAuthPassword || '')
@@ -50,7 +56,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const officialWebsite = webSearchProviderConfig?.websites?.official
 
   const onUpdateApiKey = () => {
-    if (apiKey !== provider.apiKey) {
+    if (apiKey !== providerApiKey) {
       void updateProvider({ apiKey })
     }
   }
@@ -60,10 +66,10 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     if (trimmedHost.endsWith('/')) {
       trimmedHost = trimmedHost.slice(0, -1)
     }
-    if (trimmedHost !== provider.apiHost) {
+    if (trimmedHost !== providerApiHost) {
       void updateProvider({ apiHost: trimmedHost })
     } else {
-      setApiHost(provider.apiHost || '')
+      setApiHost(providerApiHost)
     }
   }
 
@@ -114,9 +120,26 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
     try {
       setApiChecking(true)
-      const { valid, error } = await webSearchService.checkSearch({ ...provider, apiKey, apiHost })
+      // Pick the capability the provider actually advertises — fetch-only providers
+      // (e.g. `fetch`) don't implement searchKeywords and would otherwise return
+      // "capability not implemented".
+      const capability = provider.capabilities.find((c) => c.feature === 'searchKeywords')
+        ? 'searchKeywords'
+        : provider.capabilities[0]?.feature
+      const overrideProvider = {
+        ...provider,
+        apiKeys: apiKey
+          .split(',')
+          .map((k) => k.trim())
+          .filter(Boolean),
+        capabilities: provider.capabilities.map((c) => (c.feature === capability ? { ...c, apiHost } : c))
+      }
+      const { valid, error } = await window.api.webSearch.checkProvider({
+        provider: overrideProvider,
+        capability
+      })
 
-      const errorMessage = error && error?.message ? ' ' + error?.message : ''
+      const errorMessage = error ? ' ' + error : ''
       window.toast[valid ? 'success' : 'error']({
         timeout: valid ? 2000 : 8000,
         title: valid
@@ -139,11 +162,11 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   }
 
   useEffect(() => {
-    setApiKey(provider.apiKey ?? '')
-    setApiHost(provider.apiHost ?? '')
+    setApiKey(providerApiKey)
+    setApiHost(providerApiHost)
     setBasicAuthUsername(provider.basicAuthUsername ?? '')
     setBasicAuthPassword(provider.basicAuthPassword ?? '')
-  }, [provider.apiKey, provider.apiHost, provider.basicAuthUsername, provider.basicAuthPassword])
+  }, [providerApiKey, providerApiHost, provider.basicAuthUsername, provider.basicAuthPassword])
 
   const providerLogo = getWebSearchProviderLogo(providerId)
 
@@ -152,7 +175,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const supportsBasicAuth = webSearchProviderSupportsBasicAuth(provider.id)
   const hasApiKey = apiKey.split(',').some((key) => key.trim() !== '')
   const canCheckSearch = !apiChecking && (!needsApiKey || hasApiKey)
-  const canSetAsDefault = !isDefault && webSearchService.isWebSearchEnabled(provider.id) === true
+  const canSetAsDefault = !isDefault && checkWebSearchAvailability(provider, webSearchProviderRequiresApiKey)
 
   const handleSetAsDefault = () => {
     if (canSetAsDefault) {
@@ -237,7 +260,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           </SettingHelpTextRow>
         </>
       )}
-      {provider.apiHost !== undefined && (
+      {getProviderApiHost(provider) !== undefined && (
         <>
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}

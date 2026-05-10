@@ -3,8 +3,7 @@ import type {
   WebSearchProviderId,
   WebSearchSubscribeSource
 } from '@shared/data/preference/preferenceTypes'
-
-import type { WebSearchProvider } from './index'
+import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 
 export type RendererCompressionConfig = {
   method: PreferenceDefaultScopeType['chat.web_search.compression.method']
@@ -14,7 +13,7 @@ export type RendererCompressionConfig = {
 
 export type WebSearchState = {
   defaultProvider: WebSearchProviderId | null
-  providers: WebSearchProvider[]
+  providers: ResolvedWebSearchProvider[]
   searchWithTime: boolean
   maxResults: number
   excludeDomains: string[]

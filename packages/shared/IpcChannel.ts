@@ -325,6 +325,7 @@ export enum IpcChannel {
   // Web Search
   WebSearch_SearchKeywords = 'web-search:search-keywords',
   WebSearch_FetchUrls = 'web-search:fetch-urls',
+  WebSearch_CheckProvider = 'web-search:check-provider',
 
   //Selection Assistant
   Selection_TextSelected = 'selection:text-selected',

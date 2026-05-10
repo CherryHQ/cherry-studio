@@ -38,6 +38,18 @@ export type WebSearchFetchUrlsRequest = {
   urls: string[]
 }
 
+export type WebSearchCheckProviderRequest = {
+  /** Full provider override (including a tentative apiKey/apiHost) — bypasses preferences. */
+  provider: ResolvedWebSearchProvider
+  /** Capability to exercise. Defaults to 'searchKeywords'. */
+  capability?: WebSearchCapability
+}
+
+export type WebSearchCheckProviderResponse = {
+  valid: boolean
+  error?: string
+}
+
 export type WebSearchPhase = 'default' | 'fetch_complete' | 'partial_failure' | 'cutoff'
 
 export type WebSearchStatus = {

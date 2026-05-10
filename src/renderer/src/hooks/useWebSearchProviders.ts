@@ -2,16 +2,22 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { filterSupportedWebSearchProviders } from '@renderer/config/webSearchProviders'
+import { buildRendererWebSearchState } from '@renderer/services/webSearchPreferences'
+import type { WebSearchState } from '@renderer/types'
+import type {
+  UnifiedPreferenceType,
+  WebSearchProviderId,
+  WebSearchSubscribeSource
+} from '@shared/data/preference/preferenceTypes'
+import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 import {
-  buildRendererWebSearchState,
   buildWebSearchProviderOverrides,
   resolveWebSearchProviders,
   updateWebSearchProviderOverride,
-  WEB_SEARCH_PREFERENCE_KEYS
-} from '@renderer/services/WebSearchService'
-import type { WebSearchProvider, WebSearchProviderId, WebSearchState } from '@renderer/types'
-import type { UnifiedPreferenceType, WebSearchSubscribeSource } from '@shared/data/preference/preferenceTypes'
-import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
+  WEB_SEARCH_PREFERENCE_KEYS,
+  type WebSearchProviderFormUpdate
+} from '@shared/data/utils/webSearchPreferences'
 import { t } from 'i18next'
 import { useMemo } from 'react'
 
@@ -37,7 +43,7 @@ export const useDefaultWebSearchProvider = () => {
   const { providers } = useWebSearchProviders()
   const provider = defaultProviderId ? providers.find((item) => item.id === defaultProviderId) : undefined
 
-  const setDefaultProvider = (nextProvider: WebSearchProvider) => {
+  const setDefaultProvider = (nextProvider: ResolvedWebSearchProvider) => {
     return safeSetWebSearchPreference('defaultProvider', () => setDefaultProviderId(nextProvider.id))
   }
 
@@ -50,12 +56,12 @@ export const useWebSearchProviders = () => {
 
   return {
     providers: resolvedProviders,
-    updateWebSearchProviders: (nextProviders: WebSearchProvider[]) => {
+    updateWebSearchProviders: (nextProviders: ResolvedWebSearchProvider[]) => {
       return safeSetWebSearchPreference('providerOverrides', () =>
         setProviderOverrides(buildWebSearchProviderOverrides(nextProviders))
       )
     },
-    addWebSearchProvider: (provider: WebSearchProvider) => {
+    addWebSearchProvider: (provider: ResolvedWebSearchProvider) => {
       const exists = resolvedProviders.some((item) => item.id === provider.id)
       if (!exists) {
         return safeSetWebSearchPreference('providerOverrides', () =>
@@ -78,7 +84,7 @@ export const useWebSearchProvider = (id: WebSearchProviderId) => {
 
   return {
     provider,
-    updateProvider: (updates: Partial<WebSearchProvider>) => {
+    updateProvider: (updates: WebSearchProviderFormUpdate) => {
       return safeSetWebSearchPreference('providerOverride', () =>
         setProviderOverrides(updateWebSearchProviderOverride(providerOverrides, id, updates))
       )

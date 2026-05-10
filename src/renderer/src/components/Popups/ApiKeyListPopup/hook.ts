@@ -2,13 +2,13 @@ import { loggerService } from '@logger'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import SelectProviderModelPopup from '@renderer/pages/settings/ProviderSettings/SelectProviderModelPopup'
 import { checkApi } from '@renderer/services/ApiService'
-import { webSearchService } from '@renderer/services/WebSearchService'
-import type { Model, PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
-import { isPreprocessProviderId, isWebSearchProviderId } from '@renderer/types'
+import type { Model, PreprocessProvider, Provider } from '@renderer/types'
+import { isPreprocessProviderId } from '@renderer/types'
 import type { ApiKeyConnectivity, ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
+import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 import type { TFunction } from 'i18next'
 import { isEmpty } from 'lodash'
 import { useCallback, useMemo, useState } from 'react'
@@ -43,12 +43,13 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
   )
 
   // 解析 keyString 为数组
+  const providerKeyString = isWebSearchProvider(provider) ? provider.apiKeys.join(',') : provider.apiKey
   const keys = useMemo(() => {
-    if (!provider.apiKey) return []
-    const formattedApiKeys = formatApiKeys(provider.apiKey)
+    if (!providerKeyString) return []
+    const formattedApiKeys = formatApiKeys(providerKeyString)
     const keys = splitApiKeyString(formattedApiKeys)
     return Array.from(new Set(keys))
-  }, [provider.apiKey])
+  }, [providerKeyString])
 
   // 合并基本数据和连通性状态
   const keysWithStatus = useMemo((): ApiKeyWithStatus[] => {
@@ -203,8 +204,12 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
         if (isLlmProvider(provider) && model) {
           await checkApi({ ...provider, apiKey: keyToCheck }, model)
         } else if (isWebSearchProvider(provider)) {
-          const result = await webSearchService.checkSearch({ ...provider, apiKey: keyToCheck })
-          if (!result.valid) throw new Error(result.error)
+          const result = await window.api.webSearch.checkProvider({
+            provider: { ...provider, apiKeys: [keyToCheck] }
+          })
+          if (!result.valid) {
+            throw new Error(result.error ?? 'check failed')
+          }
         } else {
           // 不处理预处理供应商
         }
@@ -284,8 +289,8 @@ export function isLlmProvider(provider: ApiProvider): provider is Provider {
   return 'models' in provider
 }
 
-export function isWebSearchProvider(provider: ApiProvider): provider is WebSearchProvider {
-  return isWebSearchProviderId(provider.id)
+export function isWebSearchProvider(provider: ApiProvider): provider is ResolvedWebSearchProvider {
+  return 'apiKeys' in provider && 'capabilities' in provider
 }
 
 export function isPreprocessProvider(provider: ApiProvider): provider is PreprocessProvider {

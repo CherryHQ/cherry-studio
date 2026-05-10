@@ -15,8 +15,8 @@ import {
   useWebSearchProviders,
   useWebSearchSettings
 } from '@renderer/hooks/useWebSearchProviders'
-import { webSearchService } from '@renderer/services/WebSearchService'
-import type { WebSearchProvider } from '@renderer/types'
+import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import { checkWebSearchAvailability } from '@shared/data/utils/webSearchPreferences'
 import { useNavigate } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
 import type { FC } from 'react'
@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
-function getUnavailableProviderDialogConfig(provider: WebSearchProvider, t: TFunction) {
+function getUnavailableProviderDialogConfig(provider: ResolvedWebSearchProvider, t: TFunction) {
   const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
   const missingFieldLabel = needsApiKey ? t('settings.tool.websearch.apikey') : t('settings.provider.api_host')
 
@@ -49,7 +49,7 @@ const BasicSettings: FC = () => {
     setDraftMaxResults(maxResults)
   }, [maxResults])
 
-  const openProviderSettings = (provider: WebSearchProvider) => {
+  const openProviderSettings = (provider: ResolvedWebSearchProvider) => {
     window.modal.confirm({
       ...getUnavailableProviderDialogConfig(provider, t),
       cancelText: t('common.cancel'),
@@ -66,12 +66,7 @@ const BasicSettings: FC = () => {
       return
     }
 
-    const availability = webSearchService.isWebSearchEnabled(provider.id)
-    if (availability === 'unknown') {
-      return
-    }
-
-    if (!availability) {
+    if (!checkWebSearchAvailability(provider, webSearchProviderRequiresApiKey)) {
       openProviderSettings(provider)
       return
     }
@@ -79,7 +74,7 @@ const BasicSettings: FC = () => {
     void setDefaultProvider(provider)
   }
 
-  const renderProviderLabel = (provider: WebSearchProvider) => {
+  const renderProviderLabel = (provider: ResolvedWebSearchProvider) => {
     const logo = getWebSearchProviderLogo(provider.id)
     const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
 

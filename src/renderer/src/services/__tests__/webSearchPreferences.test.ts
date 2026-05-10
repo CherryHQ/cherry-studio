@@ -1,29 +1,23 @@
-import { cacheService } from '@data/CacheService'
 import { preferenceService } from '@data/PreferenceService'
+import { webSearchProviderRequiresApiKey } from '@renderer/config/webSearchProviders'
 import type { UnifiedPreferenceKeyType, UnifiedPreferenceType } from '@shared/data/preference/preferenceTypes'
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import {
+  buildWebSearchProviderOverrides,
+  checkWebSearchAvailability,
+  getProviderApiHost,
+  parseApiKeys,
+  resolveWebSearchProviders,
+  stringifyApiKeys,
+  updateWebSearchProviderOverride,
+  WEB_SEARCH_PREFERENCE_KEYS
+} from '@shared/data/utils/webSearchPreferences'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const webSearchEngineProviderMock = vi.hoisted(() => ({
-  search: vi.fn()
-}))
-
-vi.mock('@renderer/providers/WebSearchProvider', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    search: webSearchEngineProviderMock.search
-  }))
-}))
 
 import {
   buildRendererWebSearchState,
-  buildWebSearchProviderOverrides,
   getCachedRendererWebSearchState,
-  resolveWebSearchProviders,
-  updateWebSearchProviderOverride,
-  updateWebSearchProviderPreferenceOverride,
-  WEB_SEARCH_PREFERENCE_KEYS,
-  WebSearchService
-} from '../WebSearchService'
+  updateWebSearchProviderPreferenceOverride
+} from '../webSearchPreferences'
 
 const preferenceServiceMock = preferenceService as typeof preferenceService & {
   _resetMockState?: () => void
@@ -64,9 +58,47 @@ describe('webSearchPreferences', () => {
     vi.mocked(preferenceService.getCachedValue).mockImplementation(<K extends UnifiedPreferenceKeyType>(key: K) => {
       return preferenceServiceMock._getMockState?.()[key] as UnifiedPreferenceType[K] | undefined
     })
-    MockCacheUtils.resetMocks()
-    webSearchEngineProviderMock.search.mockReset()
-    webSearchEngineProviderMock.search.mockResolvedValue({ results: [] })
+  })
+
+  describe('parseApiKeys', () => {
+    it('splits CSV input, trims each, and drops blanks', () => {
+      expect(parseApiKeys(' k1 , k2,, k3 ')).toEqual(['k1', 'k2', 'k3'])
+    })
+
+    it('returns undefined for empty / whitespace-only / missing input', () => {
+      expect(parseApiKeys()).toBeUndefined()
+      expect(parseApiKeys('')).toBeUndefined()
+      expect(parseApiKeys('  ,  , ')).toBeUndefined()
+    })
+  })
+
+  describe('stringifyApiKeys', () => {
+    it('joins with comma after trimming each entry', () => {
+      expect(stringifyApiKeys([' k1 ', 'k2', '  '])).toBe('k1,k2')
+    })
+
+    it('returns empty string when missing or empty', () => {
+      expect(stringifyApiKeys()).toBe('')
+      expect(stringifyApiKeys([])).toBe('')
+    })
+  })
+
+  describe('getProviderApiHost', () => {
+    it('returns the apiHost of the matching capability', () => {
+      const provider = {
+        capabilities: [
+          { feature: 'searchKeywords' as const, apiHost: 'https://search.example' },
+          { feature: 'fetchUrls' as const, apiHost: 'https://fetch.example' }
+        ]
+      }
+      expect(getProviderApiHost(provider, 'searchKeywords')).toBe('https://search.example')
+      expect(getProviderApiHost(provider, 'fetchUrls')).toBe('https://fetch.example')
+    })
+
+    it('defaults to searchKeywords capability and returns undefined when missing', () => {
+      const provider = { capabilities: [{ feature: 'fetchUrls' as const, apiHost: 'https://fetch.example' }] }
+      expect(getProviderApiHost(provider)).toBeUndefined()
+    })
   })
 
   it('resolves renderer providers from preference overrides', () => {
@@ -87,8 +119,8 @@ describe('webSearchPreferences', () => {
     expect(providers.find((provider) => provider.id === 'tavily')).toEqual(
       expect.objectContaining({
         id: 'tavily',
-        apiKey: 'key-1,key-2',
-        apiHost: 'https://custom.tavily.dev',
+        apiKeys: [' key-1 ', 'key-2'],
+        capabilities: expect.arrayContaining([{ feature: 'searchKeywords', apiHost: 'https://custom.tavily.dev' }]),
         engines: ['web'],
         basicAuthUsername: 'user',
         basicAuthPassword: 'pass'
@@ -115,13 +147,14 @@ describe('webSearchPreferences', () => {
       {
         id: 'tavily',
         name: 'Tavily',
-        apiKey: 'key-1, key-2',
-        apiHost: ' https://custom.tavily.dev ',
+        type: 'api',
+        apiKeys: ['key-1', 'key-2'],
+        capabilities: [{ feature: 'searchKeywords', apiHost: 'https://custom.tavily.dev' }],
         engines: ['web'],
-        basicAuthUsername: ' user ',
+        basicAuthUsername: 'user',
         basicAuthPassword: 'pass'
       }
-    ] as any)
+    ])
 
     expect(overrides.tavily).toEqual({
       apiKeys: ['key-1', 'key-2'],
@@ -147,7 +180,7 @@ describe('webSearchPreferences', () => {
       {
         apiKey: 'key-2, key-3',
         apiHost: 'https://custom.tavily.dev'
-      } as any
+      }
     )
 
     expect(overrides.tavily).toEqual({
@@ -196,13 +229,14 @@ describe('webSearchPreferences', () => {
       {
         id: 'tavily',
         name: 'Tavily',
-        apiKey: '',
-        apiHost: undefined,
-        engines: undefined,
+        type: 'api',
+        apiKeys: [],
+        capabilities: [{ feature: 'searchKeywords', apiHost: 'https://api.tavily.com' }],
+        engines: [],
         basicAuthUsername: '',
         basicAuthPassword: ''
       }
-    ] as any)
+    ])
 
     expect(overrides).toEqual({
       tavily: {
@@ -226,7 +260,7 @@ describe('webSearchPreferences', () => {
       'tavily',
       {
         apiHost: ' '
-      } as any
+      }
     )
 
     expect(overrides).toEqual({
@@ -317,15 +351,6 @@ describe('webSearchPreferences', () => {
     expect(getCachedRendererWebSearchState()).toBeNull()
   })
 
-  it('reports unknown provider availability while provider overrides cache is cold', () => {
-    vi.mocked(preferenceService.isCached).mockReturnValue(false)
-    vi.mocked(preferenceService.getCachedValue).mockReturnValue(undefined)
-
-    const service = new WebSearchService()
-
-    expect(service.isWebSearchEnabled('tavily')).toBe('unknown')
-  })
-
   it.each([
     {
       name: 'requires an API key even when the preset has a host',
@@ -363,134 +388,11 @@ describe('webSearchPreferences', () => {
       providerId: 'exa-mcp',
       expected: true
     }
-  ] as const)('isWebSearchEnabled $name', async ({ overrides, providerId, expected }) => {
+  ] as const)('checkWebSearchAvailability $name', async ({ overrides, providerId, expected }) => {
     await seedWebSearchPreferences({ providerOverrides: overrides })
+    const state = getCachedRendererWebSearchState()
+    const provider = state!.providers.find((p) => p.id === providerId)!
 
-    const service = new WebSearchService()
-
-    expect(service.isWebSearchEnabled(providerId)).toBe(expected)
-  })
-
-  it('keeps successful renderer web-search results when a non-abort query fails', async () => {
-    await seedWebSearchPreferences({ searchWithTime: false })
-    webSearchEngineProviderMock.search.mockImplementation(async (query: string) => {
-      if (query === 'bad') {
-        throw new Error('search failed')
-      }
-
-      return {
-        query,
-        results: [
-          {
-            title: query,
-            content: `content for ${query}`,
-            url: `https://example.com/${query}`
-          }
-        ]
-      }
-    })
-
-    vi.useFakeTimers()
-    const service = new WebSearchService()
-    const resultPromise = service.processWebsearch(
-      { id: 'tavily', name: 'Tavily', apiKey: 'key', apiHost: 'https://api.tavily.com' },
-      { websearch: { question: ['good', 'bad', 'better'] } },
-      'request-partial'
-    )
-
-    await vi.runAllTimersAsync()
-    const result = await resultPromise
-    vi.useRealTimers()
-
-    expect(result).toEqual({
-      query: 'good | bad | better',
-      results: [
-        {
-          title: 'good',
-          content: 'content for good',
-          url: 'https://example.com/good'
-        },
-        {
-          title: 'better',
-          content: 'content for better',
-          url: 'https://example.com/better'
-        }
-      ]
-    })
-    expect(cacheService.setShared).toHaveBeenCalledWith(
-      'chat.web_search.active_searches',
-      expect.objectContaining({
-        'request-partial': {
-          phase: 'partial_failure',
-          countAfter: 2
-        }
-      })
-    )
-  })
-
-  it('still throws renderer web-search abort failures', async () => {
-    await seedWebSearchPreferences({ searchWithTime: false })
-    const abortError = new DOMException('Request was aborted.', 'AbortError')
-    webSearchEngineProviderMock.search.mockRejectedValue(abortError)
-
-    const service = new WebSearchService()
-
-    await expect(
-      service.processWebsearch(
-        { id: 'tavily', name: 'Tavily', apiKey: 'key', apiHost: 'https://api.tavily.com' },
-        { websearch: { question: ['abort me'] } },
-        'request-abort'
-      )
-    ).rejects.toBe(abortError)
-  })
-
-  it('uses async preferences for search when the renderer cache is cold', async () => {
-    await seedWebSearchPreferences({ searchWithTime: false })
-    vi.mocked(preferenceService.isCached).mockReturnValue(false)
-    vi.mocked(preferenceService.getCachedValue).mockReturnValue(undefined)
-
-    const service = new WebSearchService()
-    await service.search(
-      { id: 'tavily', name: 'Tavily', apiKey: 'key', apiHost: 'https://api.tavily.com' },
-      'latest news'
-    )
-
-    expect(webSearchEngineProviderMock.search).toHaveBeenCalledWith(
-      'latest news',
-      expect.objectContaining({ searchWithTime: false }),
-      undefined
-    )
-  })
-
-  it('adds current date context to search queries when searchWithTime is enabled', async () => {
-    await seedWebSearchPreferences({ searchWithTime: true })
-
-    const service = new WebSearchService()
-    await service.search(
-      { id: 'tavily', name: 'Tavily', apiKey: 'key', apiHost: 'https://api.tavily.com' },
-      'latest news'
-    )
-
-    expect(webSearchEngineProviderMock.search).toHaveBeenCalledWith(
-      expect.stringMatching(/^today is \d{4}-\d{2}-\d{2} \r\n latest news$/),
-      expect.objectContaining({ searchWithTime: true }),
-      undefined
-    )
-  })
-
-  it('passes the original search query when searchWithTime is disabled', async () => {
-    await seedWebSearchPreferences({ searchWithTime: false })
-
-    const service = new WebSearchService()
-    await service.search(
-      { id: 'tavily', name: 'Tavily', apiKey: 'key', apiHost: 'https://api.tavily.com' },
-      'latest news'
-    )
-
-    expect(webSearchEngineProviderMock.search).toHaveBeenCalledWith(
-      'latest news',
-      expect.objectContaining({ searchWithTime: false }),
-      undefined
-    )
+    expect(checkWebSearchAvailability(provider, webSearchProviderRequiresApiKey)).toBe(expected)
   })
 })

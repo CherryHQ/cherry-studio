@@ -1,4 +1,6 @@
-import type { PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
+import type { PreprocessProvider, Provider } from '@renderer/types'
+import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchProviderFormUpdate } from '@shared/data/utils/webSearchPreferences'
 
 /**
  * API key 格式有效性
@@ -13,11 +15,11 @@ export type ApiKeyValidity =
       error: string
     }
 
-export type ApiProvider = Provider | WebSearchProvider | PreprocessProvider
+export type ApiProvider = Provider | ResolvedWebSearchProvider | PreprocessProvider
 
 export type UpdateProviderFunc = (p: Partial<Provider>) => void
 
-export type UpdateWebSearchProviderFunc = (p: Partial<WebSearchProvider>) => void
+export type UpdateWebSearchProviderFunc = (p: WebSearchProviderFormUpdate) => void
 
 export type UpdatePreprocessProviderFunc = (p: Partial<PreprocessProvider>) => void
 

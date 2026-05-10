@@ -6,15 +6,15 @@ import {
   isOpenAIWebSearchModel
 } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
-import { getWebSearchProviderLogo } from '@renderer/config/webSearchProviders'
+import { getWebSearchProviderLogo, webSearchProviderRequiresApiKey } from '@renderer/config/webSearchProviders'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useDefaultWebSearchProvider, useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import { webSearchService } from '@renderer/services/WebSearchService'
 import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
+import { checkWebSearchAvailability } from '@shared/data/utils/webSearchPreferences'
 import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
 import type { FC } from 'react'
@@ -36,10 +36,10 @@ const WebSearchButton: FC<Props> = ({ assistantId }) => {
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
 
   const activeProviderId = useMemo(() => {
-    if (defaultProvider && webSearchService.isWebSearchEnabled(defaultProvider.id)) {
+    if (defaultProvider && checkWebSearchAvailability(defaultProvider, webSearchProviderRequiresApiKey)) {
       return defaultProvider.id
     }
-    return providers.find((p) => webSearchService.isWebSearchEnabled(p.id))?.id
+    return providers.find((p) => checkWebSearchAvailability(p, webSearchProviderRequiresApiKey))?.id
   }, [defaultProvider, providers])
 
   const providerLogo = activeProviderId ? getWebSearchProviderLogo(activeProviderId) : undefined
