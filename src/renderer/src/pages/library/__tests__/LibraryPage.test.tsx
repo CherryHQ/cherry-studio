@@ -6,11 +6,31 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RESOURCE_TYPE_ORDER } from '../constants'
 import LibraryPage from '../LibraryPage'
 
-const { allResourcesMock, navigateMock, refetchSpy, routeSearchMock } = vi.hoisted(() => ({
+const {
+  allResourcesMock,
+  assistantCatalogMock,
+  duplicateAssistantMock,
+  navigateMock,
+  refetchSpy,
+  resourceLibraryOptionsMock,
+  routeSearchMock,
+  toastErrorMock
+} = vi.hoisted(() => ({
   allResourcesMock: [] as any[],
+  assistantCatalogMock: {
+    tabs: [{ id: '__mine__', label: 'library.assistant_catalog.mine', count: 0 }] as Array<{
+      id: string
+      label: string
+      count: number
+    }>,
+    presets: [] as any[]
+  },
+  duplicateAssistantMock: vi.fn(),
   navigateMock: vi.fn(),
   refetchSpy: vi.fn(),
-  routeSearchMock: vi.fn(() => ({}))
+  resourceLibraryOptionsMock: [] as any[],
+  routeSearchMock: vi.fn(() => ({})),
+  toastErrorMock: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -38,7 +58,8 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('../adapters/assistantAdapter', () => ({
   useAssistantMutations: () => ({
-    duplicateAssistant: vi.fn()
+    createAssistant: vi.fn(),
+    duplicateAssistant: duplicateAssistantMock
   })
 }))
 
@@ -51,21 +72,30 @@ vi.mock('@renderer/hooks/useDataTags', () => ({
   })
 }))
 
+vi.mock('../list/useAssistantPresetCatalog', () => ({
+  ASSISTANT_CATALOG_MY_TAB: '__mine__',
+  toCreateAssistantDtoFromCatalogPreset: vi.fn(),
+  useAssistantPresetCatalog: () => assistantCatalogMock
+}))
+
 vi.mock('../list/useResourceLibrary', () => ({
-  useResourceLibrary: () => ({
-    resources: [],
-    allResources: allResourcesMock,
-    isLoading: false,
-    isRefreshing: false,
-    error: undefined,
-    typeCounts: {
-      assistant: 0,
-      agent: 0,
-      skill: 0,
-      prompt: 0
-    },
-    refetch: refetchSpy
-  })
+  useResourceLibrary: (options: unknown) => {
+    resourceLibraryOptionsMock.push(options)
+    return {
+      resources: allResourcesMock,
+      allResources: allResourcesMock,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      typeCounts: {
+        assistant: allResourcesMock.filter((resource) => resource.type === 'assistant').length,
+        agent: allResourcesMock.filter((resource) => resource.type === 'agent').length,
+        skill: allResourcesMock.filter((resource) => resource.type === 'skill').length,
+        prompt: allResourcesMock.filter((resource) => resource.type === 'prompt').length
+      },
+      refetch: refetchSpy
+    }
+  }
 }))
 
 vi.mock('../list/LibrarySidebar', () => ({
@@ -87,12 +117,27 @@ vi.mock('../list/ImportSkillDialog', () => ({
 vi.mock('../list/ResourceGrid', () => ({
   ResourceGrid: ({
     activeResourceType,
+    assistantCatalog,
+    onDuplicate,
+    onSearchChange,
+    resources,
+    search,
     onCreate
   }: {
     activeResourceType: 'assistant' | 'agent' | 'skill' | 'prompt'
+    assistantCatalog?: {
+      activeTab: string
+      onTabChange: (tabId: string) => void
+    }
+    onDuplicate: (resource: any) => void
+    onSearchChange: (value: string) => void
     onCreate: (type: 'assistant' | 'agent' | 'skill' | 'prompt') => void
+    resources: any[]
+    search: string
   }) => (
     <div data-testid="resource-grid" data-resource-type={activeResourceType}>
+      <div data-testid="assistant-catalog-active-tab">{assistantCatalog?.activeTab ?? ''}</div>
+      <input aria-label="library search" value={search} onChange={(event) => onSearchChange(event.target.value)} />
       <button type="button" onClick={() => onCreate('assistant')}>
         create assistant
       </button>
@@ -101,6 +146,12 @@ vi.mock('../list/ResourceGrid', () => ({
       </button>
       <button type="button" onClick={() => onCreate('prompt')}>
         create prompt
+      </button>
+      <button type="button" onClick={() => assistantCatalog?.onTabChange('custom')}>
+        select custom tab
+      </button>
+      <button type="button" disabled={!resources[0]} onClick={() => onDuplicate(resources[0])}>
+        duplicate first
       </button>
     </div>
   )
@@ -145,10 +196,21 @@ vi.mock('../editor/prompt/PromptConfigPage', () => ({
 describe('LibraryPage create flow', () => {
   beforeEach(() => {
     allResourcesMock.length = 0
+    assistantCatalogMock.tabs = [{ id: '__mine__', label: 'library.assistant_catalog.mine', count: 0 }]
+    assistantCatalogMock.presets = []
+    duplicateAssistantMock.mockReset()
     navigateMock.mockReset()
     refetchSpy.mockReset()
+    resourceLibraryOptionsMock.length = 0
     routeSearchMock.mockReset()
     routeSearchMock.mockReturnValue({})
+    toastErrorMock.mockReset()
+    Object.defineProperty(window, 'toast', {
+      configurable: true,
+      value: {
+        error: toastErrorMock
+      }
+    })
   })
 
   it('uses the first sidebar resource type as the initial grid filter', () => {
@@ -206,6 +268,58 @@ describe('LibraryPage create flow', () => {
     })
     expect(screen.queryByTestId('prompt-edit-page')).not.toBeInTheDocument()
     expect(refetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports assistant duplicate failures without an unhandled rejection', async () => {
+    const user = userEvent.setup()
+    duplicateAssistantMock.mockRejectedValueOnce(new Error('duplicate failed'))
+    allResourcesMock.push({
+      id: 'assistant-to-duplicate',
+      type: 'assistant',
+      name: 'Assistant to duplicate',
+      description: '',
+      avatar: '💬',
+      tags: [],
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      raw: { id: 'assistant-to-duplicate', name: 'Assistant to duplicate', tags: [] }
+    })
+
+    render(<LibraryPage />)
+
+    await user.click(screen.getByRole('button', { name: 'duplicate first' }))
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith('duplicate failed')
+    })
+    expect(refetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('resets a stale assistant catalog tab before keeping assistant filters disabled', async () => {
+    const user = userEvent.setup()
+    routeSearchMock.mockReturnValue({ resourceType: 'assistant' })
+    assistantCatalogMock.tabs = [
+      { id: '__mine__', label: 'library.assistant_catalog.mine', count: 0 },
+      { id: 'custom', label: 'Custom', count: 1 }
+    ]
+
+    const { rerender } = render(<LibraryPage />)
+
+    await user.type(screen.getByLabelText('library search'), 'needle')
+    expect(resourceLibraryOptionsMock.at(-1)?.search).toBe('needle')
+
+    await user.click(screen.getByRole('button', { name: 'select custom tab' }))
+    await waitFor(() => {
+      expect(resourceLibraryOptionsMock.at(-1)?.search).toBe('')
+    })
+
+    assistantCatalogMock.tabs = [{ id: '__mine__', label: 'library.assistant_catalog.mine', count: 0 }]
+    rerender(<LibraryPage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('assistant-catalog-active-tab')).toHaveTextContent('__mine__')
+      expect(resourceLibraryOptionsMock.at(-1)?.search).toBe('needle')
+    })
   })
 
   it('opens the assistant create page from route search', () => {

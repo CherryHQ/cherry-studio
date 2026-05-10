@@ -2583,6 +2583,7 @@
       "description": "确定要删除「{{name}}」吗？此操作无法撤销。",
       "title": "确认删除"
     },
+    "duplicate_assistant_failed": "复制助手失败",
     "duplicate_name": "{{name}} (副本)",
     "empty_state": {
       "description": "点击「新建」创建你的第一个资源",

@@ -2583,6 +2583,7 @@
       "description": "確定要刪除「{{name}}」嗎？此操作無法復原。",
       "title": "確認刪除"
     },
+    "duplicate_assistant_failed": "[to be translated]:Failed to duplicate assistant",
     "duplicate_name": "[to be translated]:{{name}} (copy)",
     "empty_state": {
       "description": "點選「新增」建立你的第一個資源",

@@ -89,6 +89,7 @@ export default function LibraryPage() {
 
   const activeResourceType = sidebarFilter.resourceType
   const isAssistantLibrary = activeResourceType === 'assistant'
+  const isAssistantCatalogMine = !isAssistantLibrary || activeAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB
 
   const {
     resources,
@@ -98,8 +99,8 @@ export default function LibraryPage() {
     refetch
   } = useResourceLibrary({
     sidebarFilter,
-    activeTag: isAssistantLibrary && activeAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB ? activeTag : null,
-    search: !isAssistantLibrary || activeAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB ? search : '',
+    activeTag: isAssistantLibrary && isAssistantCatalogMine ? activeTag : null,
+    search: !isAssistantLibrary || isAssistantCatalogMine ? search : '',
     sort: 'name'
   })
 
@@ -110,13 +111,6 @@ export default function LibraryPage() {
     enabled: isAssistantLibrary
   })
 
-  const effectiveActiveAssistantCatalogTab = useMemo(() => {
-    if (!isAssistantLibrary) return ASSISTANT_CATALOG_MY_TAB
-    return assistantCatalog.tabs.some((tab) => tab.id === activeAssistantCatalogTab)
-      ? activeAssistantCatalogTab
-      : ASSISTANT_CATALOG_MY_TAB
-  }, [activeAssistantCatalogTab, assistantCatalog.tabs, isAssistantLibrary])
-  const isAssistantCatalogMine = !isAssistantLibrary || effectiveActiveAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB
   const assistantTagUiEnabled = isAssistantLibrary && isAssistantCatalogMine
 
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
@@ -173,6 +167,14 @@ export default function LibraryPage() {
   }, [routeResourceType])
 
   useEffect(() => {
+    if (!isAssistantLibrary) return
+    if (assistantCatalog.tabs.some((tab) => tab.id === activeAssistantCatalogTab)) return
+
+    setActiveTag(null)
+    setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
+  }, [activeAssistantCatalogTab, assistantCatalog.tabs, isAssistantLibrary])
+
+  useEffect(() => {
     if (routeAction !== 'create' || !routeResourceType) return
 
     if (routeResourceType === 'assistant') {
@@ -225,10 +227,15 @@ export default function LibraryPage() {
   const handleDuplicate = useCallback(
     async (r: ResourceItem) => {
       if (r.type === 'assistant') {
-        await duplicateAssistant(r.raw)
+        try {
+          await duplicateAssistant(r.raw)
+          refetch()
+        } catch (error) {
+          window.toast.error(error instanceof Error ? error.message : t('library.duplicate_assistant_failed'))
+        }
       }
     },
-    [duplicateAssistant]
+    [duplicateAssistant, refetch, t]
   )
 
   const addAssistantPreset = useCallback(
@@ -325,9 +332,9 @@ export default function LibraryPage() {
     () =>
       isAssistantLibrary
         ? {
-            activeTab: effectiveActiveAssistantCatalogTab,
+            activeTab: activeAssistantCatalogTab,
             tabs: assistantCatalog.tabs,
-            presets: effectiveActiveAssistantCatalogTab === activeAssistantCatalogTab ? assistantCatalog.presets : [],
+            presets: assistantCatalog.presets,
             onTabChange: handleAssistantTabChange,
             onAddPreset: handleAddAssistantPreset,
             onPreviewPreset: handlePreviewAssistantPreset
@@ -337,7 +344,6 @@ export default function LibraryPage() {
       activeAssistantCatalogTab,
       assistantCatalog.presets,
       assistantCatalog.tabs,
-      effectiveActiveAssistantCatalogTab,
       handleAddAssistantPreset,
       handleAssistantTabChange,
       handlePreviewAssistantPreset,

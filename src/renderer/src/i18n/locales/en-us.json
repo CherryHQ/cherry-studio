@@ -2583,6 +2583,7 @@
       "description": "Delete \"{{name}}\"? This action cannot be undone.",
       "title": "Delete"
     },
+    "duplicate_assistant_failed": "Failed to duplicate assistant",
     "duplicate_name": "{{name}} (copy)",
     "empty_state": {
       "description": "Click \"New\" to create your first resource.",
