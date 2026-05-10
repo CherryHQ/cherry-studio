@@ -12,7 +12,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { OrphanRefScanner } = await import('../orphanSweep')
+const { OrphanRefScanner, scanOrphanEntries } = await import('../orphanSweep')
 const { tempSessionChecker } = await import('@data/services/orphan/FileRefCheckerRegistry')
 
 describe('OrphanRefScanner', () => {
@@ -119,6 +119,106 @@ describe('OrphanRefScanner', () => {
       expect(result.byType.knowledge_item ?? 0).toBe(0)
     })
   })
+
+  describe('scanOrphanEntries (report-only)', () => {
+    it('groups unreferenced entries by origin without deleting any', async () => {
+      const referenced = '019606a0-0000-7000-8000-00000000ee20' as FileEntryId
+      const orphanInternal = '019606a0-0000-7000-8000-00000000ee21' as FileEntryId
+      const orphanExternalA = '019606a0-0000-7000-8000-00000000ee22' as FileEntryId
+      const orphanExternalB = '019606a0-0000-7000-8000-00000000ee23' as FileEntryId
+
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: referenced,
+          origin: 'internal',
+          name: 'r',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: orphanInternal,
+          origin: 'internal',
+          name: 'o',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: orphanExternalA,
+          origin: 'external',
+          name: 'a',
+          ext: 'txt',
+          size: null,
+          externalPath: '/abs/a.txt',
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: orphanExternalB,
+          origin: 'external',
+          name: 'b',
+          ext: 'txt',
+          size: null,
+          externalPath: '/abs/b.txt',
+          createdAt: now,
+          updatedAt: now
+        }
+      ])
+      await dbh.db.insert(fileRefTable).values({
+        id: '33333333-3333-4333-8333-000000000020',
+        fileEntryId: referenced,
+        sourceType: 'temp_session',
+        sourceId: 'sess-z',
+        role: 'pending',
+        createdAt: now,
+        updatedAt: now
+      })
+
+      const report = await scanOrphanEntries({ fileEntryService })
+      expect(report.total).toBe(3)
+      expect(report.byOrigin.internal).toBe(1)
+      expect(report.byOrigin.external).toBe(2)
+
+      // No deletions performed — every entry still in DB.
+      const all = await dbh.db.select().from(fileEntryTable)
+      expect(all.length).toBe(4)
+    })
+
+    it('returns zero when every entry has at least one ref', async () => {
+      const id = '019606a0-0000-7000-8000-00000000ee30' as FileEntryId
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values({
+        id,
+        origin: 'internal',
+        name: 'x',
+        ext: 'txt',
+        size: 1,
+        externalPath: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      await dbh.db.insert(fileRefTable).values({
+        id: '33333333-3333-4333-8333-000000000030',
+        fileEntryId: id,
+        sourceType: 'temp_session',
+        sourceId: 's',
+        role: 'pending',
+        createdAt: now,
+        updatedAt: now
+      })
+
+      const report = await scanOrphanEntries({ fileEntryService })
+      expect(report.total).toBe(0)
+      expect(report.byOrigin.internal ?? 0).toBe(0)
+      expect(report.byOrigin.external ?? 0).toBe(0)
+    })
+  })
 })
 
 function registryStub() {
@@ -134,9 +234,3 @@ function registryStub() {
     temp_session: allAlive('temp_session')
   } as never
 }
-
-describe('placeholder import — fileEntryService used by later tasks', () => {
-  it('is wired', () => {
-    expect(typeof fileEntryService.findUnreferenced).toBe('function')
-  })
-})

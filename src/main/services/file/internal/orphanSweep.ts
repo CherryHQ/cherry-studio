@@ -19,9 +19,10 @@
  * `loggerService` (events `orphan-sweep` / `orphan-file-sweep`).
  */
 
+import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
 import type { OrphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
-import type { FileRefSourceType } from '@shared/data/types/file'
+import type { FileEntryOrigin, FileRefSourceType } from '@shared/data/types/file'
 
 import type { FileManagerDeps } from './deps'
 
@@ -68,6 +69,32 @@ export class OrphanRefScanner {
     }
     return { total, byType }
   }
+}
+
+// ─── Orphan-entry report (no deletion — see file-manager-architecture §7.1) ───
+
+export interface OrphanEntryReport {
+  readonly total: number
+  readonly byOrigin: Partial<Record<FileEntryOrigin, number>>
+}
+
+export interface ScanOrphanEntriesDeps {
+  readonly fileEntryService: FileEntryService
+}
+
+/**
+ * Identify active entries with zero `file_ref` rows pointing at them. The
+ * default policy in architecture §7.1 is "preserve" — this scan only
+ * **reports**; cleanup belongs to user-driven UI flows or to the narrow
+ * dangling-external auto-cleanup pass (architecture §7.2, deferred).
+ */
+export async function scanOrphanEntries(deps: ScanOrphanEntriesDeps): Promise<OrphanEntryReport> {
+  const rows = await deps.fileEntryService.findUnreferenced()
+  const byOrigin: Partial<Record<FileEntryOrigin, number>> = {}
+  for (const row of rows) {
+    byOrigin[row.origin] = (byOrigin[row.origin] ?? 0) + 1
+  }
+  return { total: rows.length, byOrigin }
 }
 
 // ─── FS-level: runStartupFileSweep (Group D — landing in subsequent commits) ───
