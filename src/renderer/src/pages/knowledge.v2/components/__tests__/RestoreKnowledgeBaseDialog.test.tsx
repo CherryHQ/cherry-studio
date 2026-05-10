@@ -233,6 +233,30 @@ describe('RestoreKnowledgeBaseDialog', () => {
     )
   })
 
+  it('shows submit error and keeps the dialog open when restoreBase rejects', async () => {
+    const restoreBase = vi.fn().mockRejectedValue(new Error('restore failed'))
+    const onOpenChange = vi.fn()
+    const onRestored = vi.fn()
+
+    render(
+      <RestoreKnowledgeBaseDialog
+        open
+        base={createKnowledgeBase()}
+        isRestoring={false}
+        restoreBase={restoreBase}
+        onOpenChange={onOpenChange}
+        onRestored={onRestored}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: '重建' }))
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('知识库重建失败: restore failed'))
+    expect(onRestored).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
   it('closes the dialog on cancel without restoring', () => {
     const restoreBase = vi.fn().mockResolvedValue(createKnowledgeBase())
     const onOpenChange = vi.fn()

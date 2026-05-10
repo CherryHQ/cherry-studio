@@ -37,7 +37,11 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
           <button type="button" onClick={() => onOpenChange?.(false)}>
             {cancelText}
           </button>
-          <button type="button" onClick={() => void onConfirm?.()}>
+          <button
+            type="button"
+            onClick={() => {
+              void Promise.resolve(onConfirm?.()).then(() => onOpenChange?.(false))
+            }}>
             {confirmText}
           </button>
         </div>
@@ -47,6 +51,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/pages/knowledge.v2/utils', () => ({
+  formatKnowledgeActionError: (error: unknown, prefix: string) =>
+    `${prefix}: ${error instanceof Error ? error.message : String(error)}`,
   formatRelativeTime: () => '刚刚'
 }))
 
@@ -80,6 +86,7 @@ vi.mock('react-i18next', () => ({
             'knowledge_v2.data_source.actions.delete': '删除',
             'knowledge_v2.data_source.delete_confirm_description': '删除后将无法恢复该数据源及其索引数据。',
             'knowledge_v2.data_source.delete_confirm_title': '确认删除数据源',
+            'knowledge_v2.data_source.delete_failed': '删除数据源失败',
             'knowledge_v2.data_source.filters.all': '全部',
             'knowledge_v2.data_source.filters.file': '文件',
             'knowledge_v2.data_source.filters.note': '笔记',
@@ -103,6 +110,11 @@ vi.mock('react-i18next', () => ({
 describe('DataSourcePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.assign(window, {
+      toast: {
+        error: vi.fn()
+      }
+    })
   })
 
   it('renders loading and empty states through the list composition without changing panel behavior', () => {
@@ -301,6 +313,29 @@ describe('DataSourcePanel', () => {
     await waitFor(() => {
       expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
     })
+  })
+
+  it('shows delete failure toast and closes the confirmation dialog when delete rejects', async () => {
+    const onDelete = vi.fn().mockRejectedValue(new Error('delete failed'))
+
+    render(
+      <DataSourcePanel
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={onDelete}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('forwards row reindex actions', () => {

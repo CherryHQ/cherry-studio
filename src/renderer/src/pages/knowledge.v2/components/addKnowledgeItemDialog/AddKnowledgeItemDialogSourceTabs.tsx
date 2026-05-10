@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
-import type { KnowledgeDataSourceType } from '@renderer/pages/knowledge.v2/types'
+import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from './constants'
@@ -11,7 +11,7 @@ import UrlSourceContent from './sources/UrlSourceContent'
 import type { DirectoryItem, DropzoneOnDrop } from './types'
 
 interface AddKnowledgeItemDialogSourceTabsProps {
-  activeSource: KnowledgeDataSourceType
+  activeSource: KnowledgeItemType
   selectedDirectories: DirectoryItem[]
   selectedFiles: File[]
   sitemapValue: string
@@ -20,7 +20,7 @@ interface AddKnowledgeItemDialogSourceTabsProps {
   onDirectorySelect: () => void | Promise<void>
   onFileDrop: DropzoneOnDrop
   onFileRemove: (fileIndex: number) => void
-  onSourceChange: (value: KnowledgeDataSourceType) => void
+  onSourceChange: (value: KnowledgeItemType) => void
   onSitemapValueChange: (value: string) => void
   onUrlValueChange: (value: string) => void
 }
@@ -41,7 +41,7 @@ const AddKnowledgeItemDialogSourceTabs = ({
 }: AddKnowledgeItemDialogSourceTabsProps) => {
   const { t } = useTranslation()
 
-  const renderSourceContent = (source: KnowledgeDataSourceType) => {
+  const renderSourceContent = (source: KnowledgeItemType) => {
     switch (source) {
       case 'file':
         return <FileSourceContent files={selectedFiles} onDrop={onFileDrop} onRemove={onFileRemove} />
@@ -67,7 +67,7 @@ const AddKnowledgeItemDialogSourceTabs = ({
   return (
     <Tabs
       value={activeSource}
-      onValueChange={(value) => onSourceChange(value as KnowledgeDataSourceType)}
+      onValueChange={(value) => onSourceChange(value as KnowledgeItemType)}
       variant="line"
       className="min-h-0 flex-1 gap-0">
       <div className="shrink-0 border-border/40 border-b px-3">

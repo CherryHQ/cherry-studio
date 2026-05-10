@@ -5,7 +5,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useKnowledgeRagConfig } from '../../hooks'
-import { getKnowledgeBaseFailureReason, getKnowledgeRagConfigFormState, parseRequiredInteger } from '../../utils'
+import {
+  formatKnowledgeActionError,
+  getKnowledgeBaseFailureReason,
+  getKnowledgeRagConfigFormState,
+  parseRequiredInteger
+} from '../../utils'
 import ChunkingSection from './ChunkingSection'
 import EmbeddingSection from './EmbeddingSection'
 import FileProcessingSection from './FileProcessingSection'
@@ -85,8 +90,8 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
     try {
       await save(values)
       window.toast.success(t('knowledge_v2.rag.saved'))
-    } catch {
-      window.toast.error(t('knowledge_v2.error.failed_to_edit'))
+    } catch (error) {
+      window.toast.error(formatKnowledgeActionError(error, t('knowledge_v2.error.failed_to_edit')))
     }
   }
 

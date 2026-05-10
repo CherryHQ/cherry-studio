@@ -53,8 +53,9 @@ const EmbeddingSection = ({
                 type="button"
                 variant="outline"
                 size="icon-sm"
+                disabled
                 aria-label={t('knowledge_v2.rag.refresh_dimensions')}
-                className="size-7.5 min-h-0 shrink-0 rounded-md border-border/40 p-0 text-muted-foreground/40 shadow-none hover:bg-accent hover:text-foreground">
+                className="size-7.5 min-h-0 shrink-0 rounded-md border-border/40 p-0 text-muted-foreground/40 shadow-none hover:bg-accent hover:text-foreground disabled:opacity-40">
                 <RefreshCw className="size-2.5" />
               </Button>
             </div>

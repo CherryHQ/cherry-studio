@@ -119,7 +119,7 @@ describe('KnowledgeEntityNameDialog', () => {
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 
-  it('shows the passed submit error message when submission fails', async () => {
+  it('shows the passed submit error message with the original failure when submission fails', async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error('boom'))
 
     renderDialog({ initialName: 'Research', submitErrorMessage: '更新失败', onSubmit })
@@ -130,6 +130,6 @@ describe('KnowledgeEntityNameDialog', () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith('Archive')
     })
-    expect(screen.getByText('更新失败')).toBeInTheDocument()
+    expect(screen.getByText('更新失败: boom')).toBeInTheDocument()
   })
 })

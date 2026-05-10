@@ -2276,6 +2276,7 @@
       "chunks_count": "{{count}} chunks",
       "delete_confirm_description": "This data source and its index data cannot be recovered after deletion.",
       "delete_confirm_title": "Delete Data Source?",
+      "delete_failed": "Failed to delete data source",
       "empty_description": "No data sources yet",
       "filters": {
         "all": "All",
@@ -2290,6 +2291,7 @@
         "unavailable": "This data source has no source to preview"
       },
       "ready_summary": "{{ready}}/{{total}} ready",
+      "reindex_failed": "Failed to reindex data source",
       "status": {
         "chunking": "Chunking",
         "embedding": "Embedding",
@@ -2305,7 +2307,9 @@
     "error": {
       "failed_base_unknown": "This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
       "failed_to_create": "Failed to create knowledge base",
+      "failed_to_delete": "Failed to delete knowledge base",
       "failed_to_edit": "Failed to edit knowledge base",
+      "failed_to_move": "Failed to move knowledge base",
       "missing_embedding_model": "The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model."
     },
     "groups": {
@@ -2316,6 +2320,7 @@
       "delete_confirm_title": "Delete Group?",
       "error": {
         "failed_to_create": "Failed to create group",
+        "failed_to_delete": "Failed to delete group",
         "failed_to_update": "Failed to rename group"
       },
       "name_placeholder": "Enter group name...",
@@ -2394,6 +2399,7 @@
       "result_count": "{{count}} results",
       "result_rank": "Rank #{{rank}}",
       "result_relevance": "Relevance {{score}}",
+      "search_failed": "Failed to run recall test",
       "searching": "Searching...",
       "submit": "Search",
       "top_score": "Top: {{score}}"

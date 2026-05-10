@@ -2,7 +2,7 @@ import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataAp
 import { loggerService } from '@logger'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
-import type { CreateKnowledgeBaseDto, RestoreKnowledgeBaseDto } from '@shared/data/types/knowledge'
+import type { CreateKnowledgeBaseDto, KnowledgeBaseEmoji, RestoreKnowledgeBaseDto } from '@shared/data/types/knowledge'
 import { useCallback, useMemo, useState } from 'react'
 
 const KNOWLEDGE_V2_BASES_QUERY = {
@@ -24,7 +24,7 @@ export type CreateKnowledgeBaseInput = Pick<
   CreateKnowledgeBaseDto,
   'name' | 'groupId' | 'embeddingModelId' | 'dimensions'
 > & {
-  emoji: string
+  emoji: KnowledgeBaseEmoji
 }
 export type RestoreKnowledgeBaseInput = Pick<
   RestoreKnowledgeBaseDto,
@@ -74,7 +74,7 @@ export const useCreateKnowledgeBase = () => {
 
       const body: {
         name: string
-        emoji: string
+        emoji: KnowledgeBaseEmoji
         embeddingModelId: string
         dimensions: number
         groupId?: string

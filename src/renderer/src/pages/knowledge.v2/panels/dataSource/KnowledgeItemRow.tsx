@@ -6,6 +6,7 @@ import type { ComponentProps, MouseEvent, ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { formatKnowledgeActionError } from '../../utils'
 import type { DataSourceIconMeta, DataSourceStatusViewModel } from './utils/models'
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 
@@ -217,6 +218,7 @@ const KnowledgeItemRowMoreMenu = ({
   onReindex: () => void | Promise<unknown>
   onViewChunks: () => void
 }) => {
+  const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
 
   const handlePreviewSource = (event: MouseEvent<HTMLButtonElement>) => {
@@ -234,7 +236,11 @@ const KnowledgeItemRowMoreMenu = ({
   const handleReindex = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
     setIsOpen(false)
-    void onReindex()
+    void Promise.resolve()
+      .then(onReindex)
+      .catch((error) => {
+        window.toast.error(formatKnowledgeActionError(error, t('knowledge_v2.data_source.reindex_failed')))
+      })
   }
 
   const handleDelete = (event: MouseEvent<HTMLButtonElement>) => {

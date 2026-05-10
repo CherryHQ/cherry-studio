@@ -52,6 +52,7 @@ export const KnowledgeThresholdSchema = z.number().min(0).max(1)
 export const KnowledgeDocumentCountSchema = z.number().int().positive()
 export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
 export const KnowledgeBaseEmojiSchema = z.emoji()
+export type KnowledgeBaseEmoji = z.infer<typeof KnowledgeBaseEmojiSchema>
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE = 1024
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP = 200
 export const DEFAULT_KNOWLEDGE_BASE_EMOJI = '📁'
@@ -427,7 +428,7 @@ export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
 
 export const RestoreKnowledgeBaseSchema = z.strictObject({
   sourceBaseId: z.string().trim().min(1),
-  name: z.string().trim().min(1).optional(),
+  name: z.string().trim().min(1),
   // Dimensions must be the resolved embedding vector size for embeddingModelId.
   // Automatic callers should fill this from AI Core dimension detection; manual
   // callers are responsible for confirming the value matches the selected model.

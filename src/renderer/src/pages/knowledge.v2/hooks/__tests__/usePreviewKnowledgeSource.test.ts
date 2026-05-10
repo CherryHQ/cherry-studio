@@ -120,7 +120,7 @@ describe('usePreviewKnowledgeSource', () => {
       await result.current.previewSource(createFileItem({ id: 'file-1', source: '/Users/me/report.pdf' }))
     })
 
-    expect(mockToastError).toHaveBeenCalledWith('预览原文失败')
+    expect(mockToastError).toHaveBeenCalledWith('预览原文失败: open failed')
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to preview knowledge source', {
       itemId: 'file-1',
       itemType: 'file',

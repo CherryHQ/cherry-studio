@@ -258,7 +258,7 @@ describe('RagConfigPanel', () => {
     expect(screen.getByRole('button', { name: '不使用' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'text-embedding-3-small · openai' })).toBeInTheDocument()
     expect(screen.getByDisplayValue('1536')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '刷新向量维度' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '刷新向量维度' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: '获取嵌入维度' })).not.toBeInTheDocument()
     expect(screen.getByDisplayValue('512')).toBeInTheDocument()
     expect(screen.getByDisplayValue('64')).toBeInTheDocument()
@@ -276,6 +276,19 @@ describe('RagConfigPanel', () => {
       )
     })
     expect(window.toast.success).toHaveBeenCalledWith('已保存')
+  })
+
+  it('shows save failure toast with the original error', async () => {
+    mockSave.mockRejectedValueOnce(new Error('save failed'))
+
+    renderRagConfigPanel()
+
+    fireEvent.change(screen.getByDisplayValue('512'), { target: { value: '1024' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('保存失败: save failed')
+    })
   })
 
   it('applies the compact visual treatment from the RAG design draft', () => {

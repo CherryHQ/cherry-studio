@@ -1,9 +1,9 @@
 import { Button, DialogClose } from '@cherrystudio/ui'
-import type { KnowledgeDataSourceType } from '@renderer/pages/knowledge.v2/types'
+import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 import { useTranslation } from 'react-i18next'
 
 interface AddKnowledgeItemDialogFooterProps {
-  activeSource: KnowledgeDataSourceType
+  activeSource: KnowledgeItemType
   canSubmit: boolean
   errorMessage: string
   isSubmitting: boolean

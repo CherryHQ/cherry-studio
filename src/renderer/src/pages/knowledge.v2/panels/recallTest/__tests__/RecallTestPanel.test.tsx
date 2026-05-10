@@ -6,6 +6,7 @@ import RecallTestPanel from '../RecallTestPanel'
 
 const mockKnowledgeRuntimeSearch = vi.fn()
 const mockPerformanceNow = vi.spyOn(performance, 'now')
+const mockToastError = vi.fn()
 const mockLogger = vi.hoisted(() => ({
   info: vi.fn(),
   error: vi.fn()
@@ -106,6 +107,7 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.recall.result_rank': `排序 #${options?.rank ?? 0}`,
           'knowledge_v2.recall.result_relevance': `相关度 ${options?.score ?? 0}`,
           'knowledge_v2.recall.ranking_only': '按排序返回',
+          'knowledge_v2.recall.search_failed': '召回测试检索失败',
           'knowledge_v2.recall.searching': '正在检索...',
           'knowledge_v2.recall.submit': '检索',
           'knowledge_v2.recall.top_score': `最高: ${options?.score ?? 0}`
@@ -129,6 +131,11 @@ describe('RecallTestPanel', () => {
         knowledgeRuntime: {
           search: mockKnowledgeRuntimeSearch
         }
+      }
+    })
+    Object.assign(window, {
+      toast: {
+        error: mockToastError
       }
     })
   })
@@ -385,6 +392,7 @@ describe('RecallTestPanel', () => {
     })
     expect(screen.getByText('0 个结果')).toBeInTheDocument()
     expect(screen.getByText('最高: 0.00')).toBeInTheDocument()
+    expect(mockToastError).toHaveBeenCalledWith('召回测试检索失败: search failed')
     expect(screen.queryByText('RAG 技术指南.pdf')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '复制片段' })).not.toBeInTheDocument()
   })

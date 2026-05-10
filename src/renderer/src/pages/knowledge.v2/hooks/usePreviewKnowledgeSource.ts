@@ -3,15 +3,9 @@ import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { formatKnowledgeActionError, normalizeKnowledgeError } from '../utils'
+
 const logger = loggerService.withContext('usePreviewKnowledgeSource')
-
-const normalizeError = (error: unknown): Error => {
-  if (error instanceof Error) {
-    return error
-  }
-
-  return new Error(String(error))
-}
 
 const isHttpUrl = (source: string) => {
   try {
@@ -53,7 +47,7 @@ export const usePreviewKnowledgeSource = () => {
 
         await window.api.file.openPath(source)
       } catch (error) {
-        const previewError = normalizeError(error)
+        const previewError = normalizeKnowledgeError(error)
 
         logger.error('Failed to preview knowledge source', {
           itemId: item.id,
@@ -61,7 +55,7 @@ export const usePreviewKnowledgeSource = () => {
           source,
           error: previewError
         })
-        window.toast.error(t('knowledge_v2.data_source.preview.failed'))
+        window.toast.error(formatKnowledgeActionError(previewError, t('knowledge_v2.data_source.preview.failed')))
       }
     },
     [t]

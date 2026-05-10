@@ -13,6 +13,8 @@ import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { formatKnowledgeActionError } from '../utils'
+
 export interface KnowledgeEntityNameDialogProps {
   open: boolean
   title: string
@@ -41,19 +43,19 @@ const KnowledgeEntityNameDialog = ({
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
-  const [showSubmitError, setShowSubmitError] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) {
       setName('')
       setHasAttemptedSubmit(false)
-      setShowSubmitError(false)
+      setSubmitError(null)
       return
     }
 
     setName(initialName)
     setHasAttemptedSubmit(false)
-    setShowSubmitError(false)
+    setSubmitError(null)
   }, [initialName, open])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -62,7 +64,7 @@ const KnowledgeEntityNameDialog = ({
     const normalizedName = name.trim()
 
     setHasAttemptedSubmit(true)
-    setShowSubmitError(false)
+    setSubmitError(null)
 
     if (!normalizedName) {
       return
@@ -70,8 +72,8 @@ const KnowledgeEntityNameDialog = ({
 
     try {
       await onSubmit(normalizedName)
-    } catch {
-      setShowSubmitError(true)
+    } catch (error) {
+      setSubmitError(formatKnowledgeActionError(error, submitErrorMessage))
     }
   }
 
@@ -96,13 +98,13 @@ const KnowledgeEntityNameDialog = ({
               className="h-8 rounded-lg px-2.5 leading-4 placeholder:text-muted-foreground/70"
               onChange={(event) => {
                 setName(event.target.value)
-                setShowSubmitError(false)
+                setSubmitError(null)
               }}
             />
             {hasAttemptedSubmit && !name.trim() ? (
               <FieldError className="leading-4">{nameRequiredMessage}</FieldError>
             ) : null}
-            {showSubmitError ? <FieldError className="leading-4">{submitErrorMessage}</FieldError> : null}
+            {submitError ? <FieldError className="leading-4">{submitError}</FieldError> : null}
           </div>
 
           <DialogFooter className="gap-2 border-border/40 border-t px-4 py-3 sm:justify-end">

@@ -18,11 +18,13 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { useModels } from '@renderer/hooks/useModels'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
 import type { Group } from '@shared/data/types/group'
-import type { CreateKnowledgeBaseDto, KnowledgeBase } from '@shared/data/types/knowledge'
+import type { CreateKnowledgeBaseDto, KnowledgeBase, KnowledgeBaseEmoji } from '@shared/data/types/knowledge'
 import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { formatKnowledgeActionError } from '../utils'
 
 interface CreateKnowledgeBaseDialogProps {
   open: boolean
@@ -34,12 +36,22 @@ interface CreateKnowledgeBaseDialogProps {
   onCreated: (base: KnowledgeBase) => void
 }
 
-const DEFAULT_EMOJI = '📁'
+const DEFAULT_EMOJI: KnowledgeBaseEmoji = '📁'
 export const KNOWLEDGE_BASE_DEFAULT_DIMENSIONS = 1024
-const KNOWLEDGE_BASE_EMOJIS = ['📁', '📚', '🧠', '💡', '📝', '🔖', '🧪', '🌐', '⭐'] as const
+const KNOWLEDGE_BASE_EMOJIS = [
+  '📁',
+  '📚',
+  '🧠',
+  '💡',
+  '📝',
+  '🔖',
+  '🧪',
+  '🌐',
+  '⭐'
+] as const satisfies readonly KnowledgeBaseEmoji[]
 
 type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'> & {
-  emoji: string
+  emoji: KnowledgeBaseEmoji
 }
 type CreateKnowledgeBaseFormValues = Omit<CreateKnowledgeBaseInput, 'dimensions' | 'embeddingModelId'> & {
   embeddingModelId: string | null
@@ -88,9 +100,9 @@ const CreateKnowledgeBaseDialogEmojiPicker = ({
   value,
   onChange
 }: {
-  emojis: readonly string[]
-  value: string
-  onChange: (value: string) => void
+  emojis: readonly KnowledgeBaseEmoji[]
+  value: KnowledgeBaseEmoji
+  onChange: (value: KnowledgeBaseEmoji) => void
 }) => {
   return (
     <div className="grid grid-cols-5 gap-1.5">
@@ -210,8 +222,8 @@ const CreateKnowledgeBaseDialogRoot = ({
 
     try {
       createdBase = await createBase(createInput)
-    } catch {
-      setSubmitError(t('knowledge_v2.error.failed_to_create'))
+    } catch (error) {
+      setSubmitError(formatKnowledgeActionError(error, t('knowledge_v2.error.failed_to_create')))
       return
     }
 

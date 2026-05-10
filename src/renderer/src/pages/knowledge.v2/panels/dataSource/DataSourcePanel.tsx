@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource'
+import { formatKnowledgeActionError } from '../../utils'
 import DataSourcePanelHeader from './DataSourcePanelHeader'
 import KnowledgeItemList from './KnowledgeItemList'
 import type { DataSourceFilter } from './utils/models'
@@ -32,7 +33,13 @@ const DataSourcePanel = ({ items, isLoading, onAdd, onItemClick, onDelete, onRei
       return
     }
 
-    await onDelete(pendingDeleteItem)
+    try {
+      await onDelete(pendingDeleteItem)
+    } catch (error) {
+      window.toast.error(formatKnowledgeActionError(error, t('knowledge_v2.data_source.delete_failed')))
+      return
+    }
+
     setPendingDeleteItem(null)
   }
 

@@ -8,6 +8,9 @@ import { useKnowledgeRagConfig } from '../useKnowledgeRagConfig'
 const mockUseModels = vi.fn()
 const mockUseMutation = vi.fn()
 const mockTrigger = vi.fn()
+const mockLogger = vi.hoisted(() => ({
+  error: vi.fn()
+}))
 
 vi.mock('@renderer/hooks/useModels', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
@@ -15,6 +18,14 @@ vi.mock('@renderer/hooks/useModels', () => ({
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useMutation: (...args: unknown[]) => mockUseMutation(...args)
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      error: mockLogger.error
+    })
+  }
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
@@ -65,7 +76,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   ...overrides
 })
 
-describe('useKnowledgeConfig', () => {
+describe('useKnowledgeRagConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUseModels.mockImplementation((query?: { capability?: string; enabled?: boolean }) => {
@@ -174,6 +185,46 @@ describe('useKnowledgeConfig', () => {
         rerankModelId: null,
         documentCount: 10,
         threshold: 0.25,
+        searchMode: 'default'
+      }
+    })
+  })
+
+  it('returns empty model options when no enabled runtime models are available', () => {
+    mockUseModels.mockReturnValue({ models: [] })
+
+    const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
+
+    expect(result.current.embeddingModelOptions).toEqual([])
+    expect(result.current.rerankModelOptions).toEqual([])
+  })
+
+  it('propagates save failures to the caller', async () => {
+    const saveError = new Error('save failed')
+    mockTrigger.mockRejectedValueOnce(saveError)
+    const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
+
+    await expect(result.current.save(result.current.initialValues)).rejects.toBe(saveError)
+    expect(mockLogger.error).toHaveBeenCalledWith('Failed to update knowledge RAG config', {
+      baseId: 'base-1',
+      updates: {},
+      error: saveError
+    })
+  })
+
+  it('omits hybridAlpha when switching away from hybrid search', async () => {
+    const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
+
+    await act(async () => {
+      await result.current.save({
+        ...result.current.initialValues,
+        searchMode: 'default'
+      })
+    })
+
+    expect(mockTrigger).toHaveBeenCalledWith({
+      params: { id: 'base-1' },
+      body: {
         searchMode: 'default'
       }
     })

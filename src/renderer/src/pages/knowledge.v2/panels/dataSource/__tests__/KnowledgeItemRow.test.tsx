@@ -1,11 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import KnowledgeItemRow from '../KnowledgeItemRow'
 import { createFileItem, createUrlItem } from './testUtils'
 
 vi.mock('@renderer/pages/knowledge.v2/utils', () => ({
+  formatKnowledgeActionError: (error: unknown, prefix: string) =>
+    `${prefix}: ${error instanceof Error ? error.message : String(error)}`,
   formatRelativeTime: () => '刚刚'
 }))
 
@@ -104,6 +106,7 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.data_source.actions.view_chunks': '查看 Chunks',
           'knowledge_v2.data_source.actions.reindex': '重新索引',
           'knowledge_v2.data_source.actions.delete': '删除',
+          'knowledge_v2.data_source.reindex_failed': '数据源重新索引失败',
           'common.more': '更多',
           'knowledge_v2.rag.file_processing': '文件处理'
         }) as Record<string, string>
@@ -120,6 +123,15 @@ const defaultHandlers = {
 }
 
 describe('KnowledgeItemRow', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    Object.assign(window, {
+      toast: {
+        error: vi.fn()
+      }
+    })
+  })
+
   it('renders the file suffix and meta parts from the row view model', () => {
     render(
       <KnowledgeItemRow
@@ -312,5 +324,24 @@ describe('KnowledgeItemRow', () => {
 
     expect(handleReindex).toHaveBeenCalledTimes(1)
     expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('shows a failure toast when reindex rejects', async () => {
+    const handleReindex = vi.fn().mockRejectedValue(new Error('reindex failed'))
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
+        onReindex={handleReindex}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('数据源重新索引失败: reindex failed')
+    })
   })
 })

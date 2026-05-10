@@ -19,6 +19,7 @@ import {
   useRef,
   useState
 } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
   useCreateKnowledgeGroup,
@@ -29,6 +30,7 @@ import {
 } from './hooks'
 import type { KnowledgeRestoreBaseInitialValues } from './panels/ragConfig/RagConfigPanel'
 import type { KnowledgeTabKey } from './types'
+import { formatKnowledgeActionError } from './utils'
 
 const NAVIGATOR_DEFAULT_WIDTH = 180
 const NAVIGATOR_MIN_WIDTH = 180
@@ -97,6 +99,7 @@ interface KnowledgePageContextValue {
 const KnowledgePageContext = createContext<KnowledgePageContextValue | null>(null)
 
 export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
+  const { t } = useTranslation()
   const { bases, isLoading } = useKnowledgeBases()
   const { groups } = useKnowledgeGroups()
   const { createGroup, isCreating: isCreatingGroup } = useCreateKnowledgeGroup()
@@ -300,23 +303,35 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const moveBase = useCallback(
     async (baseId: string, groupId: string | null) => {
-      await updateBase(baseId, { groupId })
+      try {
+        await updateBase(baseId, { groupId })
+      } catch (error) {
+        window.toast.error(formatKnowledgeActionError(error, t('knowledge_v2.error.failed_to_move')))
+      }
     },
-    [updateBase]
+    [t, updateBase]
   )
 
   const handleDeleteBase = useCallback(
     async (baseId: string) => {
-      await deleteBase(baseId)
+      try {
+        await deleteBase(baseId)
+      } catch (error) {
+        window.toast.error(formatKnowledgeActionError(error, t('knowledge_v2.error.failed_to_delete')))
+      }
     },
-    [deleteBase]
+    [deleteBase, t]
   )
 
   const handleDeleteGroup = useCallback(
     async (groupId: string) => {
-      await deleteGroup(groupId)
+      try {
+        await deleteGroup(groupId)
+      } catch (error) {
+        window.toast.error(formatKnowledgeActionError(error, t('knowledge_v2.groups.error.failed_to_delete')))
+      }
     },
-    [deleteGroup]
+    [deleteGroup, t]
   )
 
   const startNavigatorResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {

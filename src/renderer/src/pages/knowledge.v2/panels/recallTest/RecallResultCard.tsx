@@ -35,12 +35,6 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
           <span className="shrink-0 text-muted-foreground/20 text-xs leading-3">#{item.chunkIndex}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          {/* <div className="h-0.75 w-12 overflow-hidden rounded-full bg-border/25">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${item.scoreColor}`}
-              style={{ width: `${item.scorePercent}%` }}
-            />
-          </div> */}
           <span className="w-16 text-right text-muted-foreground/50 text-xs tabular-nums leading-4">{scoreLabel}</span>
         </div>
         <Button

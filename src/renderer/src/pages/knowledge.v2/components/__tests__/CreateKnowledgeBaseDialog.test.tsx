@@ -353,6 +353,31 @@ describe('CreateKnowledgeBaseDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
+  it('shows submit error and keeps the dialog open when createBase rejects', async () => {
+    const createBase = vi.fn().mockRejectedValue(new Error('create failed'))
+    const onOpenChange = vi.fn()
+    const onCreated = vi.fn()
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={createBase}
+        onOpenChange={onOpenChange}
+        onCreated={onCreated}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
+    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('知识库创建失败: create failed'))
+    expect(onCreated).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
   it('submits the selected group id in the request payload', async () => {
     const createBase = vi.fn().mockResolvedValue(createKnowledgeBase({ groupId: 'group-2' }))
 

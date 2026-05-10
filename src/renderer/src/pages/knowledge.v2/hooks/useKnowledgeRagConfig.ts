@@ -1,4 +1,5 @@
 import { useMutation } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModels'
 import { getFileProcessorLabel } from '@renderer/i18n/label'
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
@@ -9,6 +10,8 @@ import { useTranslation } from 'react-i18next'
 
 import type { KnowledgeRagConfigFormValues, KnowledgeSelectOption } from '../types'
 import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues } from '../utils'
+
+const logger = loggerService.withContext('useKnowledgeRagConfig')
 
 const KNOWLEDGE_V2_FILE_PROCESSORS = PRESETS_FILE_PROCESSORS.filter((preset) =>
   preset.capabilities.some(
@@ -71,11 +74,22 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
     [t]
   )
 
-  const save = (values: KnowledgeRagConfigFormValues) => {
-    return trigger({
-      params: { id: base.id },
-      body: buildKnowledgeRagConfigPatch(initialValues, values)
-    })
+  const save = async (values: KnowledgeRagConfigFormValues) => {
+    const patch = buildKnowledgeRagConfigPatch(initialValues, values)
+
+    try {
+      return await trigger({
+        params: { id: base.id },
+        body: patch
+      })
+    } catch (saveError) {
+      logger.error('Failed to update knowledge RAG config', {
+        baseId: base.id,
+        updates: patch,
+        error: saveError
+      })
+      throw saveError
+    }
   }
 
   return {

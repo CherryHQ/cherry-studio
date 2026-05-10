@@ -409,7 +409,10 @@ vi.mock('react-i18next', () => ({
       (
         ({
           'common.loading': '加载中...',
+          'knowledge_v2.error.failed_to_delete': '知识库删除失败',
+          'knowledge_v2.error.failed_to_move': '知识库移动失败',
           'knowledge_v2.empty': '暂无知识库',
+          'knowledge_v2.groups.error.failed_to_delete': '分组删除失败',
           'knowledge_v2.title': '知识库'
         }) as Record<string, string>
       )[key] ?? key
@@ -467,6 +470,11 @@ const createKnowledgeItem = ({ id }: { id: string }): KnowledgeItemOf<'note'> =>
 describe('KnowledgePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.assign(window, {
+      toast: {
+        error: vi.fn()
+      }
+    })
     mockUseCreateKnowledgeGroup.mockReturnValue({
       createGroup: vi.fn(),
       isCreating: false,
@@ -862,6 +870,30 @@ describe('KnowledgePage', () => {
     })
   })
 
+  it('shows a toast when group deletion fails', async () => {
+    const deleteGroup = vi.fn().mockRejectedValue(new Error('delete failed'))
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseDeleteKnowledgeGroup.mockReturnValue({
+      deleteGroup,
+      isDeleting: false,
+      deleteError: undefined
+    })
+
+    render(<KnowledgePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'DeleteGroup Research' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('分组删除失败: delete failed')
+    })
+  })
+
   it('opens the knowledge base rename dialog from the navigator and updates the selected base', async () => {
     const updateBase = vi.fn().mockResolvedValue(undefined)
 
@@ -929,6 +961,30 @@ describe('KnowledgePage', () => {
 
     await waitFor(() => {
       expect(deleteBase).toHaveBeenCalledWith('base-1')
+    })
+  })
+
+  it('shows a toast when knowledge base deletion fails', async () => {
+    const deleteBase = vi.fn().mockRejectedValue(new Error('delete failed'))
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseDeleteKnowledgeBase.mockReturnValue({
+      deleteBase,
+      isDeleting: false,
+      deleteError: undefined
+    })
+
+    render(<KnowledgePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'HeaderDelete Base 1' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('知识库删除失败: delete failed')
     })
   })
 
@@ -1203,6 +1259,30 @@ describe('KnowledgePage', () => {
     await waitFor(() => {
       expect(updateBase).toHaveBeenCalledWith('base-1', { groupId: 'group-2' })
       expect(deleteBase).toHaveBeenCalledWith('base-2')
+    })
+  })
+
+  it('shows a toast when moving a knowledge base fails', async () => {
+    const updateBase = vi.fn().mockRejectedValue(new Error('move failed'))
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseUpdateKnowledgeBase.mockReturnValue({
+      updateBase,
+      isUpdating: false,
+      updateError: undefined
+    })
+
+    render(<KnowledgePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move Base 1' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('知识库移动失败: move failed')
     })
   })
 })

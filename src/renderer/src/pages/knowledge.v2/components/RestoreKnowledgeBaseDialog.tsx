@@ -19,6 +19,7 @@ import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { formatKnowledgeActionError } from '../utils'
 import CreateKnowledgeBaseDialog, {
   formatKnowledgeModelOptionLabel,
   KNOWLEDGE_BASE_DEFAULT_DIMENSIONS
@@ -99,8 +100,8 @@ const RestoreKnowledgeBaseDialog = ({
         embeddingModelId: values.embeddingModelId,
         dimensions: initialDimensions ?? KNOWLEDGE_BASE_DEFAULT_DIMENSIONS
       })
-    } catch {
-      setSubmitError(t('knowledge_v2.restore.failed_to_restore'))
+    } catch (error) {
+      setSubmitError(formatKnowledgeActionError(error, t('knowledge_v2.restore.failed_to_restore')))
       return
     }
 

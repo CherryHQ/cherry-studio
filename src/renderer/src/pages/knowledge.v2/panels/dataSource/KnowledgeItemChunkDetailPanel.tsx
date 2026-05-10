@@ -1,6 +1,7 @@
 import { Button, ConfirmDialog, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
 import { formatFileSize } from '@renderer/utils'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
 import { ArrowLeft, Trash2 } from 'lucide-react'
@@ -9,7 +10,10 @@ import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { normalizeKnowledgeError } from '../../utils'
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
+
+const logger = loggerService.withContext('KnowledgeItemChunkDetailPanel')
 
 interface KnowledgeItemChunkDetailPanelProps {
   baseId: string
@@ -147,9 +151,16 @@ const KnowledgeItemChunkDetailPanel = ({
           setChunks(itemChunks)
         }
       } catch (chunkError) {
+        const normalizedError = normalizeKnowledgeError(chunkError)
+
         if (isActive) {
+          logger.error('Failed to list knowledge item chunks', {
+            baseId,
+            itemId,
+            error: normalizedError
+          })
           setChunks([])
-          setError(chunkError instanceof Error ? chunkError : new Error(String(chunkError)))
+          setError(normalizedError)
         }
       } finally {
         if (isActive) {
@@ -183,7 +194,15 @@ const KnowledgeItemChunkDetailPanel = ({
       setChunks((currentChunks) => currentChunks.filter((currentChunk) => currentChunk.id !== chunk.id))
       setPendingDeleteChunk(null)
     } catch (chunkError) {
-      setError(chunkError instanceof Error ? chunkError : new Error(String(chunkError)))
+      const normalizedError = normalizeKnowledgeError(chunkError)
+
+      logger.error('Failed to delete knowledge item chunk', {
+        baseId,
+        itemId: chunk.itemId,
+        chunkId: chunk.id,
+        error: normalizedError
+      })
+      setError(normalizedError)
     } finally {
       setDeletingChunkId(null)
       setPendingDeleteChunk(null)

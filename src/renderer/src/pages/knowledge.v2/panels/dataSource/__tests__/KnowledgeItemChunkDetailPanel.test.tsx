@@ -9,6 +9,9 @@ import { createDirectoryItem, createFileItem } from './testUtils'
 const listItemChunksMock = vi.fn()
 const deleteItemChunkMock = vi.fn()
 const mockUseQuery = vi.fn()
+const mockLogger = vi.hoisted(() => ({
+  error: vi.fn()
+}))
 
 const chunks: KnowledgeItemChunk[] = [
   {
@@ -81,8 +84,17 @@ vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args)
 }))
 
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      error: mockLogger.error
+    })
+  }
+}))
+
 vi.mock('@renderer/pages/knowledge.v2/utils', () => ({
-  formatRelativeTime: () => '刚刚'
+  formatRelativeTime: () => '刚刚',
+  normalizeKnowledgeError: (error: unknown) => (error instanceof Error ? error : new Error(String(error)))
 }))
 
 vi.mock('@renderer/utils', () => ({
@@ -252,7 +264,8 @@ describe('KnowledgeItemChunkDetailPanel', () => {
   })
 
   it('keeps existing chunks and shows an error when chunk deletion fails', async () => {
-    deleteItemChunkMock.mockRejectedValueOnce(new Error('delete failed'))
+    const deleteError = new Error('delete failed')
+    deleteItemChunkMock.mockRejectedValueOnce(deleteError)
 
     renderPanel()
 
@@ -269,6 +282,28 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByText('真实 chunk 内容一')).toBeInTheDocument()
     expect(screen.getByText('真实 chunk 内容二')).toBeInTheDocument()
+    expect(mockLogger.error).toHaveBeenCalledWith('Failed to delete knowledge item chunk', {
+      baseId: 'base-1',
+      itemId: 'file-1',
+      chunkId: 'chunk-1',
+      error: deleteError
+    })
+  })
+
+  it('logs chunk list failures and shows the original error message', async () => {
+    const listError = new Error('list failed')
+    listItemChunksMock.mockRejectedValueOnce(listError)
+
+    renderPanel()
+
+    await waitFor(() => {
+      expect(screen.getByText('list failed')).toBeInTheDocument()
+    })
+    expect(mockLogger.error).toHaveBeenCalledWith('Failed to list knowledge item chunks', {
+      baseId: 'base-1',
+      itemId: 'file-1',
+      error: listError
+    })
   })
 
   it('renders an empty state when the item has no chunks', async () => {

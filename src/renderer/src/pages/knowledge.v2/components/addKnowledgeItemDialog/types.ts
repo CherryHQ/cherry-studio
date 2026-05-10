@@ -1,5 +1,5 @@
 import type { Dropzone } from '@cherrystudio/ui'
-import type { KnowledgeDataSourceType } from '@renderer/pages/knowledge.v2/types'
+import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { ComponentProps } from 'react'
 
 export type DropzoneOnDrop = NonNullable<ComponentProps<typeof Dropzone>['onDrop']>
@@ -11,5 +11,5 @@ export interface DirectoryItem {
 
 export interface SourceTabDefinition {
   labelKey: string
-  value: KnowledgeDataSourceType
+  value: KnowledgeItemType
 }

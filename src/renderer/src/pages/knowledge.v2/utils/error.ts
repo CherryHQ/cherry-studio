@@ -1,3 +1,4 @@
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL, type KnowledgeBase } from '@shared/data/types/knowledge'
 
 type KnowledgeErrorTranslator = (
@@ -10,4 +11,16 @@ export const getKnowledgeBaseFailureReason = (base: Pick<KnowledgeBase, 'error'>
   }
 
   return base.error ?? t('knowledge_v2.error.failed_base_unknown')
+}
+
+export const normalizeKnowledgeError = (error: unknown): Error => {
+  if (error instanceof Error) {
+    return error
+  }
+
+  return new Error(String(error))
+}
+
+export const formatKnowledgeActionError = (error: unknown, prefix: string) => {
+  return formatErrorMessageWithPrefix(error, prefix)
 }

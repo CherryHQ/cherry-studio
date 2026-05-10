@@ -1,7 +1,6 @@
 import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
 
 export type KnowledgeTabKey = 'data' | 'rag' | 'recall'
-export type KnowledgeDataSourceType = 'file' | 'note' | 'directory' | 'url' | 'sitemap'
 
 export interface KnowledgeSelectOption {
   label: string
