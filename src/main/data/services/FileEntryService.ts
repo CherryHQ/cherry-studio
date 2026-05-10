@@ -21,7 +21,7 @@
  */
 
 import { application } from '@application'
-import { fileEntryTable } from '@data/db/schemas/file'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import { FileEntrySchema } from '@shared/data/types/file'
 import { and, asc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
@@ -94,6 +94,13 @@ export interface FileEntryService {
 
   /** Flat listing. Trashed filter defaults to "active only" when `inTrash` is omitted. */
   findMany(query?: FindEntriesQuery): Promise<FileEntry[]>
+
+  /**
+   * Active (non-trashed) entries with zero `file_ref` rows pointing at them.
+   * Used by Phase 1b.4 OrphanRefScanner's report-only entry pass — see
+   * file-manager-architecture §7.1 (default policy is "preserve").
+   */
+  findUnreferenced(query?: { origin?: FileEntryOrigin }): Promise<FileEntry[]>
 
   /** Insert a new row. Violates `fe_origin_consistency` / `fe_size_internal_only` → throws. */
   create(values: CreateFileEntryRow): Promise<FileEntry>
@@ -178,6 +185,18 @@ class FileEntryServiceImpl implements FileEntryService {
 
     const rows = await queryBuilder
     return rows.map(rowToFileEntry)
+  }
+
+  async findUnreferenced(query: { origin?: FileEntryOrigin } = {}): Promise<FileEntry[]> {
+    const conditions: SQL[] = [isNull(fileEntryTable.trashedAt), isNull(fileRefTable.id)]
+    if (query.origin) conditions.push(eq(fileEntryTable.origin, query.origin))
+    const rows = await this.getDb()
+      .select({ entry: fileEntryTable })
+      .from(fileEntryTable)
+      .leftJoin(fileRefTable, eq(fileRefTable.fileEntryId, fileEntryTable.id))
+      .where(and(...conditions))
+      .orderBy(asc(fileEntryTable.createdAt))
+    return rows.map((r) => rowToFileEntry(r.entry))
   }
 
   async create(values: CreateFileEntryRow): Promise<FileEntry> {

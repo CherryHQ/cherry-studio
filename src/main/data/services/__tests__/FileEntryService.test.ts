@@ -1,4 +1,4 @@
-import { fileEntryTable } from '@data/db/schemas/file'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -385,6 +385,90 @@ describe('FileEntryService', () => {
       await expect(
         fileEntryService.delete('019606a0-0000-7000-8000-000000000cff' as FileEntryId)
       ).resolves.toBeUndefined()
+    })
+  })
+
+  describe('findUnreferenced', () => {
+    async function seedRef(fileEntryId: FileEntryId): Promise<void> {
+      const now = Date.now()
+      await dbh.db.insert(fileRefTable).values({
+        id: '11111111-1111-4111-8111-' + fileEntryId.slice(-12),
+        fileEntryId,
+        sourceType: 'temp_session',
+        sourceId: 'sess-1',
+        role: 'pending',
+        createdAt: now,
+        updatedAt: now
+      })
+    }
+
+    it('returns only entries with zero file_refs', async () => {
+      const referenced = '019606a0-0000-7000-8000-000000000d01' as FileEntryId
+      const orphan = '019606a0-0000-7000-8000-000000000d02' as FileEntryId
+      await fileEntryService.create({
+        id: referenced,
+        origin: 'internal',
+        name: 'r',
+        ext: 'txt',
+        size: 1,
+        externalPath: null
+      })
+      await fileEntryService.create({
+        id: orphan,
+        origin: 'internal',
+        name: 'o',
+        ext: 'txt',
+        size: 1,
+        externalPath: null
+      })
+      await seedRef(referenced)
+
+      const result = await fileEntryService.findUnreferenced()
+      const ids = result.map((e) => e.id)
+      expect(ids).toEqual([orphan])
+    })
+
+    it('honours the optional origin filter', async () => {
+      const internalOrphan = '019606a0-0000-7000-8000-000000000d11' as FileEntryId
+      const externalOrphan = '019606a0-0000-7000-8000-000000000d12' as FileEntryId
+      await fileEntryService.create({
+        id: internalOrphan,
+        origin: 'internal',
+        name: 'i',
+        ext: 'txt',
+        size: 1,
+        externalPath: null
+      })
+      await fileEntryService.create({
+        id: externalOrphan,
+        origin: 'external',
+        name: 'e',
+        ext: 'txt',
+        size: null,
+        externalPath: '/abs/orphan.txt' as CanonicalExternalPath
+      })
+
+      const externalsOnly = await fileEntryService.findUnreferenced({ origin: 'external' })
+      expect(externalsOnly.map((e) => e.id)).toEqual([externalOrphan])
+
+      const internalsOnly = await fileEntryService.findUnreferenced({ origin: 'internal' })
+      expect(internalsOnly.map((e) => e.id)).toEqual([internalOrphan])
+    })
+
+    it('excludes trashed entries', async () => {
+      const id = '019606a0-0000-7000-8000-000000000d21' as FileEntryId
+      await fileEntryService.create({
+        id,
+        origin: 'internal',
+        name: 't',
+        ext: 'txt',
+        size: 1,
+        externalPath: null,
+        trashedAt: Date.now()
+      })
+
+      const result = await fileEntryService.findUnreferenced()
+      expect(result.find((e) => e.id === id)).toBeUndefined()
     })
   })
 })
