@@ -15,7 +15,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
-import { Alert, Spin } from 'antd'
+import { Loader2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
 import { useMemo } from 'react'
@@ -48,7 +48,7 @@ const AgentChat = () => {
   if (isInitializing) {
     return (
       <Container className="flex flex-1 flex-col items-center justify-center">
-        <Spin />
+        <Loader2 className="size-6 animate-spin text-(--color-text-3)" />
       </Container>
     )
   }
@@ -57,7 +57,7 @@ const AgentChat = () => {
     return (
       <Container className="flex flex-1 flex-col justify-between">
         <div className="flex h-full w-full items-center justify-center">
-          <Alert type="warning" message={t('chat.alerts.create_session')} style={{ margin: '5px 16px' }} />
+          <WarningAlert message={t('chat.alerts.create_session')} />
         </div>
       </Container>
     )
@@ -69,11 +69,7 @@ const AgentChat = () => {
     return (
       <Container className="flex flex-1 flex-col justify-between">
         <div className="flex h-full w-full items-center justify-center">
-          <Alert
-            type="warning"
-            message={t('agent.session.orphan.message', 'This session’s agent has been deleted')}
-            style={{ margin: '5px 16px' }}
-          />
+          <WarningAlert message={t('agent.session.orphan.message', 'This session’s agent has been deleted')} />
         </div>
       </Container>
     )
@@ -252,5 +248,15 @@ const Container = ({ children, className }: PropsWithChildren<{ className?: stri
     </div>
   )
 }
+
+// Lightweight warning banner — replaces antd `<Alert type="warning">`.
+// Mirrors the inline pattern in `MessageErrorBoundary.tsx`.
+const WarningAlert = ({ message }: { message: string }) => (
+  <div
+    role="alert"
+    className="mx-4 my-1 rounded-md border border-(--color-warning) bg-(--color-warning)/10 px-3 py-2 text-sm">
+    {message}
+  </div>
+)
 
 export default AgentChat
