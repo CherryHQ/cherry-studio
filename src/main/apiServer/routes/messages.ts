@@ -14,7 +14,7 @@ const router = express.Router()
 const providerRouter = express.Router({ mergeParams: true })
 
 // Helper function for basic request validation
-async function validateRequestBody(req: Request): Promise<{ valid: boolean; error?: any }> {
+function validateRequestBody(req: Request): { valid: boolean; error?: any } {
   const request: MessageCreateParams = req.body
 
   if (!request) {
@@ -208,7 +208,7 @@ async function handleMessageProcessing({
  */
 router.post('/', async (req: Request, res: Response) => {
   // Validate request body
-  const bodyValidation = await validateRequestBody(req)
+  const bodyValidation = validateRequestBody(req)
   if (!bodyValidation.valid) {
     return res.status(400).json(bodyValidation.error)
   }
@@ -364,7 +364,7 @@ router.post('/', async (req: Request, res: Response) => {
  */
 providerRouter.post('/', async (req: Request, res: Response) => {
   // Validate request body
-  const bodyValidation = await validateRequestBody(req)
+  const bodyValidation = validateRequestBody(req)
   if (!bodyValidation.valid) {
     return res.status(400).json(bodyValidation.error)
   }
