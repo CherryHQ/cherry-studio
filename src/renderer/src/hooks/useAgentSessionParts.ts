@@ -50,7 +50,7 @@ function toUIMessage(row: AgentSessionMessageEntity): CherryUIMessage | null {
 }
 
 export function useAgentSessionParts(_agentId: string, sessionId: string) {
-  const { pages, isLoading, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/sessions/:sessionId/messages', {
+  const { pages, isLoading, hasNext, loadNext, mutate } = useInfiniteQuery('/sessions/:sessionId/messages', {
     params: { sessionId },
     limit: PAGE_SIZE,
     enabled: !!sessionId
@@ -87,7 +87,6 @@ export function useAgentSessionParts(_agentId: string, sessionId: string) {
     return out
   }, [mutate])
 
-  void refresh
   return {
     messages,
     isLoading,
