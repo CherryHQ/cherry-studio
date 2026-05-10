@@ -53,7 +53,7 @@ describe('PaintingMigrator', () => {
     vi.clearAllMocks()
   })
 
-  it('prepares records with scope-aware orderKey and DMXAPI mode normalization', async () => {
+  it('prepares records with global orderKey and DMXAPI mode normalization', async () => {
     const migrator = new PaintingMigrator()
     const insertedRows: unknown[] = []
     const ctx = createMigrationContext(
@@ -95,6 +95,7 @@ describe('PaintingMigrator', () => {
         })
       ])
     )
+    expect(new Set(preparedRows.map((row) => row.orderKey)).size).toBe(preparedRows.length)
   })
 
   it('executes inserts and validates migrated row counts', async () => {

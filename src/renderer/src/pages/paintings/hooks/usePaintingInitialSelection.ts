@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import type { PaintingData } from '../model/types/paintingData'
-import { usePaintingItems } from './usePaintingItems'
+import { usePaintingHistory } from './usePaintingHistory'
 
 interface UsePaintingInitialSelectionInput {
   currentPainting: PaintingData
@@ -18,7 +18,7 @@ interface UsePaintingInitialSelectionInput {
  * once the user touches anything the guard will never pass again.
  */
 export function usePaintingInitialSelection({ currentPainting, setCurrentPainting }: UsePaintingInitialSelectionInput) {
-  const { items } = usePaintingItems()
+  const { items } = usePaintingHistory()
   const initialDraftRef = useRef(currentPainting)
 
   useEffect(() => {

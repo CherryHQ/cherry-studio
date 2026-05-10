@@ -10,7 +10,6 @@ import { useTranslation } from 'react-i18next'
 
 import { usePaintingModelCatalog } from '../hooks/usePaintingModelCatalog'
 import { usePaintingProviderOptions } from '../hooks/usePaintingProviderOptions'
-import { usePaintingProviderRuntime } from '../hooks/usePaintingProviderRuntime'
 import type { PaintingData } from '../model/types/paintingData'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
@@ -21,18 +20,22 @@ interface PaintingModelSelectorProps {
   onSelect: (selection: { providerId: string; modelId: string }) => void
 }
 
+/**
+ * Model entry stays interactive even when the current provider is disabled in settings.
+ * PR review once asked to grey out / block the trigger in that case (commit 00a0bf9c0);
+ * that was reverted: sponsored-provider flows need browsing and model pick first; enforcement
+ * stays on submit in `usePaintingGenerationGuard` (`provider_disabled`).
+ */
 const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, painting, actions, onSelect }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const providerOptions = usePaintingProviderOptions()
-  const { provider } = usePaintingProviderRuntime(painting.providerId)
   const { selectorData, isLoading } = usePaintingModelCatalog({
     providerOptions,
     painting,
     shouldPrefetch: open
   })
   const currentProviderId = painting.providerId
-  const disabled = !provider.isEnabled
 
   return (
     <div>
@@ -44,7 +47,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
       </PaintingSectionTitle>
       <ModelSelector
         open={open}
-        onOpenChange={(nextOpen) => setOpen(disabled ? false : nextOpen)}
+        onOpenChange={setOpen}
         multiple={false}
         selectionType="id"
         value={selectorData.selectedModelId}
@@ -70,11 +73,8 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
           <Button
             variant="ghost"
             size="sm"
-            disabled={disabled}
             className={cn(
               'h-auto w-full max-w-none justify-between gap-2 rounded-[var(--painting-radius-track)] border border-border/50 bg-[var(--painting-control-bg)] px-2.5 py-[6px] text-muted-foreground text-xs shadow-none hover:bg-[var(--painting-control-bg-hover)] hover:text-foreground',
-              disabled &&
-                'cursor-not-allowed opacity-55 hover:bg-[var(--painting-control-bg)] hover:text-muted-foreground',
               className
             )}>
             <span className="flex min-w-0 items-center gap-2">

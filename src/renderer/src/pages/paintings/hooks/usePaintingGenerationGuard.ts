@@ -35,6 +35,7 @@ export function usePaintingGenerationGuard({
   const { provider } = usePaintingProviderRuntime(providerId)
 
   const validateBeforeGenerate = useCallback(async (): Promise<PaintingGenerationGuardResult> => {
+    // UX: PaintingModelSelector does not pre-block when disabled (sponsor flows). This is the enforcement point.
     if (!provider.isEnabled) {
       return { ok: false, reason: 'provider_disabled' }
     }

@@ -5,7 +5,7 @@ import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import { assignOrderKeysByScope } from '../utils/orderKey'
+import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
   LEGACY_PAINTING_NAMESPACES,
@@ -58,6 +58,7 @@ export class PaintingMigrator extends BaseMigrator {
 
       const groupedRecords = new Map<string, NormalizedPaintingRow[]>()
       const seenIds = new Set<string>()
+      const normalizedRows: NormalizedPaintingRow[] = []
 
       for (const namespace of LEGACY_PAINTING_NAMESPACES) {
         const records = Array.isArray(state[namespace]) ? (state[namespace] as Array<Record<string, unknown>>) : []
@@ -94,8 +95,9 @@ export class PaintingMigrator extends BaseMigrator {
       }
 
       for (const entries of groupedRecords.values()) {
-        this.preparedPaintings.push(...assignOrderKeysByScope(entries, (entry) => `${entry.providerId}:${entry.mode}`))
+        normalizedRows.push(...entries)
       }
+      this.preparedPaintings = assignOrderKeysInSequence(normalizedRows)
 
       logger.info('Prepared painting migration records', {
         sourceCount: this.sourceCount,

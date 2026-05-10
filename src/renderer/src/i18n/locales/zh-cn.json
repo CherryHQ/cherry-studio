@@ -3097,6 +3097,9 @@
       },
       "new": {
         "image": "新建图片"
+      },
+      "select": {
+        "image": "选择图片"
       }
     },
     "custom_size": "自定义尺寸",

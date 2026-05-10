@@ -30,7 +30,7 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
   const disabled = definition.prompt?.disabled?.({ painting, isLoading: generating }) ?? generating
 
   return (
-    <div className="flex w-full min-w-0 shrink-0 px-2 pt-2 pb-4">
+    <div className="flex w-full min-w-0 shrink-0 flex-col">
       <div className="relative flex h-[110px] w-full min-w-0 flex-col rounded-[1.25rem] border border-border/60 bg-white dark:bg-background">
         <Textarea.Input
           disabled={disabled}

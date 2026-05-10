@@ -1,15 +1,19 @@
 export const paintingClasses = {
   page: 'painting-theme flex h-full flex-1 flex-col',
   content: 'flex min-h-0 flex-1 flex-col overflow-hidden !bg-white dark:!bg-background',
-  tabsWrap: 'shrink-0 flex justify-center px-6 pt-4 pb-3',
+  tabsWrap: 'shrink-0 flex justify-center px-6 pt-3 pb-2',
   tabsList:
     'rounded-full border border-border/60 bg-neutral-100 p-1 shadow-[var(--painting-surface-shadow)] backdrop-blur-sm dark:bg-muted/40',
   tabsTrigger:
     'rounded-full px-4 py-1.5 text-xs font-medium text-muted-foreground transition data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm dark:data-[state=active]:bg-background',
-  frame: 'relative flex min-h-0 flex-1 overflow-hidden p-2',
+  frame: 'relative flex min-h-0 flex-1 overflow-hidden px-2 pt-2 pb-1',
   surface:
     'relative isolate flex min-w-0 flex-1 overflow-hidden rounded-[var(--painting-radius-surface)] bg-white dark:bg-background',
-  centerPane: 'relative flex min-w-0 flex-1 flex-col overflow-hidden',
+  centerPane: 'relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
+  /** Fills space between mode tabs and prompt; keeps canvas in the flex-shrink chain. */
+  centerStage: 'flex min-h-0 min-w-0 flex-1 flex-col',
+  /** Pins the prompt visually to the bottom of the middle column. */
+  promptDock: 'shrink-0 border-border/60 border-t bg-white px-2 pt-2 pb-2 dark:bg-background',
   panel:
     'painting-theme-portal flex h-full w-[var(--painting-panel-width)] shrink-0 flex-col overflow-hidden border-border/50 border-r bg-[var(--painting-panel-bg)]',
   panelModelSelector: 'shrink-0 px-4 pt-3 pb-3',

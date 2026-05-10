@@ -20,3 +20,17 @@ export function removeEditImageFile(paintingId: string, index: number): void {
 export function clearEditImageFiles(paintingId: string): void {
   editImageFilesStore.delete(paintingId)
 }
+
+export function moveEditImageFiles(fromPaintingId: string, toPaintingId: string): void {
+  if (fromPaintingId === toPaintingId) {
+    return
+  }
+
+  const files = editImageFilesStore.get(fromPaintingId)
+  if (!files) {
+    return
+  }
+
+  editImageFilesStore.set(toPaintingId, files)
+  editImageFilesStore.delete(fromPaintingId)
+}

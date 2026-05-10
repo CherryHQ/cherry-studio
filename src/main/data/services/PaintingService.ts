@@ -185,6 +185,8 @@ class PaintingService {
 
     if (dto.modelId !== undefined) {
       updates.modelId = await resolveExistingModelId(db, updates.providerId ?? existing.providerId, dto.modelId)
+    } else if (dto.providerId !== undefined && dto.providerId !== existing.providerId) {
+      updates.modelId = null
     }
 
     if (Object.keys(updates).length === 0) {

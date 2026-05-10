@@ -3097,6 +3097,9 @@
       },
       "new": {
         "image": "New Image"
+      },
+      "select": {
+        "image": "Select Image"
       }
     },
     "custom_size": "Custom Size",

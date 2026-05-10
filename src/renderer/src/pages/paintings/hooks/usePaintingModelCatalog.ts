@@ -93,7 +93,7 @@ export function usePaintingModelCatalog({
 }: UsePaintingModelCatalogInput): UsePaintingModelCatalogResult {
   const currentProviderId = painting.providerId
   const currentMode = painting.mode
-  const currentModelId = painting.model
+  const normalizedApiModelId = painting.model?.trim() ?? ''
   const { providers: dataProviders } = useProviders()
   const shouldLoadModels = shouldPrefetch || shouldUseDataModelCatalog(currentProviderId)
   const { models: dataModels, isLoading: isModelsLoading } = useModels(undefined, { fetchEnabled: shouldLoadModels })
@@ -299,8 +299,8 @@ export function usePaintingModelCatalog({
     }
 
     let selectedModelId: UniqueModelId | undefined
-    if (currentModelId) {
-      const uniqueModelId = createUniqueModelId(currentProviderId, currentModelId)
+    if (normalizedApiModelId.length > 0) {
+      const uniqueModelId = createUniqueModelId(currentProviderId, normalizedApiModelId)
       selectedModelId = uniqueModelId
 
       if (!seenModelIds.has(uniqueModelId)) {
@@ -313,8 +313,8 @@ export function usePaintingModelCatalog({
         models.unshift({
           id: uniqueModelId,
           providerId: currentProviderId,
-          apiModelId: currentModelId,
-          name: currentModelId,
+          apiModelId: normalizedApiModelId,
+          name: normalizedApiModelId,
           capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
           supportsStreaming: false,
           isEnabled: false,
@@ -329,19 +329,32 @@ export function usePaintingModelCatalog({
       ? providers.find((provider) => provider.id === selectedModel.providerId)
       : undefined
 
+    const fallbackLabel =
+      normalizedApiModelId.length > 0
+        ? (optionMap.get(createUniqueModelId(currentProviderId, normalizedApiModelId))?.label ?? normalizedApiModelId)
+        : undefined
+
     return {
       selectorData: {
         providers,
         models,
         selectedModelId,
-        selectedModelName: selectedModel?.name,
+        selectedModelName: selectedModel?.name ?? fallbackLabel,
         selectedProviderName: selectedProvider?.name
       },
       modelOptionMap: optionMap,
       isAsyncLoading: asyncLoading,
       currentCatalogError: currentError
     }
-  }, [catalogVersion, currentModelId, currentProviderId, getSyncOptions, getTargetTab, providerMap, providerOptions])
+  }, [
+    catalogVersion,
+    normalizedApiModelId,
+    currentProviderId,
+    getSyncOptions,
+    getTargetTab,
+    providerMap,
+    providerOptions
+  ])
 
   const getModelOption = useCallback(
     (providerId: string, modelId: string) => {
@@ -369,12 +382,12 @@ export function usePaintingModelCatalog({
 
   const currentModelOptions = useMemo(() => getSyncOptions(currentProviderId), [currentProviderId, getSyncOptions])
   const selectedModelOption = useMemo(() => {
-    if (!currentModelId) {
+    if (!normalizedApiModelId.length) {
       return undefined
     }
 
-    return getModelOption(currentProviderId, currentModelId)
-  }, [currentModelId, currentProviderId, getModelOption])
+    return getModelOption(currentProviderId, normalizedApiModelId)
+  }, [normalizedApiModelId, currentProviderId, getModelOption])
 
   return {
     selectorData,

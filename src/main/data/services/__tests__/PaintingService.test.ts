@@ -143,6 +143,21 @@ describe('PaintingService', () => {
     expect(updated.mediaType).toBe('video')
   })
 
+  it('clears stale model reference when provider changes without an explicit model', async () => {
+    const modelId = await insertModel('aihubmix', 'gpt-image-1')
+    const painting = await paintingService.create({
+      providerId: 'aihubmix',
+      modelId,
+      mode: 'generate',
+      prompt: 'with model'
+    })
+
+    const updated = await paintingService.update(painting.id, { providerId: 'zhipu' })
+
+    expect(updated.providerId).toBe('zhipu')
+    expect(updated.modelId).toBeNull()
+  })
+
   it("moves a painting to the first position via { position: 'first' }", async () => {
     const first = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' })
     const second = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'second' })

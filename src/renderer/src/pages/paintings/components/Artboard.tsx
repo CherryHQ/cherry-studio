@@ -1,5 +1,4 @@
-import { Button } from '@cherrystudio/ui'
-import ImageViewer from '@renderer/components/ImageViewer'
+import { Button, Dialog, DialogContent } from '@cherrystudio/ui'
 import FileManager from '@renderer/services/FileManager'
 import { motion } from 'framer-motion'
 import { type FC, useCallback, useEffect, useState } from 'react'
@@ -45,6 +44,7 @@ const LoadingStateCard: FC<{ text: React.ReactNode; onCancel: () => void; cancel
 const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover, loadText }) => {
   const { t } = useTranslation()
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
   const displayedImageIndex = painting.files.length > 0 ? Math.min(currentImageIndex, painting.files.length - 1) : 0
   const currentFile = painting.files[displayedImageIndex]
   const currentImageUrl = currentFile ? FileManager.getFileUrl(currentFile) : ''
@@ -60,6 +60,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
 
   useEffect(() => {
     setCurrentImageIndex(0)
+    setLightboxOpen(false)
   }, [painting.id])
 
   useEffect(() => {
@@ -70,11 +71,11 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
   }, [painting.files.length])
 
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center [--artboard-max:calc(100vh-256px)]">
+    <div className="flex min-h-0 w-full flex-1 flex-col p-2">
       <div
-        className={`relative flex h-full w-full items-center justify-center transition-opacity ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
+        className={`relative flex min-h-0 flex-1 flex-col items-center justify-center transition-opacity ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
         {painting.files.length > 0 ? (
-          <div className="relative flex items-center justify-center">
+          <div className="relative flex min-h-0 w-full flex-1 items-center justify-center">
             {painting.files.length > 1 && (
               <Button
                 size="icon-sm"
@@ -84,17 +85,30 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
                 ←
               </Button>
             )}
-            <ImageViewer
-              src={currentImageUrl}
-              preview={{ mask: false }}
-              style={{
-                maxWidth: 'var(--artboard-max)',
-                maxHeight: 'var(--artboard-max)',
-                objectFit: 'contain',
-                backgroundColor: 'hsl(var(--muted) / 0.35)',
-                cursor: 'pointer'
-              }}
-            />
+            <button
+              type="button"
+              className="flex max-h-full max-w-full items-center justify-center rounded-md outline-offset-2 focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={t('common.image_preview')}
+              onClick={() => setLightboxOpen(true)}>
+              <img
+                src={currentImageUrl}
+                alt=""
+                className="max-h-[min(100%,calc(100vh-14rem))] max-w-full object-contain"
+                style={{ backgroundColor: 'hsl(var(--muted) / 0.35)' }}
+              />
+            </button>
+            <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+              <DialogContent
+                showCloseButton
+                className="max-h-[92vh] w-[min(96rem,calc(100vw-2rem))] max-w-[min(96rem,calc(100vw-2rem))] border-none bg-transparent p-2 shadow-none sm:max-w-[min(96rem,calc(100vw-2rem))]">
+                <img
+                  src={currentImageUrl}
+                  alt=""
+                  className="mx-auto max-h-[88vh] w-auto max-w-full object-contain"
+                  style={{ backgroundColor: 'hsl(var(--muted) / 0.35)' }}
+                />
+              </DialogContent>
+            </Dialog>
             {painting.files.length > 1 && (
               <Button
                 size="icon-sm"

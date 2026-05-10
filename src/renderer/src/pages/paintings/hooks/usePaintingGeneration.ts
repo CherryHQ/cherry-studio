@@ -14,6 +14,7 @@ import {
 import { presentPaintingGenerateError } from '../model/paintingGenerateError'
 import type { PaintingData } from '../model/types/paintingData'
 import { cleanRuntime, type PaintingGenerationState, withRuntime } from '../model/utils/paintingGenerationParams'
+import { moveEditImageFiles } from '../providers/newapi/editFiles'
 import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
 import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
@@ -76,6 +77,10 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       return
     }
 
+    if (shouldCreate) {
+      moveEditImageFiles(painting.id, targetPaintingInput.id)
+    }
+
     const targetPainting = await recordToPaintingData(targetRecord)
     const generationState: PaintingGenerationState = {
       generationStatus: 'running',
@@ -117,7 +122,10 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       })
       await generationStateQueue
       const updatedRecord = await updatePainting(targetPainting.id, {
-        files: { output: files.map((file) => file.id), input: [] },
+        files: {
+          output: files.map((file) => file.id),
+          input: paintingDataToCreateDto(targetPainting).files?.input ?? []
+        },
         params: cleanRuntime(paintingParamsForPersistence(targetPainting))
       })
       applyIfVisible(await recordToPaintingData(updatedRecord))

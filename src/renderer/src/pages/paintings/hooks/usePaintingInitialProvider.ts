@@ -27,7 +27,7 @@ export function usePaintingInitialProvider(providerOptions: string[]) {
   )
 
   useEffect(() => {
-    if (initialProviderId !== defaultPaintingProvider) {
+    if (!defaultPaintingProvider) {
       void setDefaultPaintingProvider(initialProviderId)
     }
   }, [defaultPaintingProvider, initialProviderId, setDefaultPaintingProvider])

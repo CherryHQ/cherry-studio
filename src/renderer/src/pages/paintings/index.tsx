@@ -100,13 +100,17 @@ const PaintingPage: FC = () => {
                 <div className={paintingClasses.tabsWrap}>
                   <PaintingModeTabs painting={currentPainting} onPaintingChange={patchPainting} />
                 </div>
-                <PaintingArtboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
-                <PaintingPromptBar
-                  painting={currentPainting}
-                  generating={generating}
-                  onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
-                  onGenerate={submit}
-                />
+                <div className={paintingClasses.centerStage}>
+                  <PaintingArtboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
+                </div>
+                <div className={paintingClasses.promptDock}>
+                  <PaintingPromptBar
+                    painting={currentPainting}
+                    generating={generating}
+                    onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
+                    onGenerate={submit}
+                  />
+                </div>
               </div>
 
               <PaintingStrip

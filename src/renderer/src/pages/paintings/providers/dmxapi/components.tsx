@@ -9,8 +9,9 @@ import ImageUploader from './ImageUploader'
 import { clearDmxapiFileMap, getDmxapiFileMap, setDmxapiFileMap, subscribeDmxapiFileMap } from './runtime'
 
 export const DmxapiSetting: FC<{
+  paintingId: string
   mode: string
-}> = ({ mode }) => {
+}> = ({ paintingId, mode }) => {
   const { t } = useTranslation()
   const [, setTick] = useState(0)
   const isEditOrMerge = mode === generationModeType.EDIT || mode === generationModeType.MERGE
@@ -18,6 +19,10 @@ export const DmxapiSetting: FC<{
   useEffect(() => {
     return subscribeDmxapiFileMap(() => setTick((tick) => tick + 1))
   }, [])
+
+  useEffect(() => {
+    clearDmxapiFileMap()
+  }, [paintingId, mode])
 
   const handleAddImage = (file: File, index?: number) => {
     const path = URL.createObjectURL(file)

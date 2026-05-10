@@ -2,6 +2,13 @@ import { Input, RowFlex } from '@cherrystudio/ui'
 
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
 
+function buildSizeValue(width: unknown, height: unknown, fallback: unknown): unknown {
+  if (width === '' || height === '' || width === undefined || height === undefined) {
+    return fallback
+  }
+  return `${width}x${height}`
+}
+
 export default function SizeField({ item, painting, onChange }: PaintingFieldComponentProps) {
   const { widthKey = 'width', heightKey = 'height', sizeKey, validation = {} } = item
   const widthValue = painting[widthKey] ?? ''
@@ -18,7 +25,7 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
             const value = event.target.value === '' ? '' : Number(event.target.value)
             const updates: Record<string, unknown> = { [widthKey]: value }
             if (sizeKey) {
-              updates[sizeKey] = `${value}x${heightValue}`
+              updates[sizeKey] = buildSizeValue(value, heightValue, painting[sizeKey])
             }
             onChange(updates)
           }}
@@ -26,7 +33,7 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
           max={validation.maxWidth}
           className="flex-1"
         />
-        <span className="text-[12px] text-[var(--color-text-2)]">x</span>
+        <span className="text-[12px] text-muted-foreground">x</span>
         <Input
           placeholder="H"
           type="number"
@@ -35,7 +42,7 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
             const value = event.target.value === '' ? '' : Number(event.target.value)
             const updates: Record<string, unknown> = { [heightKey]: value }
             if (sizeKey) {
-              updates[sizeKey] = `${widthValue}x${value}`
+              updates[sizeKey] = buildSizeValue(widthValue, value, painting[sizeKey])
             }
             onChange(updates)
           }}
@@ -43,7 +50,7 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
           max={validation.maxHeight}
           className="flex-1"
         />
-        <span className="text-[12px] text-[var(--color-text-2)]">px</span>
+        <span className="text-[12px] text-muted-foreground">px</span>
       </RowFlex>
     </div>
   )

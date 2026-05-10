@@ -17,7 +17,7 @@ export async function generateWithOvms(input: GenerateInput<OvmsPaintingData>) {
       rng_seed: painting.rng_seed || 0
     }
 
-    const response = await fetch(`${provider.apiHost}images/generations`, {
+    const response = await fetch(`${provider.apiHost}/images/generations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),

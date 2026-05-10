@@ -2,11 +2,11 @@ import { Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import FileManager from '@renderer/services/FileManager'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
-import type { FC } from 'react'
-import { useState } from 'react'
+import type { FC, UIEventHandler } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type PaintingStripEntry, usePaintingItems } from '../hooks/usePaintingItems'
+import { type PaintingStripEntry, usePaintingHistory } from '../hooks/usePaintingHistory'
 import type { PaintingData } from '../model/types/paintingData'
 import { paintingClasses } from '../PaintingPrimitives'
 
@@ -23,25 +23,30 @@ const PaintingStripItem: FC<{
   loading: boolean
   onDelete: (painting: PaintingStripEntry) => void
   onSelect: (painting: PaintingStripEntry) => void
-}> = ({ painting, selected, loading, onDelete, onSelect }) => {
+  selectLabel: string
+  deleteLabel: string
+}> = ({ painting, selected, loading, onDelete, onSelect, selectLabel, deleteLabel }) => {
   const previewFile = painting.files?.[0]
 
   return (
-    <button
-      type="button"
-      className={cn(paintingClasses.historyItem, selected && paintingClasses.historyItemActive)}
-      onClick={() => onSelect(painting)}>
-      <span className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-[var(--painting-radius-item)]">
-        {previewFile ? (
-          <img src={FileManager.getFileUrl(previewFile)} alt="" className="h-full w-full object-cover" />
-        ) : loading ? (
-          <span className="flex h-full w-full items-center justify-center bg-muted/60">
-            <Loader2 className="size-4 animate-spin text-muted-foreground/70" />
-          </span>
-        ) : (
-          <span className="block size-full bg-muted/60" aria-hidden />
-        )}
-      </span>
+    <div className={cn(paintingClasses.historyItem, selected && paintingClasses.historyItemActive)}>
+      <button
+        type="button"
+        className="absolute inset-0 z-0"
+        aria-label={selectLabel}
+        onClick={() => onSelect(painting)}>
+        <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-[var(--painting-radius-item)]">
+          {previewFile ? (
+            <img src={FileManager.getFileUrl(previewFile)} alt="" className="h-full w-full object-cover" />
+          ) : loading ? (
+            <span className="flex h-full w-full items-center justify-center bg-muted/60">
+              <Loader2 className="size-4 animate-spin text-muted-foreground/70" />
+            </span>
+          ) : (
+            <span className="block size-full bg-muted/60" aria-hidden />
+          )}
+        </span>
+      </button>
 
       {selected && (
         <span
@@ -56,15 +61,17 @@ const PaintingStripItem: FC<{
         </span>
       )}
 
-      <span
+      <button
+        type="button"
+        aria-label={deleteLabel}
         className={paintingClasses.historyDelete}
         onClick={(event) => {
           event.stopPropagation()
           onDelete(painting)
         }}>
         <Trash2 className="size-3" />
-      </span>
-    </button>
+      </button>
+    </div>
   )
 }
 
@@ -75,12 +82,26 @@ const PaintingStrip: FC<PaintingStripProps> = ({
   onAddPainting
 }) => {
   const { t } = useTranslation()
-  const { items } = usePaintingItems()
+  const { items, hasMore, loadMore } = usePaintingHistory()
   const [pendingDelete, setPendingDelete] = useState<PaintingStripEntry | null>(null)
+  const stripRef = useRef<HTMLDivElement>(null)
+  const handleScroll: UIEventHandler<HTMLDivElement> = (event) => {
+    const target = event.currentTarget
+    if (target.scrollTop + target.clientHeight >= target.scrollHeight - 120) {
+      loadMore()
+    }
+  }
+
+  useEffect(() => {
+    const strip = stripRef.current
+    if (hasMore && strip && strip.scrollHeight <= strip.clientHeight) {
+      loadMore()
+    }
+  }, [hasMore, items.length, loadMore])
 
   return (
     <>
-      <div className={paintingClasses.historyStrip}>
+      <div ref={stripRef} className={paintingClasses.historyStrip} onScroll={handleScroll}>
         <Tooltip content={t('paintings.button.new.image')} placement="left" delay={500}>
           <Button
             type="button"
@@ -100,8 +121,11 @@ const PaintingStrip: FC<PaintingStripProps> = ({
             loading={painting.generationStatus === 'running'}
             onDelete={setPendingDelete}
             onSelect={onSelectPainting}
+            selectLabel={t('paintings.button.select.image')}
+            deleteLabel={t('paintings.button.delete.image.label')}
           />
         ))}
+        {hasMore && <Loader2 className="mx-auto size-4 shrink-0 animate-spin text-muted-foreground/60" aria-hidden />}
       </div>
 
       <style>{`

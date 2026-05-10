@@ -50,7 +50,7 @@ export function PaintingSettingsExtras({
   tab: string
 }) {
   if (provider.id === 'dmxapi') {
-    return <DmxapiSetting mode={tab} />
+    return <DmxapiSetting paintingId={painting.id} mode={tab} />
   }
 
   if (provider.id === 'tokenflux') {

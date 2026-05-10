@@ -3097,6 +3097,9 @@
       },
       "new": {
         "image": "新繪圖"
+      },
+      "select": {
+        "image": "選擇繪圖"
       }
     },
     "custom_size": "自訂尺寸",

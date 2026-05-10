@@ -8,6 +8,22 @@ import { cleanRuntime, readRuntime } from '../utils/paintingGenerationParams'
 
 const LEGACY_RUNTIME_PARAM_KEYS = new Set(['taskId', 'taskStatus', 'generationId', 'runtimeProviderId'])
 
+/** Maps DB `painting.model_id` or legacy params into the renderer's API model slug (never the user_model row id alone). */
+function normalizeStoredPaintingModel(value: unknown): string | undefined {
+  if (value == null) return undefined
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  if (isUniqueModelId(trimmed)) {
+    try {
+      return parseUniqueModelId(trimmed).modelId
+    } catch {
+      return trimmed
+    }
+  }
+  return trimmed
+}
+
 async function resolveFiles(ids: string[]): Promise<FileMetadata[]> {
   return (await Promise.all(ids.map(async (id) => (await FileManager.getFile(id)) ?? null))).filter(
     (file): file is FileMetadata => Boolean(file)
@@ -26,22 +42,27 @@ export async function recordToPaintingData(record: PaintingRecord): Promise<Pain
     delete rawParams[key]
   }
 
+  const paramModelCandidate =
+    normalizeStoredPaintingModel((rawParams as Record<string, unknown>).model) ??
+    normalizeStoredPaintingModel((rawParams as Record<string, unknown>).modelId)
+
+  delete (rawParams as Record<string, unknown>).model
+  delete (rawParams as Record<string, unknown>).modelId
+
+  const model = normalizeStoredPaintingModel(record.modelId) ?? paramModelCandidate
+
   return {
     id: record.id,
     providerId: record.providerId,
     mode: record.mode,
     mediaType: record.mediaType,
-    model: record.modelId
-      ? isUniqueModelId(record.modelId)
-        ? parseUniqueModelId(record.modelId).modelId
-        : record.modelId
-      : undefined,
     prompt: record.prompt,
     files,
     inputFiles,
     persistedAt: record.createdAt,
     ...generationFields,
-    ...rawParams
+    ...rawParams,
+    model
   } as PaintingData
 }
 
