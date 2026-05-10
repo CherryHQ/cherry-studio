@@ -394,4 +394,4 @@ Resource design (API shape, consumer-side `groupId` linkage) is documented on `G
 
 `pin` table — `src/main/data/db/schemas/pin.ts`. Partition column: `entityType`. Pin order is scoped per entityType via `scopedOrderKeyIndex('pin', 'entityType')`. `PinService.reorder` / `reorderBatch` delegate to `applyScopedMoves` with `scopeColumn: pinTable.entityType`; see §3.1.
 
-Resource design (polymorphic `(entityType, entityId)` shape, idempotent concurrent-safe `pin()`, `purgeForEntity` delete contract, hard-delete-on-unpin) is documented on `pin.ts` schema and `PinService` — not here.
+Resource design (polymorphic `(entityType, entityId)` shape, idempotent concurrent-safe `pin()`, `purgeForEntityTx` delete contract, hard-delete-on-unpin) is documented on `pin.ts` schema and `PinService` — not here.

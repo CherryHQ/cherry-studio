@@ -273,7 +273,7 @@ await setTheme('dark')
 
 `tests/__mocks__/main/` holds mocks for **cross-cutting infrastructure only**: `PreferenceService`, `CacheService`, `DbService`, `DataApiService`, plus minimal `MainWindowService` / `WindowManager` stubs. All are pre-mocked globally via `tests/main.setup.ts`.
 
-**Do not add files here for feature-specific lifecycle services** (e.g., `MarkdownTaskService`, `KnowledgeRuntimeService`). The `ServiceOverrides` type is deliberately locked to `keyof typeof defaultServiceInstances` to enforce this boundary. Stub them locally — see [Testing Other Lifecycle Services](#testing-other-lifecycle-services).
+**Do not add files here for feature-specific lifecycle services** (e.g., `FileProcessingTaskService`, `KnowledgeRuntimeService`). The `ServiceOverrides` type is deliberately locked to `keyof typeof defaultServiceInstances` to enforce this boundary. Stub them locally — see [Testing Other Lifecycle Services](#testing-other-lifecycle-services).
 
 | Service category | How to mock |
 |---|---|
@@ -446,10 +446,10 @@ import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, startTaskMock, getTaskResultMock } = vi.hoisted(() => ({
+const { appGetMock, startTaskMock, getTaskMock } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   startTaskMock: vi.fn(),
-  getTaskResultMock: vi.fn()
+  getTaskMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -472,8 +472,8 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
 beforeEach(() => {
   vi.clearAllMocks()
   appGetMock.mockImplementation((name: string) => {
-    if (name === 'MarkdownTaskService') {
-      return { startTask: startTaskMock, getTaskResult: getTaskResultMock }
+    if (name === 'FileProcessingTaskService') {
+      return { startTask: startTaskMock, getTask: getTaskMock }
     }
     throw new Error(`Unexpected application.get(${name})`)
   })

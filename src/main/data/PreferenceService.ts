@@ -195,9 +195,6 @@ export class PreferenceService extends BaseService {
   // Custom notifier for main process change notifications
   private notifier = new PreferenceNotifier()
 
-  // Saves the reference to the cleanup interval
-  private cleanupInterval: NodeJS.Timeout | null = null
-
   // Database reference, set during onInit
   private db!: DbType
 
@@ -241,11 +238,6 @@ export class PreferenceService extends BaseService {
    * Lifecycle: Cleanup resources and remove IPC handlers
    */
   protected async onStop(): Promise<void> {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval)
-      this.cleanupInterval = null
-    }
-
     this.notifier.removeAllSubscriptions()
     this.windowSubscriptions.clear()
 
@@ -769,8 +761,7 @@ export class PreferenceService extends BaseService {
     }
 
     // Run cleanup periodically (every 5 minutes)
-    this.cleanupInterval = setInterval(cleanup, 300 * 1000)
-    this.cleanupInterval.unref()
+    this.registerInterval(cleanup, 300 * 1000)
   }
 
   /**

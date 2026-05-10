@@ -1,8 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { Copy } from 'lucide-react'
-import type { FC, KeyboardEvent } from 'react'
+import type { CSSProperties, FC, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface CopyButtonProps {
   tooltip?: string
@@ -13,9 +12,9 @@ interface CopyButtonProps {
   size?: number
 }
 
-interface ButtonContainerProps {
-  $color: string
-  $hoverColor: string
+type CopyButtonStyle = CSSProperties & {
+  '--copy-button-color': string
+  '--copy-button-hover-color': string
 }
 
 const CopyButton: FC<CopyButtonProps> = ({
@@ -47,19 +46,23 @@ const CopyButton: FC<CopyButtonProps> = ({
   }
 
   const ariaLabel = tooltip || t('common.copy')
+  const buttonStyle: CopyButtonStyle = {
+    '--copy-button-color': color,
+    '--copy-button-hover-color': hoverColor
+  }
 
   const button = (
-    <ButtonContainer
-      $color={color}
-      $hoverColor={hoverColor}
+    <div
+      className="group flex cursor-pointer flex-row items-center gap-1 text-[var(--copy-button-color)] transition-colors hover:text-[var(--copy-button-hover-color)]"
+      style={buttonStyle}
       onClick={handleCopy}
       onKeyDown={handleKeyDown}
       role="button"
       aria-label={ariaLabel}
       tabIndex={0}>
-      <Copy size={size} className="copy-icon" />
-      {label && <RightText size={size}>{label}</RightText>}
-    </ButtonContainer>
+      <Copy size={size} className="copy-icon shrink-0 transition-colors" />
+      {label && <span style={{ fontSize: size }}>{label}</span>}
+    </div>
   )
 
   if (tooltip) {
@@ -68,32 +71,5 @@ const CopyButton: FC<CopyButtonProps> = ({
 
   return button
 }
-
-const ButtonContainer = styled.div<ButtonContainerProps>`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  color: ${(props) => props.$color};
-  transition: color 0.2s;
-
-  .copy-icon {
-    color: ${(props) => props.$color};
-    transition: color 0.2s;
-  }
-
-  &:hover {
-    color: ${(props) => props.$hoverColor};
-
-    .copy-icon {
-      color: ${(props) => props.$hoverColor};
-    }
-  }
-`
-
-const RightText = styled.span<{ size: number }>`
-  font-size: ${(props) => props.size}px;
-`
 
 export default CopyButton

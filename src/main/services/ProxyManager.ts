@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ProxyConfig } from 'electron'
 import { app, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
@@ -12,13 +12,13 @@ const logger = loggerService.withContext('ProxyManager')
 @ServicePhase(Phase.WhenReady)
 export class ProxyManager extends BaseService {
   private config: ProxyConfig = { mode: 'direct' }
-  private systemProxyInterval: NodeJS.Timeout | null = null
+  private systemProxyInterval: Disposable | null = null
   private isSettingProxy = false
   private nodeProxyController = new NodeProxyController(logger)
 
   private async monitorSystemProxy(): Promise<void> {
     this.clearSystemProxyMonitor()
-    this.systemProxyInterval = setInterval(async () => {
+    this.systemProxyInterval = this.registerInterval(async () => {
       const currentProxy = await getSystemProxy()
       if (
         currentProxy?.proxyUrl.toLowerCase() === this.config?.proxyRules &&
@@ -40,7 +40,7 @@ export class ProxyManager extends BaseService {
 
   private clearSystemProxyMonitor(): void {
     if (this.systemProxyInterval) {
-      clearInterval(this.systemProxyInterval)
+      this.systemProxyInterval.dispose()
       this.systemProxyInterval = null
     }
   }
