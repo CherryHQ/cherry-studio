@@ -342,5 +342,3 @@ function pickAbortReason(args: {
   if (byteFraction > ABORT_FRACTION) return 'byte-fraction'
   return undefined
 }
-
-export type FileManagerDepsForSweep = FileManagerDeps

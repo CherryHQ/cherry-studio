@@ -16,6 +16,7 @@ vi.mock('@application', async () => {
 
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
+const { createDefaultOrphanCheckerRegistry } = await import('@data/services/orphan/FileRefCheckerRegistry')
 const { hash, hashByPath } = await import('../hash')
 
 import type { FileManagerDeps } from '../../deps'
@@ -51,7 +52,8 @@ describe('internal/content/hash', () => {
         set: vi.fn(),
         invalidate: vi.fn(),
         clear: vi.fn()
-      }
+      },
+      orphanRegistry: createDefaultOrphanCheckerRegistry()
     }
   })
 

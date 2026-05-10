@@ -111,6 +111,7 @@ import { pathToFileURL } from 'node:url'
 
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
+import { orphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
 import { canonicalizeExternalPath, resolvePhysicalPath } from '@data/utils/pathResolver'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { stat as fsStat } from '@main/utils/file/fs'
@@ -467,7 +468,8 @@ export class FileManager extends BaseService {
     fileEntryService,
     fileRefService,
     danglingCache,
-    versionCache
+    versionCache,
+    orphanRegistry: orphanCheckerRegistry
   }
 
   protected override async onInit(): Promise<void> {

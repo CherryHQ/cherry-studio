@@ -22,6 +22,7 @@
 
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
+import type { OrphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
 
 import type { DanglingCache } from '../danglingCache'
 import type { VersionCache } from '../versionCache'
@@ -31,4 +32,5 @@ export interface FileManagerDeps {
   readonly fileRefService: FileRefService
   readonly danglingCache: DanglingCache
   readonly versionCache: VersionCache
+  readonly orphanRegistry: OrphanCheckerRegistry
 }
