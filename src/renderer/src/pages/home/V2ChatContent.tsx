@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { ToolApprovalProvider } from '@renderer/hooks/ToolApprovalContext'
@@ -13,6 +14,9 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('V2ChatContent')
 
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import { useV2ChatOverrides } from './hooks/useV2ChatOverrides'
@@ -57,6 +61,7 @@ interface Props {
  * the rendering pipeline.
  */
 const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, onPersistTemporaryTopic }) => {
+  const { t } = useTranslation()
   const {
     uiMessages,
     siblingsMap,
@@ -74,7 +79,7 @@ const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, onPersist
         className="flex flex-1 flex-col items-center justify-center"
         style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
         <div className="text-sm" style={{ color: 'var(--color-text-3)' }}>
-          Loading conversation...
+          {t('common.loading')}
         </div>
       </div>
     )
@@ -192,7 +197,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
           // name so the sidebar entry isn't blank while the auto-namer runs.
           await onPersistTemporaryTopic(text)
         } catch (err) {
-          console.warn('[V2ChatContent] failed to persist temporary topic, falling back', err)
+          logger.warn('failed to persist temporary topic, falling back', err as Error)
         }
       }
       const optimisticUserId = await cache.seedOptimisticUser({
