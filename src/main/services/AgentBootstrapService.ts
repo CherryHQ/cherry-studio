@@ -66,7 +66,10 @@ export class AgentBootstrapService extends BaseService {
     logger.info('Channel manager started')
   }
 
-  protected async onDestroy(): Promise<void> {
+  protected async onStop(): Promise<void> {
+    // Cleanup belongs to onStop (not onDestroy) so the service is restartable:
+    // a restart after `application.stop('AgentBootstrapService')` would
+    // otherwise leak two scheduler poll loops + channel adapter sets.
     schedulerService.stopAll()
     logger.info('Schedulers stopped')
 
