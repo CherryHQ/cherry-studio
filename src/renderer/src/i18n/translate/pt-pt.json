@@ -6299,6 +6299,7 @@
       "clear_description": "Limpar histórico irá deletar todos os registros de tradução. Deseja continuar?",
       "copy_target": "[to be translated]:Copy result",
       "delete": "Apagar histórico de traduções",
+      "delete_description": "[to be translated]:Delete this translation history record? This action cannot be undone.",
       "empty": "Nenhum histórico de tradução disponível",
       "error": {
         "add": "[to be translated]:Failed to add translation history",

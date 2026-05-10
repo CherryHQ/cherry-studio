@@ -6299,6 +6299,7 @@
       "clear_description": "清空歷史將刪除所有翻譯歷史記錄，是否繼續？",
       "copy_target": "複製譯文",
       "delete": "刪除翻譯歷史",
+      "delete_description": "確定要刪除這筆翻譯歷史記錄嗎？此操作無法復原。",
       "empty": "翻譯歷史為空",
       "error": {
         "add": "新增翻譯紀錄失敗",

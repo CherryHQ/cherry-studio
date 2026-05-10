@@ -1,4 +1,13 @@
-import { HelpTooltip, PageSidePanel, Popover, PopoverContent, PopoverTrigger, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  HelpTooltip,
+  PageSidePanel,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useLanguages, useTranslateLanguages } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils'
@@ -240,8 +249,9 @@ const TranslatePromptField: FC = () => {
 }
 
 const CustomLanguageList: FC = () => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { languages } = useLanguages()
+  const [isAdding, setIsAdding] = useState(false)
 
   const customLanguages = useMemo(
     () =>
@@ -251,24 +261,55 @@ const CustomLanguageList: FC = () => {
     [languages]
   )
 
+  const addLanguageLabel = i18n.language.startsWith('zh')
+    ? `${t('common.add')}${t('common.language')}`
+    : `${t('common.add')} ${t('common.language')}`
+
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-foreground text-sm">{t('translate.custom.label')}</span>
-      <AddCustomLanguageForm languages={languages ?? []} />
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-foreground text-sm">{t('translate.custom.label')}</span>
+        {customLanguages.length > 0 && (
+          <span className="text-muted-foreground/40 text-xs">{t('code.count', { count: customLanguages.length })}</span>
+        )}
+      </div>
       <div className="flex flex-col gap-1">
-        {customLanguages.length > 0 ? (
-          customLanguages.map((language) => <CustomLanguageRow key={language.langCode} language={language} />)
-        ) : (
+        {customLanguages.map((language) => (
+          <CustomLanguageRow key={language.langCode} language={language} />
+        ))}
+        {customLanguages.length === 0 && !isAdding && (
           <p className="rounded-md bg-muted/30 px-2 py-2 text-center text-muted-foreground text-sm">
             {t('common.no_results')}
           </p>
+        )}
+        {isAdding ? (
+          <AddCustomLanguageForm
+            languages={languages ?? []}
+            onAdded={() => setIsAdding(false)}
+            onCancel={() => setIsAdding(false)}
+          />
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsAdding(true)}
+            aria-label={addLanguageLabel}
+            className="mt-1 h-9 w-full rounded-xl bg-muted/60 text-muted-foreground/60 shadow-none hover:bg-muted hover:text-foreground">
+            <Plus size={13} />
+            <span>{addLanguageLabel}</span>
+          </Button>
         )}
       </div>
     </div>
   )
 }
 
-const AddCustomLanguageForm: FC<{ languages: TranslateLanguage[] }> = ({ languages }) => {
+const AddCustomLanguageForm: FC<{ languages: TranslateLanguage[]; onAdded?: () => void; onCancel?: () => void }> = ({
+  languages,
+  onAdded,
+  onCancel
+}) => {
   const { t } = useTranslation()
   const { add: addLanguage } = useTranslateLanguages()
   const [value, setValue] = useState('')
@@ -308,10 +349,11 @@ const AddCustomLanguageForm: FC<{ languages: TranslateLanguage[] }> = ({ languag
     setValue('')
     setLangCode('')
     setEmoji('🌐')
+    onAdded?.()
   }
 
   return (
-    <div className="flex flex-col gap-1.5 rounded-md border border-border/50 bg-muted/20 p-2">
+    <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 border-dashed bg-muted/20 p-2">
       <div className="flex items-center gap-1.5">
         <EmojiPicker value={emoji} onChange={setEmoji} />
         <input
@@ -333,7 +375,10 @@ const AddCustomLanguageForm: FC<{ languages: TranslateLanguage[] }> = ({ languag
           onClick={() => void handleAdd()}
           aria-label={t('common.add')}
           className="bg-primary text-primary-foreground hover:opacity-90">
-          <Plus size={12} />
+          <Check size={12} />
+        </IconButton>
+        <IconButton size="md" onClick={onCancel} aria-label={t('common.cancel')}>
+          <X size={12} />
         </IconButton>
       </div>
     </div>
@@ -370,18 +415,22 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
 
   if (!editing) {
     return (
-      <div className="flex items-center gap-2 rounded-md bg-muted/30 px-2 py-1.5">
-        <span className="text-sm leading-none">{language.emoji}</span>
+      <div className="group flex items-center gap-2 rounded-lg px-2 py-[5px] transition-colors hover:bg-muted/30">
         <span className="min-w-0 flex-1 truncate text-foreground text-sm">{language.value}</span>
-        <span className="text-foreground-muted text-xs">{language.langCode}</span>
-        <IconButton size="sm" onClick={() => setEditing(true)} aria-label={t('common.edit')}>
+        <span className="shrink-0 font-mono text-muted-foreground/50 text-xs">{language.langCode}</span>
+        <IconButton
+          size="sm"
+          onClick={() => setEditing(true)}
+          aria-label={t('common.edit')}
+          className="opacity-0 transition-opacity group-hover:opacity-100">
           <PenLine size={10} />
         </IconButton>
         <IconButton
           size="sm"
           tone="destructive"
           onClick={() => void deleteLanguage(language.langCode)}
-          aria-label={t('common.delete')}>
+          aria-label={t('common.delete')}
+          className="opacity-0 transition-opacity group-hover:opacity-100">
           <X size={10} />
         </IconButton>
       </div>

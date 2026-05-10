@@ -6299,6 +6299,7 @@
       "clear_description": "Η διαγραφή του ιστορικού θα διαγράψει όλα τα απομνημονεύματα μετάφρασης. Θέλετε να συνεχίσετε;",
       "copy_target": "[to be translated]:Copy result",
       "delete": "Διαγραφή του ιστορικού μετάφρασης",
+      "delete_description": "[to be translated]:Delete this translation history record? This action cannot be undone.",
       "empty": "δεν υπάρχουν απομνημονεύματα μετάφρασης",
       "error": {
         "add": "[to be translated]:Failed to add translation history",

@@ -6299,6 +6299,7 @@
       "clear_description": "Clear history will delete all translation history, continue?",
       "copy_target": "Copy result",
       "delete": "Delete translation history",
+      "delete_description": "Delete this translation history record? This action cannot be undone.",
       "empty": "No translation history",
       "error": {
         "add": "Failed to add translation history",

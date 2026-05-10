@@ -6299,6 +6299,7 @@
       "clear_description": "Golirea istoricului va șterge tot istoricul traducerilor, continui?",
       "copy_target": "[to be translated]:Copy result",
       "delete": "Șterge istoricul traducerilor",
+      "delete_description": "[to be translated]:Delete this translation history record? This action cannot be undone.",
       "empty": "Niciun istoric de traducere",
       "error": {
         "add": "[to be translated]:Failed to add translation history",
