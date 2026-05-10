@@ -10,8 +10,10 @@ Replace Redux `useAppSelector` / `dispatch` in React components with v2 hooks (`
 **This skill enforces strict TDD (red-green-refactor).** For every unit of work: (1) write ONE failing test (red), (2) write the minimum code to make it pass (green), (3) refactor while keeping tests green. Repeat. Run `pnpm test:renderer` to verify.
 
 **Related skills:**
-- `v2-migrator` - Phase 1: Migrating legacy data into SQLite
 - `v2-data-api` - Phase 2: Main-process services that expose data
+
+For legacy data migration guidance, use
+`docs/references/data/v2-migration-guide.md`.
 
 ## Multi-Window Architecture
 

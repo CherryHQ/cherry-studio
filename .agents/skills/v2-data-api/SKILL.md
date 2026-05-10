@@ -10,8 +10,10 @@ Design and implement the Main-process layer that exposes SQLite data to renderer
 **This skill enforces strict TDD (red-green-refactor).** For every unit of work: (1) write ONE failing test (red), (2) write the minimum code to make it pass (green), (3) refactor while keeping tests green. Repeat. Run `pnpm test:main` to verify.
 
 **Related skills:**
-- `v2-migrator` - Phase 1: Migrating legacy data into SQLite
 - `v2-renderer` - Phase 3: Renderer hooks that consume these APIs
+
+For legacy data migration guidance, use
+`docs/references/data/v2-migration-guide.md`.
 
 ## System Selection
 

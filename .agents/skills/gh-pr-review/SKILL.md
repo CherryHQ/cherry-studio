@@ -1,6 +1,6 @@
 ---
 name: gh-pr-review
-description: Automated code review for local branches, PRs, commits, and files. Supports single-agent review with interactive fix selection, or multi-agent deep review with reviewer-verifier adversarial mechanism and risk-based auto-fix.
+description: Automated Cherry Studio code review for local branches, PRs, commits, and files. Use for reviewing code, docs, or pull requests with project-specific checks for DataApi boundaries, service ownership, renderer data hooks, React Hooks, lifecycle services, i18n, UI conventions, and tests. Supports single-agent review with interactive fix selection, or multi-agent deep review with reviewer-verifier adversarial mechanism and risk-based auto-fix.
 ---
 
 <!-- Based on https://github.com/Tencent/tgfx/tree/main/.codebuddy/skills/cr -->
@@ -12,6 +12,12 @@ Automated code review for local branches, PRs, commits, and files. Detects
 review mode from arguments and routes to the appropriate review flow — either
 quick single-agent review with interactive fix selection, or multi-agent
 deep review with risk-based auto-fix.
+
+Cherry Studio-specific review rules live in
+`references/cherry-review-guidance.md`. Target review flows must load that file
+for code, mixed, architecture-doc, and project-skill reviews so reviewers can
+apply DataApi, service-boundary, renderer hook, React, UI, and type-contract
+checks without relying on memory.
 
 All user-facing text matches the user's language. All questions and option
 selections MUST use your interactive dialog tool (e.g. AskUserQuestion) — never
