@@ -102,6 +102,13 @@ export interface FileEntryService {
    */
   findUnreferenced(query?: { origin?: FileEntryOrigin }): Promise<FileEntry[]>
 
+  /**
+   * All entry ids regardless of trashed state — backs the Phase 1b.4 startup
+   * file sweep, which needs to know which on-disk UUID files have a DB row
+   * (active or trashed; both are out of scope for unlink).
+   */
+  listAllIds(): Promise<Set<FileEntryId>>
+
   /** Insert a new row. Violates `fe_origin_consistency` / `fe_size_internal_only` → throws. */
   create(values: CreateFileEntryRow): Promise<FileEntry>
 
@@ -197,6 +204,11 @@ class FileEntryServiceImpl implements FileEntryService {
       .where(and(...conditions))
       .orderBy(asc(fileEntryTable.createdAt))
     return rows.map((r) => rowToFileEntry(r.entry))
+  }
+
+  async listAllIds(): Promise<Set<FileEntryId>> {
+    const rows = await this.getDb().select({ id: fileEntryTable.id }).from(fileEntryTable)
+    return new Set(rows.map((r) => r.id as FileEntryId))
   }
 
   async create(values: CreateFileEntryRow): Promise<FileEntry> {

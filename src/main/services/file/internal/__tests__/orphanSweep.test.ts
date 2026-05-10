@@ -1,3 +1,8 @@
+import { mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
@@ -13,7 +18,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { OrphanRefScanner, runDbSweep, scanOrphanEntries } = await import('../orphanSweep')
+const { OrphanRefScanner, runDbSweep, runStartupFileSweep, scanOrphanEntries } = await import('../orphanSweep')
 const { tempSessionChecker } = await import('@data/services/orphan/FileRefCheckerRegistry')
 
 describe('OrphanRefScanner', () => {
@@ -313,6 +318,61 @@ describe('runDbSweep (umbrella + observability)', () => {
       'orphan-sweep',
       expect.objectContaining({ event: 'orphan-sweep', outcome: 'failed' })
     )
+  })
+})
+
+describe('runStartupFileSweep (FS-level)', () => {
+  const dbh = setupTestDatabase()
+  let filesDir: string
+
+  beforeEach(async () => {
+    MockMainDbServiceUtils.setDb(dbh.db)
+    filesDir = await mkdtemp(path.join(tmpdir(), 'cherry-fm-sweep-'))
+    vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.files.data') {
+        return filename ? path.join(filesDir, filename) : filesDir
+      }
+      return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+    })
+  })
+
+  afterEach(async () => {
+    await rm(filesDir, { recursive: true, force: true })
+    vi.restoreAllMocks()
+  })
+
+  it('unlinks UUID files without a matching DB entry', async () => {
+    const knownId = '019606a0-0000-7000-8000-00000000ee50' as FileEntryId
+    const orphanId = '019606a0-0000-7000-8000-00000000ee51'
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id: knownId,
+      origin: 'internal',
+      name: 'k',
+      ext: 'txt',
+      size: 1,
+      externalPath: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    const knownPath = path.join(filesDir, `${knownId}.txt`)
+    const orphanPath = path.join(filesDir, `${orphanId}.txt`)
+    await writeFile(knownPath, 'k')
+    await writeFile(orphanPath, 'o')
+    // Backdate both files so they pass the >5min freshness gate.
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    await utimes(knownPath, ancient, ancient)
+    await utimes(orphanPath, ancient, ancient)
+
+    const report = await runStartupFileSweep({ fileEntryService })
+    expect(report.outcome).toBe('completed')
+    expect(report.actualDeleteCount).toBe(1)
+
+    // Known file preserved.
+    expect((await stat(knownPath)).size).toBe(1)
+    // Orphan file gone.
+    await expect(stat(orphanPath)).rejects.toThrow(/ENOENT/)
   })
 })
 

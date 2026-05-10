@@ -19,13 +19,15 @@
  * `loggerService` (events `orphan-sweep` / `orphan-file-sweep`).
  */
 
+import { readdir, unlink } from 'node:fs/promises'
+import path from 'node:path'
+
+import { application } from '@application'
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
 import type { OrphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
 import { loggerService } from '@logger'
-import type { FileEntryOrigin, FileRefSourceType } from '@shared/data/types/file'
-
-import type { FileManagerDeps } from './deps'
+import type { FileEntryId, FileEntryOrigin, FileRefSourceType } from '@shared/data/types/file'
 
 const logger = loggerService.withContext('file/orphanSweep')
 
@@ -156,6 +158,109 @@ export async function runDbSweep(deps: RunDbSweepDeps): Promise<DbSweepReport> {
   }
 }
 
-// ─── FS-level: runStartupFileSweep (Group D — landing in subsequent commits) ───
+// ─── FS-level: runStartupFileSweep (architecture §10) ───
+
+/** UUID 8-4-4-4-12 hex. Matches both v4 (atomic-write tmp suffix) and v7 (entry id). */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** UUID file: `<UUID>.<ext>` or just `<UUID>` (no extension). */
+function isUuidFileName(name: string): { id: string } | null {
+  const dotIndex = name.indexOf('.')
+  const stem = dotIndex < 0 ? name : name.slice(0, dotIndex)
+  return UUID_RE.test(stem) ? { id: stem } : null
+}
+
+/** Atomic-write tmp residue: `<anything>.tmp-<UUID>`. */
+function isTmpResidueName(name: string): boolean {
+  const tmpIdx = name.lastIndexOf('.tmp-')
+  if (tmpIdx < 0) return false
+  const suffix = name.slice(tmpIdx + '.tmp-'.length)
+  return UUID_RE.test(suffix)
+}
+
+export interface RunStartupFileSweepDeps {
+  readonly fileEntryService: Pick<FileEntryService, 'listAllIds'>
+}
+
+export interface FileSweepReport {
+  readonly outcome: 'completed' | 'failed'
+  readonly entriesInDb: number
+  readonly filesOnDisk: number
+  readonly plannedDeleteCount: number
+  readonly actualDeleteCount: number
+  readonly scanDurationMs: number
+  readonly errorMessage?: string
+}
+
+/**
+ * Enumerate `{userData}/files/` and unlink:
+ *   - UUID-named files whose id is not in the FileEntry snapshot
+ *   - `*.tmp-<UUID>` atomic-write residue
+ *
+ * Group D-1 ships the readdir + plan + execute path; D-2 layers on the
+ * mtime>5min freshness gate; D-3 layers on the safety threshold.
+ */
+export async function runStartupFileSweep(deps: RunStartupFileSweepDeps): Promise<FileSweepReport> {
+  const startedAt = Date.now()
+  try {
+    const filesDir = application.getPath('feature.files.data')
+    const idSnapshot: Set<FileEntryId> = await deps.fileEntryService.listAllIds()
+
+    let dirents: string[]
+    try {
+      dirents = await readdir(filesDir)
+    } catch {
+      // Files dir doesn't exist yet — nothing to sweep.
+      return {
+        outcome: 'completed',
+        entriesInDb: idSnapshot.size,
+        filesOnDisk: 0,
+        plannedDeleteCount: 0,
+        actualDeleteCount: 0,
+        scanDurationMs: Date.now() - startedAt
+      }
+    }
+
+    const planned: string[] = []
+    for (const name of dirents) {
+      const fullPath = path.join(filesDir, name)
+      const uuid = isUuidFileName(name)
+      if (uuid) {
+        if (!idSnapshot.has(uuid.id as FileEntryId)) planned.push(fullPath)
+        continue
+      }
+      if (isTmpResidueName(name)) planned.push(fullPath)
+    }
+
+    let actualDeleted = 0
+    for (const target of planned) {
+      try {
+        await unlink(target)
+        actualDeleted++
+      } catch {
+        // best-effort; missing file is fine
+      }
+    }
+
+    return {
+      outcome: 'completed',
+      entriesInDb: idSnapshot.size,
+      filesOnDisk: dirents.length,
+      plannedDeleteCount: planned.length,
+      actualDeleteCount: actualDeleted,
+      scanDurationMs: Date.now() - startedAt
+    }
+  } catch (err) {
+    return {
+      outcome: 'failed',
+      entriesInDb: 0,
+      filesOnDisk: 0,
+      plannedDeleteCount: 0,
+      actualDeleteCount: 0,
+      scanDurationMs: Date.now() - startedAt,
+      errorMessage: (err as Error).message
+    }
+  }
+}
 
 export type FileManagerDepsForSweep = FileManagerDeps
