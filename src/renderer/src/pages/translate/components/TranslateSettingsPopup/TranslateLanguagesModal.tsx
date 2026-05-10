@@ -1,14 +1,34 @@
-import { Button, InfoTooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  InfoTooltip,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@cherrystudio/ui'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { useTranslateLanguages } from '@renderer/hooks/translate'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { parsePersistedLangCode, PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { Form, Input, Modal, Popover, Space } from 'antd'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
 
 type Props = {
   isOpen: boolean
@@ -17,13 +37,10 @@ type Props = {
 }
 
 const logger = loggerService.withContext('TranslateLanguagesModal')
+const DEFAULT_EMOJI = '🏳️'
 
 const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguage, onCancel }: Props) => {
   const { t } = useTranslation()
-  const [form] = Form.useForm()
-  // antd表单的getFieldValue方法在首次渲染时无法获取到值，但emoji需要获取表单值来显示，所以单独管理状态
-  const defaultEmoji = '🏳️'
-  const [emoji, setEmoji] = useState(defaultEmoji)
   const {
     languages,
     add: addLanguage,
@@ -33,21 +50,55 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
     update: { showErrorToast: false }
   })
 
-  const langCodeList = useMemo(() => {
-    return languages?.map((item) => item.langCode) ?? []
-  }, [languages])
+  const langCodeList = useMemo(() => languages?.map((item) => item.langCode) ?? [], [languages])
+
+  const schema = useMemo(
+    () =>
+      z.object({
+        emoji: z.string().min(1),
+        value: z
+          .string()
+          .min(1, t('settings.translate.custom.error.value.empty'))
+          .max(32, t('settings.translate.custom.error.value.too_long')),
+        langCode: z
+          .string()
+          .min(1, t('settings.translate.custom.error.langCode.empty'))
+          .refine((value) => PersistedLangCodeSchema.safeParse(value.toLowerCase()).success, {
+            message: t('settings.translate.custom.error.langCode.invalid')
+          })
+          .refine(
+            (value) => {
+              const normalized = value.toLowerCase()
+              const clashes = langCodeList.some((code) => code === normalized)
+              logger.silly('validate langCode', { value, normalized, langCodeList, editingCustomLanguage })
+              if (editingCustomLanguage) {
+                return !clashes || normalized === editingCustomLanguage.langCode
+              }
+              return !clashes
+            },
+            { message: t('settings.translate.custom.error.langCode.exists') }
+          )
+      }),
+    [t, langCodeList, editingCustomLanguage]
+  )
+
+  type FieldType = z.infer<typeof schema>
+
+  const form = useForm<FieldType>({
+    resolver: zodResolver(schema) as any,
+    defaultValues: { emoji: DEFAULT_EMOJI, value: '', langCode: '' }
+  })
 
   useEffect(() => {
+    if (!isOpen) return
     if (editingCustomLanguage) {
-      form.setFieldsValue({
+      form.reset({
         emoji: editingCustomLanguage.emoji,
         value: editingCustomLanguage.value,
         langCode: editingCustomLanguage.langCode
       })
-      setEmoji(editingCustomLanguage.emoji)
     } else {
-      form.resetFields()
-      setEmoji(defaultEmoji)
+      form.reset({ emoji: DEFAULT_EMOJI, value: '', langCode: '' })
     }
   }, [editingCustomLanguage, isOpen, form])
 
@@ -56,13 +107,8 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
     [editingCustomLanguage, t]
   )
 
-  const formItemLayout = {
-    labelCol: { span: 8 },
-    wrapperCol: { span: 16 }
-  }
-
   const handleSubmit = useCallback(
-    async (values: { emoji: string; value: string; langCode: string }) => {
+    async (values: FieldType) => {
       const { emoji, value, langCode } = values
       try {
         if (editingCustomLanguage) {
@@ -79,101 +125,81 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
     [addLanguage, updateLanguage, editingCustomLanguage, onCancel, t]
   )
 
-  const footer = useMemo(() => {
-    return [
-      <Button key="modal-cancel" onClick={onCancel}>
-        {t('common.cancel')}
-      </Button>,
-      <Button key="modal-save" onClick={form.submit}>
-        {editingCustomLanguage ? t('common.save') : t('common.add')}
-      </Button>
-    ]
-  }, [onCancel, t, form.submit, editingCustomLanguage])
-
   return (
-    <Modal
-      open={isOpen}
-      title={title}
-      footer={footer}
-      onCancel={onCancel}
-      maskClosable={false}
-      transitionName="animation-move-down"
-      forceRender
-      centered
-      styles={{
-        body: {
-          padding: '20px'
-        }
-      }}>
-      <Form form={form} onFinish={handleSubmit} validateTrigger="onBlur" colon={false}>
-        <Form.Item name="emoji" label="Emoji" {...formItemLayout} style={{ height: 32 }} initialValue={defaultEmoji}>
-          <Popover
-            content={
-              <EmojiPicker
-                onEmojiClick={(emoji) => {
-                  form.setFieldsValue({ emoji })
-                  setEmoji(emoji)
-                }}
-              />
-            }
-            arrow
-            trigger="click">
-            <Button type="button" style={{ aspectRatio: '1/1' }} size="icon">
-              <Emoji emoji={emoji} />
-            </Button>
-          </Popover>
-        </Form.Item>
-        <Form.Item
-          name="value"
-          label={Label(t('settings.translate.custom.value.label'), t('settings.translate.custom.value.help'))}
-          {...formItemLayout}
-          initialValue={''}
-          rules={[
-            { required: true, message: t('settings.translate.custom.error.value.empty') },
-            { max: 32, message: t('settings.translate.custom.error.value.too_long') }
-          ]}>
-          <Input placeholder={t('settings.translate.custom.value.placeholder')} />
-        </Form.Item>
-        <Form.Item
-          name="langCode"
-          label={Label(t('settings.translate.custom.langCode.label'), t('settings.translate.custom.langCode.help'))}
-          {...formItemLayout}
-          initialValue={''}
-          rules={[
-            { required: true, message: t('settings.translate.custom.error.langCode.empty') },
-            {
-              validator: async (_, value: string) => {
-                if (!value) return
-                const normalized = value.toLowerCase()
-                logger.silly('validate langCode', { value, normalized, langCodeList, editingCustomLanguage })
-                if (!PersistedLangCodeSchema.safeParse(normalized).success) {
-                  throw new Error(t('settings.translate.custom.error.langCode.invalid'))
-                }
-                const clashes = editingCustomLanguage
-                  ? langCodeList.some((code) => code === normalized) && normalized !== editingCustomLanguage.langCode
-                  : langCodeList.some((code) => code === normalized)
-                if (clashes) {
-                  throw new Error(t('settings.translate.custom.error.langCode.exists'))
-                }
-              }
-            }
-          ]}>
-          <Input
-            disabled={editingCustomLanguage !== undefined}
-            placeholder={t('settings.translate.custom.langCode.placeholder')}
-          />
-        </Form.Item>
-      </Form>
-    </Modal>
-  )
-}
-
-const Label = (label: string, help: string) => {
-  return (
-    <Space>
-      <span>{label}</span>
-      <InfoTooltip content={help} />
-    </Space>
+    <Dialog open={isOpen} onOpenChange={(next) => !next && onCancel()}>
+      <DialogContent className="sm:max-w-[480px]" onPointerDownOutside={(e) => e.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-4">
+            <FormField
+              control={form.control}
+              name="emoji"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center gap-3 [&>label]:w-20">
+                  <FormLabel>Emoji</FormLabel>
+                  <FormControl>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button type="button" size="icon" variant="outline" className="aspect-square">
+                          <Emoji emoji={field.value} />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <EmojiPicker onEmojiClick={(emoji) => field.onChange(emoji)} />
+                      </PopoverContent>
+                    </Popover>
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="value"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    <span>{t('settings.translate.custom.value.label')}</span>
+                    <InfoTooltip content={t('settings.translate.custom.value.help')} />
+                  </FormLabel>
+                  <FormControl>
+                    <Input placeholder={t('settings.translate.custom.value.placeholder')} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="langCode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    <span>{t('settings.translate.custom.langCode.label')}</span>
+                    <InfoTooltip content={t('settings.translate.custom.langCode.help')} />
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      disabled={editingCustomLanguage !== undefined}
+                      placeholder={t('settings.translate.custom.langCode.placeholder')}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onCancel}>
+                {t('common.cancel')}
+              </Button>
+              <Button type="submit">{editingCustomLanguage ? t('common.save') : t('common.add')}</Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
