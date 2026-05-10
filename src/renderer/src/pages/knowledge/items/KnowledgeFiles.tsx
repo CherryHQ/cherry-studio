@@ -14,7 +14,7 @@ import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@sh
 import { Upload } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -58,6 +58,11 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   const { base, fileItems, addFiles, refreshItem, removeItem, getProcessingStatus } = useKnowledge(
     selectedBase.id || ''
   )
+
+  // `fileItems.reverse()` mutates in place — every re-render flipped the
+  // displayed order. Sibling files (KnowledgeDirectories.tsx, etc.) memoise
+  // a copy; do the same here.
+  const reversedFileItems = useMemo(() => [...fileItems].reverse(), [fileItems])
 
   useEffect(() => {
     const handleResize = () => {
@@ -170,7 +175,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
           <KnowledgeEmptyView />
         ) : (
           <DynamicVirtualList
-            list={fileItems.reverse()}
+            list={reversedFileItems}
             estimateSize={estimateSize}
             overscan={2}
             scrollerStyle={{ height: windowHeight - 270 }}
