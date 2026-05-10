@@ -166,7 +166,11 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
 export const useUpdateSession = (agentId: string | null) => {
   const { t } = useTranslation()
   const { trigger: updateTrigger } = useMutation('PATCH', '/sessions/:sessionId', {
-    refresh: ({ args }) => ['/sessions', `/sessions/${args?.params?.sessionId}`]
+    // `args.params.sessionId` is always supplied by `updateSession` below.
+    // Optional-chaining here would silently produce '/sessions/undefined'
+    // and miss every cache entry — better to crash loud if the contract
+    // is ever broken.
+    refresh: ({ args }) => ['/sessions', `/sessions/${args.params.sessionId}`]
   })
 
   const updateSession: UpdateAgentSessionFunction = useCallback(
