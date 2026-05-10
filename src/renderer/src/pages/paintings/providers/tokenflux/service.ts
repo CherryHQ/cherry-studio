@@ -43,11 +43,9 @@ export interface TokenFluxModelsResponse {
 }
 
 export class TokenFluxService {
-  private apiHost: string
   private apiKey: string
 
-  constructor(apiHost: string, apiKey: string) {
-    this.apiHost = apiHost
+  constructor(_apiHost: string, apiKey: string) {
     this.apiKey = apiKey
   }
 
@@ -69,13 +67,13 @@ export class TokenFluxService {
   }
 
   async fetchModels(signal?: AbortSignal): Promise<TokenFluxModel[]> {
-    const cacheKey = `tokenflux_models_${this.apiHost}_${md5(this.apiKey || 'anonymous')}`
+    const cacheKey = `tokenflux_models_${TOKENFLUX_IMAGE_API_HOST}_${md5(this.apiKey || 'anonymous')}`
     const cachedModels = modelsCache.get(cacheKey)
     if (cachedModels && cachedModels.expiresAt > Date.now()) {
       return cachedModels.models
     }
 
-    const response = await fetch(`${this.apiHost}/v1/images/models`, {
+    const response = await fetch(`${TOKENFLUX_IMAGE_API_HOST}/v1/images/models`, {
       headers: {
         Authorization: `Bearer ${this.apiKey}`
       },

@@ -30,8 +30,7 @@ export function getPaintingModelOptions(providerId: string, models: Model[]): Mo
 export async function loadPaintingModelOptions(providerId: string): Promise<ModelOption[]> {
   const models = await dataApiService.get('/models', {
     query: {
-      providerId,
-      capability: MODEL_CAPABILITY.IMAGE_GENERATION
+      providerId
     }
   })
 

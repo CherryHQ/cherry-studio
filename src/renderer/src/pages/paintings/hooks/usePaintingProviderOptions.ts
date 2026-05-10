@@ -4,7 +4,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { isPaintingNewApiProvider } from '../model/types/paintingProviderRuntime'
 import { getValidPaintingOptions } from '../utils/providerSelection'
 
-const BASE_OPTIONS = ['zhipu', 'aihubmix', 'silicon', 'dmxapi', 'tokenflux', 'ovms', 'ppio'] as const
+const BASE_OPTIONS = [
+  'zhipu',
+  'aihubmix',
+  'silicon',
+  'dmxapi',
+  'tokenflux',
+  'new-api',
+  'cherryin',
+  'aionly',
+  'ovms',
+  'ppio'
+] as const
 
 type OvmsStatus = 'not-installed' | 'not-running' | 'running'
 interface OvmsState {

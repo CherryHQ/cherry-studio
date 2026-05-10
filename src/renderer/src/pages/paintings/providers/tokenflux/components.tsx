@@ -83,35 +83,29 @@ export const TokenFluxCenterContent: FC<{
   }
 
   return (
-    <div className="flex h-full flex-1 flex-row gap-px">
-      <div className="flex h-full flex-1 flex-col border-border border-r bg-background">
-        <div className="border-border border-b bg-muted/30 px-5 py-2.5 text-center font-medium text-[14px] text-muted-foreground">
+    <div className="flex min-h-0 flex-1 flex-row gap-px">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col border-border border-r bg-background">
+        <div className="shrink-0 border-border border-b bg-muted/30 px-5 py-2.5 text-center font-medium text-[14px] text-muted-foreground">
           {t('paintings.input_image')}
         </div>
-        <div className="flex flex-1 items-center justify-center bg-background">
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background">
           {Object.entries(formData).map(([key, value]) => {
             if (key.toLowerCase().includes('image') && value) {
               return (
-                <div key={key} className="relative flex items-center justify-center">
-                  <img
-                    src={value}
-                    alt={t('paintings.uploaded_input')}
-                    style={{
-                      maxWidth: '100%',
-                      maxHeight: '70vh',
-                      objectFit: 'contain'
-                    }}
-                    className="bg-muted/30"
-                  />
-                </div>
+                <img
+                  key={key}
+                  src={value}
+                  alt={t('paintings.uploaded_input')}
+                  className="max-h-full max-w-full bg-muted/30 object-contain"
+                />
               )
             }
             return null
           })}
         </div>
       </div>
-      <div className="flex h-full flex-1 flex-col bg-background">
-        <div className="border-border border-b bg-muted/30 px-5 py-2.5 text-center font-medium text-[14px] text-muted-foreground">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
+        <div className="shrink-0 border-border border-b bg-muted/30 px-5 py-2.5 text-center font-medium text-[14px] text-muted-foreground">
           {t('paintings.generated_image')}
         </div>
         <Artboard painting={painting} isLoading={isLoading} onCancel={onCancel} />

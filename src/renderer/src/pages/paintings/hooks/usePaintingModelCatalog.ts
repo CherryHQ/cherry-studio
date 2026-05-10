@@ -167,7 +167,7 @@ export function usePaintingModelCatalog({
       const key = getAsyncCatalogKey(providerId, targetTab, providerMap.get(providerId))
       const cached = asyncCatalogCache.get(key)
 
-      if (cached?.status === 'ready') {
+      if (cached?.status === 'ready' && cached.options.length > 0) {
         return cached.options
       }
 
