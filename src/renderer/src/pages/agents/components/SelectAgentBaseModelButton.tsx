@@ -2,7 +2,6 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
-import { useApiModel } from '@renderer/hooks/agents/useModel'
 import { useModelById } from '@renderer/hooks/useModels'
 import { useProviderDisplayName } from '@renderer/hooks/useProviders'
 import type { AgentBaseWithId, Model } from '@renderer/types'
@@ -11,7 +10,7 @@ import type { Model as SharedModel, UniqueModelId } from '@shared/data/types/mod
 import type { ButtonProps } from 'antd'
 import { Button } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
-import { type CSSProperties, useCallback } from 'react'
+import { type CSSProperties, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -43,8 +42,11 @@ const SelectAgentBaseModelButton = ({
   containerClassName
 }: Props) => {
   const { t } = useTranslation()
-  const model = useApiModel({ id: agent?.model })
   const { model: currentSharedModel } = useModelById((agent?.model ?? '') as UniqueModelId)
+  const model = useMemo(
+    () => (currentSharedModel ? fromSharedModel(currentSharedModel) : undefined),
+    [currentSharedModel]
+  )
   const modelFilter = useAgentModelFilter(agentType)
   const providerName = useProviderDisplayName(currentSharedModel?.providerId)
 
