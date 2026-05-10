@@ -26,10 +26,13 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 }
 
 function callExecute(
-  args: { query: string },
+  args: { query: string; baseIds: string[] },
   ctx: { assistant?: Assistant; abortSignal?: AbortSignal } = {}
 ): Promise<unknown> {
-  const execute = entry.tool.execute as (args: { query: string }, options: ToolExecutionOptions) => Promise<unknown>
+  const execute = entry.tool.execute as (
+    args: { query: string; baseIds: string[] },
+    options: ToolExecutionOptions
+  ) => Promise<unknown>
   return execute(args, {
     toolCallId: 'tc-1',
     messages: [],
@@ -52,21 +55,37 @@ describe('kb__search', () => {
     expect(entry.defer).toBe('auto')
   })
 
-  it('returns [] when assistant has no knowledge bases', async () => {
-    const result = await callExecute({ query: 'foo' }, { assistant: makeAssistant({ knowledgeBaseIds: [] }) })
+  it('returns [] and does not search when every requested baseId is outside the assistant scope', async () => {
+    const result = await callExecute(
+      { query: 'foo', baseIds: ['kb-other'] },
+      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+    )
     expect(result).toEqual([])
     expect(orchestratorSearch).not.toHaveBeenCalled()
   })
 
-  it('returns [] when no assistant is on RequestContext', async () => {
-    const result = await callExecute({ query: 'foo' })
-    expect(result).toEqual([])
-  })
-
-  it('queries every knowledge base for the model-supplied query', async () => {
+  it('drops out-of-scope baseIds but still searches the in-scope ones', async () => {
     orchestratorSearch.mockResolvedValue([])
     await callExecute(
-      { query: 'how does X work' },
+      { query: 'q', baseIds: ['kb-1', 'kb-other'] },
+      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+    )
+    expect(orchestratorSearch).toHaveBeenCalledTimes(1)
+    expect(orchestratorSearch).toHaveBeenCalledWith('kb-1', 'q')
+  })
+
+  it('trusts the requested baseIds when assistant scope is empty (future toggle path)', async () => {
+    orchestratorSearch.mockResolvedValue([])
+    await callExecute({ query: 'q', baseIds: ['kb-1', 'kb-2'] }, { assistant: makeAssistant({ knowledgeBaseIds: [] }) })
+    expect(orchestratorSearch).toHaveBeenCalledTimes(2)
+    expect(orchestratorSearch).toHaveBeenCalledWith('kb-1', 'q')
+    expect(orchestratorSearch).toHaveBeenCalledWith('kb-2', 'q')
+  })
+
+  it('queries every requested base when all are in-scope', async () => {
+    orchestratorSearch.mockResolvedValue([])
+    await callExecute(
+      { query: 'how does X work', baseIds: ['kb-1', 'kb-2'] },
       { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2'] }) }
     )
     expect(orchestratorSearch).toHaveBeenCalledTimes(2)
@@ -90,7 +109,7 @@ describe('kb__search', () => {
     })
 
     const result = (await callExecute(
-      { query: 'q' },
+      { query: 'q', baseIds: ['kb-1', 'kb-2'] },
       { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2'] }) }
     )) as Array<{ id: number; content: string; score: number }>
 
@@ -107,10 +126,42 @@ describe('kb__search', () => {
       return [{ pageContent: 'ok', score: 0.7, metadata: {} }]
     })
     const result = (await callExecute(
-      { query: 'q' },
+      { query: 'q', baseIds: ['broken', 'good'] },
       { assistant: makeAssistant({ knowledgeBaseIds: ['broken', 'good'] }) }
     )) as Array<{ id: number; content: string }>
     expect(result).toEqual([{ id: 1, content: 'ok', score: 0.7 }])
+  })
+
+  describe('toModelOutput', () => {
+    it('returns a hint pointing the model at kb__list when output is empty', () => {
+      const toModelOutput = entry.tool.toModelOutput as (opts: {
+        toolCallId: string
+        input: { query: string; baseIds: string[] }
+        output: Array<{ id: number; content: string; score: number }>
+      }) => { type: string; value: string }
+      const result = toModelOutput({
+        toolCallId: 'tc-1',
+        input: { query: 'q', baseIds: ['kb-1'] },
+        output: []
+      })
+      expect(result.type).toBe('text')
+      expect(result.value).toMatch(/kb__list/)
+    })
+
+    it('passes the array through as json when results are present', () => {
+      const toModelOutput = entry.tool.toModelOutput as (opts: {
+        toolCallId: string
+        input: { query: string; baseIds: string[] }
+        output: Array<{ id: number; content: string; score: number }>
+      }) => { type: string; value: unknown }
+      const output = [{ id: 1, content: 'A', score: 0.9 }]
+      const result = toModelOutput({
+        toolCallId: 'tc-1',
+        input: { query: 'q', baseIds: ['kb-1'] },
+        output
+      })
+      expect(result).toEqual({ type: 'json', value: output })
+    })
   })
 
   describe('applies', () => {

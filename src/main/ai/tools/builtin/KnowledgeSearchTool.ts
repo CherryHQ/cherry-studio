@@ -1,14 +1,11 @@
 /**
  * Knowledge base search tool — agentic.
  *
- * The model picks the query and may call multiple times with refined terms.
- * Per-request `assistant.knowledgeBaseIds` flows in via RequestContext, so
- * the tool itself is stateless: one entry, registered once during AiService
- * startup via `registerBuiltinTools(...)`.
- *
- * Replaces the workflow-style `knowledgeSearchTool` factory whose intent
- * analyzer pre-baked queries into the tool itself; that factory and its
- * orchestration plugin were deleted in the same change.
+ * The model picks the query and the target `baseIds` (typically after calling
+ * `kb__list` to discover which bases are relevant). Per-request
+ * `assistant.knowledgeBaseIds` flows in via RequestContext: when non-empty it
+ * scopes which base IDs the tool will accept. The tool itself is stateless;
+ * registered once during AiService startup via `registerBuiltinTools(...)`.
  */
 
 import { loggerService } from '@logger'
@@ -37,20 +34,26 @@ Use this when:
 - The question references topics likely covered in stored documents
 - Specific factual lookup that isn't general knowledge
 
-You may call this multiple times with refined queries if the first results are insufficient. Cite sources by [id] in your final answer.`,
+Workflow: call kb__list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite sources by [id] in your final answer.`,
   inputSchema: kbSearchInputSchema,
   outputSchema: kbSearchOutputSchema,
   strict: true,
-  execute: async ({ query }, options): Promise<KbSearchOutput> => {
+  execute: async ({ query, baseIds }, options): Promise<KbSearchOutput> => {
     const { request } = getToolCallContext(options)
-    const knowledgeBaseIds = request.assistant?.knowledgeBaseIds ?? []
-    if (knowledgeBaseIds.length === 0) return []
+    const allowedIds = request.assistant?.knowledgeBaseIds ?? []
+    const targetIds = allowedIds.length > 0 ? baseIds.filter((id) => allowedIds.includes(id)) : baseIds
+
+    if (targetIds.length === 0) return []
+
+    if (allowedIds.length > 0 && targetIds.length < baseIds.length) {
+      const rejected = baseIds.filter((id) => !allowedIds.includes(id))
+      logger.warn('Dropped baseIds outside the assistant scope', { rejected, allowedIds })
+    }
 
     const orchestrator = application.get('KnowledgeOrchestrationService')
     const perBaseResults = await Promise.all(
-      knowledgeBaseIds.map(async (baseId) => {
+      targetIds.map(async (baseId) => {
         try {
-          // TODO: baseId(or base description) AS tool inputschema
           return await orchestrator.search(baseId, query)
         } catch (error) {
           logger.warn('KnowledgeOrchestrationService.search failed', {
@@ -63,7 +66,6 @@ You may call this multiple times with refined queries if the first results are i
       })
     )
 
-    // Aggregate, dedupe by content (highest score wins), sort desc.
     const merged = perBaseResults.flat()
     const dedupedByContent = new Map<string, KnowledgeSearchResult>()
     for (const result of merged) {
@@ -81,6 +83,16 @@ You may call this multiple times with refined queries if the first results are i
       // against `outputSchema` after this returns.
       score: Math.max(0, Math.min(1, result.score))
     }))
+  },
+  toModelOutput: ({ output }) => {
+    if (output.length === 0) {
+      return {
+        type: 'text' as const,
+        value:
+          'No matches in the requested knowledge bases. If you are not sure which bases to search, call kb__list first to inspect available bases and their sample sources, then retry kb__search with refined baseIds or query.'
+      }
+    }
+    return { type: 'json' as const, value: output }
   }
 })
 
