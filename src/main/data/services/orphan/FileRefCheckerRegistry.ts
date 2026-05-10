@@ -68,3 +68,21 @@ export const knowledgeItemChecker: SourceTypeChecker<'knowledge_item'> = {
     return new Set(rows.map((r) => r.id))
   }
 }
+
+/**
+ * Build the default registry wiring every checker exported above. The
+ * `Record<FileRefSourceType, ...>` return shape is exhaustive — adding a
+ * variant to `FileRefSourceType` without listing it here is a TS error.
+ */
+export function createDefaultOrphanCheckerRegistry(): OrphanCheckerRegistry {
+  return {
+    temp_session: tempSessionChecker,
+    chat_message: chatMessageChecker,
+    knowledge_item: knowledgeItemChecker,
+    painting: paintingChecker,
+    note: noteChecker
+  }
+}
+
+/** Process-wide singleton; tests use the factory for isolation. */
+export const orphanCheckerRegistry: OrphanCheckerRegistry = createDefaultOrphanCheckerRegistry()

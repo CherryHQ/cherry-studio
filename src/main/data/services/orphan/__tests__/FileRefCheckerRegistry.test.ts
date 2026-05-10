@@ -8,9 +8,15 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { chatMessageChecker, knowledgeItemChecker, noteChecker, paintingChecker, tempSessionChecker } = await import(
-  '../FileRefCheckerRegistry'
-)
+const {
+  chatMessageChecker,
+  createDefaultOrphanCheckerRegistry,
+  knowledgeItemChecker,
+  noteChecker,
+  orphanCheckerRegistry,
+  paintingChecker,
+  tempSessionChecker
+} = await import('../FileRefCheckerRegistry')
 
 describe('FileRefCheckerRegistry', () => {
   const dbh = setupTestDatabase()
@@ -102,6 +108,25 @@ describe('FileRefCheckerRegistry', () => {
     ])('%s: empty input → empty output', async (_sourceType, getChecker) => {
       const alive = await getChecker().checkExists([])
       expect(alive.size).toBe(0)
+    })
+  })
+
+  describe('createDefaultOrphanCheckerRegistry / orphanCheckerRegistry', () => {
+    it('exposes a checker for every FileRefSourceType', () => {
+      const registry = createDefaultOrphanCheckerRegistry()
+      const expected = ['temp_session', 'chat_message', 'knowledge_item', 'painting', 'note'] as const
+      for (const sourceType of expected) {
+        expect(registry[sourceType].sourceType).toBe(sourceType)
+        expect(typeof registry[sourceType].checkExists).toBe('function')
+      }
+    })
+
+    it('singleton wires the same checker instances', () => {
+      expect(orphanCheckerRegistry.temp_session).toBe(tempSessionChecker)
+      expect(orphanCheckerRegistry.knowledge_item).toBe(knowledgeItemChecker)
+      expect(orphanCheckerRegistry.chat_message).toBe(chatMessageChecker)
+      expect(orphanCheckerRegistry.painting).toBe(paintingChecker)
+      expect(orphanCheckerRegistry.note).toBe(noteChecker)
     })
   })
 })
