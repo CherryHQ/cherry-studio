@@ -213,7 +213,16 @@ class DanglingCacheImpl implements DanglingCache {
   }
 
   async initFromDb(): Promise<void> {
-    throw new Error('DanglingCache.initFromDb: not implemented yet (Phase 1b.3 in progress)')
+    if (!this.fileEntryService) {
+      const { fileEntryService } = await import('@data/services/FileEntryService')
+      this.fileEntryService = fileEntryService
+    }
+    const rows = await this.fileEntryService.findMany({ origin: 'external' })
+    for (const row of rows) {
+      if (row.trashedAt) continue
+      if (!row.externalPath) continue
+      this.addEntry(row.id, row.externalPath as FilePath)
+    }
   }
 
   subscribe(entryId: FileEntryId, listener: DanglingListener): () => void {

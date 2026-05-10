@@ -171,6 +171,44 @@ describe('DanglingCache.onDanglingStateChanged', () => {
   })
 })
 
+describe('DanglingCache.initFromDb', () => {
+  it('populates reverse index from non-trashed external entries', async () => {
+    const findMany = vi
+      .fn<(q: { origin: 'external' }) => Promise<FileEntry[]>>()
+      .mockResolvedValue([externalEntry('e-init-1', '/abs/init-a.txt'), externalEntry('e-init-2', '/abs/init-b.txt')])
+    const cache = createDanglingCacheImpl({
+      fileEntryService: { findMany },
+      statProbe: vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('missing')
+    })
+    await cache.initFromDb()
+    expect(findMany).toHaveBeenCalledWith({ origin: 'external' })
+
+    // After init, an event for an indexed path reaches the entry without stat
+    cache.onFsEvent('/abs/init-a.txt' as FilePath, 'present')
+    const probe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>()
+    // The cache hit means probe is not called for 'e-init-1':
+    expect(await cache.check(externalEntry('e-init-1', '/abs/init-a.txt'))).toBe('present')
+    expect(probe).not.toHaveBeenCalled()
+  })
+
+  it('skips trashed external entries', async () => {
+    const findMany = vi.fn<(q: { origin: 'external' }) => Promise<FileEntry[]>>().mockResolvedValue([
+      // trashedAt set → must be skipped
+      { ...externalEntry('e-trash', '/abs/trash.txt'), trashedAt: 123 } as FileEntry,
+      externalEntry('e-live', '/abs/live.txt')
+    ])
+    const cache = createDanglingCacheImpl({
+      fileEntryService: { findMany },
+      statProbe: vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('missing')
+    })
+    await cache.initFromDb()
+    // Event for /abs/trash.txt must NOT reach e-trash
+    cache.onFsEvent('/abs/trash.txt' as FilePath, 'present')
+    const trashState = await cache.check(externalEntry('e-trash', '/abs/trash.txt'))
+    expect(trashState).toBe('missing') // re-stat, not the cached 'present'
+  })
+})
+
 describe('DanglingCache.subscribe', () => {
   it('only delivers events for the specified entry id', async () => {
     const cache = createDanglingCacheImpl({
