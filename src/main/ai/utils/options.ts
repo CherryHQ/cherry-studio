@@ -24,10 +24,6 @@
  *    config and written into `AgentOptions` alongside the capability defaults
  *    rather than layered per-call via `transformParams`.
  *
- * The combined `buildProviderOptions` wrapper is kept as a convenience for
- * callers that want the legacy single-call output; it's a thin composition
- * over the primitives above.
- *
  * Ported from renderer `aiCore/utils/options.ts` (origin/main). Differences:
  *   - `AiSdkParam` / `OpenAIVerbosity` types now come from `@shared/types/aiSdk`
  *     (moved out of the renderer).
@@ -80,7 +76,6 @@ import { buildGeminiGenerateImageParams } from './image'
 import {
   getAnthropicReasoningParams,
   getBedrockReasoningParams,
-  getCustomParameters,
   getGeminiReasoningParams,
   getOllamaReasoningParams,
   getOpenAIReasoningParams,
@@ -344,35 +339,6 @@ export function mergeCustomProviderParameters(
     }
   }
   return result
-}
-
-/**
- * Convenience wrapper that runs the full legacy pipeline: capability
- * provider options + customParameters split + merge. Retained for callers
- * that want the combined output in one call (plugins use the primitives
- * directly).
- *
- * Equivalent to:
- *   const providerOptions = buildCapabilityProviderOptions(...)
- *   const { standardParams, providerParams } = extractAiSdkStandardParams(getCustomParameters(assistant))
- *   const merged = mergeCustomProviderParameters(providerOptions, providerParams, rawProviderId)
- *   return { providerOptions: merged, standardParams }
- */
-export function buildProviderOptions(
-  assistant: Assistant,
-  model: Model,
-  actualProvider: Provider,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
-): {
-  providerOptions: Record<string, Record<string, JSONValue>>
-  standardParams: Partial<Record<AiSdkParam, any>>
-} {
-  const rawProviderId = getAiSdkProviderId(actualProvider)
-  const providerOptions = buildCapabilityProviderOptions(assistant, model, actualProvider, capabilities)
-  const customParams = getCustomParameters(assistant)
-  const { standardParams, providerParams } = extractAiSdkStandardParams(customParams)
-  const merged = mergeCustomProviderParameters(providerOptions, providerParams, rawProviderId)
-  return { providerOptions: merged, standardParams }
 }
 
 /** OpenAI-family (openai / azure / huggingface / openai-chat) options. */
