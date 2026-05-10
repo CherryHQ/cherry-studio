@@ -18,6 +18,55 @@ Classify each reviewed module before looking for issues:
 | React UI | `src/renderer/src/`, `packages/ui/` | `@cherrystudio/ui`, i18n, a11y, hooks correctness, design-system fit |
 | Shared types / API contracts | `packages/shared/`, DataApi schemas, DTOs | Type/runtime schema alignment, DTO boundaries, discriminated states |
 
+## Reference Routing
+
+Load references by changed area. Do not paste every external guide into every
+review. Project docs and repository code win over external references when they
+conflict.
+
+### Internal Repository Docs
+
+| Changed area | Consult |
+| --- | --- |
+| Data system, DataApi, Cache, Preference, BootConfig | `docs/references/data/README.md`, `docs/references/data/api-design-guidelines.md`, `docs/references/data/data-api-in-main.md`, `docs/references/data/data-api-in-renderer.md`, `docs/references/data/v2-migration-guide.md` |
+| Main-process services and long-lived resources | `docs/references/lifecycle/README.md`, `docs/references/lifecycle/lifecycle-usage.md`, `docs/references/lifecycle/lifecycle-decision-guide.md` |
+| Windows | `docs/references/window-manager/README.md` |
+| Main-process filesystem paths | `src/main/core/paths/README.md` |
+| SQLite services, handlers, seeders, migrations | `docs/references/testing/database-testing.md`, `tests/__mocks__/README.md` |
+| UI and shared components | `DESIGN.md`, `packages/ui/`, component usage near the diff |
+| Repository skills | `.agents/skills/README.md`, `.agents/skills/create-skill/SKILL.md`, `/Users/suyao/.codex/skills/.system/skill-creator/SKILL.md` when available |
+
+### Internal Skills
+
+Use these skills when they are available in the current runtime:
+
+- `vercel-react-best-practices`: React and Next.js performance, rendering,
+  data-fetching, and bundle review.
+- `create-skill`: repository-specific skill creation, public skill whitelist,
+  `skills:sync`, and Claude symlink rules.
+- `skill-creator`: general skill authoring rules, progressive disclosure,
+  metadata, references, and validation.
+- `gh-create-pr`: PR template compliance when reviewing PR workflow or PR
+  documentation changes.
+- `cherry-pr-test`: Electron UI test workflow when review findings need local
+  app reproduction.
+
+### External Skills And Websites
+
+Use external sources only to clarify framework semantics or to strengthen a
+project-specific finding. Do not report an issue solely because an external
+source prefers a different style.
+
+| Topic | Reference |
+| --- | --- |
+| React component composition, boolean-prop growth, compound components | `vercel-composition-patterns`: https://skills.sh/vercel-labs/agent-skills/vercel-composition-patterns |
+| Tailwind design systems, tokens, variants, responsive/accessibility patterns | `tailwind-design-system`: https://skills.sh/wshobson/agents/tailwind-design-system |
+| Advanced TypeScript types, discriminated unions, conditional/mapped/template literal types | `typescript-advanced-types`: https://skills.sh/wshobson/agents/typescript-advanced-types and https://www.typescriptlang.org/docs/ |
+| shadcn/ui composition and component conventions | `shadcn`: https://skills.sh/shadcn/ui/shadcn and https://ui.shadcn.com/docs |
+| React Hooks semantics | https://react.dev/reference/react/useEffect, https://react.dev/reference/react/useEffectEvent, https://react.dev/reference/react/useMemo, https://react.dev/reference/react/useCallback, https://react.dev/reference/react/useSyncExternalStore, https://react.dev/learn/you-might-not-need-an-effect |
+| SWR cache, mutation, revalidation, and optimistic update semantics | https://swr.vercel.app/docs/getting-started, https://swr.vercel.app/docs/mutation, https://swr.vercel.app/docs/revalidation |
+| Tailwind CSS utility semantics | https://tailwindcss.com/docs |
+
 ## Data System And DataApi Boundaries
 
 DataApi is for SQLite-backed, irreplaceable business data. It is not a

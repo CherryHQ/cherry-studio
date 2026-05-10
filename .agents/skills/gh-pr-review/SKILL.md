@@ -17,7 +17,9 @@ Cherry Studio-specific review rules live in
 `references/cherry-review-guidance.md`. Target review flows must load that file
 for code, mixed, architecture-doc, and project-skill reviews so reviewers can
 apply DataApi, service-boundary, renderer hook, React, UI, and type-contract
-checks without relying on memory.
+checks without relying on memory. That reference also defines which internal
+docs, internal skills, external skills, and official websites to consult for
+each changed area; load only the relevant subset.
 
 All user-facing text matches the user's language. All questions and option
 selections MUST use your interactive dialog tool (e.g. AskUserQuestion) — never
