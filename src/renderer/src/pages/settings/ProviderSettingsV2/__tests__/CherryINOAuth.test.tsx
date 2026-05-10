@@ -96,7 +96,7 @@ describe('CherryINOAuth', () => {
     expect(screen.getByText(/open\.cherryin\.ai/)).toBeInTheDocument()
   })
 
-  it('shows the balance fetch error returned by IPC', async () => {
+  it('keeps balance fetch failures quiet and shows the empty balance state', async () => {
     window.api.cherryin.getBalance = vi
       .fn()
       .mockRejectedValue(new Error('Failed to get balance: HTTP 401 Unauthorized'))
@@ -125,8 +125,10 @@ describe('CherryINOAuth', () => {
     render(<CherryINOAuth providerId="cherryin" />)
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith(expect.stringContaining('HTTP 401 Unauthorized'))
+      expect(window.api.cherryin.getBalance).toHaveBeenCalledWith('https://open.cherryin.ai')
     })
+    expect(window.toast.error).not.toHaveBeenCalled()
+    expect(screen.getByText('-')).toBeInTheDocument()
   })
 
   it('renders the logged-out card when there is no OAuth token', () => {
