@@ -50,6 +50,18 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
     if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
 
+    // The request below sends ONLY the latest user turn — no prior messages.
+    // That works because Claude Code resumes context via its SDK session id
+    // (see `lastAgentSessionId` plumbing in provider/config.ts). Any future
+    // agent type that doesn't carry server-side conversation state would
+    // see only the latest turn here. Reject early until that path supplies
+    // a history loader.
+    if (agent.type !== 'claude-code') {
+      throw new Error(
+        `AgentChatContextProvider only supports 'claude-code' agents (got '${agent.type}'); other types need a history loader before dispatch.`
+      )
+    }
+
     const uniqueModelId = parseAgentSessionModel(agent.model)
 
     const userText =
