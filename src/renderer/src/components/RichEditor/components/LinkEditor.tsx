@@ -1,7 +1,5 @@
-import { Flex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, Flex, Input } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { Input } from 'antd'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -40,7 +38,7 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
   const [href, setHref] = useState<string>(link.href || '')
   const [text, setText] = useState<string>(link.text || '')
   const containerRef = useRef<HTMLDivElement>(null)
-  const hrefInputRef = useRef<any>(null)
+  const hrefInputRef = useRef<HTMLInputElement>(null)
 
   // Reset values when link changes
   useEffect(() => {
@@ -133,7 +131,7 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
           value={text}
           placeholder={t('richEditor.link.textPlaceholder')}
           onChange={(e) => setText(e.target.value)}
-          size="small"
+          className="h-8 text-sm"
         />
       </div>
 
@@ -141,7 +139,12 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
         <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>
           {t('richEditor.link.url')}
         </label>
-        <Input value={href} placeholder="https://example.com" onChange={(e) => setHref(e.target.value)} size="small" />
+        <Input
+          value={href}
+          placeholder="https://example.com"
+          onChange={(e) => setHref(e.target.value)}
+          className="h-8 text-sm"
+        />
       </div>
 
       <Flex className="items-center justify-between">

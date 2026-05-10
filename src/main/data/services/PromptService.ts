@@ -105,7 +105,7 @@ export class PromptService {
   /** Move a single prompt relative to an anchor. */
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
     await this.db.transaction(async (tx) => {
-      await this.assertPromptsExist(tx, [id, ...collectAnchorIds([anchor])])
+      await this.assertPromptsExistTx(tx, [id, ...collectAnchorIds([anchor])])
       await applyMoves(tx, promptTable, [{ id, anchor }], { pkColumn: promptTable.id })
     })
   }
@@ -114,13 +114,13 @@ export class PromptService {
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
     await this.db.transaction(async (tx) => {
-      await this.assertPromptsExist(tx, [...moves.map((m) => m.id), ...collectAnchorIds(moves.map((m) => m.anchor))])
+      await this.assertPromptsExistTx(tx, [...moves.map((m) => m.id), ...collectAnchorIds(moves.map((m) => m.anchor))])
       await applyMoves(tx, promptTable, moves, { pkColumn: promptTable.id })
     })
   }
 
   /** Pre-check that every id in a reorder exists; convert to NOT_FOUND otherwise. */
-  private async assertPromptsExist(tx: Pick<DbType, 'select'>, ids: string[]): Promise<void> {
+  private async assertPromptsExistTx(tx: Pick<DbType, 'select'>, ids: string[]): Promise<void> {
     const uniqueIds = Array.from(new Set(ids))
     const rows = (await tx
       .select({ id: promptTable.id })

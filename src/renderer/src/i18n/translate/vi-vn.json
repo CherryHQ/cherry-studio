@@ -2047,7 +2047,8 @@
     "empty_preview": "Không có nội dung để hiển thị",
     "generating": "Tạo",
     "preview": "Xem trước",
-    "split": "Tách"
+    "split": "Tách",
+    "view_mode": "Chế độ xem"
   },
   "import": {
     "chatgpt": {

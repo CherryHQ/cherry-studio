@@ -2,7 +2,7 @@ import '@renderer/databases'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { getToastUtilities } from '@renderer/components/TopView/toast'
+import { getToastUtilities, useToasts } from '@renderer/components/TopView/toast'
 import { persistor } from '@renderer/store'
 import { useEffect } from 'react'
 import { PersistGate } from 'redux-persist/integration/react'
@@ -19,6 +19,11 @@ window.toast = getToastUtilities()
 
 function QuickAssistantContent(): React.ReactElement {
   const [customCss] = usePreference('ui.custom_css')
+  const toast = useToasts()
+
+  useEffect(() => {
+    window.toast = toast
+  }, [toast])
 
   useEffect(() => {
     let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement

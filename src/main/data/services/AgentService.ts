@@ -182,7 +182,7 @@ export class AgentService {
     const result = await withSqliteErrors(
       async () =>
         database.transaction(async (tx) => {
-          await pinService.purgeForEntity(tx, 'agent', id)
+          await pinService.purgeForEntityTx(tx, 'agent', id)
           return tx.delete(agentsTable).where(eq(agentsTable.id, id))
         }),
       defaultHandlersFor('Agent', id)

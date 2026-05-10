@@ -5,11 +5,11 @@ import AppModalProvider from '@renderer/components/AppModal'
 import { useAgentSessionSync } from '@renderer/hooks/agents/useAgentSessionSync'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useTopicSync } from '@renderer/hooks/useTopicDataApi'
-import { message } from 'antd'
 import type { PropsWithChildren } from 'react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { getToastUtilities, initMessageApi } from './toast'
+import { ToastProvider, useToasts } from './toast'
 
 let onPop = () => {}
 let onShow = ({ element, id }: { element: React.FC | React.ReactNode; id: string }) => {
@@ -32,12 +32,11 @@ type ElementItem = {
 
 // const logger = loggerService.withContext('TopView')
 
-const TopViewContainer: React.FC<Props> = ({ children }) => {
+const TopViewContent: React.FC<Props> = ({ children }) => {
   const [elements, setElements] = useState<ElementItem[]>([])
   const elementsRef = useRef<ElementItem[]>([])
   elementsRef.current = elements
 
-  const [messageApi, messageContextHolder] = message.useMessage()
   const [exitFullscreenPref] = usePreference('shortcut.general.exit_fullscreen')
   const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
 
@@ -45,10 +44,11 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   useTopicSync()
   useAgentSessionSync()
 
+  const toast = useToasts()
+
   useEffect(() => {
-    initMessageApi(messageApi)
-    window.toast = getToastUtilities()
-  }, [messageApi])
+    window.toast = toast
+  }, [toast])
 
   onPop = () => {
     const views = [...elementsRef.current]
@@ -101,7 +101,6 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   return (
     <>
       {children}
-      {messageContextHolder}
       <AppModalProvider
         onReady={(modal) => {
           window.modal = modal
@@ -113,6 +112,26 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
         </FullScreenContainer>
       ))}
     </>
+  )
+}
+
+const TopViewContainer: React.FC<Props> = ({ children }) => {
+  const { t } = useTranslation()
+  const toastLabels = useMemo(
+    () => ({
+      close: t('common.close'),
+      error: t('common.error'),
+      errorDescription: t('error.unknown'),
+      loading: t('common.loading'),
+      success: t('common.success')
+    }),
+    [t]
+  )
+
+  return (
+    <ToastProvider labels={toastLabels}>
+      <TopViewContent>{children}</TopViewContent>
+    </ToastProvider>
   )
 }
 

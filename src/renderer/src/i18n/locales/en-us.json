@@ -1754,6 +1754,7 @@
     "models": "Models",
     "more": "More",
     "name": "Name",
+    "next": "Next",
     "next_match": "Next match",
     "no_results": "No results",
     "none": "None",
@@ -1769,6 +1770,7 @@
     },
     "powered_by": "Powered by ",
     "preview": "Preview",
+    "previous": "Previous",
     "previous_match": "Previous match",
     "prompt": "Prompt",
     "provider": "Provider",
@@ -2047,7 +2049,8 @@
     "empty_preview": "No content to display",
     "generating": "Generating",
     "preview": "Preview",
-    "split": "Split"
+    "split": "Split",
+    "view_mode": "View mode"
   },
   "import": {
     "chatgpt": {
@@ -3359,18 +3362,25 @@
     "uninstalling": "Uninstalling..."
   },
   "preview": {
+    "close": "Close Preview",
     "copy": {
       "image": "Copy as image",
       "src": "Copy Image Source"
     },
     "dialog": "Open Dialog",
+    "flip_horizontal": "Flip Horizontal",
+    "flip_vertical": "Flip Vertical",
     "label": "Preview",
+    "next": "Next Image",
     "pan": "Pan",
     "pan_down": "Pan Down",
     "pan_left": "Pan Left",
     "pan_right": "Pan Right",
     "pan_up": "Pan Up",
+    "previous": "Previous Image",
     "reset": "Reset",
+    "rotate_left": "Rotate Left",
+    "rotate_right": "Rotate Right",
     "source": "View Source Code",
     "zoom_in": "Zoom In",
     "zoom_out": "Zoom Out"

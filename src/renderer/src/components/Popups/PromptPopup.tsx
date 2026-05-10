@@ -1,17 +1,28 @@
-import { Box } from '@cherrystudio/ui'
-import { Input, Modal } from 'antd'
-import type { TextAreaProps } from 'antd/es/input'
-import type { ReactNode } from 'react'
-import { useRef, useState } from 'react'
+import { Box, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
+import { X } from 'lucide-react'
+import type { ComponentProps, CSSProperties, KeyboardEvent, ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
+
+type PromptTextAreaProps = Omit<
+  ComponentProps<typeof Textarea.Input>,
+  'defaultValue' | 'onValueChange' | 'placeholder' | 'ref' | 'value'
+> & {
+  allowClear?: boolean
+  onPressEnter?: (event: KeyboardEvent<HTMLTextAreaElement>) => void
+  styles?: {
+    textarea?: CSSProperties
+  }
+}
 
 interface PromptPopupShowParams {
   title: string
   message: string
   defaultValue?: string
   inputPlaceholder?: string
-  inputProps?: TextAreaProps
+  inputProps?: PromptTextAreaProps
   extraNode?: ReactNode
 }
 
@@ -30,69 +41,125 @@ const PromptPopupContainer: React.FC<Props> = ({
 }) => {
   const [value, setValue] = useState(defaultValue)
   const [open, setOpen] = useState(true)
-  const textAreaRef = useRef<any>(null)
+  const resolvedRef = useRef(false)
+  const textAreaRef = useRef<HTMLTextAreaElement>(null)
+  const { t } = useTranslation()
+  const {
+    allowClear = true,
+    className,
+    onChange,
+    onKeyDown,
+    onPressEnter,
+    rows = 1,
+    style,
+    styles,
+    ...textareaProps
+  } = inputProps
+
+  useEffect(() => {
+    if (!open) return
+
+    window.setTimeout(() => {
+      const textArea = textAreaRef.current
+      if (!textArea) return
+
+      textArea.focus()
+      const length = textArea.value.length
+      textArea.setSelectionRange(length, length)
+    })
+  }, [open])
+
+  const settle = (result: string | null) => {
+    if (resolvedRef.current) return
+
+    resolvedRef.current = true
+    resolve(result)
+    setOpen(false)
+    window.setTimeout(() => TopView.hide(TopViewKey), 200)
+  }
 
   const onOk = () => {
-    setOpen(false)
-    resolve(value)
+    settle(value)
   }
 
   const onCancel = () => {
-    setOpen(false)
+    settle(null)
   }
 
-  const onAfterClose = () => {
-    resolve(null)
-    TopView.hide(TopViewKey)
+  const onOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      onCancel()
+    }
   }
 
-  const handleAfterOpenChange = (visible: boolean) => {
-    if (visible) {
-      const textArea = textAreaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        textArea.focus()
-        const length = textArea.value.length
-        textArea.setSelectionRange(length, length)
-      }
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    onKeyDown?.(event)
+
+    if (event.defaultPrevented) {
+      return
+    }
+
+    const isEnterPressed = event.key === 'Enter'
+    if (isEnterPressed) {
+      onPressEnter?.(event)
+    }
+
+    if (event.defaultPrevented) {
+      return
+    }
+
+    if (isEnterPressed && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault()
+      onOk()
     }
   }
 
   PromptPopup.hide = onCancel
 
   return (
-    <Modal
-      title={title}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onAfterClose}
-      afterOpenChange={handleAfterOpenChange}
-      transitionName="animation-move-down"
-      centered>
-      <Box className="mb-2">{message}</Box>
-      <Input.TextArea
-        ref={textAreaRef}
-        placeholder={inputPlaceholder}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        styles={{
-          textarea: {
-            maxHeight: '80vh'
-          }
-        }}
-        allowClear
-        onKeyDown={(e) => {
-          const isEnterPressed = e.keyCode === 13
-          if (isEnterPressed && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-            e.preventDefault()
-            onOk()
-          }
-        }}
-        rows={1}
-        {...inputProps}
-      />
-      {extraNode}
-    </Modal>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <Box className="mb-2">{message}</Box>
+        <div className="relative">
+          <Textarea.Input
+            {...textareaProps}
+            ref={textAreaRef}
+            placeholder={inputPlaceholder}
+            value={value}
+            onChange={(event) => {
+              onChange?.(event)
+              setValue(event.target.value)
+            }}
+            onKeyDown={handleKeyDown}
+            rows={rows}
+            style={{ maxHeight: '80vh', ...styles?.textarea, ...style }}
+            className={[className, allowClear ? 'pr-10' : undefined].filter(Boolean).join(' ')}
+          />
+          {allowClear && value && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={textareaProps.disabled || textareaProps.readOnly}
+              aria-label={t('common.clear')}
+              className="absolute top-2 right-2"
+              onClick={() => setValue('')}>
+              <X size={14} />
+            </Button>
+          )}
+        </div>
+        {extraNode}
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={onOk}>{t('common.confirm')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
