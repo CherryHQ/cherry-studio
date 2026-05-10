@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { InstalledSkill, SkillFileNode } from '@types'
 import type { ComponentProps, ReactNode } from 'react'
@@ -41,11 +41,27 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
-  ConfirmDialog: ({ confirmText, open, title }: { confirmText?: string; open?: boolean; title: ReactNode }) =>
+  ConfirmDialog: ({
+    confirmText,
+    onConfirm,
+    open,
+    title
+  }: {
+    confirmText?: string
+    onConfirm?: () => Promise<void> | void
+    open?: boolean
+    title: ReactNode
+  }) =>
     open ? (
       <div role="dialog">
         <h2>{title}</h2>
-        <button type="button">{confirmText}</button>
+        <button
+          type="button"
+          onClick={() => {
+            void Promise.resolve(onConfirm?.()).catch(() => undefined)
+          }}>
+          {confirmText}
+        </button>
       </div>
     ) : null,
   Separator: () => <hr />
@@ -170,5 +186,19 @@ describe('SkillDetailPage', () => {
     await user.click(screen.getByRole('button', { name: 'library.action.uninstall' }))
 
     expect(await screen.findByRole('dialog')).toHaveTextContent('library.delete.skill.title')
+  })
+
+  it('uses the uninstall fallback message for uninstall failures', async () => {
+    const user = userEvent.setup()
+    uninstallSkillMock.mockRejectedValueOnce(new Error('low-level failure'))
+
+    render(<SkillDetailPage skill={createSkill()} onBack={vi.fn()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'library.action.uninstall' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'library.action.uninstall' }))
+
+    await waitFor(() => expect(window.toast.error).toHaveBeenCalledWith('library.uninstall_failed'))
+    expect(window.toast.error).not.toHaveBeenCalledWith('low-level failure')
   })
 })
