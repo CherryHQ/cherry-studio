@@ -131,12 +131,23 @@ export interface AiStreamAbortRequest {
   topicId: string
 }
 
-/** Result of an attach attempt. */
+/** Result of an attach attempt.
+ *
+ * Terminal-state variants (`done` / `paused` / `error`) carry per-execution
+ * `finalMessages` so multi-model topics can rebuild every sibling — not just
+ * the first one. `finalMessage` (without `s`) is kept as a backwards-compatible
+ * convenience pointing at whichever execution iterated first; `undefined`
+ * when the stream errored before any execution accumulated content.
+ */
 export type AiStreamAttachResponse =
   | { status: 'not-found' }
   | { status: 'attached'; bufferedChunks: StreamChunkPayload[] }
-  | { status: 'done'; finalMessage: CherryUIMessage }
-  | { status: 'error'; error: SerializedError }
+  | {
+      status: 'done' | 'paused'
+      finalMessage?: CherryUIMessage
+      finalMessages: Partial<Record<UniqueModelId, CherryUIMessage>>
+    }
+  | { status: 'error'; error?: SerializedError }
 
 /** Result of an open attempt. */
 export interface AiStreamOpenResponse {

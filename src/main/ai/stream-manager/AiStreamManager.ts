@@ -540,13 +540,36 @@ export class AiStreamManager extends BaseService {
     if (!stream) return { status: 'not-found' }
 
     if (stream.status === 'done' || stream.status === 'aborted') {
-      // Return the first execution's finalMessage
-      const firstExec = stream.executions.values().next().value
-      return { status: 'done', finalMessage: firstExec?.finalMessage! }
+      // Map per-execution finalMessages so multi-model topics can rebuild
+      // every sibling — not just the first. `finalMessage` (singular) is a
+      // backwards-compat convenience pointing at the first iteration; both
+      // are undefined-safe when the stream errored before any execution
+      // accumulated content.
+      const finalMessages: Partial<Record<UniqueModelId, CherryUIMessage>> = {}
+      let firstFinalMessage: CherryUIMessage | undefined
+      for (const exec of stream.executions.values()) {
+        if (!exec.finalMessage) continue
+        finalMessages[exec.modelId] = exec.finalMessage
+        if (!firstFinalMessage) firstFinalMessage = exec.finalMessage
+      }
+      return {
+        status: stream.status === 'aborted' ? 'paused' : 'done',
+        finalMessage: firstFinalMessage,
+        finalMessages
+      }
     }
     if (stream.status === 'error') {
-      const firstExec = stream.executions.values().next().value
-      return { status: 'error', error: firstExec?.error! }
+      // Pick the first execution that surfaced an error; undefined when no
+      // execution recorded one (rare — implies the stream entered the error
+      // state via a topic-level path with no per-exec error attached).
+      let firstError: SerializedError | undefined
+      for (const exec of stream.executions.values()) {
+        if (exec.error) {
+          firstError = exec.error
+          break
+        }
+      }
+      return { status: 'error', error: firstError }
     }
 
     // Register listener for future live chunks; reconnect receives a compact

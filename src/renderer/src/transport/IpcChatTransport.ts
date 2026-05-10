@@ -85,12 +85,12 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     logger.info('reconnectToStream result', { topicId, status: result.status })
 
     if (result.status === 'not-found') return null
-    if (result.status === 'done') {
+    if (result.status === 'done' || result.status === 'paused') {
       return new ReadableStream<UIMessageChunk>({ start: (c) => c.close() })
     }
     if (result.status === 'error') {
       return new ReadableStream<UIMessageChunk>({
-        start: (c) => c.error(new Error(result.error.message ?? 'Stream error'))
+        start: (c) => c.error(new Error(result.error?.message ?? 'Stream error'))
       })
     }
 
@@ -250,12 +250,12 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     const result = await window.api.ai.streamAttach({ topicId })
 
     if (result.status === 'not-found') return null
-    if (result.status === 'done') {
+    if (result.status === 'done' || result.status === 'paused') {
       return new ReadableStream<UIMessageChunk>({ start: (c) => c.close() })
     }
     if (result.status === 'error') {
       return new ReadableStream<UIMessageChunk>({
-        start: (c) => c.error(new Error(result.error.message ?? 'Stream error'))
+        start: (c) => c.error(new Error(result.error?.message ?? 'Stream error'))
       })
     }
 
