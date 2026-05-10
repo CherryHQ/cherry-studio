@@ -161,7 +161,7 @@ async function buildAssistantContext(): Promise<string> {
     `- OS: ${platform}`,
     `- Language: ${language}, Theme: ${theme}`,
     proxy ? `- Proxy: ${proxy}` : '- Proxy: none',
-    `- Providers (${providers.length}): ${providers.join(', ') || 'none configured'}`,
+    `- Providers (${providers.length}): ${providers.map((p) => p.name ?? p.id).join(', ') || 'none configured'}`,
     `- MCP Servers: ${activeMcp.length} active / ${mcpServers.length} total`,
     '',
     '## Network',
