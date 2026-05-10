@@ -2,15 +2,7 @@
 
 > **SoT scope** — **this document** owns: module boundaries, type system (`FileHandle` / `FileEntry` / `FileInfo`), IPC / DataApi contracts, layered architecture (no-FS-side-effect vs FS-side-effect paths), business-service integration, and service lifecycle assignment. FileManager **internal implementation** (storage layout, version detection, atomic writes, recycle bin, reference cleanup, watcher internals, orphan sweep, DanglingCache state machine) lives in [`file-manager-architecture.md`](./file-manager-architecture.md). In case of conflict, the layer ownership above decides: positioning / contract → this document, implementation → the other.
 >
-> **Phase note**: this document mixes two layers of truth:
-> - **Current Phase 1a reality (`[1a ✅]`)** — DB schema, shared types, IPC/DataApi contracts, and design constraints that already exist in code
-> - **Planned Phase 1b.x structure (`[1b.1]` / `[1b.2]` / `[1b.3]` / `[1b.4]`)** — the concrete `FileManager extends BaseService` lifecycle-service implementation and its `internal/*` execution layout, delivered incrementally
->
-> When a section describes FileManager as a lifecycle service / facade class, read that as the **target implementation shape**, not as "already fully implemented in this phase". In the current phase, `src/main/services/file/FileManager.ts` is still contract-first: it exports the public type surface and JSDoc that the later lifecycle implementation must satisfy.
->
-> **Phase badges used below**: `[1a ✅]` already in code · `[1b.1]` read path & repository · `[1b.2]` write path & lifecycle · `[1b.3]` watcher & DanglingCache · `[1b.4]` orphan sweep & FileRefCheckerRegistry.
->
-> **Phase 1a contract stability**: the JSDoc, type signatures, and behavioral tables in this document (and `file-manager-architecture.md`) are **binding commitments** for the Phase 1b.x implementation — not provisional notes. When implementation reveals a contract that cannot be honored (a cleanup semantic that collides with reality, an error-type that needs expanding, a signature shape that doesn't fit), the required workflow is: **(1) open a PR revising the contract doc first**, with justification in the PR description; **(2) land that doc revision**; **(3) implement against the updated contract**. Do not ship an implementation that silently diverges from the doc — the cost of doc revision is minutes, the cost of hidden divergence compounds indefinitely.
+> **Contract stability**: the JSDoc, type signatures, and behavioral tables in this document (and `file-manager-architecture.md`) are **binding commitments** for the implementation — not provisional notes. When implementation reveals a contract that cannot be honored (a cleanup semantic that collides with reality, an error-type that needs expanding, a signature shape that doesn't fit), the required workflow is: **(1) open a PR revising the contract doc first**, with justification in the PR description; **(2) land that doc revision**; **(3) implement against the updated contract**. Do not ship an implementation that silently diverges from the doc — the cost of doc revision is minutes, the cost of hidden divergence compounds indefinitely.
 >
 > Related documents:
 >
@@ -42,65 +34,63 @@ An external entry is a persistent record that "the caller expressed the intent t
 ```
 File Module (src/main/services/file/)
 │
-├── index.ts              ← [1a ✅] module barrel; exports only FileManager + public types
+├── index.ts              ← module barrel; exports only FileManager + public types
 │                           (internal/* is not exported; external imports can't reach it)
 │
-├── FileManager.ts        ← [1a ✅ skeleton] [1b.1-4 ✅] contract surface in Phase 1a; becomes the
-│     │                     sole lifecycle service + public facade incrementally in Phase 1b.x
+├── FileManager.ts        ← sole lifecycle service + public facade
 │     │                     public methods are thin delegates to internal/*; owns versionCache
 │     │                     responsible for IPC registration and FileHandle.kind dispatch
-│     ├── FileEntry lifecycle (create-or-upsert / write / trash / restore / rename / copy / permanentDelete)  [1b.1 ensureExternal/read · 1b.2 write/lifecycle]
-│     ├── Version detection & concurrency control (read / writeIfUnchanged / withTempCopy)  [1b.1 read · 1b.2 writeIfUnchanged]
-│     ├── Metadata & system ops (getMetadata / open / showInFolder)  [1b.1 metadata · 1b.2 shell]
-│     ├── registerIpcHandlers() — unified IPC entry, dispatches by FileHandle.kind  [1a ✅ skeleton, 1b.x fills handlers]
-│     └── Electron dialog (showOpenDialog / showSaveDialog)  [1b.2]
+│     ├── FileEntry lifecycle (create-or-upsert / write / trash / restore / rename / copy / permanentDelete)
+│     ├── Version detection & concurrency control (read / writeIfUnchanged / withTempCopy)
+│     ├── Metadata & system ops (getMetadata / open / showInFolder)
+│     ├── registerIpcHandlers() — unified IPC entry, dispatches by FileHandle.kind
+│     └── Electron dialog (showOpenDialog / showSaveDialog)
 │
-├── internal/             ← [1b.1-4] private implementation, not re-exported by index.ts; external imports forbidden
+├── internal/             ← private implementation, not re-exported by index.ts; external imports forbidden
 │     │                     every pure function explicitly receives FileManagerDeps (repo/versionCache/danglingCache)
-│     │                     [1a ✅] interface in internal/deps.ts only; concrete modules below are 1b.x
-│     ├── deps.ts               — FileManagerDeps type  [1a ✅]
+│     ├── deps.ts               — FileManagerDeps type
 │     ├── entry/
-│     │    ├── create.ts        — createInternal / ensureExternal  [1b.1 ensureExternal · 1b.2 createInternal]
-│     │    ├── lifecycle.ts     — trash / restore / permanentDelete + batches  [1b.2]
-│     │    ├── rename.ts        [1b.2]
-│     │    ├── copy.ts          [1b.2]
-│     │    └── metadata.ts      — getMetadata (live fs.stat for both origins)  [1b.1]
+│     │    ├── create.ts        — createInternal / ensureExternal
+│     │    ├── lifecycle.ts     — trash / restore / permanentDelete + batches
+│     │    ├── rename.ts
+│     │    ├── copy.ts
+│     │    └── metadata.ts      — getMetadata (live fs.stat for both origins)
 │     ├── content/
-│     │    ├── read.ts          — read / createReadStream (including `*ByPath` variants)  [1b.1]
-│     │    ├── write.ts         — write / writeIfUnchanged / createWriteStream  [1b.2]
-│     │    └── hash.ts          — getContentHash / getVersion  [1b.1]
+│     │    ├── read.ts          — read / createReadStream (including `*ByPath` variants)
+│     │    ├── write.ts         — write / writeIfUnchanged / createWriteStream
+│     │    └── hash.ts          — getContentHash / getVersion
 │     ├── system/
-│     │    ├── shell.ts         — open / showInFolder  [1b.2]
-│     │    └── tempCopy.ts      — withTempCopy  [1b.2]
-│     └── orphanSweep.ts        — startup orphan scan task  [1b.4]
+│     │    ├── shell.ts         — open / showInFolder
+│     │    └── tempCopy.ts      — withTempCopy
+│     └── orphanSweep.ts        — startup orphan scan task
 │
-├── versionCache.ts       ← [1a ✅ interface] [1b.2 ✅] LRU type definition; instance held as private field on FileManager
+├── versionCache.ts       ← LRU type definition; instance held as private field on FileManager
 │
-├── danglingCache.ts (singleton)  [1a ✅ interface] [1b.3 ✅]
+├── danglingCache.ts (singleton)
 │     ├── check(entry): DanglingState — query in-memory / cold-path stat
 │     ├── onFsEvent(path, state) — receives watcher events
 │     ├── Reverse index Map<path, Set<entryId>> (populated from DB at file_module startup)
 │     └── Queried by DataApi handler; automatically wired by the watcher factory
 │
-└── watcher/              [1a ✅ factory signature] [1b.3 ✅]
+└── watcher/
       └── DirectoryWatcher (not a service, a generic FS monitoring primitive)
           ↳ factory createDirectoryWatcher() auto-wires events into danglingCache
 
-Pure FS primitives (src/main/utils/file/) — sole FS owner, open to the entire main process  [1a ✅ signatures + JSDoc · 1b.x impls]
-├── fs.ts         — basic FS: read / write / stat / copy / move / remove  [1b.1 read/stat · 1b.2 write/atomic]
-│                   atomic write: atomicWriteFile / atomicWriteIfUnchanged / createAtomicWriteStream  [1b.2]
-│                   version: statVersion / contentHash (xxhash-128)  [1b.1 hash · 1b.2 statVersion]
-├── shell.ts      — system ops: open / showInFolder  [1b.2]
-├── path.ts       — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir / canonicalizeExternalPath  [1a ✅ resolvePhysicalPath/getExtSuffix · 1b.1 canonicalizeExternalPath + isUnderInternalStorage · 1b.2 rest]
-├── metadata.ts   — type detection: getFileType / isTextFile / mimeToExt  [1b.1]
-├── search.ts     — directory search: listDirectory (ripgrep + fuzzy matching)  [1b.2]
+Pure FS primitives (src/main/utils/file/) — sole FS owner, open to the entire main process
+├── fs.ts         — basic FS: read / write / stat / copy / move / remove
+│                   atomic write: atomicWriteFile / atomicWriteIfUnchanged / createAtomicWriteStream
+│                   version: statVersion / contentHash (xxhash-h64)
+├── shell.ts      — system ops: open / showInFolder
+├── path.ts       — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir / canonicalizeExternalPath
+├── metadata.ts   — type detection: getFileType / isTextFile / mimeToExt
+├── search.ts     — directory search: listDirectory (ripgrep + fuzzy matching)
 ├── legacyFile.ts — shared legacy helpers (`getFileType(ext)` / `sanitizeFilename` / `getAllFiles` / `pathExists` / …); planned to be split into the modules above over time
 └── index.ts      — barrel: re-exports `./legacyFile` so cross-module callers can `import from '@main/utils/file'`
 
 Data Module dependencies (src/main/data/)
-├── FileEntryService (data repository, pure DB) — file_entry table  [1a ✅ interface] [1b.1 ✅]
-├── FileRefService (data repository, pure DB) — file_ref table      [1a ✅ interface] [1b.1 ✅]
-└── DataApi Handler (files.ts) — pure SQL read-only endpoints; no FS access, no main-side resolvers  [1a ✅ schema + stub handlers] [1b.1 read endpoints]
+├── FileEntryService (data repository, pure DB) — file_entry table
+├── FileRefService (data repository, pure DB) — file_ref table
+└── DataApi Handler (files.ts) — pure SQL read-only endpoints; no FS access, no main-side resolvers
 ```
 
 **Deferred implementation**:
@@ -108,8 +98,6 @@ Data Module dependencies (src/main/data/)
 - **`FileUploadService` + `file_upload` table + `FileUploadRepository`** — integrates with Vercel AI SDK's Files Upload API. The AI SDK API is still pre-release and its dependency is unstable, so this is deferred to a separate PR after the SDK reaches a stable version. The design is preserved in `file-manager-architecture.md §9` for reference.
 
 ### 1.2 FileManager's Position Within the Module
-
-**Implementation-status note**: the bullets below describe the intended steady state once the lifecycle-backed FileManager lands. In Phase 1a, treat them as architectural commitments, not as a claim that the concrete `BaseService` subclass already exists in code.
 
 FileManager is the core submodule of the file module, but is not equivalent to the file module as a whole.
 
@@ -123,13 +111,13 @@ FileManager is the core submodule of the file module, but is not equivalent to t
 
 | Location | Visibility | Access |
 |---|---|---|
-| `FileManager` class + public types | **Entire main process** | **Today (Phase 1a):** import public types from `@main/services/file`. **Planned (Phase 1b+):** resolve the runtime instance via `application.get('FileManager')` once the lifecycle service is implemented |
+| `FileManager` class + public types | **Entire main process** | Resolve the runtime instance via `application.get('FileManager')`; import public types from `@main/services/file` |
 | Pure FS primitives (`@main/utils/file/{fs,metadata,path,search,shell}`) | **Entire main process** | `import { atomicWriteFile } from '@main/utils/file/fs'` (BootConfig, MCP oauth, etc. can use directly). Shared legacy helpers (`getFileType(ext)`, `sanitizeFilename`, etc.) are barrel-exported from `@main/utils/file` itself. |
 | `watcher/` (`createDirectoryWatcher` factory) | **Entire main process** | Business services call this when they need to watch external directories |
 | `danglingCache` | **Internal to file-module** | External callers read it via File IPC `getDanglingState` / `batchGetDanglingStates`; never imported directly, never exposed via DataApi |
 | `internal/*` | **Only FileManager** | All other locations (including `@main/utils/file/*` and `watcher/` within the file-module) must not import it |
 
-Boundary enforcement: `src/main/services/file/index.ts` barrel does not re-export `internal/*`; external `import from '@main/services/file'` cannot reach it. If violations are found during Phase 1b implementation, add an ESLint `no-restricted-imports` rule as a fallback.
+Boundary enforcement: `src/main/services/file/index.ts` barrel does not re-export `internal/*`; external `import from '@main/services/file'` cannot reach it. If violations surface, add an ESLint `no-restricted-imports` rule as a fallback.
 
 ### 1.3 Out of Scope
 
@@ -348,7 +336,7 @@ FilesPage and similar user-facing **list surfaces** SHOULD hide external entries
 | `buildProviderReference(entryId)`   | Build SharedV4ProviderReference  |
 | `invalidate(entryId)`               | Clear cache (on content change)  |
 
-### 3.6 Mutation Propagation to Renderer `[deferred]`
+### 3.6 Mutation Propagation to Renderer
 
 Every main-side mutation that changes an entry's DB row, a file's physical content, or the dangling state of an external path invalidates zero or more renderer-side React Query caches. Manual per-caller invalidation is brittle — if any business caller forgets to invalidate after `rename`/`write`/`permanentDelete`, the UI shows stale data for up to the `staleTime` window.
 
@@ -801,7 +789,7 @@ To avoid the governance pitfall of "added a sourceType but forgot to wire up som
 - **Push** (step 3): OrphanRefScanner acts as a safety net, periodically scanning `file_ref` to find rows with non-existent sourceIds and removing them. **Compile-time Record closure** ensures no sourceType is missed.
 - **There is no per-sourceType `onSourceDeleted` hook**: the cleanup logic of `cleanupBySource` is identical across all sourceTypes (delete rows matching `(sourceType, sourceId)`). Business-specific cleanup (e.g., rebuilding vectors when a knowledge base is deleted) belongs to the business service's own delete flow and should not be coupled to the ref system.
 
-Reference implementation (Phase 1b provides tempSession as a template):
+Reference implementation (`tempSession` ships as the template):
 
 ```typescript
 // src/main/data/services/orphan/FileRefCheckerRegistry.ts

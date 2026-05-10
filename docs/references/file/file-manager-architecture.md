@@ -2,9 +2,7 @@
 
 > **SoT scope** — **this document** owns: FileEntry / FileRef data models, physical storage layout, version detection & concurrency control (OCC), atomic writes, recycle bin, reference cleanup, DirectoryWatcher internals, startup orphan sweep, DanglingCache state machine, and AI SDK integration design. **Module-level** concerns (type system, IPC / DataApi contracts, layered architecture, business-service integration, lifecycle assignment) live in [`architecture.md`](./architecture.md). In case of conflict, the layer ownership above decides: positioning / contract → the module-level doc, implementation → this document.
 >
-> **Phase note**: this document describes the **target implementation shape** of FileManager. In Phase 1a only the type contracts, DB schema, interface skeletons, and JSDoc semantics are landed; all runtime logic is delivered in Phase 1b.1–1b.4. When a section describes a behavior (dispatch, OCC, atomic writes, orphan sweep, etc.), read that as the **specification the implementation must satisfy**, not as "already working in Phase 1a code".
->
-> **Phase badges used below**: `[1a ✅]` already in code · `[1b.1]` read path & repository · `[1b.2]` write path & lifecycle · `[1b.3]` watcher & DanglingCache · `[1b.4]` orphan sweep & FileRefCheckerRegistry.
+> When a section describes a behavior (dispatch, OCC, atomic writes, orphan sweep, etc.), read it as the **specification the implementation must satisfy**. Sections explicitly tagged "(deferred)" describe planned architecture that is not yet implemented.
 
 ---
 
@@ -62,13 +60,13 @@ The `origin` field of each FileEntry defines **content ownership**:
 | External URL scheme / shell integration | ❌ | Same as above |
 | v1 migration (inherits Dexie stored values) | ❌ (inherits legacy value quality) | Canonicalize once during migration |
 
-**Phase 1b normalization scope** (synchronous, no FS IO):
+**Normalization scope** (synchronous, no FS IO):
 - Null-byte rejection — `raw.includes('\0')` → throw, so poisoned paths never reach DB persistence (reject at the earliest boundary, not at use-time inside `resolvePhysicalPath`)
 - `path.resolve(raw)` → absolutize + eliminate `./` `../`
 - `.normalize('NFC')` → Unicode normalization (closes the NFD/NFC window for macOS CJK)
 - Trailing separator trimming
 
-**Phase 1b intentionally omits** (deferred to Phase 2 based on user feedback):
+**Intentionally omitted** (deferred until concrete user feedback warrants the cost):
 - `fs.realpath` for case-insensitive FS dedup (requires async FS IO + file existence precondition)
 - Symlink target merging
 - Windows 8.3 short-name resolution
@@ -99,7 +97,7 @@ When a rule change additionally collapses previously-distinct strings to the sam
 
 **Renderer-side cache invalidation**: after the migration runs, some React Query caches keyed by the loser's `id` may be stale. Because migrations execute before the renderer boots, this is self-healing on the first query — no special coordination required.
 
-#### Duplicate-entry detection on insert (Phase 1b.1 contract)
+#### Duplicate-entry detection on insert
 
 To give operational visibility for the deliberately-omitted case-insensitive dedup (and other edge cases where the same physical file enters Cherry under two distinct canonical forms), `ensureExternalEntry`'s insert branch MUST perform a best-effort case-insensitive scan of existing external rows before completing the insert:
 
@@ -122,7 +120,7 @@ if (suspects.length > 0) {
 - The scan is best-effort: when the `file_entry` table exceeds a size threshold (e.g. 10k external rows) the scan is skipped silently rather than slowing down the hot path. The heuristic is operational support, not a correctness contract.
 - Logs at `warn` level only — the insert itself proceeds unconditionally. Blocking the insert would contradict the "best-effort external reference" semantic ([architecture.md §1.0.2](./architecture.md#102-best-effort-semantics-for-external)).
 
-This is the observability layer that makes the Phase 2 `fs.realpath` decision **data-driven**: if `warn` records accumulate in production logs, the upgrade path in `canonicalizeExternalPath`'s JSDoc becomes the scheduled fix. If they don't, the deferral is retrospectively validated.
+This is the observability layer that makes the future `fs.realpath` upgrade decision **data-driven**: if `warn` records accumulate in production logs, the upgrade path in `canonicalizeExternalPath`'s JSDoc becomes the scheduled fix. If they don't, the deferral is retrospectively validated.
 
 Invariants:
 
@@ -171,7 +169,7 @@ When a business object is deleted, the business Service is responsible for clean
 
 AI SDK `SharedV4ProviderReference` integration and the `file_upload` table are **deferred** until the Vercel AI SDK Files API stabilises. The module-level DataApi surface (`ensureUploaded` / `buildProviderReference` / `invalidate`) is outlined in [`architecture.md §3.5`](./architecture.md#35-ai-sdk-integration-deferred); the detailed schema and FileUploadService API are retained here in [§9 AI SDK Integration](#9-ai-sdk-integration-fileuploadservice--deferred) for the eventual landing PR.
 
-### 1.6 FileManager Implementation Layout (Facade + Private Internals) `[1a ✅ skeleton]` `[1b.1-1b.4 ✅]`
+### 1.6 FileManager Implementation Layout (Facade + Private Internals)
 
 FileManager is the **sole public entry point** of the file module but is not a 30-method God class. The implementation uses a **facade + private pure-function modules** pattern.
 
@@ -343,7 +341,7 @@ private registerIpcHandlers() {
 | Inside the file module itself (`internal/*`, `watcher/*`) | May reference each other as needed; may also import `@main/utils/file/*` primitives | Except FileManager, must not import `internal/*` |
 | External Node/renderer | N/A (file-module is main-side) | — |
 
-**Boundary enforcement**: the `src/main/services/file/index.ts` barrel re-exports only public types + the `FileManager` class; `internal/` symbols cannot be reached via `@main/services/file`. If violations are found during Phase 1b implementation, add an ESLint `no-restricted-imports` rule.
+**Boundary enforcement**: the `src/main/services/file/index.ts` barrel re-exports only public types + the `FileManager` class; `internal/` symbols cannot be reached via `@main/services/file`. If violations surface, add an ESLint `no-restricted-imports` rule.
 
 #### 1.6.7 Design Trade-offs
 
@@ -355,7 +353,7 @@ private registerIpcHandlers() {
 | FileManager public API switched to handle-native | ❌ | IPC and Main-side call contracts need not share shape; main-side business services using entry-native directly is more intuitive, without needing a `createFileEntryHandle` wrapper |
 | Extract versionCache as a module singleton | ❌ | As a FileManager private field, it naturally supports test isolation (new instance = fresh cache) |
 
-#### 1.6.8 Event Emission & Broadcast `[deferred]`
+#### 1.6.8 Event Emission & Broadcast (deferred)
 
 FileManager exposes three typed `Event<T>` on its instance surface and forwards each to every live renderer window. The public contract and queryKey invalidation table live in [`architecture.md §3.6`](./architecture.md#36-mutation-propagation-to-renderer); this section pins down the emission mechanics that the FileManager implementation must satisfy.
 
@@ -502,7 +500,7 @@ When an external file does not exist on disk (or is inaccessible), the correspon
 
 ---
 
-## 4. Version Detection and Concurrency Control `[1a ✅ FileVersion type]` `[1b.1 ✅ statVersion]` `[1b.2 ✅ VersionCache + writeIfUnchanged]`
+## 4. Version Detection and Concurrency Control
 
 ### 4.1 FileVersion
 
@@ -568,7 +566,7 @@ FileManager maintains `Map<FileEntryId, CachedVersion>` internally (LRU, ~2000 e
 
 ---
 
-## 5. Atomic Writes `[1a ✅ signatures + JSDoc]` `[1b.2 ✅]`
+## 5. Atomic Writes
 
 ### 5.1 tmp + fsync + rename Flow
 
@@ -603,7 +601,7 @@ The `atomicWriteFile` / `atomicWriteIfUnchanged` / `createAtomicWriteStream` pri
 
 ---
 
-## 6. Deletion and Recycle Bin `[1a ✅ schema + CHECK]` `[1b.2 ✅]`
+## 6. Deletion and Recycle Bin
 
 ### 6.1 trashedAt Model
 
@@ -634,14 +632,14 @@ Query: `WHERE trashedAt < now() - retentionMs` → batch permanentDelete.
 | unlink fails on permanentDelete internal (file already missing, permission issue) | Log warn; the DB row is already gone, so the failure surfaces only as an orphan blob that the startup file sweep will reclaim |
 | permanentDelete on external | DB-only by design; the user's file at `externalPath` is never touched — Cherry owns only the reference |
 | `ensureExternalEntry(path)` when an entry for the same path already exists | Entry point first calls `canonicalizeExternalPath(raw)`; upsert returns the existing row. External entries cannot be trashed, so there is no "restore" branch. |
-| **Two entries for the same file due to case / NFC differences** (macOS APFS, Windows NTFS, or NFD ↔ NFC input) | Phase 1b canonicalize closes the NFC window; case-insensitive FS dedup not implemented (see §1.2 "Phase 1b normalization scope")—will add `fs.realpath` + one-off migration when there is concrete user feedback |
+| **Two entries for the same file due to case / NFC differences** (macOS APFS, Windows NTFS, or NFD ↔ NFC input) | The `canonicalizeExternalPath` step closes the NFC window; case-insensitive FS dedup not implemented (see §1.2 "Normalization scope")—will add `fs.realpath` + one-off migration when there is concrete user feedback |
 | External file at original path externally replaced with a different file | Cherry does not check content consistency (best-effort). `name` / `ext` on the row are derived from `externalPath` and do not change; `size` is always served live by `getMetadata`. DanglingCache flips to `'present'` on the next stat, so the UI just renders the new file under the existing reference. |
 | A trashed entry is permanently externally deleted and then restored | Appears dangling (DanglingCache returns missing on next check), UI shows failed style |
 | External write with permission error / disk full on target path | Throw without polluting DB; caller decides retry or user notification |
 
 ---
 
-## 7. Reference Cleanup Mechanism `[1a ✅ FileRefSourceType union]` `[1b.4 ✅ FileRefCheckerRegistry]`
+## 7. Reference Cleanup Mechanism
 
 Three layers of protection, with each layer as a fallback for the next:
 
@@ -680,7 +678,7 @@ There is **one narrow exception**: external entries whose physical file is confi
 | `external` | `'missing'` | >0 | **Preserve** — business objects still reference this entry. Automatic deletion would CASCADE-drop `file_ref` rows and silently mutate user data (messages' attachment count drops, UI state shifts). The business service owning those refs is the right layer to decide replacement / removal policy, not the file module. Reference-oriented UI surfaces (§3.4 UI filter convention) show these as "file missing" so the user can act. |
 | `external` | `'missing'` | 0 | **Auto-clean after retention window** — both sides are gone, no user-visible impact; see §7.2 |
 
-### 7.2 Dangling External Auto-Cleanup (Layer 3 Extension) `[deferred]`
+### 7.2 Dangling External Auto-Cleanup (Layer 3 Extension, deferred)
 
 As part of the same Layer-3 scanner pass — not a separate background task — after cleaning orphan refs, the scanner scans for external entries eligible under row `('external', 'missing', 0)` of the policy matrix above:
 
@@ -730,11 +728,11 @@ LIMIT 500;                                             -- batch cap
 
 Mirrors the orphan sweep's observability contract (§10.5) — one record per scanner run through `loggerService`, no separate metrics pipeline.
 
-**Implementation location**: ships as part of the Phase 1b.4 OrphanRefScanner deliverable — no new phase. The scanner gains a second pass method (e.g. `scanDanglingEntries(): Promise<void>`) called after `scanOrphanRefs` inside the same scheduled tick.
+**Implementation location**: lives alongside the OrphanRefScanner. The scanner gains a second pass method (e.g. `scanDanglingEntries(): Promise<void>`) called after `scanOrphanRefs` inside the same scheduled tick.
 
 ---
 
-## 8. DirectoryWatcher `[1a ✅ factory signature]` `[1b.3 ✅]`
+## 8. DirectoryWatcher
 
 ### 8.1 Positioning
 
@@ -841,7 +839,7 @@ file_module **starts no watcher instances**. Whether to monitor external directo
 
 ## 9. AI SDK Integration (FileUploadService) — **Deferred**
 
-> ⚠️ **This section is a design record and is not in the scope of Phase 1a implementation**. Vercel AI SDK's Files Upload API (`FilesV4`, `SharedV4ProviderReference`) is still pre-release, and the corresponding dependency is unstable. FileUploadService, the `file_upload` table, and related IPC methods are all deferred to a separate PR after the SDK reaches stable. This section preserves the design intent for direct landing in the future.
+> ⚠️ **This section is a design record; the corresponding implementation is deferred.** Vercel AI SDK's Files Upload API (`FilesV4`, `SharedV4ProviderReference`) is still pre-release, and the corresponding dependency is unstable. FileUploadService, the `file_upload` table, and related IPC methods are all deferred to a separate PR after the SDK reaches stable. This section preserves the design intent for direct landing in the future.
 
 ### 9.1 Motivation
 
@@ -892,7 +890,7 @@ interface IFileUploadService {
 
 ---
 
-## 10. Startup Orphan Sweep (FileManager Background Task) `[1b.4 ✅]`
+## 10. Startup Orphan Sweep (FileManager Background Task)
 
 ### 10.1 Positioning
 
@@ -1080,7 +1078,7 @@ No WAL / pending_fs_ops table needed. Orphan sweep covers the internal crash res
 
 ---
 
-## 11. DanglingCache (External Presence Tracker) `[1a ✅ interface]` `[1b.3 ✅]`
+## 11. DanglingCache (External Presence Tracker)
 
 ### 11.1 Positioning
 
@@ -1253,7 +1251,7 @@ async function batchGetDanglingStates(ids: FileEntryId[]): Promise<Record<FileEn
 
 **Known residual case — stale `'present'` with `refs > 0`**: if an external file is deleted outside Cherry, without any watcher or ops observation to signal it, and no UI ever queries `getDanglingState` for that entry, the cache stays `'present'` past TTL boundaries (first query after TTL will re-stat and fix). Business services that depend on referenced files MUST re-validate at use time (read will surface ENOENT anyway) — this is the explicit "use-site check" side of the F-1 / F-2 policy split and is not attempted to be hidden behind cache semantics.
 
-### 11.7 Reactivity — Event Emission `[deferred]`
+### 11.7 Reactivity — Event Emission (deferred)
 
 DanglingCache exposes `onDanglingStateChanged: Event<DanglingStateChangedEvent>` fired on every **genuine** state transition (watcher event, cold-path `fs.stat` observation after a cache miss, explicit `ops` observation):
 
@@ -1275,7 +1273,7 @@ FileManager subscribes in `onInit` (see §1.6.8) and fans the event out to all r
 
 **Staleness backstop retained**: the `staleTime ≤ 5min` contract from [architecture.md §4.1.1](./architecture.md#411-dataapi-boundary-sql-only-fixed-shape) still applies. Events accelerate refresh; a lost event is bounded by React Query's natural refetch cadence. DanglingCache's emission is therefore an optimization over pure pull, not a replacement for the pull path.
 
-### 11.8 Observability `[deferred]`
+### 11.8 Observability (deferred)
 
 DanglingCache emits a structured `info`-level log record at a fixed cadence (every 10 minutes, driven by a simple timer in `onInit`) summarizing its recent activity. This mirrors the F-2 scanner and orphan sweep observability contracts (§7.2, §10.5) — one periodic record plus opportunistic `warn` / `error` on anomalies, no separate metrics pipeline.
 
