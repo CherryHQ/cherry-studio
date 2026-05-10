@@ -16,7 +16,7 @@ const mockWindowApi = vi.hoisted(() => ({
 }))
 
 // TabsContext is consumed by useMiniAppPopup to open AppShell tabs and to find
-// pinned miniapp route tabs that are exempt from keep-alive eviction. The test
+// pinned mini-app route tabs that are exempt from keep-alive eviction. The test
 // surface here defaults to "no pinned tabs"; individual tests override this.
 const mockTabs = vi.hoisted(() => ({
   tabs: [] as Array<{ id: string; url: string; isPinned?: boolean; type: 'route' }>,
@@ -111,7 +111,7 @@ describe('useMiniAppPopup', () => {
   // === openMiniApp ===
 
   describe('openMiniApp', () => {
-    it('should open a one-off miniapp when keepAlive is false (default)', async () => {
+    it('should open a one-off mini-app when keepAlive is false (default)', async () => {
       const app = createMiniApp('test-app')
       MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', null)
       MockUseCacheUtils.setCacheValue('mini_app.show', false)
@@ -126,7 +126,7 @@ describe('useMiniAppPopup', () => {
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('test-app')
     })
 
-    it('should open a keep-alive miniapp and add to keep-alive list', async () => {
+    it('should open a keep-alive mini-app and add to keep-alive list', async () => {
       const app = createMiniApp('keep-alive-app')
       MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
       MockUseCacheUtils.setCacheValue('mini_app.show', false)
@@ -203,7 +203,7 @@ describe('useMiniAppPopup', () => {
       expect(list.map((a) => a.appId)).toEqual(['newer', 'mid-app'])
     })
 
-    it('should clear one-off miniapp when opening a keep-alive app', async () => {
+    it('should clear one-off mini-app when opening a keep-alive app', async () => {
       const oneOffApp = createMiniApp('one-off')
       const keepAliveApp = createMiniApp('keep-alive')
       MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', oneOffApp)
@@ -298,7 +298,7 @@ describe('useMiniAppPopup', () => {
       expect(mockClearWebviewState).toHaveBeenCalledWith('to-close')
     })
 
-    it('should clear one-off miniapp when closing it', async () => {
+    it('should clear one-off mini-app when closing it', async () => {
       const app = createMiniApp('one-off-close')
       MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
       MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', app)
@@ -312,7 +312,7 @@ describe('useMiniAppPopup', () => {
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toBeNull()
     })
 
-    it('should hide the miniapp popup after closing', async () => {
+    it('should hide the mini-app popup after closing', async () => {
       const app = createMiniApp('to-hide')
       MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
       MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', app)
@@ -357,7 +357,7 @@ describe('useMiniAppPopup', () => {
   // === hideMiniAppPopup ===
 
   describe('hideMiniAppPopup', () => {
-    it('should hide the popup and clear one-off miniapp', async () => {
+    it('should hide the popup and clear one-off mini-app', async () => {
       const app = createMiniApp('to-hide-popup')
       MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', app)
       MockUseCacheUtils.setCacheValue('mini_app.show', true)
@@ -559,13 +559,13 @@ describe('useMiniAppPopup', () => {
     })
 
     // Regression for https://github.com/CherryHQ/cherry-studio/pull/14049 —
-    // before the fix, switching between miniapp tabs that the user had pinned
+    // before the fix, switching between mini-app tabs that the user had pinned
     // in the AppShell tab bar would still evict them from keep-alive (the
     // hook didn't know about pin status), so the side-bar mini-tab list
     // collapsed to whatever cap was. Pinning is the user explicitly saying
     // "keep this loaded"; the cap must respect that.
     describe('pinned-tab exemption', () => {
-      it('should not evict a miniapp whose AppShell tab is pinned, even when over cap', async () => {
+      it('should not evict a mini-app whose AppShell tab is pinned, even when over cap', async () => {
         MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 3)
         const seeded = [createMiniApp('pinA'), createMiniApp('pinB'), createMiniApp('pinC')]
         MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, seeded)

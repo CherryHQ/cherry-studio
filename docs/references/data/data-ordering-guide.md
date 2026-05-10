@@ -95,7 +95,7 @@ function PinList() {
   return <DraggableList items={data ?? []} onReorder={applyReorderedList} />
 }
 
-// Non-`id` primary key (e.g. miniapp.appId):
+// Non-`id` primary key (e.g. miniAppTable.appId):
 useReorder('/mini-apps', { idKey: 'appId' })
 ```
 
@@ -158,7 +158,7 @@ Moves apply **sequentially in one transaction**; each anchor resolves against th
 - **Column**: `order_key TEXT NOT NULL`. Always injected via `...orderKeyColumns`; the spread locks the TS field name to `orderKey`.
 - **Index**: required. Use `orderKeyIndex(tableName)(t)` for whole-table or `scopedOrderKeyIndex(tableName, scopeColumn)(t)` for partitioned tables.
 - **Known partition dimensions** in the codebase:
-  - Live (active consumers): `group.entityType`, `pin.entityType`, `user_model.providerId`, `miniapp.status`, `user_provider.isEnabled`.
+  - Live (active consumers): `group.entity_type`, `pin.entity_type`, `user_model.provider_id`, `mini_app.status`, `user_provider.is_enabled`.
   - Planned / hypothetical: `topic.groupId` (adopted when `topic` migrates to the spec).
 - **No secondary order axes**. Each sortable table exposes exactly one `order_key`. Orthogonal user intents — e.g. "in a group" vs "pinned" — are modelled as separate tables, not as overloaded scope values on a shared column. Resource-specific design (polymorphic shape, purge contracts, concurrency semantics) lives in each schema / service's JSDoc, not here — this guide scopes to the ordering mechanism only.
 
@@ -180,7 +180,7 @@ All runtime `order_key` reads and writes go through `src/main/data/services/util
 
 Binding semantics:
 
-- **`pkColumn` is required.** Primary-key column names vary (`miniapp.appId`, `mcpServer.id`, `topic.id`, ...); helpers make zero assumptions.
+- **`pkColumn` is required.** Primary-key column names vary (`miniAppTable.appId`, `mcpServer.id`, `topic.id`, ...); helpers make zero assumptions.
 - **Must run inside an outer transaction.** Helpers take `tx` and never open their own.
 - **`scope` applies symmetrically** to target, anchor, and neighbour lookups — anchoring across scopes throws.
 - **`insertManyWithOrderKey` preserves input order under `ORDER BY orderKey ASC`.** For `position: 'last'` the batch lands after existing rows; for `'first'` before; within the batch, relative order mirrors `valuesList`.
@@ -354,11 +354,11 @@ Complete in one PR:
 1. **Schema**: `...orderKeyColumns` + `orderKeyIndex(tableName)(t)` or `scopedOrderKeyIndex(tableName, scopeColumn)(t)`.
 2. **Endpoints**: `& OrderEndpoints<'/{res}'>` on the resource's schema type. Add `POST /{res}/order:reset` inline if needed. Handlers validate bodies with `OrderRequestSchema` / `OrderBatchRequestSchema`.
 3. **Service**: `insertWithOrderKey` for create, `applyMoves` (or `applyScopedMoves` for discriminator-partitioned tables) for reorder, `resetOrder` for reset. For partitioned tables, the relevant scope predicate is:
-   - `group`: `eq(groupTable.entityType, entityType)` — live (`GroupService.reorder` / `reorderBatch` via `applyScopedMoves`).
-   - `pin`: `eq(pinTable.entityType, entityType)` — live (`PinService.reorder` / `reorderBatch` via `applyScopedMoves`).
-   - `user_model`: `eq(userModelTable.providerId, providerId)`.
-   - `miniapp`: `eq(miniappTable.status, status)`.
-   - `topic`: `topic.groupId ? eq(topicTable.groupId, groupId) : isNull(topicTable.groupId)` — hypothetical, pending `topic` migration.
+   - `group`: `eq(group_table.entity_type, entity_type)` — live (`GroupService.reorder` / `reorderBatch` via `applyScopedMoves`).
+   - `pin`: `eq(pin_table.entity_type, entity_type)` — live (`PinService.reorder` / `reorderBatch` via `applyScopedMoves`).
+   - `user_model`: `eq(user_model_table.provider_id, provider_id)`.
+   - `mini_app`: `eq(mini_app_table.status, status)`.
+   - `topic`: `topic.group_id ? eq(topic_table.group_id, group_id) : isNull(topic_table.group_id)` — hypothetical, pending `topic` migration.
    - `user_provider` / `mcp_server`: whole-table (`scope: undefined`).
 
    New scoped consumers should prefer `applyScopedMoves` (which handles scope lookup and rejects cross-scope batches) over composing `applyMoves` with a manually assembled `eq(...)` scope.

@@ -4138,7 +4138,7 @@
       },
       "clear_cache": {
         "button": "Clear Cache",
-        "confirm": "Clearing the cache will delete application cache data, including miniapp data. This action is irreversible, continue?",
+        "confirm": "Clearing the cache will delete application cache data, including mini-app data. This action is irreversible, continue?",
         "error": "Error clearing cache",
         "success": "Cache cleared",
         "title": "Clear Cache"

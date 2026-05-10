@@ -14,7 +14,7 @@ import * as z from 'zod'
 export type MiniAppId = string & { readonly __brand: unique symbol }
 
 /**
- * Permitted characters for a custom miniapp id. Exported so the v1→v2 migrator
+ * Permitted characters for a custom mini-app id. Exported so the v1→v2 migrator
  * can apply the same validation when transcribing legacy ids — keeping the
  * pattern in lock-step with `POST /mini-apps` prevents migrated rows that the
  * v2 API would refuse to recreate.
@@ -22,7 +22,7 @@ export type MiniAppId = string & { readonly __brand: unique symbol }
 export const MINI_APP_ID_REGEX = /^[A-Za-z0-9_-]+$/
 
 /**
- * Field atom for miniapp id — shared between entity, DTO, and query.
+ * Field atom for mini-app id — shared between entity, DTO, and query.
  * @public
  */
 export const MiniAppIdSchema = z

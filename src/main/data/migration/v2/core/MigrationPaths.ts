@@ -51,7 +51,7 @@ export interface MigrationPaths {
   readonly versionLogFile: string
   /** {userData}/Data/agents.db — legacy standalone agents SQLite location. */
   readonly legacyAgentDbFile: string
-  /** {userData}/Data/Files/custom-minapps.json — v1 sidecar with full custom miniapp records (logos stripped from Redux). */
+  /** {userData}/Data/Files/custom-minapps.json — v1 sidecar with full custom mini-app records (logos stripped from Redux). */
   readonly customMiniAppsFile: string
 
   // ── Derived from cherryHome ──

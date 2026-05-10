@@ -288,7 +288,7 @@ export class MainWindowService extends BaseService {
 
   private setupContextMenu(mainWindow: BrowserWindow) {
     contextMenu.contextMenu(mainWindow.webContents)
-    // setup context menu for all webviews like miniapp
+    // setup context menu for all webviews like mini-app
     app.on('web-contents-created', (_, webContents) => {
       contextMenu.contextMenu(webContents)
     })

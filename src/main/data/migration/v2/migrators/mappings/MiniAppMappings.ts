@@ -27,7 +27,7 @@ function toRequired<T>(value: unknown, fallback: T): T {
 }
 
 /**
- * Transform a single Redux MiniApp object into a SQLite miniapp row (without orderKey).
+ * Transform a single Redux MiniApp object into a SQLite mini-app row (without orderKey).
  *
  * Order keys are stamped by `assignOrderKeysByScope` in the migrator after all rows
  * are partitioned into status buckets — see data-ordering-guide.md §5.
@@ -48,8 +48,8 @@ export function transformMiniApp(
   status: MiniAppStatus
 ): Omit<MiniAppInsert, 'orderKey'> {
   const appId = toRequired<string>(source.id, '')
-  // v1 stamps `type: 'Custom'` on apps loaded from custom-minapps.json
-  // (see v1 src/renderer/src/config/minapps.ts:loadCustomMiniApp). Preset rows
+  // v1 stamps `type: 'Custom'` on apps loaded from custom-minapps.json.
+  // Preset rows
   // in v1 leave `type` unset. Honor that explicit signal first so a user-created
   // app whose id collides with a v2-only preset isn't misclassified as preset.
   const isExplicitCustom = source.type === 'Custom'

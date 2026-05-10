@@ -137,7 +137,7 @@ Legacy Redux/Dexie → SQLite migrators for sortable resources must produce `ord
 
 | Helper | Shape | Use for |
 |---|---|---|
-| `assignOrderKeysInSequence(rows)` | Returns `rows` with one monotonically increasing `orderKey` per row. | Whole-table ordering (e.g. `mcp_server`, `user_provider`, `miniapp`). |
+| `assignOrderKeysInSequence(rows)` | Returns `rows` with one monotonically increasing `orderKey` per row. | Whole-table ordering (e.g. `mcp_server`, `user_provider`, `mini_app`). |
 | `assignOrderKeysByScope(rows, getScope)` | Groups rows by the scope key, stamps each bucket independently (independent key spaces per bucket). | Partitioned tables (e.g. `topic.groupId`, `user_model.providerId`, `group.entityType`). |
 
 **Pattern — flatten first, stamp last:** keep `transform*` functions pure (no `index` parameter, no `sortOrder` argument); flatten the legacy source into an array, then stamp keys onto the whole array:

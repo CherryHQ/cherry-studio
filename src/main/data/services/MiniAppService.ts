@@ -1,5 +1,5 @@
 /**
- * MiniApp Service - handles miniapp CRUD operations.
+ * MiniApp Service - handles mini-app CRUD operations.
  *
  * Owns the `mini_app` SQLite table. Mirrors {@link ProviderService}:
  * uniform CRUD over rows, with row-shape policy enforced via column checks
@@ -66,7 +66,7 @@ export class MiniAppService {
     return application.get('DbService').getDb()
   }
 
-  /** Get a miniapp by appId. Throws NOT_FOUND if absent. */
+  /** Get a mini-app by appId. Throws NOT_FOUND if absent. */
   async getByAppId(appId: string): Promise<MiniApp> {
     const [row] = await this.db.select().from(miniAppTable).where(eq(miniAppTable.appId, appId)).limit(1)
     if (!row) throw DataApiErrorFactory.notFound('MiniApp', appId)
@@ -92,7 +92,7 @@ export class MiniAppService {
   }
 
   /**
-   * Create a custom miniapp. Rejects collisions with preset ids.
+   * Create a custom mini-app. Rejects collisions with preset ids.
    * Auto-assigns orderKey at the end of the status='enabled' partition.
    */
   async create(dto: CreateMiniAppDto): Promise<MiniApp> {
@@ -132,12 +132,12 @@ export class MiniAppService {
     if (!row) {
       throw DataApiErrorFactory.internal(new Error('Insert returned no rows'), 'MiniApp.create')
     }
-    logger.info('Created custom miniapp', { appId: row.appId, orderKey: row.orderKey })
+    logger.info('Created custom mini-app', { appId: row.appId, orderKey: row.orderKey })
     return rowToMiniApp(row)
   }
 
   /**
-   * Update an existing miniapp. Currently only `status` is mutable — preset
+   * Update an existing mini-app. Currently only `status` is mutable — preset
    * display fields (name/url/logo/...) are owned by {@link MiniAppSeeder} and
    * have no edit UI; reordering within a partition goes through the dedicated
    * `/order` endpoints.
@@ -186,12 +186,12 @@ export class MiniAppService {
       defaultHandlersFor('MiniApp', appId)
     )
     if (!row) throw DataApiErrorFactory.notFound('MiniApp', appId)
-    logger.info('Updated miniapp', { appId, status: targetStatus })
+    logger.info('Updated mini-app', { appId, status: targetStatus })
     return rowToMiniApp(row)
   }
 
   /**
-   * Delete a miniapp. Preset-derived rows cannot be deleted (use status='disabled').
+   * Delete a mini-app. Preset-derived rows cannot be deleted (use status='disabled').
    * Mirrors {@link ProviderService.delete}'s preset guard.
    */
   async delete(appId: string): Promise<void> {
@@ -204,8 +204,8 @@ export class MiniAppService {
 
     if (existing.presetMiniAppId !== null) {
       throw DataApiErrorFactory.invalidOperation(
-        `delete miniapp ${appId}`,
-        'preset-derived miniapp cannot be deleted; use PATCH with status="disabled" to hide'
+        `delete mini-app ${appId}`,
+        'preset-derived mini-app cannot be deleted; use PATCH with status="disabled" to hide'
       )
     }
 
@@ -213,7 +213,7 @@ export class MiniAppService {
       () => this.db.delete(miniAppTable).where(eq(miniAppTable.appId, appId)),
       defaultHandlersFor('MiniApp', appId)
     )
-    logger.info('Deleted miniapp', { appId })
+    logger.info('Deleted mini-app', { appId })
   }
 
   /**

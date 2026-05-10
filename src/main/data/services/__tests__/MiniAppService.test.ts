@@ -54,7 +54,7 @@ describe('MiniAppService', () => {
   }
 
   describe('getByAppId', () => {
-    it('should return a custom miniapp', async () => {
+    it('should return a custom mini-app', async () => {
       await seedCustom()
       const result = await miniAppService.getByAppId('custom-app')
       expect(result.appId).toBe('custom-app')
@@ -62,7 +62,7 @@ describe('MiniAppService', () => {
       expect(result.presetMiniAppId).toBeNull()
     })
 
-    it('should return a preset-derived miniapp with presetMiniAppId set', async () => {
+    it('should return a preset-derived mini-app with presetMiniAppId set', async () => {
       await seedPreset('openai')
       const result = await miniAppService.getByAppId('openai')
       expect(result.appId).toBe('openai')
@@ -98,7 +98,7 @@ describe('MiniAppService', () => {
   })
 
   describe('create', () => {
-    it('should create a custom miniapp', async () => {
+    it('should create a custom mini-app', async () => {
       const dto: CreateMiniAppDto = {
         appId: 'new-app',
         name: 'New App',
@@ -147,7 +147,7 @@ describe('MiniAppService', () => {
   })
 
   describe('update', () => {
-    it('should update status on a custom miniapp', async () => {
+    it('should update status on a custom mini-app', async () => {
       await seedCustom()
       const dto: UpdateMiniAppDto = { status: 'disabled' }
 
@@ -156,7 +156,7 @@ describe('MiniAppService', () => {
       expect(result.status).toBe('disabled')
     })
 
-    it('should update status on a preset miniapp', async () => {
+    it('should update status on a preset mini-app', async () => {
       await seedPreset('openai')
 
       const result = await miniAppService.update('openai', { status: 'pinned' })
@@ -200,7 +200,7 @@ describe('MiniAppService', () => {
   })
 
   describe('delete', () => {
-    it('should delete a custom miniapp', async () => {
+    it('should delete a custom mini-app', async () => {
       await seedCustom()
       await miniAppService.delete('custom-app')
       const rows = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'custom-app'))

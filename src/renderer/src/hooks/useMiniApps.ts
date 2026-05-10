@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo } from 'react'
  * PRINCIPLE: Region filtering is a VIEW concern, not a DATA concern.
  *
  * - DataApi stores ALL apps (including region-restricted ones) to preserve user preferences
- * - ORIGIN_DEFAULT_MIN_APPS is the preset data source containing region definitions
+ * - PRESETS_MINI_APPS is the preset data source containing region definitions
  * - This hook applies region filtering only when READING for UI display
  * - Mutations target individual apps by appId, never touching region-hidden apps
  */

@@ -15,7 +15,7 @@ import type { OrderEndpoints } from './_endpointHelpers'
 export { MINI_APP_ID_REGEX } from '@shared/data/types/miniApp'
 
 /**
- * Zod schema for creating a new custom miniapp
+ * Zod schema for creating a new custom mini-app
  */
 export const CreateMiniAppSchema = z.strictObject({
   appId: MiniAppIdSchema,
@@ -36,7 +36,7 @@ export const CreateMiniAppSchema = z.strictObject({
 export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
 
 /**
- * Zod schema for updating an existing miniapp.
+ * Zod schema for updating an existing mini-app.
  *
  * Only `status` (enabled/disabled/pinned) is mutable. Preset display fields
  * (name/url/logo/...) are owned by the seeder and have no edit UI. Reordering
@@ -48,7 +48,7 @@ export const UpdateMiniAppSchema = z.strictObject({
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 
 /**
- * Query parameters for listing miniApps
+ * Query parameters for listing mini-apps
  */
 export const ListMiniAppsQuerySchema = z.strictObject({
   status: MiniAppStatusSchema.optional()
@@ -75,7 +75,7 @@ type MiniAppBaseSchemas = {
       query?: ListMiniAppsQuery
       response: MiniApp[]
     }
-    /** Create a new miniapp (for custom apps or default app preference rows) */
+    /** Create a new mini-app (for custom apps or default app preference rows) */
     POST: {
       body: CreateMiniAppDto
       response: MiniApp
@@ -83,24 +83,24 @@ type MiniAppBaseSchemas = {
   }
 
   /**
-   * Individual miniapp endpoint
+   * Individual mini-app endpoint
    * @example GET /mini-apps/qwen
    * @example PATCH /mini-apps/qwen { "status": "disabled" }
    * @example DELETE /mini-apps/qwen
    */
   '/mini-apps/:appId': {
-    /** Get a miniapp by appId */
+    /** Get a mini-app by appId */
     GET: {
       params: { appId: string }
       response: MiniApp
     }
-    /** Update a miniapp */
+    /** Update a mini-app */
     PATCH: {
       params: { appId: string }
       body: UpdateMiniAppDto
       response: MiniApp
     }
-    /** Delete a miniapp */
+    /** Delete a mini-app */
     DELETE: {
       params: { appId: string }
       response: void

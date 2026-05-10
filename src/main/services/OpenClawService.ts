@@ -740,7 +740,7 @@ export class OpenClawService extends BaseService {
   }
 
   /**
-   * Get OpenClaw Dashboard URL (for opening in miniapp).
+   * Get OpenClaw Dashboard URL (for opening in mini-app).
    * The Control UI uses #token= to bootstrap WebSocket authentication while
    * keeping the token client-side instead of sending it in HTTP requests.
    */

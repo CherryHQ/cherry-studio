@@ -1,7 +1,7 @@
 /**
  * MiniApp table schema
  *
- * Stores user's miniapp configurations and preferences
+ * Stores user's mini-app configurations and preferences
  * Supports both system default apps and user-customized apps
  */
 

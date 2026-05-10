@@ -1,5 +1,5 @@
 /**
- * Builtin (preset) miniapp definitions
+ * Builtin (preset) mini-app definitions
  *
  * Single source of truth for all built-in miniApps.
  * Both renderer (UI display) and main process (DB merge logic) import from here.

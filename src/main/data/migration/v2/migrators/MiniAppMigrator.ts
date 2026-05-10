@@ -1,5 +1,5 @@
 /**
- * MiniApp migrator - migrates miniapp configurations from Redux to SQLite
+ * MiniApp migrator - migrates mini-app configurations from Redux to SQLite
  */
 
 import fs from 'node:fs/promises'

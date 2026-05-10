@@ -37,7 +37,7 @@ function toMiniApp(input: MiniAppInput): MiniApp {
 }
 
 /**
- * Cleanup performed when a miniapp is removed from the keep-alive list.
+ * Cleanup performed when a mini-app is removed from the keep-alive list.
  * Clears persisted webview state. Tab closing in the v2 AppShell layout is
  * driven by the tabs cache directly; closing a v1 Redux tab here is no
  * longer meaningful (v2 layout does not render v1 tabs).
@@ -46,7 +46,7 @@ function evictMiniApp(appId: string) {
   try {
     clearWebviewState(appId)
   } catch (error) {
-    logger.error('Error during miniapp eviction', error as Error)
+    logger.error('Error during mini-app eviction', error as Error)
   }
 }
 
@@ -109,14 +109,14 @@ function openExternalMiniAppUrl(url: string) {
 /**
  * Usage:
  *
- *   To control the miniapp popup, you can use the following hooks:
+ *   To control the mini-app popup, you can use the following hooks:
  *     import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
  *
  *   in the component:
  *     const { openMiniApp, openMiniAppKeepAlive, openMiniAppById,
  *             closeMiniApp, hideMiniAppPopup, closeAllMiniApps } = useMiniAppPopup()
  *
- *   To use some key states of the miniapp popup:
+ *   To use some key states of the mini-app popup:
  *     import { useMiniApps } from '@renderer/hooks/useMiniApps'
  *     const { openedKeepAliveMiniApps, openedOneOffMiniApp, miniAppShow } = useMiniApps()
  */
@@ -174,7 +174,7 @@ export const useMiniAppPopup = () => {
     for (const app of evicted) evictMiniApp(app.appId)
   }, [cap, setOpenedKeepAliveMiniApps])
 
-  /** Open a miniapp (popup shows and miniapp loaded) */
+  /** Open a mini-app (popup shows and mini-app loaded) */
   const openMiniApp = useCallback(
     (app: MiniApp, keepAlive: boolean = false) => {
       if (keepAlive) {
@@ -205,7 +205,7 @@ export const useMiniAppPopup = () => {
         return
       }
 
-      //if the miniapp is not keep alive, open it as one-off miniapp
+      //if the mini-app is not keep alive, open it as one-off mini-app
       setOpenedOneOffMiniApp(app)
       setCurrentMiniAppId(app.appId)
       setMiniAppShow(true)
@@ -221,7 +221,7 @@ export const useMiniAppPopup = () => {
     [openMiniApp]
   )
 
-  /** Open a miniapp by id (look up the miniapp in allApps from DataApi) */
+  /** Open a mini-app by id (look up the mini-app in allApps from DataApi) */
   const openMiniAppById = useCallback(
     (id: string, keepAlive: boolean = false) => {
       const appDef = allApps.find((app) => app.appId === id)
@@ -234,7 +234,7 @@ export const useMiniAppPopup = () => {
     [allApps, openMiniApp]
   )
 
-  /** Close a miniapp immediately (popup hides and miniapp unloaded) */
+  /** Close a mini-app immediately (popup hides and mini-app unloaded) */
   const closeMiniApp = useCallback(
     (appid: string) => {
       const list = keepAliveRef.current
@@ -263,7 +263,7 @@ export const useMiniAppPopup = () => {
     for (const app of list) evictMiniApp(app.appId)
   }, [setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow])
 
-  /** Hide the miniapp popup (only one-off miniapp unloaded) */
+  /** Hide the mini-app popup (only one-off mini-app unloaded) */
   const hideMiniAppPopup = useCallback(() => {
     if (!miniAppShow) return
 
@@ -275,7 +275,7 @@ export const useMiniAppPopup = () => {
   }, [miniAppShow, openedOneOffMiniApp, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow])
 
   /**
-   * Open a miniapp from a transient config (e.g., a shared link). Adds to the
+   * Open a mini-app from a transient config (e.g., a shared link). Adds to the
    * keep-alive list and opens the detail route in a tab — the global pool then
    * renders the webview. Same path for sidebar and top-navbar layouts.
    */

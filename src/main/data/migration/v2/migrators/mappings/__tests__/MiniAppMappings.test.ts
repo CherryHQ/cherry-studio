@@ -115,7 +115,7 @@ describe('MiniAppMappings', () => {
       })
 
       it('should treat type="Custom" as custom even when id collides with a preset', () => {
-        // v1's loadCustomMiniApp stamps `type: 'Custom'` on user-imported apps.
+        // v1 stamps `type: 'Custom'` on apps loaded from custom-minapps.json.
         // If a v2 preset id happens to match a v1 custom app's id, the explicit
         // type field is the authoritative signal — must not be overridden.
         const source = createPresetSource({

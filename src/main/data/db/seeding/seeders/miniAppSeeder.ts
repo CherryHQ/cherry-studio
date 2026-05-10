@@ -7,7 +7,7 @@ import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
 
 /**
- * Seed preset miniapp rows from {@link PRESETS_MINI_APPS}.
+ * Seed preset mini-app rows from {@link PRESETS_MINI_APPS}.
  *
  * Re-runs whenever the preset data changes (auto-detected via {@link hashObject}).
  * On re-run, refreshes preset display fields unconditionally — no UI lets users
@@ -19,7 +19,7 @@ import { hashObject } from '../hashObject'
  */
 export class MiniAppSeeder implements ISeeder {
   readonly name = 'miniApp'
-  readonly description = 'Insert/refresh preset miniapp rows from PRESETS_MINI_APPS'
+  readonly description = 'Insert/refresh preset mini-app rows from PRESETS_MINI_APPS'
   readonly version: string
 
   constructor() {
