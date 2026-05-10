@@ -63,6 +63,12 @@ export interface FileRefService {
 
   /** Batch variant of `cleanupBySource` — one `DELETE … IN (…)` per sourceType. */
   cleanupBySourceBatch(sourceType: FileRefSourceType, sourceIds: readonly string[]): Promise<number>
+
+  /**
+   * Distinct `sourceId` values currently held by refs of the given sourceType.
+   * Backs OrphanRefScanner — the only consumer.
+   */
+  listDistinctSourceIds(sourceType: FileRefSourceType): Promise<string[]>
 }
 
 type FileRefRow = typeof fileRefTable.$inferSelect
@@ -142,6 +148,14 @@ class FileRefServiceImpl implements FileRefService {
       .where(and(eq(fileRefTable.sourceType, sourceType), inArray(fileRefTable.sourceId, sourceIds as string[])))
       .returning({ id: fileRefTable.id })
     return rows.length
+  }
+
+  async listDistinctSourceIds(sourceType: FileRefSourceType): Promise<string[]> {
+    const rows = await this.getDb()
+      .selectDistinct({ sourceId: fileRefTable.sourceId })
+      .from(fileRefTable)
+      .where(eq(fileRefTable.sourceType, sourceType))
+    return rows.map((r) => r.sourceId)
   }
 }
 
