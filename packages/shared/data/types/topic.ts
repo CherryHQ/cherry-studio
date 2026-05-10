@@ -28,11 +28,11 @@ export const TopicSchema = z.strictObject({
   /** Whether the name was manually edited by user */
   isNameManuallyEdited: z.boolean(),
   /** Last-used assistant ID (updated on message send) */
-  assistantId: z.string().nullable().optional(),
+  assistantId: z.string().optional(),
   /** Active node ID in the message tree */
-  activeNodeId: z.string().nullable().optional(),
+  activeNodeId: z.string().optional(),
   /** Group ID for organization */
-  groupId: z.string().nullable().optional(),
+  groupId: z.string().optional(),
   /** Fractional-indexing order key, partitioned by groupId. */
   orderKey: z.string(),
   /** Creation timestamp (ISO string) */

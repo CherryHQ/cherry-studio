@@ -32,9 +32,11 @@ function rowToTopic(row: TopicRow): Topic {
     id: row.id,
     name: row.name,
     isNameManuallyEdited: row.isNameManuallyEdited,
-    assistantId: row.assistantId,
-    activeNodeId: row.activeNodeId,
-    groupId: row.groupId,
+    // DB NULL ↔ domain `undefined` boundary — the domain shape uses
+    // optional fields rather than `T | null`, per data-api-in-main.md.
+    assistantId: row.assistantId ?? undefined,
+    activeNodeId: row.activeNodeId ?? undefined,
+    groupId: row.groupId ?? undefined,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
