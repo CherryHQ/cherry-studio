@@ -1,15 +1,12 @@
-import { RightOutlined } from '@ant-design/icons'
 import { Flex } from '@cherrystudio/ui'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isMac } from '@renderer/config/constant'
 import { useTimer } from '@renderer/hooks/useTimer'
-import useUserTheme from '@renderer/hooks/useUserTheme'
 import { classNames } from '@renderer/utils'
 import { t } from 'i18next'
 import { debounce } from 'lodash'
-import { Check } from 'lucide-react'
+import { Check, ChevronRight } from 'lucide-react'
 import React, { use, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import styled from 'styled-components'
 
 import { defaultFilterFn, defaultSortFn } from './defaultStrategies'
 import { QuickPanelContext } from './provider'
@@ -40,10 +37,6 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   if (!ctx) {
     throw new Error('QuickPanel must be used within a QuickPanelProvider')
   }
-
-  const { colorPrimary } = useUserTheme()
-  const selectedColor = colorPrimary.alpha(0.15).toString()
-  const selectedColorHover = colorPrimary.alpha(0.2).toString()
 
   const ASSISTIVE_KEY = isMac ? '⌘' : 'Ctrl'
   const [isAssistiveKeyPressed, setIsAssistiveKeyPressed] = useState(false)
@@ -703,50 +696,66 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       if (!item) return null
 
       return (
-        <QuickPanelItem
-          className={classNames({
-            focused: itemIndex === index,
-            selected: item.isSelected,
-            disabled: item.disabled
-          })}
+        <div
+          className={classNames(
+            'mx-[5px] mb-px flex h-[30px] items-center justify-between gap-5 rounded-md p-[5px] transition-colors duration-100',
+            item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer hover:bg-accent',
+            item.isSelected && 'bg-primary/15',
+            item.isSelected && itemIndex === index && 'bg-primary/20',
+            item.isSelected && !item.disabled && 'hover:bg-primary/20',
+            !item.isSelected && itemIndex === index && 'bg-accent',
+            {
+              focused: itemIndex === index,
+              selected: item.isSelected,
+              disabled: item.disabled
+            }
+          )}
           data-id={itemIndex}
           onClick={(e) => {
             e.stopPropagation()
             handleItemAction(item, 'click')
           }}>
-          <QuickPanelItemLeft>
-            <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
-            <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
-          </QuickPanelItemLeft>
+          <div className="flex max-w-[60%] flex-1 shrink-0 items-center gap-[5px]">
+            <span className="flex items-center justify-center text-[13px] text-muted-foreground [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
+              {item.icon}
+            </span>
+            <span className="flex-1 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-4">
+              {item.label}
+            </span>
+          </div>
 
-          <QuickPanelItemRight>
-            {item.description && <QuickPanelItemDescription>{item.description}</QuickPanelItemDescription>}
-            <QuickPanelItemSuffixIcon>
+          <div className="flex min-w-[20%] items-center justify-end gap-0.5 text-[11px] text-muted-foreground">
+            {item.description && (
+              <span className="overflow-hidden text-ellipsis whitespace-nowrap">{item.description}</span>
+            )}
+            <span className="flex min-w-3 shrink-0 items-center justify-end gap-[3px] [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
               {item.suffix ? (
                 item.suffix
               ) : item.isSelected ? (
                 <Check />
               ) : (
-                item.isMenu && !item.disabled && <RightOutlined />
+                item.isMenu && !item.disabled && <ChevronRight size={14} />
               )}
-            </QuickPanelItemSuffixIcon>
-          </QuickPanelItemRight>
-        </QuickPanelItem>
+            </span>
+          </div>
+        </div>
       )
     },
     [index, handleItemAction]
   )
 
   return (
-    <QuickPanelContainer
-      $pageSize={ctx.pageSize}
-      $selectedColor={selectedColor}
-      $selectedColorHover={selectedColorHover}
-      $collapsed={collapsed}
-      className={ctx.isVisible ? 'visible' : ''}
+    <div
+      style={{ maxHeight: ctx.isVisible && !collapsed ? ctx.pageSize * ITEM_HEIGHT + 100 : 0 }}
+      className={classNames(
+        '-translate-y-full pointer-events-none absolute top-px right-0 left-0 w-full origin-bottom overflow-hidden px-[35px] transition-[max-height] duration-200 ease-in-out',
+        ctx.isVisible && 'visible',
+        ctx.isVisible && !collapsed && 'pointer-events-auto'
+      )}
       data-testid="quick-panel">
-      <QuickPanelBody
+      <div
         ref={bodyRef}
+        className="before:-z-10 relative isolate rounded-t-lg border-border/60 border-x-[0.5px] border-t-[0.5px] py-[5px] before:absolute before:inset-0 before:rounded-[inherit] before:bg-popover/80 before:backdrop-blur-[35px] before:backdrop-saturate-150 before:content-[''] [&::-webkit-scrollbar]:w-[3px]"
         onMouseMove={() =>
           setIsMouseOver((prev) => {
             scrollTriggerRef.current = 'initial'
@@ -754,7 +763,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           })
         }>
         {collapsed ? (
-          <QuickPanelEmpty>{t('settings.quickPanel.noResult', 'No results')}</QuickPanelEmpty>
+          <div className="p-4 text-center text-[13px] text-muted-foreground">
+            {t('settings.quickPanel.noResult', 'No results')}
+          </div>
         ) : (
           <DynamicVirtualList
             ref={listRef}
@@ -768,9 +779,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             {rowRenderer}
           </DynamicVirtualList>
         )}
-        <QuickPanelFooter ref={footerRef}>
-          <QuickPanelFooterTitle>{ctx.title || ''}</QuickPanelFooterTitle>
-          <QuickPanelFooterTips $footerWidth={footerWidth}>
+        <div ref={footerRef} className="flex w-full items-center justify-between gap-4 px-3 pt-2 pb-[5px]">
+          <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-muted-foreground">
+            {ctx.title || ''}
+          </div>
+          <div className="flex shrink-0 items-center justify-end gap-4 text-[12px] text-muted-foreground">
             <span>ESC {t('settings.quickPanel.close')}</span>
 
             <Flex className="items-center gap-1">▲▼ {t('settings.quickPanel.select')}</Flex>
@@ -778,7 +791,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             {footerWidth >= 500 && (
               <>
                 <Flex className="items-center gap-1">
-                  <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
+                  <span className={isAssistiveKeyPressed ? 'text-primary' : 'text-muted-foreground'}>
                     {ASSISTIVE_KEY}
                   </span>
                   + ▲▼ {t('settings.quickPanel.page')}
@@ -786,7 +799,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
                 {canForwardAndBackward && (
                   <Flex className="items-center gap-1">
-                    <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
+                    <span className={isAssistiveKeyPressed ? 'text-primary' : 'text-muted-foreground'}>
                       {ASSISTIVE_KEY}
                     </span>
                     + ◀︎▶︎ {t('settings.quickPanel.back')}/{t('settings.quickPanel.forward')}
@@ -796,198 +809,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             )}
 
             <Flex className="items-center gap-1">↩︎ {t('settings.quickPanel.confirm')}</Flex>
-          </QuickPanelFooterTips>
-        </QuickPanelFooter>
-      </QuickPanelBody>
-    </QuickPanelContainer>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
-
-const QuickPanelContainer = styled.div<{
-  $pageSize: number
-  $selectedColor: string
-  $selectedColorHover: string
-  $collapsed?: boolean
-}>`
-  --focused-color: rgba(0, 0, 0, 0.06);
-  --selected-color: ${(props) => props.$selectedColor};
-  --selected-color-dark: ${(props) => props.$selectedColorHover};
-  max-height: 0;
-  position: absolute;
-  top: 1px;
-  left: 0;
-  right: 0;
-  width: 100%;
-  padding: 0 35px 0 35px;
-  transform: translateY(-100%);
-  transform-origin: bottom;
-  transition: max-height 0.2s ease;
-  overflow: hidden;
-  pointer-events: none;
-
-  &.visible {
-    pointer-events: ${(props) => (props.$collapsed ? 'none' : 'auto')};
-    max-height: ${(props) => (props.$collapsed ? 0 : props.$pageSize * ITEM_HEIGHT + 100)}px;
-  }
-  body[theme-mode='dark'] & {
-    --focused-color: rgba(255, 255, 255, 0.1);
-  }
-`
-
-const QuickPanelBody = styled.div`
-  border-radius: 8px 8px 0 0;
-  padding: 5px 0;
-  border-width: 0.5px 0.5px 0 0.5px;
-  border-style: solid;
-  border-color: var(--color-border);
-  position: relative;
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-color: rgba(240, 240, 240, 0.5);
-    backdrop-filter: blur(35px) saturate(150%);
-    z-index: -1;
-    border-radius: inherit;
-
-    body[theme-mode='dark'] & {
-      background-color: rgba(40, 40, 40, 0.4);
-    }
-  }
-
-  ::-webkit-scrollbar {
-    width: 3px;
-  }
-`
-
-const QuickPanelEmpty = styled.div`
-  padding: 16px;
-  text-align: center;
-  color: var(--color-text-3);
-  font-size: 13px;
-`
-
-const QuickPanelFooter = styled.div`
-  display: flex;
-  width: 100%;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  padding: 8px 12px 5px;
-`
-
-const QuickPanelFooterTips = styled.div<{ $footerWidth: number }>`
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-shrink: 0;
-  gap: 16px;
-  font-size: 12px;
-  color: var(--color-text-3);
-`
-
-const QuickPanelFooterTitle = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const QuickPanelItem = styled.div`
-  height: 30px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  justify-content: space-between;
-  margin: 0 5px 1px 5px;
-  padding: 5px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.1s ease;
-
-  &:hover:not(.disabled) {
-    background-color: var(--focused-color);
-  }
-
-  &.selected {
-    background-color: var(--selected-color);
-    &.focused {
-      background-color: var(--selected-color-dark);
-    }
-    &:hover:not(.disabled) {
-      background-color: var(--selected-color-dark);
-    }
-  }
-  &.focused {
-    background-color: var(--focused-color);
-  }
-  &.disabled {
-    --selected-color: rgba(0, 0, 0, 0.02);
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-`
-
-const QuickPanelItemLeft = styled.div`
-  max-width: 60%;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex: 1;
-  flex-shrink: 0;
-`
-
-const QuickPanelItemIcon = styled.span`
-  font-size: 13px;
-  color: var(--color-text-3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  > svg {
-    width: 1em;
-    height: 1em;
-    color: var(--color-text-3);
-  }
-`
-
-const QuickPanelItemLabel = styled.span`
-  flex: 1;
-  font-size: 13px;
-  line-height: 16px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex-shrink: 0;
-`
-
-const QuickPanelItemRight = styled.div`
-  min-width: 20%;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 2px;
-  color: var(--color-text-3);
-`
-
-const QuickPanelItemDescription = styled.span`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const QuickPanelItemSuffixIcon = styled.span`
-  min-width: 12px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 3px;
-  > svg {
-    width: 1em;
-    height: 1em;
-    color: var(--color-text-3);
-  }
-`

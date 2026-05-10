@@ -15,6 +15,7 @@ export interface CustomTagProps {
   closable?: boolean
   onClose?: () => void
   onClick?: MouseEventHandler<HTMLDivElement>
+  onContextMenu?: MouseEventHandler<HTMLDivElement>
   disabled?: boolean
   inactive?: boolean
   className?: string
@@ -30,6 +31,7 @@ const CustomTag: FC<CustomTagProps> = ({
   closable = false,
   onClose,
   onClick,
+  onContextMenu,
   disabled,
   inactive,
   className = ''
@@ -50,7 +52,8 @@ const CustomTag: FC<CustomTagProps> = ({
           lineHeight: 1,
           ...style
         }}
-        onClick={disabled ? undefined : onClick}>
+        onClick={disabled ? undefined : onClick}
+        onContextMenu={disabled ? undefined : onContextMenu}>
         {icon && (
           <span
             className="inline-flex items-center justify-center"
@@ -79,7 +82,7 @@ const CustomTag: FC<CustomTagProps> = ({
         )}
       </div>
     ),
-    [actualColor, children, closable, disabled, icon, onClick, onClose, size, style, className]
+    [actualColor, children, closable, disabled, icon, onClick, onClose, onContextMenu, size, style, className]
   )
 
   return tooltip ? (
