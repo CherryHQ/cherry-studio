@@ -571,7 +571,7 @@ export class ChannelMessageHandler {
             trigger: 'submit-message',
             assistantId: agentId,
             uniqueModelId,
-            messages: [{ id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: content }] }]
+            messages: [{ id: randomUUID(), role: 'user', parts: [{ type: 'text', text: content }] }]
           }
         }
       ],

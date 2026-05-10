@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
@@ -318,7 +320,7 @@ class SchedulerService {
               trigger: 'submit-message',
               assistantId: task.agentId,
               uniqueModelId,
-              messages: [{ id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: fullPrompt }] }]
+              messages: [{ id: randomUUID(), role: 'user', parts: [{ type: 'text', text: fullPrompt }] }]
             }
           }
         ],
