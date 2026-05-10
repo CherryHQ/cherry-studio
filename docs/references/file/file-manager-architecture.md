@@ -4,11 +4,7 @@
 >
 > **Phase note**: this document describes the **target implementation shape** of FileManager. In Phase 1a only the type contracts, DB schema, interface skeletons, and JSDoc semantics are landed; all runtime logic is delivered in Phase 1b.1–1b.4. When a section describes a behavior (dispatch, OCC, atomic writes, orphan sweep, etc.), read that as the **specification the implementation must satisfy**, not as "already working in Phase 1a code".
 >
-> **Phase badges used below**: `[1a ✅]` already in code · `[1b.1]` read path & repository · `[1b.2]` write path & lifecycle · `[1b.3]` watcher & DanglingCache · `[1b.4]` orphan sweep & FileRefCheckerRegistry. See [RFC §9](../../../v2-refactor-temp/docs/file-manager/rfc-file-manager.md#九分阶段实施计划) for the full phase-by-phase deliverables.
->
-> Related documents:
->
-> - `v2-refactor-temp/docs/file-manager/rfc-file-manager.md` — Implementation design document (Schema, API details, migration strategy)
+> **Phase badges used below**: `[1a ✅]` already in code · `[1b.1]` read path & repository · `[1b.2]` write path & lifecycle · `[1b.3]` watcher & DanglingCache · `[1b.4]` orphan sweep & FileRefCheckerRegistry.
 
 ---
 
@@ -233,8 +229,7 @@ export interface FileManagerDeps {
 // internal/entry/create.ts — two APIs, corresponding to two public methods on the FileManager facade
 // Note: CreateInternalEntryParams is a source-discriminated union
 //   (source: 'path' | 'url' | 'base64' | 'bytes'); each branch only exposes content
-//   that name/ext cannot be derived from. Full matrix in `packages/shared/file/types/ipc.ts`
-//   and `v2-refactor-temp/docs/file-manager/file-arch-problems-response.md` (extension of A-7).
+//   that name/ext cannot be derived from. Full matrix in `packages/shared/file/types/ipc.ts`.
 export async function createInternalEntry(
   deps: FileManagerDeps,
   params: CreateInternalEntryParams

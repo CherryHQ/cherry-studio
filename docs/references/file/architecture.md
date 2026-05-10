@@ -4,7 +4,7 @@
 >
 > **Phase note**: this document mixes two layers of truth:
 > - **Current Phase 1a reality (`[1a ✅]`)** — DB schema, shared types, IPC/DataApi contracts, and design constraints that already exist in code
-> - **Planned Phase 1b.x structure (`[1b.1]` / `[1b.2]` / `[1b.3]` / `[1b.4]`)** — the concrete `FileManager extends BaseService` lifecycle-service implementation and its `internal/*` execution layout, delivered incrementally per [RFC §9](../../../v2-refactor-temp/docs/file-manager/rfc-file-manager.md#九分阶段实施计划)
+> - **Planned Phase 1b.x structure (`[1b.1]` / `[1b.2]` / `[1b.3]` / `[1b.4]`)** — the concrete `FileManager extends BaseService` lifecycle-service implementation and its `internal/*` execution layout, delivered incrementally
 >
 > When a section describes FileManager as a lifecycle service / facade class, read that as the **target implementation shape**, not as "already fully implemented in this phase". In the current phase, `src/main/services/file/FileManager.ts` is still contract-first: it exports the public type surface and JSDoc that the later lifecycle implementation must satisfy.
 >
@@ -15,7 +15,6 @@
 > Related documents:
 >
 > - `docs/references/file/file-manager-architecture.md` — FileManager submodule design (FileEntry model, origin semantics, atomic writes, version detection, DirectoryWatcher, AI SDK integration)
-> - `v2-refactor-temp/docs/file-manager/rfc-file-manager.md` — Implementation design document (Drizzle Schema, API details, Phase planning, migration strategy)
 
 ---
 
