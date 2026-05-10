@@ -1,46 +1,39 @@
 import { Button, type ColumnDef, ConfirmDialog, DataTable, EmptyState, RowFlex } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
+import { useTranslateLanguages } from '@renderer/hooks/translate'
 import { SettingSubtitle } from '@renderer/pages/settings'
-import { deleteCustomLanguage, getAllCustomLanguages } from '@renderer/services/TranslateService'
-import type { CustomTranslateLanguage } from '@renderer/types'
+import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translate-languages'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
-import { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import CustomLanguageModal from './CustomLanguageModal'
+import TranslateLanguagesModal from './TranslateLanguagesModal'
 
-const logger = loggerService.withContext('CustomLanguageSettings')
+const BUILTIN_LANG_CODES: ReadonlySet<string> = new Set(
+  BUILTIN_TRANSLATE_LANGUAGES.map((language) => language.langCode)
+)
 
-const CustomLanguageSettings = () => {
+const TranslateLanguageSettings = () => {
   const { t } = useTranslation()
-  const [displayedItems, setDisplayedItems] = useState<CustomTranslateLanguage[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingCustomLanguage, setEditingCustomLanguage] = useState<CustomTranslateLanguage>()
-  const [deletingCustomLanguage, setDeletingCustomLanguage] = useState<CustomTranslateLanguage | null>(null)
-
-  const onDelete = useCallback(
-    async (id: string) => {
-      try {
-        await deleteCustomLanguage(id)
-        setDisplayedItems((prev) => prev.filter((item) => item.id !== id))
-        window.toast.success(t('settings.translate.custom.success.delete'))
-      } catch (e) {
-        window.toast.error(t('settings.translate.custom.error.delete'))
-      }
-    },
-    [t]
+  const [editingLanguage, setEditingLanguage] = useState<TranslateLanguage>()
+  const [deletingLanguage, setDeletingLanguage] = useState<TranslateLanguage | null>(null)
+  const { languages, remove: deleteLanguage } = useTranslateLanguages({ remove: { rethrowError: false } })
+  const customLanguages = useMemo(
+    () => languages?.filter((language) => !BUILTIN_LANG_CODES.has(language.langCode)),
+    [languages]
   )
 
   const onClickAdd = () => {
     startTransition(async () => {
-      setEditingCustomLanguage(undefined)
+      setEditingLanguage(undefined)
       setIsModalOpen(true)
     })
   }
 
-  const onClickEdit = useCallback((target: CustomTranslateLanguage) => {
+  const onClickEdit = useCallback((target: TranslateLanguage) => {
     startTransition(async () => {
-      setEditingCustomLanguage(target)
+      setEditingLanguage(target)
       setIsModalOpen(true)
     })
   }, [])
@@ -51,28 +44,16 @@ const CustomLanguageSettings = () => {
     })
   }
 
-  const onItemAdd = (target: CustomTranslateLanguage) => {
-    startTransition(async () => {
-      setDisplayedItems((prev) => [...prev, target])
-    })
-  }
-
-  const onItemEdit = (target: CustomTranslateLanguage) => {
-    startTransition(async () => {
-      setDisplayedItems((prev) => prev.map((item) => (item.id === target.id ? target : item)))
-    })
-  }
-
   const onConfirmDelete = useCallback(async () => {
-    if (!deletingCustomLanguage) {
+    if (!deletingLanguage) {
       return
     }
 
-    await onDelete(deletingCustomLanguage.id)
-    setDeletingCustomLanguage(null)
-  }, [deletingCustomLanguage, onDelete])
+    await deleteLanguage(deletingLanguage.langCode)
+    setDeletingLanguage(null)
+  }, [deleteLanguage, deletingLanguage])
 
-  const columns = useMemo<ColumnDef<CustomTranslateLanguage>[]>(
+  const columns = useMemo<ColumnDef<TranslateLanguage>[]>(
     () => [
       {
         accessorKey: 'emoji',
@@ -111,7 +92,7 @@ const CustomLanguageSettings = () => {
               <Button
                 aria-label={t('common.delete')}
                 className="text-destructive hover:text-destructive"
-                onClick={() => setDeletingCustomLanguage(record)}
+                onClick={() => setDeletingLanguage(record)}
                 size="icon-sm"
                 title={t('common.delete')}
                 variant="ghost">
@@ -122,20 +103,8 @@ const CustomLanguageSettings = () => {
         }
       }
     ],
-    [onClickEdit, t]
+    [t, onClickEdit]
   )
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const data = await getAllCustomLanguages()
-        setDisplayedItems(data)
-      } catch (error) {
-        logger.error('Failed to load custom languages:', error as Error)
-      }
-    }
-    void loadData()
-  }, [])
 
   return (
     <>
@@ -153,37 +122,31 @@ const CustomLanguageSettings = () => {
         </RowFlex>
         <div className="flex flex-1 flex-col">
           <DataTable
-            data={displayedItems}
             columns={columns}
-            rowKey="id"
+            data={customLanguages ?? []}
             emptyText={<EmptyState compact preset="no-translate" description={t('common.no_results')} />}
+            rowKey="langCode"
             tableLayout="fixed"
           />
         </div>
       </div>
       <ConfirmDialog
-        open={deletingCustomLanguage !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDeletingCustomLanguage(null)
-          }
-        }}
-        title={t('settings.translate.custom.delete.title')}
-        description={t('settings.translate.custom.delete.description')}
-        confirmText={t('common.delete')}
         cancelText={t('common.cancel')}
+        confirmText={t('common.delete')}
+        description={t('settings.translate.custom.delete.description')}
         destructive
         onConfirm={onConfirmDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeletingLanguage(null)
+          }
+        }}
+        open={deletingLanguage !== null}
+        title={t('settings.translate.custom.delete.title')}
       />
-      <CustomLanguageModal
-        isOpen={isModalOpen}
-        editingCustomLanguage={editingCustomLanguage}
-        onAdd={onItemAdd}
-        onEdit={onItemEdit}
-        onCancel={onCancel}
-      />
+      <TranslateLanguagesModal isOpen={isModalOpen} editingLanguage={editingLanguage} onCancel={onCancel} />
     </>
   )
 }
 
-export default memo(CustomLanguageSettings)
+export default memo(TranslateLanguageSettings)

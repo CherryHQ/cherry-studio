@@ -3740,6 +3740,9 @@
         "summary": "請直接以{{language}}回覆，無須任何說明。"
       },
       "translate": {
+        "error": {
+          "no_selected_text": "未選取要翻譯的文字"
+        },
         "smart_translate_tips": "智慧翻譯：內容將優先翻譯為目標語言；內容已是目標語言時，將翻譯為備用語言"
       },
       "window": {
@@ -6116,8 +6119,12 @@
     "detecting": "偵測中...",
     "empty": "翻譯內容為空",
     "error": {
+      "auto_copy_failed": "自動複製翻譯結果失敗",
       "chat_qwen_mt": "Qwen MT 模型無法在對話中使用，請前往翻譯頁面",
       "detect": {
+        "empty": "偵測到的語言為空",
+        "failed": "語言偵測失敗",
+        "invalid": "偵測到的語言不受支援",
         "qwen_mt": "QwenMT 模型不能用於語言偵測",
         "unknown": "偵測到未知語言",
         "update_setting": "設定失敗"
@@ -6125,6 +6132,7 @@
       "empty": "翻譯結果為空",
       "failed": "翻譯失敗",
       "invalid_source": "無效的來源語言",
+      "languages_load_failed": "無法載入翻譯語言。部分功能可能無法使用。",
       "not_configured": "翻譯模型未設定",
       "not_supported": "不支援的語言 {{language}}",
       "unknown": "翻譯過程中遇到未知錯誤"
@@ -6137,6 +6145,7 @@
       "error": {
         "check_type": "檢查檔案類型時發生錯誤",
         "multiple": "不允許上傳多個檔案",
+        "ocr": "辨識圖片文字失敗",
         "too_large": "檔案過大",
         "unknown": "讀取檔案內容失敗"
       },
@@ -6148,11 +6157,20 @@
       "delete": "刪除翻譯歷史",
       "empty": "翻譯歷史為空",
       "error": {
+        "add": "新增翻譯紀錄失敗",
+        "clear": "清除翻譯紀錄失敗",
         "delete": "刪除失敗",
+        "load": "無法載入翻譯紀錄",
         "save": "儲存翻譯歷史失敗"
       },
       "search": {
         "placeholder": "搜尋翻譯歷史"
+      },
+      "success": {
+        "add": "已儲存至紀錄",
+        "clear": "歷史紀錄已清除",
+        "delete": "已刪除",
+        "update": "已儲存"
       },
       "title": "翻譯歷史"
     },
@@ -6182,6 +6200,9 @@
       "autoCopy": "翻譯完成後自動複製",
       "bidirectional": "雙向翻譯設定",
       "bidirectional_tip": "開啟後，僅支援在來源語言和目標語言之間進行雙向翻譯",
+      "error": {
+        "save": "儲存翻譯設定失敗"
+      },
       "model": "模型設定",
       "model_desc": "翻譯服務使用的模型",
       "model_placeholder": "選擇翻譯模型",

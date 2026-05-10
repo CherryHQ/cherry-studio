@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-05-07T06:53:51.740Z
+ * Generated at: 2026-05-09T07:27:59.511Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -96,7 +96,7 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'targetLanguage',
-      targetKey: 'feature.translate.chat.target_language'
+      targetKey: 'chat.input.translate.target_language'
     },
     {
       originalKey: 'proxyMode',
@@ -817,20 +817,8 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
     targetKey: 'feature.translate.page.scroll_sync'
   },
   {
-    originalKey: 'translate:bidirectional:pair',
-    targetKey: 'feature.translate.page.bidirectional_pair'
-  },
-  {
     originalKey: 'translate:bidirectional:enabled',
     targetKey: 'feature.translate.page.bidirectional_enabled'
-  },
-  {
-    originalKey: 'translate:source:language',
-    targetKey: 'feature.translate.page.source_language'
-  },
-  {
-    originalKey: 'translate:target:language',
-    targetKey: 'feature.translate.page.target_language'
   }
 ] as const
 
@@ -853,9 +841,9 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
  * - ElectronStore项: 1
  * - Redux Store项: 186
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
- * - DexieSettings项: 7
+ * - DexieSettings项: 4
  * - localStorage项: 0
- * - 总配置项: 194
+ * - 总配置项: 191
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

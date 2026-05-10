@@ -7,28 +7,27 @@
 
 import * as z from 'zod'
 
-/**
- * Language code pattern.
- * - 2–3 lowercase letters, optionally followed by `-` and 2–4 lowercase letters
- * - e.g. "en-us", "zh-cn", "ja", "ja-jp"
- */
-export const LangCodeSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+import { PersistedLangCodeSchema } from '../preference/preferenceTypes'
 
 // ============================================================================
 // Translate History
 // ============================================================================
 
-export const TranslateHistorySchema = z.object({
+export const TranslateHistorySchema = z.strictObject({
   /** UUIDv7 (time-ordered), auto-generated */
   id: z.uuidv7(),
   /** Original text, non-empty */
   sourceText: z.string().min(1),
   /** Translated text, non-empty */
   targetText: z.string().min(1),
-  /** FK to translate_language.langCode, nullable (SET NULL on language delete) */
-  sourceLanguage: LangCodeSchema.nullable(),
-  /** FK to translate_language.langCode, nullable (SET NULL on language delete) */
-  targetLanguage: LangCodeSchema.nullable(),
+  /** FK to translate_language.langCode, nullable (SET NULL on language delete).
+   *  Uses `PersistedLangCodeSchema` (strict) to match the write-side DTOs —
+   *  the `'unknown'` UI sentinel is never written and must not appear here. */
+  sourceLanguage: PersistedLangCodeSchema.nullable(),
+  /** FK to translate_language.langCode, nullable (SET NULL on language delete).
+   *  Uses `PersistedLangCodeSchema` (strict) to match the write-side DTOs —
+   *  the `'unknown'` UI sentinel is never written and must not appear here. */
+  targetLanguage: PersistedLangCodeSchema.nullable(),
   /** Whether the record is starred */
   star: z.boolean(),
   /** ISO 8601 datetime */
@@ -43,9 +42,10 @@ export type TranslateHistory = z.infer<typeof TranslateHistorySchema>
 // Translate Language
 // ============================================================================
 
-export const TranslateLanguageSchema = z.object({
-  /** PK, immutable, must match LangCodeSchema (`/^[a-z]{2,3}(-[a-z]{2,4})?$/`) */
-  langCode: LangCodeSchema,
+export const TranslateLanguageSchema = z.strictObject({
+  /** PK, immutable, must match PersistedLangCodeSchema (`/^[a-z]{2,3}(-[a-z]{2,4})?$/`).
+   *  Persistence-only schema — the `'unknown'` UI sentinel never has a row here. */
+  langCode: PersistedLangCodeSchema,
   /** Display name, non-empty (e.g. "English", "Chinese (Simplified)") */
   value: z.string().min(1),
   /** Flag emoji (e.g. "🇬🇧", "🇨🇳") */
