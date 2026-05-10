@@ -136,13 +136,15 @@ export const PersistedLangCodeSchema = z
 export type PersistedLangCode = z.infer<typeof PersistedLangCodeSchema>
 export const parsePersistedLangCode = (value: string): PersistedLangCode => PersistedLangCodeSchema.parse(value)
 
+const TranslateLangCodePatternSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+
 /**
- * Permissive language code — {@link PersistedLangCodeSchema} plus the `'unknown'` UI sentinel.
+ * Permissive language code — persisted-code shape plus the `'unknown'` UI sentinel.
  *
- * Use in UI state and detection paths where "unknown" is a meaningful value.
- * For anything that gets written to the DB, use {@link PersistedLangCodeSchema} instead.
+ * Use in preference/UI state and detection paths where "unknown" is meaningful.
+ * Persistence paths should parse with {@link PersistedLangCodeSchema} instead.
  */
-export const TranslateLangCodeSchema = z.union([z.literal('unknown'), PersistedLangCodeSchema])
+export const TranslateLangCodeSchema = z.union([z.literal('unknown'), TranslateLangCodePatternSchema])
 export type TranslateLangCode = z.infer<typeof TranslateLangCodeSchema>
 export const parseTranslateLangCode = (value: string): TranslateLangCode => TranslateLangCodeSchema.parse(value)
 export const isTranslateLangCode = (value: unknown): value is TranslateLangCode =>

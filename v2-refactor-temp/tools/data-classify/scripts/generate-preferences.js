@@ -429,23 +429,12 @@ export const DefaultPreferences: PreferenceSchemas = {`
       if (value.startsWith('VALUE: ')) {
         return value.substring(7) // Remove "VALUE: " prefix and don't add quotes
       }
-      if (type === 'PreferenceTypes.TranslateLangCode') {
-        return `PreferenceTypes.parseTranslateLangCode('${value.replace(/'/g, "\\'")}')`
-      }
-      if (type === 'PreferenceTypes.TranslateSourceLanguage' && value !== 'auto') {
-        return `PreferenceTypes.parseTranslateLangCode('${value.replace(/'/g, "\\'")}')`
-      }
       return `'${value.replace(/'/g, "\\'")}'`
     }
     if (typeof value === 'boolean' || typeof value === 'number') {
       return String(value)
     }
     if (Array.isArray(value)) {
-      if (type === 'PreferenceTypes.TranslateBidirectionalPair') {
-        return `PreferenceTypes.parseTranslateBidirectionalPair([${value
-          .map((item) => this.formatDefaultValue(item))
-          .join(', ')}])`
-      }
       return `[${value.map((item) => this.formatDefaultValue(item)).join(', ')}]`
     }
     if (typeof value === 'object') {

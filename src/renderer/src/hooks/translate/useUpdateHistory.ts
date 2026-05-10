@@ -1,7 +1,11 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { UpdateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
-import type { PersistedLangCode, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import {
+  parsePersistedLangCode,
+  type PersistedLangCode,
+  type TranslateLangCode
+} from '@shared/data/preference/preferenceTypes'
 
 import { type MutationFeedbackOptions, useMutationFeedback } from './_mutationFeedback'
 
@@ -9,7 +13,7 @@ const logger = loggerService.withContext('translate/useUpdateHistory')
 
 const toPersistedLangCodeOrNull = (langCode: TranslateLangCode | null | undefined): PersistedLangCode | null => {
   if (langCode === null || langCode === undefined || langCode === 'unknown') return null
-  return langCode
+  return parsePersistedLangCode(langCode)
 }
 
 /**
