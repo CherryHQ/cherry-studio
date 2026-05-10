@@ -77,6 +77,32 @@ function tmpNameFor(target: string): string {
   return `${target}.tmp-${randomUUID()}`
 }
 
+/** Path-level version captured from `fs.stat`. Mirrors `FileVersion`'s shape but lives here so this module is self-contained. */
+export interface PathVersion {
+  mtime: number
+  size: number
+}
+
+/**
+ * Path-level version-mismatch error. Thrown by `atomicWriteIfUnchanged`.
+ *
+ * `internal/content/write.writeIfUnchanged` catches this and re-wraps it in
+ * the entry-aware `StaleVersionError` exported by `FileManager.ts`.
+ */
+export class PathStaleVersionError extends Error {
+  constructor(
+    public readonly target: FilePath,
+    public readonly expected: PathVersion,
+    public readonly current: PathVersion
+  ) {
+    super(
+      `Path ${target} version mismatch: expected mtime=${expected.mtime} size=${expected.size}, ` +
+        `got mtime=${current.mtime} size=${current.size}`
+    )
+    this.name = 'PathStaleVersionError'
+  }
+}
+
 /**
  * Atomic write: tmp + fsync + rename + fsync(dir).
  *
@@ -116,6 +142,45 @@ export async function atomicWriteFile(target: FilePath, data: string | Uint8Arra
   } catch {
     // Windows / unsupported FS — non-fatal; rename already committed.
   }
+}
+
+/**
+ * Optimistic-concurrency atomic write.
+ *
+ * Re-stats the target and compares against `expected`:
+ * - byte-exact `(mtime, size)` match → write proceeds via `atomicWriteFile`
+ * - mismatch → throws `PathStaleVersionError` without touching the target
+ * - **ambiguous** (`mtime ms === 0` AND `size === expected.size`) → second-
+ *   precision FS scenario; the implementation needs `expectedContentHash` to
+ *   distinguish "same file" from "stealth edit". When omitted the write
+ *   proceeds (no false-positive throw); when supplied a content-hash fallback
+ *   compares before deciding.
+ *
+ * Returns the new on-disk version on success.
+ */
+export async function atomicWriteIfUnchanged(
+  target: FilePath,
+  data: string | Uint8Array,
+  expected: PathVersion,
+  expectedContentHash?: string
+): Promise<PathVersion> {
+  const s = await fsStat(target)
+  const current: PathVersion = { mtime: Math.floor(s.mtimeMs), size: s.size }
+  const sizeMatch = current.size === expected.size
+  const mtimeMatch = current.mtime === expected.mtime
+  const ambiguousMtime = sizeMatch && current.mtime % 1000 === 0 && expected.mtime % 1000 === 0
+  if (!(sizeMatch && mtimeMatch) && !ambiguousMtime) {
+    throw new PathStaleVersionError(target, expected, current)
+  }
+  if (ambiguousMtime && expectedContentHash !== undefined) {
+    const actualHash = await hash(target)
+    if (actualHash !== expectedContentHash) {
+      throw new PathStaleVersionError(target, expected, current)
+    }
+  }
+  await atomicWriteFile(target, data)
+  const s2 = await fsStat(target)
+  return { mtime: Math.floor(s2.mtimeMs), size: s2.size }
 }
 
 /** Get file/directory stats. */

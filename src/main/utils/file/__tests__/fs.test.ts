@@ -1,11 +1,11 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat as fsStatPromise, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { FilePath } from '@shared/file/types'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { atomicWriteFile, exists, hash, read, stat } from '../fs'
+import { atomicWriteFile, atomicWriteIfUnchanged, exists, hash, PathStaleVersionError, read, stat } from '../fs'
 
 describe('stat', () => {
   let tmp: string
@@ -215,5 +215,65 @@ describe('atomicWriteFile', () => {
     const entries = await readdir(tmp)
     expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
     expect(await readFile(target, 'utf-8')).toBe('baseline')
+  })
+})
+
+describe('atomicWriteIfUnchanged', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-fs-test-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('writes when current version matches expected', async () => {
+    const target = path.join(tmp, 'a.txt') as FilePath
+    await writeFile(target, 'first')
+    const s = await fsStatPromise(target)
+    const expected = { mtime: Math.floor(s.mtimeMs), size: s.size }
+    const next = await atomicWriteIfUnchanged(target, 'second', expected)
+    expect(await readFile(target, 'utf-8')).toBe('second')
+    expect(next.size).toBe(6)
+    expect(next.mtime).toBeGreaterThanOrEqual(expected.mtime)
+  })
+
+  it('throws PathStaleVersionError when size differs', async () => {
+    const target = path.join(tmp, 'b.txt') as FilePath
+    await writeFile(target, 'twelve chars')
+    const expected = { mtime: 0, size: 1 }
+    await expect(atomicWriteIfUnchanged(target, 'next', expected)).rejects.toBeInstanceOf(PathStaleVersionError)
+    expect(await readFile(target, 'utf-8')).toBe('twelve chars')
+  })
+
+  it('throws PathStaleVersionError when mtime differs', async () => {
+    const target = path.join(tmp, 'c.txt') as FilePath
+    await writeFile(target, 'same-size')
+    const expected = { mtime: 12345, size: 'same-size'.length }
+    await expect(atomicWriteIfUnchanged(target, 'next-size', expected)).rejects.toBeInstanceOf(PathStaleVersionError)
+    expect(await readFile(target, 'utf-8')).toBe('same-size')
+  })
+
+  it('treats second-precision mtime + same size as match (ambiguous branch)', async () => {
+    const target = path.join(tmp, 'd.txt') as FilePath
+    await writeFile(target, 'aaaa')
+    // Force second-precision mtime: utimes with whole-second values.
+    await utimes(target, 1700000000, 1700000000)
+    const expected = { mtime: 1700000000_000, size: 4 }
+    const next = await atomicWriteIfUnchanged(target, 'bbbb', expected)
+    expect(await readFile(target, 'utf-8')).toBe('bbbb')
+    expect(next.size).toBe(4)
+  })
+
+  it('with expectedContentHash, throws when hash differs in ambiguous branch', async () => {
+    const target = path.join(tmp, 'e.txt') as FilePath
+    await writeFile(target, 'aaaa')
+    await utimes(target, 1700000000, 1700000000)
+    const expected = { mtime: 1700000000_000, size: 4 }
+    const wrongHash = '0'.repeat(32)
+    await expect(atomicWriteIfUnchanged(target, 'bbbb', expected, wrongHash)).rejects.toBeInstanceOf(
+      PathStaleVersionError
+    )
+    expect(await readFile(target, 'utf-8')).toBe('aaaa')
   })
 })
