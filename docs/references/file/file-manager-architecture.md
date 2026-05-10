@@ -17,7 +17,7 @@ FileManager provides file management capabilities for two origins; callers choos
 - **`internal`**: Cherry owns the file content, stored at `{userData}/files/{id}.{ext}`. The caller hands the source content to FileManager, which copies it and takes over the lifecycle.
 - **`external`**: Cherry only records an absolute path reference on the user's side; does not copy content. File availability and content changes are determined by the user side.
 
-**The caller decides the origin**; FileManager makes no assumptions about the business layer. For specific callers' migration/current state, see the RFC.
+**The caller decides the origin**; FileManager makes no assumptions about the business layer.
 
 **Best-effort semantics for external**: an external entry is a persistent record that "the caller expressed intent to reference this path at some point in time"—no guarantee the file remains stable, no guarantee content matches the reference-time content. Cherry does no bidirectional DB-FS sync, doesn't track external rename/move; external changes naturally surface as "reading new content next time" or "dangling".
 
@@ -1008,7 +1008,7 @@ Every sweep run emits one structured log record through `loggerService` — `inf
 
 ```typescript
 {
-  event: 'orphan-file-sweep',          // disambiguates from the DB-side 'orphan-sweep' (§7 / RFC §6.4)
+  event: 'orphan-file-sweep',          // disambiguates from the DB-side 'orphan-sweep' (§7 Layer 3)
   outcome: 'completed' | 'partial' | 'aborted' | 'failed',
   entriesInDb: number,
   direntsScanned: number,              // total readdir entries (informational)
@@ -1028,7 +1028,7 @@ Every sweep run emits one structured log record through `loggerService` — `inf
 }
 ```
 
-The DB-side sweep emits a parallel record under `event: 'orphan-sweep'` — same outcome union (minus `'aborted'`, which only applies to the FS sweep's safety threshold) and `errorsByType: Partial<Record<FileRefSourceType, string>>` on the `'partial'` branch (per-sourceType isolation per RFC §6.4).
+The DB-side sweep emits a parallel record under `event: 'orphan-sweep'` — same outcome union (minus `'aborted'`, which only applies to the FS sweep's safety threshold) and `errorsByType: Partial<Record<FileRefSourceType, string>>` on the `'partial'` branch (per-sourceType isolation, so one checker throwing does not abort the whole run).
 
 These two records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — at most two records per app startup is a trivial volume for log aggregation.
 

@@ -31,7 +31,7 @@ The `origin` field on a FileEntry defines content ownership, with two values:
 - **`internal`**: Cherry owns the file content, physically stored at `{userData}/files/{id}.{ext}`. The caller hands a Buffer/Stream/source file to FileManager, which copies and takes ownership. `name` / `ext` / `size` are authoritative on the row (atomic writes keep DB and FS in sync).
 - **`external`**: Cherry only records an absolute path reference on the user's side, does not copy content, and does not own the file. `name` / `ext` on the row are pure projections of `externalPath` (basename / extname); `size` is **not stored** (always `null`) — live value is obtained via File IPC `getMetadata`. File availability and content changes are determined by the user side.
 
-Which origin to pick is the **caller's** decision; FileManager makes no assumption about the business layer. For concrete per-caller choices, see the RFC.
+Which origin to pick is the **caller's** decision; FileManager makes no assumption about the business layer.
 
 ### 1.0.2 Best-effort Semantics for External
 
