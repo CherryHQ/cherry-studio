@@ -11,7 +11,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import { XIcon } from 'lucide-react'
 import * as React from 'react'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 type PageSidePanelPlacement = 'left' | 'right'
 
@@ -52,6 +52,15 @@ function PageSidePanel({
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
 
+  const handleClose = useCallback(
+    (event?: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
+      event?.preventDefault()
+      event?.stopPropagation()
+      onClose()
+    },
+    [onClose]
+  )
+
   useEffect(() => {
     if (open) {
       triggerRef.current = document.activeElement as HTMLElement | null
@@ -75,8 +84,8 @@ function PageSidePanel({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             data-slot="page-side-panel-backdrop"
-            className={cn('absolute inset-0 z-40 bg-black/20', backdropClassName)}
-            onClick={onClose}
+            className={cn('absolute inset-0 z-40 bg-black/20 dark:bg-black/60', backdropClassName)}
+            onClick={handleClose}
           />
           <motion.aside
             ref={panelRef}
@@ -85,7 +94,7 @@ function PageSidePanel({
             aria-modal="true"
             tabIndex={-1}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') onClose()
+              if (e.key === 'Escape') handleClose(e)
             }}
             initial={{ x: side === 'right' ? '100%' : '-100%' }}
             animate={{ x: 0 }}
@@ -107,9 +116,11 @@ function PageSidePanel({
                 <div className="min-w-0 flex flex-1 items-center">{header}</div>
                 {showCloseButton && (
                   <Button
+                    type="button"
                     variant="ghost"
                     size="icon-sm"
-                    onClick={onClose}
+                    onPointerDown={handleClose}
+                    onClick={handleClose}
                     aria-label={closeLabel}
                     data-slot="page-side-panel-close"
                     className={cn(

@@ -1,26 +1,23 @@
-import { PlusOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
-import { Button, Flex, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
+import { resolveIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { CopyIcon } from '@renderer/components/Icons'
-import LanguageSelect from '@renderer/components/LanguageSelect'
-import ModelSelectButton from '@renderer/components/ModelSelectButton'
-import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useLanguages, useTranslateHistory } from '@renderer/hooks/translate'
+import { useTranslateHistory } from '@renderer/hooks/translate'
 import { useDetectLang } from '@renderer/hooks/translate/useDetectLang'
-import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
+import { useModels } from '@renderer/hooks/useModels'
 import { useOcr } from '@renderer/hooks/useOcr'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, SupportedOcrFile } from '@renderer/types'
-import { isSupportedOcrFile, type Model } from '@renderer/types'
+import { isSupportedOcrFile } from '@renderer/types'
 import { getFileExtension, isTextFile, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
@@ -31,36 +28,51 @@ import {
   determineTargetLanguage,
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
-import { documentExts } from '@shared/config/constant'
-import { imageExts, MB, textExts } from '@shared/config/constant'
+import { documentExts, imageExts, MB, textExts } from '@shared/config/constant'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import {
+  isUniqueModelId,
+  type Model as SelectorModel,
+  MODEL_CAPABILITY,
+  parseUniqueModelId,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
-import { FloatButton, Popover, Typography } from 'antd'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
-import TextArea from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
-import { Check, CirclePause, FolderClock, Settings2, UploadIcon } from 'lucide-react'
-import type { FC } from 'react'
+import { History, SlidersHorizontal, Sparkles } from 'lucide-react'
+import type { ClipboardEvent, DragEvent, FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import TranslateHistoryList from './TranslateHistory'
+import IconButton from './components/IconButton'
+import TranslateHistoryList from './components/TranslateHistory'
+import TranslateInputPane from './components/TranslateInputPane'
+import TranslateLanguageBar from './components/TranslateLanguageBar'
+import TranslateOutputPane from './components/TranslateOutputPane'
 import TranslateSettings from './TranslateSettings'
 
 const logger = loggerService.withContext('TranslatePage')
+const PRIORITIZED_PROVIDER_IDS = ['openai', 'anthropic', 'google', 'gemini', 'openrouter']
+const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
+  MODEL_CAPABILITY.EMBEDDING,
+  MODEL_CAPABILITY.RERANK,
+  MODEL_CAPABILITY.IMAGE_GENERATION
+])
+
+const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
+
+const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
 const TranslatePage: FC = () => {
   const { t } = useTranslation()
-  const { translateModel, setTranslateModel } = useDefaultModel()
+  const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
+  const { models } = useModels({ enabled: true })
   const detectLanguage = useDetectLang()
   const { add: addHistory } = useTranslateHistory({ add: { showErrorToast: false } })
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { ocr } = useOcr()
   const { setTimeoutTimer } = useTimer()
-  const { getLabel, languages } = useLanguages()
-
   const [sourceLanguage, setSourceLanguage] = usePreference('feature.translate.page.source_language')
   const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.page.target_language')
   const [prompt] = usePreference('feature.translate.model_prompt')
@@ -70,36 +82,63 @@ const TranslatePage: FC = () => {
   const [isBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
   const [enableMarkdown] = usePreference('feature.translate.page.enable_markdown')
 
-  const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
-  const [copied, setCopied] = useTemporaryValue(false, 2000)
-  const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
-  const [settingsVisible, setSettingsVisible] = useState(false)
-  const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
-  const [isProcessing, setIsProcessing] = useState(false)
-
   const [translatingState, setTranslatingState] = useCache('translate.translating')
   const [translateInput, setTranslateInput] = useCache('translate.input')
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
-  const contentContainerRef = useRef<HTMLDivElement>(null)
-  const textAreaRef = useRef<TextAreaRef>(null)
+  const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
+  const [copied, setCopied] = useTemporaryValue(false, 2000)
+  const [modelSelectorOpen, setModelSelectorOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  const textAreaRef = useRef<HTMLTextAreaElement>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
 
-  const handleModelChange = (model: Model) => {
-    setTranslateModel(model)
-  }
+  const selectedModelId = useMemo(
+    () => (translateModelId && isUniqueModelId(translateModelId) ? translateModelId : undefined),
+    [translateModelId]
+  )
+
+  const modelsById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
+  const selectedModel = selectedModelId ? modelsById.get(selectedModelId) : undefined
+  const selectedModelIcon = selectedModel
+    ? resolveIcon(getModelIdentifier(selectedModel), selectedModel.providerId)
+    : undefined
+
+  const handleInputChange = useCallback(
+    (value: string) => {
+      setTranslateInput(value)
+      if (isEmpty(value)) {
+        setTranslateOutput('')
+      }
+    },
+    [setTranslateInput, setTranslateOutput]
+  )
 
   const copy = useCallback(
-    async (text: string) => {
-      await navigator.clipboard.writeText(text)
+    async (value: string) => {
+      await navigator.clipboard.writeText(value)
       setCopied(true)
     },
     [setCopied]
   )
 
-  const onCopy = useCallback(async () => {
+  const onCopyInput = useCallback(async () => {
+    if (!translateInput) return
+    try {
+      await copy(translateInput)
+    } catch (error) {
+      logger.error('Failed to copy source text:', error as Error)
+      window.toast.error(t('common.copy_failed'))
+    }
+  }, [copy, t, translateInput])
+
+  const onCopyOutput = useCallback(async () => {
     try {
       await copy(translateOutput)
     } catch (error) {
@@ -108,343 +147,244 @@ const TranslatePage: FC = () => {
     }
   }, [copy, t, translateOutput])
 
-  const couldTranslate = useMemo(() => {
-    return !(
-      !translateInput.trim() ||
-      (sourceLanguage !== 'auto' && sourceLanguage === UNKNOWN_LANG_CODE) ||
-      targetLanguage === UNKNOWN_LANG_CODE ||
-      (isBidirectional && (bidirectionalPair[0] === UNKNOWN_LANG_CODE || bidirectionalPair[1] === UNKNOWN_LANG_CODE)) ||
-      isProcessing
-    )
-  }, [bidirectionalPair, isBidirectional, isProcessing, sourceLanguage, targetLanguage, translateInput])
+  const translate = useCallback(
+    async (
+      rawText: string,
+      actualSourceLanguage: TranslateLangCode,
+      actualTargetLanguage: TranslateLangCode
+    ): Promise<void> => {
+      if (translatingState.isTranslating) return
 
-  const onTranslate = useCallback(async () => {
-    if (!couldTranslate || !translateInput.trim()) return
-    if (!translateModel) {
-      window.toast.error(t('translate.error.not_configured'))
-      return
-    }
-    if (translatingState.isTranslating || isDetecting) return
+      const nextAbortKey = uuid()
+      setTranslatingState({ isTranslating: true, abortKey: nextAbortKey })
 
-    try {
-      let actualSourceLanguage: TranslateLangCode
-      if (sourceLanguage === 'auto') {
-        setIsDetecting(true)
-        try {
-          actualSourceLanguage = await detectLanguage(translateInput)
-          setDetectedLanguage(actualSourceLanguage)
-        } catch (e) {
-          logger.error('Failed to detect language', e as Error)
-          window.toast.error(formatErrorMessageWithPrefix(e, t('translate.error.detect.failed')))
-          return
-        } finally {
-          setIsDetecting(false)
-        }
-      } else {
-        actualSourceLanguage = sourceLanguage
-      }
-
-      const result = determineTargetLanguage(actualSourceLanguage, targetLanguage, isBidirectional, bidirectionalPair)
-      if (!result.success) {
-        const errorMessage =
-          result.errorType === 'same_language'
-            ? t('translate.language.same')
-            : result.errorType === 'not_in_pair'
-              ? t('translate.language.not_pair')
-              : ''
-        window.toast.warning(errorMessage)
-        return
-      }
-      const actualTargetLanguage = result.language
-
-      const abortKey = uuid()
-      setTranslatingState({ isTranslating: true, abortKey })
-
-      let translated: string
       try {
-        // useLanguages already cached the languages list — pass the VO so
-        // translateText can skip the GET /translate/languages/:code round trip.
-        // Falls back to the string langCode when the list hasn't resolved yet.
-        const targetVo = languages?.find((l) => l.langCode === actualTargetLanguage)
-        translated = await translateText(
-          translateInput,
-          targetVo ?? actualTargetLanguage,
-          throttle(setTranslateOutput, 100),
-          abortKey
+        const translated = await translateText(
+          rawText,
+          actualTargetLanguage,
+          throttle((content: string) => setTranslateOutput(content), 100),
+          nextAbortKey
         )
-      } catch (e) {
-        if (isAbortError(e)) {
-          window.toast.info(t('translate.info.aborted'))
-        } else {
-          logger.error('Failed to translate text', e as Error)
-          window.toast.error(formatErrorMessageWithPrefix(e, t('translate.error.failed')))
-        }
-        setTranslatingState({ isTranslating: false, abortKey: null })
-        return
-      }
 
-      setTranslatingState({ isTranslating: false, abortKey: null })
-      window.toast.success(t('translate.complete'))
-
-      if (autoCopy) {
-        setTimeoutTimer(
-          'auto-copy',
-          async () => {
-            try {
+        window.toast.success(t('translate.complete'))
+        if (autoCopy) {
+          setTimeoutTimer(
+            'auto-copy',
+            async () => {
               await copy(translated)
-            } catch (error) {
-              logger.error('Failed to auto-copy translation result', error as Error)
-              window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.auto_copy_failed')))
-            }
-          },
-          100
-        )
-      }
-
-      // Hook logs the error; we keep the upstream-message toast here.
-      try {
-        await addHistory({
-          sourceText: translateInput,
-          targetText: translated,
-          sourceLanguage: actualSourceLanguage,
-          targetLanguage: actualTargetLanguage
-        })
-      } catch (e) {
-        window.toast.error(formatErrorMessageWithPrefix(e, t('translate.history.error.save')))
-      }
-    } catch (error) {
-      logger.error('Translation error:', error as Error)
-      window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.unknown')))
-      setTranslatingState({ isTranslating: false, abortKey: null })
-    }
-  }, [
-    addHistory,
-    autoCopy,
-    bidirectionalPair,
-    copy,
-    couldTranslate,
-    detectLanguage,
-    isBidirectional,
-    languages,
-    setTimeoutTimer,
-    setTranslateOutput,
-    setTranslatingState,
-    sourceLanguage,
-    t,
-    targetLanguage,
-    translateInput,
-    translateModel,
-    translatingState.isTranslating,
-    isDetecting,
-    setIsDetecting
-  ])
-
-  const onAbort = async () => {
-    const { abortKey } = translatingState
-    if (!abortKey || !abortKey.trim()) {
-      logger.error('Failed to abort. Invalid abortKey.')
-      return
-    }
-    abortCompletion(abortKey)
-  }
-
-  const onHistoryItemClick = (history: TranslateHistory) => {
-    const persistHistoryLanguages = async () => {
-      try {
-        if (history.sourceLanguage === null) {
-          await setSourceLanguage('auto')
-        } else {
-          await setSourceLanguage(history.sourceLanguage)
+            },
+            100
+          )
         }
 
-        if (history.targetLanguage === null) {
-          await setTargetLanguage(UNKNOWN_LANG_CODE)
-        } else {
-          await setTargetLanguage(history.targetLanguage)
+        try {
+          await addHistory({
+            sourceText: rawText,
+            targetText: translated,
+            sourceLanguage: actualSourceLanguage,
+            targetLanguage: actualTargetLanguage
+          })
+        } catch (error) {
+          logger.warn('Failed to save translate history', error as Error)
         }
       } catch (error) {
-        logger.error('Failed to restore translate history languages', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.settings.error.save')))
+        if (isAbortError(error)) {
+          window.toast.info(t('translate.info.aborted'))
+        } else {
+          logger.error('Failed to translate text', error as Error)
+          window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
+        }
+      } finally {
+        setTranslatingState({ isTranslating: false, abortKey: null })
       }
-    }
-
-    setTranslateInput(history.sourceText)
-    setTranslateOutput(history.targetText)
-    void persistHistoryLanguages()
-    setHistoryDrawerVisible(false)
-  }
-
-  /** 与自动检测相关的交换条件检查 */
-  const couldExchangeAuto = useMemo(
-    () =>
-      (sourceLanguage === 'auto' && detectedLanguage && detectedLanguage !== UNKNOWN_LANG_CODE) ||
-      sourceLanguage !== 'auto',
-    [detectedLanguage, sourceLanguage]
+    },
+    [
+      addHistory,
+      autoCopy,
+      copy,
+      setTimeoutTimer,
+      setTranslateOutput,
+      setTranslatingState,
+      t,
+      translatingState.isTranslating
+    ]
   )
 
-  const couldExchange = useMemo(() => couldExchangeAuto && !isBidirectional, [couldExchangeAuto, isBidirectional])
+  const onTranslate = useCallback(async () => {
+    if (!translateInput.trim() || !selectedModelId || isDetecting || translatingState.isTranslating) return
 
-  const handleExchange = useCallback(() => {
-    if (sourceLanguage === 'auto' && !couldExchangeAuto) {
-      return
+    let actualSourceLanguage = sourceLanguage
+    if (sourceLanguage === 'auto') {
+      setIsDetecting(true)
+      try {
+        actualSourceLanguage = await detectLanguage(translateInput)
+        setDetectedLanguage(actualSourceLanguage)
+      } catch (error) {
+        logger.error('Failed to detect language', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.detect.failed')))
+        return
+      } finally {
+        setIsDetecting(false)
+      }
+    } else {
+      setDetectedLanguage(null)
     }
-    const source = sourceLanguage === 'auto' ? detectedLanguage : sourceLanguage
-    if (!source) {
-      window.toast.error(t('translate.error.invalid_source'))
-      return
-    }
-    if (source === UNKNOWN_LANG_CODE) {
+
+    if (actualSourceLanguage === UNKNOWN_LANG_CODE) {
       window.toast.error(t('translate.error.detect.unknown'))
       return
     }
-    const persistExchangeLanguages = async () => {
-      try {
-        await setSourceLanguage(targetLanguage)
-        await setTargetLanguage(source)
-      } catch (error) {
-        logger.error('Failed to persist exchanged translate languages', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.settings.error.save')))
+
+    const targetResult = determineTargetLanguage(
+      actualSourceLanguage,
+      targetLanguage,
+      isBidirectional,
+      bidirectionalPair
+    )
+
+    if (!targetResult.success) {
+      window.toast.warning(
+        targetResult.errorType === 'same_language' ? t('translate.language.same') : t('translate.language.not_pair')
+      )
+      return
+    }
+
+    await translate(translateInput, actualSourceLanguage, targetResult.language)
+  }, [
+    bidirectionalPair,
+    detectLanguage,
+    isBidirectional,
+    isDetecting,
+    setIsDetecting,
+    sourceLanguage,
+    t,
+    targetLanguage,
+    translate,
+    translateInput,
+    selectedModelId,
+    translatingState.isTranslating
+  ])
+
+  const onAbort = useCallback(() => {
+    if (translatingState.abortKey) {
+      abortCompletion(translatingState.abortKey)
+    }
+  }, [translatingState.abortKey])
+
+  const handleExchange = useCallback(() => {
+    if (sourceLanguage === 'auto' || translatingState.isTranslating || isDetecting) return
+    void setSourceLanguage(targetLanguage)
+    void setTargetLanguage(sourceLanguage)
+    setTranslateInput(translateOutput)
+    setTranslateOutput(translateInput)
+  }, [
+    isDetecting,
+    setSourceLanguage,
+    setTargetLanguage,
+    setTranslateInput,
+    setTranslateOutput,
+    sourceLanguage,
+    targetLanguage,
+    translateInput,
+    translateOutput,
+    translatingState.isTranslating
+  ])
+
+  const onHistoryItemClick = useCallback(
+    (history: TranslateHistory) => {
+      setTranslateInput(history.sourceText)
+      setTranslateOutput(history.targetText)
+      void setSourceLanguage(history.sourceLanguage ?? 'auto')
+      void setTargetLanguage(history.targetLanguage ?? UNKNOWN_LANG_CODE)
+      setHistoryOpen(false)
+    },
+    [setSourceLanguage, setTargetLanguage, setTranslateInput, setTranslateOutput]
+  )
+
+  const inputScrollHandler = useMemo(
+    () => createInputScrollHandler(outputTextRef, isProgrammaticScroll, isScrollSyncEnabled),
+    [isScrollSyncEnabled]
+  )
+
+  const outputScrollHandler = useMemo(
+    () => createOutputScrollHandler(textAreaRef, isProgrammaticScroll, isScrollSyncEnabled),
+    [isScrollSyncEnabled]
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    const render = async () => {
+      if (!enableMarkdown || !translateOutput) {
+        setRenderedMarkdown('')
+        return
+      }
+      const markdown = await shikiMarkdownIt(translateOutput)
+      if (!cancelled) {
+        setRenderedMarkdown(markdown)
       }
     }
-    void persistExchangeLanguages()
-  }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage, setSourceLanguage, setTargetLanguage])
-
-  useEffect(() => {
-    isEmpty(translateInput) && setTranslateOutput('')
-  }, [setTranslateOutput, translateInput])
-
-  useEffect(() => {
-    if (enableMarkdown && translateOutput) {
-      let isMounted = true
-      void shikiMarkdownIt(translateOutput).then((rendered) => {
-        if (isMounted) {
-          setRenderedMarkdown(rendered)
-        }
-      })
-      return () => {
-        isMounted = false
-      }
-    } else {
-      setRenderedMarkdown('')
-      return undefined
+    void render()
+    return () => {
+      cancelled = true
     }
   }, [enableMarkdown, shikiMarkdownIt, translateOutput])
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isEnterPressed = e.key === 'Enter'
-    if (isEnterPressed && !e.nativeEvent.isComposing && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault()
-      void onTranslate()
-    }
-  }
-
-  const handleInputScroll = createInputScrollHandler(outputTextRef, isProgrammaticScroll, isScrollSyncEnabled)
-  const handleOutputScroll = createOutputScrollHandler(textAreaRef, isProgrammaticScroll, isScrollSyncEnabled)
-
-  const getLanguageDisplay = () => {
-    if (isBidirectional) {
-      let sourceLabel: string | undefined
-      let targetLabel: string | undefined
-      try {
-        sourceLabel = getLabel(bidirectionalPair[0])
-        targetLabel = getLabel(bidirectionalPair[1])
-      } catch (error) {
-        // getLabel is expected to be safe (it logs + falls back to UNKNOWN for
-        // invalid codes), so a genuine throw here means bidirectionalPair is in
-        // an unexpected shape — surface it to the user and drop back to the
-        // single-language selector rather than silently rendering a different UI.
-        logger.error('Failed to resolve bidirectional language labels', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
-      }
-
-      if (sourceLabel !== undefined && targetLabel !== undefined) {
-        return (
-          <Flex className="min-w-40 items-center">
-            <BidirectionalLanguageDisplay>{`${sourceLabel} ⇆ ${targetLabel}`}</BidirectionalLanguageDisplay>
-          </Flex>
-        )
-      }
-    }
-
-    return (
-      <LanguageSelect
-        style={{ width: 200 }}
-        value={targetLanguage}
-        onChange={async (value) => {
-          try {
-            await setTargetLanguage(value)
-          } catch (error) {
-            logger.error('Failed to persist translate target language', error as Error)
-            window.toast.error(formatErrorMessageWithPrefix(error, t('translate.settings.error.save')))
-          }
-        }}
-      />
-    )
-  }
-
-  const modelPredicate = useCallback(
-    (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
+  const modelSelectorFilter = useCallback(
+    (model: SelectorModel) =>
+      !model.capabilities.some((capability) => EXCLUDED_TRANSLATE_MODEL_CAPABILITIES.has(capability)),
     []
   )
 
-  const tokenCount = useMemo(() => estimateTextTokens(translateInput + prompt), [prompt, translateInput])
+  const handleModelIdSelect = useCallback(
+    (modelId: UniqueModelId | undefined) => {
+      void setTranslateModelId(modelId ?? null)
+    },
+    [setTranslateModelId]
+  )
+
+  const tokenCount = translateInput ? estimateTextTokens(translateInput + prompt) : 0
 
   const readFile = useCallback(
     async (file: FileMetadata) => {
-      const _readFile = async () => {
-        try {
-          const fileExtension = getFileExtension(file.path)
+      const read = async () => {
+        const fileExtension = getFileExtension(file.path)
+        const isDocument = documentExts.includes(fileExtension)
+        let isText = false
 
-          // Check if file is supported format (text file or document file)
-          let isText: boolean
-          const isDocument: boolean = documentExts.includes(fileExtension)
-
-          if (!isDocument) {
-            try {
-              // For non-document files, check if it's a text file
-              isText = await isTextFile(file.path)
-            } catch (e) {
-              logger.error('Failed to check file type.', e as Error)
-              window.toast.error(formatErrorMessageWithPrefix(e, t('translate.files.error.check_type')))
-              return
-            }
-          } else {
-            isText = false
-          }
-
-          if (!isText && !isDocument) {
-            window.toast.error(t('common.file.not_supported', { type: fileExtension }))
-            logger.error('Unsupported file type.')
-            return
-          }
-
-          // File size check - document files allowed to be larger
-          const maxSize = isDocument ? 20 * MB : 5 * MB
-          if (file.size > maxSize) {
-            window.toast.error(t('translate.files.error.too_large') + ` (0 ~ ${maxSize / MB} MB)`)
-            return
-          }
-
-          let result: string
+        if (!isDocument) {
           try {
-            if (isDocument) {
-              // Use the new document reading API
-              result = await window.api.file.readExternal(file.path, true)
-            } else {
-              // Read text file
-              result = await window.api.fs.readText(file.path)
-            }
-            setTranslateInput(translateInput + result)
-          } catch (e) {
-            logger.error('Failed to read file.', e as Error)
-            window.toast.error(formatErrorMessageWithPrefix(e, t('translate.files.error.unknown')))
+            isText = await isTextFile(file.path)
+          } catch (error) {
+            logger.error('Failed to check file type.', error as Error)
+            window.toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.check_type')))
+            return
           }
-        } catch (e) {
-          logger.error('Failed to read file.', e as Error)
-          window.toast.error(formatErrorMessageWithPrefix(e, t('translate.files.error.unknown')))
+        }
+
+        if (!isText && !isDocument) {
+          window.toast.error(t('common.file.not_supported', { type: fileExtension }))
+          logger.error('Unsupported file type.')
+          return
+        }
+
+        const maxSize = isDocument ? 20 * MB : 5 * MB
+        if (file.size > maxSize) {
+          window.toast.error(t('translate.files.error.too_large') + ` (0 ~ ${maxSize / MB} MB)`)
+          return
+        }
+
+        try {
+          const result = isDocument
+            ? await window.api.file.readExternal(file.path, true)
+            : await window.api.fs.readText(file.path)
+          setTranslateInput(translateInput + result)
+        } catch (error) {
+          logger.error('Failed to read file.', error as Error)
+          window.toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
         }
       }
-      const promise = _readFile()
+
+      const promise = read()
       window.toast.loading({ title: t('translate.files.reading'), promise })
     },
     [setTranslateInput, t, translateInput]
@@ -452,24 +392,15 @@ const TranslatePage: FC = () => {
 
   const ocrFile = useCallback(
     async (file: SupportedOcrFile) => {
-      try {
-        const ocrResult = await ocr(file)
-        setTranslateInput(translateInput + ocrResult.text)
-      } catch (e) {
-        logger.error('Failed to OCR file.', e as Error)
-        window.toast.error(formatErrorMessageWithPrefix(e, t('translate.files.error.ocr')))
-      }
+      const ocrResult = await ocr(file)
+      setTranslateInput(translateInput + ocrResult.text)
     },
-    [ocr, setTranslateInput, t, translateInput]
+    [ocr, setTranslateInput, translateInput]
   )
 
-  // 统一的文件处理
   const processFile = useCallback(
     async (file: FileMetadata) => {
-      // extensible, only image for now
-      const shouldOCR = isSupportedOcrFile(file)
-
-      if (shouldOCR) {
+      if (isSupportedOcrFile(file)) {
         await ocrFile(file)
       } else {
         await readFile(file)
@@ -478,19 +409,17 @@ const TranslatePage: FC = () => {
     [ocrFile, readFile]
   )
 
-  // 点击上传文件按钮
   const handleSelectFile = useCallback(async () => {
     if (selecting) return
     setIsProcessing(true)
     try {
       const [file] = await onSelectFile({ multipleSelections: false })
-      if (!file) {
-        return
+      if (file) {
+        await processFile(file)
       }
-      await processFile(file)
-    } catch (e) {
-      logger.error('Unknown error when selecting file.', e as Error)
-      window.toast.error(formatErrorMessageWithPrefix(e, t('translate.files.error.unknown')))
+    } catch (error) {
+      logger.error('Unknown error when selecting file.', error as Error)
+      window.toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
     } finally {
       clearFiles()
       setIsProcessing(false)
@@ -501,7 +430,6 @@ const TranslatePage: FC = () => {
     (files: FileMetadata[] | FileList): FileMetadata | File | null => {
       if (files.length === 0) return null
       if (files.length > 1) {
-        // 多文件上传时显示提示信息
         window.toast.error(t('translate.files.error.multiple'))
         return null
       }
@@ -510,10 +438,8 @@ const TranslatePage: FC = () => {
     [t]
   )
 
-  // 拖动上传文件
   const {
     isDragging,
-    setIsDragging,
     handleDragEnter,
     handleDragLeave,
     handleDragOver,
@@ -521,86 +447,69 @@ const TranslatePage: FC = () => {
   } = useDrag<HTMLDivElement>()
 
   const onDrop = useCallback(
-    async (e: React.DragEvent<HTMLDivElement>) => {
+    async (e: DragEvent<HTMLDivElement>) => {
       setIsProcessing(true)
-      setIsDragging(false)
-      const process = async () => {
-        const data = await getTextFromDropEvent(e).catch((err) => {
-          logger.error('getTextFromDropEvent', err)
+      try {
+        const data = await getTextFromDropEvent(e).catch((error) => {
+          logger.error('getTextFromDropEvent', error as Error)
           window.toast.error(t('translate.files.error.unknown'))
           return null
         })
-        if (data === null) {
-          return
+        if (data !== null) {
+          setTranslateInput(translateInput + data)
         }
-        setTranslateInput(translateInput + data)
 
-        const droppedFiles = await getFilesFromDropEvent(e).catch((err) => {
-          logger.error('handleDrop:', err)
+        const droppedFiles = await getFilesFromDropEvent(e).catch((error) => {
+          logger.error('handleDrop:', error as Error)
           window.toast.error(t('translate.files.error.unknown'))
           return null
         })
 
         if (droppedFiles) {
           const file = getSingleFile(droppedFiles) as FileMetadata
-          if (!file) return
-          // Await so OCR / file-read failures are handled by the outer catch.
-          await processFile(file)
+          if (file) {
+            await processFile(file)
+          }
         }
-      }
-      try {
-        await process()
-      } catch (err) {
-        logger.error('Drop processing failed', err as Error)
-        window.toast.error(formatErrorMessageWithPrefix(err, t('translate.files.error.unknown')))
+      } catch (error) {
+        logger.error('Drop processing failed', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
       } finally {
         setIsProcessing(false)
       }
     },
-    [getSingleFile, processFile, setIsDragging, setTranslateInput, t, translateInput]
+    [getSingleFile, processFile, setTranslateInput, t, translateInput]
   )
 
-  const {
-    isDragging: isDraggingOnInput,
-    handleDragEnter: handleDragEnterInput,
-    handleDragLeave: handleDragLeaveInput,
-    handleDragOver: handleDragOverInput,
-    handleDrop
-  } = useDrag<HTMLDivElement>(onDrop)
-
-  // 粘贴上传文件
   const onPaste = useCallback(
-    async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    async (event: ClipboardEvent<HTMLTextAreaElement>) => {
       if (isProcessing) return
       setIsProcessing(true)
-      // logger.debug('event', event)
-      const clipboardText = event.clipboardData.getData('text')
-      if (!isEmpty(clipboardText)) {
-        // depend default. this branch is only for preventing files when clipboard contains text
-      } else if (event.clipboardData.files && event.clipboardData.files.length > 0) {
-        event.preventDefault()
-        const files = event.clipboardData.files
-        const file = getSingleFile(files) as File
-        if (!file) return
-        try {
-          // 使用新的API获取文件路径
+      try {
+        const clipboardText = event.clipboardData.getData('text')
+        if (!isEmpty(clipboardText)) {
+          return
+        }
+
+        if (event.clipboardData.files && event.clipboardData.files.length > 0) {
+          event.preventDefault()
+          const file = getSingleFile(event.clipboardData.files) as File
+          if (!file) return
+
           const filePath = window.api.file.getPathForFile(file)
           let selectedFile: FileMetadata | null
 
-          // 如果没有路径，可能是剪贴板中的图像数据
           if (!filePath) {
-            if (file.type.startsWith('image/')) {
-              const tempFilePath = await window.api.file.createTempFile(file.name)
-              const arrayBuffer = await file.arrayBuffer()
-              const uint8Array = new Uint8Array(arrayBuffer)
-              await window.api.file.write(tempFilePath, uint8Array)
-              selectedFile = await window.api.file.get(tempFilePath)
-            } else {
-              window.toast.info(t('common.file.not_supported', { type: getFileExtension(filePath) }))
+            if (!file.type.startsWith('image/')) {
+              window.toast.info(t('common.file.not_supported', { type: getFileExtension(file.name) }))
               return
             }
+            const tempFilePath = await window.api.file.createTempFile(file.name)
+            const arrayBuffer = await file.arrayBuffer()
+            const uint8Array = new Uint8Array(arrayBuffer)
+            await window.api.file.write(tempFilePath, uint8Array)
+            selectedFile = await window.api.file.get(tempFilePath)
           } else {
-            // 有路径的情况
             selectedFile = await window.api.file.get(filePath)
           }
 
@@ -609,364 +518,167 @@ const TranslatePage: FC = () => {
             return
           }
           await processFile(selectedFile)
-        } catch (error) {
-          logger.error('onPaste:', error as Error)
-          window.toast.error(t('chat.input.file_error'))
         }
+      } catch (error) {
+        logger.error('onPaste:', error as Error)
+        window.toast.error(t('chat.input.file_error'))
+      } finally {
+        setIsProcessing(false)
       }
-      setIsProcessing(false)
     },
     [getSingleFile, isProcessing, processFile, t]
   )
+
+  const couldTranslate =
+    !isEmpty(translateInput) && !!selectedModelId && !translatingState.isTranslating && !isDetecting && !isProcessing
+  const couldExchange =
+    sourceLanguage !== 'auto' &&
+    sourceLanguage !== targetLanguage &&
+    !translatingState.isTranslating &&
+    !isDetecting &&
+    !isProcessing
+
   return (
-    <Container
-      id="translate-page"
+    <div
+      className="relative flex h-full flex-col overflow-hidden bg-background"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={preventDrop}>
       <Navbar>
-        <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
+        <NavbarCenter className="select-none font-medium text-sm">{t('translate.title')}</NavbarCenter>
       </Navbar>
-      <ContentContainer id="content-container" ref={contentContainerRef} $historyDrawerVisible={historyDrawerVisible}>
-        <TranslateHistoryList
-          onHistoryItemClick={onHistoryItemClick}
-          isOpen={historyDrawerVisible}
-          onClose={() => setHistoryDrawerVisible(false)}
-        />
-        <OperationBar>
-          <InnerOperationBar style={{ justifyContent: 'flex-start' }}>
-            <Button
-              className="nodrag"
-              variant="ghost"
-              size="icon"
-              onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}>
-              <FolderClock size={18} />
-            </Button>
-            <LanguageSelect
-              showSearch
-              style={{ width: 200 }}
-              value={sourceLanguage}
-              optionFilterProp="label"
-              onChange={async (value) => {
-                try {
-                  await setSourceLanguage(value)
-                } catch (error) {
-                  logger.error('Failed to persist translate source language', error as Error)
-                  window.toast.error(formatErrorMessageWithPrefix(error, t('translate.settings.error.save')))
-                }
-              }}
-              extraOptionsBefore={[
-                {
-                  value: 'auto',
-                  label: detectedLanguage
-                    ? `${t('translate.detected.language')} (${getLabel(detectedLanguage)})`
-                    : t('translate.detected.language')
-                }
-              ]}
-            />
-            <Tooltip content={t('translate.exchange.label')} placement="bottom">
+
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex h-10 shrink-0 items-center gap-1 border-border/50 border-b px-2">
+          <ModelSelector
+            open={modelSelectorOpen}
+            onOpenChange={setModelSelectorOpen}
+            multiple={false}
+            selectionType="id"
+            value={selectedModelId}
+            onSelect={handleModelIdSelect}
+            filter={modelSelectorFilter}
+            showTagFilter
+            showPinnedModels
+            prioritizedProviderIds={PRIORITIZED_PROVIDER_IDS}
+            trigger={
               <Button
                 variant="ghost"
-                size="icon"
-                style={{ margin: '0 -2px' }}
-                onClick={handleExchange}
-                disabled={!couldExchange}>
-                <SwapOutlined />
+                className="h-7 max-w-[220px] justify-start gap-1.5 rounded-2xs px-2 text-xs shadow-none">
+                {selectedModel ? (
+                  <>
+                    {selectedModelIcon ? (
+                      <selectedModelIcon.Avatar size={14} />
+                    ) : (
+                      <Avatar className="size-3.5">
+                        <AvatarFallback className="text-[9px]">{getModelInitial(selectedModel)}</AvatarFallback>
+                      </Avatar>
+                    )}
+                    <span className="truncate">{selectedModel.name}</span>
+                  </>
+                ) : (
+                  <span className="text-foreground-muted">{t('translate.settings.model_placeholder')}</span>
+                )}
               </Button>
-            </Tooltip>
-            {getLanguageDisplay()}
-            <TranslateButton
-              translating={translatingState.isTranslating}
-              onTranslate={onTranslate}
-              couldTranslate={couldTranslate}
-              onAbort={onAbort}
-            />
-          </InnerOperationBar>
-          <InnerOperationBar style={{ justifyContent: 'flex-end' }}>
-            <ModelSelectButton
-              model={translateModel}
-              onSelectModel={handleModelChange}
-              modelFilter={modelPredicate}
-              tooltipProps={{ placement: 'bottom' }}
-            />
-            <Button variant="ghost" size="icon" onClick={() => setSettingsVisible(true)}>
-              <Settings2 size={18} />
-            </Button>
-          </InnerOperationBar>
-        </OperationBar>
-        <AreaContainer>
-          <InputContainer
-            style={isDraggingOnInput ? { border: '2px dashed var(--color-primary)' } : undefined}
-            onDragEnter={handleDragEnterInput}
-            onDragLeave={handleDragLeaveInput}
-            onDragOver={handleDragOverInput}
-            onDrop={handleDrop}>
-            {(isDragging || isDraggingOnInput) && (
-              <InputContainerDraggingHintContainer>
-                <UploadIcon color="var(--color-text-3)" />
-                {t('translate.files.drag_text')}
-              </InputContainerDraggingHintContainer>
-            )}
-            <FloatButton
-              style={{ position: 'absolute', left: 10, bottom: 10, width: 35, height: 35 }}
-              className="float-button"
-              icon={<PlusOutlined />}
-              tooltip={t('common.upload_files')}
-              shape="circle"
-              type="primary"
-              onClick={handleSelectFile}
-            />
-            <Textarea
-              ref={textAreaRef}
-              variant="borderless"
-              placeholder={t('translate.input.placeholder')}
-              value={translateInput}
-              onChange={(e) => setTranslateInput(e.target.value)}
-              onKeyDown={onKeyDown}
-              onScroll={handleInputScroll}
-              onPaste={onPaste}
-              disabled={translatingState.isTranslating}
-              spellCheck={false}
-              allowClear
-            />
-            <Footer>
-              <Popover content={t('chat.input.estimated_tokens.tip')}>
-                <Typography.Text style={{ color: 'var(--color-text-3)', paddingRight: 8 }}>
-                  {tokenCount}
-                </Typography.Text>
-              </Popover>
-            </Footer>
-          </InputContainer>
-
-          <OutputContainer>
-            <CopyButton
-              variant="ghost"
-              size="icon-sm"
-              className="copy-button"
-              onClick={onCopy}
-              disabled={!translateOutput}>
-              {copied ? <Check size={16} color="var(--color-primary)" /> : <CopyIcon size={16} />}
-            </CopyButton>
-            <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
-              {!translateOutput ? (
-                <div style={{ color: 'var(--color-text-3)', userSelect: 'none' }}>
-                  {t('translate.output.placeholder')}
-                </div>
-              ) : enableMarkdown ? (
-                <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
-              ) : (
-                <div className="plain">{translateOutput}</div>
-              )}
-            </OutputText>
-          </OutputContainer>
-        </AreaContainer>
-      </ContentContainer>
-
-      <TranslateSettings visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
-    </Container>
-  )
-}
-
-const Container = styled.div`
-  flex: 1;
-`
-
-const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
-  height: calc(100vh - var(--navbar-height));
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-  padding: 12px;
-  position: relative;
-  [navbar-position='left'] & {
-    padding: 12px 16px;
-  }
-`
-
-const AreaContainer = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  flex: 1;
-  gap: 8px;
-`
-
-const InputContainer = styled.div`
-  position: relative;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  padding: 10px 5px;
-  border: 1px solid var(--color-border-soft);
-  border-radius: 10px;
-  height: calc(100vh - var(--navbar-height) - 70px);
-  overflow: hidden;
-  .float-button {
-    opacity: 0;
-    transition: opacity 0.2s ease-in-out;
-  }
-
-  &:hover {
-    .float-button {
-      opacity: 1;
-    }
-  }
-`
-
-const InputContainerDraggingHintContainer = styled.div`
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  top: 0;
-  left: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-3);
-`
-
-const Textarea = styled(TextArea)`
-  display: flex;
-  flex: 1;
-  border-radius: 0;
-  .ant-input {
-    resize: none;
-    padding: 5px 16px;
-  }
-  .ant-input-clear-icon {
-    font-size: 16px;
-  }
-`
-
-const Footer = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-`
-
-const OutputContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  position: relative;
-  background-color: var(--color-background-soft);
-  border-radius: 10px;
-  padding: 10px 5px;
-  height: calc(100vh - var(--navbar-height) - 70px);
-  overflow: hidden;
-
-  & > div > .markdown > pre {
-    background-color: var(--color-background-mute) !important;
-  }
-
-  &:hover .copy-button {
-    opacity: 1;
-    visibility: visible;
-  }
-`
-
-const CopyButton = styled(Button)`
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 10;
-  opacity: 0;
-  visibility: hidden;
-  transition:
-    opacity 0.2s ease-in-out,
-    visibility 0.2s ease-in-out;
-`
-
-const OutputText = styled.div`
-  min-height: 0;
-  flex: 1;
-  padding: 5px 16px;
-  overflow-y: auto;
-
-  .plain {
-    white-space: pre-wrap;
-    overflow-wrap: break-word;
-  }
-
-  .markdown {
-    /* for shiki code block overflow */
-    .line * {
-      white-space: pre-wrap;
-      overflow-wrap: break-word;
-    }
-  }
-`
-
-const TranslateButton = ({
-  translating,
-  onTranslate,
-  couldTranslate,
-  onAbort
-}: {
-  translating: boolean
-  onTranslate: () => void
-  couldTranslate: boolean
-  onAbort: () => void
-}) => {
-  const { t } = useTranslation()
-  return (
-    <Tooltip
-      delay={500}
-      placement="bottom"
-      content={
-        <div style={{ textAlign: 'center' }}>
-          Enter: {t('translate.button.translate')}
-          <br />
-          Shift + Enter: {t('translate.tooltip.newline')}
+            }
+          />
+          <span className="flex-1" />
+          <IconButton
+            size="md"
+            active={historyOpen}
+            onClick={() =>
+              setHistoryOpen((open) => {
+                const next = !open
+                if (next) setSettingsOpen(false)
+                return next
+              })
+            }
+            aria-label={t('translate.history.title')}
+            aria-pressed={historyOpen}>
+            <History size={12} />
+          </IconButton>
+          <IconButton
+            size="md"
+            active={settingsOpen}
+            onClick={() =>
+              setSettingsOpen((open) => {
+                const next = !open
+                if (next) setHistoryOpen(false)
+                return next
+              })
+            }
+            aria-label={t('translate.settings.title')}
+            aria-pressed={settingsOpen}>
+            <SlidersHorizontal size={12} />
+          </IconButton>
         </div>
-      }>
-      {!translating && (
-        <Button onClick={onTranslate} disabled={!couldTranslate}>
-          <SendOutlined />
-          {t('translate.button.translate')}
-        </Button>
+
+        <TranslateLanguageBar
+          sourceLanguage={sourceLanguage}
+          onSourceChange={(language) => void setSourceLanguage(language)}
+          targetLanguage={targetLanguage}
+          onTargetChange={(language) => void setTargetLanguage(language)}
+          detectedLanguage={detectedLanguage}
+          isBidirectional={isBidirectional}
+          bidirectionalPair={bidirectionalPair}
+          couldExchange={couldExchange}
+          onExchange={handleExchange}
+        />
+
+        <div className="grid min-h-0 flex-1 grid-cols-2 border-border/50 border-t">
+          <TranslateInputPane
+            ref={textAreaRef}
+            text={translateInput}
+            onTextChange={handleInputChange}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                event.preventDefault()
+                void onTranslate()
+              }
+            }}
+            onScroll={inputScrollHandler}
+            onPaste={onPaste}
+            onDrop={onDrop}
+            onSelectFile={handleSelectFile}
+            onCopy={onCopyInput}
+            disabled={translatingState.isTranslating || isDetecting || isProcessing}
+            selecting={selecting}
+            tokenCount={tokenCount}
+          />
+          <TranslateOutputPane
+            ref={outputTextRef}
+            translatedContent={translateOutput}
+            renderedMarkdown={renderedMarkdown}
+            enableMarkdown={enableMarkdown}
+            translating={translatingState.isTranslating || isDetecting}
+            copied={copied}
+            couldTranslate={couldTranslate}
+            onCopy={onCopyOutput}
+            onTranslate={onTranslate}
+            onAbort={onAbort}
+            onScroll={outputScrollHandler}
+          />
+        </div>
+      </div>
+
+      <TranslateHistoryList
+        isOpen={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onHistoryItemClick={onHistoryItemClick}
+      />
+      <TranslateSettings visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {isDragging && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-[1px]">
+          <div className="flex items-center gap-2 rounded-xs border border-border bg-popover px-4 py-3 text-foreground text-sm shadow-xl">
+            <Sparkles size={14} />
+            <span>{t('translate.files.drag_text')}</span>
+          </div>
+        </div>
       )}
-      {translating && (
-        <Button variant="destructive" onClick={onAbort}>
-          <CirclePause size={14} />
-          {t('common.stop')}
-        </Button>
-      )}
-    </Tooltip>
+    </div>
   )
 }
-
-const BidirectionalLanguageDisplay = styled.div`
-  padding: 4px 11px;
-  border-radius: 6px;
-  background-color: var(--color-background);
-  border: 1px solid var(--color-border);
-  font-size: 14px;
-  width: 100%;
-  text-align: center;
-`
-
-const OperationBar = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  padding-bottom: 4px;
-`
-
-const InnerOperationBar = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-`
 
 export default TranslatePage

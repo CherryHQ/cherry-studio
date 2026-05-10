@@ -1,201 +1,446 @@
-import { Button, ColFlex, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { HelpTooltip, PageSidePanel, Popover, PopoverContent, PopoverTrigger, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
-import LanguageSelect from '@renderer/components/LanguageSelect'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { TranslateBidirectionalPair, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { Modal, Radio, Space } from 'antd'
+import { useLanguages, useTranslateLanguages } from '@renderer/hooks/translate'
+import { cn } from '@renderer/utils'
+import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
+import { TRANSLATE_PROMPT } from '@shared/config/prompts'
+import type { AutoDetectionMethod, TranslateBidirectionalPair } from '@shared/data/preference/preferenceTypes'
+import { parsePersistedLangCode, PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
+import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translate-languages'
+import type { TranslateLanguage } from '@shared/data/types/translate'
+import { ArrowLeftRight, Check, PenLine, Plus, SlidersHorizontal, X } from 'lucide-react'
 import type { FC } from 'react'
-import { memo } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import TranslateSettingsPopup from './components/TranslateSettingsPopup/TranslateSettingsPopup'
+import IconButton from './components/IconButton'
+import LanguagePicker from './components/LanguagePicker'
 
-const logger = loggerService.withContext('TranslateSettings')
-
-const TranslateSettings: FC<{
+type Props = {
   visible: boolean
   onClose: () => void
-}> = ({ visible, onClose }) => {
+}
+
+const BUILTIN_LANG_CODES = new Set<string>(BUILTIN_TRANSLATE_LANGUAGES.map((lang) => lang.langCode))
+const EMOJI_OPTIONS = ['🌐', '🇺🇸', '🇬🇧', '🇨🇳', '🇯🇵', '🇰🇷', '🇫🇷', '🇩🇪', '🇪🇸', '🇵🇹', '🇮🇳', '🇧🇷']
+
+const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
   const { t } = useTranslation()
-  const [pair, setPair] = usePreference('feature.translate.page.bidirectional_pair')
+  const [bidirectionalPair, setBidirectionalPair] = usePreference('feature.translate.page.bidirectional_pair')
   const [enableMarkdown, setEnableMarkdown] = usePreference('feature.translate.page.enable_markdown')
   const [autoCopy, setAutoCopy] = usePreference('feature.translate.page.auto_copy')
   const [autoDetectionMethod, setAutoDetectionMethod] = usePreference('feature.translate.auto_detection_method')
   const [isScrollSyncEnabled, setIsScrollSyncEnabled] = usePreference('feature.translate.page.scroll_sync')
   const [isBidirectional, setIsBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
 
-  const onMoreSetting = () => {
-    onClose()
-    void TranslateSettingsPopup.show()
-  }
+  const updateBidirectionalPair = useCallback(
+    (next: TranslateBidirectionalPair) => {
+      if (next[0] === next[1]) {
+        window.toast.warning(t('translate.language.same'))
+        return
+      }
+      void setBidirectionalPair(next)
+    },
+    [setBidirectionalPair, t]
+  )
 
-  const showSaveError = (message: string, error: unknown) => {
-    logger.error(message, error as Error)
-    window.toast.error(formatErrorMessageWithPrefix(error, t('translate.settings.error.save')))
+  const toggleItems: Array<{ key: string; label: string; value: boolean; onChange: (next: boolean) => void }> = [
+    {
+      key: 'markdown',
+      label: t('translate.settings.preview'),
+      value: enableMarkdown,
+      onChange: (next) => void setEnableMarkdown(next)
+    },
+    {
+      key: 'autoCopy',
+      label: t('translate.settings.autoCopy'),
+      value: autoCopy,
+      onChange: (next) => void setAutoCopy(next)
+    },
+    {
+      key: 'scrollSync',
+      label: t('translate.settings.scroll_sync'),
+      value: isScrollSyncEnabled,
+      onChange: (next) => void setIsScrollSyncEnabled(next)
+    }
+  ]
+
+  const detectionOptions: Array<{ value: AutoDetectionMethod; label: string; tip: string }> = [
+    {
+      value: 'auto',
+      label: t('translate.detect.method.auto.label'),
+      tip: t('translate.detect.method.auto.tip')
+    },
+    {
+      value: 'franc',
+      label: t('translate.detect.method.algo.label'),
+      tip: t('translate.detect.method.algo.tip')
+    },
+    {
+      value: 'llm',
+      label: 'LLM',
+      tip: t('translate.detect.method.llm.tip')
+    }
+  ]
+
+  const header = (
+    <span className="flex items-center gap-1.5 font-medium text-foreground text-sm">
+      <SlidersHorizontal size={12} className="text-muted-foreground" />
+      <span>{t('translate.settings.title')}</span>
+    </span>
+  )
+
+  return (
+    <PageSidePanel open={visible} onClose={onClose} header={header} closeLabel={t('translate.close')}>
+      {toggleItems.map((item) => (
+        <div key={item.key} className="flex items-center justify-between gap-4">
+          <span className="text-foreground text-sm">{item.label}</span>
+          <Switch size="sm" checked={item.value} onCheckedChange={item.onChange} />
+        </div>
+      ))}
+
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-1">
+          <span className="text-foreground text-sm">{t('translate.detect.method.label')}</span>
+          <HelpTooltip content={t('translate.detect.method.tip')} iconProps={{ className: 'text-foreground-muted' }} />
+        </div>
+        <div className="flex items-center gap-0.5 rounded-md border border-border/50 bg-card p-0.5">
+          {detectionOptions.map((opt) => (
+            <Tooltip key={opt.value} content={opt.tip} placement="top">
+              <button
+                type="button"
+                onClick={() => void setAutoDetectionMethod(opt.value)}
+                className={cn(
+                  'rounded-md px-2 py-0.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                  autoDetectionMethod === opt.value
+                    ? 'bg-accent text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}>
+                {opt.label}
+              </button>
+            </Tooltip>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <span className="text-foreground text-sm">{t('translate.settings.bidirectional')}</span>
+            <HelpTooltip
+              content={t('translate.settings.bidirectional_tip')}
+              iconProps={{ className: 'text-foreground-muted' }}
+            />
+          </div>
+          <Switch size="sm" checked={isBidirectional} onCheckedChange={(next) => void setIsBidirectional(next)} />
+        </div>
+        {isBidirectional && (
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <LanguagePicker
+                value={bidirectionalPair[0]}
+                onChange={(value) => updateBidirectionalPair([value, bidirectionalPair[1]])}
+              />
+            </div>
+            <ArrowLeftRight size={12} className="shrink-0 text-foreground-muted" />
+            <div className="flex-1">
+              <LanguagePicker
+                value={bidirectionalPair[1]}
+                onChange={(value) => updateBidirectionalPair([bidirectionalPair[0], value])}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="border-border/40 border-t" />
+
+      <TranslatePromptField />
+
+      <CustomLanguageList />
+    </PageSidePanel>
+  )
+}
+
+const TranslatePromptField: FC = () => {
+  const { t } = useTranslation()
+  const [persisted, setPersisted] = usePreference('feature.translate.model_prompt')
+  const [local, setLocal] = useState<string>(persisted)
+  const pendingRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (local === persisted) {
+      pendingRef.current = null
+      return
+    }
+    pendingRef.current = local
+    const id = setTimeout(() => {
+      void setPersisted(local)
+      pendingRef.current = null
+    }, 400)
+    return () => clearTimeout(id)
+  }, [local, persisted, setPersisted])
+
+  useEffect(
+    () => () => {
+      if (pendingRef.current !== null) {
+        void setPersisted(pendingRef.current)
+      }
+    },
+    [setPersisted]
+  )
+
+  const isDefault = local === TRANSLATE_PROMPT
+  const onReset = () => {
+    setLocal(TRANSLATE_PROMPT)
+    void setPersisted(TRANSLATE_PROMPT)
   }
 
   return (
-    <Modal
-      title={<div style={{ fontSize: 16 }}>{t('translate.settings.title')}</div>}
-      open={visible}
-      onCancel={onClose}
-      centered={true}
-      footer={null}
-      width={520}
-      transitionName="animation-move-down">
-      <ColFlex className="mt-4 gap-4 pb-5">
-        <div>
-          <Flex className="items-center justify-between">
-            <div style={{ fontWeight: 500 }}>{t('translate.settings.preview')}</div>
-            <Switch
-              checked={enableMarkdown}
-              onCheckedChange={async (isSelected) => {
-                try {
-                  await setEnableMarkdown(isSelected)
-                } catch (error) {
-                  showSaveError('Failed to persist markdown preview setting', error)
-                }
-              }}
-            />
-          </Flex>
-        </div>
-
-        <div>
-          <RowFlex className="items-center justify-between">
-            <div style={{ fontWeight: 500 }}>{t('translate.settings.autoCopy')}</div>
-            <Switch
-              checked={autoCopy}
-              color="primary"
-              onCheckedChange={async (isSelected) => {
-                try {
-                  await setAutoCopy(isSelected)
-                } catch (error) {
-                  showSaveError('Failed to persist auto copy setting', error)
-                }
-              }}
-            />
-          </RowFlex>
-        </div>
-
-        <div>
-          <Flex className="items-center justify-between">
-            <div style={{ fontWeight: 500 }}>{t('translate.settings.scroll_sync')}</div>
-            <Switch
-              checked={isScrollSyncEnabled}
-              color="primary"
-              onCheckedChange={async (isSelected) => {
-                try {
-                  await setIsScrollSyncEnabled(isSelected)
-                } catch (error) {
-                  showSaveError('Failed to persist scroll sync setting', error)
-                }
-              }}
-            />
-          </Flex>
-        </div>
-
-        <RowFlex className="justify-between">
-          <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
-            {t('translate.detect.method.label')}
-            <HelpTooltip
-              content={t('translate.detect.method.tip')}
-              iconProps={{ color: 'var(--color-text-3)', className: 'ml-1' }}
-            />
-          </div>
-          <RowFlex className="items-center gap-1.25">
-            <Radio.Group
-              defaultValue={'auto'}
-              value={autoDetectionMethod}
-              optionType="button"
-              buttonStyle="solid"
-              onChange={async (e) => {
-                try {
-                  await setAutoDetectionMethod(e.target.value)
-                } catch (error) {
-                  showSaveError('Failed to persist auto detection method', error)
-                }
-              }}>
-              <Tooltip content={t('translate.detect.method.auto.tip')}>
-                <Radio.Button value="auto">{t('translate.detect.method.auto.label')}</Radio.Button>
-              </Tooltip>
-              <Tooltip content={t('translate.detect.method.algo.tip')}>
-                <Radio.Button value="franc">{t('translate.detect.method.algo.label')}</Radio.Button>
-              </Tooltip>
-              <Tooltip content={t('translate.detect.method.llm.tip')}>
-                <Radio.Button value="llm">LLM</Radio.Button>
-              </Tooltip>
-            </Radio.Group>
-          </RowFlex>
-        </RowFlex>
-
-        <div>
-          <Flex className="items-center justify-between">
-            <div style={{ fontWeight: 500 }}>
-              <RowFlex className="items-center gap-1.25">
-                {t('translate.settings.bidirectional')}
-                <HelpTooltip
-                  content={t('translate.settings.bidirectional_tip')}
-                  iconProps={{ className: 'text-text-3' }}
-                />
-              </RowFlex>
-            </div>
-            <Switch
-              checked={isBidirectional}
-              color="primary"
-              onCheckedChange={async (isSelected) => {
-                try {
-                  await setIsBidirectional(isSelected)
-                } catch (error) {
-                  showSaveError('Failed to persist bidirectional setting', error)
-                }
-              }}
-            />
-          </Flex>
-          {isBidirectional && (
-            <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
-              <Flex className="items-center justify-between gap-2.5">
-                <LanguageSelect
-                  style={{ flex: 1 }}
-                  value={pair[0]}
-                  onChange={async (value) => {
-                    const newPair: TranslateBidirectionalPair = [value, pair[1]]
-                    if (newPair[0] === newPair[1]) {
-                      window.toast.warning(t('translate.language.same'))
-                      return
-                    }
-                    try {
-                      await setPair(newPair)
-                    } catch (error) {
-                      showSaveError('Failed to persist bidirectional language pair', error)
-                    }
-                  }}
-                />
-                <span>⇆</span>
-                <LanguageSelect
-                  style={{ flex: 1 }}
-                  value={pair[1]}
-                  onChange={async (value: TranslateLangCode) => {
-                    const newPair: TranslateBidirectionalPair = [pair[0], value]
-                    if (newPair[0] === newPair[1]) {
-                      window.toast.warning(t('translate.language.same'))
-                      return
-                    }
-                    try {
-                      await setPair(newPair)
-                    } catch (error) {
-                      showSaveError('Failed to persist bidirectional language pair', error)
-                    }
-                  }}
-                />
-              </Flex>
-            </Space>
-          )}
-        </div>
-        <Button onClick={onMoreSetting}>{t('settings.moresetting.label')}</Button>
-      </ColFlex>
-    </Modal>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-foreground text-sm">{t('settings.translate.prompt')}</span>
+        {!isDefault && (
+          <button
+            type="button"
+            onClick={onReset}
+            className="rounded-md text-foreground-muted text-xs transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            {t('common.reset')}
+          </button>
+        )}
+      </div>
+      <textarea
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        className="min-h-[120px] w-full resize-y rounded-md border border-border/30 bg-muted/40 p-3 text-foreground-secondary text-sm leading-relaxed outline-none transition-colors focus:border-border-hover"
+      />
+    </div>
   )
 }
+
+const CustomLanguageList: FC = () => {
+  const { t } = useTranslation()
+  const { languages } = useLanguages()
+
+  const customLanguages = useMemo(
+    () =>
+      languages?.filter(
+        (language) => language.langCode !== UNKNOWN_LANG_CODE && !BUILTIN_LANG_CODES.has(language.langCode)
+      ) ?? [],
+    [languages]
+  )
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-foreground text-sm">{t('translate.custom.label')}</span>
+      <AddCustomLanguageForm languages={languages ?? []} />
+      <div className="flex flex-col gap-1">
+        {customLanguages.length > 0 ? (
+          customLanguages.map((language) => <CustomLanguageRow key={language.langCode} language={language} />)
+        ) : (
+          <p className="rounded-md bg-muted/30 px-2 py-2 text-center text-muted-foreground text-sm">
+            {t('common.no_results')}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const AddCustomLanguageForm: FC<{ languages: TranslateLanguage[] }> = ({ languages }) => {
+  const { t } = useTranslation()
+  const { add: addLanguage } = useTranslateLanguages()
+  const [value, setValue] = useState('')
+  const [langCode, setLangCode] = useState('')
+  const [emoji, setEmoji] = useState('🌐')
+
+  const validate = () => {
+    const nextValue = value.trim()
+    const nextLangCode = langCode.trim().toLowerCase()
+    if (!nextValue) {
+      window.toast.error(t('settings.translate.custom.error.value.empty'))
+      return null
+    }
+    if (!nextLangCode) {
+      window.toast.error(t('settings.translate.custom.error.langCode.empty'))
+      return null
+    }
+    if (!PersistedLangCodeSchema.safeParse(nextLangCode).success) {
+      window.toast.error(t('settings.translate.custom.error.langCode.invalid'))
+      return null
+    }
+    if (BUILTIN_LANG_CODES.has(nextLangCode)) {
+      window.toast.error(t('settings.translate.custom.error.langCode.builtin'))
+      return null
+    }
+    if (languages.some((language) => language.langCode === nextLangCode)) {
+      window.toast.error(t('settings.translate.custom.error.langCode.exists'))
+      return null
+    }
+    return { value: nextValue, langCode: parsePersistedLangCode(nextLangCode), emoji }
+  }
+
+  const handleAdd = async () => {
+    const next = validate()
+    if (!next) return
+    await addLanguage(next)
+    setValue('')
+    setLangCode('')
+    setEmoji('🌐')
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-md border border-border/50 bg-muted/20 p-2">
+      <div className="flex items-center gap-1.5">
+        <EmojiPicker value={emoji} onChange={setEmoji} />
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={t('settings.translate.custom.value.placeholder')}
+          className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary/50"
+        />
+      </div>
+      <div className="flex items-center gap-1.5">
+        <input
+          value={langCode}
+          onChange={(e) => setLangCode(e.target.value)}
+          placeholder={t('settings.translate.custom.langCode.placeholder')}
+          className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary/50"
+        />
+        <IconButton
+          size="md"
+          onClick={() => void handleAdd()}
+          aria-label={t('common.add')}
+          className="bg-primary text-primary-foreground hover:opacity-90">
+          <Plus size={12} />
+        </IconButton>
+      </div>
+    </div>
+  )
+}
+
+const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) => {
+  const { t } = useTranslation()
+  const { update: updateLanguage, remove: deleteLanguage } = useTranslateLanguages()
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(language.value)
+  const [emoji, setEmoji] = useState(language.emoji)
+
+  useEffect(() => {
+    setValue(language.value)
+    setEmoji(language.emoji)
+  }, [language.emoji, language.value])
+
+  const handleSave = async () => {
+    const nextValue = value.trim()
+    if (!nextValue) {
+      window.toast.error(t('settings.translate.custom.error.value.empty'))
+      return
+    }
+    await updateLanguage(language.langCode, { value: nextValue, emoji })
+    setEditing(false)
+  }
+
+  const handleCancel = () => {
+    setValue(language.value)
+    setEmoji(language.emoji)
+    setEditing(false)
+  }
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-2 rounded-md bg-muted/30 px-2 py-1.5">
+        <span className="text-sm leading-none">{language.emoji}</span>
+        <span className="min-w-0 flex-1 truncate text-foreground text-sm">{language.value}</span>
+        <span className="text-foreground-muted text-xs">{language.langCode}</span>
+        <IconButton size="sm" onClick={() => setEditing(true)} aria-label={t('common.edit')}>
+          <PenLine size={10} />
+        </IconButton>
+        <IconButton
+          size="sm"
+          tone="destructive"
+          onClick={() => void deleteLanguage(language.langCode)}
+          aria-label={t('common.delete')}>
+          <X size={10} />
+        </IconButton>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-md border border-border/50 bg-muted/20 p-2">
+      <div className="flex items-center gap-1.5">
+        <EmojiPicker value={emoji} onChange={setEmoji} />
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm outline-none focus:border-primary/50"
+        />
+      </div>
+      <div className="flex items-center gap-1.5">
+        <input
+          value={language.langCode}
+          disabled
+          className="min-w-0 flex-1 rounded-md border border-border bg-muted/50 px-2 py-1 text-muted-foreground text-sm outline-none"
+        />
+        <IconButton
+          size="md"
+          onClick={() => void handleSave()}
+          aria-label={t('common.save')}
+          className="bg-primary text-primary-foreground hover:opacity-90">
+          <Check size={12} />
+        </IconButton>
+        <IconButton size="md" onClick={handleCancel} aria-label={t('common.cancel')}>
+          <X size={12} />
+        </IconButton>
+      </div>
+    </div>
+  )
+}
+
+const EmojiPicker: FC<{ value: string; onChange: (value: string) => void }> = ({ value, onChange }) => {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex h-7 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+          {value}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={4}
+        className="w-36 rounded-md border border-border bg-popover p-1 shadow-xl">
+        <div className="grid grid-cols-4 gap-1">
+          {EMOJI_OPTIONS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => {
+                onChange(emoji)
+                setOpen(false)
+              }}
+              className={cn(
+                'flex h-7 items-center justify-center rounded-md text-sm transition-colors hover:bg-accent',
+                emoji === value && 'bg-accent'
+              )}>
+              {emoji}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export const TranslateSettingsPanelContent: FC = () => (
+  <>
+    <TranslatePromptField />
+    <CustomLanguageList />
+  </>
+)
 
 export default memo(TranslateSettings)

@@ -578,6 +578,98 @@
     },
     "sidebar_title": "Agentes",
     "todo": {
+      "mock": {
+        "actions": {
+          "complete": "[to be translated]:Complete",
+          "dismiss": "[to be translated]:Dismiss"
+        },
+        "details": {
+          "addRouter": {
+            "summary": "[to be translated]:Configuring client routing with react-router-dom v6...",
+            "title": "[to be translated]:Add React Router"
+          },
+          "configureProject": {
+            "resources": {
+              "createdMeta": "[to be translated]:created",
+              "postcssConfig": "[to be translated]:postcss.config.js",
+              "tailwindConfig": "[to be translated]:tailwind.config.js",
+              "updatedMeta": "[to be translated]:updated",
+              "viteConfig": "[to be translated]:vite.config.ts - port 3001"
+            },
+            "title": "[to be translated]:Configure project"
+          },
+          "installDependencies": {
+            "resources": {
+              "dependenciesMeta": "[to be translated]:dependencies",
+              "devDependenciesMeta": "[to be translated]:devDependencies",
+              "reactDeps": "[to be translated]:react@18.3.1, react-dom@18.3.1",
+              "tailwindDeps": "[to be translated]:tailwindcss@3.4.4, postcss@8.4.38",
+              "typescriptDeps": "[to be translated]:typescript@5.4.5, vite@5.3.0"
+            },
+            "summary": "[to be translated]:Installed react, react-dom, tailwindcss, postcss, autoprefixer, and TypeScript.",
+            "title": "[to be translated]:Install dependencies"
+          },
+          "reviewReferences": {
+            "collectionTitle": "[to be translated]:Reviewed references",
+            "resources": {
+              "npmCreateVite": "[to be translated]:npm create vite - Official Scaffolding",
+              "npmMeta": "[to be translated]:npmjs.com",
+              "reactDocs": "[to be translated]:React Documentation - Quick Start",
+              "reactMeta": "[to be translated]:react.dev",
+              "tailwindDocs": "[to be translated]:Tailwind CSS - Installation Guide",
+              "tailwindMeta": "[to be translated]:tailwindcss.com",
+              "viteDocs": "[to be translated]:Vite - Next Generation Frontend Tooling",
+              "viteMeta": "[to be translated]:vitejs.dev"
+            },
+            "title": "[to be translated]:Review references"
+          },
+          "searchWeb": {
+            "resources": {
+              "reactViteQuery": "[to be translated]:React Vite TypeScript starter 2025 best practices"
+            },
+            "summary": "[to be translated]:Collected current references for React + Vite scaffolding and best practices.",
+            "title": "[to be translated]:Search web references"
+          },
+          "title": "[to be translated]:Execution details",
+          "writeComponents": {
+            "collectionTitle": "[to be translated]:Created files",
+            "resources": {
+              "app": "[to be translated]:src/App.tsx",
+              "button": "[to be translated]:src/components/Button.tsx",
+              "card": "[to be translated]:src/components/Card.tsx",
+              "footer": "[to be translated]:src/components/Footer.tsx",
+              "header": "[to be translated]:src/components/Header.tsx",
+              "layout": "[to be translated]:src/components/Layout.tsx",
+              "modifiedMeta": "[to be translated]:modified",
+              "newMeta": "[to be translated]:new",
+              "updatedMeta": "[to be translated]:updated"
+            },
+            "title": "[to be translated]:Write components"
+          },
+          "writePages": {
+            "resources": {
+              "about": "[to be translated]:src/pages/About.tsx",
+              "home": "[to be translated]:src/pages/Home.tsx",
+              "newMeta": "[to be translated]:new"
+            },
+            "title": "[to be translated]:Write pages"
+          }
+        },
+        "progress": "[to be translated]:{{completed}}/{{total}} tasks completed",
+        "tasks": {
+          "addLinting": "[to be translated]:Add ESLint + Prettier",
+          "addRouter": "[to be translated]:Add React Router",
+          "buildDeploy": "[to be translated]:Build and deploy",
+          "configureProject": "[to be translated]:Configure project",
+          "finish": "[to be translated]:Finish",
+          "installDependencies": "[to be translated]:Install dependencies",
+          "reviewReferences": "[to be translated]:Review references",
+          "searchWeb": "[to be translated]:Search web references",
+          "writeComponents": "[to be translated]:Write components",
+          "writePages": "[to be translated]:Write pages"
+        },
+        "title": "[to be translated]:Tasks"
+      },
       "panel": {
         "title": "{{completed}}/{{total}} tareas completadas"
       },
@@ -956,6 +1048,17 @@
         "off_description": "Deshabilitar razonamiento",
         "xhigh": "Extra Alta",
         "xhigh_description": "Razonamiento de extra alto nivel"
+      },
+      "regular_phrases": {
+        "add": "[to be translated]:Add Phrase",
+        "contentLabel": "[to be translated]:Content",
+        "contentPlaceholder": "[to be translated]:Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+        "delete": "[to be translated]:Delete Phrase",
+        "deleteConfirm": "[to be translated]:Are you sure to delete this phrase?",
+        "edit": "[to be translated]:Edit Phrase",
+        "title": "[to be translated]:Regular Phrase",
+        "titleLabel": "[to be translated]:Title",
+        "titlePlaceholder": "[to be translated]:Enter title"
       },
       "title": "Configuración del Asistente",
       "tool_use_mode": {
@@ -1662,6 +1765,7 @@
     "models": "Modelos",
     "more": "Más",
     "name": "Nombre",
+    "next": "[to be translated]:Next",
     "next_match": "Próximo partido",
     "no_results": "Sin resultados",
     "none": "无",
@@ -1677,6 +1781,7 @@
     },
     "powered_by": "Impulsado por",
     "preview": "Vista previa",
+    "previous": "[to be translated]:Previous",
     "previous_match": "Partido anterior",
     "prompt": "Prompt",
     "provider": "Proveedor",
@@ -2137,6 +2242,7 @@
   },
   "launchpad": {
     "apps": "Aplicaciones",
+    "minapps": "[to be translated]:Minapps",
     "miniApps": "Miniaplicaciones"
   },
   "lmstudio": {
@@ -2489,6 +2595,64 @@
       "fetch_complete": "{{count}} resultados de búsqueda",
       "partial_failure": "{{count}} resultados de búsqueda, algunas búsquedas fallaron"
     }
+  },
+  "minapp": {
+    "add_to_launchpad": "[to be translated]:Add to Launchpad",
+    "add_to_sidebar": "[to be translated]:Add to Sidebar",
+    "popup": {
+      "close": "[to be translated]:Close MinApp",
+      "devtools": "[to be translated]:Developer Tools",
+      "goBack": "[to be translated]:Go Back",
+      "goForward": "[to be translated]:Go Forward",
+      "minimize": "[to be translated]:Minimize MinApp",
+      "openExternal": "[to be translated]:Open in Browser",
+      "open_link_external_off": "[to be translated]:Current: Open links in default window",
+      "open_link_external_on": "[to be translated]:Current: Open links in browser",
+      "refresh": "[to be translated]:Refresh",
+      "rightclick_copyurl": "[to be translated]:Right-click to copy URL"
+    },
+    "remove_from_launchpad": "[to be translated]:Remove from Launchpad",
+    "remove_from_sidebar": "[to be translated]:Remove from Sidebar",
+    "sidebar": {
+      "close": {
+        "title": "[to be translated]:Close"
+      },
+      "closeall": {
+        "title": "[to be translated]:Close All"
+      },
+      "hide": {
+        "title": "[to be translated]:Hide"
+      },
+      "remove_custom": {
+        "title": "[to be translated]:Delete Custom App"
+      }
+    },
+    "title": "[to be translated]:MinApp"
+  },
+  "minapps": {
+    "ant-ling": "[to be translated]:Ant Ling",
+    "baichuan": "[to be translated]:Baichuan",
+    "baidu-ai-search": "[to be translated]:Baidu AI Search",
+    "chatglm": "[to be translated]:ChatGLM",
+    "dangbei": "[to be translated]:Dangbei",
+    "doubao": "[to be translated]:Doubao",
+    "hailuo": "[to be translated]:Hailuo",
+    "ima": "[to be translated]:ima",
+    "metaso": "[to be translated]:Metaso",
+    "minimax-agent": "[to be translated]:Minimax Agent CN",
+    "minimax-global": "[to be translated]:Minimax Agent",
+    "nami-ai": "[to be translated]:Nami AI",
+    "nami-ai-search": "[to be translated]:Nami AI Search",
+    "qwen": "[to be translated]:Qwen",
+    "sensechat": "[to be translated]:SenseChat",
+    "stepfun": "[to be translated]:Stepfun",
+    "tencent-yuanbao": "[to be translated]:Yuanbao",
+    "tiangong-ai": "[to be translated]:Skywork",
+    "wanzhi": "[to be translated]:Wanzhi",
+    "wenxin": "[to be translated]:ERNIE",
+    "wps-copilot": "[to be translated]:WPS Copilot",
+    "xiaoyi": "[to be translated]:Xiaoyi",
+    "zhihu": "[to be translated]:Zhihu"
   },
   "miniApp": {
     "add_to_launchpad": "Agregar al panel de inicio",
@@ -3266,18 +3430,25 @@
     "uninstalling": "Desinstalando..."
   },
   "preview": {
+    "close": "[to be translated]:Close Preview",
     "copy": {
       "image": "Copiar como imagen",
       "src": "Copia la fuente de la imagen"
     },
     "dialog": "Abrir la ventana de vista previa",
+    "flip_horizontal": "[to be translated]:Flip Horizontal",
+    "flip_vertical": "[to be translated]:Flip Vertical",
     "label": "Vista previa",
+    "next": "[to be translated]:Next Image",
     "pan": "moverse",
     "pan_down": "Mover hacia abajo",
     "pan_left": "Desplazarse hacia la izquierda",
     "pan_right": "Desplazarse hacia la derecha",
     "pan_up": "Mover hacia arriba",
+    "previous": "[to be translated]:Previous Image",
     "reset": "Restablecer",
+    "rotate_left": "[to be translated]:Rotate Left",
+    "rotate_right": "[to be translated]:Rotate Right",
     "source": "Ver código fuente",
     "zoom_in": "ampliar",
     "zoom_out": "reducir"
@@ -3639,6 +3810,9 @@
         "summary": "Por favor, resume el siguiente contenido. Requisitos: responder en {{language}}; no incluyas ninguna explicación de este mensaje, solo da la respuesta directamente:"
       },
       "translate": {
+        "error": {
+          "no_selected_text": "[to be translated]:No text selected to translate"
+        },
         "smart_translate_tips": "Traducción inteligente: el contenido se traducirá primero al idioma de destino; si el contenido ya está en el idioma de destino, se traducirá al idioma alternativo"
       },
       "window": {
@@ -3932,6 +4106,9 @@
         "title": "Selector de agente",
         "triggerPlaceholder": "Selecciona un agente",
         "valueProp": "Valor actual"
+      },
+      "agentTodoList": {
+        "title": "[to be translated]:Agent Todo List"
       },
       "assistantSelector": {
         "clearSelection": "Claro",
@@ -4651,6 +4828,9 @@
         "knowledge": {
           "icon": "Mostrar icono de conocimiento"
         },
+        "minapp": {
+          "icon": "[to be translated]:Show MinApp icon"
+        },
         "miniApp": {
           "icon": "Mostrar icono de miniprogramas"
         },
@@ -5127,6 +5307,61 @@
       "reset_tooltip": "Restablecer a los valores predeterminados",
       "title": "Configuración de miniaplicaciones",
       "visible": "Miniaplicaciones visibles"
+    },
+    "miniapps": {
+      "cache_change_notice": "[to be translated]:Changes will take effect when the number of open mini apps reaches the set value",
+      "cache_description": "[to be translated]:Set the maximum number of active mini apps to keep in memory",
+      "cache_settings": "[to be translated]:Cache Settings",
+      "cache_title": "[to be translated]:Mini App Cache Limit",
+      "custom": {
+        "conflicting_ids": "[to be translated]:Conflicting IDs with default apps: {{ids}}",
+        "duplicate_ids": "[to be translated]:Duplicate IDs found: {{ids}}",
+        "edit_description": "[to be translated]:Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+        "edit_title": "[to be translated]:Edit Custom Mini App",
+        "id": "[to be translated]:ID",
+        "id_error": "[to be translated]:ID is required.",
+        "id_placeholder": "[to be translated]:Enter ID",
+        "logo": "[to be translated]:Logo",
+        "logo_file": "[to be translated]:Upload Logo File",
+        "logo_upload_button": "[to be translated]:Upload",
+        "logo_upload_error": "[to be translated]:Failed to upload logo.",
+        "logo_upload_label": "[to be translated]:Upload Logo",
+        "logo_upload_success": "[to be translated]:Logo uploaded successfully.",
+        "logo_url": "[to be translated]:Logo URL",
+        "logo_url_label": "[to be translated]:Logo URL",
+        "logo_url_placeholder": "[to be translated]:Enter logo URL",
+        "name": "[to be translated]:Name",
+        "name_error": "[to be translated]:Name is required.",
+        "name_placeholder": "[to be translated]:Enter name",
+        "placeholder": "[to be translated]:Enter custom mini app configuration (JSON format)",
+        "remove_error": "[to be translated]:Failed to remove custom mini app.",
+        "remove_success": "[to be translated]:Custom mini app removed successfully.",
+        "save": "[to be translated]:Save",
+        "save_error": "[to be translated]:Failed to save custom mini app.",
+        "save_success": "[to be translated]:Custom mini app saved successfully.",
+        "title": "[to be translated]:Custom",
+        "url": "[to be translated]:URL",
+        "url_error": "[to be translated]:URL is required.",
+        "url_placeholder": "[to be translated]:Enter URL"
+      },
+      "disabled": "[to be translated]:Hidden Mini Apps",
+      "display_title": "[to be translated]:Mini App Display Settings",
+      "empty": "[to be translated]:Drag mini apps from the left to hide them",
+      "open_link_external": {
+        "title": "[to be translated]:Open new-window links in browser"
+      },
+      "region": {
+        "auto": "[to be translated]:Auto detect",
+        "cn": "[to be translated]:China",
+        "description": "[to be translated]:Filtering unsupported mini-programs based on the region",
+        "global": "[to be translated]:Global",
+        "title": "[to be translated]:Mini Program filter"
+      },
+      "reset_tooltip": "[to be translated]:Reset to default",
+      "sidebar_description": "[to be translated]:Show active mini apps in the sidebar",
+      "sidebar_title": "[to be translated]:Sidebar Active Mini Apps Display",
+      "title": "[to be translated]:Mini Apps Settings",
+      "visible": "[to be translated]:Visible Mini Apps"
     },
     "model": "Modelo predeterminado",
     "models": {
@@ -5606,6 +5841,20 @@
       "select": "Seleccionar",
       "title": "Menú de acceso rápido"
     },
+    "quickPhrase": {
+      "add": "[to be translated]:Add Phrase",
+      "assistant": "[to be translated]:Assistant Phrases",
+      "contentLabel": "[to be translated]:Content",
+      "contentPlaceholder": "[to be translated]:Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "[to be translated]:Delete Phrase",
+      "deleteConfirm": "[to be translated]:The phrase cannot be recovered after deletion, continue?",
+      "edit": "[to be translated]:Edit Phrase",
+      "global": "[to be translated]:Global Phrases",
+      "locationLabel": "[to be translated]:Add Location",
+      "title": "[to be translated]:Quick Phrases",
+      "titleLabel": "[to be translated]:Title",
+      "titlePlaceholder": "[to be translated]:Please enter phrase title"
+    },
     "scheduledTasks": {
       "description": "Administrar tareas programadas en todos los agentes. Las tareas se ejecutan automáticamente según el horario configurado.",
       "noAgents": "No se encontraron agentes. Crea primero un agente para añadir tareas programadas.",
@@ -6012,8 +6261,12 @@
     "detecting": "Detectando...",
     "empty": "El contenido de traducción está vacío",
     "error": {
+      "auto_copy_failed": "[to be translated]:Failed to auto-copy translation result",
       "chat_qwen_mt": "El modelo Qwen MT no está disponible para uso en conversaciones, por favor vaya a la página de traducción.",
       "detect": {
+        "empty": "[to be translated]:Detected language is empty",
+        "failed": "[to be translated]:Language detection failed",
+        "invalid": "[to be translated]:Detected language is not supported",
         "qwen_mt": "El modelo QwenMT no se puede utilizar para la detección de idiomas",
         "unknown": "Se detectó un idioma desconocido",
         "update_setting": "Configuración fallida"
@@ -6021,6 +6274,7 @@
       "empty": "El resultado de la traducción está vacío",
       "failed": "Fallo en la traducción",
       "invalid_source": "Invalid source language",
+      "languages_load_failed": "[to be translated]:Failed to load translate languages. Some features may be unavailable.",
       "not_configured": "El modelo de traducción no está configurado",
       "not_supported": "Idioma no compatible {{language}}",
       "unknown": "Se produjo un error desconocido durante la traducción"
@@ -6033,24 +6287,41 @@
       "error": {
         "check_type": "Se produjo un error al verificar el tipo de archivo",
         "multiple": "No se permite cargar varios archivos",
+        "ocr": "[to be translated]:Failed to recognize image text",
         "too_large": "El archivo es demasiado grande",
         "unknown": "Error al leer el contenido del archivo"
       },
       "reading": "Leyendo el contenido del archivo..."
     },
     "history": {
+      "back": "[to be translated]:Back to list",
       "clear": "Borrar historial",
       "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",
+      "copy_target": "[to be translated]:Copy result",
       "delete": "Eliminar historial de traducción",
       "empty": "Sin historial de traducciones por el momento",
       "error": {
+        "add": "[to be translated]:Failed to add translation history",
+        "clear": "[to be translated]:Failed to clear translation history",
         "delete": "Eliminación fallida",
         "load": "No se pudo cargar el historial de traducciones",
         "save": "Error al guardar el historial de traducciones"
       },
-      "search": {
-        "placeholder": "Historial de búsqueda de traducción"
+      "filter": {
+        "starred": "[to be translated]:Only starred"
       },
+      "reuse": "[to be translated]:Reuse",
+      "search": {
+        "placeholder": "[to be translated]:Search translation history"
+      },
+      "source": "[to be translated]:Source",
+      "success": {
+        "add": "[to be translated]:Saved to history",
+        "clear": "[to be translated]:History cleared",
+        "delete": "[to be translated]:Deleted",
+        "update": "[to be translated]:Saved"
+      },
+      "target": "[to be translated]:Target",
       "title": "Historial de traducciones"
     },
     "info": {
@@ -6079,6 +6350,9 @@
       "autoCopy": "Copiar automáticamente después de completar la traducción",
       "bidirectional": "Configuración de traducción bidireccional",
       "bidirectional_tip": "Una vez activada, solo se admitirá la traducción bidireccional entre el idioma de origen y el idioma de destino",
+      "error": {
+        "save": "[to be translated]:Failed to save translation settings"
+      },
       "model": "Configuración del modelo",
       "model_desc": "Modelo utilizado por el servicio de traducción",
       "model_placeholder": "Seleccionar modelo de traducción",
@@ -6087,6 +6361,7 @@
       "scroll_sync": "Configuración de sincronización de desplazamiento",
       "title": "Configuración de traducción"
     },
+    "source_language": "[to be translated]:Source Language",
     "stop": "Detener Traducción",
     "success": {
       "custom": {
