@@ -156,8 +156,9 @@ class DanglingCacheImpl implements DanglingCache {
     this.fileEntryService = opts.fileEntryService
   }
 
-  async check(_entry: FileEntry): Promise<DanglingState> {
-    throw new Error('DanglingCache.check: not implemented yet (Phase 1b.3 in progress)')
+  async check(entry: FileEntry): Promise<DanglingState> {
+    if (entry.origin === 'internal') return 'present'
+    throw new Error('DanglingCache.check(external): not implemented yet (Phase 1b.3 in progress)')
   }
 
   async forceRecheck(_entry: FileEntry): Promise<DanglingState> {
