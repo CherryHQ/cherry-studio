@@ -8,8 +8,8 @@ import { Copy } from 'lucide-react'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { FreeTrialModelTagV2 } from '../components/FreeTrialModelTagV2'
-import ModelTagsWithLabelV2 from '../components/ModelTagsWithLabelV2'
+import { FreeTrialModelTag } from '../components/FreeTrialModelTag'
+import ModelTagsWithLabel from '../components/ModelTagsWithLabel'
 import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 
 interface ModelListItemProps {
@@ -86,9 +86,9 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
         <div className={modelListClasses.rowActionsCluster}>
           <div className={modelListClasses.rowCapabilityStrip}>
             <div className={modelListClasses.rowCapabilityTagCluster}>
-              <ModelTagsWithLabelV2 model={model} size={8} showLabel={false} style={{ flexWrap: 'nowrap' }} />
+              <ModelTagsWithLabel model={model} size={8} showLabel={false} style={{ flexWrap: 'nowrap' }} />
             </div>
-            <FreeTrialModelTagV2 modelId={model.id} providerId={model.providerId} />
+            <FreeTrialModelTag modelId={model.id} providerId={model.providerId} />
           </div>
           <div onClick={(event) => event.stopPropagation()}>
             <Switch

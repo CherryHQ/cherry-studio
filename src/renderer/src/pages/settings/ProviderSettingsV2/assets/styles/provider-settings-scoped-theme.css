@@ -1,5 +1,7 @@
 /*
- * Provider settings — scoped theme (`.provider-settings-default-scope`)
+ * `provider-settings-scoped-theme.css` — scoped theme (`.provider-settings-default-scope`)
+ *
+ * Not a second Tailwind build: hand-authored CSS variables + `@container` queries only (no `@tailwind` preflight here).
  *
  * Local semantic palette + atomic layout/type tokens for the **provider detail column** only, so we can align
  * to design mocks without changing app-wide `:root` / global Tailwind theme.

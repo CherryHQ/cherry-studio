@@ -10,7 +10,7 @@ import { Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ModelIdWithTagsV2 from '../components/ModelIdWithTagsV2'
+import ModelIdWithTags from '../components/ModelIdWithTags'
 import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import { getModelGroupLabel } from './grouping'
 import { isValidNewApiModel } from './utils'
@@ -243,7 +243,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
             'min-w-0 flex-1 font-mono text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)]',
             nameMuted ? 'text-muted-foreground/60' : 'text-foreground'
           )}>
-          <ModelIdWithTagsV2 model={model} />
+          <ModelIdWithTags model={model} />
         </div>
         {isAdded ? (
           <Tooltip content={t('settings.models.manage.remove_model')}>

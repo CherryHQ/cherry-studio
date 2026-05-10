@@ -1,4 +1,4 @@
-import './assets/styles/tailwind-default-scope.css'
+import './assets/styles/provider-settings-scoped-theme.css'
 
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProviders'

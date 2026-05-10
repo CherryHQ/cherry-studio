@@ -21,8 +21,7 @@
     "src/renderer/src/ui/**",
     "packages/**/dist",
     "eslint.config.mjs",
-    "v2-refactor-temp/**",
-    ".tmp/**"
+    "v2-refactor-temp/**"
   ],
   "options": {
     "typeAware": true

@@ -44,11 +44,11 @@ vi.mock('@renderer/pages/settings/ProviderSettingsV2/config/models', async (impo
   getModelLogo: () => null
 }))
 
-vi.mock('../../components/FreeTrialModelTagV2', () => ({
-  FreeTrialModelTagV2: () => null
+vi.mock('../../components/FreeTrialModelTag', () => ({
+  FreeTrialModelTag: () => null
 }))
 
-vi.mock('../../components/ModelTagsWithLabelV2', () => ({
+vi.mock('../../components/ModelTagsWithLabel', () => ({
   default: () => null
 }))
 

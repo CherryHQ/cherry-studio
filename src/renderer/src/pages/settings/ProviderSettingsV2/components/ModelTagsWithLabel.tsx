@@ -32,7 +32,7 @@ interface ModelTagsProps {
   style?: React.CSSProperties
 }
 
-const ModelTagsWithLabelV2: FC<ModelTagsProps> = ({
+const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   model,
   showFree = true,
   showReasoning = true,
@@ -89,4 +89,4 @@ const ModelTagsWithLabelV2: FC<ModelTagsProps> = ({
   )
 }
 
-export default memo(ModelTagsWithLabelV2)
+export default memo(ModelTagsWithLabel)

@@ -7,24 +7,24 @@ import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
-import ModelTagsWithLabelV2 from './ModelTagsWithLabelV2'
+import ModelTagsWithLabel from './ModelTagsWithLabel'
 
-const logger = loggerService.withContext('ModelIdWithTagsV2')
+const logger = loggerService.withContext('ModelIdWithTags')
 
-interface ModelIdWithTagsV2Props {
+interface ModelIdWithTagsProps {
   model: ProviderSettingsDisplayModel
   fontSize?: React.CSSProperties['fontSize']
   showIdentifier?: boolean
   style?: React.CSSProperties
 }
 
-const ModelIdWithTagsV2 = ({
+const ModelIdWithTags = ({
   ref,
   model,
   fontSize = 'var(--font-size-body-md)',
   showIdentifier = false,
   style
-}: ModelIdWithTagsV2Props & { ref?: React.RefObject<HTMLDivElement> | null }) => {
+}: ModelIdWithTagsProps & { ref?: React.RefObject<HTMLDivElement> | null }) => {
   const { t } = useTranslation()
   const shouldShowIdentifier = showIdentifier && model.id !== model.name
 
@@ -64,9 +64,9 @@ const ModelIdWithTagsV2 = ({
           </span>
         )}
       </div>
-      <ModelTagsWithLabelV2 model={model} size={8} showLabel={false} style={{ flexShrink: 0 }} />
+      <ModelTagsWithLabel model={model} size={8} showLabel={false} style={{ flexShrink: 0 }} />
     </div>
   )
 }
 
-export default memo(ModelIdWithTagsV2)
+export default memo(ModelIdWithTags)

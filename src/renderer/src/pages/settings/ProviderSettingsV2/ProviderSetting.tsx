@@ -53,7 +53,7 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
   return (
     <ProviderSettingsContainer theme={theme}>
       <div className="flex h-full min-h-0 w-full flex-col">
-        {/* Scoped mock alignment: tokens in `tailwind-default-scope.css`, compositions in ProviderSettingsPrimitives. */}
+        {/* Scoped mock alignment: tokens in `provider-settings-scoped-theme.css`, compositions in ProviderSettingsPrimitives. */}
         <div
           data-testid="provider-detail-shell"
           className="provider-settings-default-scope flex min-h-0 flex-1 flex-col overflow-hidden">

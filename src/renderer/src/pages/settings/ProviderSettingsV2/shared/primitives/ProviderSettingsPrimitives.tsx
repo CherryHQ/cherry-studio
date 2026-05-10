@@ -9,7 +9,7 @@ import type { ReactNode } from 'react'
  * that must follow the provider-settings mock must stay in that subtree so tokens and `--color-*` bridge apply.
  *
  * **Two layers**
- * - **CSS** — `assets/styles/tailwind-default-scope.css`: atomic vars only (`--font-size-*`, `--space-*`, soft
+ * - **CSS** — `assets/styles/provider-settings-scoped-theme.css`: atomic vars only (`--font-size-*`, `--space-*`, soft
  *   surfaces, `--color-*` → shadcn/Tailwind). No screen- or feature-prefixed names. When mock px hurts a11y /
  *   readability, prefer named steps and note the tradeoff in a CSS comment.
  * - **TS (this file)** — merge atoms into `actionClasses`, `fieldClasses`, `modelListClasses`, `providerDetailColumnClasses`,
@@ -30,11 +30,11 @@ export const providerSettingsTypography = {
 } as const
 
 /**
- * Input row + icon slots for provider settings, using tokens from `tailwind-default-scope.css`
+ * Input row + icon slots for provider settings, using tokens from `provider-settings-scoped-theme.css`
  * (`.provider-settings-default-scope` — `--border`, `--foreground`, `--cherry-*`).
  * The provider detail shell should include `provider-settings-default-scope` so these inherit correctly.
  */
-/** `ModelServicePage` Connection — `bg-muted/50` strip + `border-section-border` (`tailwind-default-scope.css`). */
+/** `ModelServicePage` Connection — `bg-muted/50` strip + `border-section-border` (`provider-settings-scoped-theme.css`). */
 const providerSettingsInputGroupBase =
   'rounded-lg border border-[color:var(--section-border)] bg-muted/50 px-2.5 py-[5px] shadow-none'
 
@@ -172,9 +172,9 @@ export const drawerClasses = {
 const modelListCategoryChipBase =
   'flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 font-[weight:var(--font-weight-medium)] transition-all'
 
-/** Model list block; composes atomic tokens from `tailwind-default-scope.css` under `.provider-settings-default-scope`. */
+/** Model list block; composes atomic tokens from `provider-settings-scoped-theme.css` under `.provider-settings-default-scope`. */
 export const modelListClasses = {
-  /** Inline-size container for `@container model-list` rules in `tailwind-default-scope.css` (replaces JS width measurement). */
+  /** Inline-size container for `@container model-list` rules in `provider-settings-scoped-theme.css` (replaces JS width measurement). */
   cqRoot: 'ps-model-list-cq flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-sm)]',
   section: 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-sm)]',
   headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-xs)]',
@@ -299,7 +299,7 @@ export const modelListClasses = {
   /** Capability / trial tags to the left of the enable switch; design: single line with the toggle. */
   rowCapabilityStrip:
     'flex min-w-0 max-w-[min(100%,20rem)] shrink items-center gap-1.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
-  /** Wraps `ModelTagsWithLabelV2` only; pairs with `.ps-model-list-cap-strip` rules in `tailwind-default-scope.css`. */
+  /** Wraps `ModelTagsWithLabel` only; pairs with `.ps-model-list-cap-strip` rules in `provider-settings-scoped-theme.css`. */
   rowCapabilityTagCluster: 'ps-model-list-cap-strip flex min-w-0 shrink items-center',
   rowMeta:
     'ps-model-list-meta mt-[3px] block min-w-0 max-w-full truncate text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground/65',
@@ -516,7 +516,7 @@ export const fieldClasses = {
     'text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] text-foreground ' +
     'placeholder:text-muted-foreground/60 md:text-[length:var(--font-size-body-md)]',
   /**
-   * Small 24px icon control (e.g. copy / settings) — `var(--cherry-*)` match `tailwind-default-scope.css`.
+   * Small 24px icon control (e.g. copy / settings) — `var(--cherry-*)` match `provider-settings-scoped-theme.css`.
    */
   iconButton:
     'flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-[var(--cherry-active-border)] text-[var(--cherry-text-muted)] transition-colors hover:bg-[var(--cherry-active-bg)] hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40',

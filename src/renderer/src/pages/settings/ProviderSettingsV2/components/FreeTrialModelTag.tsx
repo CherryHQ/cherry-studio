@@ -13,7 +13,7 @@ interface Props {
   showLabel?: boolean
 }
 
-export const FreeTrialModelTagV2: FC<Props> = ({ modelId, providerId, showLabel = true }) => {
+export const FreeTrialModelTag: FC<Props> = ({ modelId, providerId, showLabel = true }) => {
   const { t } = useTranslation()
 
   if (providerId !== 'cherryai') {
