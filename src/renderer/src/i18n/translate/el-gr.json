@@ -1991,7 +1991,10 @@
   },
   "knowledge": {
     "add": {
-      "title": "Προσθήκη βιβλιοθήκης γνώσεων"
+      "group": "[to be translated]:Group",
+      "icon": "[to be translated]:Icon",
+      "submit": "[to be translated]:Create",
+      "title": "[to be translated]:New Knowledge Base"
     },
     "add_directory": "Προσθήκη καταλόγου",
     "add_file": "Προσθήκη αρχείου",
@@ -2010,116 +2013,6 @@
     "chunk_size_too_large": "Το μέγεθος μερισμού δεν μπορεί να ξεπεράσει το όριο πλάτους επιρροής του μοντέλου ({{max_context}})",
     "chunk_size_tooltip": "Διαχωρισμός των έγγραφων σε μεριδισμούς, με το μέγεθος κάθε μεριδισμού να μην ξεπεράζει το όριο πλάτους επιρροής του μοντέλου",
     "clear_selection": "Καθαρισμός επιλογής",
-    "delete": "Διαγραφή",
-    "delete_confirm": "Είστε σίγουρος ότι θέλετε να διαγράψετε αυτή τη βάση γνώσεων;",
-    "dimensions": "Διαστάσεις ενσωμάτωσης",
-    "dimensions_auto_set": "Αυτόματη ρύθμιση διαστάσεων ενσωμάτωσης",
-    "dimensions_default": "Το μοντέλο θα χρησιμοποιήσει τις προεπιλεγμένες διαστάσεις ενσωμάτωσης",
-    "dimensions_error_invalid": "Παρακαλώ εισάγετε μέγεθος διαστάσεων ενσωμάτωσης",
-    "dimensions_set_right": "⚠️ Βεβαιωθείτε ότι το μοντέλο υποστηρίζει το καθορισμένο μέγεθος διαστάσεων ενσωμάτωσης",
-    "dimensions_size_placeholder": " Μέγεθος διαστάσεων ενσωμάτωσης, π.χ. 1024",
-    "dimensions_size_too_large": "Οι διαστάσεις ενσωμάτωσης δεν μπορούν να υπερβούν το όριο περιεχομένου του μοντέλου ({{max_context}})",
-    "dimensions_size_tooltip": "Το μέγεθος των διαστάσεων ενσωμάτωσης. Όσο μεγαλύτερη η τιμή, τόσο περισσότερες οι διαστάσεις ενσωμάτωσης, αλλά και οι απαιτούμενες μονάδες (Tokens).",
-    "directories": "Κατάλογοι",
-    "directory_placeholder": "Εισάγετε το δρομολόγιο του καταλόγου",
-    "document_count": "Ποσότητα κειμένων που ζητούνται",
-    "document_count_default": "Προεπιλογή",
-    "document_count_help": "Όσο μεγαλύτερη είναι η ποσότητα των κειμένων που ζητούνται, τόσο περισσότερες πληροφορίες παρέχονται, αλλά και οι καταναλωτικοί Token επειδή περισσότερα",
-    "drag_file": "Βάλτε το αρχείο εδώ",
-    "drag_image": "Σύρετε την εικόνα εδώ",
-    "edit_remark": "Μεταβολή σημειώματος",
-    "edit_remark_placeholder": "Εισάγετε το σημείωμα",
-    "embedding_model": "Μοντέλο ενσωμάτωσης",
-    "embedding_model_required": "Το μοντέλο ενσωμάτωσης της βάσης γνώσης είναι υποχρεωτικό",
-    "empty": "Λεηλασία βάσης γνώσεων",
-    "error": {
-      "failed_to_create": "Αποτυχία δημιουργίας βάσης γνώσεων",
-      "failed_to_edit": "Αποτυχία επεξεργασίας βάσης γνώσεων",
-      "model_invalid": "Δεν έχει επιλεγεί μοντέλο ή έχει διαγραφεί",
-      "video": {
-        "local_file_missing": "Το αρχείο βίντεο δεν υπάρχει",
-        "youtube_url_missing": "Ο σύνδεσμος βίντεο του YouTube δεν υπάρχει"
-      }
-    },
-    "file_hint": "Υποστηρίζεται το {{file_types}} μορφάττων",
-    "image_hint": "Υποστηρίζει μορφές {{image_types}}",
-    "images": "εικόνα",
-    "index_all": "Ευρετήριοποίηση όλων",
-    "index_cancelled": "Η ευρετήριοποίηση διακόπηκε",
-    "index_started": "Η ευρετήριοποίηση ξεκίνησε",
-    "invalid_url": "Μη έγκυρη διευθύνση",
-    "migrate": {
-      "button": {
-        "text": "Μεταφορά"
-      },
-      "confirm": {
-        "content": "Εντοπίστηκαν αλλαγές στο μοντέλο ενσωμάτωσης ή τις διαστάσεις, οπότε δεν είναι δυνατή η αποθήκευση των ρυθμίσεων. Μπορείτε να εκτελέσετε μεταφορά για να αποφύγετε την απώλεια δεδομένων. Η μεταφορά της βάσης γνώσεων δεν διαγράφει την παλιά βάση γνώσεων, αλλά δημιουργεί ένα αντίγραφο και επεξεργάζεται όλα τα στοιχεία της βάσης γνώσεων, η οποία μπορεί να καταναλώσει πολλές μονάδες (Tokens). Παρακαλώ είστε προσεκτικοί.",
-        "ok": "Ξεκινήστε τη μεταφορά",
-        "title": "Μεταφορά βάσης γνώσεων"
-      },
-      "error": {
-        "failed": "Αποτυχία μεταφοράς"
-      },
-      "source_dimensions": "Πηγαίες διαστάσεις",
-      "source_model": "Πηγαίο μοντέλο",
-      "target_dimensions": "Προορισμένες διαστάσεις",
-      "target_model": "Προορισμένο μοντέλο"
-    },
-    "model_info": "Πληροφορίες μοντέλου",
-    "name_required": "Το όνομα της βάσης γνώσης είναι υποχρεωτικό",
-    "no_bases": "Λεηλασία βάσης γνώσεων",
-    "no_match": "Δεν βρέθηκαν στοιχεία γνώσεων",
-    "no_provider": "Η παροχή υπηρεσιών μοντέλου βάσης γνώσεων χαθηκε, αυτή η βάση γνώσεων δεν θα υποστηρίζεται πλέον, παρακαλείστε να δημιουργήσετε ξανά μια βάση γνώσεων",
-    "not_set": "Δεν έχει ρυθμιστεί",
-    "not_support": "Το μοντέλο βάσης γνώσεων έχει ενημερωθεί, αυτή η βάση γνώσεων δεν θα υποστηρίζεται πλέον, παρακαλείστε να δημιουργήσετε ξανά μια βάση γνώσεων",
-    "notes": "Σημειώματα",
-    "notes_placeholder": "Εισάγετε πρόσθετες πληροφορίες ή πληροφορίες προσδιορισμού για αυτή τη βάση γνώσεων...",
-    "provider_not_found": "Η παροχή υπηρεσιών μοντέλου βάσης γνώσεων χαθηκε, αυτή η βάση γνώσεων δεν θα υποστηρίζεται πλέον, παρακαλείστε να δημιουργήσετε ξανά μια βάση γνώσεων",
-    "rename": "Μετονομασία",
-    "search": "Αναζήτηση βάσης γνώσεων",
-    "search_placeholder": "Εισάγετε την αναζήτηση",
-    "settings": {
-      "preprocessing": "Προεπεξεργασία",
-      "preprocessing_tooltip": "Προεπεξεργασία των ανεβασμένων αρχείων με χρήση OCR",
-      "title": "Ρυθμίσεις Γνώσης"
-    },
-    "sitemap_added": "Επιτυχής προσθήκη",
-    "sitemap_placeholder": "Εισάγετε τη διεύθυνση URL του χάρτη τόπων",
-    "sitemaps": "Στοιχεία του δικτύου",
-    "source": "Πηγή",
-    "status": "Κατάσταση",
-    "status_completed": "Ολοκληρώθηκε",
-    "status_embedding_completed": "Η ενσωμάτωση ολοκληρώθηκε",
-    "status_embedding_failed": "Η ενσωμάτωση απέτυχε",
-    "status_failed": "Αποτυχία",
-    "status_new": "Προστέθηκε",
-    "status_pending": "Εκκρεμής",
-    "status_preprocess_completed": "Η προεπεξεργασία ολοκληρώθηκε",
-    "status_preprocess_failed": "Η προεπεξεργασία απέτυχε",
-    "status_processing": "Επεξεργασία",
-    "subtitle_file": "Υποτίτλων",
-    "threshold": "Περιθώριο συνάφειας",
-    "threshold_placeholder": "Δεν έχει ρυθμιστεί",
-    "threshold_too_large_or_small": "Το περιθώριο δεν μπορεί να είναι μεγαλύτερο από 1 ή μικρότερο από 0",
-    "threshold_tooltip": "Χρησιμοποιείται για τη μετρηση της σχέσης συνάφειας μεταξύ της ερώτησης του χρήστη και των περιεχομένων της βάσης γνώσεων (0-1)",
-    "title": "Βάση γνώσεων",
-    "topN": "Ποσότητα αποτελεσμάτων που επιστρέφονται",
-    "topN_placeholder": "Δεν έχει ρυθμιστεί",
-    "topN_too_large_or_small": "Ο αριθμός των αποτελεσμάτων δεν μπορεί να είναι μεγαλύτερος από 30 ή μικρότερος από 1",
-    "topN_tooltip": "Η ποσότητα των επιστρεφόμενων αποτελεσμάτων που συνάφονται, όσο μεγαλύτερη είναι η τιμή, τόσο περισσότερα αποτελέσματα συνδέονται, αλλά και οι καταναλωτικοί Token επειδή περισσότερα",
-    "url_added": "Η διεύθυνση προστέθηκε",
-    "url_placeholder": "Εισάγετε τη διεύθυνση, χωρίστε πολλαπλές διευθύνσεις με επιστροφή",
-    "urls": "Διευθύνσεις",
-    "videos": "βίντεο",
-    "videos_file": "Αρχείο βίντεο"
-  },
-  "knowledge_v2": {
-    "add": {
-      "group": "[to be translated]:Group",
-      "icon": "[to be translated]:Icon",
-      "submit": "[to be translated]:Create",
-      "title": "[to be translated]:New Knowledge Base"
-    },
     "context": {
       "delete": "[to be translated]:Delete Knowledge Base",
       "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
@@ -2205,7 +2098,25 @@
         "ready": "[to be translated]:Ready"
       }
     },
+    "delete": "Διαγραφή",
+    "delete_confirm": "Είστε σίγουρος ότι θέλετε να διαγράψετε αυτή τη βάση γνώσεων;",
     "dimensions": "[to be translated]:Embedding Dimensions",
+    "dimensions_auto_set": "Αυτόματη ρύθμιση διαστάσεων ενσωμάτωσης",
+    "dimensions_default": "Το μοντέλο θα χρησιμοποιήσει τις προεπιλεγμένες διαστάσεις ενσωμάτωσης",
+    "dimensions_error_invalid": "Παρακαλώ εισάγετε μέγεθος διαστάσεων ενσωμάτωσης",
+    "dimensions_set_right": "⚠️ Βεβαιωθείτε ότι το μοντέλο υποστηρίζει το καθορισμένο μέγεθος διαστάσεων ενσωμάτωσης",
+    "dimensions_size_placeholder": " Μέγεθος διαστάσεων ενσωμάτωσης, π.χ. 1024",
+    "dimensions_size_too_large": "Οι διαστάσεις ενσωμάτωσης δεν μπορούν να υπερβούν το όριο περιεχομένου του μοντέλου ({{max_context}})",
+    "dimensions_size_tooltip": "Το μέγεθος των διαστάσεων ενσωμάτωσης. Όσο μεγαλύτερη η τιμή, τόσο περισσότερες οι διαστάσεις ενσωμάτωσης, αλλά και οι απαιτούμενες μονάδες (Tokens).",
+    "directories": "Κατάλογοι",
+    "directory_placeholder": "Εισάγετε το δρομολόγιο του καταλόγου",
+    "document_count": "Ποσότητα κειμένων που ζητούνται",
+    "document_count_default": "Προεπιλογή",
+    "document_count_help": "Όσο μεγαλύτερη είναι η ποσότητα των κειμένων που ζητούνται, τόσο περισσότερες πληροφορίες παρέχονται, αλλά και οι καταναλωτικοί Token επειδή περισσότερα",
+    "drag_file": "Βάλτε το αρχείο εδώ",
+    "drag_image": "Σύρετε την εικόνα εδώ",
+    "edit_remark": "Μεταβολή σημειώματος",
+    "edit_remark_placeholder": "Εισάγετε το σημείωμα",
     "embedding_model": "[to be translated]:Embedding Model",
     "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
     "empty": "[to be translated]:No knowledge bases",
@@ -2213,8 +2124,14 @@
       "failed_base_unknown": "[to be translated]:This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
       "failed_to_create": "[to be translated]:Failed to create knowledge base",
       "failed_to_edit": "[to be translated]:Failed to edit knowledge base",
-      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model."
+      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
+      "model_invalid": "Δεν έχει επιλεγεί μοντέλο ή έχει διαγραφεί",
+      "video": {
+        "local_file_missing": "Το αρχείο βίντεο δεν υπάρχει",
+        "youtube_url_missing": "Ο σύνδεσμος βίντεο του YouTube δεν υπάρχει"
+      }
     },
+    "file_hint": "Υποστηρίζεται το {{file_types}} μορφάττων",
     "groups": {
       "add": "[to be translated]:New Group",
       "create_base_here": "[to be translated]:Create here",
@@ -2231,11 +2148,42 @@
       "rename_title": "[to be translated]:Rename Group",
       "ungrouped": "[to be translated]:Ungrouped"
     },
+    "image_hint": "Υποστηρίζει μορφές {{image_types}}",
+    "images": "εικόνα",
+    "index_all": "Ευρετήριοποίηση όλων",
+    "index_cancelled": "Η ευρετήριοποίηση διακόπηκε",
+    "index_started": "Η ευρετήριοποίηση ξεκίνησε",
+    "invalid_url": "Μη έγκυρη διευθύνση",
     "meta": {
       "documents_count": "[to be translated]:{{count}} documents"
     },
+    "migrate": {
+      "button": {
+        "text": "Μεταφορά"
+      },
+      "confirm": {
+        "content": "Εντοπίστηκαν αλλαγές στο μοντέλο ενσωμάτωσης ή τις διαστάσεις, οπότε δεν είναι δυνατή η αποθήκευση των ρυθμίσεων. Μπορείτε να εκτελέσετε μεταφορά για να αποφύγετε την απώλεια δεδομένων. Η μεταφορά της βάσης γνώσεων δεν διαγράφει την παλιά βάση γνώσεων, αλλά δημιουργεί ένα αντίγραφο και επεξεργάζεται όλα τα στοιχεία της βάσης γνώσεων, η οποία μπορεί να καταναλώσει πολλές μονάδες (Tokens). Παρακαλώ είστε προσεκτικοί.",
+        "ok": "Ξεκινήστε τη μεταφορά",
+        "title": "Μεταφορά βάσης γνώσεων"
+      },
+      "error": {
+        "failed": "Αποτυχία μεταφοράς"
+      },
+      "source_dimensions": "Πηγαίες διαστάσεις",
+      "source_model": "Πηγαίο μοντέλο",
+      "target_dimensions": "Προορισμένες διαστάσεις",
+      "target_model": "Προορισμένο μοντέλο"
+    },
+    "model_info": "Πληροφορίες μοντέλου",
     "name_required": "[to be translated]:Knowledge base name is required",
+    "no_bases": "Λεηλασία βάσης γνώσεων",
+    "no_match": "Δεν βρέθηκαν στοιχεία γνώσεων",
+    "no_provider": "Η παροχή υπηρεσιών μοντέλου βάσης γνώσεων χαθηκε, αυτή η βάση γνώσεων δεν θα υποστηρίζεται πλέον, παρακαλείστε να δημιουργήσετε ξανά μια βάση γνώσεων",
     "not_set": "[to be translated]:Not Set",
+    "not_support": "Το μοντέλο βάσης γνώσεων έχει ενημερωθεί, αυτή η βάση γνώσεων δεν θα υποστηρίζεται πλέον, παρακαλείστε να δημιουργήσετε ξανά μια βάση γνώσεων",
+    "notes": "Σημειώματα",
+    "notes_placeholder": "Εισάγετε πρόσθετες πληροφορίες ή πληροφορίες προσδιορισμού για αυτή τη βάση γνώσεων...",
+    "provider_not_found": "Η παροχή υπηρεσιών μοντέλου βάσης γνώσεων χαθηκε, αυτή η βάση γνώσεων δεν θα υποστηρίζεται πλέον, παρακαλείστε να δημιουργήσετε ξανά μια βάση γνώσεων",
     "rag": {
       "chunk_overlap": "[to be translated]:Overlap Size",
       "chunk_overlap_invalid": "[to be translated]:Chunk overlap must be greater than or equal to 0",
@@ -2297,6 +2245,7 @@
       "submit": "[to be translated]:Search",
       "top_score": "[to be translated]:Top: {{score}}"
     },
+    "rename": "Μετονομασία",
     "rename_title": "[to be translated]:Rename Knowledge Base",
     "restore": {
       "action": "[to be translated]:Rebuild knowledge base",
@@ -2306,17 +2255,50 @@
       "title": "[to be translated]:Rebuild Knowledge Base"
     },
     "search": "[to be translated]:Search Knowledge Base",
+    "search_placeholder": "Εισάγετε την αναζήτηση",
+    "settings": {
+      "preprocessing": "Προεπεξεργασία",
+      "preprocessing_tooltip": "Προεπεξεργασία των ανεβασμένων αρχείων με χρήση OCR",
+      "title": "Ρυθμίσεις Γνώσης"
+    },
+    "sitemap_added": "Επιτυχής προσθήκη",
+    "sitemap_placeholder": "Εισάγετε τη διεύθυνση URL του χάρτη τόπων",
+    "sitemaps": "Στοιχεία του δικτύου",
+    "source": "Πηγή",
     "status": {
       "completed": "[to be translated]:Ready",
       "failed": "[to be translated]:Failed",
       "processing": "[to be translated]:Processing"
     },
+    "status_completed": "Ολοκληρώθηκε",
+    "status_embedding_completed": "Η ενσωμάτωση ολοκληρώθηκε",
+    "status_embedding_failed": "Η ενσωμάτωση απέτυχε",
+    "status_failed": "Αποτυχία",
+    "status_new": "Προστέθηκε",
+    "status_pending": "Εκκρεμής",
+    "status_preprocess_completed": "Η προεπεξεργασία ολοκληρώθηκε",
+    "status_preprocess_failed": "Η προεπεξεργασία απέτυχε",
+    "status_processing": "Επεξεργασία",
+    "subtitle_file": "Υποτίτλων",
     "tabs": {
       "data_source": "[to be translated]:Data Sources",
       "rag_config": "[to be translated]:RAG Config",
       "recall_test": "[to be translated]:Recall Test"
     },
-    "title": "[to be translated]:Knowledge Base"
+    "threshold": "Περιθώριο συνάφειας",
+    "threshold_placeholder": "Δεν έχει ρυθμιστεί",
+    "threshold_too_large_or_small": "Το περιθώριο δεν μπορεί να είναι μεγαλύτερο από 1 ή μικρότερο από 0",
+    "threshold_tooltip": "Χρησιμοποιείται για τη μετρηση της σχέσης συνάφειας μεταξύ της ερώτησης του χρήστη και των περιεχομένων της βάσης γνώσεων (0-1)",
+    "title": "[to be translated]:Knowledge Base",
+    "topN": "Ποσότητα αποτελεσμάτων που επιστρέφονται",
+    "topN_placeholder": "Δεν έχει ρυθμιστεί",
+    "topN_too_large_or_small": "Ο αριθμός των αποτελεσμάτων δεν μπορεί να είναι μεγαλύτερος από 30 ή μικρότερος από 1",
+    "topN_tooltip": "Η ποσότητα των επιστρεφόμενων αποτελεσμάτων που συνάφονται, όσο μεγαλύτερη είναι η τιμή, τόσο περισσότερα αποτελέσματα συνδέονται, αλλά και οι καταναλωτικοί Token επειδή περισσότερα",
+    "url_added": "Η διεύθυνση προστέθηκε",
+    "url_placeholder": "Εισάγετε τη διεύθυνση, χωρίστε πολλαπλές διευθύνσεις με επιστροφή",
+    "urls": "Διευθύνσεις",
+    "videos": "βίντεο",
+    "videos_file": "Αρχείο βίντεο"
   },
   "languages": {
     "arabic": "Αραβικά",

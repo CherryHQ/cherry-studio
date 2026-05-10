@@ -1991,7 +1991,10 @@
   },
   "knowledge": {
     "add": {
-      "title": "Wissensdatenbank hinzufügen"
+      "group": "[to be translated]:Group",
+      "icon": "[to be translated]:Icon",
+      "submit": "[to be translated]:Create",
+      "title": "[to be translated]:New Knowledge Base"
     },
     "add_directory": "Verzeichnis hinzufügen",
     "add_file": "Datei hinzufügen",
@@ -2010,116 +2013,6 @@
     "chunk_size_too_large": "Segmentgröße darf Modellkontextlimit ({{max_context}}) nicht überschreiten",
     "chunk_size_tooltip": "Größe jedes Segments beim Aufteilen von Dokumenten, darf das Modellkontextlimit nicht überschreiten",
     "clear_selection": "Auswahl löschen",
-    "delete": "Löschen",
-    "delete_confirm": "Möchten Sie diese Wissensdatenbank wirklich löschen?",
-    "dimensions": "Embedding-Dimensionen",
-    "dimensions_auto_set": "Embedding-Dimensionen automatisch setzen",
-    "dimensions_default": "Modell verwendet Standard-Embedding-Dimensionen",
-    "dimensions_error_invalid": "Ungültige Embedding-Dimensionen",
-    "dimensions_set_right": "⚠️ Bitte stellen Sie sicher, dass das Modell die festgelegte Embedding-Dimensionsgröße unterstützt",
-    "dimensions_size_placeholder": "Leer lassen, um nicht zu setzen",
-    "dimensions_size_too_large": "Embedding-Dimensionen dürfen Modellkontextlimit ({{max_context}}) nicht überschreiten",
-    "dimensions_size_tooltip": "Embedding-Dimensionsgröße. Höhere Werte verbrauchen mehr Token. Leer lassen, um den dimensions-Parameter nicht zu übergeben.",
-    "directories": "Verzeichnisse",
-    "directory_placeholder": "Bitte Verzeichnispfad eingeben",
-    "document_count": "Anzahl angeforderter Dokumentfragmente",
-    "document_count_default": "Standard",
-    "document_count_help": "Mehr Dokumentfragmente bedeuten mehr Informationen, aber auch höheren Token-Verbrauch",
-    "drag_file": "Datei hierher ziehen",
-    "drag_image": "Bild hierher ziehen",
-    "edit_remark": "Bemerkung bearbeiten",
-    "edit_remark_placeholder": "Bitte Bemerkung eingeben",
-    "embedding_model": "Embedding-Modell",
-    "embedding_model_required": "Embedding-Modell für Wissensdatenbank ist erforderlich",
-    "empty": "Keine Wissensdatenbanken vorhanden",
-    "error": {
-      "failed_to_create": "Wissensdatenbank erstellen fehlgeschlagen",
-      "failed_to_edit": "Wissensdatenbank bearbeiten fehlgeschlagen",
-      "model_invalid": "Kein Modell ausgewählt",
-      "video": {
-        "local_file_missing": "Videodatei existiert nicht",
-        "youtube_url_missing": "YouTube-Video-Link existiert nicht"
-      }
-    },
-    "file_hint": "{{file_types}}-Formate werden unterstützt",
-    "image_hint": "{{image_types}}-Formate werden unterstützt",
-    "images": "Bilder",
-    "index_all": "Alle indizieren",
-    "index_cancelled": "Indexierung abgebrochen",
-    "index_started": "Indexierung gestartet",
-    "invalid_url": "Ungültige URL",
-    "migrate": {
-      "button": {
-        "text": "Migrieren"
-      },
-      "confirm": {
-        "content": "Änderungen am Embedding-Modell oder den Dimensionen erkannt. Konfiguration kann nicht direkt gespeichert werden. Migration kann durchgeführt werden. Die Migration löscht die alte Wissensdatenbank nicht, sondern erstellt eine Kopie und verarbeitet alle Einträge neu. Dies kann viele Tokens verbrauchen. Bitte mit Vorsicht fortfahren.",
-        "ok": "Migration starten",
-        "title": "Wissensdatenbank-Migration"
-      },
-      "error": {
-        "failed": "Migration fehlgeschlagen"
-      },
-      "source_dimensions": "Quell-Dimensionen",
-      "source_model": "Quellmodell",
-      "target_dimensions": "Ziel-Dimensionen",
-      "target_model": "Zielmodell"
-    },
-    "model_info": "Modellinformationen",
-    "name_required": "Wissensdatenbankname ist erforderlich",
-    "no_bases": "Keine Wissensdatenbanken vorhanden",
-    "no_match": "Keine Übereinstimmung mit Wissensdatenbankinhalt",
-    "no_provider": "Modellanbieter für Wissensdatenbank fehlt. Diese Wissensdatenbank wird nicht mehr unterstützt. Bitte erstellen Sie eine neue",
-    "not_set": "Nicht gesetzt",
-    "not_support": "Datenbank-Engine der Wissensdatenbank wurde aktualisiert. Diese Wissensdatenbank wird nicht mehr unterstützt. Bitte erstellen Sie eine neue",
-    "notes": "Notizen",
-    "notes_placeholder": "Zusätzliche Informationen oder Kontext für diese Wissensdatenbank eingeben...",
-    "provider_not_found": "Anbieter nicht gefunden",
-    "rename": "Umbenennen",
-    "search": "Wissensdatenbank durchsuchen",
-    "search_placeholder": "Suchanfrage eingeben",
-    "settings": {
-      "preprocessing": "Vorverarbeitung",
-      "preprocessing_tooltip": "OCR zur Vorverarbeitung hochgeladener Dateien verwenden",
-      "title": "Wissensdatenbank-Einstellungen"
-    },
-    "sitemap_added": "Erfolgreich hinzugefügt",
-    "sitemap_placeholder": "Bitte Sitemap-URL eingeben",
-    "sitemaps": "Websites",
-    "source": "Quelle",
-    "status": "Status",
-    "status_completed": "Abgeschlossen",
-    "status_embedding_completed": "Embedding abgeschlossen",
-    "status_embedding_failed": "Embedding fehlgeschlagen",
-    "status_failed": "Fehlgeschlagen",
-    "status_new": "Hinzugefügt",
-    "status_pending": "Wartend",
-    "status_preprocess_completed": "Vorverarbeitung abgeschlossen",
-    "status_preprocess_failed": "Vorverarbeitung fehlgeschlagen",
-    "status_processing": "In Bearbeitung",
-    "subtitle_file": "Untertiteldatei",
-    "threshold": "Übereinstimmungsschwelle",
-    "threshold_placeholder": "Nicht gesetzt",
-    "threshold_too_large_or_small": "Schwelle darf nicht größer als 1 oder kleiner als 0 sein",
-    "threshold_tooltip": "Misst die Relevanz zwischen Benutzerfrage und Wissensdatenbankinhalt (0-1)",
-    "title": "Wissensdatenbank",
-    "topN": "Anzahl zurückgegebener Ergebnisse",
-    "topN_placeholder": "Nicht gesetzt",
-    "topN_too_large_or_small": "Anzahl zurückgegebener Ergebnisse darf nicht größer als 30 oder kleiner als 1 sein",
-    "topN_tooltip": "Anzahl zurückgegebener Übereinstimmungsergebnisse. Höhere Werte bedeuten mehr Ergebnisse, aber auch höheren Token-Verbrauch",
-    "url_added": "URL hinzugefügt",
-    "url_placeholder": "Bitte URL eingeben, mehrere URLs mit Enter trennen",
-    "urls": "URLs",
-    "videos": "Videos",
-    "videos_file": "Videodatei"
-  },
-  "knowledge_v2": {
-    "add": {
-      "group": "[to be translated]:Group",
-      "icon": "[to be translated]:Icon",
-      "submit": "[to be translated]:Create",
-      "title": "[to be translated]:New Knowledge Base"
-    },
     "context": {
       "delete": "[to be translated]:Delete Knowledge Base",
       "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
@@ -2205,7 +2098,25 @@
         "ready": "[to be translated]:Ready"
       }
     },
+    "delete": "Löschen",
+    "delete_confirm": "Möchten Sie diese Wissensdatenbank wirklich löschen?",
     "dimensions": "[to be translated]:Embedding Dimensions",
+    "dimensions_auto_set": "Embedding-Dimensionen automatisch setzen",
+    "dimensions_default": "Modell verwendet Standard-Embedding-Dimensionen",
+    "dimensions_error_invalid": "Ungültige Embedding-Dimensionen",
+    "dimensions_set_right": "⚠️ Bitte stellen Sie sicher, dass das Modell die festgelegte Embedding-Dimensionsgröße unterstützt",
+    "dimensions_size_placeholder": "Leer lassen, um nicht zu setzen",
+    "dimensions_size_too_large": "Embedding-Dimensionen dürfen Modellkontextlimit ({{max_context}}) nicht überschreiten",
+    "dimensions_size_tooltip": "Embedding-Dimensionsgröße. Höhere Werte verbrauchen mehr Token. Leer lassen, um den dimensions-Parameter nicht zu übergeben.",
+    "directories": "Verzeichnisse",
+    "directory_placeholder": "Bitte Verzeichnispfad eingeben",
+    "document_count": "Anzahl angeforderter Dokumentfragmente",
+    "document_count_default": "Standard",
+    "document_count_help": "Mehr Dokumentfragmente bedeuten mehr Informationen, aber auch höheren Token-Verbrauch",
+    "drag_file": "Datei hierher ziehen",
+    "drag_image": "Bild hierher ziehen",
+    "edit_remark": "Bemerkung bearbeiten",
+    "edit_remark_placeholder": "Bitte Bemerkung eingeben",
     "embedding_model": "[to be translated]:Embedding Model",
     "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
     "empty": "[to be translated]:No knowledge bases",
@@ -2213,8 +2124,14 @@
       "failed_base_unknown": "[to be translated]:This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
       "failed_to_create": "[to be translated]:Failed to create knowledge base",
       "failed_to_edit": "[to be translated]:Failed to edit knowledge base",
-      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model."
+      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
+      "model_invalid": "Kein Modell ausgewählt",
+      "video": {
+        "local_file_missing": "Videodatei existiert nicht",
+        "youtube_url_missing": "YouTube-Video-Link existiert nicht"
+      }
     },
+    "file_hint": "{{file_types}}-Formate werden unterstützt",
     "groups": {
       "add": "[to be translated]:New Group",
       "create_base_here": "[to be translated]:Create here",
@@ -2231,11 +2148,42 @@
       "rename_title": "[to be translated]:Rename Group",
       "ungrouped": "[to be translated]:Ungrouped"
     },
+    "image_hint": "{{image_types}}-Formate werden unterstützt",
+    "images": "Bilder",
+    "index_all": "Alle indizieren",
+    "index_cancelled": "Indexierung abgebrochen",
+    "index_started": "Indexierung gestartet",
+    "invalid_url": "Ungültige URL",
     "meta": {
       "documents_count": "[to be translated]:{{count}} documents"
     },
+    "migrate": {
+      "button": {
+        "text": "Migrieren"
+      },
+      "confirm": {
+        "content": "Änderungen am Embedding-Modell oder den Dimensionen erkannt. Konfiguration kann nicht direkt gespeichert werden. Migration kann durchgeführt werden. Die Migration löscht die alte Wissensdatenbank nicht, sondern erstellt eine Kopie und verarbeitet alle Einträge neu. Dies kann viele Tokens verbrauchen. Bitte mit Vorsicht fortfahren.",
+        "ok": "Migration starten",
+        "title": "Wissensdatenbank-Migration"
+      },
+      "error": {
+        "failed": "Migration fehlgeschlagen"
+      },
+      "source_dimensions": "Quell-Dimensionen",
+      "source_model": "Quellmodell",
+      "target_dimensions": "Ziel-Dimensionen",
+      "target_model": "Zielmodell"
+    },
+    "model_info": "Modellinformationen",
     "name_required": "[to be translated]:Knowledge base name is required",
+    "no_bases": "Keine Wissensdatenbanken vorhanden",
+    "no_match": "Keine Übereinstimmung mit Wissensdatenbankinhalt",
+    "no_provider": "Modellanbieter für Wissensdatenbank fehlt. Diese Wissensdatenbank wird nicht mehr unterstützt. Bitte erstellen Sie eine neue",
     "not_set": "[to be translated]:Not Set",
+    "not_support": "Datenbank-Engine der Wissensdatenbank wurde aktualisiert. Diese Wissensdatenbank wird nicht mehr unterstützt. Bitte erstellen Sie eine neue",
+    "notes": "Notizen",
+    "notes_placeholder": "Zusätzliche Informationen oder Kontext für diese Wissensdatenbank eingeben...",
+    "provider_not_found": "Anbieter nicht gefunden",
     "rag": {
       "chunk_overlap": "[to be translated]:Overlap Size",
       "chunk_overlap_invalid": "[to be translated]:Chunk overlap must be greater than or equal to 0",
@@ -2297,6 +2245,7 @@
       "submit": "[to be translated]:Search",
       "top_score": "[to be translated]:Top: {{score}}"
     },
+    "rename": "Umbenennen",
     "rename_title": "[to be translated]:Rename Knowledge Base",
     "restore": {
       "action": "[to be translated]:Rebuild knowledge base",
@@ -2306,17 +2255,50 @@
       "title": "[to be translated]:Rebuild Knowledge Base"
     },
     "search": "[to be translated]:Search Knowledge Base",
+    "search_placeholder": "Suchanfrage eingeben",
+    "settings": {
+      "preprocessing": "Vorverarbeitung",
+      "preprocessing_tooltip": "OCR zur Vorverarbeitung hochgeladener Dateien verwenden",
+      "title": "Wissensdatenbank-Einstellungen"
+    },
+    "sitemap_added": "Erfolgreich hinzugefügt",
+    "sitemap_placeholder": "Bitte Sitemap-URL eingeben",
+    "sitemaps": "Websites",
+    "source": "Quelle",
     "status": {
       "completed": "[to be translated]:Ready",
       "failed": "[to be translated]:Failed",
       "processing": "[to be translated]:Processing"
     },
+    "status_completed": "Abgeschlossen",
+    "status_embedding_completed": "Embedding abgeschlossen",
+    "status_embedding_failed": "Embedding fehlgeschlagen",
+    "status_failed": "Fehlgeschlagen",
+    "status_new": "Hinzugefügt",
+    "status_pending": "Wartend",
+    "status_preprocess_completed": "Vorverarbeitung abgeschlossen",
+    "status_preprocess_failed": "Vorverarbeitung fehlgeschlagen",
+    "status_processing": "In Bearbeitung",
+    "subtitle_file": "Untertiteldatei",
     "tabs": {
       "data_source": "[to be translated]:Data Sources",
       "rag_config": "[to be translated]:RAG Config",
       "recall_test": "[to be translated]:Recall Test"
     },
-    "title": "[to be translated]:Knowledge Base"
+    "threshold": "Übereinstimmungsschwelle",
+    "threshold_placeholder": "Nicht gesetzt",
+    "threshold_too_large_or_small": "Schwelle darf nicht größer als 1 oder kleiner als 0 sein",
+    "threshold_tooltip": "Misst die Relevanz zwischen Benutzerfrage und Wissensdatenbankinhalt (0-1)",
+    "title": "[to be translated]:Knowledge Base",
+    "topN": "Anzahl zurückgegebener Ergebnisse",
+    "topN_placeholder": "Nicht gesetzt",
+    "topN_too_large_or_small": "Anzahl zurückgegebener Ergebnisse darf nicht größer als 30 oder kleiner als 1 sein",
+    "topN_tooltip": "Anzahl zurückgegebener Übereinstimmungsergebnisse. Höhere Werte bedeuten mehr Ergebnisse, aber auch höheren Token-Verbrauch",
+    "url_added": "URL hinzugefügt",
+    "url_placeholder": "Bitte URL eingeben, mehrere URLs mit Enter trennen",
+    "urls": "URLs",
+    "videos": "Videos",
+    "videos_file": "Videodatei"
   },
   "languages": {
     "arabic": "Arabisch",

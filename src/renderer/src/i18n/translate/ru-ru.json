@@ -1991,7 +1991,10 @@
   },
   "knowledge": {
     "add": {
-      "title": "Добавить базу знаний"
+      "group": "[to be translated]:Group",
+      "icon": "[to be translated]:Icon",
+      "submit": "[to be translated]:Create",
+      "title": "[to be translated]:New Knowledge Base"
     },
     "add_directory": "Добавить директорию",
     "add_file": "Добавить файл",
@@ -2010,116 +2013,6 @@
     "chunk_size_too_large": "Размер фрагмента не может превышать модель контекста ({{max_context}})",
     "chunk_size_tooltip": "Размер фрагмента, не превышающий модель контекста",
     "clear_selection": "Очистить выбор",
-    "delete": "Удалить",
-    "delete_confirm": "Вы уверены, что хотите удалить эту базу знаний?",
-    "dimensions": "векторное пространство",
-    "dimensions_auto_set": "Автоматическая установка размерности эмбеддинга",
-    "dimensions_default": "Модель будет использовать размер эмбеддинга по умолчанию",
-    "dimensions_error_invalid": "Неверная размерность эмбеддинга",
-    "dimensions_set_right": "⚠️ Убедитесь, что модель поддерживает заданный размер эмбеддинга",
-    "dimensions_size_placeholder": "Оставьте пустым, чтобы не устанавливать",
-    "dimensions_size_too_large": "Размерность вложения не может превышать ограничение контекста модели ({{max_context}})",
-    "dimensions_size_tooltip": "Размерность вложения - чем больше значение, тем больше токенов потребляется. Если оставить пустым, параметр dimensions не будет передаваться.",
-    "directories": "Директории",
-    "directory_placeholder": "Введите путь к директории",
-    "document_count": "Количество запрошенных документов",
-    "document_count_default": "По умолчанию",
-    "document_count_help": "Количество запрошенных документов, вместе с ними передается больше информации, но и требуется больше токенов",
-    "drag_file": "Перетащите файл сюда",
-    "drag_image": "Перетащите изображение сюда",
-    "edit_remark": "Изменить примечание",
-    "edit_remark_placeholder": "Пожалуйста, введите содержание примечания",
-    "embedding_model": "Модель встраивания",
-    "embedding_model_required": "Модель встраивания базы знаний требуется",
-    "empty": "База знаний не найдена",
-    "error": {
-      "failed_to_create": "Создание базы знаний завершено с ошибками",
-      "failed_to_edit": "Редактирование базы знаний завершено с ошибками",
-      "model_invalid": "Модель не выбрана",
-      "video": {
-        "local_file_missing": "Видеофайл не найден",
-        "youtube_url_missing": "URL видео YouTube не найден"
-      }
-    },
-    "file_hint": "Поддерживаются {{file_types}}",
-    "image_hint": "Поддерживаются форматы {{image_types}}",
-    "images": "изображение",
-    "index_all": "Индексировать все",
-    "index_cancelled": "Индексирование отменено",
-    "index_started": "Индексирование началось",
-    "invalid_url": "Неверный URL",
-    "migrate": {
-      "button": {
-        "text": "Миграция"
-      },
-      "confirm": {
-        "content": "Обнаружена изменение модели встраивания или размерности, невозможно сохранить конфигурацию напрямую. Миграция базы знаний не удалит существующую базу знаний, а создаст ее копию, после чего перепроцессит все записи базы знаний, что может потреблять большое количество токенов. Пожалуйста, действуйте осторожно.",
-        "ok": "Начать миграцию",
-        "title": "Миграция базы знаний"
-      },
-      "error": {
-        "failed": "Миграция завершена с ошибками"
-      },
-      "source_dimensions": "Исходная размерность",
-      "source_model": "Исходная модель",
-      "target_dimensions": "Целевая размерность",
-      "target_model": "Целевая модель"
-    },
-    "model_info": "Модель информации",
-    "name_required": "Название базы знаний обязательно",
-    "no_bases": "База знаний не найдена",
-    "no_match": "Не найдено содержимого в базе знаний.",
-    "no_provider": "База знаний модель поставщика не настроена, база знаний больше не поддерживается, пожалуйста, создайте новую базу знаний",
-    "not_set": "Не установлено",
-    "not_support": "База знаний базы данных движок обновлен, база знаний больше не поддерживается, пожалуйста, создайте новую базу знаний",
-    "notes": "Заметки",
-    "notes_placeholder": "Введите дополнительную информацию или контекст для этой базы знаний...",
-    "provider_not_found": "Поставщик не найден",
-    "rename": "Переименовать",
-    "search": "Поиск в базе знаний",
-    "search_placeholder": "Введите текст для поиска",
-    "settings": {
-      "preprocessing": "Предварительная обработка",
-      "preprocessing_tooltip": "Предварительная обработка документов",
-      "title": "Настройки базы знаний"
-    },
-    "sitemap_added": "Карта сайта добавлена",
-    "sitemap_placeholder": "Введите URL карты сайта",
-    "sitemaps": "Сайты",
-    "source": "Источник",
-    "status": "Статус",
-    "status_completed": "Завершено",
-    "status_embedding_completed": "Вложение завершено",
-    "status_embedding_failed": "Не удалось встроить",
-    "status_failed": "Ошибка",
-    "status_new": "Добавлено",
-    "status_pending": "Ожидание",
-    "status_preprocess_completed": "Предварительная обработка завершена",
-    "status_preprocess_failed": "Предварительная обработка не удалась",
-    "status_processing": "Обработка",
-    "subtitle_file": "Файл субтитров",
-    "threshold": "Порог соответствия",
-    "threshold_placeholder": "Не установлено",
-    "threshold_too_large_or_small": "Порог не может быть больше 1 или меньше 0",
-    "threshold_tooltip": "Используется для оценки соответствия между пользовательским вопросом и содержимым в базе знаний (0-1)",
-    "title": "База знаний",
-    "topN": "Количество возвращаемых результатов",
-    "topN_placeholder": "Не установлено",
-    "topN_too_large_or_small": "Количество возвращаемых результатов не может быть больше 30 или меньше 1.",
-    "topN_tooltip": "Количество возвращаемых совпадений; чем больше значение, тем больше совпадений, но и потребление токенов тоже возрастает.",
-    "url_added": "URL добавлен",
-    "url_placeholder": "Введите URL, несколько URL через Enter",
-    "urls": "URL-адреса",
-    "videos": "видео",
-    "videos_file": "видеофайл"
-  },
-  "knowledge_v2": {
-    "add": {
-      "group": "[to be translated]:Group",
-      "icon": "[to be translated]:Icon",
-      "submit": "[to be translated]:Create",
-      "title": "[to be translated]:New Knowledge Base"
-    },
     "context": {
       "delete": "[to be translated]:Delete Knowledge Base",
       "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
@@ -2205,7 +2098,25 @@
         "ready": "[to be translated]:Ready"
       }
     },
+    "delete": "Удалить",
+    "delete_confirm": "Вы уверены, что хотите удалить эту базу знаний?",
     "dimensions": "[to be translated]:Embedding Dimensions",
+    "dimensions_auto_set": "Автоматическая установка размерности эмбеддинга",
+    "dimensions_default": "Модель будет использовать размер эмбеддинга по умолчанию",
+    "dimensions_error_invalid": "Неверная размерность эмбеддинга",
+    "dimensions_set_right": "⚠️ Убедитесь, что модель поддерживает заданный размер эмбеддинга",
+    "dimensions_size_placeholder": "Оставьте пустым, чтобы не устанавливать",
+    "dimensions_size_too_large": "Размерность вложения не может превышать ограничение контекста модели ({{max_context}})",
+    "dimensions_size_tooltip": "Размерность вложения - чем больше значение, тем больше токенов потребляется. Если оставить пустым, параметр dimensions не будет передаваться.",
+    "directories": "Директории",
+    "directory_placeholder": "Введите путь к директории",
+    "document_count": "Количество запрошенных документов",
+    "document_count_default": "По умолчанию",
+    "document_count_help": "Количество запрошенных документов, вместе с ними передается больше информации, но и требуется больше токенов",
+    "drag_file": "Перетащите файл сюда",
+    "drag_image": "Перетащите изображение сюда",
+    "edit_remark": "Изменить примечание",
+    "edit_remark_placeholder": "Пожалуйста, введите содержание примечания",
     "embedding_model": "[to be translated]:Embedding Model",
     "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
     "empty": "[to be translated]:No knowledge bases",
@@ -2213,8 +2124,14 @@
       "failed_base_unknown": "[to be translated]:This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
       "failed_to_create": "[to be translated]:Failed to create knowledge base",
       "failed_to_edit": "[to be translated]:Failed to edit knowledge base",
-      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model."
+      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
+      "model_invalid": "Модель не выбрана",
+      "video": {
+        "local_file_missing": "Видеофайл не найден",
+        "youtube_url_missing": "URL видео YouTube не найден"
+      }
     },
+    "file_hint": "Поддерживаются {{file_types}}",
     "groups": {
       "add": "[to be translated]:New Group",
       "create_base_here": "[to be translated]:Create here",
@@ -2231,11 +2148,42 @@
       "rename_title": "[to be translated]:Rename Group",
       "ungrouped": "[to be translated]:Ungrouped"
     },
+    "image_hint": "Поддерживаются форматы {{image_types}}",
+    "images": "изображение",
+    "index_all": "Индексировать все",
+    "index_cancelled": "Индексирование отменено",
+    "index_started": "Индексирование началось",
+    "invalid_url": "Неверный URL",
     "meta": {
       "documents_count": "[to be translated]:{{count}} documents"
     },
+    "migrate": {
+      "button": {
+        "text": "Миграция"
+      },
+      "confirm": {
+        "content": "Обнаружена изменение модели встраивания или размерности, невозможно сохранить конфигурацию напрямую. Миграция базы знаний не удалит существующую базу знаний, а создаст ее копию, после чего перепроцессит все записи базы знаний, что может потреблять большое количество токенов. Пожалуйста, действуйте осторожно.",
+        "ok": "Начать миграцию",
+        "title": "Миграция базы знаний"
+      },
+      "error": {
+        "failed": "Миграция завершена с ошибками"
+      },
+      "source_dimensions": "Исходная размерность",
+      "source_model": "Исходная модель",
+      "target_dimensions": "Целевая размерность",
+      "target_model": "Целевая модель"
+    },
+    "model_info": "Модель информации",
     "name_required": "[to be translated]:Knowledge base name is required",
+    "no_bases": "База знаний не найдена",
+    "no_match": "Не найдено содержимого в базе знаний.",
+    "no_provider": "База знаний модель поставщика не настроена, база знаний больше не поддерживается, пожалуйста, создайте новую базу знаний",
     "not_set": "[to be translated]:Not Set",
+    "not_support": "База знаний базы данных движок обновлен, база знаний больше не поддерживается, пожалуйста, создайте новую базу знаний",
+    "notes": "Заметки",
+    "notes_placeholder": "Введите дополнительную информацию или контекст для этой базы знаний...",
+    "provider_not_found": "Поставщик не найден",
     "rag": {
       "chunk_overlap": "[to be translated]:Overlap Size",
       "chunk_overlap_invalid": "[to be translated]:Chunk overlap must be greater than or equal to 0",
@@ -2297,6 +2245,7 @@
       "submit": "[to be translated]:Search",
       "top_score": "[to be translated]:Top: {{score}}"
     },
+    "rename": "Переименовать",
     "rename_title": "[to be translated]:Rename Knowledge Base",
     "restore": {
       "action": "[to be translated]:Rebuild knowledge base",
@@ -2306,17 +2255,50 @@
       "title": "[to be translated]:Rebuild Knowledge Base"
     },
     "search": "[to be translated]:Search Knowledge Base",
+    "search_placeholder": "Введите текст для поиска",
+    "settings": {
+      "preprocessing": "Предварительная обработка",
+      "preprocessing_tooltip": "Предварительная обработка документов",
+      "title": "Настройки базы знаний"
+    },
+    "sitemap_added": "Карта сайта добавлена",
+    "sitemap_placeholder": "Введите URL карты сайта",
+    "sitemaps": "Сайты",
+    "source": "Источник",
     "status": {
       "completed": "[to be translated]:Ready",
       "failed": "[to be translated]:Failed",
       "processing": "[to be translated]:Processing"
     },
+    "status_completed": "Завершено",
+    "status_embedding_completed": "Вложение завершено",
+    "status_embedding_failed": "Не удалось встроить",
+    "status_failed": "Ошибка",
+    "status_new": "Добавлено",
+    "status_pending": "Ожидание",
+    "status_preprocess_completed": "Предварительная обработка завершена",
+    "status_preprocess_failed": "Предварительная обработка не удалась",
+    "status_processing": "Обработка",
+    "subtitle_file": "Файл субтитров",
     "tabs": {
       "data_source": "[to be translated]:Data Sources",
       "rag_config": "[to be translated]:RAG Config",
       "recall_test": "[to be translated]:Recall Test"
     },
-    "title": "[to be translated]:Knowledge Base"
+    "threshold": "Порог соответствия",
+    "threshold_placeholder": "Не установлено",
+    "threshold_too_large_or_small": "Порог не может быть больше 1 или меньше 0",
+    "threshold_tooltip": "Используется для оценки соответствия между пользовательским вопросом и содержимым в базе знаний (0-1)",
+    "title": "[to be translated]:Knowledge Base",
+    "topN": "Количество возвращаемых результатов",
+    "topN_placeholder": "Не установлено",
+    "topN_too_large_or_small": "Количество возвращаемых результатов не может быть больше 30 или меньше 1.",
+    "topN_tooltip": "Количество возвращаемых совпадений; чем больше значение, тем больше совпадений, но и потребление токенов тоже возрастает.",
+    "url_added": "URL добавлен",
+    "url_placeholder": "Введите URL, несколько URL через Enter",
+    "urls": "URL-адреса",
+    "videos": "видео",
+    "videos_file": "видеофайл"
   },
   "languages": {
     "arabic": "Арабский",

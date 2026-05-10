@@ -1991,7 +1991,10 @@
   },
   "knowledge": {
     "add": {
-      "title": "Agregar base de conocimientos"
+      "group": "[to be translated]:Group",
+      "icon": "[to be translated]:Icon",
+      "submit": "[to be translated]:Create",
+      "title": "[to be translated]:New Knowledge Base"
     },
     "add_directory": "Agregar directorio",
     "add_file": "Agregar archivo",
@@ -2010,116 +2013,6 @@
     "chunk_size_too_large": "El tamaño de fragmento no puede exceder el límite de contexto del modelo ({{max_context}})",
     "chunk_size_tooltip": "Divide el documento en fragmentos de este tamaño, no debe exceder el límite de contexto del modelo",
     "clear_selection": "Limpiar selección",
-    "delete": "Eliminar",
-    "delete_confirm": "¿Está seguro de querer eliminar esta base de conocimientos?",
-    "dimensions": "Dimensión de incrustación",
-    "dimensions_auto_set": "Configuración automática de dimensiones de incrustación",
-    "dimensions_default": "El modelo utilizará las dimensiones de incrustación predeterminadas",
-    "dimensions_error_invalid": "Por favor ingrese el tamaño de dimensión de incrustación",
-    "dimensions_set_right": "⚠️ Asegúrese de que el modelo admita el tamaño de dimensión de incrustación establecido",
-    "dimensions_size_placeholder": " Tamaño de dimensión de incrustación, ej. 1024",
-    "dimensions_size_too_large": "La dimensión de incrustación no puede exceder el límite del contexto del modelo ({{max_context}})",
-    "dimensions_size_tooltip": "Tamaño de la dimensión de incrustación, cuanto mayor sea el valor, mayor será la dimensión de incrustación, pero también consumirá más Tokens",
-    "directories": "Directorios",
-    "directory_placeholder": "Ingrese la ruta del directorio",
-    "document_count": "Número de fragmentos de documentos solicitados",
-    "document_count_default": "Predeterminado",
-    "document_count_help": "Más fragmentos de documentos solicitados significa más información adjunta, pero también consume más tokens",
-    "drag_file": "Arrastre archivos aquí",
-    "drag_image": "Arrastra la imagen aquí",
-    "edit_remark": "Editar observación",
-    "edit_remark_placeholder": "Ingrese el contenido de la observación",
-    "embedding_model": "Modelo de incrustación",
-    "embedding_model_required": "El modelo de incrustación de la base de conocimientos es obligatorio",
-    "empty": "Sin bases de conocimientos",
-    "error": {
-      "failed_to_create": "Error al crear la base de conocimientos",
-      "failed_to_edit": "Error al editar la base de conocimientos",
-      "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado",
-      "video": {
-        "local_file_missing": "El archivo de video no existe.",
-        "youtube_url_missing": "El enlace del vídeo de YouTube no existe."
-      }
-    },
-    "file_hint": "Formatos soportados: {{file_types}}",
-    "image_hint": "Soporta formatos {{image_types}}",
-    "images": "Imagen",
-    "index_all": "Indexar todo",
-    "index_cancelled": "Índice cancelado",
-    "index_started": "Índice iniciado",
-    "invalid_url": "URL inválida",
-    "migrate": {
-      "button": {
-        "text": "Migrar"
-      },
-      "confirm": {
-        "content": "Se detectaron cambios en el modelo de incrustación o las dimensiones, por lo que no se puede guardar la configuración. Puede ejecutar la migración para evitar la pérdida de datos. La migración de la base de conocimientos no elimina la base de conocimientos anterior, sino que crea una copia y procesa todos los elementos de la base de conocimientos, lo que puede consumir muchos tokens. Por favor, tenga cuidado.",
-        "ok": "Iniciar migración",
-        "title": "Migración de base de conocimientos"
-      },
-      "error": {
-        "failed": "Error en la migración"
-      },
-      "source_dimensions": "Dimensiones de origen",
-      "source_model": "Modelo de origen",
-      "target_dimensions": "Dimensiones de destino",
-      "target_model": "Modelo de destino"
-    },
-    "model_info": "Información del modelo",
-    "name_required": "El nombre de la base de conocimientos es obligatorio",
-    "no_bases": "Sin bases de conocimientos",
-    "no_match": "No se encontraron coincidencias en la base de conocimientos",
-    "no_provider": "El proveedor del modelo de la base de conocimientos está perdido, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
-    "not_set": "No configurado",
-    "not_support": "El motor de base de datos de la base de conocimientos ha sido actualizado, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
-    "notes": "Notas",
-    "notes_placeholder": "Ingrese información adicional o contexto para esta base de conocimientos...",
-    "provider_not_found": "El proveedor del modelo de la base de conocimientos ha sido perdido, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
-    "rename": "Renombrar",
-    "search": "Buscar en la base de conocimientos",
-    "search_placeholder": "Ingrese el contenido de la consulta",
-    "settings": {
-      "preprocessing": "Preprocesamiento",
-      "preprocessing_tooltip": "Preprocesar los archivos cargados usando OCR",
-      "title": "Configuración de la Base de Conocimiento"
-    },
-    "sitemap_added": "Agregado con éxito",
-    "sitemap_placeholder": "Ingrese la URL del mapa del sitio",
-    "sitemaps": "Sitios web",
-    "source": "Fuente",
-    "status": "Estado",
-    "status_completed": "Completado",
-    "status_embedding_completed": "Incrustación completada",
-    "status_embedding_failed": "Error en la incrustación",
-    "status_failed": "Fallido",
-    "status_new": "Nuevo",
-    "status_pending": "Pendiente",
-    "status_preprocess_completed": "Preprocesamiento completado",
-    "status_preprocess_failed": "Error en el preprocesamiento",
-    "status_processing": "Procesando",
-    "subtitle_file": "Archivo de subtítulos",
-    "threshold": "Umbral de coincidencia",
-    "threshold_placeholder": "No configurado",
-    "threshold_too_large_or_small": "El umbral no puede ser mayor que 1 o menor que 0",
-    "threshold_tooltip": "Se usa para medir la relevancia entre la pregunta del usuario y el contenido de la base de conocimientos (0-1)",
-    "title": "Base de conocimientos",
-    "topN": "Número de resultados devueltos",
-    "topN_placeholder": "No configurado",
-    "topN_too_large_or_small": "La cantidad de resultados devueltos no puede ser mayor que 30 ni menor que 1",
-    "topN_tooltip": "Número de resultados coincidentes devueltos, un valor más alto significa más resultados coincidentes, pero también consume más tokens",
-    "url_added": "URL agregada",
-    "url_placeholder": "Ingrese la URL, múltiples URLs separadas por enter",
-    "urls": "URLs",
-    "videos": "vídeo",
-    "videos_file": "video file"
-  },
-  "knowledge_v2": {
-    "add": {
-      "group": "[to be translated]:Group",
-      "icon": "[to be translated]:Icon",
-      "submit": "[to be translated]:Create",
-      "title": "[to be translated]:New Knowledge Base"
-    },
     "context": {
       "delete": "[to be translated]:Delete Knowledge Base",
       "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
@@ -2205,7 +2098,25 @@
         "ready": "[to be translated]:Ready"
       }
     },
+    "delete": "Eliminar",
+    "delete_confirm": "¿Está seguro de querer eliminar esta base de conocimientos?",
     "dimensions": "[to be translated]:Embedding Dimensions",
+    "dimensions_auto_set": "Configuración automática de dimensiones de incrustación",
+    "dimensions_default": "El modelo utilizará las dimensiones de incrustación predeterminadas",
+    "dimensions_error_invalid": "Por favor ingrese el tamaño de dimensión de incrustación",
+    "dimensions_set_right": "⚠️ Asegúrese de que el modelo admita el tamaño de dimensión de incrustación establecido",
+    "dimensions_size_placeholder": " Tamaño de dimensión de incrustación, ej. 1024",
+    "dimensions_size_too_large": "La dimensión de incrustación no puede exceder el límite del contexto del modelo ({{max_context}})",
+    "dimensions_size_tooltip": "Tamaño de la dimensión de incrustación, cuanto mayor sea el valor, mayor será la dimensión de incrustación, pero también consumirá más Tokens",
+    "directories": "Directorios",
+    "directory_placeholder": "Ingrese la ruta del directorio",
+    "document_count": "Número de fragmentos de documentos solicitados",
+    "document_count_default": "Predeterminado",
+    "document_count_help": "Más fragmentos de documentos solicitados significa más información adjunta, pero también consume más tokens",
+    "drag_file": "Arrastre archivos aquí",
+    "drag_image": "Arrastra la imagen aquí",
+    "edit_remark": "Editar observación",
+    "edit_remark_placeholder": "Ingrese el contenido de la observación",
     "embedding_model": "[to be translated]:Embedding Model",
     "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
     "empty": "[to be translated]:No knowledge bases",
@@ -2213,8 +2124,14 @@
       "failed_base_unknown": "[to be translated]:This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
       "failed_to_create": "[to be translated]:Failed to create knowledge base",
       "failed_to_edit": "[to be translated]:Failed to edit knowledge base",
-      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model."
+      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
+      "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado",
+      "video": {
+        "local_file_missing": "El archivo de video no existe.",
+        "youtube_url_missing": "El enlace del vídeo de YouTube no existe."
+      }
     },
+    "file_hint": "Formatos soportados: {{file_types}}",
     "groups": {
       "add": "[to be translated]:New Group",
       "create_base_here": "[to be translated]:Create here",
@@ -2231,11 +2148,42 @@
       "rename_title": "[to be translated]:Rename Group",
       "ungrouped": "[to be translated]:Ungrouped"
     },
+    "image_hint": "Soporta formatos {{image_types}}",
+    "images": "Imagen",
+    "index_all": "Indexar todo",
+    "index_cancelled": "Índice cancelado",
+    "index_started": "Índice iniciado",
+    "invalid_url": "URL inválida",
     "meta": {
       "documents_count": "[to be translated]:{{count}} documents"
     },
+    "migrate": {
+      "button": {
+        "text": "Migrar"
+      },
+      "confirm": {
+        "content": "Se detectaron cambios en el modelo de incrustación o las dimensiones, por lo que no se puede guardar la configuración. Puede ejecutar la migración para evitar la pérdida de datos. La migración de la base de conocimientos no elimina la base de conocimientos anterior, sino que crea una copia y procesa todos los elementos de la base de conocimientos, lo que puede consumir muchos tokens. Por favor, tenga cuidado.",
+        "ok": "Iniciar migración",
+        "title": "Migración de base de conocimientos"
+      },
+      "error": {
+        "failed": "Error en la migración"
+      },
+      "source_dimensions": "Dimensiones de origen",
+      "source_model": "Modelo de origen",
+      "target_dimensions": "Dimensiones de destino",
+      "target_model": "Modelo de destino"
+    },
+    "model_info": "Información del modelo",
     "name_required": "[to be translated]:Knowledge base name is required",
+    "no_bases": "Sin bases de conocimientos",
+    "no_match": "No se encontraron coincidencias en la base de conocimientos",
+    "no_provider": "El proveedor del modelo de la base de conocimientos está perdido, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
     "not_set": "[to be translated]:Not Set",
+    "not_support": "El motor de base de datos de la base de conocimientos ha sido actualizado, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
+    "notes": "Notas",
+    "notes_placeholder": "Ingrese información adicional o contexto para esta base de conocimientos...",
+    "provider_not_found": "El proveedor del modelo de la base de conocimientos ha sido perdido, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
     "rag": {
       "chunk_overlap": "[to be translated]:Overlap Size",
       "chunk_overlap_invalid": "[to be translated]:Chunk overlap must be greater than or equal to 0",
@@ -2297,6 +2245,7 @@
       "submit": "[to be translated]:Search",
       "top_score": "[to be translated]:Top: {{score}}"
     },
+    "rename": "Renombrar",
     "rename_title": "[to be translated]:Rename Knowledge Base",
     "restore": {
       "action": "[to be translated]:Rebuild knowledge base",
@@ -2306,17 +2255,50 @@
       "title": "[to be translated]:Rebuild Knowledge Base"
     },
     "search": "[to be translated]:Search Knowledge Base",
+    "search_placeholder": "Ingrese el contenido de la consulta",
+    "settings": {
+      "preprocessing": "Preprocesamiento",
+      "preprocessing_tooltip": "Preprocesar los archivos cargados usando OCR",
+      "title": "Configuración de la Base de Conocimiento"
+    },
+    "sitemap_added": "Agregado con éxito",
+    "sitemap_placeholder": "Ingrese la URL del mapa del sitio",
+    "sitemaps": "Sitios web",
+    "source": "Fuente",
     "status": {
       "completed": "[to be translated]:Ready",
       "failed": "[to be translated]:Failed",
       "processing": "[to be translated]:Processing"
     },
+    "status_completed": "Completado",
+    "status_embedding_completed": "Incrustación completada",
+    "status_embedding_failed": "Error en la incrustación",
+    "status_failed": "Fallido",
+    "status_new": "Nuevo",
+    "status_pending": "Pendiente",
+    "status_preprocess_completed": "Preprocesamiento completado",
+    "status_preprocess_failed": "Error en el preprocesamiento",
+    "status_processing": "Procesando",
+    "subtitle_file": "Archivo de subtítulos",
     "tabs": {
       "data_source": "[to be translated]:Data Sources",
       "rag_config": "[to be translated]:RAG Config",
       "recall_test": "[to be translated]:Recall Test"
     },
-    "title": "[to be translated]:Knowledge Base"
+    "threshold": "Umbral de coincidencia",
+    "threshold_placeholder": "No configurado",
+    "threshold_too_large_or_small": "El umbral no puede ser mayor que 1 o menor que 0",
+    "threshold_tooltip": "Se usa para medir la relevancia entre la pregunta del usuario y el contenido de la base de conocimientos (0-1)",
+    "title": "[to be translated]:Knowledge Base",
+    "topN": "Número de resultados devueltos",
+    "topN_placeholder": "No configurado",
+    "topN_too_large_or_small": "La cantidad de resultados devueltos no puede ser mayor que 30 ni menor que 1",
+    "topN_tooltip": "Número de resultados coincidentes devueltos, un valor más alto significa más resultados coincidentes, pero también consume más tokens",
+    "url_added": "URL agregada",
+    "url_placeholder": "Ingrese la URL, múltiples URLs separadas por enter",
+    "urls": "URLs",
+    "videos": "vídeo",
+    "videos_file": "video file"
   },
   "languages": {
     "arabic": "Árabe",

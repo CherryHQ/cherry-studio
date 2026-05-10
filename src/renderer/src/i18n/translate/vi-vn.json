@@ -1991,7 +1991,10 @@
   },
   "knowledge": {
     "add": {
-      "title": "Thêm Cơ sở kiến thức"
+      "group": "[to be translated]:Group",
+      "icon": "[to be translated]:Icon",
+      "submit": "[to be translated]:Create",
+      "title": "[to be translated]:New Knowledge Base"
     },
     "add_directory": "Thêm Thư mục",
     "add_file": "Thêm Tệp",
@@ -2010,116 +2013,6 @@
     "chunk_size_too_large": "Kích thước đoạn không được vượt quá giới hạn ngữ cảnh của mô hình ({{max_context}})",
     "chunk_size_tooltip": "Chia tài liệu thành các đoạn, mỗi đoạn không vượt quá giới hạn ngữ cảnh của mô hình",
     "clear_selection": "Xóa lựa chọn",
-    "delete": "Xóa",
-    "delete_confirm": "Bạn có chắc chắn muốn xóa cơ sở kiến thức này không?",
-    "dimensions": "Chiều embedding",
-    "dimensions_auto_set": "Tự động thiết lập kích thước embedding",
-    "dimensions_default": "Mô hình sẽ sử dụng kích thước embedding mặc định",
-    "dimensions_error_invalid": "Kích thước embedding không hợp lệ",
-    "dimensions_set_right": "⚠️ Vui lòng đảm bảo mô hình hỗ trợ kích thước chiều nhúng đã đặt",
-    "dimensions_size_placeholder": "Để trống để không truyền kích thước",
-    "dimensions_size_too_large": "The embedding dimension cannot exceed the model's maximum context length ({{max_context}}).",
-    "dimensions_size_tooltip": "Embedding size, the larger the value, the more tokens will be used. Leave blank to not pass the size parameter.",
-    "directories": "Thư mục",
-    "directory_placeholder": "Nhập đường dẫn thư mục",
-    "document_count": "Documentos solicitados en fragmentos",
-    "document_count_default": "Mặc định",
-    "document_count_help": "Càng yêu cầu nhiều đoạn tài liệu, thông tin được bao gồm càng nhiều, nhưng cũng tiêu tốn càng nhiều token.",
-    "drag_file": "Kéo tệp vào đây",
-    "drag_image": "Kéo ảnh vào đây",
-    "edit_remark": "Chỉnh sửa Ghi chú",
-    "edit_remark_placeholder": "Vui lòng nhập nội dung ghi chú",
-    "embedding_model": "Mô hình Nhúng",
-    "embedding_model_required": "Conhecimento Base Modelo de Incorporação é necessário",
-    "empty": "Không tìm thấy cơ sở kiến thức",
-    "error": {
-      "failed_to_create": "Tạo cơ sở tri thức thất bại",
-      "failed_to_edit": "Chỉnh sửa cơ sở tri thức thất bại",
-      "model_invalid": "Chưa chọn mô hình",
-      "video": {
-        "local_file_missing": "Không tìm thấy tệp video",
-        "youtube_url_missing": "Không tìm thấy URL video YouTube"
-      }
-    },
-    "file_hint": "Hỗ trợ {{file_types}}",
-    "image_hint": "Supporto {{image_types}}",
-    "images": "Hình ảnh",
-    "index_all": "Indeks Semua",
-    "index_cancelled": "Đã hủy lập chỉ mục",
-    "index_started": "Việc lập chỉ mục đã bắt đầu",
-    "invalid_url": "URL không hợp lệ",
-    "migrate": {
-      "button": {
-        "text": "Di chuyển"
-      },
-      "confirm": {
-        "content": "Phát hiện thay đổi trong mô hình embedding hoặc kích thước, không thể lưu trực tiếp cấu hình. Việc di chuyển cơ sở kiến thức sẽ không xóa cơ sở kiến thức hiện có, mà sẽ tạo một bản sao và sau đó xử lý lại tất cả các mục trong cơ sở kiến thức, điều này có thể tiêu tốn một lượng lớn token, vui lòng thực hiện một cách thận trọng.",
-        "ok": "Bắt đầu Di dời",
-        "title": "Di chuyển Cơ sở Kiến thức"
-      },
-      "error": {
-        "failed": "Di cư thất bại"
-      },
-      "source_dimensions": "Kích thước nguồn",
-      "source_model": "Mô hình nguồn",
-      "target_dimensions": "Kích thước mục tiêu",
-      "target_model": "Mục tiêu Mô hình"
-    },
-    "model_info": "Modellinformation",
-    "name_required": "Tên Cơ sở Kiến thức là bắt buộc",
-    "no_bases": "Không có cơ sở kiến thức nào khả dụng",
-    "no_match": "Không tìm thấy nội dung phù hợp trong cơ sở kiến thức.",
-    "no_provider": "Nhà cung cấp mô hình cơ sở tri thức chưa được thiết lập, cơ sở tri thức sẽ không còn được hỗ trợ nữa, vui lòng tạo một cơ sở tri thức mới",
-    "not_set": "Chưa thiết lập",
-    "not_support": "Cơ sở dữ liệu động cơ cơ sở tri thức đã được cập nhật, cơ sở tri thức này sẽ không còn được hỗ trợ nữa, vui lòng tạo một cơ sở tri thức mới",
-    "notes": "Ghi chú",
-    "notes_placeholder": "Introduza informações ou contexto adicionais para esta base de conhecimento...",
-    "provider_not_found": "Không tìm thấy nhà cung cấp",
-    "rename": "Đổi tên",
-    "search": "Tìm kiếm cơ sở kiến thức",
-    "search_placeholder": "Nhập văn bản để tìm kiếm",
-    "settings": {
-      "preprocessing": "Tiền xử lý",
-      "preprocessing_tooltip": "Tiền xử lý các tệp đã tải lên",
-      "title": "Cài đặt Cơ sở Tri thức"
-    },
-    "sitemap_added": "Đã thêm thành công",
-    "sitemap_placeholder": "Nhập URL bản đồ trang web",
-    "sitemaps": "Trang web",
-    "source": "Nguồn",
-    "status": "Tình trạng",
-    "status_completed": "Hoàn thành",
-    "status_embedding_completed": "Nhúng đã hoàn thành",
-    "status_embedding_failed": "Nhúng Thất Bại",
-    "status_failed": "Thất bại",
-    "status_new": "Đã thêm",
-    "status_pending": "Đang chờ xử lý",
-    "status_preprocess_completed": "Tiền xử lý đã hoàn thành",
-    "status_preprocess_failed": "Tiền xử lý thất bại",
-    "status_processing": "Đang xử lý",
-    "subtitle_file": "tập tin phụ đề",
-    "threshold": "Ngưỡng khớp",
-    "threshold_placeholder": "Chưa được thiết lập",
-    "threshold_too_large_or_small": "Ngưỡng không thể lớn hơn 1 hoặc nhỏ hơn 0",
-    "threshold_tooltip": "Được sử dụng để đánh giá mức độ liên quan giữa câu hỏi của người dùng và nội dung trong cơ sở tri thức (0-1)",
-    "title": "Cơ sở tri thức",
-    "topN": "Số kết quả được trả về",
-    "topN_placeholder": "Chưa được đặt",
-    "topN_too_large_or_small": "Số kết quả trả về không thể lớn hơn 30 hoặc nhỏ hơn 1.",
-    "topN_tooltip": "Số lượng kết quả khớp được trả về; giá trị càng lớn thì càng nhiều kết quả khớp, nhưng cũng tiêu tốn nhiều token hơn.",
-    "url_added": "URL đã được thêm",
-    "url_placeholder": "Nhập URL, nhiều URL được phân tách bằng Enter",
-    "urls": "URL",
-    "videos": "Video",
-    "videos_file": "tệp video"
-  },
-  "knowledge_v2": {
-    "add": {
-      "group": "[to be translated]:Group",
-      "icon": "[to be translated]:Icon",
-      "submit": "[to be translated]:Create",
-      "title": "[to be translated]:New Knowledge Base"
-    },
     "context": {
       "delete": "[to be translated]:Delete Knowledge Base",
       "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
@@ -2205,7 +2098,25 @@
         "ready": "[to be translated]:Ready"
       }
     },
+    "delete": "Xóa",
+    "delete_confirm": "Bạn có chắc chắn muốn xóa cơ sở kiến thức này không?",
     "dimensions": "[to be translated]:Embedding Dimensions",
+    "dimensions_auto_set": "Tự động thiết lập kích thước embedding",
+    "dimensions_default": "Mô hình sẽ sử dụng kích thước embedding mặc định",
+    "dimensions_error_invalid": "Kích thước embedding không hợp lệ",
+    "dimensions_set_right": "⚠️ Vui lòng đảm bảo mô hình hỗ trợ kích thước chiều nhúng đã đặt",
+    "dimensions_size_placeholder": "Để trống để không truyền kích thước",
+    "dimensions_size_too_large": "The embedding dimension cannot exceed the model's maximum context length ({{max_context}}).",
+    "dimensions_size_tooltip": "Embedding size, the larger the value, the more tokens will be used. Leave blank to not pass the size parameter.",
+    "directories": "Thư mục",
+    "directory_placeholder": "Nhập đường dẫn thư mục",
+    "document_count": "Documentos solicitados en fragmentos",
+    "document_count_default": "Mặc định",
+    "document_count_help": "Càng yêu cầu nhiều đoạn tài liệu, thông tin được bao gồm càng nhiều, nhưng cũng tiêu tốn càng nhiều token.",
+    "drag_file": "Kéo tệp vào đây",
+    "drag_image": "Kéo ảnh vào đây",
+    "edit_remark": "Chỉnh sửa Ghi chú",
+    "edit_remark_placeholder": "Vui lòng nhập nội dung ghi chú",
     "embedding_model": "[to be translated]:Embedding Model",
     "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
     "empty": "[to be translated]:No knowledge bases",
@@ -2213,8 +2124,14 @@
       "failed_base_unknown": "[to be translated]:This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
       "failed_to_create": "[to be translated]:Failed to create knowledge base",
       "failed_to_edit": "[to be translated]:Failed to edit knowledge base",
-      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model."
+      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
+      "model_invalid": "Chưa chọn mô hình",
+      "video": {
+        "local_file_missing": "Không tìm thấy tệp video",
+        "youtube_url_missing": "Không tìm thấy URL video YouTube"
+      }
     },
+    "file_hint": "Hỗ trợ {{file_types}}",
     "groups": {
       "add": "[to be translated]:New Group",
       "create_base_here": "[to be translated]:Create here",
@@ -2231,11 +2148,42 @@
       "rename_title": "[to be translated]:Rename Group",
       "ungrouped": "[to be translated]:Ungrouped"
     },
+    "image_hint": "Supporto {{image_types}}",
+    "images": "Hình ảnh",
+    "index_all": "Indeks Semua",
+    "index_cancelled": "Đã hủy lập chỉ mục",
+    "index_started": "Việc lập chỉ mục đã bắt đầu",
+    "invalid_url": "URL không hợp lệ",
     "meta": {
       "documents_count": "[to be translated]:{{count}} documents"
     },
+    "migrate": {
+      "button": {
+        "text": "Di chuyển"
+      },
+      "confirm": {
+        "content": "Phát hiện thay đổi trong mô hình embedding hoặc kích thước, không thể lưu trực tiếp cấu hình. Việc di chuyển cơ sở kiến thức sẽ không xóa cơ sở kiến thức hiện có, mà sẽ tạo một bản sao và sau đó xử lý lại tất cả các mục trong cơ sở kiến thức, điều này có thể tiêu tốn một lượng lớn token, vui lòng thực hiện một cách thận trọng.",
+        "ok": "Bắt đầu Di dời",
+        "title": "Di chuyển Cơ sở Kiến thức"
+      },
+      "error": {
+        "failed": "Di cư thất bại"
+      },
+      "source_dimensions": "Kích thước nguồn",
+      "source_model": "Mô hình nguồn",
+      "target_dimensions": "Kích thước mục tiêu",
+      "target_model": "Mục tiêu Mô hình"
+    },
+    "model_info": "Modellinformation",
     "name_required": "[to be translated]:Knowledge base name is required",
+    "no_bases": "Không có cơ sở kiến thức nào khả dụng",
+    "no_match": "Không tìm thấy nội dung phù hợp trong cơ sở kiến thức.",
+    "no_provider": "Nhà cung cấp mô hình cơ sở tri thức chưa được thiết lập, cơ sở tri thức sẽ không còn được hỗ trợ nữa, vui lòng tạo một cơ sở tri thức mới",
     "not_set": "[to be translated]:Not Set",
+    "not_support": "Cơ sở dữ liệu động cơ cơ sở tri thức đã được cập nhật, cơ sở tri thức này sẽ không còn được hỗ trợ nữa, vui lòng tạo một cơ sở tri thức mới",
+    "notes": "Ghi chú",
+    "notes_placeholder": "Introduza informações ou contexto adicionais para esta base de conhecimento...",
+    "provider_not_found": "Không tìm thấy nhà cung cấp",
     "rag": {
       "chunk_overlap": "[to be translated]:Overlap Size",
       "chunk_overlap_invalid": "[to be translated]:Chunk overlap must be greater than or equal to 0",
@@ -2297,6 +2245,7 @@
       "submit": "[to be translated]:Search",
       "top_score": "[to be translated]:Top: {{score}}"
     },
+    "rename": "Đổi tên",
     "rename_title": "[to be translated]:Rename Knowledge Base",
     "restore": {
       "action": "[to be translated]:Rebuild knowledge base",
@@ -2306,17 +2255,50 @@
       "title": "[to be translated]:Rebuild Knowledge Base"
     },
     "search": "[to be translated]:Search Knowledge Base",
+    "search_placeholder": "Nhập văn bản để tìm kiếm",
+    "settings": {
+      "preprocessing": "Tiền xử lý",
+      "preprocessing_tooltip": "Tiền xử lý các tệp đã tải lên",
+      "title": "Cài đặt Cơ sở Tri thức"
+    },
+    "sitemap_added": "Đã thêm thành công",
+    "sitemap_placeholder": "Nhập URL bản đồ trang web",
+    "sitemaps": "Trang web",
+    "source": "Nguồn",
     "status": {
       "completed": "[to be translated]:Ready",
       "failed": "[to be translated]:Failed",
       "processing": "[to be translated]:Processing"
     },
+    "status_completed": "Hoàn thành",
+    "status_embedding_completed": "Nhúng đã hoàn thành",
+    "status_embedding_failed": "Nhúng Thất Bại",
+    "status_failed": "Thất bại",
+    "status_new": "Đã thêm",
+    "status_pending": "Đang chờ xử lý",
+    "status_preprocess_completed": "Tiền xử lý đã hoàn thành",
+    "status_preprocess_failed": "Tiền xử lý thất bại",
+    "status_processing": "Đang xử lý",
+    "subtitle_file": "tập tin phụ đề",
     "tabs": {
       "data_source": "[to be translated]:Data Sources",
       "rag_config": "[to be translated]:RAG Config",
       "recall_test": "[to be translated]:Recall Test"
     },
-    "title": "[to be translated]:Knowledge Base"
+    "threshold": "Ngưỡng khớp",
+    "threshold_placeholder": "Chưa được thiết lập",
+    "threshold_too_large_or_small": "Ngưỡng không thể lớn hơn 1 hoặc nhỏ hơn 0",
+    "threshold_tooltip": "Được sử dụng để đánh giá mức độ liên quan giữa câu hỏi của người dùng và nội dung trong cơ sở tri thức (0-1)",
+    "title": "[to be translated]:Knowledge Base",
+    "topN": "Số kết quả được trả về",
+    "topN_placeholder": "Chưa được đặt",
+    "topN_too_large_or_small": "Số kết quả trả về không thể lớn hơn 30 hoặc nhỏ hơn 1.",
+    "topN_tooltip": "Số lượng kết quả khớp được trả về; giá trị càng lớn thì càng nhiều kết quả khớp, nhưng cũng tiêu tốn nhiều token hơn.",
+    "url_added": "URL đã được thêm",
+    "url_placeholder": "Nhập URL, nhiều URL được phân tách bằng Enter",
+    "urls": "URL",
+    "videos": "Video",
+    "videos_file": "tệp video"
   },
   "languages": {
     "arabic": "Tiếng Ả Rập",

@@ -2085,27 +2085,6 @@
   },
   "knowledge": {
     "add": {
-      "title": "添加知识库"
-    },
-    "dimensions_auto_set": "自动设置嵌入维度",
-    "dimensions_error_invalid": "无效的嵌入维度",
-    "dimensions_size_placeholder": "留空表示不设置",
-    "drag_file": "拖拽文件到这里",
-    "embedding_model_required": "知识库嵌入模型是必需的",
-    "error": {
-      "model_invalid": "未选择模型"
-    },
-    "file_hint": "支持 {{file_types}} 格式",
-    "provider_not_found": "未找到服务商",
-    "search_placeholder": "输入查询内容",
-    "status_embedding_failed": "嵌入失败",
-    "status_preprocess_failed": "预处理失败",
-    "subtitle_file": "字幕文件",
-    "title": "知识库",
-    "videos_file": "视频文件"
-  },
-  "knowledge_v2": {
-    "add": {
       "group": "分组",
       "icon": "图标",
       "submit": "创建",
@@ -2199,6 +2178,10 @@
       }
     },
     "dimensions": "嵌入维度",
+    "dimensions_auto_set": "自动设置嵌入维度",
+    "dimensions_error_invalid": "无效的嵌入维度",
+    "dimensions_size_placeholder": "留空表示不设置",
+    "drag_file": "拖拽文件到这里",
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
@@ -2208,8 +2191,10 @@
       "failed_to_delete": "知识库删除失败",
       "failed_to_edit": "知识库编辑失败",
       "failed_to_move": "知识库移动失败",
-      "missing_embedding_model": "迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。"
+      "missing_embedding_model": "迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。",
+      "model_invalid": "未选择模型"
     },
+    "file_hint": "支持 {{file_types}} 格式",
     "groups": {
       "add": "新建分组",
       "create_base_here": "在此分组新建",
@@ -2232,6 +2217,7 @@
     },
     "name_required": "知识库名称为必填项",
     "not_set": "未设置",
+    "provider_not_found": "未找到服务商",
     "rag": {
       "chunk_overlap": "重叠大小",
       "chunk_overlap_invalid": "分块重叠必须大于等于 0",
@@ -2311,17 +2297,22 @@
       "title": "重建知识库"
     },
     "search": "搜索知识库",
+    "search_placeholder": "输入查询内容",
     "status": {
       "completed": "就绪",
       "failed": "失败",
       "processing": "处理中"
     },
+    "status_embedding_failed": "嵌入失败",
+    "status_preprocess_failed": "预处理失败",
+    "subtitle_file": "字幕文件",
     "tabs": {
       "data_source": "数据源",
       "rag_config": "RAG 配置",
       "recall_test": "召回测试"
     },
-    "title": "知识库"
+    "title": "知识库",
+    "videos_file": "视频文件"
   },
   "languages": {
     "arabic": "阿拉伯文",

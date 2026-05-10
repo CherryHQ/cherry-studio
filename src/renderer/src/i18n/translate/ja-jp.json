@@ -1991,7 +1991,10 @@
   },
   "knowledge": {
     "add": {
-      "title": "ナレッジベースを追加"
+      "group": "[to be translated]:Group",
+      "icon": "[to be translated]:Icon",
+      "submit": "[to be translated]:Create",
+      "title": "[to be translated]:New Knowledge Base"
     },
     "add_directory": "ディレクトリを追加",
     "add_file": "ファイルを追加",
@@ -2010,116 +2013,6 @@
     "chunk_size_too_large": "チャンクサイズはモデルのコンテキスト制限を超えることはできません（{{max_context}}）",
     "chunk_size_tooltip": "ドキュメントを分割し、各チャンクのサイズ。モデルのコンテキスト制限を超えないようにしてください。",
     "clear_selection": "選択をクリア",
-    "delete": "削除",
-    "delete_confirm": "このナレッジベースを削除してもよろしいですか？",
-    "dimensions": "埋め込み次元",
-    "dimensions_auto_set": "埋め込み次元を自動設定",
-    "dimensions_default": "モデルはデフォルトの埋め込み次元を使用します",
-    "dimensions_error_invalid": "無効な埋め込み次元",
-    "dimensions_set_right": "⚠️ モデルが設定した埋め込み次元のサイズをサポートしていることを確認してください",
-    "dimensions_size_placeholder": "次元数を設定しない場合は空欄のままにしてください",
-    "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。",
-    "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど消費するトークンも増えます。空欄の場合はdimensionsパラメータを渡しません。",
-    "directories": "ディレクトリ",
-    "directory_placeholder": "ディレクトリパスを入力",
-    "document_count": "要求されたドキュメント分段数",
-    "document_count_default": "デフォルト",
-    "document_count_help": "要求されたドキュメント分段数が多いほど、付随する情報が多くなりますが、トークンの消費量も増加します",
-    "drag_file": "ファイルをここにドラッグ",
-    "drag_image": "画像をここにドラッグ",
-    "edit_remark": "備考を編集",
-    "edit_remark_placeholder": "備考内容を入力してください",
-    "embedding_model": "埋め込みモデル",
-    "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
-    "empty": "ナレッジベースが見つかりません",
-    "error": {
-      "failed_to_create": "ナレッジベースの作成に失敗しました",
-      "failed_to_edit": "ナレッジベースの編集に失敗しました",
-      "model_invalid": "モデルが選択されていません",
-      "video": {
-        "local_file_missing": "動画ファイルが見つかりません",
-        "youtube_url_missing": "YouTube動画のURLが見つかりません"
-      }
-    },
-    "file_hint": "{{file_types}} 形式をサポート",
-    "image_hint": "{{image_types}} 形式に対応しています",
-    "images": "画像",
-    "index_all": "すべてをインデックス",
-    "index_cancelled": "インデックスがキャンセルされました",
-    "index_started": "インデックスを開始",
-    "invalid_url": "無効なURL",
-    "migrate": {
-      "button": {
-        "text": "移行"
-      },
-      "confirm": {
-        "content": "埋め込みモデルまたは次元に変更が検出されました。設定を直接保存することはできませんが、移行を実行できます。ナレッジベースの移行では古いナレッジベースは削除されず、代わりにコピーを作成してすべてのエントリを再処理します。大量のトークンを消費する可能性があるため、慎重に操作してください。",
-        "ok": "移行を開始",
-        "title": "ナレッジベースの移行"
-      },
-      "error": {
-        "failed": "移行が失敗しました"
-      },
-      "source_dimensions": "ソース次元",
-      "source_model": "ソースモデル",
-      "target_dimensions": "ターゲット次元",
-      "target_model": "ターゲットモデル"
-    },
-    "model_info": "モデル情報",
-    "name_required": "ナレッジベース名は必須です",
-    "no_bases": "ナレッジベースがありません",
-    "no_match": "知識ベースの内容が見つかりませんでした。",
-    "no_provider": "ナレッジベースモデルプロバイダーが設定されていません。ナレッジベースはもうサポートされていません。新しいナレッジベースを作成してください",
-    "not_set": "未設定",
-    "not_support": "ナレッジベースデータベースエンジンが更新されました。このナレッジベースはもうサポートされていません。新しいナレッジベースを作成してください",
-    "notes": "ノート",
-    "notes_placeholder": "このナレッジベースの追加情報やコンテキストを入力...",
-    "provider_not_found": "プロバイダーが見つかりません",
-    "rename": "名前を変更",
-    "search": "ナレッジベースを検索",
-    "search_placeholder": "検索するテキストを入力",
-    "settings": {
-      "preprocessing": "預処理",
-      "preprocessing_tooltip": "アップロードされたファイルの預処理",
-      "title": "ナレッジベース設定"
-    },
-    "sitemap_added": "追加成功",
-    "sitemap_placeholder": "サイトマップURLを入力",
-    "sitemaps": "サイトマップ",
-    "source": "ソース",
-    "status": "状態",
-    "status_completed": "完了",
-    "status_embedding_completed": "埋め込み完了",
-    "status_embedding_failed": "埋め込み失敗",
-    "status_failed": "失敗",
-    "status_new": "追加済み",
-    "status_pending": "保留中",
-    "status_preprocess_completed": "前処理完了",
-    "status_preprocess_failed": "前処理に失敗しました",
-    "status_processing": "処理中",
-    "subtitle_file": "字幕ファイル",
-    "threshold": "マッチング度閾値",
-    "threshold_placeholder": "未設置",
-    "threshold_too_large_or_small": "しきい値は0より大きく1より小さい必要があります",
-    "threshold_tooltip": "ユーザーの質問と知識ベースの内容の関連性を評価するためのしきい値（0-1）",
-    "title": "ナレッジベース",
-    "topN": "返却される結果の数",
-    "topN_placeholder": "未設定",
-    "topN_too_large_or_small": "結果の数は30より大きくてはならず、1より小さくてはなりません。",
-    "topN_tooltip": "返されるマッチ結果の数は、数値が大きいほどマッチ結果が多くなりますが、消費されるトークンも増えます。",
-    "url_added": "URLが追加されました",
-    "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-    "urls": "URL",
-    "videos": "動画",
-    "videos_file": "動画ファイル"
-  },
-  "knowledge_v2": {
-    "add": {
-      "group": "[to be translated]:Group",
-      "icon": "[to be translated]:Icon",
-      "submit": "[to be translated]:Create",
-      "title": "[to be translated]:New Knowledge Base"
-    },
     "context": {
       "delete": "[to be translated]:Delete Knowledge Base",
       "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
@@ -2205,7 +2098,25 @@
         "ready": "[to be translated]:Ready"
       }
     },
+    "delete": "削除",
+    "delete_confirm": "このナレッジベースを削除してもよろしいですか？",
     "dimensions": "[to be translated]:Embedding Dimensions",
+    "dimensions_auto_set": "埋め込み次元を自動設定",
+    "dimensions_default": "モデルはデフォルトの埋め込み次元を使用します",
+    "dimensions_error_invalid": "無効な埋め込み次元",
+    "dimensions_set_right": "⚠️ モデルが設定した埋め込み次元のサイズをサポートしていることを確認してください",
+    "dimensions_size_placeholder": "次元数を設定しない場合は空欄のままにしてください",
+    "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。",
+    "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど消費するトークンも増えます。空欄の場合はdimensionsパラメータを渡しません。",
+    "directories": "ディレクトリ",
+    "directory_placeholder": "ディレクトリパスを入力",
+    "document_count": "要求されたドキュメント分段数",
+    "document_count_default": "デフォルト",
+    "document_count_help": "要求されたドキュメント分段数が多いほど、付随する情報が多くなりますが、トークンの消費量も増加します",
+    "drag_file": "ファイルをここにドラッグ",
+    "drag_image": "画像をここにドラッグ",
+    "edit_remark": "備考を編集",
+    "edit_remark_placeholder": "備考内容を入力してください",
     "embedding_model": "[to be translated]:Embedding Model",
     "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
     "empty": "[to be translated]:No knowledge bases",
@@ -2213,8 +2124,14 @@
       "failed_base_unknown": "[to be translated]:This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
       "failed_to_create": "[to be translated]:Failed to create knowledge base",
       "failed_to_edit": "[to be translated]:Failed to edit knowledge base",
-      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model."
+      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
+      "model_invalid": "モデルが選択されていません",
+      "video": {
+        "local_file_missing": "動画ファイルが見つかりません",
+        "youtube_url_missing": "YouTube動画のURLが見つかりません"
+      }
     },
+    "file_hint": "{{file_types}} 形式をサポート",
     "groups": {
       "add": "[to be translated]:New Group",
       "create_base_here": "[to be translated]:Create here",
@@ -2231,11 +2148,42 @@
       "rename_title": "[to be translated]:Rename Group",
       "ungrouped": "[to be translated]:Ungrouped"
     },
+    "image_hint": "{{image_types}} 形式に対応しています",
+    "images": "画像",
+    "index_all": "すべてをインデックス",
+    "index_cancelled": "インデックスがキャンセルされました",
+    "index_started": "インデックスを開始",
+    "invalid_url": "無効なURL",
     "meta": {
       "documents_count": "[to be translated]:{{count}} documents"
     },
+    "migrate": {
+      "button": {
+        "text": "移行"
+      },
+      "confirm": {
+        "content": "埋め込みモデルまたは次元に変更が検出されました。設定を直接保存することはできませんが、移行を実行できます。ナレッジベースの移行では古いナレッジベースは削除されず、代わりにコピーを作成してすべてのエントリを再処理します。大量のトークンを消費する可能性があるため、慎重に操作してください。",
+        "ok": "移行を開始",
+        "title": "ナレッジベースの移行"
+      },
+      "error": {
+        "failed": "移行が失敗しました"
+      },
+      "source_dimensions": "ソース次元",
+      "source_model": "ソースモデル",
+      "target_dimensions": "ターゲット次元",
+      "target_model": "ターゲットモデル"
+    },
+    "model_info": "モデル情報",
     "name_required": "[to be translated]:Knowledge base name is required",
+    "no_bases": "ナレッジベースがありません",
+    "no_match": "知識ベースの内容が見つかりませんでした。",
+    "no_provider": "ナレッジベースモデルプロバイダーが設定されていません。ナレッジベースはもうサポートされていません。新しいナレッジベースを作成してください",
     "not_set": "[to be translated]:Not Set",
+    "not_support": "ナレッジベースデータベースエンジンが更新されました。このナレッジベースはもうサポートされていません。新しいナレッジベースを作成してください",
+    "notes": "ノート",
+    "notes_placeholder": "このナレッジベースの追加情報やコンテキストを入力...",
+    "provider_not_found": "プロバイダーが見つかりません",
     "rag": {
       "chunk_overlap": "[to be translated]:Overlap Size",
       "chunk_overlap_invalid": "[to be translated]:Chunk overlap must be greater than or equal to 0",
@@ -2297,6 +2245,7 @@
       "submit": "[to be translated]:Search",
       "top_score": "[to be translated]:Top: {{score}}"
     },
+    "rename": "名前を変更",
     "rename_title": "[to be translated]:Rename Knowledge Base",
     "restore": {
       "action": "[to be translated]:Rebuild knowledge base",
@@ -2306,17 +2255,50 @@
       "title": "[to be translated]:Rebuild Knowledge Base"
     },
     "search": "[to be translated]:Search Knowledge Base",
+    "search_placeholder": "検索するテキストを入力",
+    "settings": {
+      "preprocessing": "預処理",
+      "preprocessing_tooltip": "アップロードされたファイルの預処理",
+      "title": "ナレッジベース設定"
+    },
+    "sitemap_added": "追加成功",
+    "sitemap_placeholder": "サイトマップURLを入力",
+    "sitemaps": "サイトマップ",
+    "source": "ソース",
     "status": {
       "completed": "[to be translated]:Ready",
       "failed": "[to be translated]:Failed",
       "processing": "[to be translated]:Processing"
     },
+    "status_completed": "完了",
+    "status_embedding_completed": "埋め込み完了",
+    "status_embedding_failed": "埋め込み失敗",
+    "status_failed": "失敗",
+    "status_new": "追加済み",
+    "status_pending": "保留中",
+    "status_preprocess_completed": "前処理完了",
+    "status_preprocess_failed": "前処理に失敗しました",
+    "status_processing": "処理中",
+    "subtitle_file": "字幕ファイル",
     "tabs": {
       "data_source": "[to be translated]:Data Sources",
       "rag_config": "[to be translated]:RAG Config",
       "recall_test": "[to be translated]:Recall Test"
     },
-    "title": "[to be translated]:Knowledge Base"
+    "threshold": "マッチング度閾値",
+    "threshold_placeholder": "未設置",
+    "threshold_too_large_or_small": "しきい値は0より大きく1より小さい必要があります",
+    "threshold_tooltip": "ユーザーの質問と知識ベースの内容の関連性を評価するためのしきい値（0-1）",
+    "title": "[to be translated]:Knowledge Base",
+    "topN": "返却される結果の数",
+    "topN_placeholder": "未設定",
+    "topN_too_large_or_small": "結果の数は30より大きくてはならず、1より小さくてはなりません。",
+    "topN_tooltip": "返されるマッチ結果の数は、数値が大きいほどマッチ結果が多くなりますが、消費されるトークンも増えます。",
+    "url_added": "URLが追加されました",
+    "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
+    "urls": "URL",
+    "videos": "動画",
+    "videos_file": "動画ファイル"
   },
   "languages": {
     "arabic": "アラビア語",
