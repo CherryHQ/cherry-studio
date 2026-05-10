@@ -38,8 +38,14 @@ export { StaleVersionError } from './FileManager'
 // callers (DataApi handler, orphanSweep). External imports of the singleton
 // should stay narrow — treat the barrel-exported value as read-only from
 // outside the file module.
-export type { DanglingCache, DanglingListener, ObservedPresence } from './danglingCache'
-export { danglingCache } from './danglingCache'
+export type {
+  DanglingCache,
+  DanglingCacheOptions,
+  DanglingListener,
+  DanglingStateChangedEvent,
+  ObservedPresence
+} from './danglingCache'
+export { createDanglingCacheImpl, danglingCache } from './danglingCache'
 
 // VersionCache: interface only. The runtime instance is a private field on
 // FileManager and is not exposed via the barrel.
