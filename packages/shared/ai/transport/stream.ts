@@ -139,14 +139,15 @@ export interface AiStreamAbortRequest {
  * convenience pointing at whichever execution iterated first; `undefined`
  * when the stream errored before any execution accumulated content.
  */
+export interface AiStreamAttachTerminal {
+  finalMessage?: CherryUIMessage
+  finalMessages: Partial<Record<UniqueModelId, CherryUIMessage>>
+}
 export type AiStreamAttachResponse =
   | { status: 'not-found' }
   | { status: 'attached'; bufferedChunks: StreamChunkPayload[] }
-  | {
-      status: 'done' | 'paused'
-      finalMessage?: CherryUIMessage
-      finalMessages: Partial<Record<UniqueModelId, CherryUIMessage>>
-    }
+  | ({ status: 'done' } & AiStreamAttachTerminal)
+  | ({ status: 'paused' } & AiStreamAttachTerminal)
   | { status: 'error'; error?: SerializedError }
 
 /** Result of an open attempt. */
