@@ -18,6 +18,46 @@ Classify each reviewed module before looking for issues:
 | React UI | `src/renderer/src/`, `packages/ui/` | `@cherrystudio/ui`, i18n, a11y, hooks correctness, design-system fit |
 | Shared types / API contracts | `packages/shared/`, DataApi schemas, DTOs | Type/runtime schema alignment, DTO boundaries, discriminated states |
 
+## Anti-Fragmentation Review Principles
+
+Use these principles before proposing a fix. They prevent scattered local
+patches, one-off service APIs, and speculative abstractions from spreading
+through the codebase.
+
+1. Fix upstream, not downstream.
+   - If a consumer adds a workaround because a shared module, service, hook, or
+     component has a limitation, ask whether the shared upstream surface should
+     be fixed instead.
+   - Flag downstream patches when the same limitation can affect other
+     consumers, when multiple consumers duplicate the same guard, or when the
+     patch hides an upstream contract bug.
+   - Do not demand an upstream rewrite for a truly isolated compatibility shim;
+     ask for the boundary and expiration condition instead.
+2. Generalize clear public service needs before specializing.
+   - When the requirement is a stable domain operation or a likely shared
+     capability, prefer a clear method on the owning service, hook, or component
+     API over a page-specific helper or endpoint.
+   - The need must be concrete. Do not generalize only for imagined future
+     callers.
+   - A specialized implementation is acceptable for a one-off workflow when it
+     remains local and does not duplicate a public capability.
+3. Stay simple and restrained.
+   - Avoid extra layers, registries, state machines, adapters, config systems,
+     or extension points without current evidence.
+   - Do not flag "missing abstraction" unless there is real duplication,
+     ownership confusion, or a clear public service requirement.
+   - Prefer the smallest fix that repairs the boundary and keeps the system
+     understandable.
+
+Report these as:
+
+- **Blocker** when fragmentation creates a runtime/data/security risk or breaks
+  a public contract.
+- **Warning** when a one-off patch or specialized helper makes ownership unclear
+  and the smaller upstream/general fix is evident.
+- **Notice** when the diff needs author confirmation about whether a capability
+  should be upstreamed, generalized, or intentionally kept local.
+
 ## Reference Routing
 
 Load references by changed area. Do not paste every external guide into every
