@@ -146,7 +146,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
       />
     )
 
-    expect(screen.getByRole('heading', { name: '重建知识库' })).toHaveClass('text-sm')
+    expect(screen.getByRole('heading', { name: '重建知识库' })).toHaveClass('leading-4')
     expect(screen.getByLabelText('名称')).toHaveValue('Legacy KB_副本')
 
     fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))

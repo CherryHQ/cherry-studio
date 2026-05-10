@@ -22,7 +22,7 @@ const NavigatorRowMenuItem = ({ icon, label, onClick }: { icon: ReactNode; label
       size="sm"
       icon={<NavigatorRowMenuIcon>{icon}</NavigatorRowMenuIcon>}
       label={label}
-      className="gap-2 rounded-md px-2 py-1 font-normal text-popover-foreground text-sm"
+      className="gap-2 rounded-md px-2 py-1 font-normal text-popover-foreground"
       onClick={onClick}
     />
   )
@@ -43,7 +43,7 @@ const NavigatorRowDeleteMenuItem = ({
       size="sm"
       icon={<NavigatorRowMenuIcon>{icon}</NavigatorRowMenuIcon>}
       label={label}
-      className="gap-2 rounded-md px-2 py-1 font-normal text-red-500 text-sm hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500/20"
+      className="gap-2 rounded-md px-2 py-1 font-normal text-red-500 hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500/20"
       onClick={onClick}
     />
   )
@@ -120,7 +120,7 @@ export const KnowledgeBaseRowMenu = ({
 
         {availableGroups.length > 0 || canMoveToUngrouped ? (
           <>
-            <div className="px-2 pt-1 pb-0.5 text-muted-foreground/70 text-sm leading-4">
+            <div className="px-2 pt-1 pb-0.5 text-muted-foreground/70 text-xs leading-4">
               {t('knowledge_v2.context.move_to')}
             </div>
 

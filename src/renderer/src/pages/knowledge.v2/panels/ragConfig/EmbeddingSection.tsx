@@ -60,7 +60,7 @@ const EmbeddingSection = ({
             </div>
           </div>
           {dimensionsErrorCode === 'dimensionsInvalid' ? (
-            <div className="mt-1 text-destructive text-sm leading-4">{t('knowledge.dimensions_error_invalid')}</div>
+            <div className="mt-1 text-destructive text-xs leading-4">{t('knowledge.dimensions_error_invalid')}</div>
           ) : null}
         </div>
       </div>

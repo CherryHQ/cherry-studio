@@ -46,7 +46,7 @@ const RecallSearchBar = () => {
               }
             }}
             placeholder={t('knowledge_v2.recall.placeholder')}
-            className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-foreground text-sm leading-5 shadow-none placeholder:text-muted-foreground/30 focus-visible:border-0 focus-visible:ring-0"
+            className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-foreground leading-5 shadow-none placeholder:text-muted-foreground/30 focus-visible:border-0 focus-visible:ring-0"
           />
           {hasHistory ? (
             <Button
@@ -77,7 +77,7 @@ const RecallSearchBar = () => {
         <Button
           type="button"
           disabled={!canSearch}
-          className="h-7 min-h-7 shrink-0 rounded-lg bg-primary px-3 text-sm text-white leading-5 shadow-none transition-all hover:bg-primary-hover active:scale-[0.97] disabled:opacity-40"
+          className="h-7 min-h-7 shrink-0 rounded-lg bg-primary px-3 text-white leading-5 shadow-none transition-all hover:bg-primary-hover active:scale-[0.97] disabled:opacity-40"
           onClick={() => {
             runSearch()
             setHistoryOpen(false)

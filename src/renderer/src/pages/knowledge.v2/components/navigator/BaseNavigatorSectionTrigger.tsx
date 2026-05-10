@@ -17,14 +17,14 @@ const BaseNavigatorSectionTrigger = ({
       <div className="min-w-0 flex-1">
         <AccordionTrigger
           className={cn(
-            'justify-end gap-1.5 rounded-none py-0 font-normal text-inherit text-xs leading-none hover:no-underline focus-visible:ring-0 focus-visible:ring-offset-0',
+            'justify-end gap-1.5 rounded-none py-0 font-normal text-inherit leading-none hover:no-underline focus-visible:ring-0 focus-visible:ring-offset-0',
             '[&[data-state=closed]>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0',
             '[&>svg]:size-2.5 [&>svg]:shrink-0 [&>svg]:text-inherit',
             'flex-row-reverse'
           )}>
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             {leadingSlot}
-            <span className="truncate font-medium tracking-widest">{label}</span>
+            <span className="truncate tracking-widest">{label}</span>
           </div>
         </AccordionTrigger>
       </div>

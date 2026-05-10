@@ -20,7 +20,7 @@ const UrlSourceContent = ({ value, onValueChange }: UrlSourceContentProps) => {
           value={value}
           onChange={(event) => onValueChange(event.target.value)}
           placeholder={t('knowledge_v2.data_source.add_dialog.url.placeholder')}
-          className="w-full rounded-md border border-border/40 bg-transparent px-2.5 py-1.25 text-foreground text-sm outline-none transition-all focus:border-primary/40 focus:ring-1 focus:ring-primary/15"
+          className="w-full rounded-md border border-border/40 bg-transparent px-2.5 py-1.25 text-foreground outline-none transition-all focus:border-primary/40 focus:ring-1 focus:ring-primary/15"
         />
         <p className="mt-1 text-muted-foreground/25 text-xs leading-4">
           {t('knowledge_v2.data_source.add_dialog.url.help')}

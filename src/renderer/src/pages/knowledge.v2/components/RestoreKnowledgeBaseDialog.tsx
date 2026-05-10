@@ -116,9 +116,7 @@ const RestoreKnowledgeBaseDialog = ({
         <CreateKnowledgeBaseDialog.Form onSubmit={handleSubmit}>
           <div className="space-y-3 px-4 py-3">
             <div className="space-y-1">
-              <Label
-                htmlFor="knowledge-v2-restore-name"
-                className="font-medium text-muted-foreground text-sm leading-4">
+              <Label htmlFor="knowledge-v2-restore-name" className="text-muted-foreground leading-4">
                 {t('common.name')}
               </Label>
               <Input
@@ -126,18 +124,16 @@ const RestoreKnowledgeBaseDialog = ({
                 value={values.name}
                 aria-invalid={hasAttemptedSubmit && !values.name.trim()}
                 placeholder={t('common.name')}
-                className="h-8 rounded-lg px-2.5 text-sm leading-4 placeholder:text-muted-foreground/70 placeholder:text-sm"
+                className="h-8 rounded-lg px-2.5 leading-4 placeholder:text-muted-foreground/70"
                 onChange={(event) => setValues((currentValues) => ({ ...currentValues, name: event.target.value }))}
               />
               {hasAttemptedSubmit && !values.name.trim() ? (
-                <FieldError className="text-sm leading-4">{t('knowledge_v2.name_required')}</FieldError>
+                <FieldError className="leading-4">{t('knowledge_v2.name_required')}</FieldError>
               ) : null}
             </div>
 
             <div className="space-y-1">
-              <Label className="font-medium text-muted-foreground text-sm leading-4">
-                {t('knowledge_v2.embedding_model')}
-              </Label>
+              <Label className="text-muted-foreground leading-4">{t('knowledge_v2.embedding_model')}</Label>
               <Select
                 value={values.embeddingModelId ?? undefined}
                 onValueChange={(embeddingModelId) =>
@@ -145,7 +141,7 @@ const RestoreKnowledgeBaseDialog = ({
                 }>
                 <SelectTrigger
                   size="sm"
-                  className="h-8 w-full rounded-lg px-2.5 text-sm leading-4 data-placeholder:text-muted-foreground/70 data-placeholder:text-sm"
+                  className="h-8 w-full rounded-lg px-2.5 leading-4 data-placeholder:text-muted-foreground/70"
                   aria-invalid={hasAttemptedSubmit && !values.embeddingModelId}>
                   <SelectValue placeholder={t('knowledge_v2.not_set')} />
                 </SelectTrigger>
@@ -162,11 +158,11 @@ const RestoreKnowledgeBaseDialog = ({
                 </SelectContent>
               </Select>
               {hasAttemptedSubmit && !values.embeddingModelId ? (
-                <FieldError className="text-sm leading-4">{t('knowledge_v2.embedding_model_required')}</FieldError>
+                <FieldError className="leading-4">{t('knowledge_v2.embedding_model_required')}</FieldError>
               ) : null}
             </div>
 
-            {submitError ? <FieldError className="text-sm leading-4">{submitError}</FieldError> : null}
+            {submitError ? <FieldError className="leading-4">{submitError}</FieldError> : null}
           </div>
 
           <CreateKnowledgeBaseDialog.Actions

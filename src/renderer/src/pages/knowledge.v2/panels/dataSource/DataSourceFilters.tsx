@@ -20,7 +20,7 @@ const DataSourceFilters = ({ value, onValueChange }: DataSourceFiltersProps) => 
           type="button"
           variant="ghost"
           className={cn(
-            'h-auto min-h-0 rounded px-1.5 py-px font-normal text-sm leading-4 shadow-none transition-colors',
+            'h-auto min-h-0 rounded px-1.5 py-px font-normal leading-4 shadow-none transition-colors',
             value === filterValue
               ? 'bg-accent text-foreground hover:bg-accent hover:text-foreground'
               : 'text-muted-foreground/50 hover:text-foreground'

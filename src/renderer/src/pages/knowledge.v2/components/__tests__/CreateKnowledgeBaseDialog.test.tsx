@@ -191,7 +191,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     expect(screen.queryByLabelText('嵌入维度')).not.toBeInTheDocument()
   })
 
-  it('applies compact typography classes to the header, fields, and actions', () => {
+  it('applies compact sizing to the fields and actions', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
@@ -203,13 +203,13 @@ describe('CreateKnowledgeBaseDialog', () => {
       />
     )
 
-    expect(screen.getByRole('heading', { name: '新建知识库' })).toHaveClass('text-sm')
-    expect(screen.getByText('名称')).toHaveClass('text-sm')
-    expect(screen.getByLabelText('名称')).toHaveClass('text-sm', 'h-8')
+    expect(screen.getByRole('heading', { name: '新建知识库' })).toHaveClass('leading-4')
+    expect(screen.getByText('名称')).toHaveClass('leading-4')
+    expect(screen.getByLabelText('名称')).toHaveClass('h-8')
     expect(screen.queryByText('分组')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '未设置' })).toHaveClass('text-sm', 'h-8')
-    expect(screen.getByRole('button', { name: '取消' })).toHaveClass('text-sm', 'h-8')
-    expect(screen.getByRole('button', { name: '创建' })).toHaveClass('text-sm', 'h-8')
+    expect(screen.getByRole('button', { name: '未设置' })).toHaveClass('h-8')
+    expect(screen.getByRole('button', { name: '取消' })).toHaveClass('h-8')
+    expect(screen.getByRole('button', { name: '创建' })).toHaveClass('h-8')
   })
 
   it('toggles the selected emoji', () => {

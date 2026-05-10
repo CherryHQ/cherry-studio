@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 
 export const RagSectionTitle = ({ title, icon: Icon }: { title: string; icon: LucideIcon }) => {
   return (
-    <div className="flex items-center gap-1.5 pt-1 pb-1.5 font-medium text-foreground text-sm leading-5">
+    <div className="flex items-center gap-1.5 pt-1 pb-1.5 text-foreground text-sm leading-5">
       <Icon className="size-3.5 text-primary/70" />
       <span>{title}</span>
     </div>
@@ -43,12 +43,12 @@ export const RagSelectField = ({
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger
         size="sm"
-        className="h-7.5 min-h-0 w-full rounded-md border-border/40 bg-transparent px-2.5 py-1.5 text-sm leading-5 shadow-none dark:bg-transparent [&_svg]:size-3.5 [&_svg]:text-muted-foreground/40">
+        className="h-7.5 min-h-0 w-full rounded-md border-border/40 bg-transparent px-2.5 py-1.5 leading-5 shadow-none dark:bg-transparent [&_svg]:size-3.5 [&_svg]:text-muted-foreground/40">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent className="text-sm">
+      <SelectContent>
         {options.map((option) => (
-          <SelectItem key={option.value} value={option.value} className="text-sm">
+          <SelectItem key={option.value} value={option.value}>
             {option.label}
           </SelectItem>
         ))}
@@ -81,7 +81,7 @@ export const RagNumericField = ({
           inputMode="numeric"
           onChange={(event) => onChange(event.target.value)}
           className={cn(
-            'h-7.5 min-h-0 rounded-md border-border/40 bg-transparent px-2.5 py-1.5 text-foreground text-sm leading-5 shadow-none placeholder:text-muted-foreground/30 focus-visible:border-primary/40 focus-visible:ring-1 focus-visible:ring-primary/15',
+            'h-7.5 min-h-0 rounded-md border-border/40 bg-transparent px-2.5 py-1.5 text-foreground leading-5 shadow-none placeholder:text-muted-foreground/30 focus-visible:border-primary/40 focus-visible:ring-1 focus-visible:ring-primary/15',
             inputClassName
           )}
         />
@@ -102,7 +102,7 @@ export const RagReadonlyField = ({ label, value, hint }: { label: string; value:
       <Input
         readOnly
         value={value}
-        className="h-7.5 min-h-0 rounded-md border-border/40 bg-transparent px-2.5 py-1.5 text-foreground text-sm leading-5 shadow-none placeholder:text-muted-foreground/30 focus-visible:border-primary/40 focus-visible:ring-1 focus-visible:ring-primary/15"
+        className="h-7.5 min-h-0 rounded-md border-border/40 bg-transparent px-2.5 py-1.5 text-foreground leading-5 shadow-none placeholder:text-muted-foreground/30 focus-visible:border-primary/40 focus-visible:ring-1 focus-visible:ring-primary/15"
       />
     </div>
   )

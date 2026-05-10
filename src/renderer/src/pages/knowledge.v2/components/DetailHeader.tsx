@@ -95,14 +95,14 @@ const DetailHeader = ({ base, itemCount, onRenameBase, onDeleteBase }: DetailHea
                   variant="ghost"
                   icon={<PencilLine className="size-2.25" />}
                   label={t('knowledge_v2.context.rename')}
-                  className="gap-1.5 rounded-md px-2 py-1 font-normal text-popover-foreground text-xs hover:bg-accent"
+                  className="gap-1.5 rounded-md px-2 py-1 font-normal text-popover-foreground hover:bg-accent"
                   onClick={handleRenameBase}
                 />
                 <MenuItem
                   variant="ghost"
                   icon={<Trash2 className="size-2.25" />}
                   label={t('knowledge_v2.context.delete')}
-                  className="gap-1.5 rounded-md px-2 py-1 font-normal text-red-500 text-xs hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500/20"
+                  className="gap-1.5 rounded-md px-2 py-1 font-normal text-red-500 hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500/20"
                   onClick={() => {
                     setIsMenuOpen(false)
                     setIsDeleteDialogOpen(true)

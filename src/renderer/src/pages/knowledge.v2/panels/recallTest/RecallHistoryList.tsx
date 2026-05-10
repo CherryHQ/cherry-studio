@@ -18,7 +18,7 @@ const RecallHistoryList = () => {
         <Button
           type="button"
           variant="ghost"
-          className="h-auto min-h-0 rounded-none p-0 text-muted-foreground/25 text-xs leading-4 shadow-none transition-colors hover:bg-transparent hover:text-red-500"
+          className="h-auto min-h-0 rounded-none p-0 text-muted-foreground/25 leading-4 shadow-none transition-colors hover:bg-transparent hover:text-red-500"
           onClick={clearHistory}>
           {t('knowledge_v2.recall.history_clear')}
         </Button>

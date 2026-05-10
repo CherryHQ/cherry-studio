@@ -91,7 +91,7 @@ const KnowledgeItemRowStatus = ({
           content={failureReason}
           side="bottom"
           contentProps={{
-            className: 'max-w-72 rounded-md px-2.5 py-1.5 text-sm leading-4 text-foreground/75'
+            className: 'max-w-72 rounded-md px-2.5 py-1.5 leading-4 text-foreground/75'
           }}>
           {content}
         </NormalTooltip>
@@ -140,7 +140,7 @@ const KnowledgeItemActionMenuItem = ({
       size="sm"
       icon={<KnowledgeItemActionMenuIcon>{icon}</KnowledgeItemActionMenuIcon>}
       label={label}
-      className="gap-1.5 rounded-md px-2 py-1 font-normal text-popover-foreground text-sm"
+      className="gap-1.5 rounded-md px-2 py-1 font-normal text-popover-foreground"
       onClick={onClick}
     />
   )
@@ -161,7 +161,7 @@ const KnowledgeItemDeleteMenuItem = ({
       size="sm"
       icon={<KnowledgeItemActionMenuIcon>{icon}</KnowledgeItemActionMenuIcon>}
       label={label}
-      className="gap-1.5 rounded-md px-2 py-1 font-normal text-red-500 text-sm hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500/20"
+      className="gap-1.5 rounded-md px-2 py-1 font-normal text-red-500 hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500/20"
       onClick={onClick}
     />
   )

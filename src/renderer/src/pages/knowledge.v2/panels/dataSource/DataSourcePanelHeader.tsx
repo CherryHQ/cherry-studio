@@ -32,7 +32,7 @@ const DataSourcePanelHeader = ({
         </span>
         <Button
           type="button"
-          className="h-5 min-h-5 rounded bg-primary px-2 text-primary-foreground text-sm leading-4 shadow-none hover:bg-primary/90"
+          className="h-5 min-h-5 rounded bg-primary px-2 text-primary-foreground leading-4 shadow-none hover:bg-primary/90"
           onClick={onAdd}>
           <Plus className="size-2.5" />
           {t('common.add')}
