@@ -15,7 +15,7 @@ const BaseNavigatorSearch = ({ value, onValueChange }: BaseNavigatorSearchProps)
           value={value}
           onChange={(event) => onValueChange(event.target.value)}
           placeholder={`${t('knowledge_v2.search')}...`}
-          className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-foreground leading-4 shadow-none placeholder:text-muted-foreground/40 focus-visible:border-0 focus-visible:ring-0"
+          className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-foreground text-sm leading-4 shadow-none placeholder:text-muted-foreground/40 placeholder:text-sm focus-visible:border-0 focus-visible:ring-0"
         />
       </div>
     </div>

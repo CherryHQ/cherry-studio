@@ -31,7 +31,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-1">
           <FileText className="size-2.5 shrink-0 text-muted-foreground/35" />
-          <span className="truncate text-muted-foreground/50 text-sm leading-4">{item.sourceName}</span>
+          <span className="truncate text-muted-foreground/50 text-xs leading-4">{item.sourceName}</span>
           <span className="shrink-0 text-muted-foreground/20 text-xs leading-3">#{item.chunkIndex}</span>
         </div>
         <div className="flex items-center gap-1.5">

@@ -278,6 +278,26 @@ describe('RagConfigPanel', () => {
     expect(window.toast.success).toHaveBeenCalledWith('已保存')
   })
 
+  it('applies the compact visual treatment from the RAG design draft', () => {
+    const { container } = renderRagConfigPanel()
+
+    expect(screen.getByText('文档预处理').parentElement).toHaveClass('font-medium', 'text-sm')
+    expect(screen.getByText('处理服务商')).toHaveClass('text-xs', 'text-foreground')
+    expect(container.querySelector('button.h-7\\.5.text-xs.font-medium')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('512')).toHaveClass('h-7.5', 'text-xs', 'shadow-xs')
+    expect(screen.getAllByText('tokens')[0]).toHaveClass('text-muted-foreground/50', 'text-xs')
+    expect(screen.getByText('文档预处理').parentElement?.querySelector('svg')).not.toHaveClass('text-primary/70')
+    const fileProcessingHint = screen.getByText(
+      '文档预处理将在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量'
+    )
+    expect(fileProcessingHint).toHaveClass('text-muted-foreground/70', 'text-xs')
+    expect(fileProcessingHint.parentElement).toHaveClass('bg-success/5', 'border-success/20')
+    expect(screen.getByRole('slider', { name: '请求文档片段数 (Top K)' })).toHaveClass('w-full')
+    expect(screen.getByText('6')).toHaveClass('text-primary/80', 'text-xs')
+    expect(screen.getByRole('button', { name: '恢复默认' })).toHaveClass('h-6', 'text-xs', 'font-medium')
+    expect(screen.getByRole('button', { name: '保存' })).toHaveClass('h-9', 'text-sm', 'font-medium')
+  })
+
   it('disables save when a required chunk field is cleared or becomes non-positive', () => {
     renderRagConfigPanel()
 

@@ -33,11 +33,11 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
         <div
           className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3"
           data-testid="rag-failed-state">
-          <div className="text-destructive text-sm leading-4">{t('knowledge_v2.status.failed')}</div>
+          <div className="font-medium text-destructive text-sm leading-4">{t('knowledge_v2.status.failed')}</div>
           <p className="mt-1 text-muted-foreground text-xs leading-4">{failureReason}</p>
           <Button
             type="button"
-            className="mt-3 h-6 min-h-6 rounded-md bg-primary px-3 text-primary-foreground leading-5 shadow-none hover:bg-primary/90"
+            className="mt-3 h-6 min-h-6 rounded-md bg-primary px-3 font-medium text-primary-foreground text-xs leading-5 shadow-none hover:bg-primary/90"
             onClick={() => onRestoreBase(base)}>
             {t('knowledge_v2.restore.action')}
           </Button>
@@ -153,9 +153,9 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
             type="button"
             variant="ghost"
             disabled={!isDirty || isLoading}
-            className="h-8 min-h-8 rounded-xl px-3 text-muted-foreground leading-5 shadow-none hover:bg-accent hover:text-foreground"
+            className="h-6 min-h-6 rounded-md px-2.5 font-medium text-muted-foreground/50 text-xs leading-5 shadow-none hover:bg-accent hover:text-foreground"
             onClick={() => setValues(initialValues)}>
-            <RotateCcw className="size-3.5" />
+            <RotateCcw className="size-2.25" />
             {t('knowledge_v2.rag.reset_action')}
           </Button>
           <Button
@@ -163,7 +163,7 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
             variant="default"
             loading={isLoading}
             disabled={!canSave}
-            className="h-8 min-h-8 rounded-xl px-6 leading-5 shadow-none"
+            className="h-9 min-h-9 rounded-md px-5 font-medium text-sm shadow-none"
             onClick={handleSave}>
             {embeddingConfigChanged ? t('knowledge_v2.restore.submit') : t('knowledge_v2.rag.save_action')}
           </Button>

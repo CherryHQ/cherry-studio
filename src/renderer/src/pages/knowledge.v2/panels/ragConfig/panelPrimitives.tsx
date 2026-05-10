@@ -6,8 +6,8 @@ import type { ReactNode } from 'react'
 
 export const RagSectionTitle = ({ title, icon: Icon }: { title: string; icon: LucideIcon }) => {
   return (
-    <div className="flex items-center gap-1.5 pt-1 pb-1.5 text-foreground text-sm leading-5">
-      <Icon className="size-3.5 text-primary/70" />
+    <div className="flex items-center gap-1.5 pt-1 pb-1.5 font-medium text-foreground text-sm leading-5">
+      <Icon className="size-3.25" strokeWidth={1.8} />
       <span>{title}</span>
     </div>
   )
@@ -16,11 +16,11 @@ export const RagSectionTitle = ({ title, icon: Icon }: { title: string; icon: Lu
 export const RagFieldLabel = ({ label, hint }: { label: string; hint?: string }) => {
   return (
     <div className="mb-1 flex items-center gap-1">
-      <span className="text-foreground/75 text-sm leading-5">{label}</span>
+      <span className="text-foreground text-xs leading-4">{label}</span>
       {hint ? (
         <Tooltip content={hint} placement="top">
           <span tabIndex={0} aria-label={hint}>
-            <Info className="size-2.25 cursor-help text-muted-foreground/40" />
+            <Info className="size-2.25 cursor-help" />
           </span>
         </Tooltip>
       ) : null}
@@ -43,12 +43,12 @@ export const RagSelectField = ({
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger
         size="sm"
-        className="h-7.5 min-h-0 w-full rounded-md border-border/40 bg-transparent px-2.5 py-1.5 leading-5 shadow-none dark:bg-transparent [&_svg]:size-3.5 [&_svg]:text-muted-foreground/40">
+        className="h-7.5 min-h-0 w-full justify-between rounded-md border-border/40 bg-transparent px-2.5 py-1.5 font-medium text-xs shadow-none transition-colors hover:bg-muted/20 dark:bg-transparent [&_svg]:size-2.5">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="text-xs">
         {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
+          <SelectItem key={option.value} value={option.value} className="text-xs">
             {option.label}
           </SelectItem>
         ))}
@@ -81,12 +81,12 @@ export const RagNumericField = ({
           inputMode="numeric"
           onChange={(event) => onChange(event.target.value)}
           className={cn(
-            'h-7.5 min-h-0 rounded-md border-border/40 bg-transparent px-2.5 py-1.5 text-foreground leading-5 shadow-none placeholder:text-muted-foreground/30 focus-visible:border-primary/40 focus-visible:ring-1 focus-visible:ring-primary/15',
+            'h-7.5 min-h-0 rounded-md border-border/40 bg-transparent px-2.5 py-1.5 text-foreground text-xs shadow-xs placeholder:text-muted-foreground/30 focus-visible:border-primary/40 focus-visible:ring-0',
             inputClassName
           )}
         />
         {suffix ? (
-          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2.5 text-muted-foreground/25 text-xs leading-4">
+          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2.5 text-muted-foreground/50 text-xs leading-4">
             {suffix}
           </span>
         ) : null}
@@ -102,7 +102,7 @@ export const RagReadonlyField = ({ label, value, hint }: { label: string; value:
       <Input
         readOnly
         value={value}
-        className="h-7.5 min-h-0 rounded-md border-border/40 bg-transparent px-2.5 py-1.5 text-foreground leading-5 shadow-none placeholder:text-muted-foreground/30 focus-visible:border-primary/40 focus-visible:ring-1 focus-visible:ring-primary/15"
+        className="h-7.5 min-h-0 rounded-md border-border/40 bg-transparent px-2.5 py-1.5 text-foreground text-xs shadow-xs placeholder:text-muted-foreground/30 focus-visible:border-primary/40 focus-visible:ring-0"
       />
     </div>
   )
@@ -118,29 +118,26 @@ export const RagHintText = ({
   const toneClassNames =
     tone === 'warning'
       ? {
-          container: 'border-amber-500/12 bg-amber-500/[0.06]',
-          icon: 'text-amber-600/60',
-          text: 'text-amber-600/60',
+          container: 'border-warning/15 bg-warning/[0.06]',
+          text: 'text-warning/60',
           Icon: TriangleAlert
         }
       : tone === 'error'
         ? {
-            container: 'border-red-500/15 bg-red-500/[0.06]',
-            icon: 'text-red-500/70',
-            text: 'text-red-500/75',
+            container: 'border-destructive/15 bg-destructive/[0.06]',
+            text: 'text-destructive/75',
             Icon: Info
           }
         : {
             container: 'border-success/20 bg-success/5',
-            icon: 'text-success/70',
-            text: 'text-success/70',
+            text: 'text-muted-foreground/70',
             Icon: Info
           }
   const HintIcon = toneClassNames.Icon
 
   return (
     <div className={`flex items-start gap-2 rounded-md border px-2.5 py-1.5 ${toneClassNames.container}`}>
-      <HintIcon className={`mt-px size-3 shrink-0 ${toneClassNames.icon}`} />
+      <HintIcon className="mt-px size-3 shrink-0" />
       <div className={`text-xs leading-4 ${toneClassNames.text}`}>{children}</div>
     </div>
   )
@@ -175,7 +172,7 @@ export const RagSliderField = ({
     <div>
       <div className="mb-1 flex items-end justify-between gap-3">
         <RagFieldLabel label={label} hint={hint} />
-        <span className="text-foreground text-sm leading-5">{formatValue(value)}</span>
+        <span className="text-primary/80 text-xs tabular-nums leading-4">{formatValue(value)}</span>
       </div>
 
       <div className={disabled ? 'opacity-50' : undefined}>
@@ -186,12 +183,12 @@ export const RagSliderField = ({
           min={min}
           max={max}
           step={step}
-          size="sm"
+          size="md"
           disabled={disabled}
-          className="w-full **:data-[slot=slider-thumb]:size-2.5 **:data-[slot=slider-track]:h-px **:data-[slot=slider-thumb]:border-foreground/20 **:data-[slot=slider-range]:bg-foreground/65 **:data-[slot=slider-thumb]:bg-background **:data-[slot=slider-track]:bg-border/40 **:data-[slot=slider-thumb]:shadow-none"
+          className="w-full **:data-[slot=slider-thumb]:border-primary **:data-[slot=slider-range]:bg-primary **:data-[slot=slider-thumb]:bg-background **:data-[slot=slider-track]:bg-muted **:data-[slot=slider-thumb]:shadow-sm"
         />
 
-        <div className="mt-px flex items-center justify-between text-muted-foreground/25 text-xs leading-3">
+        <div className="mt-px flex items-center justify-between text-muted-foreground/50 text-xs leading-4">
           <span>{minLabel}</span>
           <span>{maxLabel}</span>
         </div>
