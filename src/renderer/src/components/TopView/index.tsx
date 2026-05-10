@@ -85,7 +85,6 @@ const TopViewContent: React.FC<Props> = ({ children }) => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // logger.debug('keydown', e)
       if (!enableQuitFullScreen) return
 
       if (e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
@@ -96,7 +95,7 @@ const TopViewContent: React.FC<Props> = ({ children }) => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  })
+  }, [enableQuitFullScreen])
 
   return (
     <>
