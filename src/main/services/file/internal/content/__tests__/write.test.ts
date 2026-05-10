@@ -164,4 +164,52 @@ describe('internal/content/write', () => {
       expect(cacheStore.size).toBe(0)
     })
   })
+
+  describe('createWriteStream post-commit metadata sync', () => {
+    it('updates DB size and version cache after the stream finishes (internal)', async () => {
+      const { createWriteStream } = await import('../write')
+      const e = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([0x01]),
+        name: 'b',
+        ext: 'bin'
+      })
+      const stream = await createWriteStream(deps, e.id)
+      const payload = Buffer.from([0x10, 0x20, 0x30, 0x40, 0x50])
+      stream.write(payload)
+      stream.end()
+      await new Promise<void>((resolve, reject) => {
+        stream.once('finish', () => {
+          // The 'finish' handler is a microtask chain; let the post-commit
+          // hook drain before asserting.
+          setImmediate(resolve)
+        })
+        stream.once('error', reject)
+      })
+      // Give the post-commit async catch handler one more tick to settle.
+      await new Promise<void>((r) => setImmediate(r))
+      const refreshed = await fileEntryService.getById(e.id)
+      expect(refreshed.size).toBe(payload.length)
+      expect(cacheStore.get(e.id)?.size).toBe(payload.length)
+    })
+
+    it('keeps DB size null for external entries after the stream finishes', async () => {
+      const { createWriteStream } = await import('../write')
+      const file = path.join(tmp, 'ext-stream.txt')
+      await writeFile(file, 'seed')
+      const e = await ensureExternal(deps, { externalPath: file as FilePath })
+      const stream = await createWriteStream(deps, e.id)
+      stream.write(Buffer.from('updated payload'))
+      stream.end()
+      await new Promise<void>((resolve, reject) => {
+        stream.once('finish', () => setImmediate(resolve))
+        stream.once('error', reject)
+      })
+      await new Promise<void>((r) => setImmediate(r))
+      const refreshed = await fileEntryService.getById(e.id)
+      // External rows must keep size=null per the schema CHECK; only the cache reflects the new version.
+      expect(refreshed.size).toBeNull()
+      expect(cacheStore.get(e.id)?.size).toBe('updated payload'.length)
+    })
+  })
 })

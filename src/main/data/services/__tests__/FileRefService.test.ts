@@ -213,6 +213,29 @@ describe('FileRefService', () => {
       const remaining = await fileRefService.findByEntryId(entryId)
       expect(remaining.map((r) => r.sourceId)).toEqual(['s2'])
     })
+
+    it('cleanupBySourceBatch chunks past the SQLite IN-list cap', async () => {
+      // SQLITE_INARRAY_CHUNK = 500; 1200 ids forces three chunks (500/500/200)
+      // and validates the per-chunk count summation. A bug that runs only the
+      // first chunk would return ~500 instead of 1200.
+      const entryId = '019606a0-0000-7000-8000-00000000ee01' as FileEntryId
+      await seedEntry(entryId)
+      const sids = Array.from({ length: 1200 }, (_, i) => `bulk-${String(i).padStart(4, '0')}`)
+      const SEED_CHUNK = 200
+      for (let i = 0; i < sids.length; i += SEED_CHUNK) {
+        await fileRefService.createMany(
+          sids.slice(i, i + SEED_CHUNK).map((sid) => ({
+            fileEntryId: entryId,
+            sourceType: 'temp_session' as const,
+            sourceId: sid,
+            role: 'pending'
+          }))
+        )
+      }
+      const removed = await fileRefService.cleanupBySourceBatch('temp_session', sids)
+      expect(removed).toBe(1200)
+      expect(await fileRefService.findByEntryId(entryId)).toEqual([])
+    })
   })
 
   describe('listDistinctSourceIds', () => {

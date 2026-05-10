@@ -89,6 +89,37 @@ describe('FileRefCheckerRegistry', () => {
     it('declares its sourceType', () => {
       expect(knowledgeItemChecker.sourceType).toBe('knowledge_item')
     })
+
+    it('chunks queries past the SQLite IN-list cap and unions the results correctly', async () => {
+      // SQLITE_INARRAY_CHUNK = 500; 1200 ids forces three chunks (500/500/200)
+      // and exercises the union-across-chunks behavior. A bug that returns
+      // only the first chunk's rows would fail this test.
+      await seedKnowledgeBase()
+      const aliveIds = Array.from({ length: 1200 }, (_, i) => `ki-bulk-${String(i).padStart(4, '0')}`)
+      // Insert in batches so the seed itself doesn't blow up the SQLite limit.
+      const SEED_CHUNK = 200
+      for (let i = 0; i < aliveIds.length; i += SEED_CHUNK) {
+        const slice = aliveIds.slice(i, i + SEED_CHUNK)
+        await dbh.db.insert(knowledgeItemTable).values(
+          slice.map((id) => ({
+            id,
+            baseId: 'kb-orphan-test',
+            type: 'note' as const,
+            data: { source: 's', content: 'c' },
+            status: 'idle' as const,
+            phase: null,
+            error: null
+          }))
+        )
+      }
+      // Query against the same 1200 ids plus one ringer that doesn't exist.
+      const alive = await knowledgeItemChecker.checkExists([...aliveIds, 'ki-not-real'])
+      expect(alive.size).toBe(1200)
+      expect(alive.has('ki-bulk-0000')).toBe(true) // first
+      expect(alive.has('ki-bulk-0500')).toBe(true) // second-chunk boundary
+      expect(alive.has('ki-bulk-1199')).toBe(true) // last
+      expect(alive.has('ki-not-real')).toBe(false)
+    })
   })
 
   describe('unmigrated source types (conservative no-op stubs)', () => {
@@ -133,7 +164,7 @@ describe('FileRefCheckerRegistry', () => {
   })
 
   /**
-   * Type-level exhaustiveness — RFC §9.6 exit criterion: "Adding a new
+   * Type-level exhaustiveness — file-manager-architecture §7 exit criterion: "Adding a new
    * FileRefSourceType variant without a checker triggers a TS build error".
    *
    * The `@ts-expect-error` markers below MUST trigger TypeScript errors;
@@ -142,7 +173,7 @@ describe('FileRefCheckerRegistry', () => {
    * comments as unused expectations and CI typecheck will fail — which is
    * exactly the signal we want.
    */
-  describe('type-level exhaustiveness (RFC §9.6 compile-time invariant)', () => {
+  describe('type-level exhaustiveness (file-manager-architecture §7 compile-time invariant)', () => {
     it('rejects a registry literal missing any FileRefSourceType key', () => {
       // @ts-expect-error — `note` is missing → TS2741
       const incomplete: OrphanCheckerRegistry = {
