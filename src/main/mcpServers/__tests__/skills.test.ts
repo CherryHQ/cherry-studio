@@ -205,7 +205,7 @@ describe('SkillsServer', () => {
 
       // list is scoped to the current agent so enablement reflects
       // the per-agent state, not a shared global flag.
-      expect(mockSkillList).toHaveBeenCalledWith('agent_1')
+      expect(mockSkillList).toHaveBeenCalledWith({ agentId: 'agent_1' })
       const parsed = JSON.parse(result.content[0].text)
       expect(parsed).toHaveLength(2)
       // Each entry must include the absolute path so the model can patch the

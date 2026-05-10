@@ -122,7 +122,9 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('shortcut.general.zoom_in')
       expect(keys).toContain('ui.sidebar.icons.visible')
       expect(keys).toContain('ui.sidebar.icons.invisible')
-      expect(keys.length).toBe(35) // 33 existing keys + 2 OpenClaw preference keys
+      expect(keys).toContain('feature.translate.action.preferred_lang')
+      expect(keys).toContain('feature.translate.action.alter_lang')
+      expect(keys).toContain('feature.translate.mini_window.target_lang')
     })
 
     it('should flatten target keys from all mappings', () => {

@@ -17,14 +17,7 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE, isMac } from '@renderer/config/constant'
-import type {
-  ApiServerConfig,
-  CodeStyleVarious,
-  MathEngine,
-  OpenAIServiceTier,
-  S3Config,
-  TranslateLanguageCode
-} from '@renderer/types'
+import type { ApiServerConfig, CodeStyleVarious, MathEngine, OpenAIServiceTier, S3Config } from '@renderer/types'
 import type {
   OpenAICompletionsStreamOptions,
   OpenAIReasoningSummary,
@@ -39,9 +32,10 @@ import type {
   LanguageVarious,
   MultiModelMessageStyle,
   SendMessageShortcut,
-  SidebarIcon
+  SidebarIcon,
+  TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
-import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { parseTranslateLangCode, ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 import { v4 as uuid } from 'uuid'
 
@@ -68,7 +62,7 @@ export interface SettingsState {
   assistantsTabSortType: AssistantTabSortType
   sendMessageShortcut: SendMessageShortcut
   language: LanguageVarious
-  targetLanguage: TranslateLanguageCode
+  targetLanguage: TranslateLangCode
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
   proxyBypassRules?: string
@@ -262,7 +256,7 @@ export const initialState: SettingsState = {
   assistantsTabSortType: 'list',
   sendMessageShortcut: 'Enter',
   language: navigator.language as LanguageVarious,
-  targetLanguage: 'en-us',
+  targetLanguage: parseTranslateLangCode('en-us'),
   proxyMode: 'system',
   proxyUrl: undefined,
   proxyBypassRules: undefined,

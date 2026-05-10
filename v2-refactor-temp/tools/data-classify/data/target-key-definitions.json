@@ -2,7 +2,7 @@
   "metadata": {
     "version": "1.0.0",
     "description": "Target key definitions that override or extend classification.json. Keys defined here with status 'classified' will be added or override classification.json. Keys with status 'pending' will be disabled.",
-    "lastUpdated": "2026-03-06"
+    "lastUpdated": "2026-03-24"
   },
   "definitions": [
     {
@@ -179,6 +179,48 @@
       "defaultValue": null,
       "status": "classified",
       "description": "OpenClaw selected model UniqueModelId (provider::modelId, from complex mapping openclaw_preferences)"
+    },
+    {
+      "targetKey": "feature.translate.action.preferred_lang",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "zh-cn",
+      "status": "classified",
+      "description": "ActionTranslate preferred language"
+    },
+    {
+      "targetKey": "feature.translate.action.alter_lang",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "en-us",
+      "status": "classified",
+      "description": "ActionTranslate alternate language"
+    },
+    {
+      "targetKey": "feature.translate.mini_window.target_lang",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "zh-cn",
+      "status": "classified",
+      "description": "TranslateWindow target language"
+    },
+    {
+      "targetKey": "feature.translate.page.bidirectional_pair",
+      "type": "PreferenceTypes.TranslateBidirectionalPair",
+      "defaultValue": ["zh-cn", "en-us"],
+      "status": "classified",
+      "description": "Translate page bidirectional language pair (from complex migration)"
+    },
+    {
+      "targetKey": "feature.translate.page.source_language",
+      "type": "PreferenceTypes.TranslateSourceLanguage",
+      "defaultValue": "auto",
+      "status": "classified",
+      "description": "Translate page source language (from complex migration)"
+    },
+    {
+      "targetKey": "feature.translate.page.target_language",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "zh-cn",
+      "status": "classified",
+      "description": "Translate page target language (from complex migration)"
     }
   ]
 }

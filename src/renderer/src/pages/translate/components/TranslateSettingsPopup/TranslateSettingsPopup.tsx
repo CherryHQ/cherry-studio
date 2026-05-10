@@ -5,7 +5,7 @@ import { SettingContainer, SettingGroup } from '@renderer/pages/settings'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import CustomLanguageSettings from './CustomLanguageSettings'
+import TranslateLanguageSettings from './TranslateLanguageSettings'
 import TranslatePromptSettings from './TranslatePromptSettings'
 
 interface Props {
@@ -19,7 +19,7 @@ export const TranslateSettingsPanelContent = () => {
     <SettingContainer theme={theme} style={{ padding: 0, background: 'transparent' }}>
       <TranslatePromptSettings />
       <SettingGroup theme={theme} style={{ flex: 1 }}>
-        <CustomLanguageSettings />
+        <TranslateLanguageSettings />
       </SettingGroup>
     </SettingContainer>
   )

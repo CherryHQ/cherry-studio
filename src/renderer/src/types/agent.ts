@@ -162,6 +162,8 @@ export interface ListOptions {
   offset?: number
   sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'sortOrder'
   orderBy?: 'asc' | 'desc'
+  /** LIKE %kw% match against name OR description (case-insensitive). */
+  search?: string
 }
 
 // AgentSession entity representing a conversation session with one or more agents

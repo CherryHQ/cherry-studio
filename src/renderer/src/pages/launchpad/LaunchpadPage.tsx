@@ -2,7 +2,17 @@ import { OpenClawIcon } from '@renderer/components/Icons/SVGIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNavigate } from '@tanstack/react-router'
-import { Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette, Sparkle } from 'lucide-react'
+import {
+  BookMarked,
+  Code,
+  FileSearch,
+  Folder,
+  Languages,
+  LayoutGrid,
+  NotepadText,
+  Palette,
+  Sparkle
+} from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -67,6 +77,12 @@ const LaunchpadPage: FC = () => {
       text: t('title.notes'),
       path: '/app/notes',
       bgColor: 'linear-gradient(135deg, #F97316, #FB923C)' // 笔记：橙色，代表活力和清晰思路
+    },
+    {
+      icon: <BookMarked size={32} className="icon" />,
+      text: t('library.title'),
+      path: '/app/library',
+      bgColor: 'linear-gradient(135deg, #0EA5E9, #6366F1)' // 资源库：临时入口
     }
   ]
 

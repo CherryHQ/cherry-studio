@@ -12,6 +12,7 @@ import type {
   TranslateHistoryQuery,
   UpdateTranslateHistoryDto
 } from '@shared/data/api/schemas/translate'
+import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateHistory } from '@shared/data/types/translate'
 import type { SQL } from 'drizzle-orm'
 import { and, desc, eq, or, sql } from 'drizzle-orm'
@@ -25,8 +26,8 @@ function rowToTranslateHistory(row: typeof translateHistoryTable.$inferSelect): 
     id: row.id,
     sourceText: row.sourceText,
     targetText: row.targetText,
-    sourceLanguage: row.sourceLanguage,
-    targetLanguage: row.targetLanguage,
+    sourceLanguage: row.sourceLanguage === null ? null : parsePersistedLangCode(row.sourceLanguage),
+    targetLanguage: row.targetLanguage === null ? null : parsePersistedLangCode(row.targetLanguage),
     star: row.star,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)

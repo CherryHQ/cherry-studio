@@ -20,9 +20,10 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import useTranslate from '@renderer/hooks/useTranslate'
-import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
-import type { CustomTranslateLanguage } from '@renderer/types'
+import { useTranslateLanguages } from '@renderer/hooks/translate'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { parsePersistedLangCode, PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
@@ -31,20 +32,25 @@ import * as z from 'zod'
 
 type Props = {
   isOpen: boolean
-  editingCustomLanguage?: CustomTranslateLanguage
-  onAdd: (item: CustomTranslateLanguage) => void
-  onEdit: (item: CustomTranslateLanguage) => void
+  editingLanguage?: TranslateLanguage
   onCancel: () => void
 }
 
-const logger = loggerService.withContext('CustomLanguageModal')
+const logger = loggerService.withContext('TranslateLanguagesModal')
 const DEFAULT_EMOJI = '🏳️'
 
-const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onCancel }: Props) => {
+const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguage, onCancel }: Props) => {
   const { t } = useTranslation()
-  const { translateLanguages } = useTranslate()
+  const {
+    languages,
+    add: addLanguage,
+    update: updateLanguage
+  } = useTranslateLanguages({
+    add: { showErrorToast: false },
+    update: { showErrorToast: false }
+  })
 
-  const langCodeList = useMemo(() => translateLanguages.map((item) => item.langCode), [translateLanguages])
+  const langCodeList = useMemo(() => languages?.map((item) => item.langCode) ?? [], [languages])
 
   const schema = useMemo(
     () =>
@@ -57,15 +63,18 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
         langCode: z
           .string()
           .min(1, t('settings.translate.custom.error.langCode.empty'))
-          .regex(/^[a-zA-Z]{2,3}(-[a-zA-Z]{2,3})?$/, t('settings.translate.custom.error.langCode.invalid'))
+          .refine((value) => PersistedLangCodeSchema.safeParse(value.toLowerCase()).success, {
+            message: t('settings.translate.custom.error.langCode.invalid')
+          })
           .refine(
             (value) => {
-              logger.silly('validate langCode', { value, langCodeList, editingCustomLanguage })
               const normalized = value.toLowerCase()
+              const clashes = langCodeList.some((code) => code === normalized)
+              logger.silly('validate langCode', { value, normalized, langCodeList, editingCustomLanguage })
               if (editingCustomLanguage) {
-                return !langCodeList.includes(value) || value === editingCustomLanguage.langCode
+                return !clashes || normalized === editingCustomLanguage.langCode
               }
-              return !langCodeList.includes(normalized)
+              return !clashes
             },
             { message: t('settings.translate.custom.error.langCode.exists') }
           )
@@ -101,27 +110,19 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
   const handleSubmit = useCallback(
     async (values: FieldType) => {
       const { emoji, value, langCode } = values
-
-      if (editingCustomLanguage) {
-        try {
-          await updateCustomLanguage(editingCustomLanguage, value, emoji, langCode)
-          onEdit({ ...editingCustomLanguage, emoji, value, langCode })
-          window.toast.success(t('settings.translate.custom.success.update'))
-        } catch (e) {
-          window.toast.error(t('settings.translate.custom.error.update') + ': ' + (e as Error).message)
+      try {
+        if (editingCustomLanguage) {
+          await updateLanguage(editingCustomLanguage.langCode, { value, emoji })
+        } else {
+          await addLanguage({ value, emoji, langCode: parsePersistedLangCode(langCode.toLowerCase()) })
         }
-      } else {
-        try {
-          const added = await addCustomLanguage(value, emoji, langCode)
-          onAdd(added)
-          window.toast.success(t('settings.translate.custom.success.add'))
-        } catch (e) {
-          window.toast.error(t('settings.translate.custom.error.add') + ': ' + (e as Error).message)
-        }
+        onCancel() // Only close the modal on success — failures keep the form state so the user can retry.
+      } catch (e) {
+        logger.error('Failed to submit translate language form', e as Error)
+        window.toast.error(formatErrorMessageWithPrefix(e, t('translate.settings.error.save')))
       }
-      onCancel()
     },
-    [editingCustomLanguage, onCancel, t, onEdit, onAdd]
+    [addLanguage, updateLanguage, editingCustomLanguage, onCancel, t]
   )
 
   return (
@@ -179,7 +180,11 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
                     <InfoTooltip content={t('settings.translate.custom.langCode.help')} />
                   </FormLabel>
                   <FormControl>
-                    <Input placeholder={t('settings.translate.custom.langCode.placeholder')} {...field} />
+                    <Input
+                      disabled={editingCustomLanguage !== undefined}
+                      placeholder={t('settings.translate.custom.langCode.placeholder')}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -202,4 +207,4 @@ const Emoji: FC<{ emoji: string; size?: number }> = ({ emoji, size = 18 }) => {
   return <div style={{ lineHeight: 0, fontSize: size }}>{emoji}</div>
 }
 
-export default CustomLanguageModal
+export default TranslateLanguagesModal

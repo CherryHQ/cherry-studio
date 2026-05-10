@@ -1,14 +1,14 @@
-import { Combobox, type ComboboxOption } from '@cherrystudio/ui'
-import { UNKNOWN } from '@renderer/config/translate'
-import useTranslate from '@renderer/hooks/useTranslate'
-import type { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import { Combobox, type ComboboxOption, Skeleton } from '@cherrystudio/ui'
+import { useLanguages } from '@renderer/hooks/translate/useTranslateLanguages'
 import { cn } from '@renderer/utils/style'
+import type { TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { CSSProperties, MouseEventHandler, ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export type LanguageOption = {
-  value: TranslateLanguageCode
+  value: TranslateSourceLanguage
   label: ReactNode
 }
 
@@ -16,9 +16,9 @@ type Props = {
   extraOptionsBefore?: LanguageOption[]
   extraOptionsAfter?: LanguageOption[]
   languageRenderer?: (lang: TranslateLanguage) => ReactNode
-  value?: TranslateLanguageCode
-  defaultValue?: TranslateLanguageCode
-  onChange?: (value: TranslateLanguageCode) => void
+  value?: TranslateSourceLanguage
+  defaultValue?: TranslateSourceLanguage
+  onChange?: (value: TranslateSourceLanguage) => void
   disabled?: boolean
   style?: CSSProperties
   className?: string
@@ -38,7 +38,7 @@ type LanguageComboboxOption = ComboboxOption & {
 const renderTextContent = (content: ReactNode) =>
   typeof content === 'string' ? <span className="truncate">{content}</span> : content
 
-const getOptionSearchText = (label: ReactNode, value: TranslateLanguageCode) => {
+const getOptionSearchText = (label: ReactNode, value: TranslateSourceLanguage) => {
   if (typeof label === 'string') return label
   if (typeof label === 'number') return String(label)
   return value
@@ -51,7 +51,7 @@ const toComboboxSize = (size?: Props['size']) => {
 }
 
 const LanguageSelect = (props: Props) => {
-  const { translateLanguages } = useTranslate()
+  const { languages, getLabel } = useLanguages()
   const { t } = useTranslation()
   const {
     className,
@@ -70,27 +70,42 @@ const LanguageSelect = (props: Props) => {
     value
   } = props
 
-  const defaultLanguageRenderer = useCallback((lang: TranslateLanguage) => {
-    return (
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="shrink-0" role="img" aria-label={lang.emoji}>
-          {lang.emoji}
+  const defaultLanguageRenderer = useCallback(
+    (lang: TranslateLanguage) => {
+      return (
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0" role="img" aria-label={lang.emoji}>
+            {lang.emoji}
+          </span>
+          <span className="truncate">{getLabel(lang, false) ?? lang.value}</span>
         </span>
-        <span className="truncate">{lang.label()}</span>
-      </span>
-    )
-  }, [])
+      )
+    },
+    [getLabel]
+  )
 
   const renderUnknownLanguage = useCallback(() => {
-    return languageRenderer ? languageRenderer(UNKNOWN) : defaultLanguageRenderer(UNKNOWN)
-  }, [defaultLanguageRenderer, languageRenderer])
+    return (
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="shrink-0" role="img" aria-label={t('common.unknown')}>
+          🏳️
+        </span>
+        <span className="truncate">{t('common.unknown')}</span>
+      </span>
+    )
+  }, [t])
 
-  const displayedOptions = useMemo<LanguageComboboxOption[]>(() => {
+  const displayedOptions = useMemo<LanguageComboboxOption[] | undefined>(() => {
+    if (languages === undefined) {
+      return undefined
+    }
+
     const before = extraOptionsBefore ?? []
     const after = extraOptionsAfter ?? []
-    const languageOptions = translateLanguages.map((lang) => {
+    const languageOptions = languages.map((lang) => {
       const content = languageRenderer ? languageRenderer(lang) : defaultLanguageRenderer(lang)
-      const searchText = `${lang.langCode} ${lang.emoji} ${lang.label()}`
+      const label = getLabel(lang, false) ?? lang.value
+      const searchText = `${lang.langCode} ${lang.emoji} ${label}`
 
       return {
         value: lang.langCode,
@@ -112,7 +127,7 @@ const LanguageSelect = (props: Props) => {
     }
 
     return [...before.map(toExtraOption), ...languageOptions, ...after.map(toExtraOption)]
-  }, [defaultLanguageRenderer, extraOptionsAfter, extraOptionsBefore, languageRenderer, translateLanguages])
+  }, [defaultLanguageRenderer, extraOptionsAfter, extraOptionsBefore, getLabel, languageRenderer, languages])
 
   const renderOption = useCallback((option: ComboboxOption) => {
     return (option as LanguageComboboxOption).content
@@ -146,6 +161,10 @@ const LanguageSelect = (props: Props) => {
     },
     [onChange]
   )
+
+  if (displayedOptions === undefined) {
+    return <Skeleton className="min-w-37.5" />
+  }
 
   return (
     <div className={cn('inline-flex min-w-0', className)} style={style} onClick={onClick}>

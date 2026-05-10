@@ -20,10 +20,11 @@ import {
   updateMessageAndBlocksThunk,
   updateTranslationBlockThunk
 } from '@renderer/store/thunk/messageThunk'
-import { type Assistant, type Model, objectKeys, type Topic, type TranslateLanguageCode } from '@renderer/types'
+import { type Assistant, type Model, objectKeys, type Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { difference, throttle } from 'lodash'
 import { useCallback } from 'react'
 
@@ -213,9 +214,9 @@ export function useMessageOperations(topic: Topic) {
   const getTranslationUpdater = useCallback(
     async (
       messageId: string,
-      targetLanguage: TranslateLanguageCode,
+      targetLanguage: TranslateLangCode,
       sourceBlockId?: string,
-      sourceLanguage?: TranslateLanguageCode
+      sourceLanguage?: TranslateLangCode
     ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
       if (!topic.id) return null
 
