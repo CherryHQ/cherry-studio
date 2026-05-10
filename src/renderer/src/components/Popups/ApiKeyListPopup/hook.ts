@@ -42,8 +42,14 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
     [updateProvider]
   )
 
-  // 解析 keyString 为数组
-  const providerKeyString = isWebSearchProvider(provider) ? provider.apiKeys.join(',') : provider.apiKey
+  // 解析 keyString 为数组. Wrap the join in useMemo so identity is stable
+  // across renders for web-search providers — otherwise the downstream
+  // `keys` memo's dep `providerKeyString` would be a fresh string every
+  // render and the memo would never short-circuit.
+  const providerKeyString = useMemo(
+    () => (isWebSearchProvider(provider) ? provider.apiKeys.join(',') : provider.apiKey),
+    [provider]
+  )
   const keys = useMemo(() => {
     if (!providerKeyString) return []
     const formattedApiKeys = formatApiKeys(providerKeyString)
