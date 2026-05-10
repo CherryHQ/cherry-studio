@@ -166,8 +166,20 @@ class DanglingCacheImpl implements DanglingCache {
   private async doStatAndUpdate(entry: FileEntry, source: CachedState['source']): Promise<ObservedPresence> {
     const path = entry.externalPath as FilePath
     const state = await this.statProbe(path)
-    this.byEntryId.set(entry.id, { state, observedAt: this.now(), source })
+    this.commit(entry.id, state, source)
     return state
+  }
+
+  /**
+   * Update byEntryId for `id` with the new observation and fire
+   * onDanglingStateChanged ONLY when the cached state changes (or transitions
+   * from "no observation" to a concrete state). Same-state observations are
+   * silent — see architecture §11.7 emission rules.
+   */
+  private commit(id: FileEntryId, next: ObservedPresence, source: CachedState['source']): void {
+    const prev = this.byEntryId.get(id)?.state
+    this.byEntryId.set(id, { state: next, observedAt: this.now(), source })
+    if (prev !== next) this._emitter.fire({ id, state: next })
   }
 
   async forceRecheck(entry: FileEntry): Promise<DanglingState> {
@@ -178,9 +190,8 @@ class DanglingCacheImpl implements DanglingCache {
   onFsEvent(path: FilePath, state: ObservedPresence, source: CachedState['source'] = 'watcher'): void {
     const ids = this.pathToEntryIds.get(path)
     if (!ids || ids.size === 0) return
-    const observedAt = this.now()
     for (const id of ids) {
-      this.byEntryId.set(id, { state, observedAt, source })
+      this.commit(id, state, source)
     }
   }
 

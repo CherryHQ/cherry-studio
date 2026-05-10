@@ -2,7 +2,7 @@ import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ObservedPresence } from '../danglingCache'
+import type { DanglingStateChangedEvent, ObservedPresence } from '../danglingCache'
 import { createDanglingCacheImpl } from '../danglingCache'
 
 const internalEntry = (id: string = 'i-1'): FileEntry =>
@@ -122,6 +122,52 @@ describe('DanglingCache.onFsEvent + reverse index', () => {
     // Cache empty for e-10 → check cold-stats and gets 'missing'
     const state = await cache.check(externalEntry('e-10', '/abs/keep.txt'))
     expect(state).toBe('missing')
+  })
+})
+
+describe('DanglingCache.onDanglingStateChanged', () => {
+  it('fires on cold-miss → concrete state observation via check()', async () => {
+    const cache = createDanglingCacheImpl({
+      statProbe: vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('present')
+    })
+    const seen: DanglingStateChangedEvent[] = []
+    cache.onDanglingStateChanged((e) => seen.push(e))
+    cache.addEntry('e-11' as FileEntryId, '/abs/x.txt' as FilePath)
+    await cache.check(externalEntry('e-11', '/abs/x.txt'))
+    expect(seen).toEqual([{ id: 'e-11', state: 'present' }])
+  })
+
+  it('does NOT fire when observation matches the current cached state', async () => {
+    const cache = createDanglingCacheImpl({
+      statProbe: vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('present')
+    })
+    cache.addEntry('e-12' as FileEntryId, '/abs/y.txt' as FilePath)
+    cache.onFsEvent('/abs/y.txt' as FilePath, 'present')
+    const seen: DanglingStateChangedEvent[] = []
+    cache.onDanglingStateChanged((e) => seen.push(e))
+    cache.onFsEvent('/abs/y.txt' as FilePath, 'present')
+    expect(seen).toEqual([])
+  })
+
+  it('fires on present → missing transition', async () => {
+    const cache = createDanglingCacheImpl({
+      statProbe: vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('present')
+    })
+    cache.addEntry('e-13' as FileEntryId, '/abs/z.txt' as FilePath)
+    cache.onFsEvent('/abs/z.txt' as FilePath, 'present')
+    const seen: DanglingStateChangedEvent[] = []
+    cache.onDanglingStateChanged((e) => seen.push(e))
+    cache.onFsEvent('/abs/z.txt' as FilePath, 'missing')
+    expect(seen).toEqual([{ id: 'e-13', state: 'missing' }])
+  })
+
+  it('internal entries never trigger transitions (they are not tracked)', async () => {
+    const cache = createDanglingCacheImpl({ statProbe: vi.fn() })
+    const seen: DanglingStateChangedEvent[] = []
+    cache.onDanglingStateChanged((e) => seen.push(e))
+    await cache.check(internalEntry('i-3'))
+    await cache.forceRecheck(internalEntry('i-3'))
+    expect(seen).toEqual([])
   })
 })
 
