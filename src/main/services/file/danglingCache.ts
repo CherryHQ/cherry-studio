@@ -175,16 +175,30 @@ class DanglingCacheImpl implements DanglingCache {
     return this.doStatAndUpdate(entry, 'forceRecheck')
   }
 
-  onFsEvent(_path: FilePath, _state: ObservedPresence, _source?: CachedState['source']): void {
-    throw new Error('DanglingCache.onFsEvent: not implemented yet (Phase 1b.3 in progress)')
+  onFsEvent(path: FilePath, state: ObservedPresence, source: CachedState['source'] = 'watcher'): void {
+    const ids = this.pathToEntryIds.get(path)
+    if (!ids || ids.size === 0) return
+    const observedAt = this.now()
+    for (const id of ids) {
+      this.byEntryId.set(id, { state, observedAt, source })
+    }
   }
 
-  addEntry(_entryId: FileEntryId, _externalPath: FilePath): void {
-    throw new Error('DanglingCache.addEntry: not implemented yet (Phase 1b.3 in progress)')
+  addEntry(entryId: FileEntryId, externalPath: FilePath): void {
+    let set = this.pathToEntryIds.get(externalPath)
+    if (!set) {
+      set = new Set()
+      this.pathToEntryIds.set(externalPath, set)
+    }
+    set.add(entryId)
   }
 
-  removeEntry(_entryId: FileEntryId, _externalPath: FilePath): void {
-    throw new Error('DanglingCache.removeEntry: not implemented yet (Phase 1b.3 in progress)')
+  removeEntry(entryId: FileEntryId, externalPath: FilePath): void {
+    const set = this.pathToEntryIds.get(externalPath)
+    if (!set) return
+    set.delete(entryId)
+    if (set.size === 0) this.pathToEntryIds.delete(externalPath)
+    this.byEntryId.delete(entryId)
   }
 
   async initFromDb(): Promise<void> {

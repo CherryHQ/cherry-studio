@@ -80,6 +80,51 @@ describe('DanglingCache.check', () => {
   })
 })
 
+describe('DanglingCache.onFsEvent + reverse index', () => {
+  it('records the observation; subsequent check returns the observed state without statting', async () => {
+    const statProbe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('missing')
+    const cache = createDanglingCacheImpl({ statProbe })
+    cache.addEntry('e-6' as FileEntryId, '/abs/file.txt' as FilePath)
+    cache.onFsEvent('/abs/file.txt' as FilePath, 'present')
+    const state = await cache.check(externalEntry('e-6', '/abs/file.txt'))
+    expect(state).toBe('present')
+    expect(statProbe).not.toHaveBeenCalled()
+  })
+
+  it('fans out via reverse index when multiple entries share a path', async () => {
+    const statProbe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>()
+    const cache = createDanglingCacheImpl({ statProbe })
+    cache.addEntry('e-7' as FileEntryId, '/abs/shared.txt' as FilePath)
+    cache.addEntry('e-8' as FileEntryId, '/abs/shared.txt' as FilePath)
+    cache.onFsEvent('/abs/shared.txt' as FilePath, 'missing')
+    expect(await cache.check(externalEntry('e-7', '/abs/shared.txt'))).toBe('missing')
+    expect(await cache.check(externalEntry('e-8', '/abs/shared.txt'))).toBe('missing')
+    expect(statProbe).not.toHaveBeenCalled()
+  })
+
+  it('ignores events for paths that have no registered entries', async () => {
+    const statProbe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('missing')
+    const cache = createDanglingCacheImpl({ statProbe })
+    cache.onFsEvent('/abs/orphan.txt' as FilePath, 'present')
+    // No entry was registered → no cached state → check on a NEW entry must
+    // still cold-stat
+    const state = await cache.check(externalEntry('e-9', '/abs/orphan.txt'))
+    expect(state).toBe('missing') // probe ran
+    expect(statProbe).toHaveBeenCalledTimes(1)
+  })
+
+  it('removeEntry stops events from reaching that entry id', async () => {
+    const statProbe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('missing')
+    const cache = createDanglingCacheImpl({ statProbe })
+    cache.addEntry('e-10' as FileEntryId, '/abs/keep.txt' as FilePath)
+    cache.removeEntry('e-10' as FileEntryId, '/abs/keep.txt' as FilePath)
+    cache.onFsEvent('/abs/keep.txt' as FilePath, 'present')
+    // Cache empty for e-10 → check cold-stats and gets 'missing'
+    const state = await cache.check(externalEntry('e-10', '/abs/keep.txt'))
+    expect(state).toBe('missing')
+  })
+})
+
 describe('DanglingCache.forceRecheck', () => {
   it('always re-stats, even within TTL', async () => {
     const statProbe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('present')
