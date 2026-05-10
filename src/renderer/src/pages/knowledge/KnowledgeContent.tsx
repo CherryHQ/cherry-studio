@@ -3,7 +3,7 @@ import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import { getProviderName } from '@renderer/services/ProviderService'
+import { useProviderDisplayName } from '@renderer/hooks/useProviders'
 import type { KnowledgeBase } from '@renderer/types'
 import { Empty, Tabs, Tag } from 'antd'
 import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
@@ -36,7 +36,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
   const [preprocessMap, setPreprocessMap] = useState<Map<string, boolean>>(new Map())
 
-  const providerName = getProviderName(base?.model)
+  const providerName = useProviderDisplayName(base?.model?.provider)
 
   useEffect(() => {
     const handlers = [

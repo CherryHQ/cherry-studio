@@ -4,7 +4,7 @@ import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useApiModel } from '@renderer/hooks/agents/useModel'
 import { useModelById } from '@renderer/hooks/useModels'
-import { getProviderNameById } from '@renderer/services/ProviderService'
+import { useProviderDisplayName } from '@renderer/hooks/useProviders'
 import type { AgentBaseWithId, Model } from '@renderer/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model as SharedModel, UniqueModelId } from '@shared/data/types/model'
@@ -46,6 +46,7 @@ const SelectAgentBaseModelButton = ({
   const model = useApiModel({ id: agent?.model })
   const { model: currentSharedModel } = useModelById((agent?.model ?? '') as UniqueModelId)
   const modelFilter = useAgentModelFilter(agentType)
+  const providerName = useProviderDisplayName(currentSharedModel?.providerId)
 
   const handleSelect = useCallback(
     (selected: SharedModel | undefined) => {
@@ -56,8 +57,6 @@ const SelectAgentBaseModelButton = ({
   )
 
   if (!agent) return null
-
-  const providerName = model?.provider ? getProviderNameById(model.provider) : undefined
 
   const mergedStyle: CSSProperties = {
     borderRadius: 20,

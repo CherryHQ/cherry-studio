@@ -12,8 +12,8 @@ import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useUpdateSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { useModelById } from '@renderer/hooks/useModels'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { useProviderDisplayName } from '@renderer/hooks/useProviders'
 import { AgentLabel } from '@renderer/pages/agents/AgentSettings/shared'
-import { getProviderNameById } from '@renderer/services/ProviderService'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model as SharedModel, UniqueModelId } from '@shared/data/types/model'
 import { Tooltip } from 'antd'
@@ -46,7 +46,7 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
     () => (currentSharedModel ? fromSharedModel(currentSharedModel) : undefined),
     [currentSharedModel]
   )
-  const providerName = currentSharedModel ? getProviderNameById(currentSharedModel.providerId) : undefined
+  const providerName = useProviderDisplayName(currentSharedModel?.providerId)
 
   const handleAgentChange = useCallback(
     async (nextAgentId: string | null) => {

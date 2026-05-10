@@ -6,8 +6,8 @@ import { ModelSelector } from '@renderer/components/ModelSelector'
 import { AssistantSelector } from '@renderer/components/ResourceSelector'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useProviderDisplayName } from '@renderer/hooks/useProviders'
 import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
-import { getProviderNameById } from '@renderer/services/ProviderService'
 import { getLeadingEmoji } from '@renderer/utils'
 import type { Model as SharedModel } from '@shared/data/types/model'
 import { isNonChatModel, isWebSearchModel } from '@shared/utils/model'
@@ -33,7 +33,7 @@ const TopicContent = ({ assistantId, topicId }: TopicContentProps) => {
     () => (currentSharedModel ? fromSharedModel(currentSharedModel) : undefined),
     [currentSharedModel]
   )
-  const providerName = currentSharedModel ? getProviderNameById(currentSharedModel.providerId) : undefined
+  const providerName = useProviderDisplayName(currentSharedModel?.providerId)
 
   const handleAssistantChange = useCallback(
     async (nextId: string | null) => {

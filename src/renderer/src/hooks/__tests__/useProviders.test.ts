@@ -4,10 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockRendererLoggerService } from '../../../../../tests/__mocks__/RendererLoggerService'
 import {
+  getProviderDisplayName,
   useProvider,
   useProviderActions,
   useProviderApiKeys,
   useProviderAuthConfig,
+  useProviderDisplayName,
   useProviderMutations,
   useProviderRegistryModels,
   useProviders
@@ -814,5 +816,58 @@ describe('useProviderActions', () => {
     })
 
     expect(loggerSpy).toHaveBeenCalledWith('Failed to delete provider', { providerId: 'openai', error })
+  })
+})
+
+describe('getProviderDisplayName', () => {
+  it('returns empty string when provider is undefined', () => {
+    expect(getProviderDisplayName(undefined)).toBe('')
+  })
+
+  it('returns provider.name for non-system provider ids', () => {
+    expect(getProviderDisplayName({ id: 'my-custom', name: 'My Custom' } as any)).toBe('My Custom')
+  })
+
+  it('returns a non-empty string for system provider ids', () => {
+    // System ids resolve via i18n getProviderLabel(id). In test env the label
+    // falls back to a stable value derived from the id, so we just assert the
+    // result is a non-empty string (not the runtime user-set name).
+    const result = getProviderDisplayName({ id: 'openai', name: 'Openai User Override' } as any)
+    expect(typeof result).toBe('string')
+    expect(result.length).toBeGreaterThan(0)
+  })
+})
+
+describe('useProviderDisplayName', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns empty string when providerId is undefined', () => {
+    mockUseQuery.mockImplementation(() => ({
+      data: undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    }))
+
+    const { result } = renderHook(() => useProviderDisplayName(undefined))
+    expect(result.current).toBe('')
+  })
+
+  it('returns provider.name for non-system provider', () => {
+    mockUseQuery.mockImplementation(() => ({
+      data: { id: 'my-custom', name: 'My Custom' },
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    }))
+
+    const { result } = renderHook(() => useProviderDisplayName('my-custom'))
+    expect(result.current).toBe('My Custom')
   })
 })

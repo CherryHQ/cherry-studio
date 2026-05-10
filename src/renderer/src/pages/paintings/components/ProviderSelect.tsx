@@ -1,7 +1,7 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
+import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProviders'
 import ImageStorage from '@renderer/services/ImageStorage'
-import { getProviderNameById } from '@renderer/services/ProviderService'
 import type { Provider } from '@types'
 import { Select } from 'antd'
 import type { FC } from 'react'
@@ -17,6 +17,7 @@ type ProviderSelectProps = {
 
 const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, style, className }) => {
   const [customLogos, setCustomLogos] = useState<Record<string, string>>({})
+  const { providers } = useProviders()
 
   useEffect(() => {
     const loadLogos = async () => {
@@ -46,8 +47,9 @@ const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, 
   }
 
   const providerOptions = options.map((option) => {
+    const found = providers.find((p) => p.id === option)
     return {
-      label: getProviderNameById(option),
+      label: getProviderDisplayName(found) || option,
       value: option
     }
   })

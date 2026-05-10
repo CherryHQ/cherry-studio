@@ -1,5 +1,7 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { getProviderLabel } from '@renderer/i18n/label'
+import { isSystemProviderId } from '@renderer/types/provider'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
@@ -210,6 +212,29 @@ export function useProviderRegistryModels(providerId: string) {
   const result = useQuery('/providers/:providerId/registry-models', { params: { providerId } })
   // Schema: GET /providers/:id/registry-models -> Model[]
   return { ...result, data: result.data }
+}
+
+/**
+ * Pure resolver for a provider's display name. System providers get the
+ * i18n label; custom providers use their user-set name. Returns empty
+ * string when the provider is missing.
+ */
+export function getProviderDisplayName(provider: Provider | undefined): string {
+  if (!provider) return ''
+  return isSystemProviderId(provider.id) ? getProviderLabel(provider.id) : provider.name
+}
+
+/**
+ * Hook variant of {@link getProviderDisplayName} for callers that have a
+ * single provider id. For batch rendering (e.g. a dropdown of N providers),
+ * use `useProviders()` + `getProviderDisplayName` to avoid hook-in-loop.
+ */
+export function useProviderDisplayName(providerId: string | undefined): string {
+  const { data: provider } = useQuery('/providers/:providerId', {
+    params: { providerId: providerId ?? '' },
+    enabled: !!providerId
+  })
+  return getProviderDisplayName(provider)
 }
 
 // ─── Dynamic ID operations (for context menus, URL schema handlers) ──
