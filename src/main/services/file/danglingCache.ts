@@ -158,7 +158,14 @@ class DanglingCacheImpl implements DanglingCache {
 
   async check(entry: FileEntry): Promise<DanglingState> {
     if (entry.origin === 'internal') return 'present'
-    throw new Error('DanglingCache.check(external): not implemented yet (Phase 1b.3 in progress)')
+    return this.doStatAndUpdate(entry, 'stat')
+  }
+
+  private async doStatAndUpdate(entry: FileEntry, source: CachedState['source']): Promise<ObservedPresence> {
+    const path = entry.externalPath as FilePath
+    const state = await this.statProbe(path)
+    this.byEntryId.set(entry.id, { state, observedAt: this.now(), source })
+    return state
   }
 
   async forceRecheck(_entry: FileEntry): Promise<DanglingState> {

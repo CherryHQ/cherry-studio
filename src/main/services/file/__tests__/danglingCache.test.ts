@@ -39,4 +39,20 @@ describe('DanglingCache.check', () => {
     expect(state).toBe('present')
     expect(statProbe).not.toHaveBeenCalled()
   })
+
+  it('cold miss: runs statProbe with externalPath, caches the observation, returns the concrete state', async () => {
+    const statProbe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('present')
+    const cache = createDanglingCacheImpl({ statProbe })
+    const state = await cache.check(externalEntry('e-1', '/abs/file.txt'))
+    expect(state).toBe('present')
+    expect(statProbe).toHaveBeenCalledTimes(1)
+    expect(statProbe).toHaveBeenCalledWith('/abs/file.txt')
+  })
+
+  it('cold miss "missing": resolves to "missing"', async () => {
+    const statProbe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('missing')
+    const cache = createDanglingCacheImpl({ statProbe })
+    const state = await cache.check(externalEntry('e-2', '/gone.txt'))
+    expect(state).toBe('missing')
+  })
 })
