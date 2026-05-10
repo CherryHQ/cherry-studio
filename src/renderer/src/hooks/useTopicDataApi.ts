@@ -123,7 +123,9 @@ export function useTopicMutations() {
     refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
   })
   const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id', {
-    refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
+    // After delete, only invalidate the list — refreshing `/topics/:id`
+    // would trigger a fetch that 404s and caches an error in SWR.
+    refresh: ['/topics']
   })
 
   const refreshTopics = useCallback(() => invalidate('/topics'), [invalidate])
