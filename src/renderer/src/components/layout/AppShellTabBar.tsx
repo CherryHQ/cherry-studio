@@ -114,7 +114,10 @@ type PinnedTabButtonProps = {
 const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...rest }: PinnedTabButtonProps) => {
   return (
     <Tooltip placement="bottom" content={tab.title} delay={600}>
+      {/* Spread `rest` (which carries injected ContextMenuTrigger props) first so the */}
+      {/* drag handler / transform style / drag classes always win on a key collision. */}
       <button
+        {...rest}
         ref={(el) => {
           tabRef(el)
           if (typeof ref === 'function') ref(el)
@@ -126,6 +129,7 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
         onClick={onSelect}
         title={tab.title}
         style={{
+          ...rest.style,
           transform: `translateX(${drag.translateX}px)`,
           transition: drag.isDragging || drag.noTransition ? 'none' : 'transform 200ms ease',
           zIndex: drag.isDragging ? 50 : 'auto',
@@ -134,9 +138,9 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
         className={cn(
           'flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
-          isActive ? tone.activeClass : tone.hoverClass
-        )}
-        {...rest}>
+          isActive ? tone.activeClass : tone.hoverClass,
+          rest.className
+        )}>
         <TabIcon tab={tab} size={14} />
       </button>
     </Tooltip>
@@ -198,7 +202,10 @@ const NormalTabButton = ({
   const showIconOverlayClose = isCloseable && showClose && isNarrow
 
   return (
+    // Spread `rest` (which carries injected ContextMenuTrigger props) first so the
+    // drag handler / transform style / drag classes always win on a key collision.
     <button
+      {...rest}
       ref={setRefs}
       data-tab-id={tab.id}
       type="button"
@@ -215,8 +222,7 @@ const NormalTabButton = ({
         showRightClose ? 'pr-1 pl-2' : 'px-2',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
-      )}
-      {...rest}>
+      )}>
       {/* Icon — on narrow tabs, X overlay replaces icon on hover (Chrome-style) */}
       <div className="relative flex h-[13px] w-[13px] shrink-0 items-center justify-center">
         <TabIcon tab={tab} size={13} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
