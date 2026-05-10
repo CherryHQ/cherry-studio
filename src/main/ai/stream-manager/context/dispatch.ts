@@ -82,7 +82,8 @@ export async function dispatchStreamRequest(
 
   logger.debug('Dispatching stream request', { topicId: req.topicId, provider: provider.name })
 
-  const prepared = await provider.prepareDispatch(subscriber, req)
+  const hasLiveStream = manager.hasLiveStream(req.topicId)
+  const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream })
   const result = manager.send({
     topicId: prepared.topicId,
     models: prepared.models,

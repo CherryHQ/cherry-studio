@@ -306,6 +306,17 @@ export class AiStreamManager extends BaseService {
     return true
   }
 
+  /**
+   * True iff this topic has a stream that `send()` would treat as the inject
+   * path (live: pending or streaming). Providers query this in
+   * `prepareDispatch` so they can skip placeholder rows / persistence
+   * listeners that the inject path doesn't consume.
+   */
+  hasLiveStream(topicId: string): boolean {
+    const stream = this.activeStreams.get(topicId)
+    return Boolean(stream && isLiveStatus(stream.status))
+  }
+
   // ── Public: listener management ───────────────────────────────────
 
   addListener(topicId: string, listener: StreamListener): boolean {

@@ -43,6 +43,10 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
   }
 
   async prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch> {
+    // Temporary topics are immutable append-only; the start/inject distinction
+    // doesn't apply (every send launches a new turn). DispatchContext is
+    // accepted on the interface but not consumed here — the third arg is
+    // intentionally omitted from this signature.
     if (req.trigger === 'regenerate-message') {
       throw new Error('regenerate-message is not supported for temporary chats (immutable append-only)')
     }

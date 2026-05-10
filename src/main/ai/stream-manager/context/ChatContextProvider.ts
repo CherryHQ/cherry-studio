@@ -49,6 +49,19 @@ export interface PreparedDispatch {
   isMultiModel: boolean
 }
 
+/**
+ * Optional context the dispatcher passes to providers — currently a single
+ * flag indicating whether the manager already has a live stream on this
+ * topic. Providers that need to vary persistence work between the start
+ * path (no live stream) and the inject path (live stream — `models` is
+ * ignored, only `userMessage` is consumed) read this hint instead of
+ * importing the manager directly.
+ */
+export interface DispatchContext {
+  /** True when `manager.send()` will take the inject branch. */
+  hasLiveStream: boolean
+}
+
 export interface ChatContextProvider {
   /** Stable identifier for logging / diagnostics. */
   readonly name: string
@@ -65,5 +78,5 @@ export interface ChatContextProvider {
    * assemble the listener set + per-model requests. The dispatcher calls
    * `manager.send(...)` with the returned bundle.
    */
-  prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch>
+  prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest, ctx: DispatchContext): Promise<PreparedDispatch>
 }
