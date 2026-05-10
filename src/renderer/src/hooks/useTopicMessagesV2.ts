@@ -182,7 +182,7 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
   useEffect(() => {
     setIsReady(false)
     void mutate().then(() => setIsReady(true))
-  }, [topicId]) // eslint-disable-line react-hooks/exhaustive-deps -- mutate is stable
+  }, [topicId, mutate])
 
   const projectionCacheRef = useRef<WeakMap<SharedMessage, CherryUIMessage>>(new WeakMap())
   const uiMessages = useMemo<CherryUIMessage[]>(() => {
