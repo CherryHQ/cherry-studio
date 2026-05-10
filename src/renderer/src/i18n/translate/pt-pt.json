@@ -6257,6 +6257,7 @@
       "empty": "Nenhum histórico de tradução disponível",
       "error": {
         "delete": "Falha ao excluir",
+        "load": "Falha ao carregar o histórico de tradução",
         "save": "Falha ao guardar o histórico de traduções"
       },
       "search": {

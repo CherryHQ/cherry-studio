@@ -6257,6 +6257,7 @@
       "empty": "Keine Übersetzungshistorie",
       "error": {
         "delete": "Löschen fehlgeschlagen",
+        "load": "Übersetzungsverlauf konnte nicht geladen werden",
         "save": "Speichern der Übersetzungshistorie fehlgeschlagen"
       },
       "search": {

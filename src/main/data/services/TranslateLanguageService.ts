@@ -10,6 +10,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTranslateLanguageDto, UpdateTranslateLanguageDto } from '@shared/data/api/schemas/translate'
+import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { asc, eq } from 'drizzle-orm'
 
@@ -19,7 +20,7 @@ const logger = loggerService.withContext('DataApi:TranslateLanguageService')
 
 function rowToTranslateLanguage(row: typeof translateLanguageTable.$inferSelect): TranslateLanguage {
   return {
-    langCode: row.langCode,
+    langCode: parsePersistedLangCode(row.langCode),
     value: row.value,
     emoji: row.emoji,
     createdAt: timestampToISO(row.createdAt),
@@ -51,7 +52,7 @@ export class TranslateLanguageService {
 
   async create(dto: CreateTranslateLanguageDto): Promise<TranslateLanguage> {
     const db = application.get('DbService').getDb()
-    const langCode = dto.langCode.toLowerCase()
+    const langCode = parsePersistedLangCode(dto.langCode.toLowerCase())
 
     const [row] = await withSqliteErrors(
       () =>
