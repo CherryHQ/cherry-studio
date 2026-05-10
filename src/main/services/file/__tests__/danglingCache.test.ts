@@ -7,7 +7,7 @@ import { createDanglingCacheImpl } from '../danglingCache'
 
 const internalEntry = (id: string = 'i-1'): FileEntry =>
   ({
-    id: id as FileEntryId,
+    id,
     origin: 'internal',
     name: 'a',
     ext: 'txt',
@@ -20,7 +20,7 @@ const internalEntry = (id: string = 'i-1'): FileEntry =>
 
 const externalEntry = (id: string = 'e-1', path: string = '/abs/file.txt'): FileEntry =>
   ({
-    id: id as FileEntryId,
+    id,
     origin: 'external',
     name: 'file',
     ext: 'txt',
