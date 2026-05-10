@@ -42,8 +42,8 @@ export async function generateWithZhipu(input: GenerateInput<ZhipuPaintingData>)
     let actualImageSize = painting.imageSize
 
     if (painting.imageSize === 'custom') {
-      const customWidth = painting.customWidth as number | undefined
-      const customHeight = painting.customHeight as number | undefined
+      const customWidth = painting.customWidth
+      const customHeight = painting.customHeight
 
       if (!customWidth || !customHeight) {
         throw createPaintingGenerateError('CUSTOM_SIZE_REQUIRED')

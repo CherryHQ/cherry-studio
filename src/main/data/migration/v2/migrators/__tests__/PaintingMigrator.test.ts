@@ -124,7 +124,7 @@ describe('PaintingMigrator', () => {
     })
   })
 
-  it('drops dangling model references before inserting paintings', async () => {
+  it('preserves all model references during migration regardless of userModel presence', async () => {
     const migrator = new PaintingMigrator()
     const insertedRows: unknown[] = []
     const ctx = createMigrationContext(
@@ -134,8 +134,7 @@ describe('PaintingMigrator', () => {
           { id: 'painting-dangling', providerId: 'openai', modelId: 'openai::missing', prompt: 'dangling' }
         ]
       },
-      insertedRows,
-      ['openai::gpt-image-1']
+      insertedRows
     )
 
     await migrator.prepare(ctx as never)
@@ -144,7 +143,7 @@ describe('PaintingMigrator', () => {
     expect(insertedRows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'painting-known', modelId: 'openai::gpt-image-1' }),
-        expect.objectContaining({ id: 'painting-dangling', modelId: null })
+        expect.objectContaining({ id: 'painting-dangling', modelId: 'openai::missing' })
       ])
     )
   })

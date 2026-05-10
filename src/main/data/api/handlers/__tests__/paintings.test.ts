@@ -126,7 +126,9 @@ describe('paintingHandlers', () => {
         providerId: '  aihubmix  ',
         mode: 'generate',
         mediaType: 'video',
-        prompt: 'hello'
+        prompt: 'hello',
+        params: {},
+        files: { output: [], input: [] }
       }
     } as never)
 
