@@ -1,11 +1,7 @@
-/* oxlint-disable no-unused-vars -- TODO(phase-1b.2): mutation stubs (create / createMany / cleanupBySource / cleanupBySourceBatch) keep their parameters to lock the public signature until 1b.2 lands the impl. */
-
 /**
  * FileRefService — pure DB repository for the `file_ref` polymorphic table.
  *
- * Phase status: Phase 1b.1 lands the read methods (findByEntryId / findBySource);
- * mutation methods (create / createMany / cleanupBySource) remain stubs until
- * Phase 1b.2 (write path).
+ * Phase status: Phase 1b.2 lands all read + mutation methods.
  *
  * ## Scope
  *
@@ -29,7 +25,8 @@ import { application } from '@application'
 import { fileRefTable } from '@data/db/schemas/file'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import { FileRefSchema } from '@shared/data/types/file'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 export interface FileRefSourceKey {
   readonly sourceType: FileRefSourceType
@@ -68,10 +65,6 @@ export interface FileRefService {
   cleanupBySourceBatch(sourceType: FileRefSourceType, sourceIds: readonly string[]): Promise<number>
 }
 
-const notImplemented = (op: string): never => {
-  throw new Error(`fileRefService.${op}: not implemented (Phase 1a skeleton, lands in Phase 1b.2)`)
-}
-
 type FileRefRow = typeof fileRefTable.$inferSelect
 
 function rowToFileRef(row: FileRefRow): FileRef {
@@ -96,20 +89,59 @@ class FileRefServiceImpl implements FileRefService {
     return rows.map(rowToFileRef)
   }
 
-  async create(_values: CreateFileRefRow): Promise<FileRef> {
-    return notImplemented('create')
+  async create(values: CreateFileRefRow): Promise<FileRef> {
+    const now = Date.now()
+    const rows = await this.getDb()
+      .insert(fileRefTable)
+      .values({
+        id: uuidv4(),
+        fileEntryId: values.fileEntryId,
+        sourceType: values.sourceType,
+        sourceId: values.sourceId,
+        role: values.role,
+        createdAt: now,
+        updatedAt: now
+      })
+      .returning()
+    return rowToFileRef(rows[0])
   }
 
-  async createMany(_values: readonly CreateFileRefRow[]): Promise<FileRef[]> {
-    return notImplemented('createMany')
+  async createMany(values: readonly CreateFileRefRow[]): Promise<FileRef[]> {
+    if (values.length === 0) return []
+    const now = Date.now()
+    const rows = await this.getDb()
+      .insert(fileRefTable)
+      .values(
+        values.map((v) => ({
+          id: uuidv4(),
+          fileEntryId: v.fileEntryId,
+          sourceType: v.sourceType,
+          sourceId: v.sourceId,
+          role: v.role,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+      .onConflictDoNothing()
+      .returning()
+    return rows.map(rowToFileRef)
   }
 
-  async cleanupBySource(_source: FileRefSourceKey): Promise<number> {
-    return notImplemented('cleanupBySource')
+  async cleanupBySource(source: FileRefSourceKey): Promise<number> {
+    const rows = await this.getDb()
+      .delete(fileRefTable)
+      .where(and(eq(fileRefTable.sourceType, source.sourceType), eq(fileRefTable.sourceId, source.sourceId)))
+      .returning({ id: fileRefTable.id })
+    return rows.length
   }
 
-  async cleanupBySourceBatch(_sourceType: FileRefSourceType, _sourceIds: readonly string[]): Promise<number> {
-    return notImplemented('cleanupBySourceBatch')
+  async cleanupBySourceBatch(sourceType: FileRefSourceType, sourceIds: readonly string[]): Promise<number> {
+    if (sourceIds.length === 0) return 0
+    const rows = await this.getDb()
+      .delete(fileRefTable)
+      .where(and(eq(fileRefTable.sourceType, sourceType), inArray(fileRefTable.sourceId, sourceIds as string[])))
+      .returning({ id: fileRefTable.id })
+    return rows.length
   }
 }
 

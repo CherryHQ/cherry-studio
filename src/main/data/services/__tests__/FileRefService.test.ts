@@ -120,4 +120,98 @@ describe('FileRefService', () => {
       expect(refs).toEqual([])
     })
   })
+
+  describe('create / createMany', () => {
+    it('inserts a single ref and returns it parsed', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000cc01' as FileEntryId
+      await seedEntry(entryId)
+      const ref = await fileRefService.create({
+        fileEntryId: entryId,
+        sourceType: 'temp_session',
+        sourceId: 'session-K',
+        role: 'pending'
+      })
+      expect(ref.fileEntryId).toBe(entryId)
+      expect(ref.sourceType).toBe('temp_session')
+      expect(ref.sourceId).toBe('session-K')
+      expect(ref.role).toBe('pending')
+    })
+
+    it('throws on duplicate (entryId, sourceType, sourceId, role)', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000cc02' as FileEntryId
+      await seedEntry(entryId)
+      const values = {
+        fileEntryId: entryId,
+        sourceType: 'temp_session' as const,
+        sourceId: 'dup',
+        role: 'pending'
+      }
+      await fileRefService.create(values)
+      await expect(fileRefService.create(values)).rejects.toThrow()
+    })
+
+    it('createMany skips conflicting rows and returns the inserted ones', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000cc03' as FileEntryId
+      await seedEntry(entryId)
+      const base = { fileEntryId: entryId, sourceType: 'temp_session' as const, role: 'pending' }
+      await fileRefService.create({ ...base, sourceId: 'one' })
+
+      const result = await fileRefService.createMany([
+        { ...base, sourceId: 'one' },
+        { ...base, sourceId: 'two' },
+        { ...base, sourceId: 'three' }
+      ])
+      // 'one' already existed → skipped; 'two' and 'three' inserted
+      expect(result).toHaveLength(2)
+      const ids = result.map((r) => r.sourceId).sort()
+      expect(ids).toEqual(['three', 'two'])
+    })
+  })
+
+  describe('cleanupBySource / cleanupBySourceBatch', () => {
+    it('removes all refs owned by a single source', async () => {
+      const entryA = '019606a0-0000-7000-8000-00000000dd01' as FileEntryId
+      const entryB = '019606a0-0000-7000-8000-00000000dd99' as FileEntryId
+      await seedEntry(entryA)
+      await seedEntry(entryB)
+      await fileRefService.create({
+        fileEntryId: entryA,
+        sourceType: 'temp_session',
+        sourceId: 'cleanup-A',
+        role: 'pending'
+      })
+      await fileRefService.create({
+        fileEntryId: entryB,
+        sourceType: 'temp_session',
+        sourceId: 'cleanup-A',
+        role: 'pending'
+      })
+      const removed = await fileRefService.cleanupBySource({ sourceType: 'temp_session', sourceId: 'cleanup-A' })
+      expect(removed).toBe(2)
+      expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'cleanup-A' })).toEqual([])
+    })
+
+    it('cleanupBySource on missing source returns 0', async () => {
+      const removed = await fileRefService.cleanupBySource({ sourceType: 'temp_session', sourceId: 'never' })
+      expect(removed).toBe(0)
+    })
+
+    it('cleanupBySourceBatch removes refs across multiple sourceIds', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000dd02' as FileEntryId
+      await seedEntry(entryId)
+      const make = (sid: string) => ({
+        fileEntryId: entryId,
+        sourceType: 'temp_session' as const,
+        sourceId: sid,
+        role: 'pending'
+      })
+      await fileRefService.create(make('s1'))
+      await fileRefService.create(make('s2'))
+      await fileRefService.create(make('s3'))
+      const removed = await fileRefService.cleanupBySourceBatch('temp_session', ['s1', 's3'])
+      expect(removed).toBe(2)
+      const remaining = await fileRefService.findByEntryId(entryId)
+      expect(remaining.map((r) => r.sourceId)).toEqual(['s2'])
+    })
+  })
 })
