@@ -1,4 +1,3 @@
-import type { Chat } from '@ai-sdk/react'
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { applyApprovalDecisions } from '@shared/ai/transport'
@@ -22,16 +21,13 @@ const logger = loggerService.withContext('useToolApprovalBridge')
  *     when all approvals are decided). Main no longer writes parts —
  *     renderer is the canonical writer for this user-driven mutation.
  */
-export function useToolApprovalBridge(
-  chat: Chat<CherryUIMessage>,
-  uiMessages: CherryUIMessage[]
-): ToolApprovalRespondFn {
+export function useToolApprovalBridge(topicId: string, uiMessages: CherryUIMessage[]): ToolApprovalRespondFn {
   const { trigger: patchMessage } = useMutation('PATCH', '/messages/:id', {
     // SWR cache keys for `/topics/:topicId/messages` use the **resolved** path
     // (e.g. `/topics/abc/messages`), not the template — `createMultiKeyMatcher`
     // does exact-string match. Resolve `:topicId` ourselves before handing the
     // pattern to `refresh`, otherwise no key matches and SWR never refetches.
-    refresh: () => [`/topics/${chat.id}/messages`]
+    refresh: () => [`/topics/${topicId}/messages`]
   })
 
   return useCallback(
@@ -70,7 +66,7 @@ export function useToolApprovalBridge(
           approved,
           reason,
           updatedInput,
-          topicId: chat.id,
+          topicId,
           anchorId: match.messageId
         })
       } catch (error) {
@@ -82,6 +78,6 @@ export function useToolApprovalBridge(
         })
       }
     },
-    [chat, uiMessages, patchMessage]
+    [topicId, uiMessages, patchMessage]
   )
 }

@@ -134,7 +134,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   hasOlder,
   messagesCacheMutate
 }) => {
-  const { sendMessage, regenerate, stop, status, setMessages, activeExecutions, chat } = useChatWithHistory(
+  const { sendMessage, regenerate, stop, status, setMessages, activeExecutions } = useChatWithHistory(
     topic.id,
     initialMessages,
     refresh
@@ -146,7 +146,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
     setMessages(canonical)
   }, [uiMessages, status, setMessages])
 
-  const respondToToolApproval = useToolApprovalBridge(chat, uiMessages)
+  const respondToToolApproval = useToolApprovalBridge(topic.id, uiMessages)
 
   const { projectedMessages, mergedPartsMap, handleExecutionMessagesChange, handleExecutionDispose } =
     useV2RenderingPipeline(uiMessages, topic)
