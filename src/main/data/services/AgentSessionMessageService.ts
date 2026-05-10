@@ -9,6 +9,7 @@ import {
 } from '@data/db/schemas/agentSessionMessage'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { decodeCursor, encodeCursor } from '@data/services/utils/cursor'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -25,17 +26,12 @@ import { and, desc, eq, isNotNull, lt, or, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('SessionMessageService')
 
-function encodeMessageCursor(createdAt: number, id: string): string {
-  return `${createdAt}:${id}`
-}
-
 function decodeMessageCursor(raw: string): { createdAt: number; id: string } | null {
-  const sep = raw.indexOf(':')
-  if (sep < 0) return null
-  const createdAt = Number(raw.slice(0, sep))
-  const id = raw.slice(sep + 1)
-  if (!Number.isFinite(createdAt) || !id) return null
-  return { createdAt, id }
+  const decoded = decodeCursor(raw)
+  if (!decoded) return null
+  const createdAt = Number(decoded.key)
+  if (!Number.isFinite(createdAt)) return null
+  return { createdAt, id: decoded.id }
 }
 
 export class AgentSessionMessageService {
@@ -94,7 +90,7 @@ export class AgentSessionMessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const items = pageRows.map((row) => this.rowToEntity(row))
     const tail = pageRows[pageRows.length - 1]
-    const nextCursor = hasNext && tail ? encodeMessageCursor(tail.createdAt, tail.id) : undefined
+    const nextCursor = hasNext && tail ? encodeCursor(String(tail.createdAt), tail.id) : undefined
 
     return { items, nextCursor }
   }

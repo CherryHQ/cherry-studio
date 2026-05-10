@@ -4,7 +4,6 @@ import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable 
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { pinService } from '@data/services/PinService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
-import { loggerService } from '@logger'
 import { resolveAccessiblePaths } from '@main/services/agents/agentUtils'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
@@ -18,9 +17,8 @@ import type {
 import { and, asc, desc, eq, gt, or, type SQL } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
+import { decodeCursor, encodeCursor } from './utils/cursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
-
-const logger = loggerService.withContext('DataApi:SessionService')
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
@@ -36,27 +34,6 @@ function rowToSession(row: SessionRow): AgentSessionEntity {
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
-}
-
-// Cursor wire format: `<orderKey>:<id>`. Sessions are ordered by `(orderKey, id)`
-// ASC; cursor selects rows strictly after the boundary.
-function decodeCursor(raw: string): { orderKey: string; id: string } | null {
-  const sep = raw.indexOf(':')
-  if (sep < 0) {
-    logger.warn('decodeCursor: missing separator, falling back to first page', { cursor: raw })
-    return null
-  }
-  const orderKey = raw.slice(0, sep)
-  const id = raw.slice(sep + 1)
-  if (!orderKey || !id) {
-    logger.warn('decodeCursor: empty orderKey or id, falling back to first page', { cursor: raw })
-    return null
-  }
-  return { orderKey, id }
-}
-
-function encodeCursor(orderKey: string, id: string): string {
-  return `${orderKey}:${id}`
 }
 
 export class SessionService {
@@ -121,11 +98,11 @@ export class SessionService {
     const filters: SQL[] = []
     if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
     if (cursor) {
-      // Strict tuple: (orderKey, id) > (cursor.orderKey, cursor.id)
+      // Strict tuple: (orderKey, id) > (cursor.key, cursor.id)
       filters.push(
         or(
-          gt(sessionsTable.orderKey, cursor.orderKey),
-          and(eq(sessionsTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
+          gt(sessionsTable.orderKey, cursor.key),
+          and(eq(sessionsTable.orderKey, cursor.key), gt(sessionsTable.id, cursor.id))
         )!
       )
     }
@@ -161,7 +138,7 @@ export class SessionService {
     await db.transaction(async (tx) => {
       const [row] = await tx.delete(sessionsTable).where(eq(sessionsTable.id, id)).returning({ id: sessionsTable.id })
       if (!row) throw DataApiErrorFactory.notFound('Session', id)
-      await pinService.purgeForEntity(tx, 'session', id)
+      await pinService.purgeForEntityTx(tx, 'session', id)
     })
   }
 

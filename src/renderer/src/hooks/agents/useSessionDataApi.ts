@@ -61,23 +61,15 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/sessions')
 
-  const flatSessions = useInfiniteFlatItems(pages)
+  // Server returns pinned-first via the two-section cursor in SessionService —
+  // see `listByCursor` (`pin:` / `session:` / `session:` sentinel). The `/pins`
+  // map is kept only for the per-row pinned indicator and the toggle handler.
+  const sessions = useInfiniteFlatItems(pages)
   const { data: pinList } = useQuery('/pins', { query: { entityType: 'session' } })
   const pinIdBySessionId = useMemo(
     () => new Map(Array.isArray(pinList) ? pinList.map((p) => [p.entityId, p.id] as const) : []),
     [pinList]
   )
-  // Pinned-first sort; preserves orderKey order within each section. Sessions
-  // already arrive ordered by `(orderKey, id)` from the server, so a stable
-  // partition is enough — no need to re-sort within a section.
-  const sessions = useMemo(() => {
-    const pinned: AgentSessionEntity[] = []
-    const unpinned: AgentSessionEntity[] = []
-    for (const s of flatSessions) {
-      ;(pinIdBySessionId.has(s.id) ? pinned : unpinned).push(s)
-    }
-    return [...pinned, ...unpinned]
-  }, [flatSessions, pinIdBySessionId])
   const total = sessions.length
   const hasMore = hasNext
   const isLoadingMore = isRefreshing && pages.length > 1
