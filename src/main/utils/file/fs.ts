@@ -324,9 +324,13 @@ export async function move(src: FilePath, dest: FilePath): Promise<void> {
   }
 }
 
-/** Remove a file. */
-export async function remove(_path: FilePath): Promise<void> {
-  return notImplemented('remove')
+/** Remove a file. Idempotent on `ENOENT`. */
+export async function remove(target: FilePath): Promise<void> {
+  try {
+    await unlink(target)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+  }
 }
 
 /** Remove a directory recursively. */

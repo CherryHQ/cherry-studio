@@ -15,6 +15,7 @@ import {
   move as fsMove,
   PathStaleVersionError,
   read,
+  remove as fsRemove,
   stat,
   write as fsWrite
 } from '../fs'
@@ -382,6 +383,28 @@ describe('move', () => {
     await fsMove(src as FilePath, dest as FilePath)
     expect(await exists(src as FilePath)).toBe(false)
     expect(await readFile(dest, 'utf-8')).toBe('payload')
+  })
+})
+
+describe('remove', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-fs-test-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('removes an existing file', async () => {
+    const target = path.join(tmp, 'a.txt') as FilePath
+    await writeFile(target, 'x')
+    await fsRemove(target)
+    expect(await exists(target)).toBe(false)
+  })
+
+  it('is idempotent on a missing path (no throw)', async () => {
+    const target = path.join(tmp, 'nope.txt') as FilePath
+    await expect(fsRemove(target)).resolves.toBeUndefined()
   })
 })
 
