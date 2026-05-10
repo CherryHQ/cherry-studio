@@ -153,10 +153,10 @@ vi.mock('@cherrystudio/ui', () => {
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   return {
-    Button: ({ children, onPress, onClick, disabled, isDisabled, startContent, ...props }) =>
+    Button: ({ children, onPress, disabled, isDisabled, startContent, ...props }) =>
       React.createElement(
         'button',
-        { ...props, onClick: onPress ?? onClick, disabled: disabled || isDisabled },
+        { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled },
         startContent,
         children
       ),
