@@ -113,7 +113,8 @@
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",
-    "ws": "^8.18.2"
+    "ws": "^8.18.2",
+    "xxhash-wasm": "^1.1.0"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
