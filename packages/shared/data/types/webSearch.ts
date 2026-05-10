@@ -1,6 +1,5 @@
 import type {
   WebSearchCapability,
-  WebSearchCompressionCutoffUnit,
   WebSearchCompressionMethod,
   WebSearchProviderId,
   WebSearchProviderOverrides,
@@ -49,7 +48,6 @@ export type WebSearchStatus = {
 export type WebSearchCompressionConfig = {
   method: WebSearchCompressionMethod
   cutoffLimit: number
-  cutoffUnit: WebSearchCompressionCutoffUnit
 }
 
 export type WebSearchExecutionConfig = {

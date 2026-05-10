@@ -211,6 +211,7 @@ vi.mock('@cherrystudio/ui', () => {
     Ellipsis: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'ellipsis' }, children),
     TextBadge: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'text-badge' }, children),
+    Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Alert: ({ children, message, description, type, ...props }) =>
       React.createElement(
         'div',

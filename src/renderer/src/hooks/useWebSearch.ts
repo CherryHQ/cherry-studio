@@ -20,15 +20,13 @@ type WebSearchPreferenceSnapshot = Pick<
   | 'chat.web_search.max_results'
   | 'chat.web_search.compression.method'
   | 'chat.web_search.compression.cutoff_limit'
-  | 'chat.web_search.compression.cutoff_unit'
 >
 
 const WEB_SEARCH_SETTINGS_PREFERENCE_KEYS = {
   excludeDomains: 'chat.web_search.exclude_domains',
   maxResults: 'chat.web_search.max_results',
   compressionMethod: 'chat.web_search.compression.method',
-  cutoffLimit: 'chat.web_search.compression.cutoff_limit',
-  cutoffUnit: 'chat.web_search.compression.cutoff_unit'
+  cutoffLimit: 'chat.web_search.compression.cutoff_limit'
 } as const
 
 type WebSearchPreferenceValues = {
@@ -41,7 +39,6 @@ type WebSearchSettingsState = {
   compressionConfig: {
     method: PreferenceDefaultScopeType['chat.web_search.compression.method']
     cutoffLimit: number
-    cutoffUnit?: PreferenceDefaultScopeType['chat.web_search.compression.cutoff_unit']
   }
 }
 
@@ -51,8 +48,7 @@ function buildWebSearchSettingsState(preferences: WebSearchPreferenceValues): We
     excludeDomains: preferences.excludeDomains,
     compressionConfig: {
       method: preferences.compressionMethod,
-      cutoffLimit: normalizeWebSearchCutoffLimit(preferences.cutoffLimit),
-      cutoffUnit: preferences.cutoffUnit
+      cutoffLimit: normalizeWebSearchCutoffLimit(preferences.cutoffLimit)
     }
   }
 }
@@ -152,8 +148,7 @@ export const useWebSearchSettings = (): WebSearchSettingsState & {
     setCompressionConfig: (config) => {
       return setPreferences({
         compressionMethod: config.method,
-        cutoffLimit: normalizeWebSearchCutoffLimit(config.cutoffLimit),
-        cutoffUnit: config.cutoffUnit ?? 'char'
+        cutoffLimit: normalizeWebSearchCutoffLimit(config.cutoffLimit)
       })
     },
     updateCompressionConfig: (config) => {
@@ -163,8 +158,7 @@ export const useWebSearchSettings = (): WebSearchSettingsState & {
       }
       return setPreferences({
         compressionMethod: nextConfig.method,
-        cutoffLimit: normalizeWebSearchCutoffLimit(nextConfig.cutoffLimit),
-        cutoffUnit: nextConfig.cutoffUnit ?? 'char'
+        cutoffLimit: normalizeWebSearchCutoffLimit(nextConfig.cutoffLimit)
       })
     }
   }

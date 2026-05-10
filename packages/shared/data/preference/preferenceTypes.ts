@@ -236,12 +236,6 @@ export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>
  */
 export type WebSearchCompressionMethod = 'none' | 'cutoff'
 
-/**
- * Cutoff unit type
- * Stored in chat.web_search.compression.cutoff_unit
- */
-export type WebSearchCompressionCutoffUnit = 'char' | 'token'
-
 // ============================================================================
 // File Processor Types
 // ============================================================================

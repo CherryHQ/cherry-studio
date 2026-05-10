@@ -1,43 +1,30 @@
 import { InfoTooltip, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from '@cherrystudio/ui'
-import { getWebSearchProviderLogo, webSearchProviderRequiresApiKey } from '@renderer/config/webSearchProviders'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { useWebSearchProviders, useWebSearchSettings } from '@renderer/hooks/useWebSearch'
+import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { getWebSearchProviderAvailability } from '@renderer/utils/webSearchProviders'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 import { useNavigate } from '@tanstack/react-router'
-import type { TFunction } from 'i18next'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
-
-function getUnavailableProviderDialogConfig(
-  provider: ResolvedWebSearchProvider,
-  t: TFunction,
-  missingReason: 'apiKey' | 'apiHost'
-) {
-  const missingFieldLabel =
-    missingReason === 'apiKey' ? t('settings.tool.websearch.apikey') : t('settings.provider.api_host')
-
-  return {
-    title: t('settings.tool.websearch.search_provider'),
-    content: `${provider.name} ${missingFieldLabel}`,
-    okText: t('settings.tool.websearch.api_key_required.ok')
-  }
-}
+import { useWebSearchProviderLists } from '../hooks/useWebSearchProviderLists'
+import { getUnavailableProviderDialogConfig } from '../utils/webSearchProviderMeta'
+import { Field } from './Field'
+import { SettingsSection } from './SettingsSection'
+import { WebSearchProviderOption } from './WebSearchProviderOption'
 
 const BasicSettings: FC = () => {
-  const { theme } = useTheme()
   const { t } = useTranslation()
   const {
     defaultSearchKeywordsProvider: defaultProvider,
     defaultFetchUrlsProvider,
     providers,
+    keywordProviders,
+    fetchUrlsProviders,
     setDefaultFetchUrlsProvider,
     setDefaultSearchKeywordsProvider
-  } = useWebSearchProviders()
+  } = useWebSearchProviderLists()
   const { maxResults, compressionConfig, setMaxResults } = useWebSearchSettings()
   const navigate = useNavigate()
   const [draftMaxResults, setDraftMaxResults] = useState(maxResults)
@@ -46,20 +33,13 @@ const BasicSettings: FC = () => {
     setDraftMaxResults(maxResults)
   }, [maxResults])
 
-  const keywordProviders = providers.filter((provider) =>
-    provider.capabilities.some((capability) => capability.feature === 'searchKeywords')
-  )
-  const fetchUrlsProviders = providers.filter((provider) =>
-    provider.capabilities.some((capability) => capability.feature === 'fetchUrls')
-  )
-
   const openProviderSettings = (provider: ResolvedWebSearchProvider, missingReason: 'apiKey' | 'apiHost') => {
     window.modal.confirm({
       ...getUnavailableProviderDialogConfig(provider, t, missingReason),
       cancelText: t('common.cancel'),
       centered: true,
       onOk: () => {
-        void navigate({ to: '/settings/websearch/provider/$providerId', params: { providerId: provider.id } })
+        void navigate({ to: '/settings/websearch' })
       }
     })
   }
@@ -83,87 +63,66 @@ const BasicSettings: FC = () => {
     void updateProvider(provider)
   }
 
-  const renderProviderLabel = (provider: ResolvedWebSearchProvider) => {
-    const logo = getWebSearchProviderLogo(provider.id)
-    const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
-
-    return (
-      <div className="flex items-center gap-2">
-        {logo ? (
-          <logo.Avatar size={16} shape="rounded" />
-        ) : (
-          <div className="h-4 w-4 rounded-sm bg-(--color-background-subtle)" />
-        )}
-        <span>
-          {provider.name}
-          {needsApiKey && ` (${t('settings.tool.websearch.apikey')})`}
-        </span>
-      </div>
-    )
-  }
-
   return (
     <>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.tool.websearch.search_provider')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow className="gap-8 py-2">
-          <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.default_provider')}</SettingRowTitle>
+      <SettingsSection title={t('settings.tool.websearch.search_provider')}>
+        <Field label={t('settings.tool.websearch.default_provider')}>
           <Select
             value={defaultProvider?.id}
             onValueChange={(providerId) =>
               updateSelectedWebSearchProvider(providerId, 'searchKeywords', setDefaultSearchKeywordsProvider)
             }>
-            <SelectTrigger style={{ width: '200px' }}>
+            <SelectTrigger className="h-7 w-full rounded-full bg-foreground/[0.06] text-xs leading-tight" size="sm">
               <SelectValue placeholder={t('settings.tool.websearch.search_provider_placeholder')} />
             </SelectTrigger>
             <SelectContent>
               {keywordProviders.map((provider) => (
                 <SelectItem key={provider.id} value={provider.id}>
-                  {renderProviderLabel(provider)}
+                  <WebSearchProviderOption provider={provider} />
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow className="gap-8 py-2">
-          <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.fetch_urls_provider')}</SettingRowTitle>
+        </Field>
+        <Field label={t('settings.tool.websearch.fetch_urls_provider')}>
           <Select
             value={defaultFetchUrlsProvider?.id}
             onValueChange={(providerId) =>
               updateSelectedWebSearchProvider(providerId, 'fetchUrls', setDefaultFetchUrlsProvider)
             }>
-            <SelectTrigger style={{ width: '200px' }}>
+            <SelectTrigger className="h-7 w-full rounded-full bg-foreground/[0.06] text-xs leading-tight" size="sm">
               <SelectValue placeholder={t('settings.tool.websearch.search_provider_placeholder')} />
             </SelectTrigger>
             <SelectContent>
               {fetchUrlsProviders.map((provider) => (
                 <SelectItem key={provider.id} value={provider.id}>
-                  {renderProviderLabel(provider)}
+                  <WebSearchProviderOption provider={provider} />
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </SettingRow>
-      </SettingGroup>
-      <SettingGroup theme={theme} style={{ paddingBottom: 8 }}>
-        <SettingTitle>{t('settings.general.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow className="items-start gap-8">
-          <SettingRowTitle className="mt-2 min-w-32 shrink-0">
-            {t('settings.tool.websearch.search_max_result.label')}
-            {maxResults > 20 && compressionConfig?.method === 'none' && (
+        </Field>
+      </SettingsSection>
+
+      <SettingsSection title={t('settings.general.label')}>
+        <Field
+          label={t('settings.tool.websearch.search_max_result.label')}
+          help={
+            maxResults > 20 &&
+            compressionConfig?.method === 'none' && (
               <InfoTooltip
                 content={t('settings.tool.websearch.search_max_result.tooltip')}
-                iconProps={{ size: 16, color: 'var(--color-icon)', className: 'ml-1 cursor-pointer' }}
+                iconProps={{ size: 10, color: 'currentColor', className: 'cursor-pointer text-muted-foreground/25' }}
               />
-            )}
-          </SettingRowTitle>
-          <div className="-mb-2 mt-3 w-full max-w-xl">
+            )
+          }>
+          <div>
+            <div className="mb-1.5 flex justify-end">
+              <span className="font-semibold text-emerald-500 text-xs leading-tight">{draftMaxResults}</span>
+            </div>
             <Slider
               value={[draftMaxResults]}
-              className="w-full"
+              className="w-full [&_[data-slot=slider-mark]]:text-foreground/30 [&_[data-slot=slider-mark]]:text-xs [&_[data-slot=slider-mark]]:leading-tight [&_[data-slot=slider-range]]:bg-emerald-500/60 [&_[data-slot=slider-thumb]]:border-white [&_[data-slot=slider-thumb]]:bg-emerald-500"
               min={1}
               max={100}
               step={1}
@@ -178,8 +137,8 @@ const BasicSettings: FC = () => {
               onValueCommit={(value) => void setMaxResults(value[0])}
             />
           </div>
-        </SettingRow>
-      </SettingGroup>
+        </Field>
+      </SettingsSection>
     </>
   )
 }

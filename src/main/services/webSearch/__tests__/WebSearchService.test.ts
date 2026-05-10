@@ -44,8 +44,7 @@ const runtimeConfig: WebSearchExecutionConfig = {
   excludeDomains: [],
   compression: {
     method: 'none',
-    cutoffLimit: 2000,
-    cutoffUnit: 'char'
+    cutoffLimit: 2000
   }
 }
 
@@ -120,8 +119,6 @@ function setWebSearchPreferences(
     'chat.web_search.compression.method': values.runtimeConfig?.compression?.method ?? runtimeConfig.compression.method,
     'chat.web_search.compression.cutoff_limit':
       values.runtimeConfig?.compression?.cutoffLimit ?? runtimeConfig.compression.cutoffLimit,
-    'chat.web_search.compression.cutoff_unit':
-      values.runtimeConfig?.compression?.cutoffUnit ?? runtimeConfig.compression.cutoffUnit,
     'chat.web_search.provider_overrides': Object.fromEntries(
       providerOverrides.map((provider) => [
         provider.id,
@@ -390,8 +387,7 @@ describe('WebSearchService', () => {
         excludeDomains: ['https://blocked.example/*'],
         compression: {
           method: 'cutoff',
-          cutoffLimit: 5,
-          cutoffUnit: 'char'
+          cutoffLimit: 5
         }
       }
     })
@@ -409,7 +405,7 @@ describe('WebSearchService', () => {
     expect(result.results).toEqual([
       {
         title: 'Allowed',
-        content: '12345...',
+        content: '1234567890',
         url: 'https://allowed.example/post',
         sourceInput: 'hello'
       }

@@ -29,25 +29,18 @@ export const useWebSearchPanelController = (assistantId: string) => {
   const { defaultSearchKeywordsProvider: defaultWebSearchProvider, defaultFetchUrlsProvider } = useWebSearchProviders()
   const enableWebSearch = !!assistant.enableWebSearch
 
-  const openWebSearchSettings = useCallback(
-    (providerId?: string) => {
-      window.modal.confirm({
-        title: t('settings.tool.websearch.search_provider'),
-        content: t('settings.tool.websearch.search_provider_placeholder'),
-        okText: t('settings.tool.websearch.api_key_required.ok'),
-        cancelText: t('common.cancel'),
-        centered: true,
-        onOk: () => {
-          if (providerId) {
-            void navigate({ to: '/settings/websearch/provider/$providerId', params: { providerId } })
-          } else {
-            void navigate({ to: '/settings/websearch/general' })
-          }
-        }
-      })
-    },
-    [navigate, t]
-  )
+  const openWebSearchSettings = useCallback(() => {
+    window.modal.confirm({
+      title: t('settings.tool.websearch.search_provider'),
+      content: t('settings.tool.websearch.search_provider_placeholder'),
+      okText: t('settings.tool.websearch.api_key_required.ok'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      onOk: () => {
+        void navigate({ to: '/settings/websearch' })
+      }
+    })
+  }, [navigate, t])
 
   const canEnableExternalWebSearch = useCallback(() => {
     const requiredProviders = [
@@ -63,7 +56,7 @@ export const useWebSearchPanelController = (assistantId: string) => {
 
       const availability = getWebSearchProviderAvailability(provider, capability)
       if (!availability.available) {
-        openWebSearchSettings(provider.id)
+        openWebSearchSettings()
         return false
       }
     }

@@ -82,17 +82,16 @@ describe('useWebSearch', () => {
       'chat.web_search.exclude_domains': [],
       'chat.web_search.max_results': 5,
       'chat.web_search.compression.method': 'cutoff',
-      'chat.web_search.compression.cutoff_limit': 2000,
-      'chat.web_search.compression.cutoff_unit': 'char'
+      'chat.web_search.compression.cutoff_limit': 2000
     })
 
     const { result } = renderHook(() => useWebSearchSettings())
 
     await act(async () => {
-      await result.current.updateCompressionConfig({ cutoffUnit: 'token' })
+      await result.current.updateCompressionConfig({ cutoffLimit: 3000 })
     })
 
-    expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_unit')).toBe('token')
+    expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBe(3000)
   })
 
   it('exposes normalized web search settings state', () => {
@@ -100,8 +99,7 @@ describe('useWebSearch', () => {
       'chat.web_search.exclude_domains': ['example.com'],
       'chat.web_search.max_results': 0,
       'chat.web_search.compression.method': 'cutoff',
-      'chat.web_search.compression.cutoff_limit': null,
-      'chat.web_search.compression.cutoff_unit': 'token'
+      'chat.web_search.compression.cutoff_limit': null
     })
 
     const { result } = renderHook(() => useWebSearchSettings())
@@ -110,8 +108,7 @@ describe('useWebSearch', () => {
     expect(result.current.excludeDomains).toEqual(['example.com'])
     expect(result.current.compressionConfig).toEqual({
       method: 'cutoff',
-      cutoffLimit: 2000,
-      cutoffUnit: 'token'
+      cutoffLimit: 2000
     })
   })
 })

@@ -5884,10 +5884,6 @@
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
         "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
-        "capability": {
-          "fetchUrls": "URL 获取端点",
-          "searchKeywords": "搜索端点"
-        },
         "check": "检测",
         "check_failed": "验证失败",
         "check_success": "验证成功",
@@ -5912,7 +5908,7 @@
         },
         "content_limit": "内容长度限制",
         "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断",
-        "default_provider": "默认搜索引擎",
+        "default_provider": "默认搜索服务商",
         "fetch_urls_provider": "默认 URL 获取服务商",
         "free": "免费",
         "is_default": "默认搜索",
@@ -5925,6 +5921,17 @@
         "no_provider_selected": "请选择搜索服务商后再检测",
         "overwrite": "覆盖服务商搜索",
         "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
+        "provider_description": {
+          "bocha": "面向 AI 场景的中文搜索 API，提供实时网页与结构化结果。",
+          "exa": "为 AI 应用设计的神经搜索 API，擅长语义检索高质量网页。",
+          "exa_mcp": "通过 Exa MCP Server 将 Exa 搜索能力暴露给智能体工具调用。",
+          "fetch": "从指定 URL 获取网页内容，适合补全搜索结果正文。",
+          "jina": "Jina Reader 搜索与阅读接口，用于检索并提取网页正文。",
+          "querit": "面向 AI 应用的搜索服务，提供可接入的网页检索结果。",
+          "searxng": "可自托管的免费互联网元搜索引擎，聚合多个搜索源。",
+          "tavily": "专为 LLM 优化的搜索引擎。",
+          "zhipu": "智谱 GLM Web Search，提供联网搜索与实时信息检索。"
+        },
         "search_max_result": {
           "label": "搜索结果个数",
           "tooltip": "未开启搜索结果压缩的情况下，数量过大可能会消耗过多 tokens"
