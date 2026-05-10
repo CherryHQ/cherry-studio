@@ -1,18 +1,19 @@
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
+import { loggerService } from '@logger'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })
 
-const { OrphanRefScanner, scanOrphanEntries } = await import('../orphanSweep')
+const { OrphanRefScanner, runDbSweep, scanOrphanEntries } = await import('../orphanSweep')
 const { tempSessionChecker } = await import('@data/services/orphan/FileRefCheckerRegistry')
 
 describe('OrphanRefScanner', () => {
@@ -218,6 +219,100 @@ describe('OrphanRefScanner', () => {
       expect(report.byOrigin.internal ?? 0).toBe(0)
       expect(report.byOrigin.external ?? 0).toBe(0)
     })
+  })
+})
+
+describe('runDbSweep (umbrella + observability)', () => {
+  const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    MockMainDbServiceUtils.setDb(dbh.db)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('emits one structured orphan-sweep record summarising both passes', async () => {
+    const entryId = '019606a0-0000-7000-8000-00000000ee40' as FileEntryId
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id: entryId,
+      origin: 'internal',
+      name: 's',
+      ext: 'txt',
+      size: 1,
+      externalPath: null,
+      createdAt: now,
+      updatedAt: now
+    })
+    await dbh.db.insert(fileRefTable).values({
+      id: '33333333-3333-4333-8333-000000000040',
+      fileEntryId: entryId,
+      sourceType: 'temp_session',
+      sourceId: 'sess-orphan',
+      role: 'pending',
+      createdAt: now,
+      updatedAt: now
+    })
+
+    const infoSpy = vi.spyOn(loggerService, 'info')
+
+    const report = await runDbSweep({
+      fileEntryService,
+      fileRefService,
+      registry: {
+        chat_message: { sourceType: 'chat_message', checkExists: async (ids) => new Set(ids) },
+        knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
+        painting: { sourceType: 'painting', checkExists: async (ids) => new Set(ids) },
+        note: { sourceType: 'note', checkExists: async (ids) => new Set(ids) },
+        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() }
+      } as never
+    })
+
+    expect(report.outcome).toBe('completed')
+    expect(report.orphanRefsByType.temp_session).toBe(1)
+    // The single orphan-entry survives only because file_ref_unique_idx
+    // and CASCADE clean it up — so after the ref delete, the entry is now
+    // unreferenced. Verify orphanEntriesByOrigin populates.
+    expect(report.orphanEntriesByOrigin.internal ?? 0).toBeGreaterThanOrEqual(1)
+    expect(typeof report.scanDurationMs).toBe('number')
+
+    expect(infoSpy).toHaveBeenCalledWith(
+      'orphan-sweep',
+      expect.objectContaining({
+        event: 'orphan-sweep',
+        outcome: 'completed'
+      })
+    )
+  })
+
+  it('reports failure outcome when scanAll throws', async () => {
+    const errorSpy = vi.spyOn(loggerService, 'error')
+    const failingFileRefService = {
+      ...fileRefService,
+      listDistinctSourceIds: async () => {
+        throw new Error('boom')
+      }
+    } as typeof fileRefService
+
+    const report = await runDbSweep({
+      fileEntryService,
+      fileRefService: failingFileRefService,
+      registry: {
+        chat_message: { sourceType: 'chat_message', checkExists: async (ids) => new Set(ids) },
+        knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
+        painting: { sourceType: 'painting', checkExists: async (ids) => new Set(ids) },
+        note: { sourceType: 'note', checkExists: async (ids) => new Set(ids) },
+        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() }
+      } as never
+    })
+    expect(report.outcome).toBe('failed')
+    expect(report.errorMessage).toMatch(/boom/)
+    expect(errorSpy).toHaveBeenCalledWith(
+      'orphan-sweep',
+      expect.objectContaining({ event: 'orphan-sweep', outcome: 'failed' })
+    )
   })
 })
 

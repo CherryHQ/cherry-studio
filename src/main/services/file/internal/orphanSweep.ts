@@ -22,9 +22,12 @@
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
 import type { OrphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
+import { loggerService } from '@logger'
 import type { FileEntryOrigin, FileRefSourceType } from '@shared/data/types/file'
 
 import type { FileManagerDeps } from './deps'
+
+const logger = loggerService.withContext('file/orphanSweep')
 
 // ─── DB-level: OrphanRefScanner ───
 
@@ -95,6 +98,62 @@ export async function scanOrphanEntries(deps: ScanOrphanEntriesDeps): Promise<Or
     byOrigin[row.origin] = (byOrigin[row.origin] ?? 0) + 1
   }
   return { total: rows.length, byOrigin }
+}
+
+// ─── DB-sweep umbrella + observability ───
+
+export interface RunDbSweepDeps {
+  readonly fileEntryService: FileEntryService
+  readonly fileRefService: FileRefService
+  readonly registry: OrphanCheckerRegistry
+}
+
+export interface DbSweepReport {
+  readonly outcome: 'completed' | 'failed'
+  readonly orphanRefsByType: Partial<Record<FileRefSourceType, number>>
+  readonly orphanRefsTotal: number
+  readonly orphanEntriesByOrigin: Partial<Record<FileEntryOrigin, number>>
+  readonly orphanEntriesTotal: number
+  readonly scanDurationMs: number
+  readonly errorMessage?: string
+}
+
+/**
+ * Run both DB-level passes (orphan refs + orphan-entry report) and emit a
+ * single structured `orphan-sweep` log record. On unexpected failure the
+ * record's outcome is `'failed'` and the error message is attached for
+ * post-hoc diagnosis. Caller decides whether to fire-and-forget (FileManager
+ * does this in `onInit`).
+ */
+export async function runDbSweep(deps: RunDbSweepDeps): Promise<DbSweepReport> {
+  const startedAt = Date.now()
+  try {
+    const scanner = new OrphanRefScanner({ fileRefService: deps.fileRefService, registry: deps.registry })
+    const refs = await scanner.scanAll()
+    const entries = await scanOrphanEntries({ fileEntryService: deps.fileEntryService })
+    const report: DbSweepReport = {
+      outcome: 'completed',
+      orphanRefsByType: refs.byType,
+      orphanRefsTotal: refs.total,
+      orphanEntriesByOrigin: entries.byOrigin,
+      orphanEntriesTotal: entries.total,
+      scanDurationMs: Date.now() - startedAt
+    }
+    logger.info('orphan-sweep', { event: 'orphan-sweep', ...report })
+    return report
+  } catch (err) {
+    const failed: DbSweepReport = {
+      outcome: 'failed',
+      orphanRefsByType: {},
+      orphanRefsTotal: 0,
+      orphanEntriesByOrigin: {},
+      orphanEntriesTotal: 0,
+      scanDurationMs: Date.now() - startedAt,
+      errorMessage: (err as Error).message
+    }
+    logger.error('orphan-sweep', { event: 'orphan-sweep', ...failed })
+    return failed
+  }
 }
 
 // ─── FS-level: runStartupFileSweep (Group D — landing in subsequent commits) ───
