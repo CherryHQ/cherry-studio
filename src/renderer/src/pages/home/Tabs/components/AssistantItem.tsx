@@ -3,7 +3,7 @@ import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
-import { useTags } from '@renderer/hooks/useTags'
+import { useTagsLegacy } from '@renderer/hooks/useTagsLegacy'
 import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant } from '@renderer/types'
@@ -66,7 +66,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
   const [topicPosition] = usePreference('topic.position')
 
   const { t } = useTranslation()
-  const { allTags } = useTags()
+  const { allTags } = useTagsLegacy()
   const { removeAllTopics } = useAssistant(assistant.id)
   const { assistants, updateAssistants } = useAssistants()
 

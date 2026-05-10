@@ -4,7 +4,7 @@ import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistants } from '@renderer/hooks/useAssistant'
-import { useTags } from '@renderer/hooks/useTags'
+import { useTagsLegacy } from '@renderer/hooks/useTagsLegacy'
 import { Empty, Modal } from 'antd'
 import { isEmpty } from 'lodash'
 import { useState } from 'react'
@@ -21,7 +21,7 @@ interface Props extends ShowParams {
 
 const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const [open, setOpen] = useState(true)
-  const { allTags, getAssistantsByTag, updateTagsOrder } = useTags()
+  const { allTags, getAssistantsByTag, updateTagsOrder } = useTagsLegacy()
   const { assistants, updateAssistants } = useAssistants()
   const { t } = useTranslation()
   const [tags, setTags] = useState(allTags)

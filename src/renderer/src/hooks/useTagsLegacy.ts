@@ -8,6 +8,14 @@ import { useTranslation } from 'react-i18next'
 
 import { useAssistants } from './useAssistant'
 
+/**
+ * Legacy Redux-backed assistant tag hook. Kept only for v1 home tabs:
+ * - pages/home/Tabs/AssistantsTab.tsx
+ * - pages/home/Tabs/components/AssistantItem.tsx
+ * - pages/home/Tabs/components/AssistantTagsPopup.tsx
+ *
+ * New v2 DataApi tag hooks live in `useTags.ts`.
+ */
 // 基础选择器
 const selectAssistantsState = (state: RootState) => state.assistants
 // 记忆化 tagsOrder 选择器（自动处理默认值）--- 这是一个选择器，用于从 store 中获取 tagsOrder 的值。因为之前的tagsOrder是后面新加的，不这样做会报错，所以这里需要处理一下默认值
@@ -18,7 +26,8 @@ const selectCollapsedTags = createSelector([selectAssistantsState], (assistants)
 // 定义useTags的返回类型，包含所有标签和获取特定标签的助手函数
 // 为了不增加新的概念，标签直接作为助手的属性，所以这里的标签是指助手的标签属性
 // 但是为了方便管理，增加了一个获取特定标签的助手函数
-export const useTags = () => {
+/** @deprecated Use `useTagList` / `useEnsureTags` from `useTags.ts` for v2 DataApi tags. */
+export const useTagsLegacy = () => {
   const { assistants } = useAssistants()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()

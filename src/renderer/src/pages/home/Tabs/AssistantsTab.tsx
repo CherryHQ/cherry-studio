@@ -3,7 +3,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
-import { useTags } from '@renderer/hooks/useTags'
+import { useTagsLegacy } from '@renderer/hooks/useTagsLegacy'
 import type { RootState } from '@renderer/store'
 import { useAppSelector } from '@renderer/store'
 import type { Assistant } from '@renderer/types'
@@ -38,7 +38,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   // Assistant related hooks
   const { assistants, removeAssistant, copyAssistant, updateAssistants } = useAssistants()
   const { addAssistantPreset } = useAssistantPresets()
-  const { collapsedTags, toggleTagCollapse } = useTags()
+  const { collapsedTags, toggleTagCollapse } = useTagsLegacy()
   const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
   const [dragging, setDragging] = useState(false)
   const savedTagsOrder = useAppSelector(selectTagsOrder)
