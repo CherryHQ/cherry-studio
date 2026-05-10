@@ -19,17 +19,18 @@ const FETCH_LIMIT = 999
 
 /**
  * Fetch messages for a topic from the Data API.
+ *
+ * The response embeds `assistantId` at top level so we don't need a
+ * separate `/topics/:id` round-trip to enrich each message — see
+ * `BranchMessagesResponse.assistantId`.
  */
 export async function fetchMessagesFromDataApi(topicId: string): Promise<{ messages: Message[] }> {
   try {
-    // Fetch topic to get assistantId (messages no longer store it directly)
-    const topic = await dataApiService.get(`/topics/${topicId}`)
-    const assistantId = topic.assistantId ?? ''
-
     const response = (await dataApiService.get(`/topics/${topicId}/messages`, {
       query: { limit: FETCH_LIMIT, includeSiblings: true }
     })) as BranchMessagesResponse
 
+    const assistantId = response.assistantId ?? ''
     const messages: Message[] = []
 
     for (const item of response.items) {

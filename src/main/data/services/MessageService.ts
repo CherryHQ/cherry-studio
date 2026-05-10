@@ -413,7 +413,7 @@ export class MessageService {
 
     // Return empty if no active node
     if (!nodeId) {
-      return { items: [], nextCursor: undefined, activeNodeId: null }
+      return { items: [], nextCursor: undefined, activeNodeId: null, assistantId: topic.assistantId }
     }
 
     // Use recursive CTE to collect path IDs from nodeId to root (single-column
@@ -535,7 +535,8 @@ export class MessageService {
     return {
       items: result,
       nextCursor,
-      activeNodeId: topic.activeNodeId
+      activeNodeId: topic.activeNodeId,
+      assistantId: topic.assistantId
     }
   }
 

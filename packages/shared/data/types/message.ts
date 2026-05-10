@@ -665,4 +665,10 @@ export interface BranchMessage {
 export interface BranchMessagesResponse extends CursorPaginationResponse<BranchMessage> {
   /** Current active node ID */
   activeNodeId: string | null
+  /**
+   * Topic's `assistantId` — embedded in the response so renderers don't
+   * need a separate `/topics/:id` round-trip just to enrich each message
+   * with its parent assistant's id. Always present in successful responses.
+   */
+  assistantId: string | null
 }
