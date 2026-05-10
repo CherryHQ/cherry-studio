@@ -643,7 +643,7 @@ describe('ModelService.findByIdTx', () => {
   const dbh = setupTestDatabase()
 
   it('returns the model when the unique model id exists', async () => {
-    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI' })
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     const uid = createUniqueModelId('openai', 'gpt-4o')
     await dbh.db.insert(userModelTable).values({
       id: uid,
@@ -663,7 +663,7 @@ describe('ModelService.findByIdTx', () => {
   })
 
   it('observes a freshly-inserted row inside the same transaction', async () => {
-    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI' })
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     const uid = createUniqueModelId('openai', 'gpt-4o')
 
     await dbh.db.transaction(async (tx) => {
@@ -686,7 +686,7 @@ describe('ModelService.getNamesByUniqueIdsTx', () => {
   const dbh = setupTestDatabase()
 
   it('returns a map of names keyed by UniqueModelId', async () => {
-    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI' })
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     const uid1 = createUniqueModelId('openai', 'gpt-4o')
     const uid2 = createUniqueModelId('openai', 'gpt-4o-mini')
     await dbh.db.insert(userModelTable).values([
@@ -702,7 +702,7 @@ describe('ModelService.getNamesByUniqueIdsTx', () => {
   })
 
   it('filters null / undefined / empty inputs and dedupes', async () => {
-    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI' })
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     const uid = createUniqueModelId('openai', 'gpt-4o')
     await dbh.db.insert(userModelTable).values({ id: uid, providerId: 'openai', modelId: 'gpt-4o', name: 'GPT-4o' })
 
@@ -713,7 +713,7 @@ describe('ModelService.getNamesByUniqueIdsTx', () => {
   })
 
   it('omits rows with null or empty name (no synthetic blank label)', async () => {
-    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI' })
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     const uidNull = createUniqueModelId('openai', 'gpt-null')
     const uidEmpty = createUniqueModelId('openai', 'gpt-empty')
     await dbh.db.insert(userModelTable).values([

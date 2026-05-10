@@ -5,6 +5,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { pinService } from '@data/services/PinService'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
@@ -67,7 +68,11 @@ describe('AgentService', () => {
   }
 
   async function seedModelRefs() {
-    await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic' })
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'anthropic',
+      name: 'Anthropic',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
     await dbh.db.insert(userModelTable).values({
       id: createUniqueModelId('anthropic', 'claude-sonnet-4-5'),
       providerId: 'anthropic',
