@@ -58,10 +58,15 @@ export interface AgentPersistedMessageContent {
 
 /** Per-side persistence input. User and assistant carry the same fields;
  *  the only contextual difference (whether `agentSessionId` is required)
- *  is enforced at the call site, not in this payload. */
+ *  is enforced at the call site, not in this payload.
+ *
+ *  `metadata` semantics on upsert:
+ *  - `undefined` → keep existing row's metadata
+ *  - `null`      → clear existing metadata
+ *  - object      → replace */
 export interface AgentMessagePersistInput {
   payload: AgentPersistedMessage
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown> | null
   createdAt?: string
 }
 

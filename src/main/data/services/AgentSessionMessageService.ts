@@ -195,7 +195,8 @@ export class AgentSessionMessageService {
     const existingRow = await this.findExistingMessageRow(db, sessionId, payload.message.role, payload.message.id)
 
     if (existingRow) {
-      const metadataToPersist = metadata ?? existingRow.metadata ?? undefined
+      // undefined → keep existing; null → clear; object → replace.
+      const metadataToPersist = metadata === undefined ? existingRow.metadata : metadata
       const agentSessionToPersist = agentSessionId || existingRow.agentSessionId || ''
       const updatedAtMs = Date.now()
 
@@ -216,7 +217,7 @@ export class AgentSessionMessageService {
       return this.rowToEntity({
         ...existingRow,
         content: payload,
-        metadata: metadataToPersist ?? null,
+        metadata: metadataToPersist,
         agentSessionId: agentSessionToPersist,
         updatedAt: updatedAtMs
       })
