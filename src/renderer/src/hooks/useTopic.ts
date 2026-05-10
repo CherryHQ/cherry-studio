@@ -43,26 +43,28 @@ export function useActiveTopic(topic?: Topic, options: { autoPickFirst?: boolean
     setPendingTopic(next)
   }, [])
 
-  // When no topic is selected yet and the list has loaded, pick the first one
+  // Reconcile activeTopicId against the loaded list in a single effect:
+  //   - cold start: no active topic yet → pick first (when autoPickFirst).
+  //   - active topic was deleted: not in list AND not a recent optimistic
+  //     add (`pendingTopic`) → fall back to first remaining.
+  // Two separate effects could each call `setActiveTopicId(topics[0].id)`
+  // for the same id from different conditions in the same commit, then
+  // the downstream `EVENT_NAMES.CHANGE_TOPIC` emit would fire twice.
   useEffect(() => {
-    if (!autoPickFirst) return
-    if (!activeTopicId && topics.length > 0) {
-      setActiveTopicId(topics[0].id)
-    }
-  }, [activeTopicId, topics, autoPickFirst])
+    if (topics.length === 0) return
 
-  // If the active topic was deleted (existed in list before, now gone), fall back
-  // to the first remaining topic. `pendingTopic` mismatch means it's neither
-  // in the list nor a recent optimistic add — i.e. truly deleted.
-  useEffect(() => {
-    if (!activeTopicId || topics.length === 0) return
+    if (!activeTopicId) {
+      if (autoPickFirst) setActiveTopicId(topics[0].id)
+      return
+    }
+
     const found = topics.some((t) => t.id === activeTopicId)
     const isPending = pendingTopic?.id === activeTopicId
     if (!found && !isPending) {
       setActiveTopicId(topics[0].id)
       setPendingTopic(topics[0])
     }
-  }, [activeTopicId, topics, pendingTopic])
+  }, [activeTopicId, topics, pendingTopic, autoPickFirst])
 
   useEffect(() => {
     if (activeTopic) {
