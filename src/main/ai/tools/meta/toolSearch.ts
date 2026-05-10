@@ -7,7 +7,7 @@
  * request's ToolSet would be redundant in search results.
  */
 
-import { type Tool, tool } from 'ai'
+import { asSchema, type Tool, tool } from 'ai'
 import * as z from 'zod'
 
 import type { ToolRegistry } from '../registry'
@@ -41,27 +41,29 @@ export function createToolSearchTool(registry: ToolRegistry, deferredNames: Read
       for (const [ns, entries] of grouped) {
         const filtered = entries.filter((e) => deferredNames.has(e.name))
         if (filtered.length === 0) continue
-        matchedNamespaces.push({
-          namespace: ns,
-          tools: filtered.map((e) => ({
+        const tools = await Promise.all(
+          filtered.map(async (e) => ({
             name: e.name,
             description: e.description,
-            ...(verbose ? { inputSchema: serializeSchema(e.tool.inputSchema) } : {})
+            ...(verbose ? { inputSchema: await serializeSchema(e.tool.inputSchema) } : {})
           }))
-        })
+        )
+        matchedNamespaces.push({ namespace: ns, tools })
       }
       return { matchedNamespaces }
     }
   })
 }
 
-function serializeSchema(schema: unknown): unknown {
+async function serializeSchema(schema: unknown): Promise<unknown> {
   if (!schema) return undefined
-  // Best-effort serialisation — different Tool implementations carry zod,
-  // jsonSchema wrappers, or raw JSON Schema. Fall back to undefined when
-  // the value isn't structured-cloneable.
+  // Tools can carry Zod, jsonSchema wrappers, or raw JSONSchema. AI SDK's
+  // `asSchema` normalises all three into the canonical `Schema<T>` shape
+  // whose `.jsonSchema` is what the model actually sees inline. Stringifying
+  // a raw Zod object yields a non-JSONSchema blob.
   try {
-    return JSON.parse(JSON.stringify(schema))
+    const normalised = asSchema(schema as Parameters<typeof asSchema>[0])
+    return await normalised.jsonSchema
   } catch {
     return undefined
   }

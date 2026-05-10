@@ -8,7 +8,7 @@
  * operates over the unified registry instead of MCP-only.
  */
 
-import { type Tool, tool } from 'ai'
+import { asSchema, type Tool, tool } from 'ai'
 import * as z from 'zod'
 
 import type { ToolRegistry } from '../registry'
@@ -26,16 +26,20 @@ export function createToolInspectTool(registry: ToolRegistry): Tool {
     execute: async ({ name }) => {
       const entry = registry.getByName(name)
       if (!entry) throw new Error(`Tool not found: ${name}`)
-      const inputSchema = serializeSchema(entry.tool.inputSchema)
+      const inputSchema = await serializeSchema(entry.tool.inputSchema)
       return schemaToJSDoc(name, entry.description, inputSchema)
     }
   })
 }
 
-function serializeSchema(schema: unknown): unknown {
+async function serializeSchema(schema: unknown): Promise<unknown> {
   if (!schema) return undefined
+  // See toolSearch.ts: Zod / jsonSchema-wrapped / raw-JSONSchema all
+  // normalise through `asSchema(...).jsonSchema`. Stringifying a Zod
+  // object directly yields a non-JSONSchema blob.
   try {
-    return JSON.parse(JSON.stringify(schema))
+    const normalised = asSchema(schema as Parameters<typeof asSchema>[0])
+    return await normalised.jsonSchema
   } catch {
     return undefined
   }
