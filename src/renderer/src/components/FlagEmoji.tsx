@@ -54,7 +54,7 @@ const FLAG_SVG_MAP: Record<string, string> = {
   vn: vnSvg
 }
 
-function emojiToCountryCode(emoji: string): string {
+export function emojiToCountryCode(emoji: string): string {
   return [...emoji]
     .map((c) => c.codePointAt(0)!)
     .filter((cp) => cp >= 0x1f1e6 && cp <= 0x1f1ff)
@@ -69,23 +69,21 @@ interface FlagEmojiProps {
 }
 
 const FlagEmoji = memo(({ emoji, size = 16, style }: FlagEmojiProps) => {
+  const fallback = (
+    <span className="country-flag-font" style={style}>
+      {emoji}
+    </span>
+  )
+
   if (!isWin) {
-    return (
-      <span className="country-flag-font" style={style}>
-        {emoji}
-      </span>
-    )
+    return fallback
   }
 
   const code = emojiToCountryCode(emoji)
   const svgUrl = FLAG_SVG_MAP[code]
 
   if (!svgUrl) {
-    return (
-      <span className="country-flag-font" style={style}>
-        {emoji}
-      </span>
-    )
+    return fallback
   }
 
   return (
