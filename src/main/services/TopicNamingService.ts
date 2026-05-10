@@ -78,7 +78,7 @@ function buildStructuredConversation(messages: StructuredMessage[]): string {
 export class TopicNamingService {
   async maybeRenameFromFirstUserMessage(topicId: string, userMessageId: string): Promise<void> {
     const enabled = application.get('PreferenceService').get('topic.naming.enabled')
-    if (enabled) return
+    if (!enabled) return
 
     const topic = await this.getTopic(topicId)
     if (!topic || topic.isNameManuallyEdited) return
