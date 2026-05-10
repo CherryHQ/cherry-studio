@@ -69,9 +69,9 @@ export async function exists(path: FilePath): Promise<boolean> {
   }
 }
 
-/** Write content to a file path. Creates parent directories if needed. */
-export async function write(_path: FilePath, _data: string | Uint8Array): Promise<void> {
-  return notImplemented('write')
+/** Write content to a file path. Atomic — never produces partially-written targets. */
+export async function write(target: FilePath, data: string | Uint8Array): Promise<void> {
+  return atomicWriteFile(target, data)
 }
 
 function tmpNameFor(target: string): string {

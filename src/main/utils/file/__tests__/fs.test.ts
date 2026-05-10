@@ -13,7 +13,8 @@ import {
   hash,
   PathStaleVersionError,
   read,
-  stat
+  stat,
+  write as fsWrite
 } from '../fs'
 
 describe('stat', () => {
@@ -284,6 +285,31 @@ describe('atomicWriteIfUnchanged', () => {
       PathStaleVersionError
     )
     expect(await readFile(target, 'utf-8')).toBe('aaaa')
+  })
+})
+
+describe('write', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-fs-test-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('writes string content atomically', async () => {
+    const target = path.join(tmp, 'a.txt') as FilePath
+    await fsWrite(target, 'hello')
+    expect(await readFile(target, 'utf-8')).toBe('hello')
+  })
+
+  it('overwrites existing target without leaving tmp residue', async () => {
+    const target = path.join(tmp, 'b.txt') as FilePath
+    await fsWrite(target, 'first')
+    await fsWrite(target, 'second')
+    expect(await readFile(target, 'utf-8')).toBe('second')
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
   })
 })
 
