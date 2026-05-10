@@ -296,6 +296,15 @@ class SchedulerService {
           resolveExecution(accumulatedText.trim())
         },
         onPaused() {
+          // If we're paused because the task was aborted (e.g. timeout fired),
+          // surface that as a rejection — otherwise the post-await abort
+          // check below would race against `await executionDone` resolving
+          // with the partial text and we'd record a successful run.
+          if (abortController.signal.aborted) {
+            const reason = abortController.signal.reason
+            rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
+            return
+          }
           resolveExecution(accumulatedText.trim())
         },
         onError(result) {
