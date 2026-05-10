@@ -27,9 +27,10 @@ const DEFAULT_SESSION_PAGE_SIZE = 20
 
 /**
  * Fetch a single session by id. Config (model / instructions / ...) lives on
- * the parent agent — fetch via `useAgent(session.agentId)` separately.
+ * the parent agent — fetch via `useAgent(session.agentId)` separately. For
+ * mutations call `useUpdateSession(agentId)` directly.
  */
-export const useSession = (agentId: string | null, sessionId: string | null) => {
+export const useSession = (sessionId: string | null) => {
   const {
     data: session,
     error,
@@ -40,9 +41,8 @@ export const useSession = (agentId: string | null, sessionId: string | null) => 
     enabled: !!sessionId,
     swrOptions: { keepPreviousData: false }
   })
-  const { updateSession } = useUpdateSession(agentId)
 
-  return { session, error, isLoading, updateSession, mutate }
+  return { session, error, isLoading, mutate }
 }
 
 /**

@@ -66,7 +66,7 @@ const AgentSessionInputbar = ({
   isStreaming: isStreamingProp
 }: Props) => {
   const { t } = useTranslation()
-  const { session } = useSession(agentId, sessionId)
+  const { session } = useSession(sessionId)
   const { agent } = useAgent(agentId)
   const { providers } = useProviders()
   // FIXME: 不应该使用ref将action传到context提供给tool，权宜之计

@@ -45,7 +45,7 @@ const AgentSessionMessages = ({
   hasOlder = false,
   loadOlder
 }: Props) => {
-  const { session } = useSession(agentId, sessionId)
+  const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const { messageNavigation } = useSettings()
   const chatListRef = useRef<ChatVirtualListHandle | null>(null)

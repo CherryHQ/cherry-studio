@@ -13,6 +13,6 @@ export const useActiveSession = () => {
     (id: string | null) => setActiveSessionIdAction(id),
     [setActiveSessionIdAction]
   )
-  const result = useSession(null, activeSessionId)
+  const result = useSession(activeSessionId)
   return { ...result, activeSessionId, setActiveSessionId }
 }
