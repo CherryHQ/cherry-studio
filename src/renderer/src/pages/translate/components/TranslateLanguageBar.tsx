@@ -1,5 +1,6 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { useLanguages } from '@renderer/hooks/translate'
+import { cn } from '@renderer/utils'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import type {
   TranslateBidirectionalPair,
@@ -116,7 +117,10 @@ const TranslateLanguageBar: FC<Props> = ({
             setSourceOpen((v) => !v)
             setTargetOpen(false)
           }}
-          className="flex h-full w-full items-center justify-center gap-1.5 rounded-md py-1.5 text-foreground text-xs transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent">
+          className={cn(
+            triggerButtonClassName,
+            'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent'
+          )}>
           <span className="mr-0.5 text-[10px] text-foreground-muted">{t('translate.source_language')}</span>
           <span className="text-sm leading-none">{sourceDisplay.emoji}</span>
           <span className="max-w-[180px] truncate">{sourceDisplay.label}</span>
@@ -176,7 +180,7 @@ const TranslateLanguageBar: FC<Props> = ({
                 setTargetOpen((v) => !v)
                 setSourceOpen(false)
               }}
-              className="flex h-full w-full items-center justify-center gap-1.5 rounded-md py-1.5 text-foreground text-xs transition-colors hover:bg-accent">
+              className={triggerButtonClassName}>
               <span className="mr-0.5 text-[10px] text-foreground-muted">{t('translate.target_language')}</span>
               <span className="text-sm leading-none">{target?.emoji ?? UNKNOWN_EMOJI}</span>
               <span className="max-w-[180px] truncate">{targetLabel}</span>
@@ -203,6 +207,8 @@ const TranslateLanguageBar: FC<Props> = ({
 }
 
 const DROPDOWN_WIDTH = 160
+const triggerButtonClassName =
+  'flex h-full w-full items-center justify-center gap-1.5 rounded-md py-1.5 text-foreground text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
 
 const LanguageDropdown: FC<{
   anchorX: number
@@ -231,6 +237,7 @@ const LanguageDropdown: FC<{
 
   return (
     <div
+      role="listbox"
       onScroll={handleScroll}
       style={{
         left,
@@ -250,14 +257,18 @@ const LanguageOption: FC<{
 }> = ({ emoji, label, selected, onSelect }) => (
   <button
     type="button"
+    role="option"
+    aria-selected={selected}
     onClick={onSelect}
-    className={`w-full text-left text-xs transition-colors ${
+    className={cn(
+      'w-full text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
       selected ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
-    }`}>
+    )}>
     <span
-      className={`flex items-center gap-2 px-3 py-[6px] ${
-        selected ? 'mx-1 my-0.5 rounded-md bg-accent px-2' : 'hover:bg-accent'
-      }`}>
+      className={cn(
+        'flex items-center gap-2 py-[6px]',
+        selected ? 'mx-1 my-0.5 rounded-md bg-accent px-2' : 'px-3 hover:bg-accent'
+      )}>
       <span className="inline-flex w-5 shrink-0 justify-center text-sm leading-none">{emoji}</span>
       <span className="truncate">{label}</span>
     </span>

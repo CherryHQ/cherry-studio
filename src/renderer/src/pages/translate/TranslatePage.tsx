@@ -433,7 +433,7 @@ const TranslatePage: FC = () => {
   )
 
   const handleSelectFile = useCallback(async () => {
-    if (selecting) return
+    if (selecting || translatingState.isTranslating) return
     setIsProcessing(true)
     try {
       const [file] = await onSelectFile({ multipleSelections: false })
@@ -447,7 +447,7 @@ const TranslatePage: FC = () => {
       clearFiles()
       setIsProcessing(false)
     }
-  }, [clearFiles, onSelectFile, processFile, selecting, t])
+  }, [clearFiles, onSelectFile, processFile, selecting, t, translatingState.isTranslating])
 
   const getSingleFile = useCallback(
     (files: FileMetadata[] | FileList): FileMetadata | File | null => {
@@ -478,7 +478,7 @@ const TranslatePage: FC = () => {
           window.toast.error(t('translate.files.error.unknown'))
           return null
         })
-        if (data !== null) {
+        if (data) {
           appendTranslateInput(data)
         }
 

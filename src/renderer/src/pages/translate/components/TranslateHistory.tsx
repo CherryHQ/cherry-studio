@@ -52,7 +52,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
     star: showStared || undefined
   })
   const { getLanguage, getLabel } = useLanguageLabels()
-  const { clear: clearHistory } = useTranslateHistory()
+  const { clear: clearHistory, update: updateHistory } = useTranslateHistory()
 
   const history: DisplayedTranslateHistoryItem[] = useMemo(
     () =>
@@ -127,8 +127,10 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
   )
 
   const renderHistoryRow = useCallback(
-    (item: DisplayedTranslateHistoryItem) => <HistoryRow item={item} onSelect={setSelectedId} />,
-    []
+    (item: DisplayedTranslateHistoryItem) => (
+      <HistoryRow item={item} onSelect={setSelectedId} onUpdate={updateHistory} />
+    ),
+    [updateHistory]
   )
 
   const header = (
@@ -226,12 +228,12 @@ const useLanguageLabels = () => {
 const HistoryRow: FC<{
   item: DisplayedTranslateHistoryItem
   onSelect: (id: string) => void
-}> = ({ item, onSelect }) => {
+  onUpdate: (id: string, data: { star: boolean }) => Promise<unknown>
+}> = ({ item, onSelect, onUpdate }) => {
   const { t } = useTranslation()
-  const { update: updateHistory } = useTranslateHistory()
 
   const handleStar = async () => {
-    await updateHistory(item.id, { star: !item.star })
+    await onUpdate(item.id, { star: !item.star })
   }
 
   return (

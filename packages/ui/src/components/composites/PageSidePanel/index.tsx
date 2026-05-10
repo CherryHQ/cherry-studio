@@ -11,7 +11,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import { XIcon } from 'lucide-react'
 import * as React from 'react'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useId, useRef } from 'react'
 
 type PageSidePanelPlacement = 'left' | 'right'
 
@@ -49,6 +49,7 @@ function PageSidePanel({
   closeButtonClassName
 }: PageSidePanelProps) {
   const hasHeader = !!header || showCloseButton
+  const headerId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
 
@@ -92,6 +93,7 @@ function PageSidePanel({
             key="panel"
             role="dialog"
             aria-modal="true"
+            aria-labelledby={header ? headerId : undefined}
             tabIndex={-1}
             onKeyDown={(e) => {
               if (e.key === 'Escape') handleClose(e)
@@ -113,7 +115,9 @@ function PageSidePanel({
                   'flex h-11 shrink-0 items-center justify-between border-border/15 border-b px-4',
                   headerClassName
                 )}>
-                <div className="min-w-0 flex flex-1 items-center">{header}</div>
+                <div id={header ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
+                  {header}
+                </div>
                 {showCloseButton && (
                   <Button
                     type="button"

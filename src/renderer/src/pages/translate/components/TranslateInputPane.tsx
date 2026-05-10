@@ -88,7 +88,11 @@ const TranslateInputPane = ({
       </div>
       <div className="flex shrink-0 items-center justify-between px-3 py-1.5">
         <div className="flex items-center gap-0.5">
-          <IconButton size="md" onClick={onSelectFile} disabled={selecting} aria-label={t('common.upload_files')}>
+          <IconButton
+            size="md"
+            onClick={onSelectFile}
+            disabled={disabled || selecting}
+            aria-label={t('common.upload_files')}>
             <FileUp size={12} />
           </IconButton>
           <IconButton size="md" onClick={onCopy} disabled={!text} aria-label={t('common.copy')}>

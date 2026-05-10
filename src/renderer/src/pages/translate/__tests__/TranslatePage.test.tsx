@@ -27,6 +27,11 @@ const fileMock = vi.hoisted(() => ({
   isTextFile: vi.fn()
 }))
 
+const dropMock = vi.hoisted(() => ({
+  getFilesFromDropEvent: vi.fn(),
+  getTextFromDropEvent: vi.fn()
+}))
+
 vi.mock('@data/hooks/useCache', async () => {
   const React = await import('react')
   return {
@@ -107,12 +112,12 @@ vi.mock('@renderer/hooks/translate/useDetectLang', () => ({
 }))
 
 vi.mock('@renderer/hooks/useDrag', () => ({
-  useDrag: () => ({
+  useDrag: (onDrop?: (event: React.DragEvent<HTMLDivElement>) => void) => ({
     isDragging: false,
     handleDragEnter: vi.fn(),
     handleDragLeave: vi.fn(),
     handleDragOver: vi.fn(),
-    handleDrop: vi.fn()
+    handleDrop: onDrop ?? vi.fn()
   })
 }))
 
@@ -164,8 +169,8 @@ vi.mock('@renderer/utils/error', () => ({
 }))
 
 vi.mock('@renderer/utils/input', () => ({
-  getFilesFromDropEvent: vi.fn().mockResolvedValue(null),
-  getTextFromDropEvent: vi.fn().mockResolvedValue(null)
+  getFilesFromDropEvent: dropMock.getFilesFromDropEvent,
+  getTextFromDropEvent: dropMock.getTextFromDropEvent
 }))
 
 vi.mock('@renderer/utils/translate', () => ({
@@ -196,13 +201,15 @@ vi.mock('../components/TranslateInputPane', () => ({
   default: ({
     text,
     onTextChange,
-    onSelectFile
+    onSelectFile,
+    onDrop
   }: {
     text: string
     onTextChange: (value: string) => void
     onSelectFile: () => void
+    onDrop: (event: React.DragEvent<HTMLDivElement>) => void
   }) => (
-    <div>
+    <div data-testid="translate-input-pane" onDrop={onDrop}>
       <textarea
         aria-label="translate.input.placeholder"
         value={text}
@@ -233,6 +240,10 @@ describe('TranslatePage', () => {
     fileMock.onSelectFile.mockReset()
     fileMock.readText.mockReset()
     fileMock.isTextFile.mockResolvedValue(true)
+    dropMock.getFilesFromDropEvent.mockReset()
+    dropMock.getFilesFromDropEvent.mockResolvedValue(null)
+    dropMock.getTextFromDropEvent.mockReset()
+    dropMock.getTextFromDropEvent.mockResolvedValue(null)
     ;(window as any).toast = {
       error: vi.fn(),
       info: vi.fn(),
@@ -279,5 +290,16 @@ describe('TranslatePage', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('typed while reading file content')
     })
+  })
+
+  it('ignores empty text data when handling drops', async () => {
+    dropMock.getTextFromDropEvent.mockResolvedValue('')
+
+    render(<TranslatePage />)
+
+    fireEvent.drop(screen.getByTestId('translate-input-pane'))
+
+    await waitFor(() => expect(dropMock.getTextFromDropEvent).toHaveBeenCalled())
+    expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('')
   })
 })

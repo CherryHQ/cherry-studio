@@ -6248,6 +6248,7 @@
         },
         "label": "Automatic detection method",
         "llm": {
+          "label": "LLM",
           "tip": "Using the quick model for language detection consumes fewer tokens."
         },
         "placeholder": "Select automatic detection method",

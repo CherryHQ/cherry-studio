@@ -39,6 +39,7 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
+  ConfirmDialog: () => null,
   HelpTooltip: () => null,
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   PageSidePanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,

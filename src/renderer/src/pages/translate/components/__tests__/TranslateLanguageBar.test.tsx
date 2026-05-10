@@ -15,6 +15,10 @@ vi.mock('@renderer/hooks/translate', () => ({
   useLanguages: () => mockUseLanguages()
 }))
 
+vi.mock('@renderer/utils', () => ({
+  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
+}))
+
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, onClick, disabled, ...rest }: React.ComponentProps<'button'>) => (
     <button type="button" onClick={onClick} disabled={disabled} {...rest}>
@@ -83,6 +87,28 @@ describe('TranslateLanguageBar', () => {
     expect(props.onSourceChange).toHaveBeenCalledWith(chinese.langCode)
   })
 
+  it('exposes source dropdown options with listbox roles and selected state', () => {
+    render(<TranslateLanguageBar {...baseProps()} />)
+
+    fireEvent.click(screen.getByText('translate.source_language'))
+
+    const listbox = screen.getByRole('listbox')
+    const autoOption = within(listbox).getByRole('option', { name: /translate\.detected\.language/ })
+    expect(autoOption).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('keeps selected option padding classes mutually exclusive', () => {
+    render(<TranslateLanguageBar {...baseProps()} />)
+
+    fireEvent.click(screen.getByText('translate.source_language'))
+
+    const selectedOption = screen.getByRole('option', { name: /translate\.detected\.language/ })
+    const optionContent = selectedOption.querySelector('span')
+
+    expect(optionContent?.className).toContain('px-2')
+    expect(optionContent?.className).not.toContain('px-3')
+  })
+
   it('selects auto option', () => {
     const props = baseProps()
     props.sourceLanguage = english.langCode
@@ -128,6 +154,16 @@ describe('TranslateLanguageBar', () => {
     // Source trigger button is disabled
     const sourceButton = screen.getByText('translate.source_language').closest('button')
     expect(sourceButton).toHaveAttribute('disabled')
+  })
+
+  it('adds visible focus rings to language trigger buttons', () => {
+    render(<TranslateLanguageBar {...baseProps()} />)
+
+    const sourceButton = screen.getByText('translate.source_language').closest('button')
+    const targetButton = screen.getByText('translate.target_language').closest('button')
+
+    expect(sourceButton?.className).toContain('focus-visible:ring-2')
+    expect(targetButton?.className).toContain('focus-visible:ring-2')
   })
 
   it('opens target dropdown and calls onTargetChange on select', () => {

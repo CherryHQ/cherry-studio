@@ -1,5 +1,6 @@
 import {
   Button,
+  ConfirmDialog,
   HelpTooltip,
   PageSidePanel,
   Popover,
@@ -87,7 +88,7 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
     },
     {
       value: 'llm',
-      label: 'LLM',
+      label: t('translate.detect.method.llm.label'),
       tip: t('translate.detect.method.llm.tip')
     }
   ]
@@ -391,6 +392,7 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(language.value)
   const [emoji, setEmoji] = useState(language.emoji)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   useEffect(() => {
     setValue(language.value)
@@ -415,25 +417,37 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
 
   if (!editing) {
     return (
-      <div className="group flex items-center gap-2 rounded-lg px-2 py-[5px] transition-colors hover:bg-muted/30">
-        <span className="min-w-0 flex-1 truncate text-foreground text-sm">{language.value}</span>
-        <span className="shrink-0 font-mono text-muted-foreground/50 text-xs">{language.langCode}</span>
-        <IconButton
-          size="sm"
-          onClick={() => setEditing(true)}
-          aria-label={t('common.edit')}
-          className="opacity-0 transition-opacity group-hover:opacity-100">
-          <PenLine size={10} />
-        </IconButton>
-        <IconButton
-          size="sm"
-          tone="destructive"
-          onClick={() => void deleteLanguage(language.langCode)}
-          aria-label={t('common.delete')}
-          className="opacity-0 transition-opacity group-hover:opacity-100">
-          <X size={10} />
-        </IconButton>
-      </div>
+      <>
+        <div className="group flex items-center gap-2 rounded-lg px-2 py-[5px] transition-colors hover:bg-muted/30">
+          <span className="min-w-0 flex-1 truncate text-foreground text-sm">{language.value}</span>
+          <span className="shrink-0 font-mono text-muted-foreground/50 text-xs">{language.langCode}</span>
+          <IconButton
+            size="sm"
+            onClick={() => setEditing(true)}
+            aria-label={t('common.edit')}
+            className="opacity-0 transition-opacity group-hover:opacity-100">
+            <PenLine size={10} />
+          </IconButton>
+          <IconButton
+            size="sm"
+            tone="destructive"
+            onClick={() => setConfirmOpen(true)}
+            aria-label={t('common.delete')}
+            className="opacity-0 transition-opacity group-hover:opacity-100">
+            <X size={10} />
+          </IconButton>
+        </div>
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title={t('settings.translate.custom.delete.title')}
+          description={t('settings.translate.custom.delete.description')}
+          confirmText={t('common.delete')}
+          cancelText={t('common.cancel')}
+          destructive
+          onConfirm={() => deleteLanguage(language.langCode)}
+        />
+      </>
     )
   }
 

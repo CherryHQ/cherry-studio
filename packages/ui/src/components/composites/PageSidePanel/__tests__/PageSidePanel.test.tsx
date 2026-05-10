@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { PageSidePanel } from '../index'
@@ -70,6 +71,34 @@ describe('PageSidePanel', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} />)
       const dialog = screen.getByRole('dialog')
       expect(dialog).toHaveAttribute('aria-modal', 'true')
+    })
+
+    it('uses the header as the dialog accessible name', () => {
+      render(<PageSidePanel open={true} onClose={vi.fn()} header={<span>Panel title</span>} />)
+      expect(screen.getByRole('dialog', { name: 'Panel title' })).toBeInTheDocument()
+    })
+
+    it('restores focus to the trigger when closed', () => {
+      function TestPanel() {
+        const [open, setOpen] = React.useState(false)
+        return (
+          <>
+            <button type="button" onClick={() => setOpen(true)}>
+              Open panel
+            </button>
+            <PageSidePanel open={open} onClose={() => setOpen(false)} header={<span>Panel title</span>} />
+          </>
+        )
+      }
+
+      render(<TestPanel />)
+      const trigger = screen.getByRole('button', { name: 'Open panel' })
+      trigger.focus()
+      fireEvent.click(trigger)
+
+      fireEvent.click(screen.getByLabelText('Close'))
+
+      expect(trigger).toHaveFocus()
     })
 
     it('calls onClose on Escape key', () => {
