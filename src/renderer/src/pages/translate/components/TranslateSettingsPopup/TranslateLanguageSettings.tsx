@@ -1,6 +1,7 @@
 import { Button, type ColumnDef, ConfirmDialog, DataTable, EmptyState, RowFlex } from '@cherrystudio/ui'
 import { useTranslateLanguages } from '@renderer/hooks/translate'
 import { SettingSubtitle } from '@renderer/pages/settings'
+import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translate-languages'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { memo, startTransition, useCallback, useMemo, useState } from 'react'
@@ -8,12 +9,20 @@ import { useTranslation } from 'react-i18next'
 
 import TranslateLanguagesModal from './TranslateLanguagesModal'
 
+const BUILTIN_LANG_CODES: ReadonlySet<string> = new Set(
+  BUILTIN_TRANSLATE_LANGUAGES.map((language) => language.langCode)
+)
+
 const TranslateLanguageSettings = () => {
   const { t } = useTranslation()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingLanguage, setEditingLanguage] = useState<TranslateLanguage>()
   const [deletingLanguage, setDeletingLanguage] = useState<TranslateLanguage | null>(null)
   const { languages, remove: deleteLanguage } = useTranslateLanguages({ remove: { rethrowError: false } })
+  const customLanguages = useMemo(
+    () => languages?.filter((language) => !BUILTIN_LANG_CODES.has(language.langCode)),
+    [languages]
+  )
 
   const onClickAdd = () => {
     startTransition(async () => {
@@ -114,7 +123,7 @@ const TranslateLanguageSettings = () => {
         <div className="flex flex-1 flex-col">
           <DataTable
             columns={columns}
-            data={languages ?? []}
+            data={customLanguages ?? []}
             emptyText={<EmptyState compact preset="no-translate" description={t('common.no_results')} />}
             rowKey="langCode"
             tableLayout="fixed"
