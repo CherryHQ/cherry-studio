@@ -34,12 +34,14 @@ conflict.
 | Main-process filesystem paths | `src/main/core/paths/README.md` |
 | SQLite services, handlers, seeders, migrations | `docs/references/testing/database-testing.md`, `tests/__mocks__/README.md` |
 | UI and shared components | `DESIGN.md`, `packages/ui/`, component usage near the diff |
-| Repository skills | `.agents/skills/README.md`, `.agents/skills/create-skill/SKILL.md`, `/Users/suyao/.codex/skills/.system/skill-creator/SKILL.md` when available |
+| Repository skills | `.agents/skills/README.md`, `.agents/skills/create-skill/SKILL.md`, `.agents/skills/gh-pr-review/SKILL.md` |
 
 ### Internal Skills
 
 Use these skills when they are available in the current runtime:
 
+- Never hard-code machine-local skill paths. Refer to a skill by name and use
+  the runtime-provided skill path only when the active environment exposes one.
 - `vercel-react-best-practices`: React and Next.js performance, rendering,
   data-fetching, and bundle review.
 - `create-skill`: repository-specific skill creation, public skill whitelist,
