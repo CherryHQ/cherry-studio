@@ -407,7 +407,7 @@ export const DefaultPreferences: PreferenceSchemas = {`
 
       if (value.type) {
         // 叶子节点 - 实际的配置项，直接使用targetKey
-        const defaultVal = this.formatDefaultValue(value.defaultValue, value.type)
+        const defaultVal = this.formatDefaultValue(value.defaultValue)
         code += `${indent}'${key}': ${defaultVal}${isLast ? '' : ','}\n`
       } else {
         // 中间节点 - 嵌套对象
@@ -420,7 +420,7 @@ export const DefaultPreferences: PreferenceSchemas = {`
     return code
   }
 
-  formatDefaultValue(value, type) {
+  formatDefaultValue(value) {
     if (value === null || value === undefined) {
       return 'null'
     }
