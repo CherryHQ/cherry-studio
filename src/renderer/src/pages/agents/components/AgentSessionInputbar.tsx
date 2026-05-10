@@ -65,6 +65,7 @@ const AgentSessionInputbar = ({
   stop: chatStop,
   isStreaming: isStreamingProp
 }: Props) => {
+  const { t } = useTranslation()
   const { session } = useSession(agentId, sessionId)
   const { agent } = useAgent(agentId)
   const { providers } = useProviders()
@@ -91,7 +92,7 @@ const AgentSessionInputbar = ({
     const now = new Date().toISOString()
     return {
       id: session.agentId ?? agentId,
-      name: session.name ?? 'Agent Session',
+      name: session.name ?? t('common.unnamed'),
       prompt: agent.instructions ?? '',
       emoji: '🌟',
       description: '',
