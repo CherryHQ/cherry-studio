@@ -120,28 +120,26 @@ export class AgentsMigrator extends BaseMigrator {
         await ctx.db.run(sql.raw(statement))
       }
 
+      // Atomic post-INSERT shape reconciliation — runs INSIDE the BEGIN/COMMIT
+      // so a failure rolls everything back instead of leaving rows in an
+      // intermediate sentinel state (`order_key=''` or v1 `blocks: [...]`).
+      //
+      // Order:
+      //   1. backfillAgentOrderKeys — joins `agents_legacy.{agents,sessions}`,
+      //      so MUST run while ATTACH is live and BEFORE remap rewrites ids.
+      //   2. transformAgentBlocksToParts — no ordering constraint with remap;
+      //      operates on `content` JSON, ids unchanged.
+      await backfillAgentOrderKeys(ctx.db)
+      await transformAgentBlocksToParts(ctx.db)
+
       await ctx.db.run(sql.raw('COMMIT'))
       committed = true
       logger.info('Agents migration transaction committed successfully')
 
-      // Backfill orderKey ordered by source `sort_order` BEFORE remapAgentPrefixIds
-      // rewrites target ids — joining target.id ↔ agents_legacy.id is only
-      // valid while ids match.
-      await backfillAgentOrderKeys(ctx.db)
-
-      // Remap old prefix IDs after the import transaction commits. Must run after COMMIT
-      // so the imported rows are visible; remapAgentPrefixIds is idempotent, so a retry
-      // after a previous partial failure is safe.
+      // Prefix-id remap runs AFTER the outer COMMIT because it opens its own
+      // BEGIN/COMMIT (nested SQLite transactions are not supported). It is
+      // idempotent, so a retry after a partial failure is safe.
       await remapAgentPrefixIds(ctx.db)
-
-      // Integrated shape reconciliation — runs after the raw INSERT...SELECT
-      // because Drizzle's query builder and the pre-BEGIN ATTACH share the
-      // same connection only if we stay on raw `ctx.db.run()` inside
-      // BEGIN/COMMIT (see note above). Any failure here fails the whole
-      // migrator — callers must be able to distinguish "copy landed but
-      // rows are in legacy shape" from "migrator succeeded", and silencing
-      // these would hide the former.
-      await transformAgentBlocksToParts(ctx.db)
     } catch (error) {
       if (!committed) {
         try {
@@ -324,9 +322,10 @@ export class AgentsMigrator extends BaseMigrator {
 // ── Integrated post-copy shape transforms ────────────────────────────
 //
 // Exported as named helpers so they are unit-testable without constructing
-// a full migrator / MigrationContext. `execute()` calls them unconditionally
-// after the copy transaction commits, so failures propagate as normal
-// migrator errors (no silent post-hook semantics).
+// a full migrator / MigrationContext. `execute()` calls them inside the
+// copy BEGIN/COMMIT block — failures roll back the entire import via
+// SQLite ROLLBACK rather than leaving rows in an intermediate sentinel
+// state. No silent post-hook semantics.
 
 export interface BlocksToPartsTransformResult {
   totalMessages: number
