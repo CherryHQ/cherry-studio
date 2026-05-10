@@ -1,8 +1,7 @@
+import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { useKnowledgeItems } from '../useKnowledgeItems'
 
 const mockUseQuery = vi.fn()
 const expectKnowledgeItemsQuery = (baseId: string, enabled: boolean) => {

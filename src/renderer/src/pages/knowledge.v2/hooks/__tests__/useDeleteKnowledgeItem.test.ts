@@ -1,9 +1,9 @@
+import { useDeleteKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockRendererLoggerService } from '../../../../../../../tests/__mocks__/RendererLoggerService'
 import { createNoteItem } from '../../panels/dataSource/__tests__/testUtils'
-import { useDeleteKnowledgeItem } from '../useDeleteKnowledgeItem'
 
 const mockUseInvalidateCache = vi.fn()
 const mockInvalidateCache = vi.fn()

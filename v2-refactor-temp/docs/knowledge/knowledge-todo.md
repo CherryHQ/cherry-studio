@@ -49,7 +49,7 @@
   - 当前列表按 root items 查询，缺少完整分页、排序、子分组筛选和批量操作。
   - 非终态 item 目前靠轮询刷新。
   - 后续应根据数据规模和 UI 稿补分页 / 虚拟列表 / 排序 / 批量处理等能力。
-  - 参考：`src/renderer/src/pages/knowledge.v2/hooks/useKnowledgeItems.ts`
+  - 参考：`src/renderer/src/hooks/useKnowledgeItems.ts`
 
 - 统一 sitemap 的用户可见文案。
   - 当前语义已经收敛到 `sitemap`，但部分中文文案仍可能显示为“网站”。

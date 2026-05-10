@@ -27,14 +27,17 @@ vi.mock('@renderer/hooks/useKnowledgeBases', () => ({
   useDeleteKnowledgeBase: () => mockUseDeleteKnowledgeBase()
 }))
 
+vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
+  useDeleteKnowledgeItem: (baseId: string) => mockUseDeleteKnowledgeItem(baseId),
+  useKnowledgeItems: (baseId: string) => mockUseKnowledgeItems(baseId),
+  useReindexKnowledgeItem: (baseId: string) => mockUseReindexKnowledgeItem(baseId)
+}))
+
 vi.mock('../hooks', () => ({
   useKnowledgeGroups: () => mockUseKnowledgeGroups(),
   useCreateKnowledgeGroup: () => mockUseCreateKnowledgeGroup(),
   useUpdateKnowledgeGroup: () => mockUseUpdateKnowledgeGroup(),
-  useDeleteKnowledgeGroup: () => mockUseDeleteKnowledgeGroup(),
-  useDeleteKnowledgeItem: (baseId: string) => mockUseDeleteKnowledgeItem(baseId),
-  useKnowledgeItems: (baseId: string) => mockUseKnowledgeItems(baseId),
-  useReindexKnowledgeItem: (baseId: string) => mockUseReindexKnowledgeItem(baseId)
+  useDeleteKnowledgeGroup: () => mockUseDeleteKnowledgeGroup()
 }))
 
 vi.mock('@renderer/components/app/Navbar', () => ({

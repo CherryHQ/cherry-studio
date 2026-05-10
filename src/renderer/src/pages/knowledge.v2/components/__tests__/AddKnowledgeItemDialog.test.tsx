@@ -35,7 +35,7 @@ vi.mock('../../KnowledgePageProvider', () => ({
   useKnowledgePage: () => mockUseKnowledgePage()
 }))
 
-vi.mock('../../hooks/useAddKnowledgeItems', () => ({
+vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: (...args: unknown[]) => mockUseAddKnowledgeItems(...args)
 }))
 

@@ -1,10 +1,10 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
+import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import type { FileMetadata } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useAddKnowledgeItems } from '../hooks/useAddKnowledgeItems'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import AddKnowledgeItemDialogFooter from './addKnowledgeItemDialog/AddKnowledgeItemDialogFooter'
 import AddKnowledgeItemDialogHeader from './addKnowledgeItemDialog/AddKnowledgeItemDialogHeader'

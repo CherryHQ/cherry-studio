@@ -5,6 +5,7 @@ import {
   useRestoreKnowledgeBase,
   useUpdateKnowledgeBase
 } from '@renderer/hooks/useKnowledgeBases'
+import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -22,13 +23,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  useCreateKnowledgeGroup,
-  useDeleteKnowledgeGroup,
-  useKnowledgeGroups,
-  useKnowledgeItems,
-  useUpdateKnowledgeGroup
-} from './hooks'
+import { useCreateKnowledgeGroup, useDeleteKnowledgeGroup, useKnowledgeGroups, useUpdateKnowledgeGroup } from './hooks'
 import type { KnowledgeRestoreBaseInitialValues } from './panels/ragConfig/RagConfigPanel'
 import type { KnowledgeTabKey } from './types'
 

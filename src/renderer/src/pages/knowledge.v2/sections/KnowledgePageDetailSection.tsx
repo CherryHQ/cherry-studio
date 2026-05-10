@@ -1,6 +1,7 @@
+import { useDeleteKnowledgeItem, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
+
 import DetailHeader from '../components/DetailHeader'
 import DetailTabs from '../components/DetailTabs'
-import { useDeleteKnowledgeItem, useReindexKnowledgeItem } from '../hooks'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import DataSourcePanel from '../panels/dataSource/DataSourcePanel'
 import KnowledgeItemChunkDetailPanel from '../panels/dataSource/KnowledgeItemChunkDetailPanel'
