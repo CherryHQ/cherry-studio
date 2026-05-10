@@ -9,10 +9,11 @@
  *   changes are observable, so the row is left untouched
  *
  * `writeIfUnchanged` deliberately re-stats on every call; the cache is **not**
- * trusted for the OCC compare (architecture.md §4.4 trust boundary).
+ * trusted for the OCC compare (file-manager-architecture.md §4.4 trust boundary).
  */
 
 import { resolvePhysicalPath } from '@data/utils/pathResolver'
+import { loggerService } from '@logger'
 import type { AtomicWriteStream } from '@main/utils/file/fs'
 import {
   atomicWriteFile,
@@ -26,6 +27,8 @@ import type { FilePath } from '@shared/file/types'
 
 import { type FileVersion, StaleVersionError } from '../../FileManager'
 import type { FileManagerDeps } from '../deps'
+
+const logger = loggerService.withContext('file/internal/write')
 
 export async function write(deps: FileManagerDeps, id: FileEntryId, data: string | Uint8Array): Promise<FileVersion> {
   const entry = await deps.fileEntryService.getById(id)
@@ -77,8 +80,14 @@ export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId):
         await deps.fileEntryService.update(id, { size: version.size })
       }
       deps.versionCache.set(id, version)
-    } catch {
-      // post-commit metadata sync is best-effort; the file itself is already on disk
+    } catch (err) {
+      // post-commit metadata sync is best-effort: the file itself is already
+      // on disk. Log so a stat failure (race with delete) or DB write failure
+      // (file_entry.size out of sync with disk) is at least diagnosable.
+      logger.warn('createWriteStream: post-commit metadata sync failed', {
+        id,
+        err: (err as Error).message
+      })
     }
   })
   return stream

@@ -277,10 +277,10 @@ export async function atomicWriteIfUnchanged(
   const current: PathVersion = { mtime: Math.floor(s.mtimeMs), size: s.size }
   const sizeMatch = current.size === expected.size
   const mtimeMatch = current.mtime === expected.mtime
-  const ambiguousMtime = sizeMatch && current.mtime % 1000 === 0 && expected.mtime % 1000 === 0
-  if (!(sizeMatch && mtimeMatch) && !ambiguousMtime) {
+  if (!(sizeMatch && mtimeMatch)) {
     throw new PathStaleVersionError(target, expected, current)
   }
+  const ambiguousMtime = current.mtime % 1000 === 0 && expected.mtime % 1000 === 0
   if (ambiguousMtime && expectedContentHash !== undefined) {
     const actualHash = await hash(target)
     if (actualHash !== expectedContentHash) {
@@ -379,7 +379,13 @@ export async function download(url: string, dest: FilePath): Promise<void> {
   const writer = createAtomicWriteStream(dest)
   const reader = response.body.getReader()
   await new Promise<void>((resolve, reject) => {
-    writer.on('error', reject)
+    writer.on('error', (err) => {
+      // Cancel the reader so the underlying TCP socket / ReadableStream lock
+      // is released — otherwise a writer-side failure (fsync, rename, disk
+      // full) leaves the in-flight reader holding resources until GC.
+      reader.cancel(err).catch(() => undefined)
+      reject(err)
+    })
     writer.on('finish', resolve)
     const pump = async () => {
       try {

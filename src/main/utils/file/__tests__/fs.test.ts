@@ -298,6 +298,18 @@ describe('atomicWriteIfUnchanged', () => {
     expect(next.size).toBe(4)
   })
 
+  it('throws when both mtimes are second-precision but unequal (different second values)', async () => {
+    // Regression: previously `ambiguousMtime` only required both mtimes to be
+    // whole-second values, not equal — so a concurrent edit that changed mtime
+    // by a whole second with size unchanged would silently overwrite.
+    const target = path.join(tmp, 'd2.txt') as FilePath
+    await writeFile(target, 'aaaa')
+    await utimes(target, 1700000001, 1700000001) // current is 1700000001 sec
+    const expected = { mtime: 1700000000_000, size: 4 } // expected was 1700000000 sec
+    await expect(atomicWriteIfUnchanged(target, 'bbbb', expected)).rejects.toBeInstanceOf(PathStaleVersionError)
+    expect(await readFile(target, 'utf-8')).toBe('aaaa')
+  })
+
   it('with expectedContentHash, throws when hash differs in ambiguous branch', async () => {
     const target = path.join(tmp, 'e.txt') as FilePath
     await writeFile(target, 'aaaa')

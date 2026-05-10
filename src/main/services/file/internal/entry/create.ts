@@ -149,8 +149,11 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
         peerIds: peers.map((p) => p.id)
       })
     }
-  } catch {
-    // best-effort
+  } catch (err) {
+    logger.warn('ensureExternal: case-insensitive peer detection failed (non-fatal, insert proceeds)', {
+      path: canonical,
+      err: (err as Error).message
+    })
   }
   const name = params.name ?? defaultNameFromPath(params.externalPath)
   const ext = extWithoutDot(params.externalPath)
