@@ -174,7 +174,10 @@ export class ChatCompletionService {
     }
   }
 
-  async processStreamingCompletion(request: ChatCompletionCreateParams): Promise<{
+  async processStreamingCompletion(
+    request: ChatCompletionCreateParams,
+    signal?: AbortSignal
+  ): Promise<{
     provider: Provider
     modelId: string
     stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
@@ -199,9 +202,12 @@ export class ChatCompletionService {
       logger.debug('Sending streaming request to provider', { provider: provider.id, model: modelId })
 
       const streamRequest = providerRequest as ChatCompletionCreateParamsStreaming
-      const stream = (await client.chat.completions.create(
-        streamRequest
-      )) as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
+      // `signal` lets the route abort the upstream stream when the HTTP
+      // client disconnects mid-response so we don't keep consuming (and
+      // billing for) provider tokens.
+      const stream = (await client.chat.completions.create(streamRequest, {
+        signal
+      })) as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
 
       logger.info('Streaming chat completion started', {
         modelId,

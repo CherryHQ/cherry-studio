@@ -202,7 +202,14 @@ router.post('/completions', async (req: Request, res: Response) => {
     const isStreaming = !!request.stream
 
     if (isStreaming) {
-      const { stream } = await chatCompletionService.processStreamingCompletion(request)
+      // Abort the upstream stream when the HTTP client disconnects so we
+      // don't keep consuming provider tokens for a closed socket.
+      const abortController = new AbortController()
+      res.once('close', () => {
+        if (!res.writableEnded) abortController.abort()
+      })
+
+      const { stream } = await chatCompletionService.processStreamingCompletion(request, abortController.signal)
 
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
       res.setHeader('Cache-Control', 'no-cache, no-transform')
@@ -212,22 +219,31 @@ router.post('/completions', async (req: Request, res: Response) => {
 
       try {
         for await (const chunk of stream) {
+          if (res.writableEnded || abortController.signal.aborted) break
           res.write(`data: ${JSON.stringify(chunk)}\n\n`)
         }
-        res.write('data: [DONE]\n\n')
-      } catch (streamError: any) {
-        logger.error('Stream error', { error: streamError })
-        res.write(
-          `data: ${JSON.stringify({
-            error: {
-              message: 'Stream processing error',
-              type: 'server_error',
-              code: 'stream_error'
-            }
-          })}\n\n`
-        )
+        if (!res.writableEnded) res.write('data: [DONE]\n\n')
+      } catch (streamError) {
+        // Aborts surface here as AbortError — that's a normal client-disconnect,
+        // not an error worth surfacing.
+        if (abortController.signal.aborted) {
+          logger.debug('Stream aborted by client disconnect')
+        } else {
+          logger.error('Stream error', streamError as Error)
+          if (!res.writableEnded) {
+            res.write(
+              `data: ${JSON.stringify({
+                error: {
+                  message: 'Stream processing error',
+                  type: 'server_error',
+                  code: 'stream_error'
+                }
+              })}\n\n`
+            )
+          }
+        }
       } finally {
-        res.end()
+        if (!res.writableEnded) res.end()
       }
       return
     }
