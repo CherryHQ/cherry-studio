@@ -10,14 +10,14 @@ import { useAssistants } from './useAssistant'
 
 /**
  * v1 Redux-backed assistant tag hook. Slated for removal once the home tab
- * migrates to the v2 DataApi (`useDataTags`).
+ * migrates to the v2 DataApi (`useTags`).
  *
  * Active call sites:
  *   - src/renderer/src/pages/home/Tabs/AssistantsTab.tsx
  *   - src/renderer/src/pages/home/Tabs/components/AssistantItem.tsx
  *   - src/renderer/src/pages/home/Tabs/components/AssistantTagsPopup.tsx
  *
- * Do not add new consumers — use `useDataTags` for v2 features.
+ * Do not add new consumers — use `useTags` for v2 features.
  */
 
 // 基础选择器

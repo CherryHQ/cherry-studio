@@ -1,4 +1,4 @@
-import { useTagList } from '@renderer/hooks/useDataTags'
+import { useTagList } from '@renderer/hooks/useTags'
 import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'

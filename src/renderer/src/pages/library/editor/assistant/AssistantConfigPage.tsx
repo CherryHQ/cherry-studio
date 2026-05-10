@@ -1,4 +1,4 @@
-import { useEnsureTags, useTagList } from '@renderer/hooks/useDataTags'
+import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'

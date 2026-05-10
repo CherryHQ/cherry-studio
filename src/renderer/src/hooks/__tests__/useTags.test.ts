@@ -3,7 +3,7 @@ import type { Tag } from '@shared/data/types/tag'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useEnsureTags } from '../useDataTags'
+import { useEnsureTags } from '../useTags'
 
 const mocks = vi.hoisted(() => ({
   useQuery: vi.fn(),

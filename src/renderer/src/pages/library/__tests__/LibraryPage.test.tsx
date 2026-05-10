@@ -63,7 +63,7 @@ vi.mock('../adapters/assistantAdapter', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useDataTags', () => ({
+vi.mock('@renderer/hooks/useTags', () => ({
   useEnsureTags: () => ({
     ensureTags: vi.fn()
   }),

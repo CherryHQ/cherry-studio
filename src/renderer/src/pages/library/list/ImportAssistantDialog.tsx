@@ -11,7 +11,7 @@ import {
   TabsTrigger,
   Textarea
 } from '@cherrystudio/ui'
-import { useEnsureTags } from '@renderer/hooks/useDataTags'
+import { useEnsureTags } from '@renderer/hooks/useTags'
 import { Clipboard, FileJson, Link, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'

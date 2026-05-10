@@ -1,6 +1,6 @@
 import { Button, Checkbox, Input, MenuDivider, MenuItem, Separator } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useEnsureTags, useTagList } from '@renderer/hooks/useDataTags'
+import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { ChevronDown, Copy, Download, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'

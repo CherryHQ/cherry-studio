@@ -36,7 +36,7 @@ vi.mock('../../adapters/promptAdapter', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useDataTags', () => ({
+vi.mock('@renderer/hooks/useTags', () => ({
   useTagList: mocks.useTagList
 }))
 
