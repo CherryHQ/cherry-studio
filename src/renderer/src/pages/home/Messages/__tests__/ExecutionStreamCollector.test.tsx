@@ -1,12 +1,17 @@
 import { Chat } from '@ai-sdk/react'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { MockTransport } from '@test-mocks/renderer/IpcChatTransport'
 import { render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+// Per-test transport registry — owned by this file, not the shared mock,
+// so concurrent tests in other files can't observe each other's transports.
+const { transports } = vi.hoisted(() => ({ transports: new Map<string, MockTransport>() }))
+
 vi.mock('@renderer/transport/IpcChatTransport', async () => {
-  const { MockExecutionTransport } = await import('@test-mocks/renderer/IpcChatTransport')
-  return { ExecutionTransport: MockExecutionTransport }
+  const { createMockExecutionTransport } = await import('@test-mocks/renderer/IpcChatTransport')
+  return { ExecutionTransport: createMockExecutionTransport(transports) }
 })
 
 vi.mock('@logger', () => ({
@@ -16,7 +21,6 @@ vi.mock('@logger', () => ({
 }))
 
 import { ExecutionTransport } from '@renderer/transport/IpcChatTransport'
-import { transports } from '@test-mocks/renderer/IpcChatTransport'
 
 import ExecutionStreamCollector from '../ExecutionStreamCollector'
 
