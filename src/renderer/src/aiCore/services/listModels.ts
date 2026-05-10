@@ -197,14 +197,14 @@ const geminiFetcher: ModelFetcher = {
 const vertexFetcher: ModelFetcher = {
   match: (p) => isVertexProvider(p),
   fetch: async (provider, signal, options) => {
-    const request = await createVertexModelListRequest(provider)
+    const request = await createVertexModelListRequest(provider, { throwOnError: options?.throwOnError })
 
     if (!request) {
       return []
     }
 
     type PublisherGroup = z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] | null
-    let lastError: unknown
+    let firstPublisherError: unknown
     const publisherModelGroups = await Promise.all(
       DEFAULT_VERTEX_MODEL_PUBLISHERS.map(async (publisher): Promise<PublisherGroup> => {
         try {
@@ -234,7 +234,9 @@ const vertexFetcher: ModelFetcher = {
 
           return publisherModels
         } catch (error) {
-          lastError = error
+          if (firstPublisherError === undefined) {
+            firstPublisherError = error
+          }
           logger.warn('Skipping Vertex publisher model listing after request failure', {
             providerId: provider.id,
             publisher,
@@ -245,8 +247,14 @@ const vertexFetcher: ModelFetcher = {
       })
     )
 
-    if (options?.throwOnError && publisherModelGroups.every((g) => g === null)) {
-      throw lastError ?? new Error('All Vertex AI publisher requests failed')
+    if (options?.throwOnError && publisherModelGroups.some((g) => g === null)) {
+      if (firstPublisherError instanceof Error) {
+        throw firstPublisherError
+      }
+      if (firstPublisherError !== undefined) {
+        throw new Error(String(firstPublisherError))
+      }
+      throw new Error('One or more Vertex AI publisher requests failed')
     }
 
     const publisherModels = publisherModelGroups.filter((g) => g !== null).flat()
@@ -536,6 +544,9 @@ export async function listModels(
   try {
     if (isUnsupported(provider)) {
       logger.warn('Provider does not support model listing via listModels', { providerId: provider.id })
+      if (options?.throwOnError) {
+        throw new Error(`Provider does not support model listing: ${provider.id}`)
+      }
       return []
     }
 

@@ -71,7 +71,10 @@ function buildVertexAIIncompleteConfigMessage(missingFields: VertexAIConfigField
   return `${i18n.t('settings.provider.vertex_ai.service_account.incomplete_config')}: ${missingFieldLabels}.${locationHint}`
 }
 
-export async function createVertexModelListRequest(provider: Provider): Promise<VertexModelListRequest | undefined> {
+export async function createVertexModelListRequest(
+  provider: Provider,
+  options?: { throwOnError?: boolean }
+): Promise<VertexModelListRequest | undefined> {
   const {
     location,
     projectId,
@@ -90,6 +93,9 @@ export async function createVertexModelListRequest(provider: Provider): Promise<
   if (missingFields.length > 0) {
     const errorMessage = buildVertexAIIncompleteConfigMessage(missingFields)
 
+    if (options?.throwOnError) {
+      throw new Error(errorMessage)
+    }
     window.toast?.error(errorMessage)
     logger.warn('Vertex AI model listing skipped because service account settings are incomplete', {
       providerId: provider.id,
@@ -111,6 +117,9 @@ export async function createVertexModelListRequest(provider: Provider): Promise<
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
 
+    if (options?.throwOnError) {
+      throw error instanceof Error ? error : new Error(errorMessage)
+    }
     window.toast?.error(errorMessage)
     logger.warn('Vertex AI model listing skipped because authentication failed', {
       providerId: provider.id,
