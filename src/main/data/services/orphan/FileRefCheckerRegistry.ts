@@ -13,7 +13,10 @@
  * file are conservative no-ops until then — see per-checker JSDoc).
  */
 
+import { application } from '@application'
+import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import type { FileRefSourceType } from '@shared/data/types/file'
+import { inArray } from 'drizzle-orm'
 
 export interface SourceTypeChecker<T extends FileRefSourceType = FileRefSourceType> {
   readonly sourceType: T
@@ -35,4 +38,17 @@ export type OrphanCheckerRegistry = {
 export const tempSessionChecker: SourceTypeChecker<'temp_session'> = {
   sourceType: 'temp_session',
   checkExists: async () => new Set()
+}
+
+export const knowledgeItemChecker: SourceTypeChecker<'knowledge_item'> = {
+  sourceType: 'knowledge_item',
+  checkExists: async (sourceIds) => {
+    if (sourceIds.length === 0) return new Set()
+    const db = application.get('DbService').getDb()
+    const rows = await db
+      .select({ id: knowledgeItemTable.id })
+      .from(knowledgeItemTable)
+      .where(inArray(knowledgeItemTable.id, sourceIds as string[]))
+    return new Set(rows.map((r) => r.id))
+  }
 }
