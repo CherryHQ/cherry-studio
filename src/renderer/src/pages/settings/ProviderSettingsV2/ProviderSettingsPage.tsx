@@ -25,7 +25,7 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
   const navigate = useNavigate()
   const { providers: rawProviders } = useProviders()
   const [lastSelectedProviderId, setLastSelectedProviderId] = usePersistCache(
-    'ui.provider_settings.last_selected_provider_id'
+    'settings.provider.last_selected_provider_id'
   )
   const [selectedProviderId, setSelectedProviderIdState] = useState<string | undefined>(
     () => lastSelectedProviderId ?? undefined

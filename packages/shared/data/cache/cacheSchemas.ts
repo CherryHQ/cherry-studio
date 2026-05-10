@@ -265,7 +265,7 @@ export type RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.width': number
-  'ui.provider_settings.last_selected_provider_id': string | null
+  'settings.provider.last_selected_provider_id': string | null
   'feature.mcp.is_uv_installed': boolean
   'feature.mcp.is_bun_installed': boolean
   // Multi-model list for @mention parallel answering, keyed by assistantId
@@ -277,7 +277,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 65,
-  'ui.provider_settings.last_selected_provider_id': null,
+  'settings.provider.last_selected_provider_id': null,
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
   'ui.assistant.multi_model_ids': {}

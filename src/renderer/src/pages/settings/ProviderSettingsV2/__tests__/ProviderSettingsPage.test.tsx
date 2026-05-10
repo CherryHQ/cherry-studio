@@ -67,7 +67,7 @@ describe('ProviderSettingsPage', () => {
   })
 
   it('lets an explicit search id override the remembered provider', async () => {
-    MockUseCacheUtils.setPersistCacheValue('ui.provider_settings.last_selected_provider_id', 'openai')
+    MockUseCacheUtils.setPersistCacheValue('settings.provider.last_selected_provider_id', 'openai')
     searchMock = { id: 'anthropic' }
 
     render(<ProviderSettingsPage />)
@@ -83,7 +83,7 @@ describe('ProviderSettingsPage', () => {
   })
 
   it('does not select CherryAI when it is remembered or requested by URL', async () => {
-    MockUseCacheUtils.setPersistCacheValue('ui.provider_settings.last_selected_provider_id', 'cherryai')
+    MockUseCacheUtils.setPersistCacheValue('settings.provider.last_selected_provider_id', 'cherryai')
     searchMock = { id: 'cherryai' }
     useProvidersMock.mockReturnValue({
       providers: [{ id: 'cherryai', name: 'CherryAI', isEnabled: true }, ...providers]

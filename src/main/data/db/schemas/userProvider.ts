@@ -11,12 +11,12 @@
  */
 
 import type { EndpointType } from '@shared/data/types/model'
-import {
-  type ApiFeatures,
-  type ApiKeyEntry,
-  type AuthConfig,
-  type EndpointConfig,
-  type ProviderSettings
+import type {
+  ApiFeatures,
+  ApiKeyEntry,
+  AuthConfig,
+  EndpointConfig,
+  ProviderSettings
 } from '@shared/data/types/provider'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
