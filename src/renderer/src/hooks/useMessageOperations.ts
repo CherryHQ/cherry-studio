@@ -49,6 +49,12 @@ export const selectNewDisplayCount = createSelector(
 export function useMessageOperations(topic: Topic) {
   const dispatch = useAppDispatch()
 
+  const preserveMessageAnchor = useCallback((messageId?: string) => {
+    if (messageId) {
+      void EventEmitter.emit(EVENT_NAMES.PRESERVE_MESSAGE_ANCHOR, { messageId })
+    }
+  }, [])
+
   /**
    * 删除单个消息。 / Deletes a single message.
    * Dispatches deleteSingleMessageThunk.
@@ -103,10 +109,11 @@ export function useMessageOperations(topic: Topic) {
    */
   const resendMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
+      preserveMessageAnchor(message.id)
       await restartTrace(message)
       await dispatch(resendMessageThunk(topic.id, message, assistant))
     },
-    [dispatch, topic.id]
+    [dispatch, preserveMessageAnchor, topic.id]
   )
 
   /**
@@ -164,6 +171,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const regenerateAssistantMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
+      preserveMessageAnchor(message.askId)
       await restartTrace(message)
       if (message.role !== 'assistant') {
         logger.warn('regenerateAssistantMessage should only be called for assistant messages.')
@@ -171,7 +179,7 @@ export function useMessageOperations(topic: Topic) {
       }
       await dispatch(regenerateAssistantResponseThunk(topic.id, message, assistant))
     },
-    [dispatch, topic.id]
+    [dispatch, preserveMessageAnchor, topic.id]
   )
 
   /**
@@ -180,6 +188,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const appendAssistantResponse = useCallback(
     async (existingAssistantMessage: Message, newModel: Model, assistant: Assistant) => {
+      preserveMessageAnchor(existingAssistantMessage.askId)
       await appendMessageTrace(existingAssistantMessage, newModel)
       if (existingAssistantMessage.role !== 'assistant') {
         logger.error('appendAssistantResponse should only be called for an existing assistant message.')
@@ -199,7 +208,7 @@ export function useMessageOperations(topic: Topic) {
         )
       )
     },
-    [dispatch, topic.id]
+    [dispatch, preserveMessageAnchor, topic.id]
   )
 
   /**
@@ -384,6 +393,7 @@ export function useMessageOperations(topic: Topic) {
   const resendUserMessageWithEdit = useCallback(
     async (message: Message, editedBlocks: MessageBlock[], assistant: Assistant) => {
       await editMessageBlocks(message.id, editedBlocks)
+      preserveMessageAnchor(message.id)
 
       const mainTextBlock = editedBlocks.find((block) => block.type === MessageBlockType.MAIN_TEXT)
       if (!mainTextBlock) {
@@ -410,7 +420,7 @@ export function useMessageOperations(topic: Topic) {
       // 对于message的修改会在下面的thunk中保存
       await dispatch(resendUserMessageWithEditThunk(topic.id, message, assistant))
     },
-    [dispatch, editMessageBlocks, topic.id]
+    [dispatch, editMessageBlocks, preserveMessageAnchor, topic.id]
   )
 
   /**

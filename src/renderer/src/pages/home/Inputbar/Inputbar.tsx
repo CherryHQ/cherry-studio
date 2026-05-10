@@ -261,6 +261,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       const { message, blocks } = getUserMessage(baseUserMessage)
       message.traceId = parent?.spanContext().traceId
 
+      void EventEmitter.emit(EVENT_NAMES.PRESERVE_MESSAGE_ANCHOR, { messageId: message.id })
       void dispatch(_sendMessage(message, blocks, assistant, topic.id))
 
       setText('')

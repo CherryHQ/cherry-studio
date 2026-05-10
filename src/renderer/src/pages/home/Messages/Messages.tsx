@@ -30,7 +30,7 @@ import {
 } from '@renderer/utils'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { isTextLikeBlock } from '@renderer/utils/messageUtils/is'
+import { isMessageProcessing, isTextLikeBlock } from '@renderer/utils/messageUtils/is'
 import { last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,6 +41,7 @@ import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
 import Prompt from './Prompt'
+import { keepElementTop } from './scrollAnchor'
 import { MessagesContainer, ScrollContainer } from './shared'
 
 interface MessagesProps {
@@ -52,6 +53,10 @@ interface MessagesProps {
 }
 
 const logger = loggerService.withContext('Messages')
+
+type PreserveMessageAnchorPayload = {
+  messageId?: string
+}
 
 const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onComponentUpdate, onFirstUpdate }) => {
   const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
@@ -74,6 +79,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messagesRef = useRef<Message[]>(messages)
+  const anchorRef = useRef<{
+    idleFrames: number
+    messageId: string
+    missingFrames: number
+    rafId?: number
+    top?: number
+  } | null>(null)
 
   useEffect(() => {
     messagesRef.current = messages
@@ -86,6 +98,82 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       messageElements.current.delete(id)
     }
   }, [])
+
+  const getRegisteredMessageElement = useCallback((messageId: string) => {
+    return messageElements.current.get(messageId) ?? document.getElementById(`message-${messageId}`)
+  }, [])
+
+  const stopPreservingAnchor = useCallback(() => {
+    if (anchorRef.current?.rafId) {
+      cancelAnimationFrame(anchorRef.current.rafId)
+    }
+    anchorRef.current = null
+  }, [])
+
+  const preserveAnchorPosition = useCallback(() => {
+    const anchor = anchorRef.current
+    const container = scrollContainerRef.current
+
+    if (!anchor || !container) {
+      return
+    }
+
+    const anchorElement = getRegisteredMessageElement(anchor.messageId)
+    if (!anchorElement) {
+      anchor.missingFrames += 1
+      if (anchor.missingFrames > 30) {
+        stopPreservingAnchor()
+        return
+      }
+      anchor.rafId = requestAnimationFrame(preserveAnchorPosition)
+      return
+    }
+
+    anchor.missingFrames = 0
+    if (anchor.top === undefined) {
+      anchor.top = anchorElement.getBoundingClientRect().top
+    } else {
+      keepElementTop(container, anchorElement, anchor.top)
+    }
+
+    const hasProcessingResponse = messagesRef.current.some(
+      (message) => message.role === 'assistant' && message.askId === anchor.messageId && isMessageProcessing(message)
+    )
+
+    anchor.idleFrames = hasProcessingResponse ? 0 : anchor.idleFrames + 1
+
+    if (hasProcessingResponse || anchor.idleFrames < 10) {
+      anchor.rafId = requestAnimationFrame(preserveAnchorPosition)
+      return
+    }
+
+    stopPreservingAnchor()
+  }, [getRegisteredMessageElement, scrollContainerRef, stopPreservingAnchor])
+
+  const startPreservingAnchor = useCallback(
+    (payload: PreserveMessageAnchorPayload | string | undefined) => {
+      const messageId = typeof payload === 'string' ? payload : payload?.messageId
+      if (!messageId) {
+        return
+      }
+
+      const anchorElement = getRegisteredMessageElement(messageId)
+
+      stopPreservingAnchor()
+      anchorRef.current = {
+        idleFrames: 0,
+        messageId,
+        missingFrames: anchorElement ? 0 : 1,
+        top: anchorElement?.getBoundingClientRect().top
+      }
+      anchorRef.current.rafId = requestAnimationFrame(preserveAnchorPosition)
+    },
+    [getRegisteredMessageElement, preserveAnchorPosition, stopPreservingAnchor]
+  )
+
+  const handleMessagesScroll = useCallback(() => {
+    handleScrollPosition()
+  }, [handleScrollPosition])
 
   useEffect(() => {
     const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
@@ -119,7 +207,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   useEffect(() => {
     const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, scrollToBottom),
+      EventEmitter.on(EVENT_NAMES.PRESERVE_MESSAGE_ANCHOR, startPreservingAnchor),
       EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: Topic) => {
         window.modal.confirm({
           title: t('chat.input.clear.title'),
@@ -238,7 +326,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
     return () => unsubscribes.forEach((unsub) => unsub())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assistant, dispatch, scrollToBottom, topic, isProcessingContext])
+  }, [assistant, dispatch, scrollToBottom, topic, isProcessingContext, startPreservingAnchor])
+
+  useEffect(() => stopPreservingAnchor, [stopPreservingAnchor])
 
   useEffect(() => {
     void runAsyncFunction(async () => {
@@ -306,7 +396,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       className="messages-container"
       ref={scrollContainerRef}
       key={assistant.id}
-      onScroll={handleScrollPosition}>
+      onScroll={handleMessagesScroll}
+      onWheelCapture={stopPreservingAnchor}
+      onTouchMoveCapture={stopPreservingAnchor}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll
           dataLength={displayMessages.length}
