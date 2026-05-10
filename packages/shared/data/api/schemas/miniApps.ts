@@ -6,24 +6,19 @@
  */
 
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { MiniAppRegionSchema, MiniAppStatusSchema } from '@shared/data/types/miniApp'
+import { MiniAppIdSchema, MiniAppRegionSchema, MiniAppStatusSchema } from '@shared/data/types/miniApp'
 import * as z from 'zod'
 
 import type { OrderEndpoints } from './_endpointHelpers'
 
-/**
- * Permitted characters for a custom miniapp id. Exported so the v1→v2 migrator
- * can apply the same validation when transcribing legacy ids — keeping the
- * pattern in lock-step with `POST /mini-apps` prevents migrated rows that the
- * v2 API would refuse to recreate.
- */
-export const MINI_APP_ID_REGEX = /^[A-Za-z0-9_-]+$/
+// Re-export for backward compatibility (v1→v2 migrator uses MINI_APP_ID_REGEX)
+export { MINI_APP_ID_REGEX } from '@shared/data/types/miniApp'
 
 /**
  * Zod schema for creating a new custom miniapp
  */
 export const CreateMiniAppSchema = z.strictObject({
-  appId: z.string().regex(MINI_APP_ID_REGEX, 'appId can only contain letters, numbers, underscore, and hyphen'),
+  appId: MiniAppIdSchema,
   name: z.string().min(1),
   url: z.string().min(1),
   // Logos are stored inline (data URLs / SVG / remote URLs) and end up in the

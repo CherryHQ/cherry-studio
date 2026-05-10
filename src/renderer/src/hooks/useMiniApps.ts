@@ -75,12 +75,7 @@ const detectUserRegion = async (): Promise<MiniAppRegion> => {
     } catch (err) {
       // Default to CN so mainland China users — the primary audience — never
       // silently lose access to region-restricted apps they expect.
-      const error = err as Error
-      loggerService.withContext('detectUserRegion').error('Region detection failed, falling back to CN', {
-        error: error.message,
-        stack: error.stack,
-        fallback: 'CN'
-      })
+      loggerService.withContext('detectUserRegion').error('Region detection failed, falling back to CN', err as Error)
       return 'CN'
     }
   })()

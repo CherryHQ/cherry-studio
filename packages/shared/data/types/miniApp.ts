@@ -13,6 +13,22 @@ import * as z from 'zod'
 
 export type MiniAppId = string & { readonly __brand: unique symbol }
 
+/**
+ * Permitted characters for a custom miniapp id. Exported so the v1→v2 migrator
+ * can apply the same validation when transcribing legacy ids — keeping the
+ * pattern in lock-step with `POST /mini-apps` prevents migrated rows that the
+ * v2 API would refuse to recreate.
+ */
+export const MINI_APP_ID_REGEX = /^[A-Za-z0-9_-]+$/
+
+/**
+ * Field atom for miniapp id — shared between entity, DTO, and query.
+ * @public
+ */
+export const MiniAppIdSchema = z
+  .string()
+  .regex(MINI_APP_ID_REGEX, 'appId can only contain letters, numbers, underscore, and hyphen')
+
 // Region types
 export type MiniAppRegion = 'CN' | 'Global'
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
@@ -31,7 +47,7 @@ export const MiniAppRegionSchema = z.enum(['CN', 'Global'])
  *   - null      → pure custom app
  */
 export const MiniAppSchema = z.object({
-  appId: z.string(),
+  appId: MiniAppIdSchema,
   presetMiniAppId: z.string().nullable(),
   status: MiniAppStatusSchema,
   orderKey: z.string(),
