@@ -185,22 +185,17 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
   }, [topicId, mutate])
 
   const projectionCacheRef = useRef<WeakMap<SharedMessage, CherryUIMessage>>(new WeakMap())
-  const uiMessages = useMemo<CherryUIMessage[]>(() => {
-    const cache = projectionCacheRef.current
-    return flattenBranchMessages(branchItems).map((shared) => {
-      const cached = cache.get(shared)
-      if (cached) return cached
-      const projected = toUIMessage(shared)
-      cache.set(shared, projected)
-      return projected
-    })
-  }, [branchItems])
+  const uiMessages = useMemo<CherryUIMessage[]>(
+    () => projectPagesToUI(branchItems, projectionCacheRef.current),
+    [branchItems]
+  )
 
   const siblingsMap = useMemo<Record<string, SharedMessage[]>>(() => buildSiblingsMap(branchItems), [branchItems])
 
   // `refresh` revalidates every loaded page and returns the flattened
   // uiMessages so `useChatWithHistory`'s on-done handler can push DB truth
-  // into `useChat.state.messages`.
+  // into `useChat.state.messages`. Reuses the same projection helper as the
+  // memo above so the two paths can't drift on flatten / cache semantics.
   const refresh = useCallback(async (): Promise<CherryUIMessage[]> => {
     const refreshed = await mutate()
     if (!refreshed?.length) return []
@@ -208,7 +203,7 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
       .slice()
       .reverse()
       .flatMap((p) => p.items)
-    return flattenBranchMessages(allItems).map(toUIMessage)
+    return projectPagesToUI(allItems, projectionCacheRef.current)
   }, [mutate])
 
   return {
@@ -221,4 +216,22 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
     hasOlder: hasNext,
     mutate: mutate
   }
+}
+
+/**
+ * Flatten paginated branch items into chronological `CherryUIMessage[]`,
+ * reusing the per-row WeakMap so a stable shared message keeps its
+ * projection identity across re-renders.
+ */
+function projectPagesToUI(
+  branchItems: BranchMessage[],
+  cache: WeakMap<SharedMessage, CherryUIMessage>
+): CherryUIMessage[] {
+  return flattenBranchMessages(branchItems).map((shared) => {
+    const cached = cache.get(shared)
+    if (cached) return cached
+    const projected = toUIMessage(shared)
+    cache.set(shared, projected)
+    return projected
+  })
 }
