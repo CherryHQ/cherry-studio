@@ -374,6 +374,29 @@ describe('runStartupFileSweep (FS-level)', () => {
     // Orphan file gone.
     await expect(stat(orphanPath)).rejects.toThrow(/ENOENT/)
   })
+
+  it('preserves orphan files newer than the 5-minute freshness gate', async () => {
+    const orphanId = '019606a0-0000-7000-8000-00000000ee52'
+    const recentPath = path.join(filesDir, `${orphanId}.txt`)
+    await writeFile(recentPath, 'r')
+    // Brand new file — mtime is now; should be skipped.
+
+    const report = await runStartupFileSweep({ fileEntryService })
+    expect(report.actualDeleteCount).toBe(0)
+    expect((await stat(recentPath)).size).toBe(1)
+  })
+
+  it('unlinks atomic-write tmp residue older than 5 minutes', async () => {
+    const tmpName = `019606a0-0000-7000-8000-00000000ee53.txt.tmp-22222222-2222-4222-8222-aaaaaaaaaaaa`
+    const tmpPath = path.join(filesDir, tmpName)
+    await writeFile(tmpPath, 't')
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    await utimes(tmpPath, ancient, ancient)
+
+    const report = await runStartupFileSweep({ fileEntryService })
+    expect(report.actualDeleteCount).toBe(1)
+    await expect(stat(tmpPath)).rejects.toThrow(/ENOENT/)
+  })
 })
 
 function registryStub() {

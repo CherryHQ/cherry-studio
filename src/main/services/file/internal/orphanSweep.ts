@@ -19,7 +19,7 @@
  * `loggerService` (events `orphan-sweep` / `orphan-file-sweep`).
  */
 
-import { readdir, unlink } from 'node:fs/promises'
+import { readdir, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -178,8 +178,13 @@ function isTmpResidueName(name: string): boolean {
   return UUID_RE.test(suffix)
 }
 
+/** mtime gate per architecture §10.3 — files newer than this are presumed in-flight. */
+const FRESHNESS_GATE_MS = 5 * 60 * 1000
+
 export interface RunStartupFileSweepDeps {
   readonly fileEntryService: Pick<FileEntryService, 'listAllIds'>
+  /** Test seam — defaults to `Date.now`. */
+  readonly now?: () => number
 }
 
 export interface FileSweepReport {
@@ -221,15 +226,20 @@ export async function runStartupFileSweep(deps: RunStartupFileSweepDeps): Promis
       }
     }
 
+    const now = (deps.now ?? Date.now)()
     const planned: string[] = []
     for (const name of dirents) {
       const fullPath = path.join(filesDir, name)
       const uuid = isUuidFileName(name)
-      if (uuid) {
-        if (!idSnapshot.has(uuid.id as FileEntryId)) planned.push(fullPath)
-        continue
+      const isCandidate = uuid ? !idSnapshot.has(uuid.id as FileEntryId) : isTmpResidueName(name)
+      if (!isCandidate) continue
+      try {
+        const st = await stat(fullPath)
+        if (now - st.mtimeMs <= FRESHNESS_GATE_MS) continue
+        planned.push(fullPath)
+      } catch {
+        // racing with another process / OS junk; skip
       }
-      if (isTmpResidueName(name)) planned.push(fullPath)
     }
 
     let actualDeleted = 0
