@@ -310,9 +310,18 @@ export async function copy(src: FilePath, dest: FilePath): Promise<void> {
   })
 }
 
-/** Move/rename a file or directory. */
-export async function move(_src: FilePath, _dest: FilePath): Promise<void> {
-  return notImplemented('move')
+/**
+ * Move/rename a file. Tries `rename` first (atomic on the same filesystem);
+ * falls back to copy + unlink on `EXDEV` (cross-mount).
+ */
+export async function move(src: FilePath, dest: FilePath): Promise<void> {
+  try {
+    await rename(src, dest)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+    await copy(src, dest)
+    await unlink(src).catch(() => undefined)
+  }
 }
 
 /** Remove a file. */

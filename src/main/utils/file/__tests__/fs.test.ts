@@ -12,6 +12,7 @@ import {
   createAtomicWriteStream,
   exists,
   hash,
+  move as fsMove,
   PathStaleVersionError,
   read,
   stat,
@@ -351,6 +352,36 @@ describe('copy', () => {
     await fsCopy(src as FilePath, dest as FilePath)
     const out = await readFile(dest)
     expect(out.equals(bytes)).toBe(true)
+  })
+})
+
+describe('move', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-fs-test-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('renames within the same directory', async () => {
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(tmp, 'dest.txt')
+    await writeFile(src, 'payload')
+    await fsMove(src as FilePath, dest as FilePath)
+    expect(await exists(src as FilePath)).toBe(false)
+    expect(await readFile(dest, 'utf-8')).toBe('payload')
+  })
+
+  it('moves across nested directories within the same mount', async () => {
+    const sub = path.join(tmp, 'a', 'b')
+    await mkdir(sub, { recursive: true })
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(sub, 'dest.txt')
+    await writeFile(src, 'payload')
+    await fsMove(src as FilePath, dest as FilePath)
+    expect(await exists(src as FilePath)).toBe(false)
+    expect(await readFile(dest, 'utf-8')).toBe('payload')
   })
 })
 
