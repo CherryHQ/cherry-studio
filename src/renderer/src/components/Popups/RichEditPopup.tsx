@@ -1,19 +1,40 @@
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import RichEditor from '@renderer/components/RichEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
-import type { ModalProps } from 'antd'
-import { Modal } from 'antd'
+import type { CSSProperties, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { TopView } from '../TopView'
+import { useTopViewClose } from './useTopViewClose'
+
+interface PopupButtonProps {
+  className?: string
+  disabled?: boolean
+  style?: CSSProperties
+}
+
+interface PopupProps {
+  afterClose?: () => void
+  cancelButtonProps?: PopupButtonProps
+  cancelText?: ReactNode
+  className?: string
+  closable?: boolean
+  okButtonProps?: PopupButtonProps
+  okText?: ReactNode
+  rootClassName?: string
+  style?: CSSProperties
+  title?: ReactNode
+  width?: number | string
+}
 
 interface ShowParams {
-  content: string
-  modalProps?: ModalProps
-  showTranslate?: boolean
-  disableCommands?: string[] // 要禁用的命令列表
   children?: (props: { onOk?: () => void; onCancel?: () => void }) => React.ReactNode
+  content: string
+  disableCommands?: string[] // 要禁用的命令列表
+  modalProps?: PopupProps
+  showTranslate?: boolean
 }
 
 interface Props extends ShowParams {
@@ -32,6 +53,7 @@ const PopupContainer: React.FC<Props> = ({
   const [richContent, setRichContent] = useState(content)
   const editorRef = useRef<RichEditorRef>(null)
   const isMounted = useRef(true)
+  const close = useTopViewClose({ afterClose: modalProps?.afterClose, resolve, setOpen, topViewKey: TopViewKey })
 
   useEffect(() => {
     return () => {
@@ -39,29 +61,30 @@ const PopupContainer: React.FC<Props> = ({
     }
   }, [])
 
+  const settle = (result: string | null) => {
+    close(result)
+  }
+
   const onOk = () => {
     const finalContent = editorRef.current?.getMarkdown() || richContent
-    resolve(finalContent)
-    setOpen(false)
+    settle(finalContent)
   }
 
   const onCancel = () => {
-    resolve(null)
-    setOpen(false)
+    settle(null)
   }
 
-  const onClose = () => {
-    resolve(null)
-  }
+  useEffect(() => {
+    if (!open) return
 
-  const handleAfterOpenChange = (visible: boolean) => {
-    if (visible && editorRef.current) {
-      // Focus the editor after modal opens
-      setTimeout(() => {
+    const timer = window.setTimeout(() => {
+      if (editorRef.current) {
         editorRef.current?.focus()
-      }, 100)
-    }
-  }
+      }
+    }, 100)
+
+    return () => window.clearTimeout(timer)
+  }, [open])
 
   const handleContentChange = (newContent: string) => {
     setRichContent(newContent)
@@ -84,60 +107,62 @@ const PopupContainer: React.FC<Props> = ({
 
   RichEditPopup.hide = onCancel
 
+  const title = modalProps?.title ?? t('common.edit')
+  const width = modalProps?.width ?? '70vw'
+  const contentStyle: CSSProperties = {
+    maxHeight: '80vh',
+    ...modalProps?.style,
+    width
+  }
+
   return (
-    <Modal
-      title={t('common.edit')}
-      width="70vw"
-      style={{ maxHeight: '80vh' }}
-      transitionName="animation-move-down"
-      okText={t('common.save')}
-      {...modalProps}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      afterOpenChange={handleAfterOpenChange}
-      maskClosable={false}
-      keyboard={false}
-      centered>
-      <EditorContainer>
-        <RichEditor
-          ref={editorRef}
-          initialContent={content}
-          placeholder={t('richEditor.placeholder')}
-          onContentChange={handleContentChange}
-          onMarkdownChange={handleMarkdownChange}
-          onCommandsReady={handleCommandsReady}
-          minHeight={window.innerHeight * 0.7}
-          isFullWidth={true}
-          className="rich-edit-popup-editor"
-        />
-      </EditorContainer>
-      <ChildrenContainer>{children && children({ onOk, onCancel })}</ChildrenContainer>
-    </Modal>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
+      <DialogContent
+        showCloseButton={modalProps?.closable !== false}
+        className={cn('max-h-[80vh] overflow-y-auto sm:max-w-none', modalProps?.rootClassName, modalProps?.className)}
+        style={contentStyle}
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onPointerDownOutside={(event) => event.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="relative [&_.rich-edit-popup-editor:focus-within]:border-[var(--color-primary)] [&_.rich-edit-popup-editor:focus-within]:shadow-[0_0_0_2px_var(--color-primary-alpha)] [&_.rich-edit-popup-editor]:rounded-md [&_.rich-edit-popup-editor]:border [&_.rich-edit-popup-editor]:border-[var(--color-border)] [&_.rich-edit-popup-editor]:bg-[var(--color-background)]">
+          <RichEditor
+            ref={editorRef}
+            initialContent={content}
+            placeholder={t('richEditor.placeholder')}
+            onContentChange={handleContentChange}
+            onMarkdownChange={handleMarkdownChange}
+            onCommandsReady={handleCommandsReady}
+            minHeight={window.innerHeight * 0.7}
+            isFullWidth={true}
+            className="rich-edit-popup-editor"
+          />
+        </div>
+        <div className="relative">{children && children({ onOk, onCancel })}</div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            disabled={modalProps?.cancelButtonProps?.disabled}
+            className={modalProps?.cancelButtonProps?.className}
+            style={modalProps?.cancelButtonProps?.style}
+            onClick={onCancel}>
+            {modalProps?.cancelText ?? t('common.cancel')}
+          </Button>
+          <Button
+            disabled={modalProps?.okButtonProps?.disabled}
+            className={modalProps?.okButtonProps?.className}
+            style={modalProps?.okButtonProps?.style}
+            onClick={onOk}>
+            {modalProps?.okText ?? t('common.save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
 const TopViewKey = 'RichEditPopup'
-
-const ChildrenContainer = styled.div`
-  position: relative;
-`
-
-const EditorContainer = styled.div`
-  position: relative;
-
-  .rich-edit-popup-editor {
-    border: 1px solid var(--color-border);
-    border-radius: 6px;
-    background: var(--color-background);
-
-    &:focus-within {
-      border-color: var(--color-primary);
-      box-shadow: 0 0 0 2px var(--color-primary-alpha);
-    }
-  }
-`
 
 export default class RichEditPopup {
   static topviewId = 0
@@ -146,16 +171,7 @@ export default class RichEditPopup {
   }
   static show(props: ShowParams) {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

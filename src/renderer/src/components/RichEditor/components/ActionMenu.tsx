@@ -1,4 +1,4 @@
-import { Menu } from 'antd'
+import { MenuList } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
@@ -40,19 +40,10 @@ export const ActionMenu: FC<ActionMenuProps> = ({ show, position, items, onClose
     }
   }, [show, onClose])
 
-  const menuItems = useMemo(
-    () =>
-      items.map((it) => ({
-        key: it.key,
-        label: it.label,
-        icon: it.icon,
-        danger: it.danger
-      })),
-    [items]
-  )
+  const menuItems = useMemo(() => items.map((it) => ({ ...it })), [items])
 
   const onMenuClick = useCallback(
-    ({ key }: { key: string }) => {
+    (key: string) => {
       const found = items.find((i) => i.key === key)
       if (found) found.onClick()
       onClose()
@@ -77,7 +68,20 @@ export const ActionMenu: FC<ActionMenuProps> = ({ show, position, items, onClose
         overflow: 'hidden',
         minWidth
       }}>
-      <Menu selectable={false} items={menuItems} onClick={onMenuClick} style={{ border: 'none' }} />
+      <MenuList className="gap-0 p-1">
+        {menuItems.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden transition-colors hover:bg-accent focus:bg-accent ${
+              item.danger ? 'text-destructive' : 'text-foreground'
+            }`}
+            onClick={() => onMenuClick(item.key)}>
+            {item.icon ? <span className="flex shrink-0 items-center justify-center">{item.icon}</span> : null}
+            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+          </button>
+        ))}
+      </MenuList>
     </div>
   )
 

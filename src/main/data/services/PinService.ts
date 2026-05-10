@@ -12,11 +12,11 @@
  * - `unpin` is a hard delete. There is no soft-delete / audit column.
  * - `reorder` / `reorderBatch` delegate to `applyScopedMoves`, which performs
  *   scope inference and enforces "batch stays within one entityType".
- * - `purgeForEntity` MUST be called from consumer services' delete paths
- *   (mirrors `tagService.purgeForEntity`). The `pin` table has no FK to
+ * - `purgeForEntityTx` MUST be called from consumer services' delete paths
+ *   (mirrors `tagService.purgeForEntityTx`). The `pin` table has no FK to
  *   consumer tables by design; application-level purge is the contract.
  * - For cascading deletes where a parent owns N entities of the same type,
- *   prefer `purgeForEntities` over a loop of `purgeForEntity`. The bulk
+ *   prefer `purgeForEntitiesTx` over a loop of `purgeForEntityTx`. The bulk
  *   variant emits a single aggregated log line and a single SQL round trip.
  */
 
@@ -183,21 +183,21 @@ export class PinService {
    * existing keys and relative ordering.
    *
    * Signature is tx-first (mainstream ORM convention) — mirrors
-   * `tagService.purgeForEntity`.
+   * `tagService.purgeForEntityTx`.
    */
-  async purgeForEntity(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): Promise<void> {
+  async purgeForEntityTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): Promise<void> {
     await tx.delete(pinTable).where(and(eq(pinTable.entityType, entityType), eq(pinTable.entityId, entityId)))
 
     logger.info('Purged pins for entity', { entityType, entityId })
   }
 
   /**
-   * Bulk variant of `purgeForEntity` for callers that already hold a list of
+   * Bulk variant of `purgeForEntityTx` for callers that already hold a list of
    * entity ids (e.g. cascading deletes from a parent that owns many entities
    * of the same type). Empty input is a no-op. Emits a single aggregated log
    * line so a large cascade does not produce per-id log entries.
    */
-  async purgeForEntities(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityIds: string[]): Promise<void> {
+  async purgeForEntitiesTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityIds: string[]): Promise<void> {
     if (entityIds.length === 0) return
     await tx.delete(pinTable).where(and(eq(pinTable.entityType, entityType), inArray(pinTable.entityId, entityIds)))
 

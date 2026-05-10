@@ -1,42 +1,61 @@
-import { Center, ColFlex, RowFlex } from '@cherrystudio/ui'
-import { Avatar, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
+import {
+  Avatar,
+  AvatarImage,
+  Button,
+  Center,
+  ColFlex,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  EmojiAvatar,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  RowFlex
+} from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import DefaultAvatar from '@renderer/assets/images/avatar.png'
 import useAvatar from '@renderer/hooks/useAvatar'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { compressImage, isEmoji } from '@renderer/utils'
-import { Dropdown, Input, Modal, Popover, Upload } from 'antd'
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import EmojiPicker from '../EmojiPicker'
 import { TopView } from '../TopView'
+
+const CLOSE_ANIMATION_MS = 200
 
 interface Props {
   resolve: (data: any) => void
 }
 
+type AvatarPopoverView = 'menu' | 'emoji'
+
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [userName, setUserName] = usePreference('app.user.name')
 
   const [open, setOpen] = useState(true)
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [avatarPopoverOpen, setAvatarPopoverOpen] = useState(false)
+  const [avatarPopoverView, setAvatarPopoverView] = useState<AvatarPopoverView>('menu')
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { t } = useTranslation()
   const avatar = useAvatar()
 
-  const onOk = () => {
+  const closeDialog = () => {
     setOpen(false)
+    window.setTimeout(() => {
+      resolve({})
+    }, CLOSE_ANIMATION_MS)
   }
 
-  const onCancel = () => {
-    setOpen(false)
-  }
-
-  const onClose = () => {
-    resolve({})
+  const onOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      closeDialog()
+    }
   }
 
   const handleEmojiClick = async (emoji: string) => {
@@ -45,149 +64,119 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       await ImageStorage.set('avatar', emoji)
       // update avatar display
       cacheService.set('app.user.avatar', emoji)
-      setEmojiPickerOpen(false)
+      setAvatarPopoverOpen(false)
+      setAvatarPopoverView('menu')
     } catch (error: any) {
       window.toast.error(error.message)
     }
   }
+
   const handleReset = async () => {
     try {
       await ImageStorage.set('avatar', DefaultAvatar)
       cacheService.set('app.user.avatar', DefaultAvatar)
-      setDropdownOpen(false)
+      setAvatarPopoverOpen(false)
+      setAvatarPopoverView('menu')
     } catch (error: any) {
       window.toast.error(error.message)
     }
   }
-  const items = [
-    {
-      key: 'upload',
-      label: (
-        <div style={{ width: '100%', textAlign: 'center' }}>
-          <Upload
-            customRequest={() => {}}
-            accept="image/png, image/jpeg, image/gif"
-            itemRender={() => null}
-            maxCount={1}
-            onChange={async ({ file }) => {
-              try {
-                const _file = file.originFileObj as File
-                if (_file.type === 'image/gif') {
-                  await ImageStorage.set('avatar', _file)
-                } else {
-                  const compressedFile = await compressImage(_file)
-                  await ImageStorage.set('avatar', compressedFile)
-                }
-                cacheService.set('app.user.avatar', await ImageStorage.get('avatar'))
-                setDropdownOpen(false)
-              } catch (error: any) {
-                window.toast.error(error.message)
-              }
-            }}>
-            {t('settings.general.image_upload')}
-          </Upload>
-        </div>
-      )
-    },
-    {
-      key: 'emoji',
-      label: (
-        <div
-          style={{ width: '100%', textAlign: 'center' }}
-          onClick={(e) => {
-            e.stopPropagation()
-            setEmojiPickerOpen(true)
-            setDropdownOpen(false)
-          }}>
-          {t('settings.general.emoji_picker')}
-        </div>
-      )
-    },
-    {
-      key: 'reset',
-      label: (
-        <div
-          style={{ width: '100%', textAlign: 'center' }}
-          onClick={(e) => {
-            e.stopPropagation()
-            void handleReset()
-          }}>
-          {t('settings.general.avatar.reset')}
-        </div>
-      )
+
+  const handleUploadAvatar = async (file: File) => {
+    try {
+      if (file.type === 'image/gif') {
+        await ImageStorage.set('avatar', file)
+      } else {
+        const compressedFile = await compressImage(file)
+        await ImageStorage.set('avatar', compressedFile)
+      }
+      cacheService.set('app.user.avatar', await ImageStorage.get('avatar'))
+      setAvatarPopoverOpen(false)
+      setAvatarPopoverView('menu')
+    } catch (error: any) {
+      window.toast.error(error.message)
     }
-  ]
+  }
 
   return (
-    <Modal
-      width="300px"
-      open={open}
-      footer={null}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      transitionName="animation-move-down"
-      centered>
-      <Center className="mt-[30px]">
-        <ColFlex className="items-center gap-2.5">
-          <Dropdown
-            menu={{ items }}
-            trigger={['click']}
-            open={dropdownOpen}
-            align={{ offset: [0, 4] }}
-            placement="bottom"
-            onOpenChange={(visible) => {
-              setDropdownOpen(visible)
-              if (visible) {
-                setEmojiPickerOpen(false)
-              }
-            }}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[300px] gap-0 p-0 sm:max-w-[300px]">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{t('settings.general.user_name.label')}</DialogTitle>
+        </DialogHeader>
+        <Center className="mt-[30px]">
+          <ColFlex className="items-center gap-2.5">
             <Popover
-              content={<EmojiPicker onEmojiClick={handleEmojiClick} />}
-              trigger="click"
-              open={emojiPickerOpen}
+              open={avatarPopoverOpen}
               onOpenChange={(visible) => {
-                setEmojiPickerOpen(visible)
-                if (visible) {
-                  setDropdownOpen(false)
+                setAvatarPopoverOpen(visible)
+                if (!visible) {
+                  setAvatarPopoverView('menu')
                 }
-              }}
-              placement="bottom">
-              {isEmoji(avatar) ? (
-                <EmojiAvatar size={80} fontSize={40}>
-                  {avatar}
-                </EmojiAvatar>
-              ) : (
-                <UserAvatar>
-                  <AvatarImage src={avatar} />
-                </UserAvatar>
-              )}
+              }}>
+              <PopoverTrigger asChild>
+                {isEmoji(avatar) ? (
+                  <EmojiAvatar size={80} fontSize={40} className="cursor-pointer transition-opacity hover:opacity-80">
+                    {avatar}
+                  </EmojiAvatar>
+                ) : (
+                  <Avatar className="size-20 cursor-pointer rounded-[25%] transition-opacity hover:opacity-80">
+                    <AvatarImage src={avatar} />
+                  </Avatar>
+                )}
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-2" align="center" sideOffset={6}>
+                {avatarPopoverView === 'emoji' ? (
+                  <EmojiPicker onEmojiClick={handleEmojiClick} />
+                ) : (
+                  <ColFlex className="w-40 gap-1">
+                    <input
+                      ref={fileInputRef}
+                      className="hidden"
+                      type="file"
+                      accept="image/png, image/jpeg, image/gif"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        event.target.value = ''
+                        if (file) {
+                          void handleUploadAvatar(file)
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-center"
+                      onClick={() => fileInputRef.current?.click()}>
+                      {t('settings.general.image_upload')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-center"
+                      onClick={() => setAvatarPopoverView('emoji')}>
+                      {t('settings.general.emoji_picker')}
+                    </Button>
+                    <Button variant="ghost" className="w-full justify-center" onClick={() => void handleReset()}>
+                      {t('settings.general.avatar.reset')}
+                    </Button>
+                  </ColFlex>
+                )}
+              </PopoverContent>
             </Popover>
-          </Dropdown>
-        </ColFlex>
-      </Center>
-      <RowFlex className="items-center gap-2.5 p-5">
-        <Input
-          placeholder={t('settings.general.user_name.placeholder')}
-          value={userName}
-          onChange={(e) => setUserName(e.target.value.trim())}
-          style={{ flex: 1, textAlign: 'center', width: '100%' }}
-          maxLength={30}
-        />
-      </RowFlex>
-    </Modal>
+          </ColFlex>
+        </Center>
+        <RowFlex className="items-center gap-2.5 p-5">
+          <Input
+            placeholder={t('settings.general.user_name.placeholder')}
+            value={userName}
+            onChange={(e) => setUserName(e.target.value.trim())}
+            className="w-full flex-1 text-center"
+            maxLength={30}
+          />
+        </RowFlex>
+      </DialogContent>
+    </Dialog>
   )
 }
-
-const UserAvatar = styled(Avatar)`
-  cursor: pointer;
-  width: 80px;
-  height: 80px;
-  transition: opacity 0.3s ease;
-  &:hover {
-    opacity: 0.8;
-  }
-`
 
 export default class UserPopup {
   static topviewId = 0

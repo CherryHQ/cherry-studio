@@ -1,6 +1,17 @@
+import {
+  Button,
+  Combobox,
+  type ComboboxOption,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Spinner
+} from '@cherrystudio/ui'
 import { backupToS3 } from '@renderer/services/BackupService'
 import { formatFileSize } from '@renderer/utils'
-import { Input, Modal, Select, Spin } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -71,20 +82,32 @@ export function S3BackupModal({
   const { t } = useTranslation()
 
   return (
-    <Modal
-      title={t('settings.data.s3.backup.modal.title')}
+    <Dialog
       open={isModalVisible}
-      onOk={handleBackup}
-      onCancel={handleCancel}
-      okButtonProps={{ loading: backuping }}
-      transitionName="animation-move-down"
-      centered>
-      <Input
-        value={customFileName}
-        onChange={(e) => setCustomFileName(e.target.value)}
-        placeholder={t('settings.data.s3.backup.modal.filename.placeholder')}
-      />
-    </Modal>
+      onOpenChange={(open) => {
+        if (!open) {
+          handleCancel()
+        }
+      }}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>{t('settings.data.s3.backup.modal.title')}</DialogTitle>
+        </DialogHeader>
+        <Input
+          value={customFileName}
+          onChange={(e) => setCustomFileName(e.target.value)}
+          placeholder={t('settings.data.s3.backup.modal.filename.placeholder')}
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={handleCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={handleBackup} loading={backuping}>
+            {t('common.confirm')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -212,41 +235,51 @@ export function S3RestoreModal({
   backupFiles
 }: S3RestoreModalProps) {
   const { t } = useTranslation()
+  const fileOptions = backupFiles.map(formatFileOption)
 
   return (
-    <Modal
-      title={t('settings.data.s3.restore.modal.title')}
+    <Dialog
       open={isRestoreModalVisible}
-      onOk={handleRestore}
-      onCancel={handleCancel}
-      okButtonProps={{ loading: restoring }}
-      width={600}
-      transitionName="animation-move-down"
-      centered>
-      <div style={{ position: 'relative' }}>
-        <Select
-          style={{ width: '100%' }}
-          placeholder={t('settings.data.s3.restore.modal.select.placeholder')}
-          value={selectedFile}
-          onChange={setSelectedFile}
-          options={backupFiles.map(formatFileOption)}
-          loading={loadingFiles}
-          showSearch
-          filterOption={(input, option) =>
-            typeof option?.label === 'string' ? option.label.toLowerCase().includes(input.toLowerCase()) : false
-          }
-        />
-        {loadingFiles && (
-          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-            <Spin />
-          </div>
-        )}
-      </div>
-    </Modal>
+      onOpenChange={(open) => {
+        if (!open) {
+          handleCancel()
+        }
+      }}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>{t('settings.data.s3.restore.modal.title')}</DialogTitle>
+        </DialogHeader>
+        <div className="relative">
+          <Combobox
+            width="100%"
+            placeholder={t('settings.data.s3.restore.modal.select.placeholder')}
+            value={selectedFile ?? ''}
+            onChange={(value) => setSelectedFile(Array.isArray(value) ? (value[0] ?? null) : value || null)}
+            options={fileOptions}
+            disabled={loadingFiles}
+            searchable
+            filterOption={(option, search) => option.label.toLowerCase().includes(search.toLowerCase())}
+          />
+          {loadingFiles && (
+            <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2">
+              <Spinner text={t('common.loading')} />
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={handleRestore} loading={restoring}>
+            {t('common.confirm')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-function formatFileOption(file: BackupFile) {
+function formatFileOption(file: BackupFile): ComboboxOption {
   const date = dayjs(file.modifiedTime).format('YYYY-MM-DD HH:mm:ss')
   const size = formatFileSize(file.size)
   return {

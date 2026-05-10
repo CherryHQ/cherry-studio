@@ -1,6 +1,5 @@
 import { Search } from 'lucide-react'
 import { motion } from 'motion/react'
-import styled from 'styled-components'
 
 interface Props {
   text: React.ReactNode
@@ -16,9 +15,12 @@ const spinnerVariants = {
   }
 }
 
+const Searching = motion.create('div')
+
 export default function Spinner({ text }: Props) {
   return (
     <Searching
+      className="flex items-center gap-1 p-0"
       variants={spinnerVariants}
       initial="defaultColor"
       animate={['defaultColor', 'dimmed']}
@@ -33,12 +35,3 @@ export default function Spinner({ text }: Props) {
     </Searching>
   )
 }
-const SearchWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  /* font-size: 14px; */
-  padding: 0px;
-  /* padding-left: 0; */
-`
-const Searching = motion.create(SearchWrapper)

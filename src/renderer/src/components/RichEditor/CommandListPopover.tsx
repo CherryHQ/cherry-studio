@@ -3,13 +3,10 @@ import './CommandListPopover.css'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { SuggestionProps } from '@tiptap/suggestion'
-import { Typography } from 'antd'
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { Command } from './command'
-
-const { Text } = Typography
 
 export interface CommandListPopoverProps extends SuggestionProps<Command> {
   ref?: React.RefObject<CommandListPopoverRef | null>
@@ -129,9 +126,9 @@ const CommandListPopover = ({
   const colors = useMemo(() => {
     const isDark = theme === 'dark'
     return {
-      background: isDark ? 'var(--color-background-soft, #222222)' : 'white',
+      background: isDark ? 'var(--color-background-subtle, #222222)' : 'white',
       border: isDark ? 'var(--color-border, #ffffff19)' : '#e1e5e9',
-      selectedBackground: isDark ? 'var(--color-hover, rgba(40, 40, 40, 1))' : '#f0f0f0',
+      selectedBackground: isDark ? 'var(--color-accent, rgba(40, 40, 40, 1))' : '#f0f0f0',
       boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.1)'
     }
   }, [theme])
@@ -178,12 +175,18 @@ const CommandListPopover = ({
               <item.icon size={16} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <Text strong style={{ fontSize: '14px', display: 'block', lineHeight: '20px' }}>
+              <span style={{ display: 'block', fontSize: '14px', fontWeight: 600, lineHeight: '20px' }}>
                 {getTranslatedCommand(item, 'title')}
-              </Text>
-              <Text type="secondary" style={{ fontSize: '12px', lineHeight: '16px' }}>
+              </span>
+              <span
+                style={{
+                  color: 'var(--color-foreground-secondary)',
+                  display: 'block',
+                  fontSize: '12px',
+                  lineHeight: '16px'
+                }}>
                 {getTranslatedCommand(item, 'description')}
-              </Text>
+              </span>
             </div>
           </div>
         </div>
