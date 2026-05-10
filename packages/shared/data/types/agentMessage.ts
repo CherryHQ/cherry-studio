@@ -70,10 +70,11 @@ export interface AgentMessagePersistInput {
   createdAt?: string
 }
 
-/** Input to `persistExchange`. */
+/** Input to `persistExchange`. `agentSessionId` is `null` when no upstream
+ *  SDK session has been resolved yet (the schema column is `string | null`). */
 export interface AgentMessageExchangeInput {
   sessionId: string
-  agentSessionId: string
+  agentSessionId: string | null
   user?: AgentMessagePersistInput
   assistant?: AgentMessagePersistInput
 }

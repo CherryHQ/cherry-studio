@@ -132,7 +132,7 @@ export class AgentSessionMessageService {
     }
   }
 
-  async getLastAgentSessionId(sessionId: string): Promise<string> {
+  async getLastAgentSessionId(sessionId: string): Promise<string | null> {
     try {
       const database = application.get('DbService').getDb()
       const result = await database
@@ -143,7 +143,7 @@ export class AgentSessionMessageService {
         .limit(1)
 
       logger.silly('Last agent session ID result:', { agentSessionId: result[0]?.agentSessionId, sessionId })
-      return result[0]?.agentSessionId || ''
+      return result[0]?.agentSessionId ?? null
     } catch (error) {
       logger.error('Failed to get last agent session ID', {
         sessionId,
@@ -179,10 +179,10 @@ export class AgentSessionMessageService {
   private async upsertMessage(
     db: DbOrTx,
     params:
-      | (AgentMessagePersistInput & { sessionId: string; agentSessionId?: string })
-      | (AgentMessagePersistInput & { sessionId: string; agentSessionId: string })
+      | (AgentMessagePersistInput & { sessionId: string; agentSessionId?: string | null })
+      | (AgentMessagePersistInput & { sessionId: string; agentSessionId: string | null })
   ): Promise<AgentSessionMessageEntity> {
-    const { sessionId, agentSessionId = '', payload, metadata } = params
+    const { sessionId, agentSessionId = null, payload, metadata } = params
 
     if (!payload?.message?.role) {
       throw DataApiErrorFactory.validation({ role: ['is required'] }, 'Message payload missing role')
@@ -197,7 +197,7 @@ export class AgentSessionMessageService {
     if (existingRow) {
       // undefined → keep existing; null → clear; object → replace.
       const metadataToPersist = metadata === undefined ? existingRow.metadata : metadata
-      const agentSessionToPersist = agentSessionId || existingRow.agentSessionId || ''
+      const agentSessionToPersist = agentSessionId ?? existingRow.agentSessionId ?? null
       const updatedAtMs = Date.now()
 
       await withSqliteErrors(
@@ -236,15 +236,15 @@ export class AgentSessionMessageService {
   }
 
   async persistUserMessage(
-    params: AgentMessagePersistInput & { sessionId: string; agentSessionId?: string },
+    params: AgentMessagePersistInput & { sessionId: string; agentSessionId?: string | null },
     db?: DbOrTx
   ): Promise<AgentSessionMessageEntity> {
     const database = db ?? application.get('DbService').getDb()
-    return this.upsertMessage(database, { ...params, agentSessionId: params.agentSessionId ?? '' })
+    return this.upsertMessage(database, { ...params, agentSessionId: params.agentSessionId ?? null })
   }
 
   async persistAssistantMessage(
-    params: AgentMessagePersistInput & { sessionId: string; agentSessionId: string },
+    params: AgentMessagePersistInput & { sessionId: string; agentSessionId: string | null },
     db?: DbOrTx
   ): Promise<AgentSessionMessageEntity> {
     const database = db ?? application.get('DbService').getDb()

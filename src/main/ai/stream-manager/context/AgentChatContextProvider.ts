@@ -68,7 +68,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     // by the upcoming `pending` broadcast) observes both rows together.
     await agentSessionMessageService.persistExchange({
       sessionId,
-      agentSessionId: '',
+      agentSessionId: null,
       user: {
         payload: {
           message: {

@@ -37,7 +37,7 @@ export class AgentMessageBackend implements PersistenceBackend {
     const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
     await agentSessionMessageService.persistAssistantMessage({
       sessionId: this.opts.sessionId,
-      agentSessionId: this.opts.agentSessionId ?? '',
+      agentSessionId: this.opts.agentSessionId ?? null,
       payload: {
         message: {
           id: finalMessage?.id ?? crypto.randomUUID(),
