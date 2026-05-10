@@ -263,8 +263,16 @@ async function runStartupFileSweepInner(deps: RunStartupFileSweepDeps): Promise<
         continue
       }
       bytesOnDisk += st.size
-      const uuid = isUuidFileName(name)
-      const isCandidate = uuid ? !idSnapshot.has(uuid.id) : isTmpResidueName(name)
+      // Tmp residue MUST be checked first: atomicWriteFile produces names of
+      // the form `<entryUUID>.<ext>.tmp-<randomUUID>` whose leading stem is
+      // a live entry's UUID. `isUuidFileName` also matches the same stem, so
+      // checking it first would mask the residue when the entry is in DB.
+      const isCandidate =
+        isTmpResidueName(name) ||
+        (() => {
+          const uuid = isUuidFileName(name)
+          return Boolean(uuid && !idSnapshot.has(uuid.id))
+        })()
       if (!isCandidate) continue
       if (now - st.mtimeMs <= FRESHNESS_GATE_MS) continue
       planned.push({ path: fullPath, bytes: st.size })

@@ -398,6 +398,40 @@ describe('runStartupFileSweep (FS-level)', () => {
     await expect(stat(tmpPath)).rejects.toThrow(/ENOENT/)
   })
 
+  it('unlinks tmp residue even when the leading UUID matches a live entry', async () => {
+    // atomicWriteFile generates `<entryUUID>.<ext>.tmp-<randomUUID>`. If the
+    // entry is currently in the DB, the planning predicate must still
+    // recognise the .tmp- residue — otherwise crash-time tmp files of live
+    // entries persist forever across restarts.
+    const liveEntryId = '019606a0-0000-7000-8000-00000000ee54' as FileEntryId
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id: liveEntryId,
+      origin: 'internal',
+      name: 'live',
+      ext: 'txt',
+      size: 4,
+      externalPath: null,
+      trashedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    const livePath = path.join(filesDir, `${liveEntryId}.txt`)
+    const orphanedTmpPath = path.join(filesDir, `${liveEntryId}.txt.tmp-22222222-2222-4222-8222-bbbbbbbbbbbb`)
+    await writeFile(livePath, 'live')
+    await writeFile(orphanedTmpPath, 'tmp')
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    await utimes(livePath, ancient, ancient)
+    await utimes(orphanedTmpPath, ancient, ancient)
+
+    const report = await runStartupFileSweep({ fileEntryService })
+    // Only the tmp residue should be unlinked; the live file is preserved.
+    expect(report.actualDeleteCount).toBe(1)
+    expect((await stat(livePath)).size).toBe(4)
+    await expect(stat(orphanedTmpPath)).rejects.toThrow(/ENOENT/)
+  })
+
   it('aborts when the planned deletion exceeds the safety threshold (>20 files at >50%)', async () => {
     // 25 orphan UUID files on disk, 0 entries in DB — exceeds both the 20-count
     // residue floor AND the 50% fraction. Architecture §10.4 → outcome=aborted.
