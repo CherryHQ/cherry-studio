@@ -1,4 +1,4 @@
-/* oxlint-disable no-unused-vars -- TODO(phase-1b): write/copy/move/etc. remain Phase 1a stubs; their parameters shape the public signature but are unused until implementations land in Phase 1b.2. */
+/* oxlint-disable no-unused-vars -- TODO(phase-2): compressImage is the last remaining stub; its parameters shape the public signature but are unused until the KnowledgeService consumer migrates. */
 
 /**
  * Core filesystem operations — the ONLY module that imports `node:fs`.
