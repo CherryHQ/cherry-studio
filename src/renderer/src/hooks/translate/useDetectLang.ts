@@ -1,14 +1,13 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isQwenMTModel } from '@renderer/config/models'
-import { UNKNOWN } from '@renderer/config/translate'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultAssistant, getQuickModel } from '@renderer/services/AssistantService'
 import { hasModel } from '@renderer/services/ModelService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import type { TranslateLanguageVo } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
+import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { LANG_DETECT_PROMPT } from '@shared/config/prompts'
 import {
   type AutoDetectionMethod,
@@ -126,7 +125,7 @@ export const detectLanguageByFranc = (inputText: string): TranslateLangCode => {
     // franc recognized a language but we have no mapping for it yet. Log so
     // we can discover cold languages that real users speak.
     logger.debug('franc iso3 not in isoMap, falling back to UNKNOWN', { iso3 })
-    return UNKNOWN.langCode
+    return UNKNOWN_LANG_CODE
   }
   return mapped
 }
@@ -147,7 +146,7 @@ export const detectWithMethod = async (
         return detectLanguageByLLM(text, langCodes)
       } else {
         const francResult = detectLanguageByFranc(text)
-        if (francResult === UNKNOWN.langCode) {
+        if (francResult === UNKNOWN_LANG_CODE) {
           // Auto mode's contract is "pick what works"; we fall back silently from
           // the user's perspective but log so `auto` → LLM quota bursts are traceable.
           logger.info('franc returned UNKNOWN, falling back to LLM detection')
@@ -185,19 +184,21 @@ export const useDetectLang = () => {
   // One-shot UX surface: useLanguages only toasts on SWR error, but a successful
   // empty-array response (seeder failure / DB corruption) slips past it. Notify
   // the user once per session so they don't silently keep getting UNKNOWN.
+  const toastedNotReadyRef = useRef(false)
   const toastedEmptyRef = useRef(false)
 
   const detectLanguage = useCallback(
     async (inputText: string): Promise<TranslateLangCode> => {
       const text = inputText.trim()
-      if (!text) return UNKNOWN.langCode
+      if (!text) return UNKNOWN_LANG_CODE
 
-      // Not ready: SWR hasn't resolved yet. Rare (the hook is normally called
-      // from click handlers) but possible on very fast user input; degrade
-      // to UNKNOWN silently so UX doesn't crash.
       if (languages === undefined) {
         logger.warn('useDetectLang invoked before languages were ready, returning UNKNOWN')
-        return UNKNOWN.langCode
+        if (!toastedNotReadyRef.current) {
+          toastedNotReadyRef.current = true
+          window.toast?.error(i18n.t('translate.error.languages_load_failed'))
+        }
+        return UNKNOWN_LANG_CODE
       }
 
       // No data: endpoint resolved with an empty list. Seeder failure or DB
@@ -209,10 +210,10 @@ export const useDetectLang = () => {
           toastedEmptyRef.current = true
           window.toast?.error(i18n.t('translate.error.languages_load_failed'))
         }
-        return UNKNOWN.langCode
+        return UNKNOWN_LANG_CODE
       }
 
-      const langCodes = languages.map((l: TranslateLanguageVo) => l.langCode)
+      const langCodes = languages.map((l) => l.langCode)
       logger.info(`Auto detection method: ${method}`)
       const result = await detectWithMethod(text, method, langCodes)
       logger.info(`Detected language: ${result}`)

@@ -3,7 +3,7 @@ import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { useTranslateLanguages } from '@renderer/hooks/translate'
 import { SettingRowTitle } from '@renderer/pages/settings'
-import type { TranslateLanguageVo } from '@renderer/types'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { TableProps } from 'antd'
 import { Popconfirm, Space, Table } from 'antd'
 import { memo, startTransition, useCallback, useMemo, useState } from 'react'
@@ -17,8 +17,8 @@ const ItemActions = ({
   onClickEdit,
   onDelete
 }: {
-  lang: TranslateLanguageVo
-  onClickEdit: (target: TranslateLanguageVo) => void
+  lang: TranslateLanguage
+  onClickEdit: (target: TranslateLanguage) => void
   onDelete: (langCode: string) => Promise<unknown>
 }) => {
   const { t } = useTranslation()
@@ -44,7 +44,7 @@ const ItemActions = ({
 const TranslateLanguageSettings = () => {
   const { t } = useTranslation()
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingLanguage, setEditingLanguage] = useState<TranslateLanguageVo>()
+  const [editingLanguage, setEditingLanguage] = useState<TranslateLanguage>()
   const { languages, remove: deleteLanguage } = useTranslateLanguages({ remove: { rethrowError: false } })
 
   const onClickAdd = () => {
@@ -54,7 +54,7 @@ const TranslateLanguageSettings = () => {
     })
   }
 
-  const onClickEdit = useCallback((target: TranslateLanguageVo) => {
+  const onClickEdit = useCallback((target: TranslateLanguage) => {
     startTransition(async () => {
       setEditingLanguage(target)
       setIsModalOpen(true)
@@ -67,7 +67,7 @@ const TranslateLanguageSettings = () => {
     })
   }
 
-  const columns: TableProps<TranslateLanguageVo>['columns'] = useMemo(
+  const columns: TableProps<TranslateLanguage>['columns'] = useMemo(
     () => [
       {
         title: 'Emoji',
@@ -103,7 +103,7 @@ const TranslateLanguageSettings = () => {
           </Button>
         </RowFlex>
         <TableContainer>
-          <Table<TranslateLanguageVo>
+          <Table<TranslateLanguage>
             columns={columns}
             pagination={{ position: ['bottomCenter'], defaultPageSize: 10 }}
             dataSource={languages}

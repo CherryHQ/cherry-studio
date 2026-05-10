@@ -1,15 +1,31 @@
-import type { TranslateLanguageVo } from '@renderer/types'
 import type { TranslateBidirectionalPair, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { RefObject } from 'react'
 import React from 'react'
 
-export const languageDtoToVo = (lang: TranslateLanguage): TranslateLanguageVo => {
-  return {
-    value: lang.value,
-    langCode: lang.langCode,
-    emoji: lang.emoji
+export const UNKNOWN_LANG_CODE = 'unknown' satisfies TranslateLangCode
+
+export const pickBidirectionalTarget = (
+  sourceLanguageCode: TranslateLangCode,
+  preferred: TranslateLanguage,
+  alter: TranslateLanguage,
+  overrideTarget?: TranslateLanguage
+): TranslateLanguage => {
+  if (overrideTarget) {
+    return overrideTarget
   }
+  if (sourceLanguageCode === UNKNOWN_LANG_CODE) {
+    return preferred
+  }
+  return sourceLanguageCode === preferred.langCode ? alter : preferred
+}
+
+export const shouldPersistDirectTarget = (
+  target: TranslateLanguage,
+  preferred: TranslateLanguage,
+  alter: TranslateLanguage
+): boolean => {
+  return target.langCode !== preferred.langCode && target.langCode !== alter.langCode
 }
 
 /**

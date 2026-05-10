@@ -5,9 +5,9 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockRendererLoggerService } from '../../../../../../tests/__mocks__/RendererLoggerService'
-import { UNKNOWN } from '../../../config/translate'
 import type { Chunk } from '../../../types/chunk'
 import { ChunkType } from '../../../types/chunk'
+import { UNKNOWN_LANG_CODE } from '../../../utils/translate'
 import { detectLanguageByFranc, detectLanguageByLLM, detectWithMethod, useDetectLang } from '../useDetectLang'
 
 const lang = parseTranslateLangCode
@@ -128,11 +128,11 @@ describe('detectLanguageByFranc', () => {
     expect(detectLanguageByFranc('你好世界')).toBe('zh-cn')
   })
 
-  it('returns UNKNOWN.langCode and logs a debug when the iso3 is not in the supported isoMap', () => {
+  it('returns the unknown lang code and logs a debug when the iso3 is not in the supported isoMap', () => {
     francMock.mockReturnValueOnce('xxx')
     const debugSpy = vi.spyOn(mockRendererLoggerService, 'debug').mockImplementation(() => {})
 
-    expect(detectLanguageByFranc('???')).toBe(UNKNOWN.langCode)
+    expect(detectLanguageByFranc('???')).toBe(UNKNOWN_LANG_CODE)
     expect(debugSpy).toHaveBeenCalledWith('franc iso3 not in isoMap, falling back to UNKNOWN', { iso3: 'xxx' })
   })
 })
@@ -215,16 +215,16 @@ describe('useDetectLang hook', () => {
     })
   })
 
-  it('returns UNKNOWN.langCode for empty/whitespace input without hitting detection', async () => {
+  it('returns the unknown lang code for empty/whitespace input without hitting detection', async () => {
     const { result } = renderHook(() => useDetectLang())
 
     const code = await act(async () => result.current('   '))
-    expect(code).toBe(UNKNOWN.langCode)
+    expect(code).toBe(UNKNOWN_LANG_CODE)
     expect(fetchChatCompletionMock).not.toHaveBeenCalled()
     expect(francMock).not.toHaveBeenCalled()
   })
 
-  it('returns UNKNOWN.langCode when languages are still loading (undefined) and logs a warn', async () => {
+  it('returns the unknown lang code when languages are still loading (undefined) and logs a warn', async () => {
     mockUseQuery.mockImplementation(
       () =>
         ({
@@ -241,12 +241,12 @@ describe('useDetectLang hook', () => {
     const { result } = renderHook(() => useDetectLang())
 
     const code = await act(async () => result.current('Hello'))
-    expect(code).toBe(UNKNOWN.langCode)
+    expect(code).toBe(UNKNOWN_LANG_CODE)
     expect(fetchChatCompletionMock).not.toHaveBeenCalled()
     expect(warnSpy).toHaveBeenCalledWith('useDetectLang invoked before languages were ready, returning UNKNOWN')
   })
 
-  it('returns UNKNOWN.langCode when the language list resolved to an empty array and logs an error', async () => {
+  it('returns the unknown lang code when the language list resolved to an empty array and logs an error', async () => {
     mockUseQuery.mockImplementation(
       () =>
         ({
@@ -263,7 +263,7 @@ describe('useDetectLang hook', () => {
     const { result } = renderHook(() => useDetectLang())
 
     const code = await act(async () => result.current('Hello'))
-    expect(code).toBe(UNKNOWN.langCode)
+    expect(code).toBe(UNKNOWN_LANG_CODE)
     expect(fetchChatCompletionMock).not.toHaveBeenCalled()
     expect(errorSpy).toHaveBeenCalledWith('useDetectLang invoked with an empty language list')
   })

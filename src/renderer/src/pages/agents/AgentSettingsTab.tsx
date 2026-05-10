@@ -3,7 +3,6 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
-import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useLanguages } from '@renderer/hooks/translate/useTranslateLanguages'
@@ -413,7 +412,7 @@ const AgentSettingsTab = () => {
               <Selector
                 value={targetLanguage}
                 onChange={(value) => setTargetLanguage(value)}
-                placeholder={getLabel(UNKNOWN)}
+                placeholder={getLabel(null)}
                 options={
                   languages?.map((item) => {
                     return { value: item.langCode, label: getLabel(item) }

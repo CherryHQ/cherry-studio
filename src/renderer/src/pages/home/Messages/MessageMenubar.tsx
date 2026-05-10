@@ -25,7 +25,7 @@ import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import { TraceIcon } from '@renderer/trace/pages/Component'
-import type { Assistant, Model, Topic, TranslateLanguageVo } from '@renderer/types'
+import type { Assistant, Model, Topic } from '@renderer/types'
 import { type Message, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -48,6 +48,7 @@ import {
   findTranslationBlocksById,
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { MenuProps } from 'antd'
 import { Dropdown, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
@@ -110,7 +111,7 @@ type MessageMenubarButtonContext = {
   enableDeveloperMode: boolean
   handleResendUserMessage: (messageUpdate?: Message) => Promise<void>
   handleTraceUserMessage: () => void | Promise<void>
-  handleTranslate: (language: TranslateLanguageVo) => Promise<void>
+  handleTranslate: (language: TranslateLanguage) => Promise<void>
   hasTranslationBlocks: boolean
   isAssistantMessage: boolean
   isBubbleStyle: boolean
@@ -131,7 +132,7 @@ type MessageMenubarButtonContext = {
   softHoverBg: boolean
   t: TFunction
   getLanguageLabel: ReturnType<typeof useLanguages>['getLabel']
-  translateLanguages: TranslateLanguageVo[]
+  translateLanguages: TranslateLanguage[]
 }
 
 type MessageMenubarButtonRenderer = (ctx: MessageMenubarButtonContext) => ReactNode | null
@@ -260,7 +261,7 @@ const MessageMenubar: FC<Props> = (props) => {
   }, [message.blocks, blockEntities])
 
   const handleTranslate = useCallback(
-    async (language: TranslateLanguageVo) => {
+    async (language: TranslateLanguage) => {
       if (isTranslating) return
 
       const messageId = message.id

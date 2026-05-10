@@ -1,102 +1,45 @@
-import {
-  parsePersistedLangCode,
-  parseTranslateBidirectionalPair,
-  parseTranslateLangCode,
-  type TranslateBidirectionalPair
-} from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { describe, expect, it } from 'vitest'
 
-import { determineTargetLanguage, getTargetLanguageForBidirectional, languageDtoToVo } from '../translate'
+import { pickBidirectionalTarget, shouldPersistDirectTarget } from '../translate'
 
-describe('languageDtoToVo', () => {
-  it('should pick only value, langCode, and emoji from the DTO', () => {
-    const dto = {
-      langCode: parsePersistedLangCode('en-us'),
-      value: 'English',
-      emoji: '🇺🇸',
-      createdAt: '2026-01-01T00:00:00Z',
-      updatedAt: '2026-01-01T00:00:00Z'
-    }
-    const vo = languageDtoToVo(dto)
-    expect(vo).toEqual({ langCode: 'en-us', value: 'English', emoji: '🇺🇸' })
-    expect(vo).not.toHaveProperty('createdAt')
-    expect(vo).not.toHaveProperty('updatedAt')
-  })
-})
+const lang = (langCode: string, value: string): TranslateLanguage =>
+  ({
+    langCode,
+    value,
+    emoji: '🏳️',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  }) as TranslateLanguage
 
-describe('getTargetLanguageForBidirectional', () => {
-  const pair: TranslateBidirectionalPair = parseTranslateBidirectionalPair(['en-us', 'zh-cn'])
+const english = lang('en-us', 'English')
+const chinese = lang('zh-cn', 'Chinese')
+const japanese = lang('ja-jp', 'Japanese')
 
-  it('should return second language when source matches first', () => {
-    expect(getTargetLanguageForBidirectional(parseTranslateLangCode('en-us'), pair)).toBe('zh-cn')
-  })
-
-  it('should return first language when source matches second', () => {
-    expect(getTargetLanguageForBidirectional(parseTranslateLangCode('zh-cn'), pair)).toBe('en-us')
-  })
-
-  it('throws "Unreachable" when source matches neither entry of the pair', () => {
-    // The public contract is "caller guards with isLanguageInPair"; anything
-    // else is a programmer error and should surface loudly rather than return
-    // a guessed value.
-    expect(() => getTargetLanguageForBidirectional(parseTranslateLangCode('ja-jp'), pair)).toThrow(/unreachable/i)
-  })
-})
-
-describe('determineTargetLanguage', () => {
-  const pair: TranslateBidirectionalPair = parseTranslateBidirectionalPair(['en-us', 'zh-cn'])
-
-  describe('bidirectional mode', () => {
-    it('should return the other language from the pair', () => {
-      const result = determineTargetLanguage(
-        parseTranslateLangCode('en-us'),
-        parseTranslateLangCode('zh-cn'),
-        true,
-        pair
-      )
-      expect(result).toEqual({ success: true, language: 'zh-cn' })
+describe('translate bidirectional helpers', () => {
+  describe('pickBidirectionalTarget', () => {
+    it('uses the override target when one is provided', () => {
+      expect(pickBidirectionalTarget('en-us', chinese, english, japanese)).toBe(japanese)
     })
 
-    it('should return the first language when source is the second', () => {
-      const result = determineTargetLanguage(
-        parseTranslateLangCode('zh-cn'),
-        parseTranslateLangCode('en-us'),
-        true,
-        pair
-      )
-      expect(result).toEqual({ success: true, language: 'en-us' })
+    it('uses alter when detected source equals preferred', () => {
+      expect(pickBidirectionalTarget('zh-cn', chinese, english)).toBe(english)
     })
 
-    it('should return not_in_pair when source is not in the pair', () => {
-      const result = determineTargetLanguage(
-        parseTranslateLangCode('ja-jp'),
-        parseTranslateLangCode('zh-cn'),
-        true,
-        pair
-      )
-      expect(result).toEqual({ success: false, errorType: 'not_in_pair' })
+    it('uses preferred when detected source equals alter', () => {
+      expect(pickBidirectionalTarget('en-us', chinese, english)).toBe(chinese)
+    })
+
+    it('uses preferred when detected source is unknown', () => {
+      expect(pickBidirectionalTarget('unknown', chinese, english)).toBe(chinese)
     })
   })
 
-  describe('non-bidirectional mode', () => {
-    it('should return the target language when different from source', () => {
-      const result = determineTargetLanguage(
-        parseTranslateLangCode('en-us'),
-        parseTranslateLangCode('zh-cn'),
-        false,
-        pair
-      )
-      expect(result).toEqual({ success: true, language: 'zh-cn' })
-    })
-
-    it('should return same_language when source equals target', () => {
-      const result = determineTargetLanguage(
-        parseTranslateLangCode('en-us'),
-        parseTranslateLangCode('en-us'),
-        false,
-        pair
-      )
-      expect(result).toEqual({ success: false, errorType: 'same_language' })
+  describe('shouldPersistDirectTarget', () => {
+    it('persists a direct target only when it differs from both saved slots', () => {
+      expect(shouldPersistDirectTarget(japanese, chinese, english)).toBe(true)
+      expect(shouldPersistDirectTarget(chinese, chinese, english)).toBe(false)
+      expect(shouldPersistDirectTarget(english, chinese, english)).toBe(false)
     })
   })
 })

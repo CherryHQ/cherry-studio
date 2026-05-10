@@ -34,38 +34,6 @@ const ITEM_HEIGHT = 160
 const LOAD_MORE_THRESHOLD = 200
 const SCROLL_THROTTLE_DELAY = 150
 
-/**
- * Drawer panel showing the translate history with infinite scroll.
- *
- * ## Pagination design decision
- *
- * History items are loaded via {@link useTranslateHistories} (offset-based infinite
- * scroll). Infinite scroll was chosen over page navigation because:
- *
- * 1. **Primary usage is "check recent entries"** — users almost never need to jump
- *    to a specific historical page; they scroll a bit or search by keyword.
- * 2. **Search + star filter already cover the long-tail lookup case**, so page
- *    navigation would add UI weight without unlocking a real user need.
- * 3. **Consistency with other time-series lists in Cherry Studio** (chat messages,
- *    agent sessions), which all use infinite scroll.
- * 4. **Drawer UX stays lighter** without a pagination footer occupying space.
- *
- * ## Server-side filtering
- *
- * `search` and `star` are pushed into the request query and become part of the
- * SWR key. Changing either resets the infinite list automatically. Filtering in
- * the client (as the previous implementation did) produced false-empty results
- * when the matching records lived past the first fetched page.
- *
- * ## Scroll detection via virtualizer `onChange`
- *
- * The near-bottom check uses the virtualizer's own `onChange` callback rather
- * than a DOM `scroll` listener on `scrollElement()`. `onChange` fires on every
- * scroll tick emitted by tanstack-virtual, avoids ref-timing issues around when
- * `virtualizer.scrollElement` is first observed, and sidesteps the scroll-event
- * routing ambiguity when the virtualizer's internal `ScrollContainer` is nested
- * inside another scrollable wrapper.
- */
 const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItemClick, onClose }) => {
   const { t } = useTranslation()
 

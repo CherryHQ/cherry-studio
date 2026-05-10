@@ -6119,6 +6119,7 @@
     "detecting": "偵測中...",
     "empty": "翻譯內容為空",
     "error": {
+      "auto_copy_failed": "自動複製翻譯結果失敗",
       "chat_qwen_mt": "Qwen MT 模型無法在對話中使用，請前往翻譯頁面",
       "detect": {
         "empty": "偵測到的語言為空",
@@ -6144,6 +6145,7 @@
       "error": {
         "check_type": "檢查檔案類型時發生錯誤",
         "multiple": "不允許上傳多個檔案",
+        "ocr": "辨識圖片文字失敗",
         "too_large": "檔案過大",
         "unknown": "讀取檔案內容失敗"
       },

@@ -12,7 +12,6 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isOpenAIModel, isSupportVerbosityModel } from '@renderer/config/models'
-import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useLanguages } from '@renderer/hooks/translate'
@@ -574,7 +573,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
             <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
             <Select value={targetLanguage} onValueChange={setTargetLanguage}>
               <SelectTrigger size="sm" className="w-45">
-                <SelectValue placeholder={getLabel(UNKNOWN)} />
+                <SelectValue placeholder={getLabel(null)} />
               </SelectTrigger>
               <SelectContent>
                 {targetLanguageItems.map((item) => (

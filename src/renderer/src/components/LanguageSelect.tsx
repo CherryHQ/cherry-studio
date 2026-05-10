@@ -1,9 +1,8 @@
 import { Combobox, type ComboboxOption, Skeleton } from '@cherrystudio/ui'
-import { UNKNOWN } from '@renderer/config/translate'
 import { useLanguages } from '@renderer/hooks/translate/useTranslateLanguages'
-import type { TranslateLanguageVo } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import type { TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { CSSProperties, MouseEventHandler, ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,7 +15,7 @@ export type LanguageOption = {
 type Props = {
   extraOptionsBefore?: LanguageOption[]
   extraOptionsAfter?: LanguageOption[]
-  languageRenderer?: (lang: TranslateLanguageVo) => ReactNode
+  languageRenderer?: (lang: TranslateLanguage) => ReactNode
   value?: TranslateSourceLanguage
   defaultValue?: TranslateSourceLanguage
   onChange?: (value: TranslateSourceLanguage) => void
@@ -72,7 +71,7 @@ const LanguageSelect = (props: Props) => {
   } = props
 
   const defaultLanguageRenderer = useCallback(
-    (lang: TranslateLanguageVo) => {
+    (lang: TranslateLanguage) => {
       return (
         <span className="flex min-w-0 items-center gap-2">
           <span className="shrink-0" role="img" aria-label={lang.emoji}>
@@ -86,8 +85,15 @@ const LanguageSelect = (props: Props) => {
   )
 
   const renderUnknownLanguage = useCallback(() => {
-    return languageRenderer ? languageRenderer(UNKNOWN) : defaultLanguageRenderer(UNKNOWN)
-  }, [defaultLanguageRenderer, languageRenderer])
+    return (
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="shrink-0" role="img" aria-label={t('common.unknown')}>
+          🏳️
+        </span>
+        <span className="truncate">{t('common.unknown')}</span>
+      </span>
+    )
+  }, [t])
 
   const displayedOptions = useMemo<LanguageComboboxOption[] | undefined>(() => {
     if (languages === undefined) {

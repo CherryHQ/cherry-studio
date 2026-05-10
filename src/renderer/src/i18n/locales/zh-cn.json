@@ -6119,6 +6119,7 @@
     "detecting": "检测中...",
     "empty": "翻译内容为空",
     "error": {
+      "auto_copy_failed": "自动复制翻译结果失败",
       "chat_qwen_mt": "Qwen MT 模型不可在对话中使用，请转至翻译页面",
       "detect": {
         "empty": "检测到的语言为空",
@@ -6144,6 +6145,7 @@
       "error": {
         "check_type": "检查文件类型时发生错误",
         "multiple": "不允许上传多个文件",
+        "ocr": "识别图片文字失败",
         "too_large": "文件过大",
         "unknown": "读取文件内容失败"
       },

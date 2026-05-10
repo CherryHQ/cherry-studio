@@ -1,21 +1,19 @@
 import { dataApiService } from '@data/DataApiService'
-import type {
-  AssistantSettings,
-  FetchChatCompletionRequestOptions,
-  ReasoningEffortOption,
-  TranslateLanguageVo
-} from '@renderer/types'
+import { loggerService } from '@logger'
+import type { AssistantSettings, FetchChatCompletionRequestOptions, ReasoningEffortOption } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { readyToAbort } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
-import { languageDtoToVo } from '@renderer/utils/translate'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { NoOutputGeneratedError } from 'ai'
 import { t } from 'i18next'
 
 import { fetchChatCompletion } from './ApiService'
 import { getDefaultTranslateAssistant } from './AssistantService'
+
+const logger = loggerService.withContext('TranslateService')
 
 type TranslateOptions = {
   reasoningEffort: ReasoningEffortOption
@@ -24,7 +22,7 @@ type TranslateOptions = {
 /**
  * Translate text into the target language via streaming chat completion.
  * @param text - The source text to translate
- * @param targetLanguage - Target language, either as a {@link TranslateLangCode} string or a {@link TranslateLanguageVo} object
+ * @param targetLanguage - Target language, either as a {@link TranslateLangCode} string or a {@link TranslateLanguage} object
  * @param onResponse - Streaming callback invoked on every chunk with the accumulated text and a completion flag
  * @param abortKey - Optional key used to abort the request via {@link readyToAbort}
  * @param options - Optional settings (e.g. reasoning effort)
@@ -33,7 +31,7 @@ type TranslateOptions = {
  */
 export const translateText = async (
   text: string,
-  targetLanguage: TranslateLangCode | TranslateLanguageVo,
+  targetLanguage: TranslateLangCode | TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void,
   abortKey?: string,
   options?: TranslateOptions
@@ -45,11 +43,11 @@ export const translateText = async (
 
   // TODO: modify here when aisdk is migrated to main process
   if (typeof targetLanguage === 'string') {
-    if (!isTranslateLangCode(targetLanguage)) {
+    if (!isTranslateLangCode(targetLanguage) || targetLanguage === 'unknown') {
       throw new Error(`Invalid target language: ${targetLanguage}`)
     }
     const langDto = await dataApiService.get(`/translate/languages/${targetLanguage}`)
-    targetLanguage = languageDtoToVo(langDto)
+    targetLanguage = langDto
   }
   const assistant = await getDefaultTranslateAssistant(targetLanguage, text, assistantSettings)
 
@@ -83,10 +81,10 @@ export const translateText = async (
       onChunkReceived: onChunk
     })
   } catch (e) {
-    // dismiss no output generated error. it will be thrown when aborted.
     if (!NoOutputGeneratedError.isInstance(e)) {
       throw e
     }
+    logger.debug('Swallowed NoOutputGeneratedError', e as Error)
   }
 
   if (error !== undefined) {

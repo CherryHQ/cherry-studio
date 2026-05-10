@@ -9,7 +9,6 @@ import {
 } from '@renderer/config/constant'
 import { getModelSupportedReasoningEffortOptions } from '@renderer/config/models'
 import { isQwenMTModel } from '@renderer/config/models/qwen'
-import { UNKNOWN } from '@renderer/config/translate'
 import { getStoreProviders } from '@renderer/hooks/useStore'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
@@ -21,10 +20,10 @@ import type {
   Model,
   Provider,
   Topic,
-  TranslateAssistant,
-  TranslateLanguageVo
+  TranslateAssistant
 } from '@renderer/types'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('AssistantService')
@@ -98,7 +97,7 @@ export function getDefaultAssistant(): Assistant {
  * @returns Configured translate assistant
  */
 export async function getDefaultTranslateAssistant(
-  targetLanguage: TranslateLanguageVo,
+  targetLanguage: TranslateLanguage,
   text: string,
   _settings?: Partial<AssistantSettings>
 ): Promise<TranslateAssistant> {
@@ -108,11 +107,6 @@ export async function getDefaultTranslateAssistant(
   if (!model) {
     logger.error('No translate model')
     throw new Error(i18n.t('translate.error.not_configured'))
-  }
-
-  if (targetLanguage.langCode === UNKNOWN.langCode) {
-    logger.error('Unknown target language', targetLanguage)
-    throw new Error('Unknown target language')
   }
 
   const supportedOptions = getModelSupportedReasoningEffortOptions(model)
@@ -126,7 +120,7 @@ export async function getDefaultTranslateAssistant(
   const getTranslateContent = async (
     model: Model,
     text: string,
-    targetLanguage: TranslateLanguageVo
+    targetLanguage: TranslateLanguage
   ): Promise<string> => {
     if (isQwenMTModel(model)) {
       return text // QwenMT models handle raw text directly

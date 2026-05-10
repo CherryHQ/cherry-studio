@@ -1,6 +1,8 @@
 import { Button, ColFlex, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import LanguageSelect from '@renderer/components/LanguageSelect'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { TranslateBidirectionalPair, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { Modal, Radio, Space } from 'antd'
 import type { FC } from 'react'
@@ -8,6 +10,8 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TranslateSettingsPopup from './components/TranslateSettingsPopup/TranslateSettingsPopup'
+
+const logger = loggerService.withContext('TranslateSettings')
 
 const TranslateSettings: FC<{
   visible: boolean
@@ -26,6 +30,11 @@ const TranslateSettings: FC<{
     void TranslateSettingsPopup.show()
   }
 
+  const showSaveError = (message: string, error: unknown) => {
+    logger.error(message, error as Error)
+    window.toast.error(formatErrorMessageWithPrefix(error, t('translate.settings.error.save')))
+  }
+
   return (
     <Modal
       title={<div style={{ fontSize: 16 }}>{t('translate.settings.title')}</div>}
@@ -42,7 +51,11 @@ const TranslateSettings: FC<{
             <Switch
               checked={enableMarkdown}
               onCheckedChange={async (isSelected) => {
-                return await setEnableMarkdown(isSelected)
+                try {
+                  await setEnableMarkdown(isSelected)
+                } catch (error) {
+                  showSaveError('Failed to persist markdown preview setting', error)
+                }
               }}
             />
           </Flex>
@@ -55,7 +68,11 @@ const TranslateSettings: FC<{
               checked={autoCopy}
               color="primary"
               onCheckedChange={async (isSelected) => {
-                return await setAutoCopy(isSelected)
+                try {
+                  await setAutoCopy(isSelected)
+                } catch (error) {
+                  showSaveError('Failed to persist auto copy setting', error)
+                }
               }}
             />
           </RowFlex>
@@ -68,7 +85,11 @@ const TranslateSettings: FC<{
               checked={isScrollSyncEnabled}
               color="primary"
               onCheckedChange={async (isSelected) => {
-                return await setIsScrollSyncEnabled(isSelected)
+                try {
+                  await setIsScrollSyncEnabled(isSelected)
+                } catch (error) {
+                  showSaveError('Failed to persist scroll sync setting', error)
+                }
               }}
             />
           </Flex>
@@ -89,7 +110,11 @@ const TranslateSettings: FC<{
               optionType="button"
               buttonStyle="solid"
               onChange={async (e) => {
-                return await setAutoDetectionMethod(e.target.value)
+                try {
+                  await setAutoDetectionMethod(e.target.value)
+                } catch (error) {
+                  showSaveError('Failed to persist auto detection method', error)
+                }
               }}>
               <Tooltip content={t('translate.detect.method.auto.tip')}>
                 <Radio.Button value="auto">{t('translate.detect.method.auto.label')}</Radio.Button>
@@ -119,7 +144,11 @@ const TranslateSettings: FC<{
               checked={isBidirectional}
               color="primary"
               onCheckedChange={async (isSelected) => {
-                return await setIsBidirectional(isSelected)
+                try {
+                  await setIsBidirectional(isSelected)
+                } catch (error) {
+                  showSaveError('Failed to persist bidirectional setting', error)
+                }
               }}
             />
           </Flex>
@@ -135,7 +164,11 @@ const TranslateSettings: FC<{
                       window.toast.warning(t('translate.language.same'))
                       return
                     }
-                    return await setPair(newPair)
+                    try {
+                      await setPair(newPair)
+                    } catch (error) {
+                      showSaveError('Failed to persist bidirectional language pair', error)
+                    }
                   }}
                 />
                 <span>⇆</span>
@@ -148,7 +181,11 @@ const TranslateSettings: FC<{
                       window.toast.warning(t('translate.language.same'))
                       return
                     }
-                    return await setPair(newPair)
+                    try {
+                      await setPair(newPair)
+                    } catch (error) {
+                      showSaveError('Failed to persist bidirectional language pair', error)
+                    }
                   }}
                 />
               </Flex>

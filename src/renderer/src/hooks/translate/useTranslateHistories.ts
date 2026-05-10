@@ -1,10 +1,9 @@
-import { dataApiService } from '@data/DataApiService'
+import { usePaginatedQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { TRANSLATE_HISTORY_DEFAULT_LIMIT } from '@shared/data/api/schemas/translate'
 import type { TranslateHistory } from '@shared/data/types/translate'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import useSWRInfinite from 'swr/infinite'
 
 const logger = loggerService.withContext('translate/useTranslateHistories')
 
@@ -17,18 +16,6 @@ interface UseTranslateHistoriesOptions {
   pageSize?: number
 }
 
-/**
- * Infinite-scroll hook for translate history, backed by `/translate/histories`.
- *
- * Wraps {@link useSWRInfinite} with offset-based pagination. The endpoint returns
- * {@link OffsetPaginationResponse}, so the standard framework {@link useInfiniteQuery}
- * (cursor-based) cannot be used directly. Mirrors the pattern used in `useSessions.ts`.
- *
- * @remarks
- * - `search` and `star` are part of the SWR key, so changing either resets the list.
- * - Mutations elsewhere call `refresh: ['/translate/histories']`, which invalidates
- *   every page this hook holds because all keys share that path prefix.
- */
 export const useTranslateHistories = ({
   search,
   star,
@@ -36,36 +23,41 @@ export const useTranslateHistories = ({
 }: UseTranslateHistoriesOptions = {}) => {
   const searchKey = search?.trim() || undefined
   const starKey = star || undefined
+  const [loadedItems, setLoadedItems] = useState<TranslateHistory[]>([])
 
-  const getKey = useCallback(
-    (pageIndex: number, previousPageData: { items: TranslateHistory[] } | null) => {
-      if (previousPageData && previousPageData.items.length < pageSize) return null
-      return ['/translate/histories', pageIndex + 1, pageSize, searchKey, starKey] as const
-    },
-    [pageSize, searchKey, starKey]
-  )
+  const {
+    items,
+    total,
+    page,
+    error,
+    isLoading,
+    isRefreshing,
+    hasNext,
+    nextPage,
+    refresh: pageRefresh,
+    reset
+  } = usePaginatedQuery('/translate/histories', {
+    query: { search: searchKey, star: starKey },
+    limit: pageSize,
+    swrOptions: { keepPreviousData: false }
+  })
 
-  const fetcher = useCallback(
-    async ([path, page, limit, searchArg, starArg]: readonly [
-      '/translate/histories',
-      number,
-      number,
-      string | undefined,
-      boolean | undefined
-    ]) => {
-      return dataApiService.get(path, {
-        query: {
-          page,
-          limit,
-          search: searchArg,
-          star: starArg
-        }
-      })
-    },
-    []
-  )
+  const resetRef = useRef(reset)
+  resetRef.current = reset
 
-  const { data, error, isLoading, isValidating, mutate, size, setSize } = useSWRInfinite(getKey, fetcher)
+  useEffect(() => {
+    setLoadedItems([])
+    resetRef.current()
+  }, [pageSize, searchKey, starKey])
+
+  useEffect(() => {
+    setLoadedItems((prev) => {
+      if (page <= 1) return items
+
+      const itemIds = new Set(items.map((item) => item.id))
+      return [...prev.filter((item) => !itemIds.has(item.id)), ...items]
+    })
+  }, [items, page])
 
   const { t } = useTranslation()
   // One-shot UX surface: mirror useLanguages — only notify the user once per
@@ -79,37 +71,38 @@ export const useTranslateHistories = ({
     }
   }, [error, t])
 
-  const items = useMemo(() => data?.flatMap((p) => p?.items ?? []) ?? [], [data])
-  const total = data?.[0]?.total ?? 0
-  const hasMore = items.length < total
-  const isLoadingMore = isLoading || (size > 0 && data !== undefined && typeof data[size - 1] === 'undefined')
+  const histories = useMemo(() => loadedItems, [loadedItems])
+  const hasMore = hasNext
+  const isLoadingMore = isRefreshing && page > 1
 
   const loadMore = useCallback(() => {
     if (!isLoadingMore && hasMore) {
-      void setSize((current) => current + 1)
+      nextPage()
     }
-  }, [isLoadingMore, hasMore, setSize])
+  }, [isLoadingMore, hasMore, nextPage])
 
-  const refresh = useCallback(async () => {
-    await mutate()
-  }, [mutate])
+  const reload = useCallback(async () => {
+    setLoadedItems([])
+    resetRef.current()
+    await pageRefresh()
+  }, [pageRefresh])
 
   // Loading / error / ready discriminator. Empty `items` is ambiguous on its
   // own (still loading? load failed? legitimately no records?), so callers
   // that need to render distinct UI for each state should switch on `status`
   // rather than inspect `items.length` and `error` separately.
-  const status: 'loading' | 'error' | 'ready' = data !== undefined ? 'ready' : error !== undefined ? 'error' : 'loading'
+  const status: 'loading' | 'error' | 'ready' = isLoading ? 'loading' : error !== undefined ? 'error' : 'ready'
 
   return {
-    items,
+    items: histories,
     total,
     hasMore,
     isLoading,
     isLoadingMore,
-    isValidating,
+    isValidating: isRefreshing,
     error,
     loadMore,
-    refresh,
+    refresh: reload,
     status
   }
 }

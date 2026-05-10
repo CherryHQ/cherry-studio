@@ -16,7 +16,6 @@ export * from './file'
 export * from './note'
 export type { LanguageVarious, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import * as z from 'zod'
@@ -71,7 +70,7 @@ export type Assistant = {
   tags?: string[] // 助手标签
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
-  targetLanguage?: TranslateLanguageVo
+  targetLanguage?: TranslateLanguage
 }
 
 /**
@@ -86,7 +85,7 @@ export function getEffectiveMcpMode(assistant: Assistant): McpMode {
 export type TranslateAssistant = Assistant & {
   model: Model
   content: string
-  targetLanguage: TranslateLanguageVo
+  targetLanguage: TranslateLanguage
 }
 
 export const isTranslateAssistant = (assistant: Assistant): assistant is TranslateAssistant => {
@@ -620,8 +619,6 @@ export type GenerateImageResponse = {
   type: 'url' | 'base64'
   images: string[]
 }
-
-export type TranslateLanguageVo = Pick<TranslateLanguage, 'value' | 'emoji'> & { langCode: TranslateLangCode }
 
 export const AutoDetectionMethods = {
   franc: 'franc',

@@ -8,7 +8,6 @@ import { CopyIcon } from '@renderer/components/Icons'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import ModelSelectButton from '@renderer/components/ModelSelectButton'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
-import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useLanguages, useTranslateHistory } from '@renderer/hooks/translate'
 import { useDetectLang } from '@renderer/hooks/translate/useDetectLang'
@@ -26,7 +25,12 @@ import { getFileExtension, isTextFile, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
-import { createInputScrollHandler, createOutputScrollHandler, determineTargetLanguage } from '@renderer/utils/translate'
+import {
+  createInputScrollHandler,
+  createOutputScrollHandler,
+  determineTargetLanguage,
+  UNKNOWN_LANG_CODE
+} from '@renderer/utils/translate'
 import { documentExts } from '@shared/config/constant'
 import { imageExts, MB, textExts } from '@shared/config/constant'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -107,9 +111,9 @@ const TranslatePage: FC = () => {
   const couldTranslate = useMemo(() => {
     return !(
       !translateInput.trim() ||
-      (sourceLanguage !== 'auto' && sourceLanguage === UNKNOWN.langCode) ||
-      targetLanguage === UNKNOWN.langCode ||
-      (isBidirectional && (bidirectionalPair[0] === UNKNOWN.langCode || bidirectionalPair[1] === UNKNOWN.langCode)) ||
+      (sourceLanguage !== 'auto' && sourceLanguage === UNKNOWN_LANG_CODE) ||
+      targetLanguage === UNKNOWN_LANG_CODE ||
+      (isBidirectional && (bidirectionalPair[0] === UNKNOWN_LANG_CODE || bidirectionalPair[1] === UNKNOWN_LANG_CODE)) ||
       isProcessing
     )
   }, [bidirectionalPair, isBidirectional, isProcessing, sourceLanguage, targetLanguage, translateInput])
@@ -183,12 +187,21 @@ const TranslatePage: FC = () => {
       window.toast.success(t('translate.complete'))
 
       if (autoCopy) {
-        setTimeoutTimer('auto-copy', async () => copy(translated), 100)
+        setTimeoutTimer(
+          'auto-copy',
+          async () => {
+            try {
+              await copy(translated)
+            } catch (error) {
+              logger.error('Failed to auto-copy translation result', error as Error)
+              window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.auto_copy_failed')))
+            }
+          },
+          100
+        )
       }
 
       // Hook logs the error; we keep the upstream-message toast here.
-      // Auto-detect may legitimately degrade to UNKNOWN; useTranslateHistory coerces
-      // that to null at the persistence boundary.
       try {
         await addHistory({
           sourceText: translateInput,
@@ -236,28 +249,35 @@ const TranslatePage: FC = () => {
   }
 
   const onHistoryItemClick = (history: TranslateHistory) => {
+    const persistHistoryLanguages = async () => {
+      try {
+        if (history.sourceLanguage === null) {
+          await setSourceLanguage('auto')
+        } else {
+          await setSourceLanguage(history.sourceLanguage)
+        }
+
+        if (history.targetLanguage === null) {
+          await setTargetLanguage(UNKNOWN_LANG_CODE)
+        } else {
+          await setTargetLanguage(history.targetLanguage)
+        }
+      } catch (error) {
+        logger.error('Failed to restore translate history languages', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.settings.error.save')))
+      }
+    }
+
     setTranslateInput(history.sourceText)
     setTranslateOutput(history.targetText)
-    if (history.sourceLanguage === null) {
-      void setSourceLanguage('auto')
-    } else {
-      void setSourceLanguage(history.sourceLanguage)
-    }
-    // Persisted `null` means the original detection degraded to UNKNOWN
-    // (useTranslateHistory coerces UNKNOWN → null at the persistence boundary).
-    // Restore the UNKNOWN sentinel in the UI so the selector reflects that state.
-    if (history.targetLanguage === null) {
-      void setTargetLanguage(UNKNOWN.langCode)
-    } else {
-      void setTargetLanguage(history.targetLanguage)
-    }
+    void persistHistoryLanguages()
     setHistoryDrawerVisible(false)
   }
 
   /** 与自动检测相关的交换条件检查 */
   const couldExchangeAuto = useMemo(
     () =>
-      (sourceLanguage === 'auto' && detectedLanguage && detectedLanguage !== UNKNOWN.langCode) ||
+      (sourceLanguage === 'auto' && detectedLanguage && detectedLanguage !== UNKNOWN_LANG_CODE) ||
       sourceLanguage !== 'auto',
     [detectedLanguage, sourceLanguage]
   )
@@ -273,12 +293,20 @@ const TranslatePage: FC = () => {
       window.toast.error(t('translate.error.invalid_source'))
       return
     }
-    if (source === UNKNOWN.langCode) {
+    if (source === UNKNOWN_LANG_CODE) {
       window.toast.error(t('translate.error.detect.unknown'))
       return
     }
-    void setSourceLanguage(targetLanguage)
-    void setTargetLanguage(source)
+    const persistExchangeLanguages = async () => {
+      try {
+        await setSourceLanguage(targetLanguage)
+        await setTargetLanguage(source)
+      } catch (error) {
+        logger.error('Failed to persist exchanged translate languages', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.settings.error.save')))
+      }
+    }
+    void persistExchangeLanguages()
   }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage, setSourceLanguage, setTargetLanguage])
 
   useEffect(() => {
@@ -343,7 +371,12 @@ const TranslatePage: FC = () => {
         style={{ width: 200 }}
         value={targetLanguage}
         onChange={async (value) => {
-          return setTargetLanguage(value)
+          try {
+            await setTargetLanguage(value)
+          } catch (error) {
+            logger.error('Failed to persist translate target language', error as Error)
+            window.toast.error(formatErrorMessageWithPrefix(error, t('translate.settings.error.save')))
+          }
         }}
       />
     )
@@ -419,10 +452,15 @@ const TranslatePage: FC = () => {
 
   const ocrFile = useCallback(
     async (file: SupportedOcrFile) => {
-      const ocrResult = await ocr(file)
-      setTranslateInput(translateInput + ocrResult.text)
+      try {
+        const ocrResult = await ocr(file)
+        setTranslateInput(translateInput + ocrResult.text)
+      } catch (e) {
+        logger.error('Failed to OCR file.', e as Error)
+        window.toast.error(formatErrorMessageWithPrefix(e, t('translate.files.error.ocr')))
+      }
     },
-    [ocr, setTranslateInput, translateInput]
+    [ocr, setTranslateInput, t, translateInput]
   )
 
   // 统一的文件处理
@@ -506,8 +544,7 @@ const TranslatePage: FC = () => {
         if (droppedFiles) {
           const file = getSingleFile(droppedFiles) as FileMetadata
           if (!file) return
-          // Await + outer try/catch so OCR / file-read failures don't become
-          // unhandled promise rejections (review #8 in PR #13871).
+          // Await so OCR / file-read failures are handled by the outer catch.
           await processFile(file)
         }
       }
@@ -612,7 +649,12 @@ const TranslatePage: FC = () => {
               value={sourceLanguage}
               optionFilterProp="label"
               onChange={async (value) => {
-                return await setSourceLanguage(value)
+                try {
+                  await setSourceLanguage(value)
+                } catch (error) {
+                  logger.error('Failed to persist translate source language', error as Error)
+                  window.toast.error(formatErrorMessageWithPrefix(error, t('translate.settings.error.save')))
+                }
               }}
               extraOptionsBefore={[
                 {

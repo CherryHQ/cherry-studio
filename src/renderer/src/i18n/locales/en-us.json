@@ -6119,6 +6119,7 @@
     "detecting": "Detecting...",
     "empty": "Translation content is empty",
     "error": {
+      "auto_copy_failed": "Failed to auto-copy translation result",
       "chat_qwen_mt": "Qwen MT model cannot be used in chat. Please go to the translation page.",
       "detect": {
         "empty": "Detected language is empty",
@@ -6144,6 +6145,7 @@
       "error": {
         "check_type": "An error occurred while checking the file type",
         "multiple": "Multiple file uploads are not allowed",
+        "ocr": "Failed to recognize image text",
         "too_large": "File too large",
         "unknown": "Failed to read file content"
       },

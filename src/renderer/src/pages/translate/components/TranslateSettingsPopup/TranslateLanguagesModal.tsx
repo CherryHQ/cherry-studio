@@ -2,9 +2,9 @@ import { Button, InfoTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { useTranslateLanguages } from '@renderer/hooks/translate'
-import type { TranslateLanguageVo } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { parsePersistedLangCode, PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { Form, Input, Modal, Popover, Space } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 
 type Props = {
   isOpen: boolean
-  editingLanguage?: TranslateLanguageVo
+  editingLanguage?: TranslateLanguage
   onCancel: () => void
 }
 

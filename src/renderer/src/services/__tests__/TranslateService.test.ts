@@ -1,8 +1,8 @@
 import { dataApiService } from '@data/DataApiService'
-import type { TranslateLanguageVo } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { NoOutputGeneratedError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -37,7 +37,13 @@ vi.mock('@renderer/utils/error', () => ({
 
 import { translateText } from '../TranslateService'
 
-const TARGET: TranslateLanguageVo = { langCode: parseTranslateLangCode('en-us'), value: 'English', emoji: '🇺🇸' }
+const TARGET = {
+  langCode: parseTranslateLangCode('en-us'),
+  value: 'English',
+  emoji: '🇺🇸',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z'
+} as TranslateLanguage
 
 const streamChunks = (chunks: Chunk[]) =>
   fetchChatCompletionMock.mockImplementationOnce(async ({ onChunkReceived }) => {
@@ -149,6 +155,12 @@ describe('translateText', () => {
       await expect(translateText('source', 'not-a-real-code' as any)).rejects.toThrow(
         'Invalid target language: not-a-real-code'
       )
+      expect(fetchChatCompletionMock).not.toHaveBeenCalled()
+    })
+
+    it('throws when given the unknown sentinel as target language', async () => {
+      await expect(translateText('source', 'unknown' as any)).rejects.toThrow('Invalid target language: unknown')
+      expect(dataApiService.get).not.toHaveBeenCalledWith('/translate/languages/unknown')
       expect(fetchChatCompletionMock).not.toHaveBeenCalled()
     })
   })

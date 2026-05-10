@@ -1,10 +1,4 @@
-import type { TranslateLanguageVo } from '../types'
-
-export const UNKNOWN: TranslateLanguageVo = {
-  value: 'Unknown',
-  langCode: 'unknown',
-  emoji: '🏳️'
-}
+import type { TranslateLanguage } from '@shared/data/types/translate'
 
 const QwenMTMap = {
   en: 'English',
@@ -99,10 +93,7 @@ const QwenMTMap = {
   fa: 'Western Persian'
 }
 
-export function mapLanguageToQwenMTModel(language: TranslateLanguageVo): string | undefined {
-  if (language.langCode === UNKNOWN.langCode) {
-    return undefined
-  }
+export function mapLanguageToQwenMTModel(language: TranslateLanguage): string | undefined {
   // 中文的多个地区需要单独处理
   if (language.langCode === 'zh-cn') {
     return 'Chinese'

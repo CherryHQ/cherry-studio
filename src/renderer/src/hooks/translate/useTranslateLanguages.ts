@@ -1,12 +1,10 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { UNKNOWN } from '@renderer/config/translate'
-import type { TranslateLanguageVo } from '@renderer/types'
-import { languageDtoToVo } from '@renderer/utils/translate'
 import type { CreateTranslateLanguageDto, UpdateTranslateLanguageDto } from '@shared/data/api/schemas/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { isTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { langCodeToI18nKey } from '@shared/data/presets/translate-languages'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,24 +31,28 @@ export const useTranslateLanguages = (options?: {
 
   const languages = useMemo(() => {
     if (data !== undefined) {
-      return data.map(languageDtoToVo)
+      return data
     } else {
       return undefined
     }
   }, [data])
 
   const getLabel = useCallback(
-    (lang: TranslateLangCode | TranslateLanguageVo | null, withEmoji: boolean = true) => {
+    (lang: TranslateLangCode | TranslateLanguage | null, withEmoji: boolean = true) => {
       if (languages === undefined) {
         return undefined
       }
       if (isTranslateLangCode(lang)) {
-        lang = languages.find((l) => l.langCode === lang) ?? UNKNOWN
+        lang = languages.find((l) => l.langCode === lang) ?? null
       } else if (typeof lang === 'string' || lang === null) {
         if (lang !== null) {
           logger.warn('getLabel received an invalid lang code, falling back to UNKNOWN', { lang })
         }
-        lang = UNKNOWN
+        lang = null
+      }
+      if (lang === null) {
+        const text = t('common.unknown')
+        return withEmoji ? `🏳️ ${text}` : text
       }
       const i18nKey = langCodeToI18nKey.get(lang.langCode)
       const text = i18nKey ? t(i18nKey) : lang.value
@@ -65,7 +67,7 @@ export const useTranslateLanguages = (options?: {
       if (languages === undefined) {
         return undefined
       }
-      return languages.find((l) => l.langCode === langCode) ?? UNKNOWN
+      return languages.find((l) => l.langCode === langCode) ?? null
     },
     [languages]
   )
