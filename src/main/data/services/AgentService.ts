@@ -132,11 +132,7 @@ export class AgentService {
     return { agents, total: totalResult[0].count }
   }
 
-  async updateAgent(
-    id: string,
-    updates: UpdateAgentDto,
-    options: { replace?: boolean } = {}
-  ): Promise<AgentEntity | null> {
+  async updateAgent(id: string, updates: UpdateAgentDto): Promise<AgentEntity | null> {
     const existing = await this.getAgent(id)
     if (!existing) return null
 
@@ -144,18 +140,15 @@ export class AgentService {
       updatedAt: Date.now()
     }
 
-    const replaceableEntityFields = Object.keys(AGENT_MUTABLE_FIELDS)
-    const shouldReplace = options.replace ?? false
-
-    for (const field of replaceableEntityFields) {
-      if (shouldReplace || Object.prototype.hasOwnProperty.call(updates, field)) {
-        if (Object.prototype.hasOwnProperty.call(updates, field)) {
-          const value = updates[field as keyof typeof updates]
-          ;(updateData as Record<string, unknown>)[field] = value ?? null
-        } else if (shouldReplace) {
-          ;(updateData as Record<string, unknown>)[field] = null
-        }
-      }
+    // Several mutable fields map to NOT NULL columns with DB defaults
+    // (description, instructions, mcps, allowedTools, configuration). Writing
+    // literal NULL when the DTO omits a field would violate the constraint.
+    // Skip undefined values so Drizzle preserves the column's current value.
+    for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
+      if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
+      const value = updates[field as keyof typeof updates]
+      if (value === undefined) continue
+      ;(updateData as Record<string, unknown>)[field] = value
     }
 
     const database = application.get('DbService').getDb()
