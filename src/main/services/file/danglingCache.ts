@@ -216,8 +216,11 @@ class DanglingCacheImpl implements DanglingCache {
     throw new Error('DanglingCache.initFromDb: not implemented yet (Phase 1b.3 in progress)')
   }
 
-  subscribe(_entryId: FileEntryId, _listener: DanglingListener): () => void {
-    throw new Error('DanglingCache.subscribe: not implemented yet (Phase 1b.3 in progress)')
+  subscribe(entryId: FileEntryId, listener: DanglingListener): () => void {
+    const subscription = this._emitter.event((e) => {
+      if (e.id === entryId) listener(e.id, e.state)
+    })
+    return () => subscription.dispose()
   }
 
   clear(): void {

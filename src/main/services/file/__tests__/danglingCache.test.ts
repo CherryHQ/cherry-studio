@@ -171,6 +171,24 @@ describe('DanglingCache.onDanglingStateChanged', () => {
   })
 })
 
+describe('DanglingCache.subscribe', () => {
+  it('only delivers events for the specified entry id', async () => {
+    const cache = createDanglingCacheImpl({
+      statProbe: vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('present')
+    })
+    cache.addEntry('e-14' as FileEntryId, '/abs/a' as FilePath)
+    cache.addEntry('e-15' as FileEntryId, '/abs/b' as FilePath)
+    const seen: Array<[FileEntryId, string]> = []
+    const unsubscribe = cache.subscribe('e-14' as FileEntryId, (id, s) => seen.push([id, s]))
+    cache.onFsEvent('/abs/b' as FilePath, 'present') // for e-15 — should not be delivered
+    cache.onFsEvent('/abs/a' as FilePath, 'missing') // for e-14 — delivered
+    expect(seen).toEqual([['e-14' as FileEntryId, 'missing']])
+    unsubscribe()
+    cache.onFsEvent('/abs/a' as FilePath, 'present') // post-dispose: silent
+    expect(seen).toEqual([['e-14' as FileEntryId, 'missing']])
+  })
+})
+
 describe('DanglingCache.forceRecheck', () => {
   it('always re-stats, even within TTL', async () => {
     const statProbe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('present')
