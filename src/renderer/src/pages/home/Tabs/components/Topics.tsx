@@ -291,7 +291,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         title: t('chat.topics.edit.title'),
         message: '',
         defaultValue: topic?.name || '',
-        extraNode: <div style={{ color: 'var(--color-text-3)', marginTop: 8 }}>{t('chat.topics.edit.title_tip')}</div>
+        extraNode: <div className="mt-2 text-foreground-muted">{t('chat.topics.edit.title_tip')}</div>
       })
       if (name && topic?.name !== name) {
         updateTopic({ ...topic, name, isNameManuallyEdited: true })
@@ -624,7 +624,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                         {isSelected ? (
                           <CheckSquare size={16} color="var(--color-primary)" />
                         ) : (
-                          <Square size={16} color="var(--color-text-3)" />
+                          <Square size={16} className="text-foreground-muted" />
                         )}
                       </SelectIcon>
                     )}
@@ -667,16 +667,16 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                             }
                           }}>
                           {deletingTopicId === topic.id ? (
-                            <DeleteIcon size={14} color="var(--color-error)" style={{ pointerEvents: 'none' }} />
+                            <DeleteIcon size={14} className="pointer-events-none text-destructive" />
                           ) : (
-                            <XIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />
+                            <XIcon size={14} className="pointer-events-none text-foreground-muted" />
                           )}
                         </MenuButton>
                       </Tooltip>
                     )}
                     {topic.pinned && (
                       <MenuButton className="pin">
-                        <PinIcon size={14} color="var(--color-text-3)" />
+                        <PinIcon size={14} className="text-foreground-muted" />
                       </MenuButton>
                     )}
                   </TopicNameContainer>

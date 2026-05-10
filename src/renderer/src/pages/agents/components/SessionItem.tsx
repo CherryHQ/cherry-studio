@@ -149,10 +149,7 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
           onClick={isEditing ? undefined : onPress}
           onDoubleClick={() => startEdit(session.name ?? '')}
           title={session.name ?? session.id}
-          style={{
-            borderRadius: 'var(--list-item-border-radius)',
-            cursor: isEditing ? 'default' : 'pointer'
-          }}>
+          style={{ cursor: isEditing ? 'default' : 'pointer' }}>
           {isPending && !isActive && <PendingIndicator />}
           {isFulfilled && !isActive && <FulfilledIndicator />}
           <SessionNameContainer>

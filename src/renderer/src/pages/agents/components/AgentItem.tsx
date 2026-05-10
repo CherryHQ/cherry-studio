@@ -98,7 +98,7 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
                 trigger={['click']}
                 popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
                 <MenuButton onClick={handleMenuButtonClick}>
-                  <MoreVertical size={14} className="text-(--color-text-secondary)" />
+                  <MoreVertical size={14} className="text-foreground-secondary" />
                 </MenuButton>
               </Dropdown>
             )}
