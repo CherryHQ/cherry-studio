@@ -9,6 +9,7 @@ import { loggerService } from '@logger'
 import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { type FC, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useMessageSiblings } from '../../../hooks/SiblingsContext'
 
@@ -19,6 +20,7 @@ interface Props {
 }
 
 const SiblingNavigator: FC<Props> = ({ messageId }) => {
+  const { t } = useTranslation()
   const siblings = useMessageSiblings(messageId)
   const v2 = useV2Chat()
 
@@ -47,7 +49,7 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
         type="button"
         className="flex size-5 items-center justify-center rounded transition-colors hover:bg-[var(--color-background-soft)] hover:text-[var(--color-text-1)]"
         onClick={() => void handleSwitch(-1)}
-        aria-label="Previous branch">
+        aria-label={t('common.previous')}>
         <ChevronLeft size={14} />
       </button>
       <span className="min-w-[2.5rem] text-center font-mono tabular-nums">
@@ -57,7 +59,7 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
         type="button"
         className="flex size-5 items-center justify-center rounded transition-colors hover:bg-[var(--color-background-soft)] hover:text-[var(--color-text-1)]"
         onClick={() => void handleSwitch(1)}
-        aria-label="Next branch">
+        aria-label={t('common.next')}>
         <ChevronRight size={14} />
       </button>
     </div>
