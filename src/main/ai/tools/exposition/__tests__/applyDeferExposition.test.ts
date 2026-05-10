@@ -1,7 +1,6 @@
 import type { Tool, ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { TOOL_EXEC_TOOL_NAME } from '../../meta/toolExec'
 import { TOOL_INSPECT_TOOL_NAME } from '../../meta/toolInspect'
 import { TOOL_INVOKE_TOOL_NAME } from '../../meta/toolInvoke'
 import { TOOL_SEARCH_TOOL_NAME } from '../../meta/toolSearch'
@@ -50,7 +49,7 @@ describe('applyDeferExposition', () => {
     ])
     const { tools: result, deferredEntries } = applyDeferExposition(tools, registry, 32_000)
     expect(Object.keys(result!).sort()).toEqual(
-      [TOOL_EXEC_TOOL_NAME, TOOL_INSPECT_TOOL_NAME, TOOL_INVOKE_TOOL_NAME, TOOL_SEARCH_TOOL_NAME, 'web__search'].sort()
+      [TOOL_INSPECT_TOOL_NAME, TOOL_INVOKE_TOOL_NAME, TOOL_SEARCH_TOOL_NAME, 'web__search'].sort()
     )
     expect(result!['experimental']).toBeUndefined()
     expect(deferredEntries.map((e) => e.name)).toEqual(['experimental'])
@@ -67,7 +66,6 @@ describe('applyDeferExposition', () => {
     expect(result![TOOL_SEARCH_TOOL_NAME]).toBeDefined()
     expect(result![TOOL_INSPECT_TOOL_NAME]).toBeDefined()
     expect(result![TOOL_INVOKE_TOOL_NAME]).toBeDefined()
-    expect(result![TOOL_EXEC_TOOL_NAME]).toBeDefined()
     expect(deferredEntries.map((e) => e.name)).toEqual(['mcp__big__t'])
   })
 
