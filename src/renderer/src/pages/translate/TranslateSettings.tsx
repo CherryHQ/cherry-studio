@@ -167,31 +167,52 @@ const TranslatePromptField: FC = () => {
   const [persisted, setPersisted] = usePreference('feature.translate.model_prompt')
   const [local, setLocal] = useState<string>(persisted)
   const pendingRef = useRef<string | null>(null)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearSaveTimer = useCallback(() => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
-    if (local === persisted) {
+    if (pendingRef.current === null || pendingRef.current === persisted) {
+      setLocal(persisted)
       pendingRef.current = null
-      return
     }
-    pendingRef.current = local
-    const id = setTimeout(() => {
-      void setPersisted(local)
-      pendingRef.current = null
-    }, 400)
-    return () => clearTimeout(id)
-  }, [local, persisted, setPersisted])
+  }, [persisted])
+
+  const schedulePersist = useCallback(
+    (next: string) => {
+      clearSaveTimer()
+      pendingRef.current = next
+      setLocal(next)
+
+      const savedValue = next
+      saveTimerRef.current = setTimeout(() => {
+        void setPersisted(savedValue)
+        pendingRef.current = null
+        saveTimerRef.current = null
+      }, 400)
+    },
+    [clearSaveTimer, setPersisted]
+  )
 
   useEffect(
     () => () => {
+      clearSaveTimer()
       if (pendingRef.current !== null) {
         void setPersisted(pendingRef.current)
       }
     },
-    [setPersisted]
+    [clearSaveTimer, setPersisted]
   )
 
   const isDefault = local === TRANSLATE_PROMPT
   const onReset = () => {
+    clearSaveTimer()
+    pendingRef.current = null
     setLocal(TRANSLATE_PROMPT)
     void setPersisted(TRANSLATE_PROMPT)
   }
@@ -211,7 +232,7 @@ const TranslatePromptField: FC = () => {
       </div>
       <textarea
         value={local}
-        onChange={(e) => setLocal(e.target.value)}
+        onChange={(e) => schedulePersist(e.target.value)}
         className="min-h-[120px] w-full resize-y rounded-md border border-border/30 bg-muted/40 p-3 text-foreground-secondary text-sm leading-relaxed outline-none transition-colors focus:border-border-hover"
       />
     </div>

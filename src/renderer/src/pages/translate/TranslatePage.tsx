@@ -98,6 +98,11 @@ const TranslatePage: FC = () => {
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
+  const translateInputRef = useRef(translateInput)
+
+  useEffect(() => {
+    translateInputRef.current = translateInput
+  }, [translateInput])
 
   const selectedModelId = useMemo(
     () => (translateModelId && isUniqueModelId(translateModelId) ? translateModelId : undefined),
@@ -110,14 +115,32 @@ const TranslatePage: FC = () => {
     ? resolveIcon(getModelIdentifier(selectedModel), selectedModel.providerId)
     : undefined
 
+  const setTranslateInputValue = useCallback(
+    (value: string) => {
+      translateInputRef.current = value
+      setTranslateInput(value)
+    },
+    [setTranslateInput]
+  )
+
+  const appendTranslateInput = useCallback(
+    (text: string) => {
+      if (isEmpty(text)) return
+      const next = translateInputRef.current + text
+      translateInputRef.current = next
+      setTranslateInput(next)
+    },
+    [setTranslateInput]
+  )
+
   const handleInputChange = useCallback(
     (value: string) => {
-      setTranslateInput(value)
+      setTranslateInputValue(value)
       if (isEmpty(value)) {
         setTranslateOutput('')
       }
     },
-    [setTranslateInput, setTranslateOutput]
+    [setTranslateInputValue, setTranslateOutput]
   )
 
   const copy = useCallback(
@@ -158,13 +181,12 @@ const TranslatePage: FC = () => {
       const nextAbortKey = uuid()
       setTranslatingState({ isTranslating: true, abortKey: nextAbortKey })
 
+      const throttledSetOutput = throttle((content: string) => setTranslateOutput(content), 100)
+
       try {
-        const translated = await translateText(
-          rawText,
-          actualTargetLanguage,
-          throttle((content: string) => setTranslateOutput(content), 100),
-          nextAbortKey
-        )
+        const translated = await translateText(rawText, actualTargetLanguage, throttledSetOutput, nextAbortKey)
+        throttledSetOutput.cancel()
+        setTranslateOutput(translated)
 
         window.toast.success(t('translate.complete'))
         if (autoCopy) {
@@ -195,6 +217,7 @@ const TranslatePage: FC = () => {
           window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
         }
       } finally {
+        throttledSetOutput.cancel()
         setTranslatingState({ isTranslating: false, abortKey: null })
       }
     },
@@ -275,13 +298,13 @@ const TranslatePage: FC = () => {
     if (sourceLanguage === 'auto' || translatingState.isTranslating || isDetecting) return
     void setSourceLanguage(targetLanguage)
     void setTargetLanguage(sourceLanguage)
-    setTranslateInput(translateOutput)
+    setTranslateInputValue(translateOutput)
     setTranslateOutput(translateInput)
   }, [
     isDetecting,
     setSourceLanguage,
     setTargetLanguage,
-    setTranslateInput,
+    setTranslateInputValue,
     setTranslateOutput,
     sourceLanguage,
     targetLanguage,
@@ -292,13 +315,13 @@ const TranslatePage: FC = () => {
 
   const onHistoryItemClick = useCallback(
     (history: TranslateHistory) => {
-      setTranslateInput(history.sourceText)
+      setTranslateInputValue(history.sourceText)
       setTranslateOutput(history.targetText)
       void setSourceLanguage(history.sourceLanguage ?? 'auto')
       void setTargetLanguage(history.targetLanguage ?? UNKNOWN_LANG_CODE)
       setHistoryOpen(false)
     },
-    [setSourceLanguage, setTargetLanguage, setTranslateInput, setTranslateOutput]
+    [setSourceLanguage, setTargetLanguage, setTranslateInputValue, setTranslateOutput]
   )
 
   const inputScrollHandler = useMemo(
@@ -377,7 +400,7 @@ const TranslatePage: FC = () => {
           const result = isDocument
             ? await window.api.file.readExternal(file.path, true)
             : await window.api.fs.readText(file.path)
-          setTranslateInput(translateInput + result)
+          appendTranslateInput(result)
         } catch (error) {
           logger.error('Failed to read file.', error as Error)
           window.toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
@@ -387,15 +410,15 @@ const TranslatePage: FC = () => {
       const promise = read()
       window.toast.loading({ title: t('translate.files.reading'), promise })
     },
-    [setTranslateInput, t, translateInput]
+    [appendTranslateInput, t]
   )
 
   const ocrFile = useCallback(
     async (file: SupportedOcrFile) => {
       const ocrResult = await ocr(file)
-      setTranslateInput(translateInput + ocrResult.text)
+      appendTranslateInput(ocrResult.text)
     },
-    [ocr, setTranslateInput, translateInput]
+    [appendTranslateInput, ocr]
   )
 
   const processFile = useCallback(
@@ -456,7 +479,7 @@ const TranslatePage: FC = () => {
           return null
         })
         if (data !== null) {
-          setTranslateInput(translateInput + data)
+          appendTranslateInput(data)
         }
 
         const droppedFiles = await getFilesFromDropEvent(e).catch((error) => {
@@ -478,7 +501,7 @@ const TranslatePage: FC = () => {
         setIsProcessing(false)
       }
     },
-    [getSingleFile, processFile, setTranslateInput, t, translateInput]
+    [appendTranslateInput, getSingleFile, processFile, t]
   )
 
   const onPaste = useCallback(
