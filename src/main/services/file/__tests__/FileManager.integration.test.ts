@@ -205,6 +205,21 @@ describe('FileManager (integration)', () => {
     expect(await fm.getDanglingState({ id: ext.id })).toBe('missing')
   })
 
+  it('INT-9: subscribeDangling delivers transitions for the subscribed external entry', async () => {
+    const file = path.join(tmp, 'sub.txt')
+    await writeFile(file, 'sub')
+    const e = await fm.ensureExternalEntry({ externalPath: file as never })
+    // After ensureExternalEntry the cache holds 'present' (source='ops').
+    // A 'missing' observation is a genuine transition → listener fires.
+    const seen: string[] = []
+    const dispose = fm.subscribeDangling({ id: e.id }, (state) => seen.push(state))
+    danglingCache.onFsEvent(file as never, 'missing', 'ops')
+    expect(seen).toEqual(['missing'])
+    dispose()
+    danglingCache.onFsEvent(file as never, 'present', 'ops')
+    expect(seen).toEqual(['missing']) // unsubscribed
+  })
+
   it('INT-8: batchGetDanglingStates returns "unknown" for ids that have no entry', async () => {
     const known = '019606a0-0000-7000-8000-00000000ff11' as FileEntryId
     const ghost = '019606a0-0000-7000-8000-00000000ff99' as FileEntryId

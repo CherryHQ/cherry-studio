@@ -672,6 +672,19 @@ export class FileManager extends BaseService {
   }
 
   /**
+   * Subscribe to dangling state transitions for a specific entry. The
+   * listener fires only on genuine transitions ('present' → 'missing' or
+   * vice versa); same-state observations are silent. Returns a dispose
+   * function. In-process only — renderer fan-out via the planned
+   * `file-manager-event` IPC channel is deferred to Phase 2.
+   */
+  subscribeDangling(params: { id: FileEntryId }, listener: (state: 'present' | 'missing') => void): () => void {
+    return this.deps.danglingCache.subscribe(params.id, (_id, state) => {
+      if (state !== 'unknown') listener(state)
+    })
+  }
+
+  /**
    * Batch form of `getDanglingState`. Each requested id appears in the result;
    * unknown ids map to `'unknown'`. Cache-hit entries return synchronously
    * (microtask); cache-miss external entries run a single parallel `fs.stat`.
