@@ -71,7 +71,7 @@ export function ProcessorSidebar({
                         <ProcessorAvatar processorId={entry.processor.id} />
                         <span
                           className={cn(
-                            'truncate text-xs leading-tight',
+                            'truncate text-sm leading-tight',
                             active ? 'font-medium text-foreground/85' : 'font-normal text-foreground/55'
                           )}>
                           {t(getProcessorNameKey(entry.processor.id))}

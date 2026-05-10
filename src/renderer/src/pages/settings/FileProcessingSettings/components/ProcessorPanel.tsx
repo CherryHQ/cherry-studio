@@ -188,7 +188,7 @@ export function ProcessorPanel({
                 href={apiKeyWebsite}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-block text-primary/70 text-xs leading-tight transition-colors hover:text-primary">
+                className="inline-block text-primary/70 text-sm leading-tight transition-colors hover:text-primary">
                 {t('settings.provider.get_api_key')}
               </a>
             </div>

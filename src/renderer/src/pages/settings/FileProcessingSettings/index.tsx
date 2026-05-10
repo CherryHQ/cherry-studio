@@ -64,7 +64,7 @@ const FileProcessingSettings: FC = () => {
                   onSetLanguageOptions={setLanguageOptions}
                 />
               ) : (
-                <div className="flex h-full min-h-[220px] items-center justify-center text-foreground-muted text-sm">
+                <div className="flex h-full min-h-[220px] items-center justify-center text-foreground-muted text-xs">
                   {t('common.no_results')}
                 </div>
               )}

@@ -17,7 +17,7 @@ export function PaddleOCRDeploymentInfo() {
         href={PADDLEOCR_DEPLOYMENT_URL}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-1 text-primary/70 text-xs leading-tight transition-colors hover:text-primary">
+        className="inline-flex items-center gap-1 text-primary/70 text-sm leading-tight transition-colors hover:text-primary">
         {t('settings.tool.file_processing.processors.paddleocr.deployment.docs')}
         <ExternalLink size={8} />
       </a>

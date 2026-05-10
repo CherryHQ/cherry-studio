@@ -20,7 +20,7 @@ export function PaddleOCRModelSettings({ value, onChange }: PaddleOCRModelSettin
     <SettingsSection title={t('settings.tool.file_processing.sections.model_parameters')}>
       <div>
         <div className="mb-1.5">
-          <label className="text-foreground/55 text-xs leading-tight">
+          <label className="text-foreground/55 text-sm leading-tight">
             {t('settings.tool.file_processing.processors.paddleocr.fields.parse_model')}
           </label>
         </div>
@@ -28,12 +28,12 @@ export function PaddleOCRModelSettings({ value, onChange }: PaddleOCRModelSettin
           <SelectTrigger
             size="sm"
             aria-label={t('settings.tool.file_processing.processors.paddleocr.fields.parse_model')}
-            className="h-auto min-h-0 min-w-[150px] rounded-full border-0 bg-foreground/[0.06] px-3 py-[5px] text-foreground/55 text-xs leading-tight shadow-none hover:bg-foreground/[0.08] hover:text-foreground/65">
+            className="h-auto min-h-0 min-w-[150px] rounded-full border-0 bg-foreground/[0.06] px-3 py-[5px] text-foreground/55 text-sm leading-tight shadow-none hover:bg-foreground/[0.08] hover:text-foreground/65">
             <SelectValue />
           </SelectTrigger>
           <SelectContent align="start" className="w-56">
             {PADDLEOCR_MODEL_OPTIONS.map((model) => (
-              <SelectItem key={model} value={model} className="text-xs">
+              <SelectItem key={model} value={model} className="text-sm">
                 {model}
               </SelectItem>
             ))}

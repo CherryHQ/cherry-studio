@@ -36,7 +36,7 @@ export function TextField({
     <div className="block">
       <div className="mb-1.5 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <label htmlFor={inputId} className="text-foreground/55 text-xs leading-tight">
+          <label htmlFor={inputId} className="text-foreground/55 text-sm leading-tight">
             {label}
           </label>
           {description ? <p className="mt-0.5 text-foreground/25 text-xs leading-tight">{description}</p> : null}
@@ -55,7 +55,7 @@ export function TextField({
             readOnly={readOnly}
             spellCheck={false}
             className={cn(
-              'h-auto flex-1 border-0 bg-transparent p-0 text-foreground/60 text-xs leading-tight shadow-none outline-none',
+              'h-auto flex-1 border-0 bg-transparent p-0 text-foreground/60 text-sm leading-tight shadow-none outline-none',
               'placeholder:text-foreground/20 focus-visible:ring-0 focus-visible:ring-offset-0'
             )}
           />
@@ -86,7 +86,7 @@ export function PasswordField({
     <div className="block">
       <div className="mb-1.5 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <label htmlFor={inputId} className="text-foreground/55 text-xs leading-tight">
+          <label htmlFor={inputId} className="text-foreground/55 text-sm leading-tight">
             {label}
           </label>
           {description ? <p className="mt-0.5 text-foreground/25 text-xs leading-tight">{description}</p> : null}
@@ -104,7 +104,7 @@ export function PasswordField({
             onBlur={onBlur}
             spellCheck={false}
             className={cn(
-              'h-auto flex-1 border-0 bg-transparent p-0 text-foreground/60 text-xs leading-tight shadow-none outline-none',
+              'h-auto flex-1 border-0 bg-transparent p-0 text-foreground/60 text-sm leading-tight shadow-none outline-none',
               'placeholder:text-foreground/20 focus-visible:ring-0 focus-visible:ring-offset-0'
             )}
           />
