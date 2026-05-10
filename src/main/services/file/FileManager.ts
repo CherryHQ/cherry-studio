@@ -114,7 +114,7 @@ import { fileRefService } from '@data/services/FileRefService'
 import { canonicalizeExternalPath, resolvePhysicalPath } from '@data/utils/pathResolver'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { stat as fsStat } from '@main/utils/file/fs'
-import type { FileEntry, FileEntryId } from '@shared/data/types/file'
+import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import type {
   BatchOperationResult,
   CreateInternalEntryIpcParams,
@@ -656,6 +656,36 @@ export class FileManager extends BaseService {
   async showInFolder(id: FileEntryId): Promise<void> {
     const entry = await this.deps.fileEntryService.getById(id)
     return internalShellShowInFolder(resolvePhysicalPath(entry) as FilePath)
+  }
+
+  // ─── Dangling state (Phase 1b.3) ───
+
+  /**
+   * Resolve the current `DanglingState` for an entry. Hot path: `'present'`
+   * for any internal entry; cache hit for external; cold-stat fallback on
+   * miss. Unknown ids resolve to `'unknown'`.
+   */
+  async getDanglingState(params: { id: FileEntryId }): Promise<DanglingState> {
+    const entry = await this.deps.fileEntryService.findById(params.id)
+    if (!entry) return 'unknown'
+    return this.deps.danglingCache.check(entry)
+  }
+
+  /**
+   * Batch form of `getDanglingState`. Each requested id appears in the result;
+   * unknown ids map to `'unknown'`. Cache-hit entries return synchronously
+   * (microtask); cache-miss external entries run a single parallel `fs.stat`.
+   */
+  async batchGetDanglingStates(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, DanglingState>> {
+    const entries = await Promise.all(params.ids.map((id) => this.deps.fileEntryService.findById(id)))
+    const pairs = await Promise.all(
+      entries.map(async (entry, index) => {
+        const id = params.ids[index]
+        const state: DanglingState = entry ? await this.deps.danglingCache.check(entry) : 'unknown'
+        return [id, state] as const
+      })
+    )
+    return Object.fromEntries(pairs) as Record<FileEntryId, DanglingState>
   }
 }
 

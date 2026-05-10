@@ -16,6 +16,7 @@ vi.mock('@application', async () => {
 })
 
 const { FileManager } = await import('../FileManager')
+const { danglingCache } = await import('../danglingCache')
 
 describe('FileManager (integration)', () => {
   const dbh = setupTestDatabase()
@@ -35,6 +36,7 @@ describe('FileManager (integration)', () => {
       return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
     })
     BaseService.resetInstances()
+    danglingCache.clear()
     fm = new FileManager()
   })
 
@@ -172,5 +174,53 @@ describe('FileManager (integration)', () => {
     await expect(fm.getById(e.id)).rejects.toThrow(/not found/i)
     const { readFile } = await import('node:fs/promises')
     expect(await readFile(file, 'utf-8')).toBe('preserve me')
+  })
+
+  it('INT-7: getDanglingState — internal "present", external "missing" after unlink', async () => {
+    const internalId = '019606a0-0000-7000-8000-00000000ff10' as FileEntryId
+    const internalPhysical = path.join(internalRoot, `${internalId}.txt`)
+    await writeFile(internalPhysical, 'inner')
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id: internalId,
+      origin: 'internal',
+      name: 'inner',
+      ext: 'txt',
+      size: 5,
+      externalPath: null,
+      trashedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+    expect(await fm.getDanglingState({ id: internalId })).toBe('present')
+
+    const externalFile = path.join(tmp, 'will-go.txt')
+    await writeFile(externalFile, 'will-go')
+    const ext = await fm.ensureExternalEntry({ externalPath: externalFile as never })
+    expect(await fm.getDanglingState({ id: ext.id })).toBe('present')
+
+    const { rm: rmFile } = await import('node:fs/promises')
+    await rmFile(externalFile)
+    danglingCache.onFsEvent(externalFile as never, 'missing', 'ops')
+    expect(await fm.getDanglingState({ id: ext.id })).toBe('missing')
+  })
+
+  it('INT-8: batchGetDanglingStates returns "unknown" for ids that have no entry', async () => {
+    const known = '019606a0-0000-7000-8000-00000000ff11' as FileEntryId
+    const ghost = '019606a0-0000-7000-8000-00000000ff99' as FileEntryId
+    await dbh.db.insert(fileEntryTable).values({
+      id: known,
+      origin: 'internal',
+      name: 'k',
+      ext: 'txt',
+      size: 1,
+      externalPath: null,
+      trashedAt: null,
+      createdAt: 0,
+      updatedAt: 0
+    })
+    const out = await fm.batchGetDanglingStates({ ids: [known, ghost] })
+    expect(out[known]).toBe('present')
+    expect(out[ghost]).toBe('unknown')
   })
 })
