@@ -118,14 +118,19 @@ describe('createDirectoryWatcher', () => {
   it('emits "change" when a watched file is modified in place', async () => {
     const target = path.join(dir, 'mut.txt') as FilePath
 
-    const w = createDirectoryWatcher(dir as FilePath, { stabilityThresholdMs: 0 })
+    // Default stabilityThresholdMs (200) keeps chokidar's event sequencing
+    // deterministic across busy CI hosts; stability=0 was flaky on macOS
+    // FSEvents when many tests share tmpdir traffic.
+    const w = createDirectoryWatcher(dir as FilePath)
     await waitForReady(w)
 
     // First write registers the file (fires 'add'); second write fires 'change'.
     await writeFile(target, 'v1')
-    await waitForEvent(w, (e) => e.kind === 'add' && e.path === target)
+    await waitForEvent(w, (e) => e.kind === 'add' && e.path === target, 8000)
+    // Brief settle so chokidar's awaitWriteFinish window closes on the add.
+    await new Promise((r) => setTimeout(r, 250))
     await writeFile(target, 'v2-content-larger')
-    const ev = await waitForEvent(w, (e) => e.kind === 'change' && e.path === target)
+    const ev = await waitForEvent(w, (e) => e.kind === 'change' && e.path === target, 8000)
     expect(ev.kind).toBe('change')
     await w.close()
   })
