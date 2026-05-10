@@ -20,6 +20,12 @@ vi.mock('@main/core/lifecycle', () => {
 vi.mock('@main/apiServer/services/models', () => ({
   modelsService: { getModels: vi.fn() }
 }))
+vi.mock('@main/services/agents/agentUtils', () => ({
+  listMcpTools: vi.fn()
+}))
+vi.mock('../agents/agentUtils', () => ({
+  listMcpTools: vi.fn()
+}))
 vi.mock('@main/services/agents/services/SchedulerService', () => ({
   schedulerService: { runTaskNow: vi.fn(), restoreSchedulers: vi.fn(), stopAll: vi.fn() }
 }))
@@ -34,7 +40,7 @@ vi.mock('@main/services/agents/services/builtin/BuiltinAgentBootstrap', () => ({
 }))
 vi.mock('../utils/rtk', () => ({ extractRtkBinaries: vi.fn() }))
 
-import { validateGetModelsFilter, validateRunTaskArgs } from '../AgentBootstrapService'
+import { validateGetModelsFilter, validateListToolsArgs, validateRunTaskArgs } from '../AgentBootstrapService'
 
 describe('AgentBootstrapService validators', () => {
   it('accepts valid run-task args', () => {
@@ -58,5 +64,10 @@ describe('AgentBootstrapService validators', () => {
   it('rejects invalid model filters', () => {
     expect(() => validateGetModelsFilter({ providerType: 'nope' })).toThrow()
     expect(() => validateGetModelsFilter({ limit: 0 })).toThrow()
+  })
+
+  it('parses and defaults list-tools args', () => {
+    expect(validateListToolsArgs(undefined)).toEqual({ type: 'claude-code', mcps: [] })
+    expect(validateListToolsArgs({ mcps: ['mcp-1'] })).toEqual({ type: 'claude-code', mcps: ['mcp-1'] })
   })
 })

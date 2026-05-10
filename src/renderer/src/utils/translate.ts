@@ -1,149 +1,54 @@
-import { loggerService } from '@logger'
-import { isQwenMTModel } from '@renderer/config/models'
-import { builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
-import db from '@renderer/databases'
-import i18n from '@renderer/i18n'
-import { fetchChatCompletion } from '@renderer/services/ApiService'
-import { getDefaultAssistant, getQuickModel } from '@renderer/services/AssistantService'
-import { hasModel } from '@renderer/services/ModelService'
-import { estimateTextTokens } from '@renderer/services/TokenService'
-import { getAllCustomLanguages } from '@renderer/services/TranslateService'
-import type { Assistant, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
-import { ChunkType } from '@renderer/types/chunk'
-import { LANG_DETECT_PROMPT } from '@shared/config/prompts'
-import { franc } from 'franc-min'
+import type { TranslateBidirectionalPair, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { RefObject } from 'react'
 import React from 'react'
-import { sliceByTokens } from 'tokenx'
 
-const logger = loggerService.withContext('Utils:translate')
+export const UNKNOWN_LANG_CODE = 'unknown' satisfies TranslateLangCode
 
-/**
- * 检测输入文本的语言
- * @param inputText 需要检测语言的文本
- * @returns 检测到的语言
- * @throws {Error}
- */
-export const detectLanguage = async (inputText: string): Promise<TranslateLanguageCode> => {
-  const text = inputText.trim()
-  if (!text) return LanguagesEnum.zhCN.langCode
-
-  let method = (await db.settings.get({ id: 'translate:detect:method' }))?.value
-  if (!method) method = 'auto'
-  logger.info(`auto detection method: ${method}`)
-
-  let result: TranslateLanguageCode
-  switch (method) {
-    case 'auto':
-      // hard encoded threshold
-      if (estimateTextTokens(text) < 100) {
-        result = await detectLanguageByLLM(text)
-      } else {
-        result = detectLanguageByFranc(text)
-        // fallback to llm when franc fails
-        if (result === UNKNOWN.langCode) {
-          result = await detectLanguageByLLM(text)
-        }
-      }
-      break
-    case 'franc':
-      result = detectLanguageByFranc(text)
-      break
-    case 'llm':
-      result = await detectLanguageByLLM(text)
-      break
-    default:
-      throw new Error('Invalid detection method.')
+export const pickBidirectionalTarget = (
+  sourceLanguageCode: TranslateLangCode,
+  preferred: TranslateLanguage,
+  alter: TranslateLanguage,
+  overrideTarget?: TranslateLanguage
+): TranslateLanguage => {
+  if (overrideTarget) {
+    return overrideTarget
   }
-  logger.info(`Detected Language: ${result}`)
-  return result.trim()
+  if (sourceLanguageCode === UNKNOWN_LANG_CODE) {
+    return preferred
+  }
+  return sourceLanguageCode === preferred.langCode ? alter : preferred
 }
 
-const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguageCode> => {
-  logger.info('Detect language by llm')
-  let detectedLang = ''
-  const text = sliceByTokens(inputText, 0, 100)
-
-  const translateLanguageOptions = await getTranslateOptions()
-  const listLang = translateLanguageOptions.map((item) => item.langCode)
-  const listLangText = JSON.stringify(listLang)
-
-  const model = getQuickModel()
-  if (!model || !hasModel(model)) {
-    throw new Error(i18n.t('error.model.not_exists'))
-  }
-
-  if (isQwenMTModel(model)) {
-    logger.info('QwenMT cannot be used for language detection.')
-    if (isQwenMTModel(model)) {
-      throw new Error(i18n.t('translate.error.detect.qwen_mt'))
-    }
-  }
-
-  const assistant: Assistant = getDefaultAssistant()
-
-  assistant.model = model
-  assistant.settings = {
-    reasoning_effort: 'none'
-  }
-  assistant.prompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
-
-  const onChunk: (chunk: Chunk) => void = (chunk: Chunk) => {
-    // 你的意思是，虽然写的是delta类型，但其实是完整拼接后的结果？
-    if (chunk.type === ChunkType.TEXT_DELTA) {
-      detectedLang = chunk.text
-    }
-  }
-
-  await fetchChatCompletion({ prompt: 'follow system prompt', assistant, onChunkReceived: onChunk })
-  return detectedLang.trim()
-}
-
-const detectLanguageByFranc = (inputText: string): TranslateLanguageCode => {
-  logger.info('Detect language by franc')
-  const iso3 = franc(inputText)
-
-  const isoMap: Record<string, TranslateLanguage> = {
-    cmn: LanguagesEnum.zhCN,
-    jpn: LanguagesEnum.jaJP,
-    kor: LanguagesEnum.koKR,
-    rus: LanguagesEnum.ruRU,
-    ara: LanguagesEnum.arAR,
-    spa: LanguagesEnum.esES,
-    fra: LanguagesEnum.frFR,
-    deu: LanguagesEnum.deDE,
-    ita: LanguagesEnum.itIT,
-    por: LanguagesEnum.ptPT,
-    eng: LanguagesEnum.enUS,
-    pol: LanguagesEnum.plPL,
-    tur: LanguagesEnum.trTR,
-    tha: LanguagesEnum.thTH,
-    vie: LanguagesEnum.viVN,
-    ind: LanguagesEnum.idID,
-    urd: LanguagesEnum.urPK,
-    zsm: LanguagesEnum.msMY
-  }
-
-  return isoMap[iso3]?.langCode ?? UNKNOWN.langCode
+export const shouldPersistDirectTarget = (
+  target: TranslateLanguage,
+  preferred: TranslateLanguage,
+  alter: TranslateLanguage
+): boolean => {
+  return target.langCode !== preferred.langCode && target.langCode !== alter.langCode
 }
 
 /**
  * 获取双向翻译的目标语言
+ *
+ * Invariant: `sourceLanguage` must be one of the two entries in `languagePair`.
+ * {@link determineTargetLanguage} is the only caller and guards this with
+ * `isLanguageInPair` before invoking us; anything else would be a programming
+ * error, so we throw instead of silently returning a guessed value.
+ *
  * @param sourceLanguage 检测到的源语言
  * @param languagePair 配置的语言对
  * @returns 目标语言
  */
 export const getTargetLanguageForBidirectional = (
-  sourceLanguage: TranslateLanguage,
-  languagePair: [TranslateLanguage, TranslateLanguage]
-): TranslateLanguage => {
-  if (sourceLanguage.langCode === languagePair[0].langCode) {
-    return languagePair[1]
-  } else if (sourceLanguage.langCode === languagePair[1].langCode) {
-    return languagePair[0]
-  }
-  return languagePair[0] !== sourceLanguage ? languagePair[0] : languagePair[1]
+  sourceLanguage: TranslateLangCode,
+  languagePair: TranslateBidirectionalPair
+): TranslateLangCode => {
+  if (sourceLanguage === languagePair[0]) return languagePair[1]
+  if (sourceLanguage === languagePair[1]) return languagePair[0]
+  throw new Error(
+    `Unreachable: sourceLanguage '${sourceLanguage}' is not in pair [${languagePair[0]}, ${languagePair[1]}]`
+  )
 }
 
 /**
@@ -152,11 +57,8 @@ export const getTargetLanguageForBidirectional = (
  * @param languagePair 配置的语言对
  * @returns 是否在语言对中
  */
-export const isLanguageInPair = (
-  sourceLanguage: TranslateLanguage,
-  languagePair: [TranslateLanguage, TranslateLanguage]
-): boolean => {
-  return [languagePair[0].langCode, languagePair[1].langCode].includes(sourceLanguage.langCode)
+const isLanguageInPair = (sourceLanguage: TranslateLangCode, languagePair: TranslateBidirectionalPair): boolean => {
+  return [languagePair[0], languagePair[1]].includes(sourceLanguage)
 }
 
 /**
@@ -168,11 +70,11 @@ export const isLanguageInPair = (
  * @returns 处理结果对象
  */
 export const determineTargetLanguage = (
-  sourceLanguage: TranslateLanguage,
-  targetLanguage: TranslateLanguage,
+  sourceLanguage: TranslateLangCode,
+  targetLanguage: TranslateLangCode,
   isBidirectional: boolean,
-  bidirectionalPair: [TranslateLanguage, TranslateLanguage]
-): { success: boolean; language?: TranslateLanguage; errorType?: 'same_language' | 'not_in_pair' } => {
+  bidirectionalPair: TranslateBidirectionalPair
+): { success: true; language: TranslateLangCode } | { success: false; errorType: 'same_language' | 'not_in_pair' } => {
   if (isBidirectional) {
     if (!isLanguageInPair(sourceLanguage, bidirectionalPair)) {
       return { success: false, errorType: 'not_in_pair' }
@@ -182,7 +84,7 @@ export const determineTargetLanguage = (
       language: getTargetLanguageForBidirectional(sourceLanguage, bidirectionalPair)
     }
   } else {
-    if (sourceLanguage.langCode === targetLanguage.langCode) {
+    if (sourceLanguage === targetLanguage) {
       return { success: false, errorType: 'same_language' }
     }
     return { success: true, language: targetLanguage }
@@ -239,26 +141,5 @@ export const createOutputScrollHandler = (
     const inputEl = textAreaRef.current?.resizableTextArea?.textArea
     if (!isScrollSyncEnabled || !inputEl || isProgrammaticScrollRef.current) return
     handleScrollSync(e.currentTarget, inputEl, isProgrammaticScrollRef)
-  }
-}
-
-/**
- * 获取所有可用的翻译语言选项。如果获取自定义语言失败，将只返回内置语言选项。
- * @returns 返回内置语言选项和自定义语言选项的组合数组
- */
-export const getTranslateOptions = async () => {
-  try {
-    const customLanguages = await getAllCustomLanguages()
-    // 转换为Language类型
-    const transformedCustomLangs: TranslateLanguage[] = customLanguages.map((item) => ({
-      value: item.value,
-      label: () => item.value,
-      emoji: item.emoji,
-      langCode: item.langCode
-    }))
-    return [...builtinLanguages, ...transformedCustomLangs]
-  } catch (e) {
-    logger.error('[getTranslateOptions] Failed to get custom languages. Fallback to builtinLanguages', e as Error)
-    return builtinLanguages
   }
 }

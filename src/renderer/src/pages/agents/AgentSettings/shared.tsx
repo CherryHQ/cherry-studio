@@ -1,6 +1,7 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { ScrollbarProps } from '@renderer/components/Scrollbar'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { computeModeDefaults, DEFAULT_MAX_TURNS, DEFAULT_PERMISSION_MODE } from '@renderer/hooks/agents/permissionMode'
 import { SettingDivider } from '@renderer/pages/settings'
 import type {
   AgentConfiguration,
@@ -8,8 +9,6 @@ import type {
   AgentSessionEntity,
   GetAgentResponse,
   GetAgentSessionResponse,
-  PermissionMode,
-  Tool,
   UpdateAgentFunction,
   UpdateAgentSessionFunction
 } from '@renderer/types'
@@ -20,11 +19,7 @@ import React, { type ReactNode } from 'react'
 // Shared types and constants for agent settings
 export type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
 
-// Concrete defaults — not derived from Zod schema, which carries no .default() calls
-// (Rule E: defaults belong at the consumption point, not in schemas). Use these where
-// a non-optional numeric / enum value is required (e.g. useState<number> initializers).
-export const DEFAULT_MAX_TURNS = 100
-export const DEFAULT_PERMISSION_MODE = 'default' as const
+export { computeModeDefaults, DEFAULT_MAX_TURNS, DEFAULT_PERMISSION_MODE }
 
 export const defaultConfiguration: AgentConfigurationState = {
   permission_mode: DEFAULT_PERMISSION_MODE,
@@ -44,33 +39,6 @@ export type AgentOrSessionSettingsProps =
       agentBase: GetAgentSessionResponse | undefined | null
       update: UpdateAgentSessionFunction
     }
-
-/**
- * Computes the list of tool IDs that should be automatically approved for a given permission mode.
- */
-export const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string[] => {
-  const defaultToolIds = tools.filter((tool) => !tool.requirePermissions).map((tool) => tool.id)
-  switch (mode) {
-    case 'acceptEdits':
-      return [
-        ...defaultToolIds,
-        'Edit',
-        'MultiEdit',
-        'NotebookEdit',
-        'Write',
-        'Bash(mkdir:*)',
-        'Bash(touch:*)',
-        'Bash(rm:*)',
-        'Bash(mv:*)',
-        'Bash(cp:*)'
-      ]
-    case 'bypassPermissions':
-      return tools.map((tool) => tool.id)
-    case 'default':
-    case 'plan':
-      return defaultToolIds
-  }
-}
 
 export interface SettingsTitleProps extends React.ComponentPropsWithRef<'div'> {
   contentAfter?: ReactNode

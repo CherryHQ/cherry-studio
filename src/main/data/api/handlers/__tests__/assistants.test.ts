@@ -21,6 +21,7 @@ vi.mock('@data/services/AssistantService', () => ({
 import { assistantHandlers } from '../assistants'
 
 const ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
+const TAG_ID = '22222222-2222-4222-8222-222222222222'
 
 describe('assistantHandlers', () => {
   beforeEach(() => {
@@ -57,6 +58,19 @@ describe('assistantHandlers', () => {
   })
 
   describe('/assistants/:id', () => {
+    it('should forward tag-only PATCH bodies without defaulted column fields', async () => {
+      updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Existing Assistant' })
+
+      await expect(
+        assistantHandlers['/assistants/:id'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: { tagIds: [TAG_ID] }
+        } as never)
+      ).resolves.toMatchObject({ id: ASSISTANT_ID })
+
+      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { tagIds: [TAG_ID] })
+    })
+
     it('should forward relation-only PATCH bodies without defaulted column fields', async () => {
       updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Existing Assistant' })
 
@@ -91,6 +105,17 @@ describe('assistantHandlers', () => {
         assistantHandlers['/assistants/:id'].PATCH({
           params: { id: ASSISTANT_ID },
           body: { settings: { maxTokens: 8192 } }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject invalid tag ids before calling the service', async () => {
+      await expect(
+        assistantHandlers['/assistants/:id'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: { tagIds: ['not-a-uuid'] }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 

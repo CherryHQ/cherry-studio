@@ -495,7 +495,8 @@ export enum IpcChannel {
 
   // Agent operations
   Agent_RunTask = 'agent:run-task',
-  Agent_GetModels = 'agent:get-models'
+  Agent_GetModels = 'agent:get-models',
+  Agent_ListTools = 'agent:list-tools'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via
