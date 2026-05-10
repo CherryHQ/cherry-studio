@@ -409,10 +409,19 @@ export class ChannelMessageHandler {
 
   /** Clear session tracking for an agent (used when agent is deleted/updated) */
   clearSessionTracker(agentId: string): void {
-    for (const key of this.sessionTracker.keys()) {
+    // Abort any in-flight stream owned by a tracked session of this agent
+    // before dropping the tracker entries — otherwise the stream keeps
+    // running on a deleted agent and `sendMessage` to a now-detached
+    // channel will throw.
+    const sessionIdsToAbort: string[] = []
+    for (const [key, sessionId] of this.sessionTracker.entries()) {
       if (key.startsWith(`${agentId}:`)) {
+        sessionIdsToAbort.push(sessionId)
         this.sessionTracker.delete(key)
       }
+    }
+    for (const sessionId of sessionIdsToAbort) {
+      this.activeAbortControllers.get(sessionId)?.abort()
     }
     for (const [key, batch] of this.pendingBatches.entries()) {
       if (key.startsWith(`${agentId}:`)) {
