@@ -234,9 +234,8 @@ export class MessagesService {
       if (onComplete) {
         onComplete()
       }
-    } catch (streamError: any) {
-      logger.error('Stream error', {
-        error: streamError,
+    } catch (streamError) {
+      logger.error('Stream error', streamError as Error, {
         provider: provider.id,
         model: request.model,
         apiHost: provider.id,

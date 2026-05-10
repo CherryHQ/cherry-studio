@@ -92,7 +92,7 @@ export class ChatCompletionService {
 
     logger.debug('Model validation successful', {
       provider: provider.id,
-      providerType: provider.authType,
+      authType: provider.authType,
       modelId,
       fullModelId: request.model
     })
@@ -168,11 +168,8 @@ export class ChatCompletionService {
         modelId,
         response
       }
-    } catch (error: any) {
-      logger.error('Error processing chat completion', {
-        error,
-        model: request.model
-      })
+    } catch (error) {
+      logger.error('Error processing chat completion', error as Error, { model: request.model })
       throw error
     }
   }
@@ -215,11 +212,8 @@ export class ChatCompletionService {
         modelId,
         stream
       }
-    } catch (error: any) {
-      logger.error('Error processing streaming chat completion', {
-        error,
-        model: request.model
-      })
+    } catch (error) {
+      logger.error('Error processing streaming chat completion', error as Error, { model: request.model })
       throw error
     }
   }
