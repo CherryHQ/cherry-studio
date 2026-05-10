@@ -51,7 +51,7 @@ describe('FileRefCheckerRegistry', () => {
         embeddingModelId: null,
         dimensions: 1024,
         status: 'failed',
-        error: 'seed-only',
+        error: 'missing_embedding_model',
         chunkSize: 1024,
         chunkOverlap: 200,
         searchMode: 'default'

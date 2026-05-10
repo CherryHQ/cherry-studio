@@ -65,7 +65,7 @@ describe('OrphanRefScanner', () => {
 
       const scanner = new OrphanRefScanner({
         fileRefService,
-        registry: { ...registryStub(), temp_session: tempSessionChecker }
+        registry: { ...(registryStub() as Record<string, unknown>), temp_session: tempSessionChecker } as never
       })
 
       const removed = await scanner.scanOneType('temp_session')
@@ -86,7 +86,7 @@ describe('OrphanRefScanner', () => {
       }
       const scanner = new OrphanRefScanner({
         fileRefService,
-        registry: { ...registryStub(), temp_session: aliveChecker }
+        registry: { ...(registryStub() as Record<string, unknown>), temp_session: aliveChecker } as never
       })
 
       const removed = await scanner.scanOneType('temp_session')
@@ -99,7 +99,7 @@ describe('OrphanRefScanner', () => {
     it('returns 0 when no refs exist for the sourceType', async () => {
       const scanner = new OrphanRefScanner({
         fileRefService,
-        registry: { ...registryStub(), temp_session: tempSessionChecker }
+        registry: { ...(registryStub() as Record<string, unknown>), temp_session: tempSessionChecker } as never
       })
       expect(await scanner.scanOneType('temp_session')).toBe(0)
     })
@@ -115,7 +115,7 @@ describe('OrphanRefScanner', () => {
 
       const scanner = new OrphanRefScanner({
         fileRefService,
-        registry: { ...registryStub(), temp_session: tempSessionChecker }
+        registry: { ...(registryStub() as Record<string, unknown>), temp_session: tempSessionChecker } as never
       })
 
       const result = await scanner.scanAll()

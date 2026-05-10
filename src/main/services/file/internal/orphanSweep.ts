@@ -242,8 +242,11 @@ async function runStartupFileSweepInner(deps: RunStartupFileSweepDeps): Promise<
         outcome: 'completed',
         entriesInDb: idSnapshot.size,
         filesOnDisk: 0,
+        bytesOnDisk: 0,
         plannedDeleteCount: 0,
+        plannedDeleteBytes: 0,
         actualDeleteCount: 0,
+        actualDeleteBytes: 0,
         scanDurationMs: Date.now() - startedAt
       }
     }
