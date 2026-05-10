@@ -179,6 +179,21 @@ describe('hash', () => {
     const h = await hash(f as FilePath)
     expect(h).toMatch(/^[0-9a-f]+$/)
   })
+
+  it('returns 16-char xxhash-h64 hex (not 32-char md5)', async () => {
+    const f = path.join(tmp, 'a.txt')
+    await writeFile(f, 'sample')
+    const h = await hash(f as FilePath)
+    expect(h).toHaveLength(16)
+  })
+
+  it('matches the known xxhash-h64 fixture for "hello"', async () => {
+    const f = path.join(tmp, 'a.txt')
+    await writeFile(f, 'hello')
+    const h = await hash(f as FilePath)
+    // xxhash-h64('hello') = 0x26c7827d889f6da3 (default seed = 0).
+    expect(h).toBe('26c7827d889f6da3')
+  })
 })
 
 describe('atomicWriteFile', () => {

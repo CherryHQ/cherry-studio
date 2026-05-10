@@ -42,8 +42,8 @@ import path from 'node:path'
 import { Writable } from 'node:stream'
 
 import type { FilePath } from '@shared/file/types'
-import md5 from 'md5'
 import mime from 'mime'
+import xxhashLoader from 'xxhash-wasm'
 
 const notImplemented = (op: string): never => {
   throw new Error(`@main/utils/file/fs.${op}: not implemented (Phase 1a stub, implementation lands in Phase 1b)`)
@@ -402,17 +402,28 @@ export async function download(url: string, dest: FilePath): Promise<void> {
 }
 
 /**
- * Compute MD5 hash of file content (streaming).
+ * Compute the content hash of a file (streaming).
  *
- * MD5 is the Phase 1a contract algorithm. Migration to xxhash-128 is deferred
- * to Phase 1b.2 (versionCache content-hash fallback) where dep-add can be
- * scoped together with the actual consumer.
+ * Algorithm: xxhash-h64 — non-cryptographic, ~10× faster than MD5, and the
+ * `writeIfUnchanged` precision-fallback only needs collision resistance under
+ * a single file's write history (which h64 trivially satisfies).
+ *
+ * The architecture doc names xxhash-128 as the conceptual contract; the
+ * `xxhash-wasm` package available at this version exposes only h32 / h64,
+ * so we ship h64 and revisit if a 128-bit variant becomes necessary.
  */
+let xxhashApi: Awaited<ReturnType<typeof xxhashLoader>> | undefined
+async function getXxhash() {
+  if (!xxhashApi) xxhashApi = await xxhashLoader()
+  return xxhashApi
+}
+
 export async function hash(path: FilePath): Promise<string> {
-  const chunks: Buffer[] = []
+  const api = await getXxhash()
+  const hasher = api.create64()
   const stream = createReadStream(path)
   for await (const chunk of stream) {
-    chunks.push(chunk as Buffer)
+    hasher.update(new Uint8Array(chunk as Buffer))
   }
-  return md5(Buffer.concat(chunks))
+  return hasher.digest().toString(16).padStart(16, '0')
 }
