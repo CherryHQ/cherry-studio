@@ -5,6 +5,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
 
 import { extractRtkBinaries } from '../utils/rtk'
+import { listMcpTools } from './agents/agentUtils'
 import { channelManager } from './agents/services/channels'
 import { registerSessionStreamIpc } from './agents/services/channels/sessionStreamIpc'
 import { schedulerService } from './agents/services/SchedulerService'
@@ -33,6 +34,11 @@ const RunTaskArgsSchema = z.strictObject({
   agentId: z.string().min(1),
   taskId: z.string().min(1)
 })
+const AgentTypeSchema = z.enum(['claude-code'])
+const ListToolsArgsSchema = z.strictObject({
+  type: AgentTypeSchema.default('claude-code'),
+  mcps: z.array(z.string()).default([])
+})
 
 export function validateRunTaskArgs(agentId: string, taskId: string) {
   return RunTaskArgsSchema.parse({ agentId, taskId })
@@ -40,6 +46,10 @@ export function validateRunTaskArgs(agentId: string, taskId: string) {
 
 export function validateGetModelsFilter(filter: unknown) {
   return ModelsFilterSchema.parse(filter ?? {})
+}
+
+export function validateListToolsArgs(args: unknown) {
+  return ListToolsArgsSchema.parse(args ?? {})
 }
 
 /**
@@ -69,6 +79,12 @@ export class AgentBootstrapService extends BaseService {
 
     this.ipcHandle(IpcChannel.Agent_GetModels, async (_, filter: Parameters<typeof modelsService.getModels>[0]) => {
       return modelsService.getModels(validateGetModelsFilter(filter))
+    })
+
+    this.ipcHandle(IpcChannel.Agent_ListTools, async (_, args: unknown) => {
+      const parsed = validateListToolsArgs(args)
+      const { tools } = await listMcpTools(parsed.type, parsed.mcps)
+      return tools
     })
 
     await channelManager.start()
