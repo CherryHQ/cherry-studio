@@ -1,12 +1,11 @@
-import { DescriptionSwitch, HelpTooltip } from '@cherrystudio/ui'
+import { DescriptionSwitch, HelpTooltip, Skeleton } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
-import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import useTranslate from '@renderer/hooks/useTranslate'
+import { useLanguages } from '@renderer/hooks/translate/useTranslateLanguages'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import type { CodeStyleVarious, MathEngine } from '@renderer/types'
@@ -47,7 +46,7 @@ const AgentSettingsTab = () => {
   const [confirmDeleteMessage, setConfirmDeleteMessage] = usePreference('chat.message.confirm_delete')
   const [confirmRegenerateMessage, setConfirmRegenerateMessage] = usePreference('chat.message.confirm_regenerate')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.chat.target_language')
+  const [targetLanguage, setTargetLanguage] = usePreference('chat.input.translate.target_language')
 
   const [codeEditor, setCodeEditor] = useMultiplePreferences({
     enabled: 'chat.code.editor.enabled',
@@ -71,7 +70,7 @@ const AgentSettingsTab = () => {
   const { themeNames } = useCodeStyle()
 
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
-  const { translateLanguages } = useTranslate()
+  const { languages, getLabel } = useLanguages()
 
   const { t } = useTranslation()
 
@@ -408,14 +407,19 @@ const AgentSettingsTab = () => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
-            <Selector
-              value={targetLanguage}
-              onChange={(value) => setTargetLanguage(value)}
-              placeholder={UNKNOWN.emoji + ' ' + UNKNOWN.label()}
-              options={translateLanguages.map((item) => {
-                return { value: item.langCode, label: item.emoji + ' ' + item.label() }
-              })}
-            />
+            {!languages && <Skeleton className="flex-1" />}
+            {languages && (
+              <Selector
+                value={targetLanguage}
+                onChange={(value) => setTargetLanguage(value)}
+                placeholder={getLabel(null)}
+                options={
+                  languages?.map((item) => {
+                    return { value: item.langCode, label: getLabel(item) }
+                  }) ?? []
+                }
+              />
+            )}
           </SettingRow>
           <SettingDivider />
           <SettingRow>

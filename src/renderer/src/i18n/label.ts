@@ -150,6 +150,7 @@ const titleKeyMap = {
   home: 'title.home',
   knowledge: 'title.knowledge',
   launchpad: 'title.launchpad',
+  library: 'library.title',
   'mcp-servers': 'title.mcp-servers',
   notes: 'title.notes',
   paintings: 'title.paintings',

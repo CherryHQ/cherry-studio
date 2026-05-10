@@ -2,8 +2,9 @@ import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import useTranslate from '@renderer/hooks/useTranslate'
+import { useLanguages } from '@renderer/hooks/translate/useTranslateLanguages'
 import { translateText } from '@renderer/services/TranslateService'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { Languages, Loader2 } from 'lucide-react'
 import type { ComponentProps, CSSProperties, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -61,12 +62,12 @@ const PopupContainer: React.FC<Props> = ({
 }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { getLanguageByLangcode } = useTranslate()
   const [textValue, setTextValue] = useState(text)
   const [isTranslating, setIsTranslating] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const [targetLanguage] = usePreference('feature.translate.chat.target_language')
+  const [targetLanguage] = usePreference('chat.input.translate.target_language')
   const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
+  const { languages } = useLanguages()
   const isMounted = useRef(true)
   const {
     className: textareaClassName,
@@ -142,13 +143,14 @@ const PopupContainer: React.FC<Props> = ({
     }
 
     try {
-      const translatedText = await translateText(textValue, getLanguageByLangcode(targetLanguage))
+      const targetVo = languages?.find((l) => l.langCode === targetLanguage)
+      const translatedText = await translateText(textValue, targetVo ?? targetLanguage)
       if (isMounted.current) {
         setTextValue(translatedText)
       }
     } catch (error) {
       logger.error('Translation failed:', error as Error)
-      window.toast.error(t('translate.error.failed'))
+      window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
     } finally {
       if (isMounted.current) {
         setIsTranslating(false)

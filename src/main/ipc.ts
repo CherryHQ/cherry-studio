@@ -608,7 +608,7 @@ export async function registerIpc() {
   // Global Skills
   ipcMain.handle(IpcChannel.Skill_List, async (_, agentId?: string) => {
     try {
-      const data = await skillService.list(agentId)
+      const data = await skillService.list(agentId ? { agentId } : {})
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to list skills', { error })

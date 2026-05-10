@@ -12,6 +12,7 @@ import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import type { NewUserModel, UserModel } from '@data/db/schemas/userModel'
 import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -233,6 +234,55 @@ class ModelService {
     }
 
     return models
+  }
+
+  /**
+   * Nullable lookup by UniqueModelId (`providerId::modelId`).
+   *
+   * Foreign services call this inside their own transaction when they need a
+   * soft fallback instead of a thrown not-found error. The caller owns the
+   * domain-specific validation message; this method only returns the row.
+   */
+  async findByIdTx(tx: Pick<DbType, 'select'>, id: string): Promise<Model | null> {
+    const [row] = await tx.select().from(userModelTable).where(eq(userModelTable.id, id)).limit(1)
+    return row ? rowToRuntimeModel(row) : null
+  }
+
+  /**
+   * Batch-resolve `Model.name` for a set of UniqueModelIds.
+   *
+   * Foreign services use this on read paths to embed `modelName` on their
+   * entity shape (e.g. `Assistant.modelName`) without N round-trips. Returns
+   * a Map keyed by UniqueModelId; missing entries are absent so callers can
+   * fall back to `null` without extra null-checks. Rows with `null` or empty
+   * `name` are intentionally omitted — `userModelTable.name` is nullable and
+   * a blank label is no more useful than a missing one for UI display.
+   *
+   * Input may include `null` / `undefined` / empty strings (convenient when
+   * caller passes `rows.map(r => r.modelId)` and modelId is nullable); these
+   * are filtered and the unique non-empty set is queried in a single
+   * `IN (...)`.
+   *
+   * The `Tx` suffix and tx-first argument match the service-layer convention
+   * for methods that may be composed inside another service's transaction.
+   */
+  async getNamesByUniqueIdsTx(
+    tx: Pick<DbType, 'select'>,
+    uniqueIds: (string | null | undefined)[]
+  ): Promise<Map<string, string>> {
+    const result = new Map<string, string>()
+    const ids = Array.from(new Set(uniqueIds.filter((id): id is string => typeof id === 'string' && id.length > 0)))
+    if (ids.length === 0) return result
+
+    const rows = await tx
+      .select({ id: userModelTable.id, name: userModelTable.name })
+      .from(userModelTable)
+      .where(inArray(userModelTable.id, ids))
+
+    for (const row of rows) {
+      if (row.name) result.set(row.id, row.name)
+    }
+    return result
   }
 
   /**

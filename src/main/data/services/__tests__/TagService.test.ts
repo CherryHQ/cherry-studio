@@ -170,6 +170,73 @@ describe('TagService', () => {
     })
   })
 
+  describe('getTagsByEntitiesTx', () => {
+    it('should return full Tag objects keyed by entityId, alphabetical within each group', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 1000, updatedAt: 1000 },
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1001, updatedAt: 1001 },
+        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_3, createdAt: 2000, updatedAt: 2000 }
+      ])
+
+      const result = await tagService.getTagsByEntitiesTx(dbh.db, 'assistant', [ASSISTANT_1, ASSISTANT_2, TOPIC_1])
+
+      expect(result.get(ASSISTANT_1)?.map((t) => t.name)).toEqual(['personal', 'work'])
+      expect(result.get(ASSISTANT_1)?.[0]).toMatchObject({ id: TAG_2, color: null })
+      expect(result.get(ASSISTANT_2)?.map((t) => t.name)).toEqual(['coding'])
+      expect(result.get(TOPIC_1)).toEqual([])
+    })
+
+    it('should ignore bindings of other entity types', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 },
+        { entityType: 'topic', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 2, updatedAt: 2 }
+      ])
+
+      const result = await tagService.getTagsByEntitiesTx(dbh.db, 'assistant', [ASSISTANT_1])
+
+      expect(result.get(ASSISTANT_1)?.map((t) => t.id)).toEqual([TAG_1])
+    })
+
+    it('should return an empty map for empty input without querying entity rows', async () => {
+      const result = await tagService.getTagsByEntitiesTx(dbh.db, 'assistant', [])
+      expect(result.size).toBe(0)
+    })
+
+    it('should observe writes from a passed-in transaction', async () => {
+      await seedTags()
+
+      await dbh.db.transaction(async (tx) => {
+        await tx
+          .insert(entityTagTable)
+          .values({ entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 })
+        const result = await tagService.getTagsByEntitiesTx(tx, 'assistant', [ASSISTANT_1])
+        expect(result.get(ASSISTANT_1)?.map((t) => t.id)).toEqual([TAG_1])
+      })
+    })
+  })
+
+  describe('getEntityIdsByTagsTx', () => {
+    it('should return unique entity ids matching the given tags and entity type', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 },
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 2, updatedAt: 2 },
+        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_2, createdAt: 3, updatedAt: 3 },
+        { entityType: 'topic', entityId: TOPIC_1, tagId: TAG_2, createdAt: 4, updatedAt: 4 }
+      ])
+
+      const result = await tagService.getEntityIdsByTagsTx(dbh.db, 'assistant', [TAG_1, TAG_2, TAG_2])
+
+      expect(result.sort()).toEqual([ASSISTANT_1, ASSISTANT_2])
+    })
+
+    it('should return an empty array for empty tag input', async () => {
+      await expect(tagService.getEntityIdsByTagsTx(dbh.db, 'assistant', [])).resolves.toEqual([])
+    })
+  })
+
   describe('syncEntityTags', () => {
     it('should diff associations and preserve createdAt for unchanged tags', async () => {
       await seedTags()
@@ -359,28 +426,6 @@ describe('TagService', () => {
 
       const rows = await dbh.db.select().from(entityTagTable)
       expect(rows).toEqual([expect.objectContaining({ entityType: 'topic', entityId: ASSISTANT_1, tagId: TAG_2 })])
-    })
-  })
-
-  describe('getTagIdsByEntities', () => {
-    it('should return a map with stable per-entity ordering', async () => {
-      await seedTags()
-      await dbh.db.insert(entityTagTable).values([
-        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 1000, updatedAt: 1000 },
-        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1000, updatedAt: 1000 },
-        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_3, createdAt: 2000, updatedAt: 2000 }
-      ])
-
-      const result = await tagService.getTagIdsByEntities('assistant', [ASSISTANT_1, ASSISTANT_2, TOPIC_1])
-
-      expect(result.get(ASSISTANT_1)).toEqual([TAG_1, TAG_2])
-      expect(result.get(ASSISTANT_2)).toEqual([TAG_3])
-      expect(result.get(TOPIC_1)).toEqual([])
-    })
-
-    it('should return an empty map for empty input without querying entity rows', async () => {
-      const result = await tagService.getTagIdsByEntities('assistant', [])
-      expect(result.size).toBe(0)
     })
   })
 })
