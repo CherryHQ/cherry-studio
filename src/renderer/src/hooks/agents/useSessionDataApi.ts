@@ -167,10 +167,10 @@ export const useUpdateSession = (agentId: string | null) => {
   const { t } = useTranslation()
   const { trigger: updateTrigger } = useMutation('PATCH', '/sessions/:sessionId', {
     // `args.params.sessionId` is always supplied by `updateSession` below.
-    // Optional-chaining here would silently produce '/sessions/undefined'
-    // and miss every cache entry — better to crash loud if the contract
-    // is ever broken.
-    refresh: ({ args }) => ['/sessions', `/sessions/${args.params.sessionId}`]
+    // The non-null assertion mirrors useTopicDataApi.ts and crashes loud
+    // if the contract is ever broken instead of silently producing
+    // '/sessions/undefined' (which would miss every cache entry).
+    refresh: ({ args }) => ['/sessions', `/sessions/${args!.params.sessionId}`]
   })
 
   const updateSession: UpdateAgentSessionFunction = useCallback(
