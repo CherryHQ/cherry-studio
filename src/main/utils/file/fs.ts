@@ -295,9 +295,19 @@ export async function stat(
   }
 }
 
-/** Copy a file from source to destination. */
-export async function copy(_src: FilePath, _dest: FilePath): Promise<void> {
-  return notImplemented('copy')
+/** Copy a file from source to destination atomically (tmp + rename on dest). */
+export async function copy(src: FilePath, dest: FilePath): Promise<void> {
+  const reader = createReadStream(src)
+  const writer = createAtomicWriteStream(dest)
+  await new Promise<void>((resolve, reject) => {
+    reader.on('error', (err) => {
+      writer.destroy(err)
+      reject(err)
+    })
+    writer.on('error', reject)
+    writer.on('finish', resolve)
+    reader.pipe(writer)
+  })
 }
 
 /** Move/rename a file or directory. */

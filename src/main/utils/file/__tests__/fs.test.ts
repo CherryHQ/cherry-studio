@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   atomicWriteFile,
   atomicWriteIfUnchanged,
+  copy as fsCopy,
   createAtomicWriteStream,
   exists,
   hash,
@@ -310,6 +311,46 @@ describe('write', () => {
     expect(await readFile(target, 'utf-8')).toBe('second')
     const entries = await readdir(tmp)
     expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+  })
+})
+
+describe('copy', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-fs-test-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('copies file content from src to dest', async () => {
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(tmp, 'dest.txt')
+    await writeFile(src, 'payload')
+    await fsCopy(src as FilePath, dest as FilePath)
+    expect(await readFile(dest, 'utf-8')).toBe('payload')
+    expect(await readFile(src, 'utf-8')).toBe('payload')
+  })
+
+  it('overwrites an existing dest atomically (no tmp residue)', async () => {
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(tmp, 'dest.txt')
+    await writeFile(src, 'new')
+    await writeFile(dest, 'old')
+    await fsCopy(src as FilePath, dest as FilePath)
+    expect(await readFile(dest, 'utf-8')).toBe('new')
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+  })
+
+  it('preserves binary content byte-for-byte', async () => {
+    const src = path.join(tmp, 'src.bin')
+    const dest = path.join(tmp, 'dest.bin')
+    const bytes = Buffer.from([0x00, 0xff, 0x10, 0x20, 0x80])
+    await writeFile(src, bytes)
+    await fsCopy(src as FilePath, dest as FilePath)
+    const out = await readFile(dest)
+    expect(out.equals(bytes)).toBe(true)
   })
 })
 
