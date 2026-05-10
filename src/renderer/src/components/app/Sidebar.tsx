@@ -19,7 +19,7 @@ import {
   Sparkle
 } from 'lucide-react'
 import type { Ref } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTabs } from '../../hooks/useTabs'
@@ -81,15 +81,17 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { activeTab, updateTab, openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
 
-  // Sidebar width — persisted across restarts
-  const [persistedWidth, setPersistedWidth] = usePersistCache('ui.sidebar.width')
-  const [sidebarWidth, setSidebarWidth] = useState(persistedWidth)
+  // Sidebar width — persisted across restarts. Drive the CSS variable
+  // straight from the cached value so:
+  //   (1) cross-window updates flow without a local-state mirror
+  //   (2) the resize handler writes to the cache directly (event-handler
+  //       semantics) instead of via an effect on derived state, which
+  //       would loop on revalidation per the SWR write-back antipattern.
+  const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
 
-  // Sync local width to CSS variable and persist cache
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`)
-    setPersistedWidth(sidebarWidth)
-  }, [sidebarWidth, setPersistedWidth])
+  }, [sidebarWidth])
 
   // User avatar
   const avatar = useAvatar()
