@@ -206,7 +206,10 @@ export interface NewApiOAuthConfig {
  * directly to this renderer's webContents (captured at `startOAuthFlow` time),
  * so we just await a single point-to-point IPC event keyed by `state`.
  */
-export const oauthWithCherryIn = async (setKey: (key: string) => void, config: NewApiOAuthConfig): Promise<string> => {
+export const oauthWithCherryIn = async (
+  setKey: (key: string) => void | Promise<void>,
+  config: NewApiOAuthConfig
+): Promise<string> => {
   const { oauthServer, apiHost } = config
 
   const { authUrl, state } = await window.api.cherryin.startOAuthFlow(oauthServer, apiHost)
@@ -222,7 +225,7 @@ export const oauthWithCherryIn = async (setKey: (key: string) => void, config: N
   return new Promise<string>((resolve, reject) => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
 
-    const removeListener = window.api.cherryin.onOAuthResult((result) => {
+    const removeListener = window.api.cherryin.onOAuthResult(async (result) => {
       // Defensive: another concurrent CherryIN flow on the same window would
       // hit the same listener; main only ever pushes for our state, but filter
       // anyway to keep the contract explicit.
@@ -242,7 +245,12 @@ export const oauthWithCherryIn = async (setKey: (key: string) => void, config: N
       }
 
       logger.debug('Successfully obtained API keys')
-      setKey(result.apiKeys)
+      try {
+        await setKey(result.apiKeys)
+      } catch (err) {
+        reject(err)
+        return
+      }
       resolve(result.apiKeys)
     })
 

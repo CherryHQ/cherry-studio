@@ -19,8 +19,8 @@ interface ProviderCustomHeaderDrawerProps {
   hostEditMode: 'primary' | 'anthropic'
   apiHost: string
   anthropicApiHost: string
-  commitApiHost: (explicitNext?: string) => void
-  commitAnthropicApiHost: (explicitNext?: string) => void
+  commitApiHost: (explicitNext?: string) => Promise<boolean>
+  commitAnthropicApiHost: (explicitNext?: string) => Promise<boolean>
   isVertexProvider: boolean
 }
 
@@ -157,14 +157,19 @@ export default function ProviderCustomHeaderDrawer({
 
   const handleSave = useCallback(async () => {
     const trimmed = trim(draftHost)
+    let hostSaved: boolean
     if (hostEditMode === 'primary') {
       if (!validateApiHost(trimmed) || (!isVertexProvider && !trimmed)) {
         window.toast.error(t('settings.provider.api_host_no_valid'))
         return
       }
-      commitApiHost(trimmed)
+      hostSaved = await commitApiHost(trimmed)
     } else {
-      commitAnthropicApiHost(trimmed)
+      hostSaved = await commitAnthropicApiHost(trimmed)
+    }
+
+    if (!hostSaved) {
+      return
     }
 
     let parsedHeaders: Record<string, string>

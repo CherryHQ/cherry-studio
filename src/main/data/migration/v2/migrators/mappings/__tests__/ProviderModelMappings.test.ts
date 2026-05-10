@@ -30,7 +30,7 @@ describe('ProviderModelMappings', () => {
         }
       )
 
-      expect(result.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      expect(result.defaultChatEndpoint).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
       expect(result.endpointConfigs).toBeNull()
       expect(result.authConfig).toEqual({
         type: 'iam-gcp',
@@ -59,7 +59,7 @@ describe('ProviderModelMappings', () => {
         {}
       )
 
-      expect(result.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      expect(result.defaultChatEndpoint).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
       expect(result.authConfig).toEqual({
         type: 'iam-gcp',
         project: '',
@@ -67,7 +67,7 @@ describe('ProviderModelMappings', () => {
         credentials: undefined
       })
       expect(result.endpointConfigs).toEqual({
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
           baseUrl: 'https://vertex-proxy.example.com/v1/projects/project-1/locations/us-central1'
         }
       })

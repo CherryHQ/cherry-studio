@@ -46,7 +46,7 @@ const logger = loggerService.withContext('ModelListService')
 
 type ModelFetcher = {
   match: (provider: Provider) => boolean
-  fetch: (provider: Provider, signal?: AbortSignal) => Promise<Model[]>
+  fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<Model[]>
 }
 
 // === API Layer ===
@@ -196,15 +196,17 @@ const geminiFetcher: ModelFetcher = {
 
 const vertexFetcher: ModelFetcher = {
   match: (p) => isVertexProvider(p),
-  fetch: async (provider, signal) => {
+  fetch: async (provider, signal, options) => {
     const request = await createVertexModelListRequest(provider)
 
     if (!request) {
       return []
     }
 
+    type PublisherGroup = z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] | null
+    let lastError: unknown
     const publisherModelGroups = await Promise.all(
-      DEFAULT_VERTEX_MODEL_PUBLISHERS.map(async (publisher) => {
+      DEFAULT_VERTEX_MODEL_PUBLISHERS.map(async (publisher): Promise<PublisherGroup> => {
         try {
           const publisherModels: z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] = []
           let pageToken: string | undefined
@@ -232,17 +234,22 @@ const vertexFetcher: ModelFetcher = {
 
           return publisherModels
         } catch (error) {
+          lastError = error
           logger.warn('Skipping Vertex publisher model listing after request failure', {
             providerId: provider.id,
             publisher,
             error: error instanceof Error ? error.message : String(error)
           })
-          return []
+          return null
         }
       })
     )
 
-    const publisherModels = publisherModelGroups.flat()
+    if (options?.throwOnError && publisherModelGroups.every((g) => g === null)) {
+      throw lastError ?? new Error('All Vertex AI publisher requests failed')
+    }
+
+    const publisherModels = publisherModelGroups.filter((g) => g !== null).flat()
 
     const listedModels = dedup(publisherModels, (model) => model.name).map((model) => {
       const id = getVertexModelId(model.name)
@@ -533,7 +540,7 @@ export async function listModels(
     }
 
     const fetcher = fetchers.find((f) => f.match(provider))!
-    return await fetcher.fetch(provider, abortSignal)
+    return await fetcher.fetch(provider, abortSignal, options)
   } catch (error) {
     logger.error('Error listing models:', error as Error, { providerId: provider.id })
     if (options?.throwOnError) {
