@@ -57,6 +57,12 @@ const logger = loggerService.withContext('chatContextDispatch')
 /**
  * Provider order: more-specific first. The persistent provider is a
  * catch-all and must stay last.
+ *
+ * `canHandle` is required to be mutually exclusive across providers — the
+ * dispatcher takes the first match without sanity-checking the rest.
+ * `agentChatContextProvider` matches the `agent-session:` prefix; the
+ * temporary provider explicitly excludes that prefix even when its in-memory
+ * map happens to carry one (defensive — see TemporaryChatContextProvider).
  */
 const providers: readonly ChatContextProvider[] = [
   agentChatContextProvider,

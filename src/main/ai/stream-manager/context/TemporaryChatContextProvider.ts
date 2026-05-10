@@ -14,6 +14,7 @@
 
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
+import { isAgentSessionTopic } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
@@ -31,6 +32,13 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
   readonly name = 'temporary'
 
   canHandle(topicId: string): boolean {
+    // Defensive: a topic id that matches the agent-session prefix is never
+    // a temporary topic, regardless of what `hasTopic` says. Provider order
+    // in `dispatch.ts` already places `agentChatContextProvider` first so
+    // this branch is normally unreachable, but excluding the prefix here
+    // protects against future re-orderings or stray rows in the temporary
+    // store with that prefix.
+    if (isAgentSessionTopic(topicId)) return false
     return temporaryChatService.hasTopic(topicId)
   }
 
