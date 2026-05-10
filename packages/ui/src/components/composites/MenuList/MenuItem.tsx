@@ -50,6 +50,7 @@ type MenuItemProps = React.ComponentProps<'button'> &
     label: string
     description?: React.ReactNode
     descriptionLines?: number
+    descriptionClassName?: string
     active?: boolean
     suffix?: React.ReactNode
     asChild?: boolean
@@ -63,6 +64,7 @@ function MenuItem({
   label,
   description,
   descriptionLines,
+  descriptionClassName,
   active,
   disabled,
   suffix,
@@ -94,7 +96,11 @@ function MenuItem({
         <span className="block truncate">{label}</span>
         {description && (
           <span
-            className={cn('mt-0.5 block text-[10px] text-muted-foreground', descriptionLines ? 'overflow-hidden' : '')}
+            className={cn(
+              'mt-0.5 block text-[10px] text-muted-foreground',
+              descriptionLines ? 'overflow-hidden' : '',
+              descriptionClassName
+            )}
             style={descriptionStyle}>
             {description}
           </span>
