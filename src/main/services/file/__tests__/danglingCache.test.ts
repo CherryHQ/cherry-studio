@@ -55,4 +55,27 @@ describe('DanglingCache.check', () => {
     const state = await cache.check(externalEntry('e-2', '/gone.txt'))
     expect(state).toBe('missing')
   })
+
+  it('TTL hit: returns cached state without re-statting', async () => {
+    const statProbe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('present')
+    let t = 1_000_000
+    const cache = createDanglingCacheImpl({ statProbe, now: () => t, ttlMs: 1000 })
+    await cache.check(externalEntry('e-3', '/a.txt'))
+    t += 500
+    await cache.check(externalEntry('e-3', '/a.txt'))
+    expect(statProbe).toHaveBeenCalledTimes(1)
+  })
+
+  it('TTL expired: re-stats and refreshes the cache', async () => {
+    const statProbe = vi
+      .fn<(p: FilePath) => Promise<ObservedPresence>>()
+      .mockResolvedValueOnce('present')
+      .mockResolvedValueOnce('missing')
+    let t = 1_000_000
+    const cache = createDanglingCacheImpl({ statProbe, now: () => t, ttlMs: 1000 })
+    expect(await cache.check(externalEntry('e-4', '/b.txt'))).toBe('present')
+    t += 1500
+    expect(await cache.check(externalEntry('e-4', '/b.txt'))).toBe('missing')
+    expect(statProbe).toHaveBeenCalledTimes(2)
+  })
 })

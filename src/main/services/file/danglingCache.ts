@@ -158,6 +158,8 @@ class DanglingCacheImpl implements DanglingCache {
 
   async check(entry: FileEntry): Promise<DanglingState> {
     if (entry.origin === 'internal') return 'present'
+    const cached = this.byEntryId.get(entry.id)
+    if (cached && this.now() - cached.observedAt < this.ttlMs) return cached.state
     return this.doStatAndUpdate(entry, 'stat')
   }
 
