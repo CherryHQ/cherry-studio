@@ -197,8 +197,8 @@ export async function loadUserHooks(
       const eventKey = event as HookEvent
       for (const entry of entries) {
         // PR-style matcher wrapper: { matcher?: string, hooks: [...] }
-        if ('hooks' in entry && Array.isArray((entry as UserHookMatcherConfig).hooks)) {
-          mergedMatchers[eventKey] = [...(mergedMatchers[eventKey] ?? []), entry as UserHookMatcherConfig]
+        if ('hooks' in entry && Array.isArray(entry.hooks)) {
+          mergedMatchers[eventKey] = [...(mergedMatchers[eventKey] ?? []), entry]
         } else {
           // Native Claude Code prompt-based hook: { type, tool, prompt, ... }
           const promptEntry = entry as UserHookPromptConfig
