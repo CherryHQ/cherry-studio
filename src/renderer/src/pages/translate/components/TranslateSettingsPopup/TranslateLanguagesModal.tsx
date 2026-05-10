@@ -1,9 +1,9 @@
 import { Button, InfoTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { useAddLanguage, useUpdateLanguage } from '@renderer/hooks/translate'
-import { useLanguages } from '@renderer/hooks/translate/useLanguages'
+import { useTranslateLanguages } from '@renderer/hooks/translate'
 import type { TranslateLanguageVo } from '@renderer/types'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { parsePersistedLangCode, PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
 import { Form, Input, Modal, Popover, Space } from 'antd'
 import type { FC } from 'react'
@@ -24,9 +24,14 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
   // antd表单的getFieldValue方法在首次渲染时无法获取到值，但emoji需要获取表单值来显示，所以单独管理状态
   const defaultEmoji = '🏳️'
   const [emoji, setEmoji] = useState(defaultEmoji)
-  const { languages } = useLanguages()
-  const addLanguage = useAddLanguage()
-  const updateLanguage = useUpdateLanguage(editingCustomLanguage?.langCode)
+  const {
+    languages,
+    add: addLanguage,
+    update: updateLanguage
+  } = useTranslateLanguages({
+    add: { showErrorToast: false },
+    update: { showErrorToast: false }
+  })
 
   const langCodeList = useMemo(() => {
     return languages?.map((item) => item.langCode) ?? []
@@ -61,20 +66,17 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
       const { emoji, value, langCode } = values
       try {
         if (editingCustomLanguage) {
-          await updateLanguage({ value, emoji })
+          await updateLanguage(editingCustomLanguage.langCode, { value, emoji })
         } else {
           await addLanguage({ value, emoji, langCode: parsePersistedLangCode(langCode.toLowerCase()) })
         }
         onCancel() // Only close the modal on success — failures keep the form state so the user can retry.
       } catch (e) {
-        // Hooks already log + show error toast for their own failures; this
-        // catch exists to keep the modal open on any submit rejection. Log at
-        // debug so non-hook errors (e.g. antd form validator / Zod rejection)
-        // remain traceable instead of silently swallowed.
-        logger.debug('handleSubmit blocked', { error: e as Error })
+        logger.error('Failed to submit translate language form', e as Error)
+        window.toast.error(formatErrorMessageWithPrefix(e, t('translate.settings.error.save')))
       }
     },
-    [addLanguage, updateLanguage, editingCustomLanguage, onCancel]
+    [addLanguage, updateLanguage, editingCustomLanguage, onCancel, t]
   )
 
   const footer = useMemo(() => {

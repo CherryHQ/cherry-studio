@@ -10,7 +10,7 @@ import ModelSelectButton from '@renderer/components/ModelSelectButton'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useAddHistory, useLanguages } from '@renderer/hooks/translate'
+import { useLanguages, useTranslateHistory } from '@renderer/hooks/translate'
 import { useDetectLang } from '@renderer/hooks/translate/useDetectLang'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useDrag } from '@renderer/hooks/useDrag'
@@ -50,9 +50,7 @@ const TranslatePage: FC = () => {
   const { t } = useTranslation()
   const { translateModel, setTranslateModel } = useDefaultModel()
   const detectLanguage = useDetectLang()
-  // `showErrorToast: false` — consumer owns the error toast via `formatErrorMessageWithPrefix`
-  // so the user sees the upstream error message in context.
-  const addHistory = useAddHistory({ showErrorToast: false })
+  const { add: addHistory } = useTranslateHistory({ add: { showErrorToast: false } })
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { ocr } = useOcr()
@@ -189,7 +187,7 @@ const TranslatePage: FC = () => {
       }
 
       // Hook logs the error; we keep the upstream-message toast here.
-      // Auto-detect may legitimately degrade to UNKNOWN; useAddHistory coerces
+      // Auto-detect may legitimately degrade to UNKNOWN; useTranslateHistory coerces
       // that to null at the persistence boundary.
       try {
         await addHistory({
@@ -246,7 +244,7 @@ const TranslatePage: FC = () => {
       void setSourceLanguage(history.sourceLanguage)
     }
     // Persisted `null` means the original detection degraded to UNKNOWN
-    // (useAddHistory coerces UNKNOWN → null at the persistence boundary).
+    // (useTranslateHistory coerces UNKNOWN → null at the persistence boundary).
     // Restore the UNKNOWN sentinel in the UI so the selector reflects that state.
     if (history.targetLanguage === null) {
       void setTargetLanguage(UNKNOWN.langCode)

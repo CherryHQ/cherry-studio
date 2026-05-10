@@ -2,7 +2,7 @@ import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useLanguages } from '@renderer/hooks/translate/useLanguages'
+import { useLanguages } from '@renderer/hooks/translate/useTranslateLanguages'
 import { translateText } from '@renderer/services/TranslateService'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { Languages, Loader2 } from 'lucide-react'

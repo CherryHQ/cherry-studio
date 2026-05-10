@@ -1,6 +1,6 @@
 import { Combobox, type ComboboxOption, Skeleton } from '@cherrystudio/ui'
 import { UNKNOWN } from '@renderer/config/translate'
-import { useLanguages } from '@renderer/hooks/translate/useLanguages'
+import { useLanguages } from '@renderer/hooks/translate/useTranslateLanguages'
 import type { TranslateLanguageVo } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import type { TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
@@ -151,7 +151,7 @@ const LanguageSelect = (props: Props) => {
 
   const handleChange = useCallback(
     (nextValue: string | string[]) => {
-      onChange?.((Array.isArray(nextValue) ? nextValue[0] : nextValue) as TranslateSourceLanguage)
+      onChange?.(Array.isArray(nextValue) ? nextValue[0] : nextValue)
     },
     [onChange]
   )

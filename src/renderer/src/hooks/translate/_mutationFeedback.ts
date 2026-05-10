@@ -1,5 +1,5 @@
 import type { loggerService } from '@logger'
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -53,8 +53,11 @@ export function useMutationFeedback<Args extends unknown[], Result>(
 
   const mutationRef = useRef(mutation)
   const contextRef = useRef(context)
-  mutationRef.current = mutation
-  contextRef.current = context
+
+  useEffect(() => {
+    mutationRef.current = mutation
+    contextRef.current = context
+  })
 
   const showSuccessToast = options?.showSuccessToast ?? context.defaults.showSuccessToast
   const showErrorToast = options?.showErrorToast ?? context.defaults.showErrorToast

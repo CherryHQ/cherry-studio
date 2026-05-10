@@ -6198,6 +6198,9 @@
       "autoCopy": "Copy after translation ",
       "bidirectional": "Bidirectional Translation Settings",
       "bidirectional_tip": "When enabled, only bidirectional translation between source and target languages is supported",
+      "error": {
+        "save": "Failed to save translation settings"
+      },
       "model": "Model Settings",
       "model_desc": "Model used for translation service",
       "model_placeholder": "Select translation model",

@@ -6198,6 +6198,9 @@
       "autoCopy": "翻译完成后自动复制",
       "bidirectional": "双向翻译设置",
       "bidirectional_tip": "开启后，仅支持在源语言和目标语言之间进行双向翻译",
+      "error": {
+        "save": "保存翻译设置失败"
+      },
       "model": "模型设置",
       "model_desc": "翻译服务使用的模型",
       "model_placeholder": "选择翻译模型",

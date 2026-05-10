@@ -1,7 +1,7 @@
 import { Combobox, type ComboboxOption, Flex, InfoTooltip } from '@cherrystudio/ui'
 import { SuccessTag } from '@renderer/components/Tags/SuccessTag'
 import { isMac, isWin } from '@renderer/config/constant'
-import { useLanguages } from '@renderer/hooks/translate/useLanguages'
+import { useLanguages } from '@renderer/hooks/translate/useTranslateLanguages'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import { BuiltinOcrProviderIds, isOcrSystemProvider } from '@renderer/types'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'

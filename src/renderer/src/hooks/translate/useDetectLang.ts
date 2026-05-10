@@ -21,7 +21,7 @@ import i18n from 'i18next'
 import { useCallback, useRef } from 'react'
 import { sliceByTokens } from 'tokenx'
 
-import { useLanguages } from './useLanguages'
+import { useLanguages } from './useTranslateLanguages'
 
 const logger = loggerService.withContext('translate/useDetectLang')
 

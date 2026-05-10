@@ -13,7 +13,7 @@ import {
 } from '@cherrystudio/ui'
 import PopoverConfirm from '@renderer/components/PopoverConfirm'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { useClearHistory, useTranslateHistories } from '@renderer/hooks/translate'
+import { useTranslateHistories, useTranslateHistory } from '@renderer/hooks/translate'
 import type { TranslateHistory } from '@shared/data/types/translate'
 import type { Virtualizer } from '@tanstack/react-virtual'
 import { throttle } from 'lodash'
@@ -73,7 +73,13 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
   const deferredSearch = useDeferredValue(search)
   const [showStared, setShowStared] = useState<boolean>(false)
 
-  const clearHistory = useClearHistory()
+  const {
+    clear: clearHistory,
+    update: updateHistory,
+    remove: deleteHistory
+  } = useTranslateHistory({
+    update: { rethrowError: false }
+  })
 
   const { items, hasMore, isLoadingMore, loadMore, refresh, status } = useTranslateHistories({
     search: deferredSearch,
@@ -108,8 +114,15 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
   )
 
   const renderItem = useCallback(
-    (item: TranslateHistory) => <TranslateHistoryItem data={item} onClick={() => onHistoryItemClick(item)} />,
-    [onHistoryItemClick]
+    (item: TranslateHistory) => (
+      <TranslateHistoryItem
+        data={item}
+        onClick={() => onHistoryItemClick(item)}
+        onUpdate={updateHistory}
+        onRemove={deleteHistory}
+      />
+    ),
+    [onHistoryItemClick, updateHistory, deleteHistory]
   )
 
   return (

@@ -1,7 +1,7 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { useDeleteLanguage, useLanguages } from '@renderer/hooks/translate'
+import { useTranslateLanguages } from '@renderer/hooks/translate'
 import { SettingRowTitle } from '@renderer/pages/settings'
 import type { TranslateLanguageVo } from '@renderer/types'
 import type { TableProps } from 'antd'
@@ -14,16 +14,14 @@ import TranslateLanguagesModal from './TranslateLanguagesModal'
 
 const ItemActions = ({
   lang,
-  onClickEdit
+  onClickEdit,
+  onDelete
 }: {
   lang: TranslateLanguageVo
   onClickEdit: (target: TranslateLanguageVo) => void
+  onDelete: (langCode: string) => Promise<unknown>
 }) => {
   const { t } = useTranslation()
-  // `rethrowError: false` — antd's Popconfirm closes after onConfirm regardless,
-  // so rethrowing would only produce an unhandled rejection. The hook still logs
-  // and toasts on failure.
-  const deleteLanguage = useDeleteLanguage(lang.langCode, { rethrowError: false })
   return (
     <Space>
       <Button onClick={() => onClickEdit(lang)}>
@@ -33,7 +31,7 @@ const ItemActions = ({
       <Popconfirm
         title={t('settings.translate.custom.delete.title')}
         description={t('settings.translate.custom.delete.description')}
-        onConfirm={() => void deleteLanguage()}>
+        onConfirm={() => void onDelete(lang.langCode)}>
         <Button variant="destructive">
           <DeleteOutlined />
           {t('common.delete')}
@@ -47,7 +45,7 @@ const TranslateLanguageSettings = () => {
   const { t } = useTranslation()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingLanguage, setEditingLanguage] = useState<TranslateLanguageVo>()
-  const { languages } = useLanguages()
+  const { languages, remove: deleteLanguage } = useTranslateLanguages({ remove: { rethrowError: false } })
 
   const onClickAdd = () => {
     startTransition(async () => {
@@ -87,11 +85,11 @@ const TranslateLanguageSettings = () => {
         title: t('settings.translate.custom.table.action.title'),
         key: 'action',
         render: (_, record) => {
-          return <ItemActions lang={record} onClickEdit={onClickEdit} />
+          return <ItemActions lang={record} onClickEdit={onClickEdit} onDelete={deleteLanguage} />
         }
       }
     ],
-    [t, onClickEdit]
+    [t, onClickEdit, deleteLanguage]
   )
 
   return (

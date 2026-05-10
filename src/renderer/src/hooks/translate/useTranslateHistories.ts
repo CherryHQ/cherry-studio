@@ -26,8 +26,7 @@ interface UseTranslateHistoriesOptions {
  *
  * @remarks
  * - `search` and `star` are part of the SWR key, so changing either resets the list.
- * - Mutations elsewhere (`useAddHistory`, `useDeleteHistory`, `useClearHistory`,
- *   `useUpdateHistory`) call `refresh: ['/translate/histories']`, which invalidates
+ * - Mutations elsewhere call `refresh: ['/translate/histories']`, which invalidates
  *   every page this hook holds because all keys share that path prefix.
  */
 export const useTranslateHistories = ({
@@ -76,11 +75,11 @@ export const useTranslateHistories = ({
     if (error && !toastedRef.current) {
       toastedRef.current = true
       logger.error('Failed to load translate histories', error)
-      window.toast.error(t('translate.history.error.load'))
+      window.toast?.error(t('translate.history.error.load'))
     }
   }, [error, t])
 
-  const items = useMemo(() => data?.flatMap((p) => p.items) ?? [], [data])
+  const items = useMemo(() => data?.flatMap((p) => p?.items ?? []) ?? [], [data])
   const total = data?.[0]?.total ?? 0
   const hasMore = items.length < total
   const isLoadingMore = isLoading || (size > 0 && data !== undefined && typeof data[size - 1] === 'undefined')
