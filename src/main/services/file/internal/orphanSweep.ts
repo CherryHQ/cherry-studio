@@ -32,6 +32,11 @@ export interface OrphanRefScannerDeps {
   readonly registry: OrphanCheckerRegistry
 }
 
+export interface OrphanRefScanResult {
+  readonly total: number
+  readonly byType: Partial<Record<FileRefSourceType, number>>
+}
+
 export class OrphanRefScanner {
   constructor(private readonly deps: OrphanRefScannerDeps) {}
 
@@ -50,6 +55,18 @@ export class OrphanRefScanner {
     const orphans = sourceIds.filter((id) => !alive.has(id))
     if (orphans.length === 0) return 0
     return this.deps.fileRefService.cleanupBySourceBatch(sourceType, orphans)
+  }
+
+  async scanAll(): Promise<OrphanRefScanResult> {
+    const sourceTypes = Object.keys(this.deps.registry) as FileRefSourceType[]
+    const byType: Partial<Record<FileRefSourceType, number>> = {}
+    let total = 0
+    for (const sourceType of sourceTypes) {
+      const removed = await this.scanOneType(sourceType)
+      byType[sourceType] = removed
+      total += removed
+    }
+    return { total, byType }
   }
 }
 

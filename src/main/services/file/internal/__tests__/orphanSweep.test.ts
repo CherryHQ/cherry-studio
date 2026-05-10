@@ -98,6 +98,27 @@ describe('OrphanRefScanner', () => {
       expect(await scanner.scanOneType('temp_session')).toBe(0)
     })
   })
+
+  describe('scanAll', () => {
+    it('aggregates orphan-ref counts across every sourceType', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000ee10' as FileEntryId
+      await seedEntry(entryId)
+      // temp_session refs are always orphan (default checker returns empty Set)
+      await seedRef('22222222-2222-4222-8222-000000000010', entryId, 'sess-x')
+      await seedRef('22222222-2222-4222-8222-000000000011', entryId, 'sess-y')
+
+      const scanner = new OrphanRefScanner({
+        fileRefService,
+        registry: { ...registryStub(), temp_session: tempSessionChecker }
+      })
+
+      const result = await scanner.scanAll()
+      expect(result.total).toBe(2)
+      expect(result.byType.temp_session).toBe(2)
+      // sourceTypes with no refs do not appear in byType (or appear as 0)
+      expect(result.byType.knowledge_item ?? 0).toBe(0)
+    })
+  })
 })
 
 function registryStub() {
