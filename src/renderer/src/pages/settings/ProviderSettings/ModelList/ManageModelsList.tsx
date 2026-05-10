@@ -1,20 +1,20 @@
-import { Avatar, AvatarFallback, Button, Flex, Tooltip } from '@cherrystudio/ui'
-import ExpandableText from '@renderer/components/ExpandableText'
-import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
-import CustomTag from '@renderer/components/Tags/CustomTag'
+import { Avatar, AvatarFallback, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { getModelLogo } from '@renderer/config/models'
-import FileItem from '@renderer/pages/files/FileItem'
+import { getModelLogo } from '@renderer/pages/settings/ProviderSettings/config/models'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
-import type { Model, Provider } from '@renderer/types'
-import { isNewApiProvider } from '@renderer/utils/provider'
-import { ChevronRight, Minus, Plus } from 'lucide-react'
-import React, { memo, useCallback, useMemo, useState } from 'react'
+import { isNewApiProvider } from '@renderer/pages/settings/ProviderSettings/utils/provider'
+import { cn } from '@renderer/utils'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { Minus, Plus } from 'lucide-react'
+import React, { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { isModelInProvider, isValidNewApiModel } from './utils'
+import ModelIdWithTags from '../components/ModelIdWithTags'
+import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import { getModelGroupLabel } from './grouping'
+import { isValidNewApiModel } from './utils'
 
-// 列表项类型定义
 interface GroupRowData {
   type: 'group'
   groupName: string
@@ -31,75 +31,71 @@ type RowData = GroupRowData | ModelRowData
 
 interface ManageModelsListProps {
   modelGroups: Record<string, Model[]>
-  duplicateModelNames: Set<string>
   provider: Provider
-  onAddModel: (model: Model) => void
-  onRemoveModel: (model: Model) => void
+  existingModelIds: Set<string>
+  /** Resolved provider models (for isEnabled on Switch) */
+  existingById: Map<string, Model>
+  onAddModel: (model: Model) => void | Promise<void>
+  onRemoveModel: (model: Model) => void | Promise<void>
+  onToggleModelEnabled: (model: Model, enabled: boolean) => void | Promise<void>
 }
 
 const ManageModelsList: React.FC<ManageModelsListProps> = ({
   modelGroups,
-  duplicateModelNames,
   provider,
+  existingModelIds,
+  existingById,
   onAddModel,
-  onRemoveModel
+  onRemoveModel,
+  onToggleModelEnabled
 }) => {
   const { t } = useTranslation()
-  const [collapsedGroups, setCollapsedGroups] = useState(new Set<string>())
 
-  const handleGroupToggle = useCallback((groupName: string) => {
-    setCollapsedGroups((prev) => {
-      const newSet = new Set(prev)
-      if (newSet.has(groupName)) {
-        newSet.delete(groupName) // 如果已折叠，则展开
-      } else {
-        newSet.add(groupName) // 如果已展开，则折叠
-      }
-      return newSet
-    })
-  }, [])
-
-  // 将分组数据扁平化为单一列表，过滤掉空组
   const flatRows = useMemo(() => {
     const rows: RowData[] = []
 
     Object.entries(modelGroups).forEach(([groupName, models]) => {
       if (models.length > 0) {
-        // 只添加非空组
         rows.push({ type: 'group', groupName, models })
-        if (!collapsedGroups.has(groupName)) {
-          rows.push(
-            ...models.map(
-              (model, index) =>
-                ({
-                  type: 'model',
-                  model,
-                  last: index === models.length - 1 ? true : undefined
-                }) as const
-            )
+        rows.push(
+          ...models.map(
+            (model, index) =>
+              ({
+                type: 'model',
+                model,
+                last: index === models.length - 1 ? true : undefined
+              }) as const
           )
-        }
+        )
       }
     })
 
     return rows
-  }, [modelGroups, collapsedGroups])
+  }, [modelGroups])
 
   const renderGroupTools = useCallback(
     (models: Model[]) => {
-      const isAllInProvider = models.every((model) => isModelInProvider(provider, model.id))
+      const isAllInProvider = models.every((model) => existingModelIds.has(model.id))
 
-      const handleGroupAction = () => {
+      const handleGroupAction = async () => {
         if (isAllInProvider) {
-          // 移除整组
-          models.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
+          const results = await Promise.allSettled(
+            models.filter((model) => existingModelIds.has(model.id)).map((model) => onRemoveModel(model))
+          )
+          const failedCount = results.filter((result) => result.status === 'rejected').length
+          if (failedCount > 0) {
+            window.toast.error(t('settings.models.manage.sync_pull_failed'))
+          }
         } else {
-          // 添加整组
-          const wouldAddModels = models.filter((model) => !isModelInProvider(provider, model.id))
+          const wouldAddModels = models.filter((model) => !existingModelIds.has(model.id))
 
           if (isNewApiProvider(provider)) {
             if (wouldAddModels.every(isValidNewApiModel)) {
-              wouldAddModels.forEach(onAddModel)
+              const results = await Promise.allSettled(wouldAddModels.map((model) => onAddModel(model)))
+              const failedCount = results.filter((result) => result.status === 'rejected').length
+              if (failedCount > 0) {
+                window.toast.error(t('settings.models.manage.sync_pull_failed'))
+              }
             } else {
               void NewApiBatchAddModelPopup.show({
                 title: t('settings.models.add.batch_add_models'),
@@ -108,7 +104,11 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
               })
             }
           } else {
-            wouldAddModels.forEach(onAddModel)
+            const results = await Promise.allSettled(wouldAddModels.map((model) => onAddModel(model)))
+            const failedCount = results.filter((result) => result.status === 'rejected').length
+            if (failedCount > 0) {
+              window.toast.error(t('settings.models.manage.sync_pull_failed'))
+            }
           }
         }
       }
@@ -122,51 +122,50 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
           }>
           <Button
             variant="ghost"
+            type="button"
             size="icon"
+            className="size-7 shrink-0 rounded-md p-0 text-muted-foreground/65 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground"
             onClick={() => {
-              handleGroupAction()
+              void handleGroupAction()
             }}>
             {isAllInProvider ? <Minus size={16} /> : <Plus size={16} />}
           </Button>
         </Tooltip>
       )
     },
-    [provider, onRemoveModel, onAddModel, t]
+    [provider, existingModelIds, onRemoveModel, onAddModel, t]
   )
+
+  const estimateSize = useCallback(
+    (index: number) => {
+      const row = flatRows[index]
+      return row?.type === 'group' ? 29 : 40
+    },
+    [flatRows]
+  )
+
+  const isStickyRow = useCallback((index: number) => flatRows[index].type === 'group', [flatRows])
 
   return (
     <DynamicVirtualList
       list={flatRows}
-      estimateSize={useCallback(() => 60, [])}
-      isSticky={useCallback((index: number) => flatRows[index].type === 'group', [flatRows])}
+      estimateSize={estimateSize}
+      isSticky={isStickyRow}
       overscan={5}
       scrollerStyle={{
-        paddingRight: '10px',
+        paddingRight: '4px',
         borderRadius: '8px'
       }}>
       {(row) => {
         if (row.type === 'group') {
-          const isCollapsed = collapsedGroups.has(row.groupName)
           return (
-            <div className={isCollapsed ? 'pb-2' : undefined}>
-              <div
-                className={`flex min-h-[38px] cursor-pointer items-center justify-between bg-muted px-3.25 text-foreground ${
-                  isCollapsed ? 'rounded-lg' : 'rounded-t-lg'
-                }`}
-                onClick={() => handleGroupToggle(row.groupName)}>
-                <Flex className="flex-1 items-center gap-2.5">
-                  <ChevronRight
-                    size={16}
-                    color="var(--color-foreground-muted)"
-                    strokeWidth={1.5}
-                    className={isCollapsed ? '' : 'rotate-90'}
-                  />
-                  <span className="font-bold text-sm">{row.groupName}</span>
-                  <CustomTag color="#02B96B" size={10}>
-                    {row.models.length}
-                  </CustomTag>
-                </Flex>
-                {renderGroupTools(row.models)}
+            <div className={modelListClasses.manageListGroupShell}>
+              <div className={modelListClasses.manageListGroupHeader}>
+                <span className={modelListClasses.manageListGroupTitle}>{getModelGroupLabel(row.groupName, t)}</span>
+                <div className={modelListClasses.manageListGroupRule} />
+                <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} role="presentation">
+                  {renderGroupTools(row.models)}
+                </div>
               </div>
             </div>
           )
@@ -176,10 +175,11 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
           <ModelListItem
             last={row.last}
             model={row.model}
-            showIdentifier={duplicateModelNames.has(row.model.name)}
-            provider={provider}
+            existingModelIds={existingModelIds}
+            existingById={existingById}
             onAddModel={onAddModel}
             onRemoveModel={onRemoveModel}
+            onToggleModelEnabled={onToggleModelEnabled}
           />
         )
       }}
@@ -187,53 +187,78 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
   )
 }
 
-// 模型列表项组件
 interface ModelListItemProps {
   model: Model
-  showIdentifier: boolean
-  provider: Provider
-  onAddModel: (model: Model) => void
-  onRemoveModel: (model: Model) => void
+  existingModelIds: Set<string>
+  existingById: Map<string, Model>
+  onAddModel: (model: Model) => void | Promise<void>
+  onRemoveModel: (model: Model) => void | Promise<void>
+  onToggleModelEnabled: (model: Model, enabled: boolean) => void | Promise<void>
   last?: boolean
 }
 
 const ModelListItem: React.FC<ModelListItemProps> = memo(
-  ({ model, showIdentifier, provider, onAddModel, onRemoveModel, last }) => {
-    const isAdded = useMemo(() => isModelInProvider(provider, model.id), [provider, model.id])
+  ({ model, existingModelIds, existingById, onAddModel, onRemoveModel, onToggleModelEnabled, last }) => {
+    const { t } = useTranslation()
+    const isAdded = useMemo(() => existingModelIds.has(model.id), [existingModelIds, model.id])
+    const isEnabled = isAdded ? (existingById.get(model.id)?.isEnabled ?? true) : false
+    const nameMuted = isAdded && !isEnabled
+
     return (
-      <div
-        className={`border border-border p-1 ${last ? 'mb-2 rounded-b-lg border-b' : 'rounded-none border-b-0'} border-t-0`}>
-        <FileItem
-          style={{
-            backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : '',
-            border: 'none',
-            boxShadow: 'none'
-          }}
-          fileInfo={{
-            icon: (() => {
-              const Icon = getModelLogo(model)
-              return Icon ? (
-                <Icon.Avatar size={28} />
-              ) : (
-                <Avatar size="sm">
-                  <AvatarFallback>{model?.name?.[0]?.toUpperCase()}</AvatarFallback>
-                </Avatar>
-              )
-            })(),
-            name: <ModelIdWithTags model={model} showIdentifier={showIdentifier} />,
-            extra: model.description && <ExpandableText text={model.description} />,
-            ext: '.model',
-            actions: isAdded ? (
-              <Button variant="ghost" onClick={() => onRemoveModel(model)} size="icon">
-                <Minus size={16} />
-              </Button>
+      <div className={cn(modelListClasses.manageListRow, last && modelListClasses.manageListRowLast)}>
+        {isAdded ? (
+          <Switch
+            size="sm"
+            checked={isEnabled}
+            onCheckedChange={(v) => {
+              void onToggleModelEnabled(model, v)
+            }}
+          />
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={cn(modelListClasses.rowIconButton, 'size-7 shrink-0 p-0')}
+            onClick={() => {
+              void onAddModel(model)
+            }}>
+            <Plus className="size-3.5" />
+          </Button>
+        )}
+        <div className="flex h-[14px] w-[14px] shrink-0 items-center justify-center overflow-hidden rounded-[1px]">
+          {(() => {
+            const Icon = getModelLogo(model)
+            return Icon ? (
+              <Icon.Avatar size={14} />
             ) : (
-              <Button variant="ghost" onClick={() => onAddModel(model)} size="icon">
-                <Plus size={16} />
-              </Button>
+              <Avatar className="size-[14px]">
+                <AvatarFallback className="text-[8px]">{model?.name?.[0]?.toUpperCase()}</AvatarFallback>
+              </Avatar>
             )
-          }}
-        />
+          })()}
+        </div>
+        <div
+          className={cn(
+            'min-w-0 flex-1 font-mono text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)]',
+            nameMuted ? 'text-muted-foreground/60' : 'text-foreground'
+          )}>
+          <ModelIdWithTags model={model} />
+        </div>
+        {isAdded ? (
+          <Tooltip content={t('settings.models.manage.remove_model')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0 rounded-lg border border-[color:var(--color-border-fg-muted)] bg-transparent p-0 text-muted-foreground/70 opacity-0 shadow-none transition-opacity hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover:opacity-100"
+              onClick={() => {
+                void onRemoveModel(model)
+              }}>
+              <Minus className="size-3.5" />
+            </Button>
+          </Tooltip>
+        ) : null}
       </div>
     )
   }

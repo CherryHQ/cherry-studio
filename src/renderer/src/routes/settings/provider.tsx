@@ -1,4 +1,4 @@
-import { ProviderSettingsPage } from '@renderer/pages/settings/ProviderSettingsV2'
+import { ProviderSettingsPage } from '@renderer/pages/settings/ProviderSettings'
 import { createFileRoute } from '@tanstack/react-router'
 import * as z from 'zod'
 

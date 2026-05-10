@@ -1,116 +1,107 @@
-import { Avatar, AvatarFallback, Button, RowFlex, Tooltip } from '@cherrystudio/ui'
-import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
-import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
-import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
-import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
-import { getModelLogo } from '@renderer/config/models'
-import type { Model } from '@renderer/types'
-import type { ModelWithStatus } from '@renderer/types/healthCheck'
-import { HealthStatus } from '@renderer/types/healthCheck'
-import { maskApiKey } from '@renderer/utils/api'
-import { Bolt, Minus } from 'lucide-react'
-import React, { memo, useCallback, useMemo } from 'react'
+import { Avatar, AvatarFallback, Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { getModelLogo } from '@renderer/pages/settings/ProviderSettings/config/models'
+import { getModelClipboardId } from '@renderer/pages/settings/ProviderSettings/ModelList/utils'
+import { cn } from '@renderer/utils'
+import type { Model } from '@shared/data/types/model'
+import { Copy } from 'lucide-react'
+import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { FreeTrialModelTag } from '../components/FreeTrialModelTag'
+import ModelTagsWithLabel from '../components/ModelTagsWithLabel'
+import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 
 interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
   model: Model
-  modelStatus: ModelWithStatus | undefined
-  showIdentifier?: boolean
   disabled?: boolean
   onEdit: (model: Model) => void
-  onRemove: (model: Model) => void
+  onToggleEnabled: (model: Model, enabled: boolean) => Promise<void>
 }
 
-const ModelListItem: React.FC<ModelListItemProps> = ({
-  ref,
-  model,
-  modelStatus,
-  showIdentifier = false,
-  disabled,
-  onEdit,
-  onRemove
-}) => {
+const logger = loggerService.withContext('ModelListItem')
+
+const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onEdit, onToggleEnabled }) => {
   const { t } = useTranslation()
-  const isChecking = modelStatus?.checking === true
 
-  const healthResults = useMemo(
-    () =>
-      modelStatus?.keyResults?.map((kr) => ({
-        status: kr.status,
-        latency: kr.latency,
-        error: kr.error,
-        label: maskApiKey(kr.key)
-      })) || [],
-    [modelStatus?.keyResults]
+  const copyId = getModelClipboardId(model)
+
+  const handleCopyName = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      void navigator.clipboard.writeText(copyId).catch((err: unknown) => {
+        logger.error('Failed to copy model id', err instanceof Error ? err : new Error(String(err)))
+      })
+    },
+    [copyId]
   )
-
-  const hasFailedResult = useMemo(() => healthResults.some((r) => r.status === HealthStatus.FAILED), [healthResults])
-
-  const handleErrorClick = useMemo(() => {
-    if (!hasFailedResult) return undefined
-    return (result: HealthResult) => {
-      if (result.error) {
-        showErrorDetailPopup({ error: result.error })
-      }
-    }
-  }, [hasFailedResult])
 
   const handleEdit = useCallback(() => {
     onEdit(model)
   }, [model, onEdit])
 
-  const handleRemove = useCallback(() => {
-    onRemove(model)
-  }, [model, onRemove])
+  const handleToggleEnabled = useCallback(
+    (enabled: boolean) => {
+      void onToggleEnabled(model, enabled).catch(() => {
+        window.toast.error(t('settings.models.manage.operation_failed'))
+      })
+    },
+    [model, onToggleEnabled, t]
+  )
 
   return (
-    <>
-      <div ref={ref} className="flex flex-row items-center gap-2.5 text-foreground text-sm leading-none">
-        <RowFlex className="flex-1 items-center gap-2.5">
-          {(() => {
-            const Icon = getModelLogo(model)
-            return Icon ? (
-              <Icon.Avatar size={24} />
-            ) : (
-              <Avatar className="h-6 w-6">
-                <AvatarFallback>{model?.name?.[0]?.toUpperCase()}</AvatarFallback>
-              </Avatar>
-            )
-          })()}
-          <ModelIdWithTags
-            model={model}
-            showIdentifier={showIdentifier}
-            style={{
-              flex: 1,
-              width: 0,
-              overflow: 'hidden'
-            }}
-          />
-          <FreeTrialModelTag model={model} />
-        </RowFlex>
-        <RowFlex className="items-center gap-1.5">
-          <HealthStatusIndicator
-            results={healthResults}
-            loading={isChecking}
-            showLatency
-            onErrorClick={handleErrorClick}
-          />
-          <RowFlex className="items-center">
-            <Tooltip content={t('models.edit')}>
-              <Button variant="ghost" onClick={handleEdit} disabled={disabled} size="icon">
-                <Bolt size={14} />
+    <div ref={ref} className={cn(modelListClasses.row, !model.isEnabled && 'opacity-60')} onClick={handleEdit}>
+      <RowFlex className={modelListClasses.rowMain}>
+        {(() => {
+          const Icon = getModelLogo(model)
+          return Icon ? (
+            <Icon.Avatar size={26} />
+          ) : (
+            <Avatar className={modelListClasses.rowAvatar}>
+              <AvatarFallback>{model.name?.[0]?.toUpperCase()}</AvatarFallback>
+            </Avatar>
+          )
+        })()}
+        <div className={modelListClasses.rowBody}>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
+              {model.name}
+            </span>
+            <Tooltip content={t('settings.models.copy_model_id_tooltip', { id: copyId })} placement="top">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-5 shrink-0 rounded-md p-0 text-muted-foreground/35 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+                aria-label={t('settings.models.copy_model_id_tooltip', { id: copyId })}
+                onClick={handleCopyName}>
+                <Copy className="size-2.5" />
               </Button>
             </Tooltip>
-            <Tooltip content={t('settings.models.manage.remove_model')}>
-              <Button variant="ghost" onClick={handleRemove} disabled={disabled} size="icon">
-                <Minus size={14} />
-              </Button>
-            </Tooltip>
-          </RowFlex>
-        </RowFlex>
-      </div>
-    </>
+          </div>
+        </div>
+      </RowFlex>
+      <RowFlex className={modelListClasses.rowActions}>
+        <div className={modelListClasses.rowActionsCluster}>
+          <div className={modelListClasses.rowCapabilityStrip}>
+            <div className={modelListClasses.rowCapabilityTagCluster}>
+              <ModelTagsWithLabel model={model} size={8} showLabel={false} style={{ flexWrap: 'nowrap' }} />
+            </div>
+            <FreeTrialModelTag modelId={model.id} providerId={model.providerId} />
+          </div>
+          <div onClick={(event) => event.stopPropagation()}>
+            <Switch
+              checked={model.isEnabled}
+              disabled={disabled}
+              size="sm"
+              aria-label={t('common.enabled')}
+              onCheckedChange={handleToggleEnabled}
+            />
+          </div>
+        </div>
+      </RowFlex>
+    </div>
   )
 }
 

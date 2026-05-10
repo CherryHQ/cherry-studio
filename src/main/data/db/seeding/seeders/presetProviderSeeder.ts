@@ -12,7 +12,7 @@ import type { DbType, ISeeder } from '../../types'
  * Registry entries for vertexai/azure-openai are skeletons (no defaultChatEndpoint,
  * no endpointConfigs) — they need an explicit seed value here.
  *
- * Per the v2 invariant in `ProviderSettingsV2/utils/provider.ts` ("Azure/Vertex/Bedrock
+ * Per the v2 invariant in `ProviderSettings/utils/provider.ts` ("Azure/Vertex/Bedrock
  * reuse other vendors' endpoint protocols, so authType is the only reliable
  * discriminator"), we deliberately do NOT introduce dedicated endpoint types like
  * `azure-openai-chat-completions` / `vertex-generate-content`. Vendor URL routing is
