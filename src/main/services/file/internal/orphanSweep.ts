@@ -12,11 +12,26 @@
  * 2. **runStartupFileSweep** (FS-level, architecture §10): enumerates
  *    `{userData}/files/` for UUID-named files without a matching DB entry
  *    and abandoned `*.tmp-<uuid>` residue, applies the `mtime > 5min`
- *    heuristic and the safety threshold, then unlinks the survivors. Lands
- *    in subsequent Group D commits.
+ *    heuristic and the safety threshold, then unlinks the survivors.
  *
  * Both surfaces emit a single structured log record per run via
- * `loggerService` (events `orphan-sweep` / `orphan-file-sweep`).
+ * `loggerService` — `orphan-sweep` for the DB pass (architecture §10.5
+ * naming), `orphan-file-sweep` for the FS pass (disambiguates the two).
+ *
+ * ## Outcome shapes
+ *
+ * Reports use **discriminated unions on `outcome`** so illegal combinations
+ * (e.g. `completed` with `abortReason`) cannot be constructed. Each branch
+ * carries exactly the fields it needs:
+ *
+ * - `completed` — happy path
+ * - `partial` — sweep completed but with non-fatal failures (per-type checker
+ *   throw for DB sweep; non-ENOENT unlink errors for FS sweep)
+ * - `aborted` — FS sweep refused to run because the safety threshold tripped
+ * - `failed` — outer try/catch caught an unexpected throw
+ *
+ * Adding a new outcome variant + missing it in the dispatch site is a
+ * compile error (`assertNever`).
  */
 
 import { readdir, stat, unlink } from 'node:fs/promises'
@@ -31,16 +46,30 @@ import type { FileEntryId, FileEntryOrigin, FileRefSourceType } from '@shared/da
 
 const logger = loggerService.withContext('file/orphanSweep')
 
+function assertNever(x: never): never {
+  throw new Error(`Unhandled discriminant: ${JSON.stringify(x)}`)
+}
+
 // ─── DB-level: OrphanRefScanner ───
 
 export interface OrphanRefScannerDeps {
-  readonly fileRefService: FileRefService
+  readonly fileRefService: Pick<FileRefService, 'listDistinctSourceIds' | 'cleanupBySourceBatch'>
   readonly registry: OrphanCheckerRegistry
 }
 
 export interface OrphanRefScanResult {
+  /** Sum of successful per-sourceType deletions. */
   readonly total: number
+  /**
+   * Per-sourceType deletion counts. A sourceType is absent iff its checker
+   * threw — see `errorsByType` for the failure message.
+   */
   readonly byType: Partial<Record<FileRefSourceType, number>>
+  /**
+   * Per-sourceType error messages from any checker / cleanup throw. Empty
+   * on a fully successful run.
+   */
+  readonly errorsByType: Partial<Record<FileRefSourceType, string>>
 }
 
 export class OrphanRefScanner {
@@ -63,16 +92,28 @@ export class OrphanRefScanner {
     return this.deps.fileRefService.cleanupBySourceBatch(sourceType, orphans)
   }
 
+  /**
+   * Run `scanOneType` against every registered sourceType, isolating
+   * failures per-type so a transient checker throw doesn't poison the rest
+   * of the sweep. Errors land in `errorsByType` and surface as `outcome:
+   * 'partial'` at the umbrella level.
+   */
   async scanAll(): Promise<OrphanRefScanResult> {
     const sourceTypes = Object.keys(this.deps.registry) as FileRefSourceType[]
     const byType: Partial<Record<FileRefSourceType, number>> = {}
+    const errorsByType: Partial<Record<FileRefSourceType, string>> = {}
     let total = 0
     for (const sourceType of sourceTypes) {
-      const removed = await this.scanOneType(sourceType)
-      byType[sourceType] = removed
-      total += removed
+      try {
+        const removed = await this.scanOneType(sourceType)
+        byType[sourceType] = removed
+        total += removed
+      } catch (err) {
+        errorsByType[sourceType] = (err as Error).message
+        logger.error('orphan-sweep-type-failed', { sourceType, err })
+      }
     }
-    return { total, byType }
+    return { total, byType, errorsByType }
   }
 }
 
@@ -84,7 +125,7 @@ export interface OrphanEntryReport {
 }
 
 export interface ScanOrphanEntriesDeps {
-  readonly fileEntryService: FileEntryService
+  readonly fileEntryService: Pick<FileEntryService, 'findUnreferenced'>
 }
 
 /**
@@ -105,27 +146,50 @@ export async function scanOrphanEntries(deps: ScanOrphanEntriesDeps): Promise<Or
 // ─── DB-sweep umbrella + observability ───
 
 export interface RunDbSweepDeps {
-  readonly fileEntryService: FileEntryService
-  readonly fileRefService: FileRefService
+  readonly fileEntryService: Pick<FileEntryService, 'findUnreferenced'>
+  readonly fileRefService: Pick<FileRefService, 'listDistinctSourceIds' | 'cleanupBySourceBatch'>
   readonly registry: OrphanCheckerRegistry
 }
 
-export interface DbSweepReport {
-  readonly outcome: 'completed' | 'failed'
+interface DbSweepStats {
   readonly orphanRefsByType: Partial<Record<FileRefSourceType, number>>
   readonly orphanRefsTotal: number
   readonly orphanEntriesByOrigin: Partial<Record<FileEntryOrigin, number>>
   readonly orphanEntriesTotal: number
   readonly scanDurationMs: number
-  readonly errorMessage?: string
+}
+
+type DbSweepOutcome =
+  | { readonly outcome: 'completed' }
+  | {
+      readonly outcome: 'partial'
+      readonly errorsByType: Partial<Record<FileRefSourceType, string>>
+    }
+  | { readonly outcome: 'failed'; readonly errorMessage: string }
+
+export type DbSweepReport = DbSweepStats & DbSweepOutcome
+
+/**
+ * Public shape consumed by `FileManager.getOrphanReport()` and the future
+ * cleanup-UI consumer. Keeps the wire surface narrower than the full
+ * `DbSweepReport` (e.g. omits `scanDurationMs`) while adding the run
+ * timestamp the UI actually needs ("last scanned at HH:MM").
+ */
+export interface OrphanReport {
+  readonly orphanRefsByType: Partial<Record<FileRefSourceType, number>>
+  readonly orphanRefsTotal: number
+  readonly orphanEntriesByOrigin: Partial<Record<FileEntryOrigin, number>>
+  readonly orphanEntriesTotal: number
+  /** ms epoch when the producing sweep settled; null before the first sweep. */
+  readonly lastRunAt: number | null
 }
 
 /**
  * Run both DB-level passes (orphan refs + orphan-entry report) and emit a
- * single structured `orphan-sweep` log record. On unexpected failure the
- * record's outcome is `'failed'` and the error message is attached for
- * post-hoc diagnosis. Caller decides whether to fire-and-forget (FileManager
- * does this in `onInit`).
+ * single structured `orphan-sweep` log record. Per-sourceType failures are
+ * isolated and surface as `outcome: 'partial'` with `errorsByType`; an
+ * outer-level throw collapses to `outcome: 'failed'`. Caller decides
+ * whether to fire-and-forget (FileManager does this in `onInit`).
  */
 export async function runDbSweep(deps: RunDbSweepDeps): Promise<DbSweepReport> {
   const startedAt = Date.now()
@@ -133,28 +197,48 @@ export async function runDbSweep(deps: RunDbSweepDeps): Promise<DbSweepReport> {
     const scanner = new OrphanRefScanner({ fileRefService: deps.fileRefService, registry: deps.registry })
     const refs = await scanner.scanAll()
     const entries = await scanOrphanEntries({ fileEntryService: deps.fileEntryService })
-    const report: DbSweepReport = {
-      outcome: 'completed',
+    const stats: DbSweepStats = {
       orphanRefsByType: refs.byType,
       orphanRefsTotal: refs.total,
       orphanEntriesByOrigin: entries.byOrigin,
       orphanEntriesTotal: entries.total,
       scanDurationMs: Date.now() - startedAt
     }
-    logger.info('orphan-sweep', { event: 'orphan-sweep', ...report })
+    const hasErrors = Object.keys(refs.errorsByType).length > 0
+    const report: DbSweepReport = hasErrors
+      ? { ...stats, outcome: 'partial', errorsByType: refs.errorsByType }
+      : { ...stats, outcome: 'completed' }
+    logDbSweep(report)
     return report
   } catch (err) {
     const failed: DbSweepReport = {
-      outcome: 'failed',
       orphanRefsByType: {},
       orphanRefsTotal: 0,
       orphanEntriesByOrigin: {},
       orphanEntriesTotal: 0,
       scanDurationMs: Date.now() - startedAt,
+      outcome: 'failed',
       errorMessage: (err as Error).message
     }
     logger.error('orphan-sweep', { event: 'orphan-sweep', ...failed })
     return failed
+  }
+}
+
+function logDbSweep(report: DbSweepReport): void {
+  const payload = { event: 'orphan-sweep', ...report }
+  switch (report.outcome) {
+    case 'completed':
+      logger.info('orphan-sweep', payload)
+      return
+    case 'partial':
+      logger.warn('orphan-sweep', payload)
+      return
+    case 'failed':
+      logger.error('orphan-sweep', payload)
+      return
+    default:
+      assertNever(report)
   }
 }
 
@@ -187,44 +271,89 @@ const SMALL_RESIDUE_BYTES_FLOOR = 10 * 1024 * 1024
 /** Above the floor, abort if the plan covers more than this fraction of total. */
 const ABORT_FRACTION = 0.5
 
+/** Cap how many failed-unlink samples we attach to the report (log-line size). */
+const MAX_FAILED_SAMPLES = 5
+
 export interface RunStartupFileSweepDeps {
   readonly fileEntryService: Pick<FileEntryService, 'listAllIds'>
   /** Test seam — defaults to `Date.now`. */
   readonly now?: () => number
 }
 
-export interface FileSweepReport {
-  readonly outcome: 'completed' | 'aborted' | 'failed'
+interface FileSweepStats {
   readonly entriesInDb: number
+  /** Total dirents enumerated, regardless of UUID/tmp candidacy. */
+  readonly direntsScanned: number
+  /** Candidates considered (UUID files + tmp residue) — backs the abort fraction math. */
   readonly filesOnDisk: number
   readonly bytesOnDisk: number
   readonly plannedDeleteCount: number
   readonly plannedDeleteBytes: number
   readonly actualDeleteCount: number
   readonly actualDeleteBytes: number
+  /** Oldest mtime (ms epoch) among files actually unlinked this run; absent if none. */
+  readonly oldestDeletedMtime?: number
+  /** Non-ENOENT stat errors during planning — silent skips kept countable. */
+  readonly statFailedCount: number
   readonly scanDurationMs: number
-  readonly abortReason?: 'count-fraction' | 'byte-fraction'
-  readonly errorMessage?: string
 }
+
+type FileSweepOutcome =
+  | { readonly outcome: 'completed' }
+  | {
+      readonly outcome: 'partial'
+      readonly failedDeleteCount: number
+      readonly failedSamples: readonly string[]
+    }
+  | {
+      readonly outcome: 'aborted'
+      readonly abortReason: 'count-fraction' | 'byte-fraction'
+    }
+  | { readonly outcome: 'failed'; readonly errorMessage: string }
+
+export type FileSweepReport = FileSweepStats & FileSweepOutcome
 
 /**
  * Enumerate `{userData}/files/` and unlink:
  *   - UUID-named files whose id is not in the FileEntry snapshot
- *   - `*.tmp-<UUID>` atomic-write residue
+ *   - `*.tmp-<UUID>` atomic-write residue (including residue whose leading
+ *     UUID still matches a live entry — e.g. crash mid-atomicWriteFile)
  *
- * Group D-1 ships the readdir + plan + execute path; D-2 layers on the
- * mtime>5min freshness gate; D-3 layers on the safety threshold.
+ * `mtime > 5min` freshness gate (§10.3) defers anything in flight.
+ * Plan-then-execute with the safety threshold (§10.4); aborts emit
+ * `abortReason`. Per-file unlink failures are tolerated and surface as
+ * `outcome: 'partial'` with `failedDeleteCount` + sample names.
  */
 export async function runStartupFileSweep(deps: RunStartupFileSweepDeps): Promise<FileSweepReport> {
   const report = await runStartupFileSweepInner(deps)
-  if (report.outcome === 'aborted') {
-    logger.warn('orphan-file-sweep', { event: 'orphan-file-sweep', ...report })
-  } else if (report.outcome === 'failed') {
-    logger.error('orphan-file-sweep', { event: 'orphan-file-sweep', ...report })
-  } else {
-    logger.info('orphan-file-sweep', { event: 'orphan-file-sweep', ...report })
-  }
+  logFileSweep(report)
   return report
+}
+
+function logFileSweep(report: FileSweepReport): void {
+  const payload = { event: 'orphan-file-sweep', ...report }
+  switch (report.outcome) {
+    case 'completed':
+      logger.info('orphan-file-sweep', payload)
+      return
+    case 'partial':
+      logger.warn('orphan-file-sweep', payload)
+      return
+    case 'aborted':
+      logger.warn('orphan-file-sweep', payload)
+      return
+    case 'failed':
+      logger.error('orphan-file-sweep', payload)
+      return
+    default:
+      assertNever(report)
+  }
+}
+
+interface CandidatePlan {
+  readonly path: string
+  readonly bytes: number
+  readonly mtimeMs: number
 }
 
 async function runStartupFileSweepInner(deps: RunStartupFileSweepDeps): Promise<FileSweepReport> {
@@ -236,33 +365,47 @@ async function runStartupFileSweepInner(deps: RunStartupFileSweepDeps): Promise<
     let dirents: string[]
     try {
       dirents = await readdir(filesDir)
-    } catch {
-      // Files dir doesn't exist yet — nothing to sweep.
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      if (code === 'ENOENT') {
+        // First-run / fresh install: feature.files.data is auto-ensured by
+        // path-registry, so an ENOENT here usually means auto-mkdir failed
+        // (warn-logged inside Application). Treat as "nothing to sweep".
+        return emptyCompleted(idSnapshot.size, startedAt)
+      }
+      // Permission / I/O / wrong-type — surface as failure so the operator
+      // (or future Sentry) sees a real signal, not a silent zero-count log.
       return {
-        outcome: 'completed',
-        entriesInDb: idSnapshot.size,
-        filesOnDisk: 0,
-        bytesOnDisk: 0,
-        plannedDeleteCount: 0,
-        plannedDeleteBytes: 0,
-        actualDeleteCount: 0,
-        actualDeleteBytes: 0,
-        scanDurationMs: Date.now() - startedAt
+        ...zeroStats(idSnapshot.size, startedAt),
+        outcome: 'failed',
+        errorMessage: `readdir ${filesDir}: ${(err as Error).message}`
       }
     }
 
     const now = (deps.now ?? Date.now)()
-    const planned: { path: string; bytes: number }[] = []
-    let bytesOnDisk = 0
+    const planned: CandidatePlan[] = []
+    let candidatesCount = 0
+    let candidatesBytes = 0
+    let statFailedCount = 0
     for (const name of dirents) {
       const fullPath = path.join(filesDir, name)
-      let st
+      let st: Awaited<ReturnType<typeof stat>>
       try {
         st = await stat(fullPath)
-      } catch {
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code
+        if (code !== 'ENOENT') {
+          statFailedCount++
+          logger.warn('orphan-file-sweep-stat-failed', { path: fullPath, code })
+        }
         continue
       }
-      bytesOnDisk += st.size
+      // Skip directories / symlinks / sockets — only regular files are sweep
+      // candidates. A UUID-named subdirectory should never exist but if it
+      // does, attempting to unlink would just throw and silently succeed-fail
+      // forever; explicit guard makes the contract clear.
+      if (!st.isFile()) continue
+
       // Tmp residue MUST be checked first: atomicWriteFile produces names of
       // the form `<entryUUID>.<ext>.tmp-<randomUUID>` whose leading stem is
       // a live entry's UUID. `isUuidFileName` also matches the same stem, so
@@ -274,68 +417,102 @@ async function runStartupFileSweepInner(deps: RunStartupFileSweepDeps): Promise<
           return Boolean(uuid && !idSnapshot.has(uuid.id))
         })()
       if (!isCandidate) continue
+      candidatesCount++
+      candidatesBytes += st.size
       if (now - st.mtimeMs <= FRESHNESS_GATE_MS) continue
-      planned.push({ path: fullPath, bytes: st.size })
+      planned.push({ path: fullPath, bytes: st.size, mtimeMs: st.mtimeMs })
     }
 
     const plannedBytes = planned.reduce((s, p) => s + p.bytes, 0)
     const abortReason = pickAbortReason({
       planned: planned.length,
       plannedBytes,
-      filesOnDisk: dirents.length,
-      bytesOnDisk
+      filesOnDisk: candidatesCount,
+      bytesOnDisk: candidatesBytes
     })
     if (abortReason) {
       return {
-        outcome: 'aborted',
         entriesInDb: idSnapshot.size,
-        filesOnDisk: dirents.length,
-        bytesOnDisk,
+        direntsScanned: dirents.length,
+        filesOnDisk: candidatesCount,
+        bytesOnDisk: candidatesBytes,
         plannedDeleteCount: planned.length,
         plannedDeleteBytes: plannedBytes,
         actualDeleteCount: 0,
         actualDeleteBytes: 0,
+        statFailedCount,
         scanDurationMs: Date.now() - startedAt,
+        outcome: 'aborted',
         abortReason
       }
     }
 
     let actualDeleted = 0
     let actualBytes = 0
+    let failedDeleted = 0
+    let oldestDeletedMtime: number | undefined
+    const failedSamples: string[] = []
     for (const target of planned) {
       try {
         await unlink(target.path)
         actualDeleted++
         actualBytes += target.bytes
-      } catch {
-        // best-effort; missing file is fine
+        if (oldestDeletedMtime === undefined || target.mtimeMs < oldestDeletedMtime) {
+          oldestDeletedMtime = target.mtimeMs
+        }
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code
+        if (code === 'ENOENT') continue // genuinely fine — concurrent deletion
+        failedDeleted++
+        if (failedSamples.length < MAX_FAILED_SAMPLES) {
+          failedSamples.push(`${path.basename(target.path)}: ${code ?? 'unknown'}`)
+        }
+        logger.warn('orphan-file-sweep-unlink-failed', { path: target.path, code })
       }
     }
 
-    return {
-      outcome: 'completed',
+    const stats: FileSweepStats = {
       entriesInDb: idSnapshot.size,
-      filesOnDisk: dirents.length,
-      bytesOnDisk,
+      direntsScanned: dirents.length,
+      filesOnDisk: candidatesCount,
+      bytesOnDisk: candidatesBytes,
       plannedDeleteCount: planned.length,
       plannedDeleteBytes: plannedBytes,
       actualDeleteCount: actualDeleted,
       actualDeleteBytes: actualBytes,
+      oldestDeletedMtime,
+      statFailedCount,
       scanDurationMs: Date.now() - startedAt
     }
+    if (failedDeleted > 0) {
+      return { ...stats, outcome: 'partial', failedDeleteCount: failedDeleted, failedSamples }
+    }
+    return { ...stats, outcome: 'completed' }
   } catch (err) {
     return {
+      ...zeroStats(0, startedAt),
       outcome: 'failed',
-      entriesInDb: 0,
-      filesOnDisk: 0,
-      bytesOnDisk: 0,
-      plannedDeleteCount: 0,
-      plannedDeleteBytes: 0,
-      actualDeleteCount: 0,
-      actualDeleteBytes: 0,
-      scanDurationMs: Date.now() - startedAt,
       errorMessage: (err as Error).message
     }
+  }
+}
+
+function emptyCompleted(entriesInDb: number, startedAt: number): FileSweepReport {
+  return { ...zeroStats(entriesInDb, startedAt), outcome: 'completed' }
+}
+
+function zeroStats(entriesInDb: number, startedAt: number): FileSweepStats {
+  return {
+    entriesInDb,
+    direntsScanned: 0,
+    filesOnDisk: 0,
+    bytesOnDisk: 0,
+    plannedDeleteCount: 0,
+    plannedDeleteBytes: 0,
+    actualDeleteCount: 0,
+    actualDeleteBytes: 0,
+    statFailedCount: 0,
+    scanDurationMs: Date.now() - startedAt
   }
 }
 

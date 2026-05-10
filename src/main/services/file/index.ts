@@ -71,5 +71,6 @@ export type {
   DbSweepReport,
   FileSweepReport,
   OrphanEntryReport,
-  OrphanRefScanResult
+  OrphanRefScanResult,
+  OrphanReport
 } from './internal/orphanSweep'

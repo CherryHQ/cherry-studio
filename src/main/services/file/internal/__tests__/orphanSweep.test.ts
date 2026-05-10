@@ -292,8 +292,8 @@ describe('runDbSweep (umbrella + observability)', () => {
     )
   })
 
-  it('reports failure outcome when scanAll throws', async () => {
-    const errorSpy = vi.spyOn(loggerService, 'error')
+  it('reports partial outcome when per-sourceType checker throws (errors isolated)', async () => {
+    const warnSpy = vi.spyOn(loggerService, 'warn')
     const failingFileRefService = {
       ...fileRefService,
       listDistinctSourceIds: async () => {
@@ -312,8 +312,42 @@ describe('runDbSweep (umbrella + observability)', () => {
         temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() }
       } as never
     })
+    expect(report.outcome).toBe('partial')
+    if (report.outcome === 'partial') {
+      // Every sourceType's listDistinctSourceIds throws → all 5 errored.
+      expect(Object.keys(report.errorsByType)).toHaveLength(5)
+      expect(report.errorsByType.temp_session).toMatch(/boom/)
+    }
+    expect(warnSpy).toHaveBeenCalledWith(
+      'orphan-sweep',
+      expect.objectContaining({ event: 'orphan-sweep', outcome: 'partial' })
+    )
+  })
+
+  it('reports failed outcome when an outer-level operation throws', async () => {
+    const errorSpy = vi.spyOn(loggerService, 'error')
+    const failingEntryService = {
+      ...fileEntryService,
+      findUnreferenced: async () => {
+        throw new Error('boom')
+      }
+    } as typeof fileEntryService
+
+    const report = await runDbSweep({
+      fileEntryService: failingEntryService,
+      fileRefService,
+      registry: {
+        chat_message: { sourceType: 'chat_message', checkExists: async (ids) => new Set(ids) },
+        knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
+        painting: { sourceType: 'painting', checkExists: async (ids) => new Set(ids) },
+        note: { sourceType: 'note', checkExists: async (ids) => new Set(ids) },
+        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() }
+      } as never
+    })
     expect(report.outcome).toBe('failed')
-    expect(report.errorMessage).toMatch(/boom/)
+    if (report.outcome === 'failed') {
+      expect(report.errorMessage).toMatch(/boom/)
+    }
     expect(errorSpy).toHaveBeenCalledWith(
       'orphan-sweep',
       expect.objectContaining({ event: 'orphan-sweep', outcome: 'failed' })
@@ -501,6 +535,93 @@ describe('runStartupFileSweep (FS-level)', () => {
       'orphan-file-sweep',
       expect.objectContaining({ event: 'orphan-file-sweep', outcome: 'aborted' })
     )
+  })
+
+  it('records oldestDeletedMtime when at least one file is unlinked', async () => {
+    const oldId = '019606a0-0000-7000-8000-00000000ee72'
+    const youngerId = '019606a0-0000-7000-8000-00000000ee73'
+    const oldMtime = Math.floor(Date.now() / 1000) - 30 * 60 // 30 min ago
+    const youngerMtime = Math.floor(Date.now() / 1000) - 10 * 60 // 10 min ago
+    const oldPath = path.join(filesDir, `${oldId}.txt`)
+    const youngerPath = path.join(filesDir, `${youngerId}.txt`)
+    await writeFile(oldPath, 'old')
+    await writeFile(youngerPath, 'young')
+    await utimes(oldPath, oldMtime, oldMtime)
+    await utimes(youngerPath, youngerMtime, youngerMtime)
+
+    const report = await runStartupFileSweep({ fileEntryService })
+    expect(report.outcome).toBe('completed')
+    expect(report.actualDeleteCount).toBe(2)
+    expect(report.oldestDeletedMtime).toBeDefined()
+    // Stored as ms epoch; allow loose comparison since utimes precision varies.
+    expect(report.oldestDeletedMtime!).toBeLessThanOrEqual(youngerMtime * 1000)
+  })
+
+  it('omits oldestDeletedMtime when no files are unlinked', async () => {
+    const report = await runStartupFileSweep({ fileEntryService })
+    expect(report.outcome).toBe('completed')
+    expect(report.actualDeleteCount).toBe(0)
+    expect(report.oldestDeletedMtime).toBeUndefined()
+  })
+
+  it('skips directories — only regular files are sweep candidates', async () => {
+    // Create a UUID-named subdirectory; if the predicate ever changed to
+    // unlink-anything, this would break boot for users with stray dirs.
+    const { mkdir } = await import('node:fs/promises')
+    const dirName = '019606a0-0000-7000-8000-00000000ee74'
+    const dirPath = path.join(filesDir, `${dirName}.txt`)
+    await mkdir(dirPath)
+    const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+    await utimes(dirPath, ancient, ancient)
+
+    const report = await runStartupFileSweep({ fileEntryService })
+    expect(report.outcome).toBe('completed')
+    expect(report.actualDeleteCount).toBe(0)
+    // Directory still there.
+    expect((await stat(dirPath)).isDirectory()).toBe(true)
+  })
+
+  it('returns completed with zero counts when files dir does not exist (ENOENT)', async () => {
+    // Override application.getPath to point at a non-existent path.
+    vi.mocked(application.getPath).mockImplementation((key: string) => {
+      if (key === 'feature.files.data') {
+        return '/nonexistent-dir-for-orphan-sweep-test'
+      }
+      return `/mock/${key}`
+    })
+    const report = await runStartupFileSweep({ fileEntryService })
+    expect(report.outcome).toBe('completed')
+    expect(report.filesOnDisk).toBe(0)
+    expect(report.direntsScanned).toBe(0)
+  })
+
+  it('returns failed outcome when feature.files.data points at a regular file (ENOTDIR)', async () => {
+    // Point getPath at a regular file, not a directory — readdir throws ENOTDIR
+    // which is non-ENOENT and must NOT be silently swallowed as "no files".
+    const filePath = path.join(filesDir, 'pretend-this-is-files-dir.bin')
+    await writeFile(filePath, 'x')
+    vi.mocked(application.getPath).mockImplementation((key: string) => {
+      if (key === 'feature.files.data') return filePath
+      return `/mock/${key}`
+    })
+    const report = await runStartupFileSweep({ fileEntryService })
+    expect(report.outcome).toBe('failed')
+    if (report.outcome === 'failed') {
+      expect(report.errorMessage).toMatch(/ENOTDIR|not a directory/i)
+    }
+  })
+
+  it('returns failed outcome when listAllIds throws (DB unavailable mid-startup)', async () => {
+    const failingEntryService = {
+      listAllIds: async () => {
+        throw new Error('db-down')
+      }
+    } as typeof fileEntryService
+    const report = await runStartupFileSweep({ fileEntryService: failingEntryService })
+    expect(report.outcome).toBe('failed')
+    if (report.outcome === 'failed') {
+      expect(report.errorMessage).toMatch(/db-down/)
+    }
   })
 
   it('proceeds normally for small residue (under the 20-file floor)', async () => {

@@ -151,7 +151,7 @@ import {
   trash as internalTrash
 } from './internal/entry/lifecycle'
 import { rename as internalRename } from './internal/entry/rename'
-import { type DbSweepReport, runDbSweep, runStartupFileSweep } from './internal/orphanSweep'
+import { type DbSweepReport, type OrphanReport, runDbSweep, runStartupFileSweep } from './internal/orphanSweep'
 import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { versionCache } from './versionCache'
@@ -477,11 +477,13 @@ export class FileManager extends BaseService {
   }
 
   /**
-   * Last DbSweepReport produced by the fire-and-forget runDbSweep at startup
-   * (or by an explicit runStartupSweeps call). Exposed via getOrphanReport
-   * for the cleanup UI surface; remains null until the first sweep completes.
+   * Most recent DbSweepReport produced by `runStartupSweeps`. Captured with
+   * its completion timestamp into `lastDbSweepRanAt` so `getOrphanReport()`
+   * can answer "when did the last scan run" — not "when did the renderer
+   * last poll".
    */
   private lastDbSweepReport: DbSweepReport | null = null
+  private lastDbSweepRanAt: number | null = null
 
   protected override async onInit(): Promise<void> {
     await this.deps.danglingCache.initFromDb()
@@ -493,10 +495,17 @@ export class FileManager extends BaseService {
   }
 
   /**
-   * Fire-and-forget startup data-consistency pass. Runs both the FS-level
-   * orphan sweep (architecture §10) and the DB-level orphan-ref/entry sweep
-   * (RFC §6.4). Failure of either is logged but never blocks ready.
-   * Synchronously waits in tests via `await fm.runStartupSweeps()`.
+   * Run both the FS-level orphan sweep (architecture §10) and the DB-level
+   * orphan-ref/entry sweep (RFC §6.4) concurrently, returning once both
+   * settle. The fire-and-forget call site in `onInit` (line above) is what
+   * keeps the ready signal unblocked — this method itself awaits both
+   * branches so tests and explicit callers can deterministically observe
+   * the side effects (e.g. `await fm.runStartupSweeps()`).
+   *
+   * Both branches absorb their own errors via inner try/catch (returning a
+   * `'failed'` report); the outer `.catch()` here is a belt-and-suspenders
+   * fallback for synchronous throws in dep wiring (e.g. registry property
+   * access racing with service shutdown).
    */
   async runStartupSweeps(): Promise<void> {
     await Promise.all([
@@ -510,6 +519,7 @@ export class FileManager extends BaseService {
       })
         .then((report) => {
           this.lastDbSweepReport = report
+          this.lastDbSweepRanAt = Date.now()
         })
         .catch((err) => {
           fileManagerLogger.error('DB orphan sweep failed', err)
@@ -518,18 +528,16 @@ export class FileManager extends BaseService {
   }
 
   /**
-   * The most recent DbSweepReport, or an empty default before the first
-   * sweep completes. The cleanup UI consumes this to surface orphan refs
-   * (already deleted by the sweep) and orphan entries (preserved per
-   * §7.1; user decides). `lastRunAt` is null until the first run.
+   * The most recent DbSweepReport projection, or an empty default before
+   * the first sweep completes. Cleanup UI consumes this to surface orphan
+   * refs (already deleted by the sweep) and orphan entries (preserved per
+   * architecture §7.1; user decides).
+   *
+   * `lastRunAt` is the **sweep completion** timestamp, not the call time —
+   * UI surfaces like "last scanned at HH:MM" can render this directly.
+   * Null until the first sweep settles.
    */
-  getOrphanReport(): {
-    orphanRefsByType: DbSweepReport['orphanRefsByType']
-    orphanRefsTotal: number
-    orphanEntriesByOrigin: DbSweepReport['orphanEntriesByOrigin']
-    orphanEntriesTotal: number
-    lastRunAt: number | null
-  } {
+  getOrphanReport(): OrphanReport {
     if (!this.lastDbSweepReport) {
       return {
         orphanRefsByType: {},
@@ -544,7 +552,7 @@ export class FileManager extends BaseService {
       orphanRefsTotal: this.lastDbSweepReport.orphanRefsTotal,
       orphanEntriesByOrigin: this.lastDbSweepReport.orphanEntriesByOrigin,
       orphanEntriesTotal: this.lastDbSweepReport.orphanEntriesTotal,
-      lastRunAt: Date.now()
+      lastRunAt: this.lastDbSweepRanAt
     }
   }
 
