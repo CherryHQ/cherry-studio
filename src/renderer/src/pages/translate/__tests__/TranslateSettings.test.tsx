@@ -1,16 +1,8 @@
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
+import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const preferenceMock = vi.hoisted(() => ({
-  persisted: '',
-  setPersisted: vi.fn()
-}))
-
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => [preferenceMock.persisted, preferenceMock.setPersisted]
-}))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -57,9 +49,18 @@ import { TranslateSettingsPanelContent } from '../TranslateSettings'
 const getPromptTextarea = () => screen.getAllByRole('textbox')[0]
 
 describe('TranslateSettingsPanelContent', () => {
+  const setPersisted = vi.fn().mockResolvedValue(undefined)
+
   beforeEach(() => {
-    preferenceMock.persisted = TRANSLATE_PROMPT
-    preferenceMock.setPersisted.mockReset()
+    MockUsePreferenceUtils.resetMocks()
+    setPersisted.mockReset()
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_prompt', TRANSLATE_PROMPT)
+    mockUsePreference.mockImplementation((key: string) => {
+      if (key === 'feature.translate.model_prompt') {
+        return [MockUsePreferenceUtils.getPreferenceValue('feature.translate.model_prompt'), setPersisted]
+      }
+      return [null, vi.fn().mockResolvedValue(undefined)]
+    })
   })
 
   afterEach(() => {
@@ -70,12 +71,12 @@ describe('TranslateSettingsPanelContent', () => {
   it('does not persist the default prompt when the saved prompt loads after mount', () => {
     const { rerender } = render(<TranslateSettingsPanelContent />)
 
-    preferenceMock.persisted = 'saved custom prompt'
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_prompt', 'saved custom prompt')
     rerender(<TranslateSettingsPanelContent />)
 
     expect(getPromptTextarea()).toHaveValue('saved custom prompt')
 
-    expect(preferenceMock.setPersisted).not.toHaveBeenCalled()
+    expect(setPersisted).not.toHaveBeenCalled()
   })
 
   it('debounces user prompt edits before persisting', async () => {
@@ -85,9 +86,9 @@ describe('TranslateSettingsPanelContent', () => {
     fireEvent.change(getPromptTextarea(), { target: { value: 'new custom prompt' } })
 
     await act(async () => vi.advanceTimersByTime(399))
-    expect(preferenceMock.setPersisted).not.toHaveBeenCalled()
+    expect(setPersisted).not.toHaveBeenCalled()
 
     await act(async () => vi.advanceTimersByTime(1))
-    expect(preferenceMock.setPersisted).toHaveBeenCalledWith('new custom prompt')
+    expect(setPersisted).toHaveBeenCalledWith('new custom prompt')
   })
 })

@@ -1,25 +1,8 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const cacheMock = vi.hoisted(() => {
-  const defaults = {
-    'translate.translating': { isTranslating: false, abortKey: null },
-    'translate.input': '',
-    'translate.output': '',
-    'translate.detecting': false
-  }
-  const store = new Map<string, unknown>()
-
-  return {
-    defaults,
-    store,
-    reset: () => {
-      store.clear()
-      Object.entries(defaults).forEach(([key, value]) => store.set(key, value))
-    }
-  }
-})
 
 const fileMock = vi.hoisted(() => ({
   onSelectFile: vi.fn(),
@@ -30,40 +13,6 @@ const fileMock = vi.hoisted(() => ({
 const dropMock = vi.hoisted(() => ({
   getFilesFromDropEvent: vi.fn(),
   getTextFromDropEvent: vi.fn()
-}))
-
-vi.mock('@data/hooks/useCache', async () => {
-  const React = await import('react')
-  return {
-    useCache: (key: keyof typeof cacheMock.defaults) => {
-      const [value, setValue] = React.useState<unknown>(() => cacheMock.store.get(key) ?? cacheMock.defaults[key])
-      const setter = (next: unknown) => {
-        if (typeof next === 'function') {
-          throw new Error('useCache mock only accepts direct values')
-        }
-        cacheMock.store.set(key, next)
-        setValue(next)
-      }
-      return [value, setter]
-    }
-  }
-})
-
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: (key: string) => {
-    const values: Record<string, unknown> = {
-      'feature.translate.model_id': null,
-      'feature.translate.page.source_language': 'auto',
-      'feature.translate.page.target_language': 'en',
-      'feature.translate.model_prompt': '',
-      'feature.translate.page.auto_copy': false,
-      'feature.translate.page.bidirectional_pair': ['en', 'zh'],
-      'feature.translate.page.scroll_sync': false,
-      'feature.translate.page.bidirectional_enabled': false,
-      'feature.translate.page.enable_markdown': false
-    }
-    return [values[key], vi.fn()]
-  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -236,7 +185,23 @@ import TranslatePage from '../TranslatePage'
 
 describe('TranslatePage', () => {
   beforeEach(() => {
-    cacheMock.reset()
+    MockUseCacheUtils.resetMocks()
+    MockUsePreferenceUtils.resetMocks()
+    MockUseCacheUtils.setCacheValue('translate.translating', { isTranslating: false, abortKey: null })
+    MockUseCacheUtils.setCacheValue('translate.input', '')
+    MockUseCacheUtils.setCacheValue('translate.output', '')
+    MockUseCacheUtils.setCacheValue('translate.detecting', false)
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': null,
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.target_language': 'en-us',
+      'feature.translate.model_prompt': '',
+      'feature.translate.page.auto_copy': false,
+      'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn'],
+      'feature.translate.page.scroll_sync': false,
+      'feature.translate.page.bidirectional_enabled': false,
+      'feature.translate.page.enable_markdown': false
+    })
     fileMock.onSelectFile.mockReset()
     fileMock.readText.mockReset()
     fileMock.isTextFile.mockResolvedValue(true)
@@ -274,7 +239,7 @@ describe('TranslatePage', () => {
       })
     )
 
-    render(<TranslatePage />)
+    const { rerender } = render(<TranslatePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'common.upload_files' }))
     await waitFor(() => expect(fileMock.readText).toHaveBeenCalledWith('/tmp/input.txt'))
@@ -282,14 +247,17 @@ describe('TranslatePage', () => {
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), {
       target: { value: 'typed while reading ' }
     })
+    rerender(<TranslatePage />)
 
     await act(async () => {
       resolveRead('file content')
     })
 
     await waitFor(() => {
-      expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('typed while reading file content')
+      expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('typed while reading file content')
     })
+    rerender(<TranslatePage />)
+    expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('typed while reading file content')
   })
 
   it('ignores empty text data when handling drops', async () => {

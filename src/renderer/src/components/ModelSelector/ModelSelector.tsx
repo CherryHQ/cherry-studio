@@ -637,9 +637,9 @@ export function ModelSelector(props: ModelSelectorProps) {
         side={side}
         align={align}
         sideOffset={sideOffset}
-        className={cn('max-h-140 w-90 overflow-hidden rounded-lg p-0 py-1', contentClassName)}
+        className={cn('max-h-140 w-90 overflow-hidden rounded-2xs p-0 py-1', contentClassName)}
         data-testid="model-selector-content">
-        <div className="flex items-center gap-2 border-border/60 border-b px-3 py-1.5">
+        <div className="flex items-center gap-2 border-border/60 border-b px-3 py-2.5">
           <Search className="pointer-events-none size-3.25 shrink-0 text-muted-foreground/50" />
           <Input
             ref={inputRef}
