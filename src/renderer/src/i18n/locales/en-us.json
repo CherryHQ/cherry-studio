@@ -3692,6 +3692,12 @@
       "model_task": "Model Task:",
       "success": "Download successful",
       "success_desc": "Model \"{{modelName}}\"-\"{{modelId}}\" downloaded successfully, please go to the OVMS management interface to add the model",
+      "task": {
+        "embeddings": "Embeddings",
+        "image_generation": "Image Generation",
+        "rerank": "Rerank",
+        "text_generation": "Text Generation"
+      },
       "tip": "The model is downloading, sometimes it takes hours. Please be patient...",
       "title": "Download Intel OpenVINO Model"
     },

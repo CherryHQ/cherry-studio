@@ -26,6 +26,7 @@ export function useProviderConnectionCheck(providerId: string) {
   const { inputApiKey } = useAuthenticationApiKey()
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
   const [apiKeyConnectivity, setApiKeyConnectivity] = useState<ApiKeyConnectivity>({
+    kind: 'idle',
     status: HealthStatus.NOT_CHECKED,
     checking: false
   })
@@ -35,7 +36,7 @@ export function useProviderConnectionCheck(providerId: string) {
   const checkableApiKeys = useMemo(() => splitApiKeyString(formatApiKeys(inputApiKey)).filter(Boolean), [inputApiKey])
 
   const resetApiKeyConnectivity = useCallback(() => {
-    setApiKeyConnectivity({ status: HealthStatus.NOT_CHECKED, checking: false })
+    setApiKeyConnectivity({ kind: 'idle', status: HealthStatus.NOT_CHECKED, checking: false })
   }, [])
 
   const closeConnectionCheck = useCallback(() => {
@@ -87,11 +88,7 @@ export function useProviderConnectionCheck(providerId: string) {
       }
 
       try {
-        setApiKeyConnectivity((previous) => ({
-          ...previous,
-          checking: true,
-          status: HealthStatus.NOT_CHECKED
-        }))
+        setApiKeyConnectivity({ kind: 'checking', checking: true, status: HealthStatus.NOT_CHECKED, model })
 
         const v1Provider = toV1ProviderShim(provider, {
           models,
@@ -106,11 +103,11 @@ export function useProviderConnectionCheck(providerId: string) {
           title: i18n.t('message.api.connection.success')
         })
 
-        setApiKeyConnectivity((previous) => ({ ...previous, status: HealthStatus.SUCCESS }))
+        setApiKeyConnectivity({ kind: 'ok', checking: false, status: HealthStatus.SUCCESS, model })
         setConnectionCheckOpen(false)
         setTimeoutTimer(
           'provider-setting-check-api',
-          () => setApiKeyConnectivity((previous) => ({ ...previous, status: HealthStatus.NOT_CHECKED })),
+          () => setApiKeyConnectivity({ kind: 'idle', status: HealthStatus.NOT_CHECKED, checking: false }),
           3000
         )
       } catch (error) {
@@ -119,14 +116,14 @@ export function useProviderConnectionCheck(providerId: string) {
           title: i18n.t('message.api.connection.failed')
         })
 
-        setApiKeyConnectivity((previous) => ({
-          ...previous,
+        setApiKeyConnectivity({
+          kind: 'failed',
+          checking: false,
           status: HealthStatus.FAILED,
+          model,
           error: serializeHealthCheckError(error)
-        }))
+        })
         setConnectionCheckOpen(false)
-      } finally {
-        setApiKeyConnectivity((previous) => ({ ...previous, checking: false }))
       }
     },
     [i18n, models, provider, resolveApiHostForModel, setTimeoutTimer]
@@ -160,7 +157,7 @@ export function useProviderConnectionCheck(providerId: string) {
   }, [apiKeyConnectivity.error])
 
   useEffect(() => {
-    setApiKeyConnectivity({ status: HealthStatus.NOT_CHECKED, checking: false })
+    setApiKeyConnectivity({ kind: 'idle', status: HealthStatus.NOT_CHECKED, checking: false })
     setConnectionCheckOpen(false)
   }, [anthropicApiHost, apiHost, inputApiKey, provider?.id])
 

@@ -316,10 +316,10 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent className={drawerClasses.selectContent}>
-              <SelectItem value="text_generation">Text Generation</SelectItem>
-              <SelectItem value="embeddings">Embeddings</SelectItem>
-              <SelectItem value="rerank">Rerank</SelectItem>
-              <SelectItem value="image_generation">Image Generation</SelectItem>
+              <SelectItem value="text_generation">{t('ovms.download.task.text_generation')}</SelectItem>
+              <SelectItem value="embeddings">{t('ovms.download.task.embeddings')}</SelectItem>
+              <SelectItem value="rerank">{t('ovms.download.task.rerank')}</SelectItem>
+              <SelectItem value="image_generation">{t('ovms.download.task.image_generation')}</SelectItem>
             </SelectContent>
           </Select>
         </div>

@@ -6,8 +6,15 @@ const {
   getByProviderIdMock,
   updateMock,
   deleteMock,
+  getRotatedApiKeyMock,
   getApiKeysMock,
+  addApiKeyMock,
   replaceApiKeysMock,
+  getAuthConfigMock,
+  updateApiKeyMock,
+  deleteApiKeyMock,
+  moveMock,
+  reorderMock,
   resolveModelsMock
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
@@ -15,8 +22,15 @@ const {
   getByProviderIdMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
+  getRotatedApiKeyMock: vi.fn(),
   getApiKeysMock: vi.fn(),
+  addApiKeyMock: vi.fn(),
   replaceApiKeysMock: vi.fn(),
+  getAuthConfigMock: vi.fn(),
+  updateApiKeyMock: vi.fn(),
+  deleteApiKeyMock: vi.fn(),
+  moveMock: vi.fn(),
+  reorderMock: vi.fn(),
   resolveModelsMock: vi.fn()
 }))
 
@@ -27,8 +41,15 @@ vi.mock('@data/services/ProviderService', () => ({
     getByProviderId: getByProviderIdMock,
     update: updateMock,
     delete: deleteMock,
+    getRotatedApiKey: getRotatedApiKeyMock,
     getApiKeys: getApiKeysMock,
-    replaceApiKeys: replaceApiKeysMock
+    addApiKey: addApiKeyMock,
+    replaceApiKeys: replaceApiKeysMock,
+    getAuthConfig: getAuthConfigMock,
+    updateApiKey: updateApiKeyMock,
+    deleteApiKey: deleteApiKeyMock,
+    move: moveMock,
+    reorder: reorderMock
   }
 }))
 
@@ -72,6 +93,70 @@ describe('providerHandlers', () => {
         name: 'CherryAI'
       })
     })
+
+    it('rejects unknown create fields before calling the service', async () => {
+      await expect(
+        providerHandlers['/providers'].POST({
+          body: {
+            providerId: 'custom-provider',
+            name: 'CherryAI',
+            createdAt: Date.now()
+          }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(createMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/providers/:providerId', () => {
+    it('delegates PATCH to providerService.update with parsed body', async () => {
+      const updated = { id: 'openai', isEnabled: false }
+      updateMock.mockResolvedValueOnce(updated)
+
+      const result = await providerHandlers['/providers/:providerId'].PATCH({
+        params: { providerId: 'openai' },
+        body: { isEnabled: false }
+      } as never)
+
+      expect(updateMock).toHaveBeenCalledWith('openai', { isEnabled: false })
+      expect(result).toBe(updated)
+    })
+
+    it('rejects DB-managed update fields before calling the service', async () => {
+      await expect(
+        providerHandlers['/providers/:providerId'].PATCH({
+          params: { providerId: 'openai' },
+          body: { updatedAt: Date.now() }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
+    it('delegates DELETE to providerService.delete', async () => {
+      deleteMock.mockResolvedValueOnce(undefined)
+
+      const result = await providerHandlers['/providers/:providerId'].DELETE({
+        params: { providerId: 'openai' }
+      } as never)
+
+      expect(deleteMock).toHaveBeenCalledWith('openai')
+      expect(result).toBeUndefined()
+    })
+  })
+
+  describe('/providers/:providerId/rotated-key', () => {
+    it('returns the rotated API key from the service', async () => {
+      getRotatedApiKeyMock.mockResolvedValueOnce('sk-live')
+
+      const result = await providerHandlers['/providers/:providerId/rotated-key'].GET({
+        params: { providerId: 'openai' }
+      } as never)
+
+      expect(getRotatedApiKeyMock).toHaveBeenCalledWith('openai')
+      expect(result).toEqual({ apiKey: 'sk-live' })
+    })
   })
 
   describe('/providers/:providerId/api-keys', () => {
@@ -114,6 +199,41 @@ describe('providerHandlers', () => {
 
       expect(replaceApiKeysMock).toHaveBeenCalledWith('openai', keys)
     })
+
+    it('adds one API key with an optional label', async () => {
+      const updated = { id: 'openai', apiKeys: [{ id: 'key-a', key: 'sk-a', label: 'Primary', isEnabled: true }] }
+      addApiKeyMock.mockResolvedValueOnce(updated)
+
+      const result = await providerHandlers['/providers/:providerId/api-keys'].POST({
+        params: { providerId: 'openai' },
+        body: { key: 'sk-a', label: 'Primary' }
+      } as never)
+
+      expect(addApiKeyMock).toHaveBeenCalledWith('openai', 'sk-a', 'Primary')
+      expect(result).toBe(updated)
+    })
+
+    it('rejects empty POST API keys before calling the service', async () => {
+      await expect(
+        providerHandlers['/providers/:providerId/api-keys'].POST({
+          params: { providerId: 'openai' },
+          body: { key: '' }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(addApiKeyMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects malformed replacement key entries before calling the service', async () => {
+      await expect(
+        providerHandlers['/providers/:providerId/api-keys'].PUT({
+          params: { providerId: 'openai' },
+          body: { keys: [{ id: 'key-a', key: 'sk-a' }] }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(replaceApiKeysMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('/providers/:providerId/models:resolve', () => {
@@ -138,6 +258,124 @@ describe('providerHandlers', () => {
       } as never)
 
       expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o', 'o3'])
+    })
+
+    it('rejects missing ids before calling the registry service', async () => {
+      await expect(
+        providerHandlers['/providers/:providerId/models:resolve'].GET({
+          params: { providerId: 'openai' },
+          query: {}
+        } as never)
+      ).rejects.toThrow()
+
+      expect(resolveModelsMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects empty ids arrays before calling the registry service', async () => {
+      await expect(
+        providerHandlers['/providers/:providerId/models:resolve'].GET({
+          params: { providerId: 'openai' },
+          query: { ids: [] }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(resolveModelsMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/providers/:providerId/auth-config', () => {
+    it('delegates GET to providerService.getAuthConfig', async () => {
+      const authConfig = { type: 'bearer', token: 'token' }
+      getAuthConfigMock.mockResolvedValueOnce(authConfig)
+
+      const result = await providerHandlers['/providers/:providerId/auth-config'].GET({
+        params: { providerId: 'vertexai' }
+      } as never)
+
+      expect(getAuthConfigMock).toHaveBeenCalledWith('vertexai')
+      expect(result).toBe(authConfig)
+    })
+  })
+
+  describe('/providers/:providerId/api-keys/:keyId', () => {
+    it('updates one API key by ID', async () => {
+      const updated = { id: 'openai', apiKeys: [{ id: 'key-a', key: 'sk-new', isEnabled: false }] }
+      updateApiKeyMock.mockResolvedValueOnce(updated)
+
+      const result = await providerHandlers['/providers/:providerId/api-keys/:keyId'].PATCH({
+        params: { providerId: 'openai', keyId: 'key-a' },
+        body: { key: 'sk-new', isEnabled: false }
+      } as never)
+
+      expect(updateApiKeyMock).toHaveBeenCalledWith('openai', 'key-a', { key: 'sk-new', isEnabled: false })
+      expect(result).toBe(updated)
+    })
+
+    it('rejects invalid API key updates before calling the service', async () => {
+      await expect(
+        providerHandlers['/providers/:providerId/api-keys/:keyId'].PATCH({
+          params: { providerId: 'openai', keyId: 'key-a' },
+          body: { key: '' }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(updateApiKeyMock).not.toHaveBeenCalled()
+    })
+
+    it('deletes one API key by ID', async () => {
+      const updated = { id: 'openai', apiKeys: [] }
+      deleteApiKeyMock.mockResolvedValueOnce(updated)
+
+      const result = await providerHandlers['/providers/:providerId/api-keys/:keyId'].DELETE({
+        params: { providerId: 'openai', keyId: 'key-a' }
+      } as never)
+
+      expect(deleteApiKeyMock).toHaveBeenCalledWith('openai', 'key-a')
+      expect(result).toBe(updated)
+    })
+  })
+
+  describe('/providers/:id/order', () => {
+    it('delegates provider moves to providerService.move', async () => {
+      await providerHandlers['/providers/:id/order'].PATCH({
+        params: { id: 'openai' },
+        body: { before: 'anthropic' }
+      } as never)
+
+      expect(moveMock).toHaveBeenCalledWith('openai', { before: 'anthropic' })
+    })
+
+    it('rejects invalid move anchors before calling the service', async () => {
+      await expect(
+        providerHandlers['/providers/:id/order'].PATCH({
+          params: { id: 'openai' },
+          body: { before: '' }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(moveMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/providers/order:batch', () => {
+    it('delegates provider reorder batches to providerService.reorder', async () => {
+      const moves = [{ id: 'openai', anchor: { position: 'first' as const } }]
+
+      await providerHandlers['/providers/order:batch'].PATCH({
+        body: { moves }
+      } as never)
+
+      expect(reorderMock).toHaveBeenCalledWith(moves)
+    })
+
+    it('rejects empty reorder batches before calling the service', async () => {
+      await expect(
+        providerHandlers['/providers/order:batch'].PATCH({
+          body: { moves: [] }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(reorderMock).not.toHaveBeenCalled()
     })
   })
 })

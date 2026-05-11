@@ -1,3 +1,4 @@
+import { DataApiErrorFactory } from '@shared/data/api'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -226,5 +227,33 @@ describe('useProviderEndpointActions', () => {
       }
     })
     expect(setAnthropicApiHostMock).not.toHaveBeenCalled()
+  })
+
+  it('shows specific Data API error messages instead of the generic save failure toast', async () => {
+    patchProviderMock.mockRejectedValueOnce(
+      DataApiErrorFactory.validation({ apiVersion: ['Unsupported version'] }, 'Unsupported API version')
+    )
+
+    const { result } = renderHook(() =>
+      useProviderEndpointActions({
+        provider,
+        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiHost: 'https://api.openai.com',
+        setApiHost: setApiHostMock,
+        providerApiHost: 'https://api.openai.com',
+        anthropicApiHost: '',
+        setAnthropicApiHost: setAnthropicApiHostMock,
+        apiVersion: 'bad-version',
+        patchProvider: patchProviderMock,
+        syncProviderModels: syncProviderModelsMock
+      })
+    )
+
+    await act(async () => {
+      await result.current.commitApiVersion()
+      await flushEndpointAction()
+    })
+
+    expect(window.toast.error).toHaveBeenCalledWith('Unsupported API version')
   })
 })

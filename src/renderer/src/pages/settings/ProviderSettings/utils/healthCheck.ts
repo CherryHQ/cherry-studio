@@ -1,9 +1,10 @@
 import i18n from '@renderer/i18n'
+import type { SerializedError } from '@renderer/types/error'
 
 import type { ApiKeyWithStatus, ModelWithStatus } from '../types/healthCheck'
 import { HealthStatus } from '../types/healthCheck'
 
-export function healthCheckErrorToDisplayString(error: ApiKeyWithStatus['error'] | string | undefined | null): string {
+export function healthCheckErrorToDisplayString(error: SerializedError | string | undefined | null): string {
   if (error == null) {
     return ''
   }
@@ -23,7 +24,7 @@ export function healthCheckErrorToDisplayString(error: ApiKeyWithStatus['error']
 
 export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]): {
   status: HealthStatus
-  error?: string
+  error?: SerializedError
   latency?: number
 } {
   const successResults = keyResults.filter((result) => result.status === HealthStatus.SUCCESS)
@@ -37,7 +38,7 @@ export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]): {
 
     return {
       status: HealthStatus.FAILED,
-      error: errors || undefined,
+      error: errors ? { name: 'HealthCheckError', message: errors, stack: null } : undefined,
       latency: successResults.length > 0 ? Math.min(...successResults.map((result) => result.latency!)) : undefined
     }
   }

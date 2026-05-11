@@ -139,6 +139,11 @@ export function useProviderAutoModelSync(providerId: string) {
     }
 
     initialModelSyncSignatureRef.current = initialModelSyncSignature
-    void syncProviderModels(provider)
+    void syncProviderModels(provider).catch((error) => {
+      logger.error('Provider auto model sync failed', { providerId, error })
+      if (initialModelSyncSignatureRef.current === initialModelSyncSignature) {
+        initialModelSyncSignatureRef.current = null
+      }
+    })
   }, [autoSyncDecision, initialModelSyncSignature, provider, providerId, syncProviderModels])
 }

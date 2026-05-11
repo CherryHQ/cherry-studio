@@ -5,26 +5,81 @@ import type { Provider } from '@shared/data/types/provider'
 
 export { HealthStatus }
 
-export interface ApiKeyConnectivity {
-  status: HealthStatus
-  checking?: boolean
-  error?: SerializedError
-  model?: Model
-  latency?: number
-}
+export type ApiKeyConnectivity =
+  | {
+      kind: 'idle'
+      status: HealthStatus.NOT_CHECKED
+      checking: false
+      error?: never
+      model?: Model
+      latency?: never
+    }
+  | {
+      kind: 'checking'
+      status: HealthStatus.NOT_CHECKED
+      checking: true
+      error?: never
+      model?: Model
+      latency?: never
+    }
+  | {
+      kind: 'failed'
+      status: HealthStatus.FAILED
+      checking: false
+      error: SerializedError
+      model?: Model
+      latency?: never
+    }
+  | {
+      kind: 'ok'
+      status: HealthStatus.SUCCESS
+      checking: false
+      error?: never
+      model?: Model
+      latency?: number
+    }
 
-export interface ApiKeyWithStatus extends ApiKeyConnectivity {
+export type ApiKeyWithStatus = ApiKeyConnectivity & {
   key: string
 }
 
-export interface ModelWithStatus {
-  model: Model
-  status: HealthStatus
-  keyResults: ApiKeyWithStatus[]
-  checking?: boolean
-  latency?: number
-  error?: string
-}
+export type ModelWithStatus =
+  | {
+      kind: 'checking'
+      model: Model
+      status: HealthStatus.NOT_CHECKED
+      keyResults: []
+      checking: true
+      latency?: never
+      error?: never
+    }
+  | {
+      kind: 'idle'
+      model: Model
+      status: HealthStatus.NOT_CHECKED
+      keyResults: []
+      checking: false
+      latency?: never
+      error?: never
+    }
+  | {
+      kind: 'ok'
+      model: Model
+      status: HealthStatus.SUCCESS
+      keyResults: ApiKeyWithStatus[]
+      checking: false
+      latency?: number
+      error?: never
+    }
+  | {
+      kind: 'failed'
+      model: Model
+      status: HealthStatus.FAILED
+      keyResults: ApiKeyWithStatus[]
+      checking: false
+      latency?: number
+      error?: SerializedError
+    }
 
 export interface ModelCheckOptions {
   provider: Provider

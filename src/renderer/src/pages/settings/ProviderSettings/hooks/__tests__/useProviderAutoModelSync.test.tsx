@@ -5,6 +5,7 @@ import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../providerSetting/constant
 import { useProviderAutoModelSync } from '../providerSetting/useProviderAutoModelSync'
 
 const loggerInfoMock = vi.fn()
+const loggerErrorMock = vi.fn()
 const useProviderMock = vi.fn()
 const useProviderApiKeysMock = vi.fn()
 const useModelsMock = vi.fn()
@@ -14,7 +15,8 @@ const syncProviderModelsMock = vi.fn()
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      info: (...args: any[]) => loggerInfoMock(...args)
+      info: (...args: any[]) => loggerInfoMock(...args),
+      error: (...args: any[]) => loggerErrorMock(...args)
     })
   }
 }))
@@ -110,5 +112,23 @@ describe('useProviderAutoModelSync', () => {
       })
     )
     expect(syncProviderModelsMock).not.toHaveBeenCalled()
+  })
+
+  it('logs auto sync failures and allows retrying the same signature', async () => {
+    const syncError = new Error('sync down')
+    syncProviderModelsMock.mockRejectedValueOnce(syncError).mockResolvedValueOnce([])
+
+    const { rerender } = renderHook(() => useProviderAutoModelSync('openai'))
+
+    await waitFor(() =>
+      expect(loggerErrorMock).toHaveBeenCalledWith('Provider auto model sync failed', {
+        providerId: 'openai',
+        error: syncError
+      })
+    )
+
+    rerender()
+
+    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(2))
   })
 })

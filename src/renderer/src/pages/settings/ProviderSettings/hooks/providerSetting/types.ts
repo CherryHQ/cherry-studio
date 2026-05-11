@@ -1,9 +1,9 @@
 import type { UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 
 export interface ApiKeysData {
-  keys: Array<{ id: string; key: string; isEnabled: boolean }>
+  keys: ApiKeyEntry[]
 }
 
 export type PatchProvider = (updates: UpdateProviderDto) => Promise<unknown>

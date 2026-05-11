@@ -89,6 +89,7 @@ export const useHealthCheck = (providerId: string) => {
       runIdRef.current = runId
 
       const initialStatuses: ModelWithStatus[] = modelsToCheck.map((model) => ({
+        kind: 'checking',
         model,
         checking: true,
         status: HealthStatus.NOT_CHECKED,
@@ -114,11 +115,7 @@ export const useHealthCheck = (providerId: string) => {
             setModelStatuses((current) => {
               const updated = [...current]
               if (updated[index]) {
-                updated[index] = {
-                  ...updated[index],
-                  ...checkResult,
-                  checking: false
-                }
+                updated[index] = checkResult
               }
               return updated
             })

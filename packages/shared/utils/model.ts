@@ -33,7 +33,8 @@ export const isAudioModel = (model: Model): boolean =>
 export const isEmbeddingModel = (model: Model): boolean => model.capabilities.includes(MODEL_CAPABILITY.EMBEDDING)
 
 /** Check if model is a reranking model */
-export const isRerankModel = (model: Model): boolean => model.capabilities.includes(MODEL_CAPABILITY.RERANK)
+export const isRerankModel = (model: { capabilities?: readonly unknown[] | null }): boolean =>
+  model.capabilities?.includes(MODEL_CAPABILITY.RERANK) ?? false
 
 /** Check if model supports function calling / tool use */
 export const isFunctionCallingModel = (model: Model): boolean =>

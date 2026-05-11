@@ -30,10 +30,12 @@ export async function checkModelWithMultipleKeys(
     const latency = Date.now() - startTime
 
     return {
+      kind: 'ok',
       key,
       status: HealthStatus.SUCCESS,
+      checking: false,
       latency
-    }
+    } satisfies ApiKeyWithStatus
   })
 
   const results = await Promise.allSettled(checkPromises)
@@ -44,10 +46,12 @@ export async function checkModelWithMultipleKeys(
     }
 
     return {
+      kind: 'failed',
       key: apiKeys[index],
       status: HealthStatus.FAILED,
+      checking: false,
       error: serializeHealthCheckError(result.reason)
-    }
+    } satisfies ApiKeyWithStatus
   })
 }
 
@@ -65,13 +69,25 @@ export async function checkModelsHealth(
       signal?.throwIfAborted()
       const analysis = aggregateApiKeyResults(keyResults)
 
-      const result: ModelWithStatus = {
-        model,
-        keyResults,
-        status: analysis.status,
-        error: analysis.error,
-        latency: analysis.latency
-      }
+      const result: ModelWithStatus =
+        analysis.status === HealthStatus.SUCCESS
+          ? {
+              kind: 'ok',
+              model,
+              keyResults,
+              status: HealthStatus.SUCCESS,
+              checking: false,
+              latency: analysis.latency
+            }
+          : {
+              kind: 'failed',
+              model,
+              keyResults,
+              status: HealthStatus.FAILED,
+              checking: false,
+              error: analysis.error,
+              latency: analysis.latency
+            }
 
       if (isConcurrent) {
         results[index] = result

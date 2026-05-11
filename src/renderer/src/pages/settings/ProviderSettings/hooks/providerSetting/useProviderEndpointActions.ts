@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { isVertexProvider } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { validateApiHost } from '@renderer/utils'
+import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { debounce, trim } from 'lodash'
@@ -11,6 +12,30 @@ import { useTranslation } from 'react-i18next'
 import type { PatchProvider, SyncProviderModels } from './types'
 
 const logger = loggerService.withContext('ProviderSettings:EndpointActions')
+
+function getEndpointActionErrorMessage(error: unknown, fallback: string): string {
+  if (isDataApiError(error) || isSerializedDataApiError(error)) {
+    const dataError = toDataApiError(error)
+    switch (dataError.code) {
+      case ErrorCode.VALIDATION_ERROR:
+      case ErrorCode.UNAUTHORIZED:
+      case ErrorCode.PERMISSION_DENIED:
+      case ErrorCode.NOT_FOUND:
+      case ErrorCode.CONFLICT:
+      case ErrorCode.SERVICE_UNAVAILABLE:
+      case ErrorCode.TIMEOUT:
+        return dataError.message
+      default:
+        return fallback
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return `${fallback}: ${error.message}`
+  }
+
+  return fallback
+}
 
 interface UseProviderEndpointActionsParams {
   provider: Provider | undefined
@@ -160,7 +185,7 @@ export function useProviderEndpointActions({
         return true
       } catch (error) {
         logger.error('Failed to commit provider API host', { providerId: provider?.id, error })
-        window.toast.error(t('blocks.edit.save.failed.label'))
+        window.toast.error(getEndpointActionErrorMessage(error, t('blocks.edit.save.failed.label')))
         return false
       }
     },
@@ -208,7 +233,7 @@ export function useProviderEndpointActions({
         return true
       } catch (error) {
         logger.error('Failed to commit Anthropic API host', { providerId: provider?.id, error })
-        window.toast.error(t('blocks.edit.save.failed.label'))
+        window.toast.error(getEndpointActionErrorMessage(error, t('blocks.edit.save.failed.label')))
         return false
       }
     },
@@ -230,7 +255,7 @@ export function useProviderEndpointActions({
       return true
     } catch (error) {
       logger.error('Failed to commit API version', { providerId: provider.id, error })
-      window.toast.error(t('blocks.edit.save.failed.label'))
+      window.toast.error(getEndpointActionErrorMessage(error, t('blocks.edit.save.failed.label')))
       return false
     }
   }, [apiVersion, patchProvider, provider, t])
@@ -256,7 +281,7 @@ export function useProviderEndpointActions({
       return true
     } catch (error) {
       logger.error('Failed to reset provider API host', { providerId: provider.id, error })
-      window.toast.error(t('blocks.edit.save.failed.label'))
+      window.toast.error(getEndpointActionErrorMessage(error, t('blocks.edit.save.failed.label')))
       return false
     }
   }, [patchProvider, primaryEndpoint, provider, providerConfig?.api?.url, setApiHost, syncProviderModels, t])

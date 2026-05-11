@@ -74,7 +74,12 @@ export const CreateProviderSchema = z.strictObject({
 })
 export type CreateProviderDto = z.infer<typeof CreateProviderSchema>
 
-/** DTO for updating an existing provider — all mutable fields optional, plus status fields */
+/**
+ * DTO for updating an existing provider.
+ *
+ * Keep this pick-list default-free: PATCH schemas must not inherit create-time
+ * defaults. If CreateProviderSchema adds defaults, move this to ProviderSchema.pick(...).
+ */
 const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
   name: true,
   endpointConfigs: true,

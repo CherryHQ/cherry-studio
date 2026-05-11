@@ -3692,6 +3692,12 @@
       "model_task": "模型任務：",
       "success": "下載成功",
       "success_desc": "模型\"{{modelName}}\"-\"{{modelId}}\"下載成功，請前往 OVMS 管理介面新增模型",
+      "task": {
+        "embeddings": "嵌入",
+        "image_generation": "圖片生成",
+        "rerank": "重排",
+        "text_generation": "文字生成"
+      },
       "tip": "模型正在下載，有時需要幾個小時。請耐心等候...",
       "title": "下載 Intel OpenVINO 模型"
     },

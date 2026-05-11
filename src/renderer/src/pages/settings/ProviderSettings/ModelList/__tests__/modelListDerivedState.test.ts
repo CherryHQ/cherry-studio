@@ -81,9 +81,11 @@ describe('modelListDerivedState', () => {
   it('derives counts, booleans, and status map', () => {
     const modelStatuses: ModelWithStatus[] = [
       {
+        kind: 'ok',
         model: models[0],
         status: HealthStatus.SUCCESS,
         keyResults: [],
+        checking: false,
         latency: 120
       }
     ]

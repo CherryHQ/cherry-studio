@@ -163,7 +163,7 @@ describe('ProviderModelMappings', () => {
           id: 'aws-bedrock',
           name: 'AWS Bedrock',
           type: 'aws-bedrock',
-          apiKey: '',
+          apiKey: 'legacy-bedrock-key',
           apiHost: '',
           models: [],
           enabled: true,
@@ -187,6 +187,25 @@ describe('ProviderModelMappings', () => {
         key: 'bedrock-api-key',
         isEnabled: true
       })
+    })
+
+    it('splits comma-separated API keys and drops empty entries', () => {
+      const result = transformProvider(
+        {
+          id: 'openai',
+          name: 'OpenAI',
+          type: 'openai',
+          apiKey: 'sk-a, sk-b ,, sk-c',
+          apiHost: 'https://api.openai.com',
+          models: [],
+          enabled: true,
+          isSystem: true
+        } as never,
+        {}
+      )
+
+      expect(result.apiKeys?.map((key) => key.key)).toEqual(['sk-a', 'sk-b', 'sk-c'])
+      expect(result.apiKeys?.every((key) => key.isEnabled)).toBe(true)
     })
   })
 })
