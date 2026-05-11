@@ -3340,6 +3340,7 @@
       "custom": "自訂",
       "custom_currency": "自訂幣種",
       "custom_currency_placeholder": "請輸入自訂幣種",
+      "custom_currency_supported": "支援的符號：{{symbols}}",
       "input": "輸入價格",
       "million_tokens": "M Tokens",
       "output": "輸出價格",
@@ -6380,7 +6381,7 @@
         "header_name_placeholder": "標頭名稱",
         "header_value_placeholder": "標頭值",
         "headers_description": "自訂請求標頭（JSON 格式）",
-        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
+        "headers_json_placeholder": "{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSON 格式錯誤",
         "login": "登入 GitHub",
         "logout": "登出 GitHub",
@@ -6402,8 +6403,8 @@
         "step_copy_code_detail": "授權碼已自動複製，您也可以手動複製",
         "step_get_code": "取得授權碼",
         "step_get_code_desc": "產生裝置授權碼",
-        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
-        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
+        "toggle_headers_editor_json": "切換到 JSON 編輯器",
+        "toggle_headers_editor_list": "切換到標頭清單"
       },
       "delete": {
         "content": "確定要刪除此提供者嗎？",

@@ -1,8 +1,9 @@
 import { Input, RowFlex, Textarea } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig, useProviderMutations } from '@renderer/hooks/useProviders'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -11,6 +12,8 @@ import {
   ProviderHelpTextRow,
   ProviderSettingsSubtitle
 } from '../primitives/ProviderSettingsPrimitives'
+
+const logger = loggerService.withContext('VertexAISettings')
 
 interface Props {
   providerId: string
@@ -29,29 +32,45 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
   const [localLocation, setLocalLocation] = useState(gcpConfig?.location ?? '')
   const [localPrivateKey, setLocalPrivateKey] = useState(credentials?.privateKey ?? '')
   const [localClientEmail, setLocalClientEmail] = useState(credentials?.clientEmail ?? '')
+  const isDraftDirtyRef = useRef(false)
+
+  const resetLocalAuthConfig = useCallback(() => {
+    setLocalProjectId(gcpConfig?.project ?? '')
+    setLocalLocation(gcpConfig?.location ?? '')
+    setLocalPrivateKey(credentials?.privateKey ?? '')
+    setLocalClientEmail(credentials?.clientEmail ?? '')
+  }, [credentials?.clientEmail, credentials?.privateKey, gcpConfig?.location, gcpConfig?.project])
 
   useEffect(() => {
-    const config = authConfig?.type === 'iam-gcp' ? authConfig : null
-    if (config) {
-      setLocalProjectId(config.project ?? '')
-      setLocalLocation(config.location ?? '')
-      setLocalPrivateKey((config.credentials as Record<string, string> | undefined)?.privateKey ?? '')
-      setLocalClientEmail((config.credentials as Record<string, string> | undefined)?.clientEmail ?? '')
+    if (!isDraftDirtyRef.current) {
+      resetLocalAuthConfig()
     }
-  }, [authConfig])
+  }, [resetLocalAuthConfig])
+
+  const markDraftDirty = () => {
+    isDraftDirtyRef.current = true
+  }
 
   const apiKeyWebsite = provider?.websites?.apiKey
 
   const saveAuthConfig = async () => {
-    await saveAuthConfigToServer({
-      type: 'iam-gcp' as const,
-      project: localProjectId,
-      location: localLocation,
-      credentials: {
-        privateKey: localPrivateKey,
-        clientEmail: localClientEmail
-      }
-    })
+    try {
+      await saveAuthConfigToServer({
+        type: 'iam-gcp' as const,
+        project: localProjectId,
+        location: localLocation,
+        credentials: {
+          privateKey: localPrivateKey,
+          clientEmail: localClientEmail
+        }
+      })
+      isDraftDirtyRef.current = false
+    } catch (error) {
+      logger.error('Failed to save Vertex AI auth config', { providerId, error })
+      window.toast.error(t('settings.provider.save_failed'))
+      isDraftDirtyRef.current = false
+      resetLocalAuthConfig()
+    }
   }
 
   return (
@@ -74,7 +93,10 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
         type="password"
         value={localClientEmail}
         placeholder={t('settings.provider.vertex_ai.service_account.client_email_placeholder')}
-        onChange={(e) => setLocalClientEmail(e.target.value)}
+        onChange={(e) => {
+          markDraftDirty()
+          setLocalClientEmail(e.target.value)
+        }}
         onBlur={saveAuthConfig}
       />
       <ProviderHelpTextRow>
@@ -88,7 +110,10 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
         className="mt-1.5 min-h-24 w-full"
         value={localPrivateKey}
         placeholder={t('settings.provider.vertex_ai.service_account.private_key_placeholder')}
-        onChange={(e) => setLocalPrivateKey(e.target.value)}
+        onChange={(e) => {
+          markDraftDirty()
+          setLocalPrivateKey(e.target.value)
+        }}
         onBlur={saveAuthConfig}
         spellCheck={false}
         rows={4}
@@ -112,7 +137,10 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
           type="password"
           value={localProjectId}
           placeholder={t('settings.provider.vertex_ai.project_id_placeholder')}
-          onChange={(e) => setLocalProjectId(e.target.value)}
+          onChange={(e) => {
+            markDraftDirty()
+            setLocalProjectId(e.target.value)
+          }}
           onBlur={saveAuthConfig}
         />
         <ProviderHelpTextRow>
@@ -126,7 +154,10 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
           className="mt-1.5 w-full"
           value={localLocation}
           placeholder="us-central1"
-          onChange={(e) => setLocalLocation(e.target.value)}
+          onChange={(e) => {
+            markDraftDirty()
+            setLocalLocation(e.target.value)
+          }}
           onBlur={saveAuthConfig}
         />
         <ProviderHelpTextRow>

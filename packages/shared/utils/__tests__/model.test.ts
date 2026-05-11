@@ -1,5 +1,8 @@
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
+  inferFunctionCallingFromModelId,
+  inferImageGenerationFromModelId,
+  inferVisionFromModelId,
   isEmbeddingModel,
   isFunctionCallingModel,
   isGenerateImageModel,
@@ -54,5 +57,17 @@ describe('shared model capability helpers', () => {
     expect(isEmbeddingModel(createModel([MODEL_CAPABILITY.EMBEDDING]))).toBe(true)
     expect(isRerankModel(createModel([MODEL_CAPABILITY.RERANK]))).toBe(true)
     expect(isGenerateImageModel(createModel([MODEL_CAPABILITY.IMAGE_GENERATION]))).toBe(true)
+  })
+
+  it('covers known capability inference regression ids', () => {
+    expect(inferFunctionCallingFromModelId('gpt-oss')).toBe(true)
+    expect(inferFunctionCallingFromModelId('gpt-oss-120b')).toBe(true)
+
+    expect(inferVisionFromModelId('kimi-k2.6')).toBe(true)
+    expect(inferVisionFromModelId('kimi-k2.6-preview')).toBe(true)
+    expect(inferVisionFromModelId('kimi-k2X5')).toBe(false)
+
+    expect(inferVisionFromModelId('gemini-3-flash-image')).toBe(true)
+    expect(inferImageGenerationFromModelId('gemini-3-flash-image')).toBe(true)
   })
 })

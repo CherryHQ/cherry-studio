@@ -15,16 +15,18 @@ export async function checkModelWithMultipleKeys(
   model: ModelCheckOptions['models'][number],
   apiKeys: string[],
   modelsForShim: ModelCheckOptions['models'],
-  timeout?: number
+  timeout?: number,
+  signal?: AbortSignal
 ): Promise<ApiKeyWithStatus[]> {
   const checkPromises = apiKeys.map(async (key) => {
+    signal?.throwIfAborted()
     const startTime = Date.now()
     const v1Provider: V1Provider = toV1ProviderShim(provider, {
       apiKey: key,
       models: modelsForShim
     })
     const v1Model: V1Model = toV1ModelForCheckApi(model)
-    await checkModel(v1Provider, v1Model, timeout)
+    await checkModel(v1Provider, v1Model, timeout, signal)
     const latency = Date.now() - startTime
 
     return {
@@ -53,12 +55,14 @@ export async function checkModelsHealth(
   options: ModelCheckOptions,
   onModelChecked?: (result: ModelWithStatus, index: number) => void
 ): Promise<ModelWithStatus[]> {
-  const { provider, models, apiKeys, isConcurrent, timeout } = options
+  const { provider, models, apiKeys, isConcurrent, timeout, signal } = options
   const results: ModelWithStatus[] = []
 
   try {
     const runModelCheck = async (model: ModelCheckOptions['models'][number], index: number) => {
-      const keyResults = await checkModelWithMultipleKeys(provider, model, apiKeys, models, timeout)
+      signal?.throwIfAborted()
+      const keyResults = await checkModelWithMultipleKeys(provider, model, apiKeys, models, timeout, signal)
+      signal?.throwIfAborted()
       const analysis = aggregateApiKeyResults(keyResults)
 
       const result: ModelWithStatus = {
@@ -85,6 +89,7 @@ export async function checkModelsHealth(
       for (let index = 0; index < models.length; index++) {
         const model = models[index]
         if (!model) continue
+        signal?.throwIfAborted()
         await runModelCheck(model, index)
       }
     }

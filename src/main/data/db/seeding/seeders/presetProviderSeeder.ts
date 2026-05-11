@@ -2,8 +2,7 @@ import { application } from '@application'
 import type { ProtoProviderConfig } from '@cherrystudio/provider-registry'
 import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
-import { userProviderTable } from '@data/db/schemas/userProvider'
-import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
+import { providerService } from '@data/services/ProviderService'
 import type { AuthConfig } from '@shared/data/types/provider'
 
 import type { DbType, ISeeder } from '../../types'
@@ -107,34 +106,21 @@ export class PresetProviderSeeder implements ISeeder {
 
     if (rawProviders.length === 0) return
 
-    await db.transaction(async (tx) => {
-      const existing = await tx.select({ providerId: userProviderTable.providerId }).from(userProviderTable)
-      const existingIds = new Set(existing.map((r) => r.providerId))
-
-      const newRows = rawProviders.filter((p) => !existingIds.has(p.id)).map(toDbRow)
-
-      // Always seed cherryai if not present
-      if (!existingIds.has('cherryai')) {
-        newRows.push({
-          providerId: 'cherryai',
-          presetProviderId: 'cherryai',
-          name: 'CherryAI',
-          endpointConfigs: {
-            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-              baseUrl: 'https://api.cherry-ai.com'
-            }
-          },
-          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-          authConfig: null,
-          apiFeatures: null
-        })
-      }
-
-      if (newRows.length > 0) {
-        await insertManyWithOrderKey(tx, userProviderTable, newRows, {
-          pkColumn: userProviderTable.providerId
-        })
-      }
+    const rows = rawProviders.map(toDbRow)
+    rows.push({
+      providerId: 'cherryai',
+      presetProviderId: 'cherryai',
+      name: 'CherryAI',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.cherry-ai.com'
+        }
+      },
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      authConfig: null,
+      apiFeatures: null
     })
+
+    await db.transaction((tx) => providerService.batchUpsertTx(tx, rows))
   }
 }

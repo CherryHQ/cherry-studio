@@ -1,8 +1,9 @@
 import { Input, Label, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProviders'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticationApiKey'
@@ -12,6 +13,8 @@ import {
   ProviderHelpTextRow,
   ProviderSettingsSubtitle
 } from '../primitives/ProviderSettingsPrimitives'
+
+const logger = loggerService.withContext('AwsBedrockSettings')
 
 interface Props {
   providerId: string
@@ -31,36 +34,61 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
   const [localAccessKeyId, setLocalAccessKeyId] = useState(awsConfig?.accessKeyId ?? '')
   const [localSecretAccessKey, setLocalSecretAccessKey] = useState(awsConfig?.secretAccessKey ?? '')
   const [localRegion, setLocalRegion] = useState(awsConfig?.region ?? '')
+  const isIamDraftDirtyRef = useRef(false)
+
+  const resetLocalIamConfig = useCallback(() => {
+    setLocalAccessKeyId(awsConfig?.accessKeyId ?? '')
+    setLocalSecretAccessKey(awsConfig?.secretAccessKey ?? '')
+    setLocalRegion(awsConfig?.region ?? '')
+  }, [awsConfig?.accessKeyId, awsConfig?.secretAccessKey, awsConfig?.region])
 
   useEffect(() => {
-    const config = authConfig?.type === 'iam-aws' ? authConfig : null
-    if (config) {
-      setLocalAccessKeyId(config.accessKeyId ?? '')
-      setLocalSecretAccessKey(config.secretAccessKey ?? '')
-      setLocalRegion(config.region ?? '')
+    if (!isIamDraftDirtyRef.current) {
+      resetLocalIamConfig()
     }
-  }, [authConfig])
+  }, [resetLocalIamConfig])
+
+  const markIamDraftDirty = () => {
+    isIamDraftDirtyRef.current = true
+  }
 
   const handleAuthTypeChange = async (value: string) => {
-    if (value === 'iam') {
-      await updateAuthConfig({ type: 'iam-aws', region: localRegion || 'us-east-1' })
-    } else {
-      await updateAuthConfig({ type: 'api-key' })
+    try {
+      if (value === 'iam') {
+        await updateAuthConfig({ type: 'iam-aws', region: localRegion || 'us-east-1' })
+      } else {
+        await updateAuthConfig({ type: 'api-key' })
+      }
+      isIamDraftDirtyRef.current = false
+    } catch (error) {
+      logger.error('Failed to update AWS Bedrock auth type', { providerId, error })
+      window.toast.error(t('settings.provider.save_failed'))
     }
   }
 
   const saveIamConfig = async () => {
-    await updateAuthConfig({
-      type: 'iam-aws' as const,
-      region: localRegion,
-      accessKeyId: localAccessKeyId,
-      secretAccessKey: localSecretAccessKey
-    })
+    try {
+      await updateAuthConfig({
+        type: 'iam-aws' as const,
+        region: localRegion,
+        accessKeyId: localAccessKeyId,
+        secretAccessKey: localSecretAccessKey
+      })
+      isIamDraftDirtyRef.current = false
+    } catch (error) {
+      logger.error('Failed to save AWS Bedrock IAM config', { providerId, error })
+      window.toast.error(t('settings.provider.save_failed'))
+      isIamDraftDirtyRef.current = false
+      resetLocalIamConfig()
+    }
   }
 
   const saveRegion = async () => {
     if (isIamMode) {
       await saveIamConfig()
+    } else {
+      isIamDraftDirtyRef.current = false
+      resetLocalIamConfig()
     }
   }
 
@@ -111,7 +139,10 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
             className="mt-1.5 w-full"
             value={localAccessKeyId}
             placeholder={t('settings.provider.aws-bedrock.access_key_id')}
-            onChange={(e) => setLocalAccessKeyId(e.target.value)}
+            onChange={(e) => {
+              markIamDraftDirty()
+              setLocalAccessKeyId(e.target.value)
+            }}
             onBlur={saveIamConfig}
           />
           <ProviderHelpTextRow>
@@ -126,7 +157,10 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
             type="password"
             value={localSecretAccessKey}
             placeholder={t('settings.provider.aws-bedrock.secret_access_key')}
-            onChange={(e) => setLocalSecretAccessKey(e.target.value)}
+            onChange={(e) => {
+              markIamDraftDirty()
+              setLocalSecretAccessKey(e.target.value)
+            }}
             onBlur={saveIamConfig}
             spellCheck={false}
           />
@@ -168,7 +202,10 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
         className="mt-1.5 w-full"
         value={localRegion}
         placeholder="us-east-1"
-        onChange={(e) => setLocalRegion(e.target.value)}
+        onChange={(e) => {
+          markIamDraftDirty()
+          setLocalRegion(e.target.value)
+        }}
         onBlur={saveRegion}
       />
       <ProviderHelpTextRow>

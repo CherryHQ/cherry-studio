@@ -32,4 +32,5 @@ export interface ModelCheckOptions {
   apiKeys: string[]
   isConcurrent: boolean
   timeout?: number
+  signal?: AbortSignal
 }

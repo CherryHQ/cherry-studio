@@ -35,8 +35,9 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
   const [verificationPageOpened, setVerificationPageOpened] = useState<boolean>(false)
   const [currentStep, setCurrentStep] = useState<number>(0)
 
-  const rateLimitRef = useRef(provider?.settings?.rateLimit ?? 10)
-  const [rateLimit, setRateLimit] = useState(provider?.settings?.rateLimit ?? 10)
+  const providerRateLimit = provider?.settings?.rateLimit ?? 10
+  const rateLimitRef = useRef(providerRateLimit)
+  const [rateLimit, setRateLimit] = useState(providerRateLimit)
 
   useEffect(() => {
     if (provider?.settings?.isAuthed) {
@@ -53,10 +54,9 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
   }, [provider?.settings?.isAuthed])
 
   useEffect(() => {
-    const next = provider?.settings?.rateLimit ?? 10
-    setRateLimit(next)
-    rateLimitRef.current = next
-  }, [provider?.settings?.rateLimit])
+    setRateLimit(providerRateLimit)
+    rateLimitRef.current = providerRateLimit
+  }, [providerRateLimit])
 
   const handleGetDeviceCode = useCallback(async () => {
     try {
@@ -214,7 +214,14 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
   ]
 
   const handleRateLimitChange = async (value: number) => {
-    await updateProvider({ providerSettings: { ...provider?.settings, rateLimit: value } })
+    try {
+      await updateProvider({ providerSettings: { ...provider?.settings, rateLimit: value } })
+    } catch (error) {
+      logger.error('Failed to save Copilot rate limit', { providerId, error })
+      window.toast.error(t('settings.provider.save_failed'))
+      setRateLimit(providerRateLimit)
+      rateLimitRef.current = providerRateLimit
+    }
   }
 
   const stepDotClass = (status: 'finish' | 'process' | 'wait' | 'error') =>

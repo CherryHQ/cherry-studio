@@ -153,7 +153,6 @@ export class CherryINOAuthService extends BaseService implements Activatable {
       clearInterval(this.cleanupTimer)
       this.cleanupTimer = null
     }
-    this.pendingOAuthFlows.clear()
   }
 
   protected onDestroy(): void {
@@ -380,7 +379,10 @@ export class CherryINOAuthService extends BaseService implements Activatable {
 
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text()
-        logger.error(`Token exchange failed: ${tokenResponse.status} ${errorText}`)
+        logger.error('Token exchange failed', {
+          status: tokenResponse.status,
+          body: this.redactDiagnosticValue(errorText)
+        })
         throw new CherryINOAuthServiceError(`Failed to exchange code for token: ${tokenResponse.status}`)
       }
 
@@ -401,7 +403,10 @@ export class CherryINOAuthService extends BaseService implements Activatable {
 
       if (!apiKeysResponse.ok) {
         const errorText = await apiKeysResponse.text()
-        logger.error(`Failed to fetch API keys: ${apiKeysResponse.status} ${errorText}`)
+        logger.error('Failed to fetch API keys', {
+          status: apiKeysResponse.status,
+          body: this.redactDiagnosticValue(errorText)
+        })
         throw new CherryINOAuthServiceError(`Failed to fetch API keys: ${apiKeysResponse.status}`)
       }
 
@@ -511,7 +516,10 @@ export class CherryINOAuthService extends BaseService implements Activatable {
 
       if (!response.ok) {
         const errorText = await response.text()
-        logger.error(`Token refresh failed: ${response.status} ${errorText}`)
+        logger.error('Token refresh failed', {
+          status: response.status,
+          body: this.redactDiagnosticValue(errorText)
+        })
         return { accessToken: null, attempted: true }
       }
 

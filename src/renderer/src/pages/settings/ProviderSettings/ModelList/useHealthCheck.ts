@@ -19,12 +19,20 @@ export const useHealthCheck = (providerId: string) => {
   const [isChecking, setIsChecking] = useState(false)
   const [healthCheckOpen, setHealthCheckOpen] = useState(false)
   const runIdRef = useRef(0)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
     runIdRef.current += 1
     setModelStatuses([])
     setIsChecking(false)
     setHealthCheckOpen(false)
+
+    return () => {
+      abortControllerRef.current?.abort()
+      abortControllerRef.current = null
+    }
   }, [providerId])
 
   const enabledApiKeys = useMemo(
@@ -43,12 +51,16 @@ export const useHealthCheck = (providerId: string) => {
   }, [])
 
   const closeHealthCheck = useCallback(() => {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
     runIdRef.current += 1
     setIsChecking(false)
     setHealthCheckOpen(false)
   }, [])
 
   const resetHealthCheckRun = useCallback(() => {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
     runIdRef.current += 1
     setModelStatuses([])
     setIsChecking(false)
@@ -70,6 +82,9 @@ export const useHealthCheck = (providerId: string) => {
       }
 
       const keys = apiKeys.length > 0 ? [...apiKeys] : ['']
+      abortControllerRef.current?.abort()
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
       const runId = runIdRef.current + 1
       runIdRef.current = runId
 
@@ -89,7 +104,8 @@ export const useHealthCheck = (providerId: string) => {
             models: modelsToCheck,
             apiKeys: keys,
             isConcurrent,
-            timeout
+            timeout,
+            signal: abortController.signal
           },
           (checkResult, index) => {
             if (runIdRef.current !== runId) {
@@ -109,11 +125,16 @@ export const useHealthCheck = (providerId: string) => {
           }
         )
       } catch {
+        if (abortController.signal.aborted) {
+          return
+        }
+
         if (runIdRef.current === runId) {
           window.toast.error(i18n.t('settings.models.check.failed_to_start'))
         }
       } finally {
         if (runIdRef.current === runId) {
+          abortControllerRef.current = null
           setIsChecking(false)
         }
       }

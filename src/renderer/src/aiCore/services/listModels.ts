@@ -49,6 +49,22 @@ type ModelFetcher = {
   fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<Model[]>
 }
 
+function handleOptionalModelListFailure<T>(
+  error: unknown,
+  options: { throwOnError?: boolean } | undefined,
+  context: Record<string, string>
+): { data: T[] } {
+  if (options?.throwOnError) {
+    throw error
+  }
+
+  logger.warn('Optional model list endpoint failed; continuing with primary models', {
+    ...context,
+    error
+  })
+  return { data: [] }
+}
+
 // === API Layer ===
 
 const ApiErrorSchema = z.object({
@@ -62,6 +78,7 @@ const ApiErrorSchema = z.object({
 })
 
 type ApiError = z.infer<typeof ApiErrorSchema>
+type OpenAIModelResponseItem = z.infer<typeof OpenAIModelsResponseSchema>['data'][number]
 
 async function getFromApi<T>({
   url,
@@ -286,7 +303,7 @@ const vertexFetcher: ModelFetcher = {
 
 const githubFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.github,
-  fetch: async (provider, signal) => {
+  fetch: async (provider, signal, options) => {
     const [catalogResponse, v1Response] = await Promise.all([
       getFromApi({
         url: 'https://models.github.ai/catalog/models',
@@ -299,7 +316,12 @@ const githubFetcher: ModelFetcher = {
         headers: defaultHeaders(provider),
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
-      }).catch(() => ({ data: [] as { id: string; owned_by?: string }[] }))
+      }).catch((error) =>
+        handleOptionalModelListFailure<{ id: string; owned_by?: string }>(error, options, {
+          providerId: provider.id,
+          endpoint: 'github-v1-models'
+        })
+      )
     ])
     const registryModels = catalogResponse.map((m) =>
       toModel(m.id, provider, {
@@ -404,7 +426,7 @@ const newApiFetcher: ModelFetcher = {
 
 const openRouterFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.openrouter,
-  fetch: async (provider, signal) => {
+  fetch: async (provider, signal, options) => {
     const [modelsResponse, embedModelsResponse] = await Promise.all([
       getFromApi({
         url: 'https://openrouter.ai/api/v1/models',
@@ -417,7 +439,12 @@ const openRouterFetcher: ModelFetcher = {
         headers: defaultHeaders(provider),
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
-      }).catch(() => ({ data: [] }))
+      }).catch((error) =>
+        handleOptionalModelListFailure<OpenAIModelResponseItem>(error, options, {
+          providerId: provider.id,
+          endpoint: 'openrouter-embedding-models'
+        })
+      )
     ])
     const all = [...modelsResponse.data, ...embedModelsResponse.data]
     return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
@@ -426,7 +453,7 @@ const openRouterFetcher: ModelFetcher = {
 
 const ppioFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.ppio,
-  fetch: async (provider, signal) => {
+  fetch: async (provider, signal, options) => {
     const baseUrl = formatApiHost(provider.apiHost)
     const [chat, embed, reranker] = await Promise.all([
       getFromApi({
@@ -440,13 +467,23 @@ const ppioFetcher: ModelFetcher = {
         headers: defaultHeaders(provider),
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
-      }).catch(() => ({ data: [] })),
+      }).catch((error) =>
+        handleOptionalModelListFailure<OpenAIModelResponseItem>(error, options, {
+          providerId: provider.id,
+          endpoint: 'ppio-embedding-models'
+        })
+      ),
       getFromApi({
         url: `${baseUrl}/models?model_type=reranker`,
         headers: defaultHeaders(provider),
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
-      }).catch(() => ({ data: [] }))
+      }).catch((error) =>
+        handleOptionalModelListFailure<OpenAIModelResponseItem>(error, options, {
+          providerId: provider.id,
+          endpoint: 'ppio-reranker-models'
+        })
+      )
     ])
     const all = [...chat.data, ...embed.data, ...reranker.data]
     return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))

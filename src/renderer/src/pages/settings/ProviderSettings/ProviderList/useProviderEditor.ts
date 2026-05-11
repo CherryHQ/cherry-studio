@@ -31,21 +31,25 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   const [addingProvider, setAddingProvider] = useState(false)
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const editingProviderRef = useRef<Provider | null>(null)
+  const submitTokenRef = useRef(0)
   const { logo: initialLogo } = useProviderLogo(editingProvider?.id)
 
   const cancel = useCallback(() => {
+    submitTokenRef.current += 1
     setAddingProvider(false)
     setEditingProvider(null)
     editingProviderRef.current = null
   }, [])
 
   const startAdd = useCallback(() => {
+    submitTokenRef.current += 1
     setAddingProvider(true)
     setEditingProvider(null)
     editingProviderRef.current = null
   }, [])
 
   const startEdit = useCallback((provider: Provider) => {
+    submitTokenRef.current += 1
     setAddingProvider(false)
     setEditingProvider(provider)
     editingProviderRef.current = provider
@@ -87,6 +91,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
       }
 
       const providerId = uuid()
+      const submitToken = ++submitTokenRef.current
       const provider = await createProvider({ providerId, name: trimmedName, defaultChatEndpoint })
       let notice: ProviderEditorSubmitNotice | undefined
 
@@ -99,8 +104,10 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         }
       }
 
-      onProviderCreated(provider.id)
-      cancel()
+      if (submitTokenRef.current === submitToken && editingProviderRef.current == null) {
+        onProviderCreated(provider.id)
+        cancel()
+      }
       return notice ? { notice } : {}
     },
     [cancel, createProvider, editingProvider, onProviderCreated, updateProviderById]

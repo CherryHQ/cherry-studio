@@ -10,6 +10,8 @@ import { application } from '@application'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { NewUserProvider, UserProvider } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import { getProviderPresetDisplayMetadata } from '@data/services/ProviderRegistryMetadata'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
@@ -143,11 +145,17 @@ class ProviderService {
       providerSettings: dto.providerSettings ?? null
     }
 
-    const row = await db.transaction(async (tx) => {
-      return (await insertWithOrderKey(tx, userProviderTable, values, {
-        pkColumn: userProviderTable.providerId
-      })) as UserProvider
-    })
+    const row = await withSqliteErrors(
+      async () =>
+        await db.transaction(async (tx) => {
+          return (await insertWithOrderKey(tx, userProviderTable, values, {
+            pkColumn: userProviderTable.providerId
+          })) as UserProvider
+        }),
+      {
+        unique: () => DataApiErrorFactory.conflict(`Provider '${dto.providerId}' already exists`, 'Provider')
+      } satisfies SqliteErrorHandlers
+    )
 
     logger.info('Created provider', { providerId: dto.providerId })
 
@@ -159,9 +167,6 @@ class ProviderService {
    */
   async update(providerId: string, dto: UpdateProviderDto): Promise<Provider> {
     const db = application.get('DbService').getDb()
-
-    // Verify provider exists
-    await this.getByProviderId(providerId)
 
     // Build update object
     const updates: Partial<NewUserProvider> = {}
@@ -180,6 +185,10 @@ class ProviderService {
       .where(eq(userProviderTable.providerId, providerId))
       .returning()
 
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Provider', providerId)
+    }
+
     logger.info('Updated provider', { providerId, changes: Object.keys(dto) })
 
     return rowToRuntimeProvider(row)
@@ -194,21 +203,22 @@ class ProviderService {
     if (providers.length === 0) return
 
     const db = application.get('DbService').getDb()
-    let insertedCount = 0
-    await db.transaction(async (tx) => {
-      const existing = await tx.select({ providerId: userProviderTable.providerId }).from(userProviderTable)
-      const existingIds = new Set(existing.map((row) => row.providerId))
-      const newProviders = providers.filter((provider) => !existingIds.has(provider.providerId))
-
-      if (newProviders.length === 0) return
-
-      await insertManyWithOrderKey(tx, userProviderTable, newProviders, {
-        pkColumn: userProviderTable.providerId
-      })
-      insertedCount = newProviders.length
-    })
+    const insertedCount = await db.transaction((tx) => this.batchUpsertTx(tx, providers))
 
     logger.info('Batch upserted providers', { insertedCount })
+  }
+
+  async batchUpsertTx(tx: Pick<DbType, 'select' | 'insert'>, providers: NewUserProviderInput[]): Promise<number> {
+    const existing = await tx.select({ providerId: userProviderTable.providerId }).from(userProviderTable)
+    const existingIds = new Set(existing.map((row) => row.providerId))
+    const newProviders = providers.filter((provider) => !existingIds.has(provider.providerId))
+
+    if (newProviders.length === 0) return 0
+
+    await insertManyWithOrderKey(tx, userProviderTable, newProviders, {
+      pkColumn: userProviderTable.providerId
+    })
+    return newProviders.length
   }
 
   /**
@@ -235,7 +245,7 @@ class ProviderService {
 
     // Round-robin using CacheService
     const cache = application.get('CacheService')
-    const cacheKey = `provider:${providerId}:last_used_key_id`
+    const cacheKey = `settings.provider.${providerId}.last_used_key_id`
     const lastUsedKeyId = cache.get<string>(cacheKey)
 
     if (!lastUsedKeyId) {

@@ -300,6 +300,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   )
 
   const currentCurrency = isCustomCurrency ? customCurrencySymbol || currencySymbol || '$' : currencySymbol || '$'
+  const customCurrencyInvalid =
+    isCustomCurrency && customCurrencySymbol.length > 0 && !symbolToCurrency(customCurrencySymbol)
 
   return (
     <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} footer={footer}>
@@ -452,6 +454,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                       }
                     }}
                   />
+                  {customCurrencyInvalid ? (
+                    <p className="mt-1 text-destructive text-xs">
+                      {t('models.price.custom_currency_supported', {
+                        symbols: MODEL_DRAWER_CURRENCY_SYMBOLS.join(', ')
+                      })}
+                    </p>
+                  ) : null}
                 </ProviderField>
               )}
 
@@ -467,8 +476,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                     className={drawerClasses.input}
                     onChange={(event) => {
                       setInputPrice(event.target.value)
-                      autoSave({ inputPrice: event.target.value })
                     }}
+                    onBlur={() => autoSave({ inputPrice })}
                   />
                   <span className={drawerClasses.valueSuffix}>
                     {currentCurrency} / {t('models.price.million_tokens')}
@@ -488,8 +497,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                     className={drawerClasses.input}
                     onChange={(event) => {
                       setOutputPrice(event.target.value)
-                      autoSave({ outputPrice: event.target.value })
                     }}
+                    onBlur={() => autoSave({ outputPrice })}
                   />
                   <span className={drawerClasses.valueSuffix}>
                     {currentCurrency} / {t('models.price.million_tokens')}

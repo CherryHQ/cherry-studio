@@ -67,7 +67,12 @@ export function ReorderableList<T>({
 
       if (nextItems !== items) {
         void Promise.resolve(onReorder(nextItems)).catch((error: unknown) => {
-          onReorderError?.(error)
+          if (onReorderError) {
+            onReorderError(error)
+            return
+          }
+
+          globalThis.console.error('ReorderableList onReorder failed', error)
         })
       }
     },

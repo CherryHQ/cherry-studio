@@ -3340,6 +3340,7 @@
       "custom": "Custom",
       "custom_currency": "Custom Currency",
       "custom_currency_placeholder": "Enter Custom Currency",
+      "custom_currency_supported": "Supported symbols: {{symbols}}",
       "input": "Input Price",
       "million_tokens": "M Tokens",
       "output": "Output Price",

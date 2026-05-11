@@ -215,29 +215,29 @@ export function useProviderEndpointActions({
     [anthropicApiHost, patchProvider, provider, setAnthropicApiHost, syncProviderModels, t]
   )
 
-  const commitApiVersion = useCallback(() => {
+  const commitApiVersion = useCallback(async (): Promise<boolean> => {
     if (!provider) {
-      return
+      return false
     }
 
-    void (async () => {
-      try {
-        await patchProvider({
-          providerSettings: {
-            ...provider.settings,
-            apiVersion
-          }
-        })
-      } catch (error) {
-        logger.error('Failed to commit API version', { providerId: provider.id, error })
-        window.toast.error(t('blocks.edit.save.failed.label'))
-      }
-    })()
+    try {
+      await patchProvider({
+        providerSettings: {
+          ...provider.settings,
+          apiVersion
+        }
+      })
+      return true
+    } catch (error) {
+      logger.error('Failed to commit API version', { providerId: provider.id, error })
+      window.toast.error(t('blocks.edit.save.failed.label'))
+      return false
+    }
   }, [apiVersion, patchProvider, provider, t])
 
-  const resetApiHost = useCallback(() => {
+  const resetApiHost = useCallback(async (): Promise<boolean> => {
     if (!provider) {
-      return
+      return false
     }
 
     const nextBaseUrl = providerConfig?.api?.url ?? ''
@@ -250,15 +250,15 @@ export function useProviderEndpointActions({
     }
 
     setApiHost(nextBaseUrl)
-    void (async () => {
-      try {
-        await patchProvider({ endpointConfigs: nextEndpointConfigs })
-        await syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs })
-      } catch (error) {
-        logger.error('Failed to reset provider API host', { providerId: provider.id, error })
-        window.toast.error(t('blocks.edit.save.failed.label'))
-      }
-    })()
+    try {
+      await patchProvider({ endpointConfigs: nextEndpointConfigs })
+      await syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs })
+      return true
+    } catch (error) {
+      logger.error('Failed to reset provider API host', { providerId: provider.id, error })
+      window.toast.error(t('blocks.edit.save.failed.label'))
+      return false
+    }
   }, [patchProvider, primaryEndpoint, provider, providerConfig?.api?.url, setApiHost, syncProviderModels, t])
 
   return {

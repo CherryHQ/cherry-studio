@@ -21,7 +21,7 @@ interface ProviderSettingsSearch {
 }
 
 export default function ProviderSettingsPage({ isOnboarding = false }: ProviderSettingsPageProps) {
-  const search = useSearch({ from: '/settings/provider' }) as ProviderSettingsSearch
+  const search = useSearch({ strict: false }) as ProviderSettingsSearch
   const navigate = useNavigate()
   const { providers: rawProviders } = useProviders()
   const [lastSelectedProviderId, setLastSelectedProviderId] = usePersistCache(
