@@ -112,6 +112,34 @@ function tmpNameFor(target: string): string {
   return `${target}.tmp-${randomUUID()}`
 }
 
+/**
+ * fsync(2) the directory containing `target` so the rename's directory-entry
+ * update reaches stable storage. Best-effort: returns silently when the FS
+ * doesn't support directory fsync (Windows, network mounts, some FUSE
+ * backends), and warn-logs when the failure looks like a real IO problem
+ * (EIO, ENOSPC, …) so an unexpected loss of durability is at least visible
+ * in oncall dashboards. The rename itself has already committed; the caller
+ * doesn't need to fail just because the metadata flush couldn't be confirmed.
+ */
+async function fsyncDirectoryOf(target: string): Promise<void> {
+  try {
+    const dirHandle = await fsOpen(path.dirname(target), 'r')
+    try {
+      await dirHandle.sync()
+    } finally {
+      await dirHandle.close()
+    }
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    // Platforms / filesystems that legitimately reject directory fsync — the
+    // rename is durable enough for our purposes on these systems.
+    if (code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP' || code === 'EPERM' || code === 'EACCES') {
+      return
+    }
+    logger.warn('fsync(dir) failed after atomic rename; durability not confirmed', { target, code, err })
+  }
+}
+
 /** Path-level version captured from `fs.stat`. Mirrors `FileVersion`'s shape but lives here so this module is self-contained. */
 export interface PathVersion {
   mtime: number
@@ -167,16 +195,7 @@ export async function atomicWriteFile(target: FilePath, data: string | Uint8Arra
     await unlink(tmp).catch(() => undefined)
     throw err
   }
-  try {
-    const dirHandle = await fsOpen(path.dirname(target), 'r')
-    try {
-      await dirHandle.sync()
-    } finally {
-      await dirHandle.close()
-    }
-  } catch {
-    // Windows / unsupported FS — non-fatal; rename already committed.
-  }
+  await fsyncDirectoryOf(target)
 }
 
 /**
@@ -221,16 +240,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
           await fd.close()
         }
         await rename(this.tmp, this.target)
-        try {
-          const dirHandle = await fsOpen(path.dirname(this.target), 'r')
-          try {
-            await dirHandle.sync()
-          } finally {
-            await dirHandle.close()
-          }
-        } catch {
-          // Windows / unsupported FS — non-fatal.
-        }
+        await fsyncDirectoryOf(this.target)
         this.committed = true
         callback()
       } catch (err) {
