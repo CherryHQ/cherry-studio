@@ -15,11 +15,33 @@ import type { Topic } from '@renderer/types'
 
 const logger = loggerService.withContext('SpanManagerService')
 
+// LRU cap on the per-topic span map. Dev mode is the only path that ever
+// populates this (`addSpan` early-returns when dev mode is off), but
+// `finishModelTrace` is only called from a couple of selection-window
+// flows — the main chat path has no cleanup hook, so without a cap the
+// map grows unbounded across a dev session.
+const MAX_TRACKED_TOPICS = 50
+
 class SpanManagerService {
+  // Map preserves insertion order; we evict the least-recently-touched
+  // entry when we exceed MAX_TRACKED_TOPICS. Every `getModelSpanEntity`
+  // call re-inserts the key so frequently-touched topics stay hot.
   private spanMap: Map<string, ModelSpanEntity[]> = new Map()
 
   async getEnableDeveloperMode() {
     return await preferenceService.get('app.developer_mode.enabled')
+  }
+
+  private touch(topicId: string, entities: ModelSpanEntity[]) {
+    this.spanMap.delete(topicId)
+    this.spanMap.set(topicId, entities)
+  }
+
+  private evictIfFull() {
+    if (this.spanMap.size <= MAX_TRACKED_TOPICS) return
+    const oldest = this.spanMap.keys().next().value
+    if (oldest === undefined) return
+    this.spanMap.delete(oldest)
   }
 
   getModelSpanEntity(topicId: string, modelName?: string) {
@@ -27,8 +49,10 @@ class SpanManagerService {
     if (!entities) {
       const entity = new ModelSpanEntity(modelName)
       this.spanMap.set(topicId, [entity])
+      this.evictIfFull()
       return entity
     }
+    this.touch(topicId, entities)
     let entity = entities.find((e) => e.getModelName() === modelName)
     if (!entity) {
       entity = new ModelSpanEntity(modelName)
@@ -183,5 +207,8 @@ EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, ({ topicId, traceId }) => {
   void window.api.trace.openWindow(topicId, traceId, false)
 })
 EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, (topic: Topic) => {
+  // Drop the local spanMap entry too — `cleanTopic` only wipes the
+  // backend, leaving renderer-side entities dangling otherwise.
+  void spanManagerService.finishModelTrace(topic.id)
   void window.api.trace.cleanTopic(topic.id)
 })
