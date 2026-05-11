@@ -8,18 +8,20 @@
  * `FileRefCheckerRegistry`) is a real DB-backed checker; this schema is the
  * type/validation half of the same wiring.
  *
- * ## Role is a placeholder
+ * ## Role placeholder
  *
  * `sourceId` is strict (`z.uuidv7()`) — `knowledge_item.id` is v2-native, so
  * there is no legacy format risk.
  *
- * `role` is typed as `z.string().min(1)` rather than a closed `z.enum([...])`
- * because KnowledgeService has not yet finalised its role vocabulary. Phase 2
- * wiring will replace this with the concrete enum (e.g. `'attachment' |
- * 'source' | 'preview'`). Tightening from "any non-empty string" to a closed
- * enum is strict-direction migration: pre-existing rows with role values
- * outside the new enum will surface as `ZodError`, which is the desired
- * signal to clean them up.
+ * `BusinessRefShape` requires `role` to be a `z.ZodEnum`, so this variant
+ * ships with a single-element enum `['attachment']` as a placeholder until
+ * Phase 2 KnowledgeService finalises its full vocabulary (likely something
+ * like `['attachment', 'source', 'preview']`). Phase 2 expansion is a pure
+ * additive change: existing rows whose role is in the new enum keep working,
+ * and any row carrying a role outside the new enum surfaces as `ZodError`
+ * (the desired clean-up signal). The current PR has no real caller writing
+ * `knowledge_item` refs yet, so the specific placeholder value is
+ * inconsequential — picking the most likely future-superset member.
  */
 
 import * as z from 'zod'
@@ -29,10 +31,11 @@ import { createRefSchema } from './essential'
 export const knowledgeItemSourceType = 'knowledge_item' as const
 
 /**
- * Placeholder — non-empty string. Phase 2 KnowledgeService will replace this
- * with the concrete role enum once the v2 wiring lands.
+ * Single-element placeholder enum — Phase 2 KnowledgeService will extend
+ * this with the rest of its role vocabulary.
  */
-export const knowledgeItemRoleSchema = z.string().min(1)
+export const knowledgeItemRoles = ['attachment'] as const
+export const knowledgeItemRoleSchema = z.enum(knowledgeItemRoles)
 
 export const knowledgeItemRefFields = {
   sourceType: z.literal(knowledgeItemSourceType),

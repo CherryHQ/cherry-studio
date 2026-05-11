@@ -33,6 +33,7 @@ import * as z from 'zod'
 import {
   knowledgeItemFileRefSchema,
   knowledgeItemRefFields,
+  knowledgeItemRoles,
   knowledgeItemRoleSchema,
   knowledgeItemSourceType
 } from './knowledgeItem'
@@ -83,6 +84,7 @@ export type FileRef = z.infer<typeof FileRefSchema>
 export {
   knowledgeItemFileRefSchema,
   knowledgeItemRefFields,
+  knowledgeItemRoles,
   knowledgeItemRoleSchema,
   knowledgeItemSourceType,
   tempSessionFileRefSchema,

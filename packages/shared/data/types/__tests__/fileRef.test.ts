@@ -44,18 +44,24 @@ describe('knowledgeItemFileRefSchema', () => {
     expect(parsed.role).toBe('attachment')
   })
 
-  it('accepts any non-empty role string (Phase 1b placeholder semantics)', () => {
-    // Phase 2 will tighten this to a closed enum — see knowledgeItem.ts JSDoc.
-    // Verifying the lax behavior here means a future enum collapse is a
-    // detectable strict-direction migration, not an accident.
-    for (const role of ['attachment', 'source', 'preview', 'thumbnail', 'x']) {
+  it('accepts every role in the placeholder enum (Phase 1b: single value)', () => {
+    // Phase 2 will extend the enum with the rest of KnowledgeService's
+    // vocabulary; this test pins the current set so a future extension is
+    // an explicit `knowledgeItemRoles` edit, not an accidental widening.
+    for (const role of ['attachment']) {
       const parsed = knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))
       expect(parsed.role).toBe(role)
     }
   })
 
-  it('rejects an empty role string', () => {
-    expect(() => knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role: '' }))).toThrow()
+  it('rejects role values outside the placeholder enum', () => {
+    // These are the roles Phase 2 is most likely to add (`source`, `preview`).
+    // They must reject today — when Phase 2 lands, this test should be
+    // updated alongside the `knowledgeItemRoles` extension to assert the new
+    // vocabulary explicitly.
+    for (const role of ['source', 'preview', 'thumbnail', '']) {
+      expect(() => knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))).toThrow()
+    }
   })
 
   it('rejects a non-UUIDv7 sourceId (knowledge_item.id is v2-native)', () => {
