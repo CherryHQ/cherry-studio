@@ -330,7 +330,10 @@ async function collectImagesFromMessages(userMessage: Message, assistantMessage?
   if (assistantMessage) {
     const assistantImageBlocks = findImageBlocks(assistantMessage)
     for (const block of assistantImageBlocks) {
-      if (block.url) {
+      if (block.file) {
+        const { data } = await window.api.file.base64Image(block.file.name)
+        images.push(data)
+      } else if (block.url) {
         images.push(block.url)
       }
     }
