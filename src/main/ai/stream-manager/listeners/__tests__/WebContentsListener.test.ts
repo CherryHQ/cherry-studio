@@ -17,13 +17,17 @@ interface FakeWebContents {
   id: number
   send: ReturnType<typeof vi.fn>
   isDestroyed: ReturnType<typeof vi.fn>
+  once: ReturnType<typeof vi.fn>
 }
 
 function fakeWc(): FakeWebContents {
   return {
     id: 1,
     send: vi.fn(),
-    isDestroyed: vi.fn(() => false)
+    isDestroyed: vi.fn(() => false),
+    // Constructor wires `wc.once('destroyed', ...)` for flush-timer cleanup;
+    // tests don't drive that destroyed event, so a no-op is enough.
+    once: vi.fn()
   }
 }
 
