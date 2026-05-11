@@ -83,17 +83,18 @@ async function runWithBusyRetry<T>(op: () => Promise<T>): Promise<T> {
     try {
       return await op()
     } catch (retryErr) {
-      // The retry path matters for tuning: if BUSY persists past one wait,
-      // upstream catches see a generic "checker threw" without the
-      // "already retried" context, leaving no signal that the delay /
-      // retry count needs revisiting. Log before rethrowing so the
-      // failure is attributable to retry-exhausted contention.
-      if ((retryErr as { code?: string }).code === 'SQLITE_BUSY') {
-        logger.warn('orphan-sweep: SQLITE_BUSY persists after retry; surfacing as failure', {
-          delayMs: BUSY_RETRY_DELAY_MS,
-          err: retryErr
-        })
-      }
+      // Always log: upstream catches only see a generic "checker threw"
+      // without the "already retried" context, leaving no signal whether
+      // the delay/retry count needs revisiting (BUSY persists) or whether a
+      // separate failure mode surfaced after the BUSY-induced retry
+      // (SQLITE_CORRUPT, SQLITE_IOERR, driver-level error, …). The code
+      // field disambiguates both cases on the dashboard.
+      const retryCode = (retryErr as { code?: string }).code
+      logger.warn('orphan-sweep: retry attempt also failed; surfacing as failure', {
+        delayMs: BUSY_RETRY_DELAY_MS,
+        code: retryCode,
+        err: retryErr
+      })
       throw retryErr
     }
   }
