@@ -440,10 +440,7 @@ const ChatPreferencesTab = () => {
   )
 }
 
-// Local, theme-agnostic wrappers — equivalent to the previous
-// styled-components blocks (`Container`, `SettingRowTitleSmall`,
-// `SettingGroup`), now Tailwind-only to drop the `styled-components`
-// import per v2 design-system rules.
+// Local, theme-agnostic wrappers kept Tailwind-only per v2 design-system rules.
 const SettingRowTitleSmall = ({ className, ...rest }: ComponentPropsWithoutRef<typeof SettingRowTitle>) => (
   <SettingRowTitle className={cn('gap-1 text-[13px]', className)} {...rest} />
 )

@@ -17,7 +17,6 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { XIcon } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { executeSessionMenuAction, resolveSessionMenuActions, type SessionActionContext } from './sessionItemActions'
 
@@ -57,8 +56,11 @@ const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPr
             {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
           </div>
         }>
-        <MenuButton
-          className="menu"
+        <div
+          className={classNames(
+            'menu flex min-h-5 min-w-5 flex-row items-center justify-center text-(--color-text-3) opacity-0 group-hover:opacity-100 [&_.anticon]:text-xs',
+            isActive && 'opacity-100 hover:text-(--color-text-2)'
+          )}
           onClick={(e: React.MouseEvent) => {
             e.stopPropagation()
             if (isConfirmingDeletion || e.ctrlKey || e.metaKey) {
@@ -81,7 +83,7 @@ const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPr
           ) : (
             <XIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />
           )}
-        </MenuButton>
+        </div>
       </Tooltip>
     )
   }
@@ -136,8 +138,17 @@ const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPr
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <SessionListItem
-          className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
+        <div
+          className={classNames(
+            'group relative flex w-[calc(var(--assistants-width)-20px)] flex-col justify-between px-3 py-[7px] text-[13px] transition-colors duration-100',
+            singlealone
+              ? isActive
+                ? 'bg-(--color-background-mute)'
+                : 'hover:bg-(--color-background-soft)'
+              : isActive
+                ? 'bg-(--color-list-item) shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]'
+                : 'hover:bg-(--color-list-item-hover)'
+          )}
           onClick={isEditing ? undefined : onPress}
           onDoubleClick={() => startEdit(session.name ?? '')}
           title={session.name ?? session.id}
@@ -147,153 +158,41 @@ const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPr
           }}>
           {isPending && !isActive && <PendingIndicator />}
           {isFulfilled && !isActive && <FulfilledIndicator />}
-          <SessionNameContainer>
+          <div className="flex h-5 flex-row items-center justify-between gap-1">
             {isEditing ? (
-              <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
+              <input
+                {...inputProps}
+                className="w-full border-none bg-(--color-background) p-0 font-[inherit] text-(--color-text-1) text-[13px] outline-none"
+                style={{ opacity: isSaving ? 0.5 : 1 }}
+              />
             ) : (
               <>
-                <SessionName>
-                  {channelIcon && <ChannelIconImg src={channelIcon} />}
+                <div className="relative flex min-w-0 items-center gap-1 overflow-hidden text-[13px]">
+                  {channelIcon && (
+                    <img className="size-3.5 shrink-0 rounded-[2px] object-contain" src={channelIcon} alt="" />
+                  )}
                   <MarqueeText className="flex min-w-0 flex-1">
                     <SessionLabel
                       session={session}
                       className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
                     />
                   </MarqueeText>
-                </SessionName>
+                </div>
                 <DeleteButton />
               </>
             )}
-          </SessionNameContainer>
-        </SessionListItem>
+          </div>
+        </div>
       </ContextMenuTrigger>
       <ActionMenu actions={menuActions} onAction={handleMenuAction} />
     </ContextMenu>
   )
 }
 
-const SessionListItem = styled.div`
-  padding: 7px 12px;
-  border-radius: var(--list-item-border-radius);
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  cursor: pointer;
-  width: calc(var(--assistants-width) - 20px);
+const streamIndicatorClass = 'animation-pulse absolute top-[15px] left-[3px] size-[5px] rounded-full [--pulse-size:5px]'
 
-  .menu {
-    opacity: 0;
-    color: var(--color-text-3);
-  }
+const PendingIndicator = () => <div className={`${streamIndicatorClass} bg-(--color-status-warning)`} />
 
-  &:hover {
-    background-color: var(--color-list-item-hover);
-    transition: background-color 0.1s;
-
-    .menu {
-      opacity: 1;
-    }
-  }
-
-  &.active {
-    background-color: var(--color-list-item);
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    .menu {
-      opacity: 1;
-
-      &:hover {
-        color: var(--color-text-2);
-      }
-    }
-  }
-
-  &.singlealone {
-    &:hover {
-      background-color: var(--color-background-soft);
-    }
-    &.active {
-      background-color: var(--color-background-mute);
-      box-shadow: none;
-    }
-  }
-`
-
-const SessionNameContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  height: 20px;
-  justify-content: space-between;
-`
-
-const SessionName = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow: hidden;
-  font-size: 13px;
-  position: relative;
-  min-width: 0;
-`
-
-const ChannelIconImg = styled.img`
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  border-radius: 2px;
-  object-fit: contain;
-`
-
-const SessionEditInput = styled.input`
-  background: var(--color-background);
-  border: none;
-  color: var(--color-text-1);
-  font-size: 13px;
-  font-family: inherit;
-  padding: 2px 6px;
-  width: 100%;
-  outline: none;
-  padding: 0;
-`
-
-const MenuButton = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  min-width: 20px;
-  min-height: 20px;
-  .anticon {
-    font-size: 12px;
-  }
-`
-
-const PendingIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-warning);
-`
-
-const FulfilledIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-success);
-`
+const FulfilledIndicator = () => <div className={`${streamIndicatorClass} bg-(--color-status-success)`} />
 
 export default memo(SessionItem)

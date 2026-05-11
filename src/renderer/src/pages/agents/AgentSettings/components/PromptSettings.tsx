@@ -8,7 +8,6 @@ import { Edit, HelpCircle, Save } from 'lucide-react'
 import { type FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
-import styled from 'styled-components'
 import { estimateTokenCount } from 'tokenx'
 
 import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, SettingsTitle } from '../shared'
@@ -52,17 +51,18 @@ const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) 
             <HelpCircle size={14} color="var(--color-text-2)" />
           </Popover>
         </SettingsTitle>
-        <TextAreaContainer>
-          <RichEditorContainer>
+        <div className="relative mt-[5px] min-h-0 w-full flex-1 overflow-hidden">
+          <div className="h-full flex-1 overflow-hidden rounded-[5px] border-(--color-border) border-[0.5px] [&_.prompt-rich-editor]:h-full [&_.prompt-rich-editor]:border-none [&_.prompt-rich-editor_.rich-editor-content]:flex-1 [&_.prompt-rich-editor_.rich-editor-content]:overflow-auto [&_.prompt-rich-editor_.rich-editor-wrapper]:flex [&_.prompt-rich-editor_.rich-editor-wrapper]:h-full [&_.prompt-rich-editor_.rich-editor-wrapper]:flex-col">
             {showPreview ? (
-              <MarkdownContainer
+              <div
+                className="markdown h-full overflow-auto p-[0.5em]"
                 onDoubleClick={() => {
                   const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
                   setShowPreview(false)
                   requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
                 }}>
                 <ReactMarkdown>{processedPrompt || instructions}</ReactMarkdown>
-              </MarkdownContainer>
+              </div>
             ) : (
               <CodeEditor
                 value={instructions}
@@ -73,10 +73,10 @@ const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) 
                 className="h-full"
               />
             )}
-          </RichEditorContainer>
-        </TextAreaContainer>
+          </div>
+        </div>
         <SpaceBetweenRowFlex className="mt-2.5 w-full justify-end">
-          <TokenCount>Tokens: {tokenCount}</TokenCount>
+          <div className="select-none rounded px-0.5 py-0.5 text-(--color-text-2) text-sm">Tokens: {tokenCount}</div>
           <Button
             variant="default"
             onClick={() => {
@@ -100,52 +100,5 @@ const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) 
     </SettingsContainer>
   )
 }
-
-const TextAreaContainer = styled.div`
-  position: relative;
-  width: 100%;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  margin-top: 5px;
-`
-
-const TokenCount = styled.div`
-  padding: 2px 2px;
-  border-radius: 4px;
-  font-size: 14px;
-  color: var(--color-text-2);
-  user-select: none;
-`
-
-const RichEditorContainer = styled.div`
-  height: 100%;
-  flex: 1;
-  border: 0.5px solid var(--color-border);
-  border-radius: 5px;
-  overflow: hidden;
-
-  .prompt-rich-editor {
-    border: none;
-    height: 100%;
-
-    .rich-editor-wrapper {
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .rich-editor-content {
-      flex: 1;
-      overflow: auto;
-    }
-  }
-`
-
-const MarkdownContainer = styled.div.attrs({ className: 'markdown' })`
-  height: 100%;
-  padding: 0.5em;
-  overflow: auto;
-`
 
 export default PromptSettings

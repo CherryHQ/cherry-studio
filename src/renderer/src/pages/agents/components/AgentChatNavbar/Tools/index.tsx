@@ -4,7 +4,6 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { Tooltip } from 'antd'
 import { PanelLeftClose, PanelRightClose } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import SettingsButton from './SettingsButton'
 
@@ -25,9 +24,9 @@ const Tools = () => {
       <SettingsButton />
       {isTopNavbar && (
         <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
-          <NarrowIcon onClick={handleNarrowModeToggle}>
+          <NavbarIcon className="max-[1000px]:hidden" onClick={handleNarrowModeToggle}>
             <i className="iconfont icon-icon-adaptive-width"></i>
-          </NarrowIcon>
+          </NavbarIcon>
         </Tooltip>
       )}
       {/* TODO: Add search button back when global search supports agent messages */}
@@ -41,11 +40,5 @@ const Tools = () => {
     </div>
   )
 }
-
-const NarrowIcon = styled(NavbarIcon)`
-  @media (max-width: 1000px) {
-    display: none;
-  }
-`
 
 export default Tools

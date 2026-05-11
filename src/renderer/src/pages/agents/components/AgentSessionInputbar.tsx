@@ -34,7 +34,6 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('AgentSessionInputbar')
 
@@ -443,11 +442,11 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
 
   const leftToolbar = useMemo(
     () => (
-      <ToolbarGroup>
+      <div className="flex flex-row items-center gap-1.5">
         {config.showTools && model && (
           <InputbarTools scope={scope} assistant={assistant} model={model} session={toolsSession} />
         )}
-      </ToolbarGroup>
+      </div>
     ),
     [config.showTools, scope, assistant, model, toolsSession]
   )
@@ -481,12 +480,5 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
     />
   )
 }
-
-const ToolbarGroup = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-`
 
 export default AgentSessionInputbar
