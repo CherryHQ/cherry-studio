@@ -1,21 +1,15 @@
-import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import type {
   FileProcessorFeature,
   FileProcessorId,
-  FileProcessorOverrides
+  FileProcessorOverride
 } from '@shared/data/preference/preferenceTypes'
-import {
-  mergeFileProcessorPresets,
-  updateProcessorApiKeys,
-  updateProcessorCapabilityOverride,
-  updateProcessorLanguageOptions
-} from '@shared/data/utils/fileProcessingUtils'
+import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import { useCallback, useMemo } from 'react'
 
 const FILE_PROCESSING_KEYS = {
   defaultDocumentProcessor: 'feature.file_processing.default_document_to_markdown',
-  defaultImageProcessor: 'feature.file_processing.default_image_to_text',
-  overrides: 'feature.file_processing.overrides'
+  defaultImageProcessor: 'feature.file_processing.default_image_to_text'
 } as const
 
 const DEFAULT_KEY_BY_FEATURE = {
@@ -25,9 +19,22 @@ const DEFAULT_KEY_BY_FEATURE = {
 
 export function useFileProcessingPreferences() {
   const [preferences, setPreferences] = useMultiplePreferences(FILE_PROCESSING_KEYS, { optimistic: false })
-  const overrides = preferences.overrides
+  const [overrides, setOverrides] = usePreference('feature.file_processing.overrides', { optimistic: false })
 
-  const processors = useMemo(() => mergeFileProcessorPresets(overrides), [overrides])
+  const processors = useMemo<FileProcessorMerged[]>(() => {
+    return PRESETS_FILE_PROCESSORS.map((preset) => {
+      const override = overrides[preset.id]
+
+      return {
+        ...preset,
+        ...override,
+        capabilities: preset.capabilities.map((capability) => ({
+          ...capability,
+          ...override?.capabilities?.[capability.feature]
+        }))
+      }
+    })
+  }, [overrides])
 
   const setDefaultProcessor = useCallback(
     async (feature: FileProcessorFeature, processorId: FileProcessorId) => {
@@ -38,20 +45,21 @@ export function useFileProcessingPreferences() {
     [setPreferences]
   )
 
-  const updateOverrides = useCallback(
-    async (updater: (currentOverrides: FileProcessorOverrides) => FileProcessorOverrides) => {
-      await setPreferences({
-        overrides: updater(overrides)
+  const updateProcessor = useCallback(
+    async (processorId: FileProcessorId, patch: FileProcessorOverride) => {
+      await setOverrides({
+        ...overrides,
+        [processorId]: { ...overrides[processorId], ...patch }
       })
     },
-    [overrides, setPreferences]
+    [overrides, setOverrides]
   )
 
   const setApiKeys = useCallback(
     async (processorId: FileProcessorId, apiKeys: string[]) => {
-      await updateOverrides((currentOverrides) => updateProcessorApiKeys(currentOverrides, processorId, apiKeys))
+      await updateProcessor(processorId, { apiKeys })
     },
-    [updateOverrides]
+    [updateProcessor]
   )
 
   const setCapabilityField = useCallback(
@@ -61,18 +69,26 @@ export function useFileProcessingPreferences() {
       field: 'apiHost' | 'modelId',
       value: string
     ) => {
-      await updateOverrides((currentOverrides) =>
-        updateProcessorCapabilityOverride(currentOverrides, processorId, feature, field, value)
-      )
+      await updateProcessor(processorId, {
+        capabilities: {
+          ...overrides[processorId]?.capabilities,
+          [feature]: {
+            ...overrides[processorId]?.capabilities?.[feature],
+            [field]: value
+          }
+        }
+      })
     },
-    [updateOverrides]
+    [overrides, updateProcessor]
   )
 
   const setLanguageOptions = useCallback(
     async (processorId: Extract<FileProcessorId, 'system' | 'tesseract'>, langs: string[]) => {
-      await updateOverrides((currentOverrides) => updateProcessorLanguageOptions(currentOverrides, processorId, langs))
+      await updateProcessor(processorId, {
+        options: { ...overrides[processorId]?.options, langs }
+      })
     },
-    [updateOverrides]
+    [overrides, updateProcessor]
   )
 
   return {

@@ -2,7 +2,6 @@ import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudi
 import { useLanguages } from '@renderer/hooks/translate'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import { getProcessorLanguageOptions } from '@shared/data/utils/fileProcessingUtils'
 import { List, SquareCheckBig } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -106,7 +105,7 @@ export function ProcessorPanel({
     }))
   }, [languages, processor.id])
 
-  const selectedLanguages = useMemo(() => getProcessorLanguageOptions(processor.options), [processor.options])
+  const selectedLanguages = processor.options?.langs ?? []
 
   const handleApiKeysBlur = useCallback(() => {
     void onSetApiKeys(processor.id, splitApiKeyString(formatApiKeys(apiKeysInput)))

@@ -2,13 +2,12 @@ import { Badge, Button } from '@cherrystudio/ui'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
+import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type {
   FileProcessingArtifact,
   FileProcessingTaskResult,
   FileProcessingTaskStatus
 } from '@shared/data/types/fileProcessing'
-import { mergeFileProcessorPresets } from '@shared/data/utils/fileProcessingUtils'
 import type { FileMetadata } from '@types'
 import { CheckCircle2, CircleAlert, FileText, Image, Loader2, Play, Upload } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
@@ -244,7 +243,20 @@ const ComponentLabFileProcessingSettings: FC = () => {
   const { t } = useTranslation()
   const [preferences] = useMultiplePreferences(FILE_PROCESSING_KEYS, { optimistic: false })
   const availableProcessors = useAvailableFileProcessors()
-  const processors = useMemo(() => mergeFileProcessorPresets(preferences.overrides ?? {}), [preferences.overrides])
+  const processors = useMemo<FileProcessorMerged[]>(() => {
+    return PRESETS_FILE_PROCESSORS.map((preset) => {
+      const override = preferences.overrides?.[preset.id]
+
+      return {
+        ...preset,
+        ...override,
+        capabilities: preset.capabilities.map((capability) => ({
+          ...capability,
+          ...override?.capabilities?.[capability.feature]
+        }))
+      }
+    })
+  }, [preferences.overrides])
   const processorsByFeature = useMemo(() => {
     return {
       image_to_text: getProcessorsForFeature(processors, 'image_to_text', availableProcessors.processorIds),

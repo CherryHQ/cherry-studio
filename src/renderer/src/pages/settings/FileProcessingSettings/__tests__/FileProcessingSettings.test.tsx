@@ -8,6 +8,7 @@ import FileProcessingSettings from '..'
 import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOCRDeploymentInfo'
 
 const setPreferencesMock = vi.hoisted(() => vi.fn())
+const setOverridesMock = vi.hoisted(() => vi.fn())
 const listAvailableProcessorsMock = vi.hoisted(() => vi.fn())
 const loggerErrorMock = vi.hoisted(() => vi.fn())
 const loggerInfoMock = vi.hoisted(() => vi.fn())
@@ -25,9 +26,9 @@ const selectMockState = vi.hoisted(() => ({
 }))
 const preferencesMock = vi.hoisted(() => ({
   defaultDocumentProcessor: null as string | null,
-  defaultImageProcessor: null as string | null,
-  overrides: {}
+  defaultImageProcessor: null as string | null
 }))
+const overridesMock = vi.hoisted(() => ({ value: {} }))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -63,7 +64,8 @@ vi.mock('@renderer/hooks/translate', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  useMultiplePreferences: () => [preferencesMock, setPreferencesMock]
+  useMultiplePreferences: () => [preferencesMock, setPreferencesMock],
+  usePreference: () => [overridesMock.value, setOverridesMock]
 }))
 
 vi.mock('@logger', () => ({
@@ -227,7 +229,7 @@ describe('FileProcessingSettings', () => {
   beforeEach(() => {
     preferencesMock.defaultDocumentProcessor = null
     preferencesMock.defaultImageProcessor = null
-    preferencesMock.overrides = {}
+    overridesMock.value = {}
     comboboxMockState.onChange = undefined
     comboboxMockState.options = []
     comboboxMockState.value = undefined
@@ -235,6 +237,8 @@ describe('FileProcessingSettings', () => {
     selectMockState.value = undefined
     setPreferencesMock.mockReset()
     setPreferencesMock.mockResolvedValue(undefined)
+    setOverridesMock.mockReset()
+    setOverridesMock.mockResolvedValue(undefined)
     loggerErrorMock.mockReset()
     loggerInfoMock.mockReset()
     loggerWarnMock.mockReset()
@@ -364,11 +368,9 @@ describe('FileProcessingSettings', () => {
     fireEvent.blur(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'))
 
     await waitFor(() => {
-      expect(setPreferencesMock).toHaveBeenCalledWith({
-        overrides: {
-          mistral: {
-            apiKeys: ['key-1', 'key-2']
-          }
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        mistral: {
+          apiKeys: ['key-1', 'key-2']
         }
       })
     })
@@ -403,12 +405,10 @@ describe('FileProcessingSettings', () => {
     fireEvent.click(await screen.findByRole('button', { name: /English \(en-us\)/ }))
 
     await waitFor(() => {
-      expect(setPreferencesMock).toHaveBeenCalledWith({
-        overrides: {
-          system: {
-            options: {
-              langs: ['en-us']
-            }
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        system: {
+          options: {
+            langs: ['en-us']
           }
         }
       })
@@ -445,20 +445,18 @@ describe('FileProcessingSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'PP-OCRv5' }))
 
     await waitFor(() => {
-      expect(setPreferencesMock).toHaveBeenCalledWith({
-        overrides: {
-          paddleocr: {
-            capabilities: {
-              image_to_text: {
-                modelId: 'PP-OCRv5'
-              }
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        paddleocr: {
+          capabilities: {
+            image_to_text: {
+              modelId: 'PP-OCRv5'
             }
           }
         }
       })
     })
 
-    preferencesMock.overrides = setPreferencesMock.mock.calls.at(-1)?.[0].overrides ?? {}
+    overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
     rerender(<FileProcessingSettings />)
 
     fireEvent.click(
@@ -467,16 +465,14 @@ describe('FileProcessingSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'PP-StructureV3' }))
 
     await waitFor(() => {
-      expect(setPreferencesMock).toHaveBeenCalledWith({
-        overrides: {
-          paddleocr: {
-            capabilities: {
-              image_to_text: {
-                modelId: 'PP-OCRv5'
-              },
-              document_to_markdown: {
-                modelId: 'PP-StructureV3'
-              }
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        paddleocr: {
+          capabilities: {
+            image_to_text: {
+              modelId: 'PP-OCRv5'
+            },
+            document_to_markdown: {
+              modelId: 'PP-StructureV3'
             }
           }
         }
@@ -485,7 +481,7 @@ describe('FileProcessingSettings', () => {
   })
 
   it('shows PaddleOCR OCR and document models from their own feature overrides', async () => {
-    preferencesMock.overrides = {
+    overridesMock.value = {
       paddleocr: {
         capabilities: {
           document_to_markdown: {
@@ -516,7 +512,7 @@ describe('FileProcessingSettings', () => {
   })
 
   it('manages Tesseract language packs with the settings combobox', async () => {
-    preferencesMock.overrides = {
+    overridesMock.value = {
       tesseract: {
         options: {
           langs: ['eng']
@@ -535,12 +531,10 @@ describe('FileProcessingSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: /Chinese \(chi_sim\)/ }))
 
     await waitFor(() => {
-      expect(setPreferencesMock).toHaveBeenCalledWith({
-        overrides: {
-          tesseract: {
-            options: {
-              langs: ['eng', 'chi_sim']
-            }
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        tesseract: {
+          options: {
+            langs: ['eng', 'chi_sim']
           }
         }
       })
@@ -549,8 +543,12 @@ describe('FileProcessingSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: /English \(eng\)/ }))
 
     await waitFor(() => {
-      expect(setPreferencesMock).toHaveBeenCalledWith({
-        overrides: {}
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        tesseract: {
+          options: {
+            langs: []
+          }
+        }
       })
     })
   })

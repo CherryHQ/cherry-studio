@@ -306,7 +306,9 @@ export const FILE_PROCESSOR_IDS = [
 
 export type FileProcessorId = (typeof FILE_PROCESSOR_IDS)[number]
 
-export type FileProcessorOptions = Record<string, unknown>
+export type FileProcessorOptions = {
+  langs?: string[]
+}
 
 export type FileProcessorCapabilityOverride = {
   apiHost?: string

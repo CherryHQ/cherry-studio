@@ -5,27 +5,31 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useFileProcessingPreferences } from '../hooks/useFileProcessingPreferences'
 
 const setPreferencesMock = vi.hoisted(() => vi.fn())
+const setOverridesMock = vi.hoisted(() => vi.fn())
 const preferencesMock = vi.hoisted(() => ({
   defaultDocumentProcessor: null as string | null,
-  defaultImageProcessor: null as string | null,
-  overrides: {} as FileProcessorOverrides
+  defaultImageProcessor: null as string | null
 }))
+const overridesMock = vi.hoisted(() => ({ value: {} as FileProcessorOverrides }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  useMultiplePreferences: () => [preferencesMock, setPreferencesMock]
+  useMultiplePreferences: () => [preferencesMock, setPreferencesMock],
+  usePreference: () => [overridesMock.value, setOverridesMock]
 }))
 
 describe('useFileProcessingPreferences', () => {
   beforeEach(() => {
     preferencesMock.defaultDocumentProcessor = null
     preferencesMock.defaultImageProcessor = null
-    preferencesMock.overrides = {}
+    overridesMock.value = {}
     setPreferencesMock.mockReset()
     setPreferencesMock.mockResolvedValue(undefined)
+    setOverridesMock.mockReset()
+    setOverridesMock.mockResolvedValue(undefined)
   })
 
   it('writes API keys by merging into the current overrides', async () => {
-    preferencesMock.overrides = {
+    overridesMock.value = {
       paddleocr: {
         capabilities: {
           document_to_markdown: {
@@ -39,24 +43,22 @@ describe('useFileProcessingPreferences', () => {
 
     await result.current.setApiKeys('mistral', ['mistral-key'])
 
-    expect(setPreferencesMock).toHaveBeenCalledWith({
-      overrides: {
-        paddleocr: {
-          capabilities: {
-            document_to_markdown: {
-              modelId: 'PP-StructureV3'
-            }
+    expect(setOverridesMock).toHaveBeenCalledWith({
+      paddleocr: {
+        capabilities: {
+          document_to_markdown: {
+            modelId: 'PP-StructureV3'
           }
-        },
-        mistral: {
-          apiKeys: ['mistral-key']
         }
+      },
+      mistral: {
+        apiKeys: ['mistral-key']
       }
     })
   })
 
   it('writes capability fields by preserving existing processor override fields', async () => {
-    preferencesMock.overrides = {
+    overridesMock.value = {
       paddleocr: {
         apiKeys: ['paddle-key'],
         capabilities: {
@@ -71,17 +73,15 @@ describe('useFileProcessingPreferences', () => {
 
     await result.current.setCapabilityField('paddleocr', 'document_to_markdown', 'modelId', 'PP-StructureV3')
 
-    expect(setPreferencesMock).toHaveBeenCalledWith({
-      overrides: {
-        paddleocr: {
-          apiKeys: ['paddle-key'],
-          capabilities: {
-            image_to_text: {
-              modelId: 'PP-OCRv5'
-            },
-            document_to_markdown: {
-              modelId: 'PP-StructureV3'
-            }
+    expect(setOverridesMock).toHaveBeenCalledWith({
+      paddleocr: {
+        apiKeys: ['paddle-key'],
+        capabilities: {
+          image_to_text: {
+            modelId: 'PP-OCRv5'
+          },
+          document_to_markdown: {
+            modelId: 'PP-StructureV3'
           }
         }
       }
@@ -89,7 +89,7 @@ describe('useFileProcessingPreferences', () => {
   })
 
   it('writes language options from the current overrides', async () => {
-    preferencesMock.overrides = {
+    overridesMock.value = {
       tesseract: {
         apiKeys: ['unused-key']
       }
@@ -99,13 +99,11 @@ describe('useFileProcessingPreferences', () => {
 
     await result.current.setLanguageOptions('tesseract', ['eng', 'chi_sim'])
 
-    expect(setPreferencesMock).toHaveBeenCalledWith({
-      overrides: {
-        tesseract: {
-          apiKeys: ['unused-key'],
-          options: {
-            langs: ['eng', 'chi_sim']
-          }
+    expect(setOverridesMock).toHaveBeenCalledWith({
+      tesseract: {
+        apiKeys: ['unused-key'],
+        options: {
+          langs: ['eng', 'chi_sim']
         }
       }
     })

@@ -106,19 +106,14 @@ export interface FileProcessorPreset extends FileProcessorPresetConfig {
 }
 
 /**
- * Processor-specific configuration
- *
- * Uses a generic Record type without predefined structure.
- * Each processor's configuration is interpreted by UI components based on processor.id.
- *
- * Known options fields:
- * - Tesseract: { langs: string[] }  // Array of enabled language codes
- *
- * Examples:
- * - { langs: ['chi_sim', 'eng'] }        // Tesseract language config
- * - { quality: 'high', timeout: 30000 }  // Other processor config
+ * Processor-specific user override options.
+ * Currently used by system OCR and Tesseract for enabled language codes.
  */
-export const FileProcessorOptionsSchema: z.ZodType<FileProcessorOptions> = z.record(z.string(), z.unknown())
+export const FileProcessorOptionsSchema: z.ZodType<FileProcessorOptions> = z
+  .object({
+    langs: z.array(z.string()).optional()
+  })
+  .strict()
 
 /**
  * Capability override (user customization for a specific feature)
