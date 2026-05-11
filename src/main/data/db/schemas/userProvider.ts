@@ -54,7 +54,7 @@ export const userProviderTable = sqliteTable(
     providerSettings: text({ mode: 'json' }).$type<ProviderSettings>(),
 
     /** Whether this provider is enabled */
-    isEnabled: integer({ mode: 'boolean' }).default(true),
+    isEnabled: integer({ mode: 'boolean' }).notNull().default(true),
 
     /** Sort order in UI */
     sortOrder: integer().default(0),

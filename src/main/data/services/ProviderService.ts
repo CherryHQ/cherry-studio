@@ -63,7 +63,7 @@ function rowToRuntimeProvider(row: UserProvider): Provider {
     authType,
     apiFeatures,
     settings,
-    isEnabled: row.isEnabled ?? true
+    isEnabled: row.isEnabled
   }
 }
 

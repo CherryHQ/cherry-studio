@@ -49,6 +49,37 @@ merged results. It does not access the database directly.
 
 **This document focuses on small-scale scenarios using Preference storage.**
 
+#### Where preset-only fields merge
+
+SQLite-backed entities have three field classes:
+
+| Class | Owns | Runtime location |
+|---|---|---|
+| User-editable | DB row | Written via `PATCH /:resource/:id` |
+| Runtime default | Code constants | Merged in `rowToEntity` |
+| **Preset-only static** | Registry package | **Merged in `rowToEntity`** |
+
+Preset-only static fields — `websites`, `description`, `iconUrl`, vendor
+links — have no DB column. The Registry Service looks them up by preset
+key during `rowToEntity` and folds them into the runtime entity. A single
+`GET /:resource/:id` returns the complete object.
+
+**Do not split preset-only fields into a parallel endpoint.** A separate
+`GET /:resource/:id/preset-metadata` forces every consumer to issue two
+requests for one logical entity, fragments the type (`Entity` +
+`EntityPresetMetadata`), and duplicates the merge contract. Merge at the
+`rowToEntity` seam — that is where the entity becomes runtime-shaped.
+
+**Acceptable exceptions:**
+
+1. Preset payload is not 1:1 with the entity (e.g. `GET /catalog` browsed
+   before creating a row — nothing to merge against).
+2. Field set is large and consumed by only one specialised surface — pay
+   the second request there, named as `GET /:resource/:id:full-metadata`
+   so the relationship to the parent stays explicit.
+
+When in doubt: merge.
+
 ## Preset File Standards
 
 ### Location

@@ -1203,7 +1203,7 @@
       },
       "new_session": "Νέα Συνεδρία {{Command}}",
       "new_topic": "Νέο θέμα {{Command}}",
-      "paste_text_file_confirm": "Επικόλληση στο πεδίο εισαγωγής;",
+      "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
@@ -1499,6 +1499,7 @@
         "title_tip": "Συμβουλές: Διπλό κλικ στο όνομα του θέματος για να το μετονομάσετε απευθείας"
       },
       "export": {
+        "failed": "[to be translated]:Export failed",
         "image": "Εξαγωγή ως εικόνα",
         "image_saved": "Η εικόνα αποθηκεύτηκε με επιτυχία",
         "joplin": "Εξαγωγή στο Joplin",
@@ -2096,7 +2097,10 @@
   },
   "knowledge": {
     "add": {
-      "title": "Προσθήκη βιβλιοθήκης γνώσεων"
+      "group": "[to be translated]:Group",
+      "icon": "[to be translated]:Icon",
+      "submit": "[to be translated]:Create",
+      "title": "[to be translated]:New Knowledge Base"
     },
     "add_directory": "Προσθήκη καταλόγου",
     "add_file": "Προσθήκη αρχείου",
@@ -2115,9 +2119,94 @@
     "chunk_size_too_large": "Το μέγεθος μερισμού δεν μπορεί να ξεπεράσει το όριο πλάτους επιρροής του μοντέλου ({{max_context}})",
     "chunk_size_tooltip": "Διαχωρισμός των έγγραφων σε μεριδισμούς, με το μέγεθος κάθε μεριδισμού να μην ξεπεράζει το όριο πλάτους επιρροής του μοντέλου",
     "clear_selection": "Καθαρισμός επιλογής",
+    "context": {
+      "delete": "[to be translated]:Delete Knowledge Base",
+      "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
+      "delete_confirm_title": "[to be translated]:Delete Knowledge Base?",
+      "move_to": "[to be translated]:Move to",
+      "rename": "[to be translated]:Rename"
+    },
+    "data_source": {
+      "actions": {
+        "delete": "[to be translated]:Delete",
+        "preview_source": "[to be translated]:Preview Source",
+        "reindex": "[to be translated]:Reindex",
+        "view_chunks": "[to be translated]:View Chunks"
+      },
+      "add_dialog": {
+        "directory": {
+          "description": "[to be translated]:Recursively import supported files from a folder",
+          "title": "[to be translated]:Click to select a folder"
+        },
+        "footer": {
+          "selected_directories": "[to be translated]:{{count}} directories selected",
+          "selected_files": "[to be translated]:{{count}} files selected",
+          "selected_notes": "[to be translated]:{{count}} notes selected"
+        },
+        "note": {
+          "description": "[to be translated]:Select existing notes as knowledge base sources",
+          "empty_description": "[to be translated]:Selectable notes will appear here after the real notes list is connected. For now, use files, folders, URLs, or sitemaps.",
+          "empty_title": "[to be translated]:Notes are not connected yet"
+        },
+        "placeholder": {
+          "supported_formats": "[to be translated]:Supports PDF, DOCX, MD, XLSX, TXT, CSV",
+          "title": "[to be translated]:Click to select files or drag them here"
+        },
+        "sitemap": {
+          "description": "[to be translated]:Enter a sitemap URL:",
+          "help": "[to be translated]:Pages listed in the sitemap will be read and indexed",
+          "placeholder": "[to be translated]:https://docs.cherry-ai.com/sitemap-pages.xml"
+        },
+        "sources": {
+          "directory": "[to be translated]:Folder",
+          "file": "[to be translated]:File",
+          "note": "[to be translated]:Note",
+          "sitemap": "[to be translated]:Website",
+          "url": "[to be translated]:URL"
+        },
+        "submit": {
+          "error": "[to be translated]:Failed to add data source",
+          "success": "[to be translated]:Data source added to knowledge base"
+        },
+        "title": "[to be translated]:Add Data Source",
+        "url": {
+          "description": "[to be translated]:Enter a webpage URL:",
+          "help": "[to be translated]:Page text will be fetched, chunked, and indexed automatically",
+          "input_label": "[to be translated]:Webpage URL",
+          "placeholder": "[to be translated]:https://docs.cherry-ai.com/",
+          "title": "[to be translated]:Import a single webpage"
+        }
+      },
+      "chunk_delete_confirm_description": "[to be translated]:After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will generate it again.",
+      "chunk_delete_confirm_title": "[to be translated]:Delete Chunk?",
+      "chunks_count": "[to be translated]:{{count}} chunks",
+      "delete_confirm_description": "[to be translated]:This data source and its index data cannot be recovered after deletion.",
+      "delete_confirm_title": "[to be translated]:Delete Data Source?",
+      "empty_description": "[to be translated]:No data sources yet",
+      "filters": {
+        "all": "[to be translated]:All",
+        "directory": "[to be translated]:Folders",
+        "file": "[to be translated]:Files",
+        "note": "[to be translated]:Notes",
+        "sitemap": "[to be translated]:Websites",
+        "url": "[to be translated]:URLs"
+      },
+      "preview": {
+        "failed": "[to be translated]:Failed to preview source",
+        "unavailable": "[to be translated]:This data source has no source to preview"
+      },
+      "ready_summary": "[to be translated]:{{ready}}/{{total}} ready",
+      "status": {
+        "chunking": "[to be translated]:Chunking",
+        "embedding": "[to be translated]:Embedding",
+        "error": "[to be translated]:Error",
+        "pending": "[to be translated]:Waiting",
+        "ready": "[to be translated]:Ready"
+      }
+    },
     "delete": "Διαγραφή",
     "delete_confirm": "Είστε σίγουρος ότι θέλετε να διαγράψετε αυτή τη βάση γνώσεων;",
-    "dimensions": "Διαστάσεις ενσωμάτωσης",
+    "dimensions": "[to be translated]:Embedding Dimensions",
     "dimensions_auto_set": "Αυτόματη ρύθμιση διαστάσεων ενσωμάτωσης",
     "dimensions_default": "Το μοντέλο θα χρησιμοποιήσει τις προεπιλεγμένες διαστάσεις ενσωμάτωσης",
     "dimensions_error_invalid": "Παρακαλώ εισάγετε μέγεθος διαστάσεων ενσωμάτωσης",
@@ -2134,12 +2223,14 @@
     "drag_image": "Σύρετε την εικόνα εδώ",
     "edit_remark": "Μεταβολή σημειώματος",
     "edit_remark_placeholder": "Εισάγετε το σημείωμα",
-    "embedding_model": "Μοντέλο ενσωμάτωσης",
-    "embedding_model_required": "Το μοντέλο ενσωμάτωσης της βάσης γνώσης είναι υποχρεωτικό",
-    "empty": "Λεηλασία βάσης γνώσεων",
+    "embedding_model": "[to be translated]:Embedding Model",
+    "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
+    "empty": "[to be translated]:No knowledge bases",
     "error": {
-      "failed_to_create": "Αποτυχία δημιουργίας βάσης γνώσεων",
-      "failed_to_edit": "Αποτυχία επεξεργασίας βάσης γνώσεων",
+      "failed_base_unknown": "[to be translated]:This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
+      "failed_to_create": "[to be translated]:Failed to create knowledge base",
+      "failed_to_edit": "[to be translated]:Failed to edit knowledge base",
+      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
       "model_invalid": "Δεν έχει επιλεγεί μοντέλο ή έχει διαγραφεί",
       "video": {
         "local_file_missing": "Το αρχείο βίντεο δεν υπάρχει",
@@ -2147,12 +2238,31 @@
       }
     },
     "file_hint": "Υποστηρίζεται το {{file_types}} μορφάττων",
+    "groups": {
+      "add": "[to be translated]:New Group",
+      "create_base_here": "[to be translated]:Create here",
+      "delete": "[to be translated]:Delete Group",
+      "delete_confirm_description": "[to be translated]:Knowledge bases in this group will be moved to Ungrouped after deletion.",
+      "delete_confirm_title": "[to be translated]:Delete Group?",
+      "error": {
+        "failed_to_create": "[to be translated]:Failed to create group",
+        "failed_to_update": "[to be translated]:Failed to rename group"
+      },
+      "name_placeholder": "[to be translated]:Enter group name...",
+      "name_required": "[to be translated]:Group name is required",
+      "rename": "[to be translated]:Rename",
+      "rename_title": "[to be translated]:Rename Group",
+      "ungrouped": "[to be translated]:Ungrouped"
+    },
     "image_hint": "Υποστηρίζει μορφές {{image_types}}",
     "images": "εικόνα",
     "index_all": "Ευρετήριοποίηση όλων",
     "index_cancelled": "Η ευρετήριοποίηση διακόπηκε",
     "index_started": "Η ευρετήριοποίηση ξεκίνησε",
     "invalid_url": "Μη έγκυρη διευθύνση",
+    "meta": {
+      "documents_count": "[to be translated]:{{count}} documents"
+    },
     "migrate": {
       "button": {
         "text": "Μεταφορά"
@@ -2171,17 +2281,86 @@
       "target_model": "Προορισμένο μοντέλο"
     },
     "model_info": "Πληροφορίες μοντέλου",
-    "name_required": "Το όνομα της βάσης γνώσης είναι υποχρεωτικό",
+    "name_required": "[to be translated]:Knowledge base name is required",
     "no_bases": "Λεηλασία βάσης γνώσεων",
     "no_match": "Δεν βρέθηκαν στοιχεία γνώσεων",
     "no_provider": "Η παροχή υπηρεσιών μοντέλου βάσης γνώσεων χαθηκε, αυτή η βάση γνώσεων δεν θα υποστηρίζεται πλέον, παρακαλείστε να δημιουργήσετε ξανά μια βάση γνώσεων",
-    "not_set": "Δεν έχει ρυθμιστεί",
+    "not_set": "[to be translated]:Not Set",
     "not_support": "Το μοντέλο βάσης γνώσεων έχει ενημερωθεί, αυτή η βάση γνώσεων δεν θα υποστηρίζεται πλέον, παρακαλείστε να δημιουργήσετε ξανά μια βάση γνώσεων",
     "notes": "Σημειώματα",
     "notes_placeholder": "Εισάγετε πρόσθετες πληροφορίες ή πληροφορίες προσδιορισμού για αυτή τη βάση γνώσεων...",
     "provider_not_found": "Η παροχή υπηρεσιών μοντέλου βάσης γνώσεων χαθηκε, αυτή η βάση γνώσεων δεν θα υποστηρίζεται πλέον, παρακαλείστε να δημιουργήσετε ξανά μια βάση γνώσεων",
+    "rag": {
+      "chunk_overlap": "[to be translated]:Overlap Size",
+      "chunk_overlap_invalid": "[to be translated]:Chunk overlap must be greater than or equal to 0",
+      "chunk_overlap_must_be_smaller": "[to be translated]:Chunk overlap must be smaller than chunk size",
+      "chunk_overlap_requires_chunk_size": "[to be translated]:Chunk size is required when chunk overlap is set",
+      "chunk_size": "[to be translated]:Chunk Size",
+      "chunk_size_change_warning": "[to be translated]:Chunk size and overlap changes only apply to newly added content",
+      "chunk_size_invalid": "[to be translated]:Chunk size must be greater than 0",
+      "chunking": "[to be translated]:Chunking",
+      "default_separator": "[to be translated]:Auto (recommended)",
+      "document_count": "[to be translated]:Document Count",
+      "file_processing": "[to be translated]:File Processing",
+      "file_processing_hint": "[to be translated]:File processing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
+      "hints": {
+        "chunk_overlap": "[to be translated]:Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
+        "chunk_size": "[to be translated]:Target token count for each document chunk. This affects retrieval granularity and context length.",
+        "dimensions": "[to be translated]:The vector dimension output by the current embedding model, used to create and match vector indexes.",
+        "document_count": "[to be translated]:Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
+        "embedding_model": "[to be translated]:Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
+        "hybrid_alpha": "[to be translated]:Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
+        "processor": "[to be translated]:Parser used when importing files to extract body text, tables, and related content.",
+        "rerank_model": "[to be translated]:Model used to rerank initial retrieval results and improve final chunk relevance.",
+        "search_mode": "[to be translated]:Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both.",
+        "threshold": "[to be translated]:Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter.",
+        "threshold_disabled": "[to be translated]:This retrieval mode returns ordered results and does not use a similarity threshold."
+      },
+      "hybrid_alpha": "[to be translated]:Hybrid Alpha",
+      "hybrid_alpha_hint": "[to be translated]:Only configurable in Hybrid retrieval mode",
+      "processor": "[to be translated]:Processing Provider",
+      "rerank_disabled": "[to be translated]:Disabled",
+      "reset_defaults": "[to be translated]:Reset Defaults",
+      "retrieval": "[to be translated]:Retrieval Settings",
+      "search_mode": {
+        "bm25": "[to be translated]:Full-text Search",
+        "default": "[to be translated]:Vector Search",
+        "hybrid": "[to be translated]:Hybrid Search (recommended)",
+        "title": "[to be translated]:Search Mode"
+      },
+      "separator_rule": "[to be translated]:Separator Rule",
+      "threshold": "[to be translated]:Similarity Threshold",
+      "tokens_unit": "[to be translated]:tokens"
+    },
+    "recall": {
+      "collapse": "[to be translated]:Collapse Chunk",
+      "copy": "[to be translated]:Copy Chunk",
+      "duration": "[to be translated]:{{duration}}ms",
+      "empty_description": "[to be translated]:Matched document chunks and scores will appear here",
+      "empty_title": "[to be translated]:Enter a query to test retrieval",
+      "expand": "[to be translated]:Expand Chunk",
+      "history_clear": "[to be translated]:Clear",
+      "history_remove": "[to be translated]:Remove History",
+      "history_title": "[to be translated]:Search History",
+      "placeholder": "[to be translated]:Enter test query...",
+      "ranking_only": "[to be translated]:Ordered results",
+      "result_count": "[to be translated]:{{count}} results",
+      "result_rank": "[to be translated]:Rank #{{rank}}",
+      "result_relevance": "[to be translated]:Relevance {{score}}",
+      "searching": "[to be translated]:Searching...",
+      "submit": "[to be translated]:Search",
+      "top_score": "[to be translated]:Top: {{score}}"
+    },
     "rename": "Μετονομασία",
-    "search": "Αναζήτηση βάσης γνώσεων",
+    "rename_title": "[to be translated]:Rename Knowledge Base",
+    "restore": {
+      "action": "[to be translated]:Rebuild knowledge base",
+      "default_name": "[to be translated]:{{name}}_bak",
+      "failed_to_restore": "[to be translated]:Failed to rebuild knowledge base",
+      "submit": "[to be translated]:Rebuild",
+      "title": "[to be translated]:Rebuild Knowledge Base"
+    },
+    "search": "[to be translated]:Search Knowledge Base",
     "search_placeholder": "Εισάγετε την αναζήτηση",
     "settings": {
       "preprocessing": "Προεπεξεργασία",
@@ -2192,7 +2371,11 @@
     "sitemap_placeholder": "Εισάγετε τη διεύθυνση URL του χάρτη τόπων",
     "sitemaps": "Στοιχεία του δικτύου",
     "source": "Πηγή",
-    "status": "Κατάσταση",
+    "status": {
+      "completed": "[to be translated]:Ready",
+      "failed": "[to be translated]:Failed",
+      "processing": "[to be translated]:Processing"
+    },
     "status_completed": "Ολοκληρώθηκε",
     "status_embedding_completed": "Η ενσωμάτωση ολοκληρώθηκε",
     "status_embedding_failed": "Η ενσωμάτωση απέτυχε",
@@ -2203,11 +2386,16 @@
     "status_preprocess_failed": "Η προεπεξεργασία απέτυχε",
     "status_processing": "Επεξεργασία",
     "subtitle_file": "Υποτίτλων",
+    "tabs": {
+      "data_source": "[to be translated]:Data Sources",
+      "rag_config": "[to be translated]:RAG Config",
+      "recall_test": "[to be translated]:Recall Test"
+    },
     "threshold": "Περιθώριο συνάφειας",
     "threshold_placeholder": "Δεν έχει ρυθμιστεί",
     "threshold_too_large_or_small": "Το περιθώριο δεν μπορεί να είναι μεγαλύτερο από 1 ή μικρότερο από 0",
     "threshold_tooltip": "Χρησιμοποιείται για τη μετρηση της σχέσης συνάφειας μεταξύ της ερώτησης του χρήστη και των περιεχομένων της βάσης γνώσεων (0-1)",
-    "title": "Βάση γνώσεων",
+    "title": "[to be translated]:Knowledge Base",
     "topN": "Ποσότητα αποτελεσμάτων που επιστρέφονται",
     "topN_placeholder": "Δεν έχει ρυθμιστεί",
     "topN_too_large_or_small": "Ο αριθμός των αποτελεσμάτων δεν μπορεί να είναι μεγαλύτερος από 30 ή μικρότερος από 1",
@@ -3829,6 +4017,7 @@
     "dashscope": "AliCloud Bailian",
     "deepseek": "Βαθιά Αναζήτηση",
     "dmxapi": "DMXAPI",
+    "doc2x": "[to be translated]:Doc2X",
     "doubao": "Huoshan Engine",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
@@ -3846,6 +4035,7 @@
     "lmstudio": "LM Studio",
     "longcat": "Τσίρο",
     "mimo": "Xiaomi MiMo",
+    "mineru": "[to be translated]:MinerU",
     "minimax": "MiniMax CN",
     "minimax-global": "Minimax",
     "mistral": "Mistral",
@@ -3856,9 +4046,12 @@
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
+    "open-mineru": "[to be translated]:Open MinerU",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
+    "ovocr": "[to be translated]:Intel OV(NPU) OCR",
+    "paddleocr": "[to be translated]:PaddleOCR",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
@@ -3868,7 +4061,9 @@
     "silicon": "Σιδηρική Παρουσία",
     "sophnet": "SophNet",
     "stepfun": "Βήμα Ουράς",
+    "system": "[to be translated]:System OCR",
     "tencent-cloud-ti": "Tencent Cloud TI",
+    "tesseract": "[to be translated]:Tesseract",
     "together": "Together",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
@@ -6532,7 +6727,7 @@
   },
   "tab": {
     "close": "Κλείσιμο Καρτέλας",
-    "moveToFirst": "Μετακίνηση στο Πρώτο",
+    "move_to_first": "[to be translated]:Move to First",
     "new": "Νέα Καρτέλα",
     "pin": "Καρφίτσωμα καρτέλας",
     "unpin": "Ξεκαρφίτσωση Καρτέλας"
