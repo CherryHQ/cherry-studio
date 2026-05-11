@@ -125,7 +125,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
       externalPath: null
     })
   } catch (err) {
-    logger.warn('createInternal: DB insert failed; unlinking physical file', { id, err: (err as Error).message })
+    logger.warn('createInternal: DB insert failed; unlinking physical file', { id, err })
     await fsRemove(physical).catch(() => undefined)
     throw err
   }

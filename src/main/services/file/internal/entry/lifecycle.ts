@@ -51,7 +51,7 @@ export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): P
     } catch (err) {
       logger.warn('permanentDelete: failed to unlink internal physical file (DB row already removed)', {
         id,
-        err: (err as Error).message
+        err
       })
     }
   }
