@@ -9,9 +9,9 @@
  */
 
 import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { application } from '@application'
 import { resolvePhysicalPath } from '@data/utils/pathResolver'
 import { copy as fsCopy } from '@main/utils/file/fs'
 import type { FileEntryId } from '@shared/data/types/file'
@@ -26,7 +26,11 @@ export async function withTempCopy<T>(
 ): Promise<T> {
   const entry = await deps.fileEntryService.getById(id)
   const physical = resolvePhysicalPath(entry) as FilePath
-  const dir = await mkdtemp(path.join(tmpdir(), 'cherry-fm-tempcopy-'))
+  // Centralised path: feature.files.tempcopy.temp is the parent dir; mkdtemp
+  // appends a unique suffix per call so concurrent withTempCopy invocations
+  // do not collide.
+  const parent = application.getPath('feature.files.tempcopy.temp')
+  const dir = await mkdtemp(path.join(parent, 'tc-'))
   const filename = `${entry.name}${entry.ext ? `.${entry.ext}` : ''}` || 'file'
   const target = path.join(dir, filename) as FilePath
   try {

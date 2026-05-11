@@ -38,6 +38,10 @@ describe('internal/system/tempCopy', () => {
       if (key === 'feature.files.data') {
         return filename ? path.join(filesDir, filename) : filesDir
       }
+      if (key === 'feature.files.tempcopy.temp') {
+        // mkdtemp requires a real, writable parent dir — point at the test tmpdir.
+        return filename ? path.join(tmp, filename) : tmp
+      }
       return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
     })
     deps = {
