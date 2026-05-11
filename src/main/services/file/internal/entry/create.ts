@@ -141,18 +141,16 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   const existing = await deps.fileEntryService.findByExternalPath(canonical)
   if (existing) return existing
   await fsStat(params.externalPath)
-  try {
-    const peers = await deps.fileEntryService.findCaseInsensitivePeers(canonical)
-    if (peers.length > 0) {
-      logger.warn('ensureExternal: case-insensitive duplicate-suspect peers detected', {
-        path: canonical,
-        peerIds: peers.map((p) => p.id)
-      })
-    }
-  } catch (err) {
-    logger.warn('ensureExternal: case-insensitive peer detection failed (non-fatal, insert proceeds)', {
+  // Peer detection is a `SELECT` against the same DB connection that the
+  // upcoming `create()` writes through. If this query fails (transient lock,
+  // connection drop), the subsequent INSERT would fail at the same boundary
+  // with a more diagnosable stack — wrapping in try/catch here only hides
+  // the real error one stack frame earlier. Let it propagate.
+  const peers = await deps.fileEntryService.findCaseInsensitivePeers(canonical)
+  if (peers.length > 0) {
+    logger.warn('ensureExternal: case-insensitive duplicate-suspect peers detected', {
       path: canonical,
-      err: (err as Error).message
+      peerIds: peers.map((p) => p.id)
     })
   }
   const name = params.name ?? defaultNameFromPath(params.externalPath)
