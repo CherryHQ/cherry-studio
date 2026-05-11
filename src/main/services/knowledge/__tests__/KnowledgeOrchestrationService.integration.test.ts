@@ -128,13 +128,14 @@ describe('KnowledgeOrchestrationService integration', () => {
 
     const restoredBase = await service.restoreBase({
       sourceBaseId: 'source-kb',
+      name: 'Legacy KB_bak',
       embeddingModelId,
       dimensions: 1536
     })
 
     expect(restoredBase).toMatchObject({
-      name: 'Legacy KB',
-      groupId: null,
+      name: 'Legacy KB_bak',
+      groupId: 'group-1',
       dimensions: 1536,
       embeddingModelId,
       status: 'completed',
