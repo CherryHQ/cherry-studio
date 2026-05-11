@@ -223,6 +223,52 @@ describe('ComponentLabFileProcessingSettings', () => {
     expect(startTaskMock.mock.calls.every(([payload]) => payload.file === imageFile)).toBe(true)
   })
 
+  it('excludes System OCR when file processing reports it as unavailable', async () => {
+    listAvailableProcessorsMock.mockResolvedValueOnce({
+      processorIds: ['tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru']
+    })
+    selectFileMock.mockResolvedValueOnce([imageFile])
+    startTaskMock.mockImplementation(({ processorId }) =>
+      Promise.resolve({
+        taskId: `ocr-${processorId}`,
+        feature: 'image_to_text',
+        processorId,
+        progress: 0,
+        status: 'pending'
+      })
+    )
+    getTaskMock.mockImplementation(({ taskId }) =>
+      Promise.resolve({
+        taskId,
+        feature: 'image_to_text',
+        processorId: taskId.replace('ocr-', ''),
+        progress: 100,
+        status: 'completed',
+        artifacts: [{ kind: 'text', format: 'plain', text: `result-${taskId}` }]
+      })
+    )
+
+    render(<ComponentLabFileProcessingSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.componentLab.fileProcessing.ocr.select/ }))
+
+    await waitFor(() => {
+      expect(screen.getByText('/tmp/sample.png')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.componentLab.fileProcessing.ocr.start/ }))
+
+    await waitFor(() => {
+      expect(startTaskMock).toHaveBeenCalledTimes(3)
+    })
+
+    expect(startTaskMock.mock.calls.map(([payload]) => payload.processorId).sort()).toEqual([
+      'mistral',
+      'paddleocr',
+      'tesseract'
+    ])
+  })
+
   it('includes OV OCR in Component Lab only when file processing reports it as available', async () => {
     listAvailableProcessorsMock.mockResolvedValueOnce({
       processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru', 'ovocr']
@@ -271,7 +317,7 @@ describe('ComponentLabFileProcessingSettings', () => {
     ])
   })
 
-  it('excludes OV OCR from Component Lab when available processor lookup fails', async () => {
+  it('does not start processors when available processor lookup fails', async () => {
     listAvailableProcessorsMock.mockRejectedValueOnce(new Error('IPC failed'))
     selectFileMock.mockResolvedValueOnce([imageFile])
     startTaskMock.mockImplementation(({ processorId }) =>
@@ -312,15 +358,10 @@ describe('ComponentLabFileProcessingSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: /settings.componentLab.fileProcessing.ocr.start/ }))
 
     await waitFor(() => {
-      expect(startTaskMock).toHaveBeenCalledTimes(4)
+      expect(screen.getByText('settings.componentLab.fileProcessing.noProcessors')).toBeInTheDocument()
     })
 
-    expect(startTaskMock.mock.calls.map(([payload]) => payload.processorId).sort()).toEqual([
-      'mistral',
-      'paddleocr',
-      'system',
-      'tesseract'
-    ])
+    expect(startTaskMock).not.toHaveBeenCalled()
   })
 
   it('starts every document-to-markdown processor after selecting a Markdown test file', async () => {

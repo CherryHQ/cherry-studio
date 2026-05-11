@@ -92,7 +92,7 @@ function getProcessorsForFeature(
   availableProcessorIds: ReadonlySet<FileProcessorId>
 ): FileProcessorMerged[] {
   return processors.filter((processor) => {
-    if (processor.id === 'ovocr' && !availableProcessorIds.has('ovocr')) {
+    if (!availableProcessorIds.has(processor.id)) {
       return false
     }
 
