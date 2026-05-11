@@ -75,7 +75,14 @@ export interface CherryInProviderSettings {
    * Optional endpoint type to distinguish different endpoint behaviors.
    * "image-generation" is also openai endpoint, but specifically for image generation.
    */
-  endpointType?: 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
+  endpointType?:
+    | 'openai'
+    | 'openai-response'
+    | 'anthropic'
+    | 'gemini'
+    | 'image-generation'
+    | 'jina-rerank'
+    | 'embedding'
 }
 
 export interface CherryInProvider extends ProviderV3 {
@@ -85,6 +92,7 @@ export interface CherryInProvider extends ProviderV3 {
   responses(modelId: string): LanguageModelV3
   completion(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
   embedding(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV3
+  embeddingModel(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV3
   image(modelId: string, settings?: OpenAIProviderSettings): ImageModelV3
   imageModel(modelId: string, settings?: OpenAIProviderSettings): ImageModelV3
   transcription(modelId: string): TranscriptionModelV3
@@ -324,6 +332,10 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
         return createGeminiModel(modelId)
       case 'openai':
         return createOpenAIChatModel(modelId)
+      case 'embedding':
+        throw new Error('Use embeddingModel() for embedding endpoint type')
+      case 'jina-rerank':
+        throw new Error('Use rerankingModel() for jina-rerank endpoint type')
       case 'openai-response':
       default:
         return new OpenAIResponsesLanguageModel(modelId, {
