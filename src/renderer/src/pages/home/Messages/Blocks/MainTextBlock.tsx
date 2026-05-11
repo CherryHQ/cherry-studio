@@ -1,9 +1,9 @@
 import { Flex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Citation, Model, WebSearchSource } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
+import { createUniqueModelId } from '@shared/data/types/model'
 import React, { useCallback } from 'react'
 
 import type { MarkdownSource } from '../../Markdown/Markdown'
@@ -54,7 +54,7 @@ const MainTextBlock: React.FC<Props> = ({
       {mentions && mentions.length > 0 && (
         <Flex className="mb-2.5 flex-wrap gap-2">
           {mentions.map((m) => (
-            <span key={getModelUniqId(m)} className="text-(--color-link)">
+            <span key={createUniqueModelId(m.provider, m.id)} className="text-(--color-link)">
               {'@' + m.name}
             </span>
           ))}

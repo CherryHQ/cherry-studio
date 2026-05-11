@@ -10,13 +10,13 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames, cn } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { isMessageAwaitingApproval } from '@renderer/utils/messageUtils/is'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { createUniqueModelId } from '@shared/data/types/model'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import React, { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -210,7 +210,7 @@ const MessageItem: FC<Props> = ({
           message={message}
           assistant={assistant}
           model={model}
-          key={getModelUniqId(model)}
+          key={model ? createUniqueModelId(model.provider, model.id) : ''}
           topic={topic}
           isGroupContextMessage={isGroupContextMessage}
         />

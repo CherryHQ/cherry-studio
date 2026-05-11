@@ -10,22 +10,20 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import ModelSelector from '@renderer/components/ModelSelectorLegacy'
-import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModels'
-import { useProviders } from '@renderer/hooks/useProvider'
 import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
-import { getModelUniqId } from '@renderer/services/ModelService'
-import type { Model } from '@renderer/types'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import { find } from 'lodash'
-import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
+import type { Model as SharedModel } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
+import { Languages, MessageSquareMore, PlusIcon, Rocket, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDescription, SettingGroup, SettingTitle } from '..'
@@ -45,36 +43,36 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
     useDefaultModel()
   const { assistant: defaultAssistant } = useDefaultAssistant()
-  const { providers } = useProviders()
-  const allModels = providers.map((p) => p.models).flat()
   const { theme } = useTheme()
   const { t } = useTranslation()
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
   const [translateSettingsOpen, setTranslateSettingsOpen] = useState(false)
 
-  const modelPredicate = useCallback(
-    (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
-    []
+  const modelFilter = useCallback((m: SharedModel) => !isNonChatModel(m), [])
+
+  const onSelectDefault = useCallback(
+    (selected: SharedModel | undefined) => {
+      if (!selected) return
+      void setDefaultModel(fromSharedModel(selected))
+    },
+    [setDefaultModel]
   )
 
-  const v1DefaultModel = useMemo(() => (defaultModel ? fromSharedModel(defaultModel) : undefined), [defaultModel])
-  const v1QuickModel = useMemo(() => (quickModel ? fromSharedModel(quickModel) : undefined), [quickModel])
-  const v1TranslateModel = useMemo(
-    () => (translateModel ? fromSharedModel(translateModel) : undefined),
-    [translateModel]
+  const onSelectQuick = useCallback(
+    (selected: SharedModel | undefined) => {
+      if (!selected) return
+      setQuickModel(fromSharedModel(selected))
+    },
+    [setQuickModel]
   )
 
-  const defaultModelValue = useMemo(
-    () => (v1DefaultModel ? getModelUniqId(v1DefaultModel) : undefined),
-    [v1DefaultModel]
-  )
-
-  const defaultQuickModel = useMemo(() => (v1QuickModel ? getModelUniqId(v1QuickModel) : undefined), [v1QuickModel])
-
-  const defaultTranslateModel = useMemo(
-    () => (v1TranslateModel ? getModelUniqId(v1TranslateModel) : undefined),
-    [v1TranslateModel]
+  const onSelectTranslate = useCallback(
+    (selected: SharedModel | undefined) => {
+      if (!selected) return
+      setTranslateModel(fromSharedModel(selected))
+    },
+    [setTranslateModel]
   )
 
   const onResetTranslatePrompt = () => {
@@ -83,6 +81,17 @@ const ModelSettings: FC<ModelSettingsProps> = ({
 
   const containerStyle = compact ? { padding: 0, background: 'transparent' } : undefined
   const groupStyle = compact ? { padding: 0, border: 'none', background: 'transparent' } : undefined
+  const triggerStyle = { width: compact ? '100%' : 360 }
+
+  const renderTrigger = (model: SharedModel | undefined) => {
+    const v1 = model ? fromSharedModel(model) : undefined
+    return (
+      <Button variant="outline" className="justify-start" style={triggerStyle}>
+        {v1 ? <ModelAvatar model={v1} size={18} /> : <PlusIcon size={16} />}
+        <span className="truncate">{v1 ? v1.name : t('settings.models.empty')}</span>
+      </Button>
+    )
+  }
 
   return (
     <SettingContainer theme={theme} style={containerStyle}>
@@ -93,14 +102,11 @@ const ModelSettings: FC<ModelSettingsProps> = ({
         </SettingTitle>
         <RowFlex className="items-center">
           <ModelSelector
-            providers={providers}
-            predicate={modelPredicate}
-            value={defaultModelValue}
-            defaultValue={defaultModelValue}
-            style={{ width: compact ? '100%' : 360 }}
-            size={compact ? 'large' : 'middle'}
-            onChange={(value) => setDefaultModel(find(allModels, JSON.parse(value)) as Model)}
-            placeholder={t('settings.models.empty')}
+            multiple={false}
+            value={defaultModel}
+            filter={modelFilter}
+            onSelect={onSelectDefault}
+            trigger={renderTrigger(defaultModel)}
           />
           {showSettingsButton && defaultAssistant && (
             <Button
@@ -123,14 +129,11 @@ const ModelSettings: FC<ModelSettingsProps> = ({
         </SettingTitle>
         <RowFlex className="items-center">
           <ModelSelector
-            providers={providers}
-            predicate={modelPredicate}
-            value={defaultQuickModel}
-            defaultValue={defaultQuickModel}
-            style={{ width: compact ? '100%' : 360 }}
-            size={compact ? 'large' : 'middle'}
-            onChange={(value) => setQuickModel(find(allModels, JSON.parse(value)) as Model)}
-            placeholder={t('settings.models.empty')}
+            multiple={false}
+            value={quickModel}
+            filter={modelFilter}
+            onSelect={onSelectQuick}
+            trigger={renderTrigger(quickModel)}
           />
           {showSettingsButton && (
             <Button className="ml-2" onClick={TopicNamingModalPopup.show} size="icon">
@@ -147,14 +150,11 @@ const ModelSettings: FC<ModelSettingsProps> = ({
         </SettingTitle>
         <RowFlex className="items-center">
           <ModelSelector
-            providers={providers}
-            predicate={modelPredicate}
-            value={defaultTranslateModel}
-            defaultValue={defaultTranslateModel}
-            style={{ width: compact ? '100%' : 360 }}
-            size={compact ? 'large' : 'middle'}
-            onChange={(value) => setTranslateModel(find(allModels, JSON.parse(value)) as Model)}
-            placeholder={t('settings.models.empty')}
+            multiple={false}
+            value={translateModel}
+            filter={modelFilter}
+            onSelect={onSelectTranslate}
+            trigger={renderTrigger(translateModel)}
           />
           {showSettingsButton && (
             <>

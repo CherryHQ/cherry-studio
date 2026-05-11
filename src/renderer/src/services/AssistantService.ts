@@ -7,7 +7,6 @@
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { MAX_CONTEXT_COUNT, UNLIMITED_CONTEXT_COUNT } from '@renderer/config/constant'
 import { getModelSupportedReasoningEffortOptions } from '@renderer/config/models'
 import { isQwenMTModel } from '@renderer/config/models/qwen'
 import { getStoreProviders } from '@renderer/hooks/useStore'
@@ -96,20 +95,6 @@ export async function getDefaultTranslateAssistant(
     model,
     targetLanguage,
     content
-  }
-}
-
-/**
- * Normalize assistant settings — currently the only non-trivial transform is
- * collapsing `MAX_CONTEXT_COUNT` to `UNLIMITED_CONTEXT_COUNT` for downstream
- * consumers (TokenService, CodeCliPage). Schema defaults already populate the
- * rest, so the v1-era `?? DEFAULT_ASSISTANT_SETTINGS.x` chain is gone.
- */
-export const getAssistantSettings = (assistant: Assistant): AssistantSettings => {
-  const settings = assistant.settings
-  return {
-    ...settings,
-    contextCount: settings.contextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : settings.contextCount
   }
 }
 

@@ -1,6 +1,6 @@
 import { Flex } from '@cherrystudio/ui'
-import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Message } from '@renderer/types/newMessage'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { isEmpty } from 'lodash'
 import React from 'react'
 
@@ -16,7 +16,7 @@ const MessageContent: React.FC<Props> = ({ message }) => {
       {!isEmpty(message.mentions) && (
         <Flex className="mb-2.5 flex-wrap gap-2">
           {message.mentions?.map((model) => (
-            <span key={getModelUniqId(model)} className="text-(--color-link)">
+            <span key={createUniqueModelId(model.provider, model.id)} className="text-(--color-link)">
               {'@' + model.name}
             </span>
           ))}

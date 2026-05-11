@@ -6,7 +6,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getMessageModelId } from '@renderer/services/MessagesService'
-import { getModelName } from '@renderer/services/ModelService'
 import type { Message } from '@renderer/types/newMessage'
 import { isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -86,7 +85,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
     (message: Message) => {
       if (message.role === 'assistant') {
         if (message.model) {
-          return getModelName(message.model) || message.model.name || message.modelId || ''
+          return message.model.name || message.model.id || message.modelId || ''
         }
 
         const modelId = getMessageModelId(message)

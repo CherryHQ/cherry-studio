@@ -11,7 +11,6 @@ import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMessageStyle } from '@renderer/hooks/useSettings'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getMessageModelId } from '@renderer/services/MessagesService'
-import { getModelName } from '@renderer/services/ModelService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
@@ -55,7 +54,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
     }
 
     if (message.role === 'assistant') {
-      return getModelName(model) || getMessageModelId(message) || ''
+      return model?.name || model?.id || getMessageModelId(message) || ''
     }
 
     return userName || t('common.you')

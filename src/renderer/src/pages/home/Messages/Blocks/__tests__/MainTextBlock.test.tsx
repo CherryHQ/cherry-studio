@@ -12,11 +12,6 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: vi.fn()
 }))
 
-// Mock services
-vi.mock('@renderer/services/ModelService', () => ({
-  getModelUniqId: vi.fn((model: Model) => `${model.id}-${model.name}`)
-}))
-
 // Mock citation utilities
 vi.mock('@renderer/utils/citation', () => ({
   withCitationTags: vi.fn((content: string, citations: any[]) => {
@@ -142,10 +137,7 @@ describe('MainTextBlock', () => {
   })
 
   describe('mentions functionality', () => {
-    it('should display model mentions when provided', async () => {
-      const { getModelUniqId } = await import('@renderer/services/ModelService')
-      const mockGetModelUniqId = getModelUniqId as any
-
+    it('should display model mentions when provided', () => {
       const mentions = [
         { id: 'model-1', name: 'deepseek-r1', provider: 'test' } as Model,
         { id: 'model-2', name: 'claude-sonnet-4', provider: 'test' } as Model
@@ -155,7 +147,6 @@ describe('MainTextBlock', () => {
 
       expect(screen.getByText('@deepseek-r1')).toBeInTheDocument()
       expect(screen.getByText('@claude-sonnet-4')).toBeInTheDocument()
-      expect(mockGetModelUniqId).toHaveBeenCalledTimes(2)
     })
 
     it('should not display mentions when none provided', () => {

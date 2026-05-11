@@ -148,7 +148,6 @@ const DEFAULT_TEST_SETTINGS = {
   contextCount: 10,
   streamOutput: true,
   reasoning_effort: 'none',
-  qwenThinkMode: false,
   mcpMode: 'disabled' as const,
   toolUseMode: 'function' as const,
   maxToolCalls: 20,
@@ -434,8 +433,7 @@ describe('ThinkingButton', () => {
 
       fireEvent.click(getActionIconButton())
       expect(mockUpdateSettings).toHaveBeenCalledWith({
-        reasoning_effort: 'none',
-        qwenThinkMode: false
+        reasoning_effort: 'none'
       })
     })
 

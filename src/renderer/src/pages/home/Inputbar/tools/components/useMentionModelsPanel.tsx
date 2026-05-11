@@ -5,10 +5,10 @@ import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@r
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
-import { getModelUniqId } from '@renderer/services/ModelService'
 import type { FileMetadata, Model } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
 import { Avatar } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -103,9 +103,9 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
       const allowNonVision = !files.some((file) => file.type === FILE_TYPE.IMAGE)
       if (isVisionModel(model) || allowNonVision) {
         setMentionedModels((prev) => {
-          const modelId = getModelUniqId(model)
-          const exists = prev.some((m) => getModelUniqId(m) === modelId)
-          if (exists) return prev.filter((m) => getModelUniqId(m) !== modelId)
+          const modelId = createUniqueModelId(model.provider, model.id)
+          const exists = prev.some((m) => createUniqueModelId(m.provider, m.id) === modelId)
+          if (exists) return prev.filter((m) => createUniqueModelId(m.provider, m.id) !== modelId)
           // Normalize id to UniqueModelId (providerId::modelId) for backend consumption
           const normalized = { ...model, id: model.id.includes('::') ? model.id : `${model.provider}::${model.id}` }
           return [...prev, normalized]
@@ -136,7 +136,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
       const pinnedItems = providers.flatMap((provider) =>
         provider.models
           .filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
-          .filter((model) => pinnedModels.includes(getModelUniqId(model)))
+          .filter((model) => pinnedModels.includes(createUniqueModelId(model.provider, model.id)))
           .filter((model) => couldMentionNotVisionModel || (!couldMentionNotVisionModel && isVisionModel(model)))
           .map((model) => ({
             label: (
@@ -152,7 +152,10 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
             })(),
             filterText: getFancyProviderName(provider) + model.name,
             action: () => onMentionModel(model),
-            isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))
+            isSelected: mentionedModels.some(
+              (selected) =>
+                createUniqueModelId(selected.provider, selected.id) === createUniqueModelId(model.provider, model.id)
+            )
           }))
       )
 
@@ -165,7 +168,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
       const providerModels = sortBy(
         provider.models
           .filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
-          .filter((model) => !pinnedModels.includes(getModelUniqId(model)))
+          .filter((model) => !pinnedModels.includes(createUniqueModelId(model.provider, model.id)))
           .filter((model) => couldMentionNotVisionModel || (!couldMentionNotVisionModel && isVisionModel(model))),
         ['group', 'name']
       )
@@ -184,7 +187,10 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
         })(),
         filterText: getFancyProviderName(provider) + model.name,
         action: () => onMentionModel(model),
-        isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))
+        isSelected: mentionedModels.some(
+          (selected) =>
+            createUniqueModelId(selected.provider, selected.id) === createUniqueModelId(model.provider, model.id)
+        )
       }))
 
       if (providerItems.length > 0) {

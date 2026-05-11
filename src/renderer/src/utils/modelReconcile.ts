@@ -26,7 +26,6 @@ import type { AssistantSettings, Model as V1Model, ThinkingOption } from '@rende
 
 export type ReasoningEffortPatch = {
   reasoning_effort?: string
-  qwenThinkMode?: boolean
 }
 
 export function reconcileReasoningEffortForModel(
@@ -51,8 +50,7 @@ export function reconcileReasoningEffortForModel(
           : MODEL_SUPPORTED_OPTIONS[modelType][0]
     cacheService.set(cacheKey, fallback === 'none' ? undefined : fallback)
     return {
-      reasoning_effort: fallback === 'none' ? undefined : fallback,
-      qwenThinkMode: fallback === 'none' ? undefined : true
+      reasoning_effort: fallback === 'none' ? undefined : fallback
     }
   }
 
@@ -60,8 +58,7 @@ export function reconcileReasoningEffortForModel(
   if (currentEffort === undefined) return null
   cacheService.set(cacheKey, currentEffort)
   return {
-    reasoning_effort: undefined,
-    qwenThinkMode: undefined
+    reasoning_effort: undefined
   }
 }
 

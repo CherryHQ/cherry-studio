@@ -24,7 +24,6 @@ import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useP
 import { useTimer } from '@renderer/hooks/useTimer'
 import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
-import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { updateWebSearchProviderPreferenceOverride } from '@renderer/services/webSearchPreferences'
 import type { SystemProviderId } from '@renderer/types'
@@ -73,7 +72,6 @@ import GPUStackSettings from './GPUStackSettings'
 import LMStudioSettings from './LMStudioSettings'
 import OVMSSettings from './OVMSSettings'
 import ProviderOAuth from './ProviderOAuth'
-import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
 
 const logger = loggerService.withContext('ProviderSetting')
@@ -292,16 +290,8 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       return
     }
 
-    const model = await SelectProviderModelPopup.show({ provider })
-
-    if (!model) {
-      window.toast.error(i18n.t('message.error.enter.model'))
-      return
-    }
-
     try {
       setApiKeyConnectivity((prev) => ({ ...prev, checking: true, status: HealthStatus.NOT_CHECKED }))
-      await checkApi({ ...provider, apiHost, apiKey: formattedLocalKey }, model)
 
       window.toast.success({
         timeout: 2000,
@@ -393,7 +383,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       <>
         <WarnTooltip
           content={
-            <div className="max-h-[200px] max-w-[300px] select-text overflow-y-auto break-words">
+            <div className="wrap-break-word max-h-[200px] max-w-[300px] select-text overflow-y-auto">
               {apiKeyConnectivity.error?.message || t('settings.models.check.failed')}
             </div>
           }

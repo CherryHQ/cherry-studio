@@ -8,9 +8,8 @@ import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
+import { getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
-import { getModelUniqId } from '@renderer/services/ModelService'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils/naming'
 import { getRotatedProviderApiKey } from '@renderer/utils/providerAuth'
@@ -18,6 +17,7 @@ import { formatProviderApiHost } from '@renderer/utils/providerHost'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeCLI, terminalApps } from '@shared/config/constant'
 import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { Check, Code2, Download, FolderOpen, Search, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -79,7 +79,7 @@ const CodeCliPage: FC = () => {
   const { setTimeoutTimer } = useTimer()
 
   const { assistant: defaultAssistant } = useDefaultAssistant()
-  const { maxTokens, reasoning_effort } = useMemo(() => getAssistantSettings(defaultAssistant), [defaultAssistant])
+  const { maxTokens, reasoning_effort } = useMemo(() => defaultAssistant.settings, [defaultAssistant])
 
   const [isLaunching, setIsLaunching] = useState(false)
   const [launchSuccess, setLaunchSuccess] = useState(false)
@@ -173,7 +173,7 @@ const CodeCliPage: FC = () => {
     for (const provider of availableProviders) {
       for (const m of provider.models || []) {
         if (!modelPredicate(m)) continue
-        items.push({ id: getModelUniqId(m), model: m, provider })
+        items.push({ id: createUniqueModelId(m.provider, m.id), model: m, provider })
       }
     }
     return items
@@ -189,7 +189,7 @@ const CodeCliPage: FC = () => {
   const resolveModel = useCallback(
     (modelIdStr: string): Model | null => {
       for (const provider of providers || []) {
-        const model = provider.models.find((m) => getModelUniqId(m) === modelIdStr)
+        const model = provider.models.find((m) => createUniqueModelId(m.provider, m.id) === modelIdStr)
         if (model) return model
       }
       logger.warn(`Model not found for ID: ${modelIdStr}`)

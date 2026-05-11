@@ -1,9 +1,9 @@
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
+import { createUniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
 import styled from 'styled-components'
 
@@ -25,7 +25,7 @@ const MentionModelsInput: FC<{
           <CustomTag
             icon={<i className="iconfont icon-at" />}
             color="#1677ff"
-            key={getModelUniqId(model)}
+            key={createUniqueModelId(model.provider, model.id)}
             closable
             onClose={() => onRemoveModel(model)}>
             {model.name} ({getProviderName(model)})
