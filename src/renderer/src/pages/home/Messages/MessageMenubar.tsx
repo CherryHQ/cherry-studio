@@ -29,7 +29,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
-import { isAbortError } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -275,7 +275,8 @@ const MessageMenubar: FC<Props> = (props) => {
         await translateText(mainTextContent, language, translationUpdater, translationAbortKey)
       } catch (error) {
         if (!isAbortError(error)) {
-          window.toast.error(t('translate.error.failed'))
+          logger.error('Message translation failed', error as Error)
+          window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
         }
       }
     },
