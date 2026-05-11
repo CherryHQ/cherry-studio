@@ -66,7 +66,9 @@ export const createUpdateDeleteTimestamps = {
  *   }, (t) => [orderKeyIndex('miniapp')(t)])
  */
 export const orderKeyColumns = {
-  orderKey: text('order_key').notNull()
+  orderKey: text('order_key')
+    .notNull()
+    .$defaultFn(() => 'a0')
 }
 
 /**

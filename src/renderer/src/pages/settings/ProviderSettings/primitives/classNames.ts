@@ -40,7 +40,7 @@ const providerSettingsInputGroupBase =
 const providerSettingsInputGroupFocusOverride =
   'has-[[data-slot=input-group-control]:focus-visible]:ring-[1px] has-[[data-slot=input-group-control]:focus-visible]:ring-ring/35'
 
-/** 连接认证、`ProviderSection`：14px、`/85`、section label 行高；字重用 scope `--font-weight-medium`。 */
+/** Connection and `ProviderSection`: 14px, `/85`, section-label line-height; weight uses scoped `--font-weight-medium`. */
 const sectionHeadingBase =
   'm-0 text-[length:var(--font-size-body-md)] text-foreground/85 leading-[var(--line-height-section-label)]'
 
@@ -73,7 +73,7 @@ export const actionClasses = {
   icon: 'size-[length:var(--icon-size-caption)] shrink-0',
   btnBase:
     'h-auto min-h-0 gap-2 rounded-[length:var(--radius-control)] px-[length:var(--padding-x-control)] py-[length:var(--padding-y-control)] text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] shadow-none',
-  /** Neutral outline (design: action row — no brand fill on 检测 / 密钥列表). */
+  /** Neutral outline (design: action row — no brand fill on check / API-key-list actions). */
   btnNeutral:
     'border-[color:var(--color-border-default-soft)] bg-transparent text-[color:var(--color-fg-subtle)] hover:bg-[var(--accent)] hover:text-[color:var(--foreground)]'
 } as const
@@ -188,13 +188,13 @@ export const modelListClasses = {
   toolbarDesignIcon: 'size-[11px] shrink-0',
   /** Outline primary actions after the icon cluster. */
   toolbarOutlineActions: 'ms-1 flex max-w-full flex-wrap items-center gap-1',
-  /** 模型列表区块标题：同字号/行高/色，字重 `--font-weight-semibold`（600） */
+  /** Model-list section title: same size, line-height, and color; scoped weight `--font-weight-semibold` (600). */
   sectionTitle: cn(sectionHeadingBase, 'font-[weight:var(--font-weight-semibold)]'),
   countMeta:
     'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-(--color-muted-foreground) tabular-nums',
   toolbarGhost:
     'h-auto rounded-3xs px-2.5 py-[5px] text-[length:var(--font-size-caption)] leading-[length:var(--line-height-caption)] text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground',
-  /** 模型列表标题行 ghost：较 `toolbarGhost` 再收一档（padding + body-xs + 小图标） */
+  /** Model-list title-row ghost: one step tighter than `toolbarGhost` (padding + body-xs + small icon). */
   toolbarHeaderGhost:
     'h-auto min-h-0 rounded-[length:var(--radius-4xs)] px-[length:var(--padding-x-control-compact)] py-[length:var(--padding-y-control-compact)] text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
   toolbarHeaderIconButton:

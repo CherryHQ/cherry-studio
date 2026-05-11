@@ -98,4 +98,55 @@ describe('ProviderService API keys', () => {
       code: ErrorCode.CONFLICT
     })
   })
+
+  it('deletes API keys by id and persists the updated list', async () => {
+    await seedProvider()
+
+    const updated = await providerService.deleteApiKey('openai', 'key-b')
+
+    expect(updated.apiKeys.map((entry) => entry.id)).toEqual(['key-a', 'key-c'])
+    const storedKeys = await readApiKeys()
+    expect(storedKeys.map((entry) => entry.id)).toEqual(['key-a', 'key-c'])
+  })
+
+  it('allows deleting the last API key', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'single-key',
+      name: 'Single Key',
+      orderKey: generateOrderKeyBetween(null, null),
+      apiKeys: [{ id: 'only-key', key: 'sk-only', label: 'Only', isEnabled: true }]
+    })
+
+    const updated = await providerService.deleteApiKey('single-key', 'only-key')
+
+    expect(updated.apiKeys).toEqual([])
+    const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'single-key'))
+    expect(row.apiKeys).toEqual([])
+  })
+
+  it('throws NOT_FOUND when deleting a missing API key id', async () => {
+    await seedProvider()
+
+    await expect(providerService.deleteApiKey('openai', 'missing-key')).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+  })
+
+  it('replaces API keys through the dedicated key resource without changing provider metadata', async () => {
+    await seedProvider()
+
+    const replacement = [
+      { id: 'key-new', key: 'sk-new', label: 'New label', isEnabled: true },
+      { id: 'key-disabled', key: 'sk-disabled', isEnabled: false }
+    ]
+    const updated = await providerService.replaceApiKeys('openai', replacement)
+
+    expect(updated.name).toBe('OpenAI')
+    expect(updated.apiKeys).toEqual([
+      { id: 'key-new', label: 'New label', isEnabled: true },
+      { id: 'key-disabled', isEnabled: false }
+    ])
+    const storedKeys = await readApiKeys()
+    expect(storedKeys).toEqual(replacement)
+  })
 })

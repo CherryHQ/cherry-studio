@@ -17,7 +17,7 @@ import type { NewUserModel } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { NewUserProvider } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
+import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
 import { applyUserOverlay } from '@data/services/ModelService'
 import { extractReasoningFormatTypes, mergePresetModel } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
@@ -190,7 +190,10 @@ export class ProviderModelMigrator extends BaseMigrator {
    * override) with `applyUserOverlay` (user fields win) — the same chain
    * `ModelService.create` uses for new models.
    */
-  private enrichModelRow(row: NewUserModel, providerRow: NewUserProvider): NewUserModel {
+  private enrichModelRow(
+    row: Omit<NewUserModel, 'orderKey'>,
+    providerRow: NewUserProvider
+  ): Omit<NewUserModel, 'orderKey'> {
     const loader = this.getLoader()
     const presetModel = loader.findModel(row.modelId)
     if (!presetModel) return row
@@ -290,7 +293,7 @@ export class ProviderModelMigrator extends BaseMigrator {
       return {
         success: false,
         itemCount: 0,
-        warnings: [error instanceof Error ? error.message : String(error)]
+        error: `provider_model_prepare_failed: ${error instanceof Error ? error.message : String(error)}`
       }
     }
   }
@@ -317,12 +320,13 @@ export class ProviderModelMigrator extends BaseMigrator {
 
           const uniqueModels = Array.from(new Map((provider.models ?? []).map((model) => [model.id, model])).values())
 
-          for (let modelIndex = 0; modelIndex < uniqueModels.length; modelIndex += BATCH_SIZE) {
-            const batch = uniqueModels
-              .slice(modelIndex, modelIndex + BATCH_SIZE)
-              .map((model, batchIndex) =>
-                this.enrichModelRow(transformModel(model, provider.id, modelIndex + batchIndex), providerRow)
-              )
+          const modelRows = assignOrderKeysByScope(
+            uniqueModels.map((model) => this.enrichModelRow(transformModel(model, provider.id), providerRow)),
+            (model) => model.providerId
+          )
+
+          for (let modelIndex = 0; modelIndex < modelRows.length; modelIndex += BATCH_SIZE) {
+            const batch = modelRows.slice(modelIndex, modelIndex + BATCH_SIZE)
 
             if (batch.length > 0) {
               await tx.insert(userModelTable).values(batch)

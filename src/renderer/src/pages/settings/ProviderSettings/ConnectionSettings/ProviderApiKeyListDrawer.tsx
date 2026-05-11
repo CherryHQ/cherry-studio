@@ -5,6 +5,7 @@ import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { Check, Copy, Edit3, Minus, Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { v4 as uuidv4 } from 'uuid'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { apiKeyListClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -25,7 +26,7 @@ interface DraftState {
 }
 
 const createEmptyDraft = (): DraftState => ({
-  id: crypto.randomUUID(),
+  id: uuidv4(),
   key: '',
   label: '',
   isEnabled: true,

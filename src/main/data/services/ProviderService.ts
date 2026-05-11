@@ -27,6 +27,7 @@ import type {
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 import { asc, eq } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
 
@@ -168,7 +169,6 @@ class ProviderService {
     if (dto.name !== undefined) updates.name = dto.name
     if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
     if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
-    if (dto.apiKeys !== undefined) updates.apiKeys = dto.apiKeys
     if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
     if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
     if (dto.providerSettings !== undefined) updates.providerSettings = dto.providerSettings
@@ -305,7 +305,7 @@ class ProviderService {
     }
 
     const newEntry = {
-      id: crypto.randomUUID(),
+      id: uuidv4(),
       key,
       ...(label ? { label } : {}),
       isEnabled: true
@@ -322,6 +322,26 @@ class ProviderService {
     logger.info('Added API key to provider', { providerId })
 
     return rowToRuntimeProvider(updated)
+  }
+
+  /**
+   * Replace the full API key list via the dedicated API-key resource.
+   */
+  async replaceApiKeys(providerId: string, apiKeys: ApiKeyEntry[]): Promise<Provider> {
+    const db = application.get('DbService').getDb()
+    const [row] = await db
+      .update(userProviderTable)
+      .set({ apiKeys })
+      .where(eq(userProviderTable.providerId, providerId))
+      .returning()
+
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Provider', providerId)
+    }
+
+    logger.info('Replaced provider API keys', { providerId, count: apiKeys.length })
+
+    return rowToRuntimeProvider(row)
   }
 
   /**

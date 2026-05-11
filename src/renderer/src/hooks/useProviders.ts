@@ -116,6 +116,8 @@ export function useProviderMutations(providerId: string) {
     error: updateApiKeyError
   } = useMutation('PATCH', '/providers/:providerId/api-keys/:keyId', { refresh })
 
+  const { trigger: replaceApiKeysTrigger } = useMutation('PUT', '/providers/:providerId/api-keys', { refresh })
+
   const updateProvider = useCallback(
     async (updates: UpdateProviderDto) => {
       try {
@@ -176,13 +178,13 @@ export function useProviderMutations(providerId: string) {
   const updateApiKeys = useCallback(
     async (apiKeys: ApiKeyEntry[]) => {
       try {
-        await patchTrigger({ params: { providerId }, body: { apiKeys } })
+        await replaceApiKeysTrigger({ params: { providerId }, body: { keys: apiKeys } })
       } catch (error) {
         logger.error('Failed to update API keys', { providerId, error })
         throw error
       }
     },
-    [patchTrigger, providerId]
+    [providerId, replaceApiKeysTrigger]
   )
 
   const updateApiKey = useCallback(

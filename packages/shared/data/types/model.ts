@@ -324,8 +324,6 @@ export const ModelSchema = z.object({
   replaceWith: UniqueModelIdSchema.optional(),
 
   // UI metadata
-  /** Sort order in provider's model list */
-  sortOrder: z.number().optional(),
   /** User notes about this model */
   notes: z.string().optional()
 })

@@ -81,7 +81,7 @@ const AnthropicSettings = () => {
   const [codeModalVisible, setCodeModalVisible] = useState<boolean>(false)
   const [authCode, setAuthCode] = useState<string>('')
 
-  // 初始化检查认证状态
+  // Check initial auth status.
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
@@ -98,7 +98,7 @@ const AnthropicSettings = () => {
     void checkAuthStatus()
   }, [])
 
-  // 处理OAuth重定向
+  // Start OAuth redirect flow.
   const handleRedirectOAuth = async () => {
     try {
       setLoading(true)
@@ -113,7 +113,7 @@ const AnthropicSettings = () => {
     }
   }
 
-  // 处理授权码提交
+  // Submit authorization code.
   const handleSubmitCode = async () => {
     logger.info('Submitting auth code')
     try {
@@ -130,7 +130,7 @@ const AnthropicSettings = () => {
     }
   }
 
-  // 处理取消认证
+  // Cancel authentication.
   const handleCancelAuth = () => {
     void window.api.anthropic_oauth.cancelOAuthFlow()
     setAuthStatus(AuthStatus.NOT_STARTED)
@@ -138,7 +138,7 @@ const AnthropicSettings = () => {
     setAuthCode('')
   }
 
-  // 处理登出
+  // Log out.
   const handleLogout = async () => {
     try {
       await window.api.anthropic_oauth.clearCredentials()
@@ -150,7 +150,7 @@ const AnthropicSettings = () => {
     }
   }
 
-  // 渲染认证内容
+  // Render authentication state.
   const renderAuthContent = () => {
     switch (authStatus) {
       case AuthStatus.AUTHENTICATED:

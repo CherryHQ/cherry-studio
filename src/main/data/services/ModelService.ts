@@ -15,6 +15,7 @@ import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '
 import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import { mergePresetModel } from '@data/services/ProviderRegistryService'
+import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
@@ -28,7 +29,7 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ReasoningFormatType } from '@shared/data/types/provider'
-import { and, eq, inArray, type SQL } from 'drizzle-orm'
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 
@@ -124,7 +125,9 @@ export interface CreateModelInput {
   registryData?: CreateModelRegistryData
 }
 
-function createModelsSqliteHandlers(values: NewUserModel[]): SqliteErrorHandlers {
+type NewUserModelInput = Omit<NewUserModel, 'orderKey'>
+
+function createModelsSqliteHandlers(values: NewUserModelInput[]): SqliteErrorHandlers {
   const providerIds = [...new Set(values.map((value) => value.providerId))]
   const identifier =
     values.length === 1 ? `${values[0].providerId}/${values[0].modelId}` : `batch(${values.length} items)`
@@ -162,12 +165,11 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'isEnabled',
   'isHidden',
   'isDeprecated',
-  'sortOrder',
   'notes'
 ]
 
 /** Convert CreateModelDto to a NewUserModel row (shared by preset and custom paths). */
-function dtoToNewUserModel(dto: CreateModelDto) {
+function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
   return {
     id: createUniqueModelId(dto.providerId, dto.modelId),
     providerId: dto.providerId,
@@ -176,20 +178,20 @@ function dtoToNewUserModel(dto: CreateModelDto) {
     name: dto.name ?? null,
     description: dto.description ?? null,
     group: dto.group ?? null,
-    capabilities: (dto.capabilities ?? null) as ModelCapability[] | null,
+    capabilities: (dto.capabilities ?? []) as ModelCapability[],
     inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
     outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
     endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
     contextWindow: dto.contextWindow ?? null,
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
-    supportsStreaming: dto.supportsStreaming ?? null,
+    supportsStreaming: dto.supportsStreaming ?? true,
     reasoning: dto.reasoning ?? null,
     parameters: dto.parameterSupport ?? null,
     pricing: dto.pricing ?? null,
     isEnabled: true,
     isHidden: false
-  } satisfies NewUserModel
+  }
 }
 
 /** Convert a merged Model back to a NewUserModel row for DB insert. */
@@ -198,7 +200,7 @@ function mergedModelToNewUserModel(
   modelId: string,
   presetModelId: string,
   merged: Model
-): NewUserModel {
+): NewUserModelInput {
   return {
     id: createUniqueModelId(providerId, modelId),
     providerId,
@@ -235,30 +237,29 @@ function rowToRuntimeModel(row: UserModel): Model {
     providerId: row.providerId,
     apiModelId: row.modelId,
     presetModelId: row.presetModelId,
-    name: row.name ?? row.modelId,
+    name: row.name ?? '',
     description: row.description ?? undefined,
     group: row.group ?? undefined,
-    capabilities: row.capabilities ?? [],
+    capabilities: row.capabilities,
     inputModalities: row.inputModalities ?? undefined,
     outputModalities: row.outputModalities ?? undefined,
     contextWindow: row.contextWindow ?? undefined,
     maxInputTokens: row.maxInputTokens ?? undefined,
     maxOutputTokens: row.maxOutputTokens ?? undefined,
     endpointTypes: row.endpointTypes ?? undefined,
-    supportsStreaming: row.supportsStreaming ?? true,
+    supportsStreaming: row.supportsStreaming,
     reasoning: (row.reasoning ?? undefined) as RuntimeReasoning | undefined,
     parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
     pricing: row.pricing ?? undefined,
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
-    sortOrder: row.sortOrder ?? undefined,
     notes: row.notes ?? undefined
   }
 }
 
 class ModelService {
-  private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModel {
+  private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
     const presetModel = registryData?.presetModel ?? null
     const dtoValues = dtoToNewUserModel(dto)
 
@@ -298,7 +299,7 @@ class ModelService {
       .select()
       .from(userModelTable)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(userModelTable.sortOrder)
+      .orderBy(asc(userModelTable.providerId), asc(userModelTable.orderKey))
 
     let models = rows.map(rowToRuntimeModel)
 
@@ -407,7 +408,16 @@ class ModelService {
     const rows = await withSqliteErrors(
       () =>
         db.transaction(async (tx) => {
-          return await tx.insert(userModelTable).values(values).returning()
+          const results: UserModel[] = []
+          for (const providerId of new Set(values.map((value) => value.providerId))) {
+            const scopedValues = values.filter((value) => value.providerId === providerId)
+            const inserted = (await insertManyWithOrderKey(tx, userModelTable, scopedValues, {
+              pkColumn: userModelTable.id,
+              scope: eq(userModelTable.providerId, providerId)
+            })) as UserModel[]
+            results.push(...inserted)
+          }
+          return results
         }),
       createModelsSqliteHandlers(values)
     )

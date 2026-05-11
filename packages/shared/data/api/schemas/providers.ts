@@ -20,7 +20,6 @@ import {
   ProviderSettingsSchema
 } from '../../types/provider'
 import type { OrderEndpoints } from './_endpointHelpers'
-import type { EnrichModelsDto } from './models'
 
 // ============================================================================
 // Field atoms
@@ -76,12 +75,19 @@ export const CreateProviderSchema = z.strictObject({
 export type CreateProviderDto = z.infer<typeof CreateProviderSchema>
 
 /** DTO for updating an existing provider — all mutable fields optional, plus status fields */
-export const UpdateProviderSchema = CreateProviderSchema.partial()
-  .omit({ providerId: true, presetProviderId: true })
-  .extend({
-    /** Whether this provider is enabled */
-    isEnabled: z.boolean().optional()
-  })
+const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
+  name: true,
+  endpointConfigs: true,
+  defaultChatEndpoint: true,
+  authConfig: true,
+  apiFeatures: true,
+  providerSettings: true
+})
+
+export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend({
+  /** Whether this provider is enabled */
+  isEnabled: z.boolean().optional()
+})
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 
 /** Query parameters for GET /providers */
@@ -98,12 +104,25 @@ export const ListProviderApiKeysQuerySchema = z.strictObject({
 })
 export type ListProviderApiKeysQuery = z.infer<typeof ListProviderApiKeysQuerySchema>
 
+/** Query parameters for resolving raw SDK model IDs against registry presets */
+export const ResolveProviderModelsQuerySchema = z.strictObject({
+  /** Raw model IDs from SDK listModels(), repeated as ?ids=a&ids=b or provided as an array by IPC callers. */
+  ids: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)])
+})
+export type ResolveProviderModelsQuery = z.infer<typeof ResolveProviderModelsQuerySchema>
+
 /** POST /providers/:providerId/api-keys body */
 export const AddProviderApiKeySchema = z.strictObject({
   key: z.string().min(1),
   label: z.string().optional()
 })
 export type AddProviderApiKeyDto = z.infer<typeof AddProviderApiKeySchema>
+
+/** PUT /providers/:providerId/api-keys body */
+export const ReplaceProviderApiKeysSchema = z.strictObject({
+  keys: z.array(ApiKeyEntrySchema)
+})
+export type ReplaceProviderApiKeysDto = z.infer<typeof ReplaceProviderApiKeysSchema>
 
 /** PATCH /providers/:providerId/api-keys/:keyId body */
 export const UpdateApiKeySchema = z.strictObject({
@@ -195,17 +214,23 @@ export type ProviderSchemas = {
       body: AddProviderApiKeyDto
       response: Provider
     }
+    /** Replace API key entries for settings edits */
+    PUT: {
+      params: { providerId: string }
+      body: ReplaceProviderApiKeysDto
+      response: Provider
+    }
   }
 
   /**
-   * Resolve raw SDK model entries against registry presets.
-   * @example POST /providers/openai/registry-models { "models": [{ "modelId": "gpt-4o" }] }
+   * Statelessly resolve raw SDK model IDs against registry presets.
+   * @example GET /providers/openai/models:resolve?ids=gpt-4o&ids=o3
    */
-  '/providers/:providerId/registry-models': {
+  '/providers/:providerId/models:resolve': {
     /** Resolve raw model IDs against registry presets */
-    POST: {
+    GET: {
       params: { providerId: string }
-      body: EnrichModelsDto
+      query: ResolveProviderModelsQuery
       response: Model[]
     }
   }

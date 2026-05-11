@@ -163,13 +163,6 @@
       "breakpoints": true
     },
     {
-      "idx": 23,
-      "version": "6",
-      "when": 1778208839854,
-      "tag": "0023_provider_order_key",
-      "breakpoints": true
-    },
-    {
       "idx": 24,
       "version": "6",
       "when": 1778480000000,

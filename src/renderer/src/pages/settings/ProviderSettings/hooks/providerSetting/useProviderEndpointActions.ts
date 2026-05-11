@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { isVertexProvider } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { validateApiHost } from '@renderer/utils'
@@ -8,6 +9,8 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { PatchProvider, SyncProviderModels } from './types'
+
+const logger = loggerService.withContext('ProviderSettings:EndpointActions')
 
 interface UseProviderEndpointActionsParams {
   provider: Provider | undefined
@@ -155,7 +158,8 @@ export function useProviderEndpointActions({
 
         await syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs })
         return true
-      } catch {
+      } catch (error) {
+        logger.error('Failed to commit provider API host', { providerId: provider?.id, error })
         window.toast.error(t('blocks.edit.save.failed.label'))
         return false
       }
@@ -202,7 +206,8 @@ export function useProviderEndpointActions({
         await syncProviderModels({ ...provider, endpointConfigs: nextConfigs })
         setAnthropicApiHost('')
         return true
-      } catch {
+      } catch (error) {
+        logger.error('Failed to commit Anthropic API host', { providerId: provider?.id, error })
         window.toast.error(t('blocks.edit.save.failed.label'))
         return false
       }
@@ -223,7 +228,8 @@ export function useProviderEndpointActions({
             apiVersion
           }
         })
-      } catch {
+      } catch (error) {
+        logger.error('Failed to commit API version', { providerId: provider.id, error })
         window.toast.error(t('blocks.edit.save.failed.label'))
       }
     })()
@@ -248,7 +254,8 @@ export function useProviderEndpointActions({
       try {
         await patchProvider({ endpointConfigs: nextEndpointConfigs })
         await syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs })
-      } catch {
+      } catch (error) {
+        logger.error('Failed to reset provider API host', { providerId: provider.id, error })
         window.toast.error(t('blocks.edit.save.failed.label'))
       }
     })()

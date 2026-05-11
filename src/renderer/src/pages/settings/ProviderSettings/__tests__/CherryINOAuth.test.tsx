@@ -199,5 +199,50 @@ describe('CherryINOAuth', () => {
     expect(deleteApiKey).toHaveBeenCalledTimes(2)
     expect(deleteApiKey).toHaveBeenNthCalledWith(1, 'oauth-1')
     expect(deleteApiKey).toHaveBeenNthCalledWith(2, 'oauth-2')
+    expect(window.toast.success).toHaveBeenCalled()
+    expect(window.toast.warning).not.toHaveBeenCalled()
+  })
+
+  it('shows a warning instead of success when OAuth key cleanup partially fails', async () => {
+    const deleteApiKey = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('delete failed'))
+    const refetchAuthConfig = vi.fn().mockResolvedValue(undefined)
+
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'cherryin',
+        name: 'CherryIN',
+        apiKeys: [
+          { id: 'oauth-1', label: 'OAuth', isEnabled: true },
+          { id: 'oauth-2', label: 'OAuth', isEnabled: true }
+        ],
+        isEnabled: true
+      },
+      updateProvider: vi.fn(),
+      addApiKey: vi.fn(),
+      deleteApiKey
+    })
+    useProviderAuthConfigMock.mockReturnValue({
+      data: {
+        type: 'oauth',
+        clientId: 'client-id',
+        accessToken: 'oauth-access',
+        refreshToken: 'oauth-refresh'
+      },
+      isLoading: false,
+      refetch: refetchAuthConfig
+    })
+
+    render(<CherryINOAuth providerId="cherryin" />)
+
+    fireEvent.click(screen.getByRole('button', { name: /退出登录|Logout/i }))
+
+    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    await act(async () => {
+      await options.onOk()
+    })
+
+    expect(deleteApiKey).toHaveBeenCalledTimes(2)
+    expect(window.toast.warning).toHaveBeenCalled()
+    expect(window.toast.success).not.toHaveBeenCalled()
   })
 })

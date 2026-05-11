@@ -5,6 +5,7 @@ import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { debounce } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 
 import type { ApiKeysData } from './types'
 
@@ -76,7 +77,7 @@ function toApiKeyEntries(value: string, apiKeysData: ApiKeysData | undefined): A
       continue
     }
 
-    nextEntries.push({ id: crypto.randomUUID(), key, isEnabled: true })
+    nextEntries.push({ id: uuidv4(), key, isEnabled: true })
   }
 
   const untouchedDisabledEntries = existingKeys.filter((item) => !item.isEnabled && !usedEntryIds.has(item.id))

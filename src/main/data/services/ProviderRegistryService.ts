@@ -461,9 +461,11 @@ class ProviderRegistryService {
    * the registry, then merges (preset → override). All data comes from
    * the registry — SDK only provides the model ID for matching.
    * Models not found in the registry are returned as minimal custom models.
+   * Registry merge failures are fatal so callers do not persist or preview
+   * incomplete results as a successful sync.
    * Duplicates (by modelId) are deduplicated — first occurrence wins.
    *
-   * Used by: `POST /providers/:providerId/registry-models` with body `{ models: [{ modelId }] }`
+   * Used by: `GET /providers/:providerId/models:resolve?ids=...`
    *
    * @param providerId - The provider context
    * @param modelIds - Model IDs from SDK listModels()
@@ -484,16 +486,12 @@ class ProviderRegistryService {
       const presetModel = loader.findModel(modelId)
       const registryOverride = loader.findOverride(providerId, modelId)
 
-      try {
-        if (presetModel) {
-          results.push(
-            mergePresetModel(presetModel, registryOverride, providerId, reasoningFormatTypes, defaultChatEndpoint)
-          )
-        } else {
-          results.push(createCustomModel(providerId, modelId))
-        }
-      } catch (error) {
-        logger.error(`Failed to resolve model ${providerId}/${modelId} — will be missing from results`, error as Error)
+      if (presetModel) {
+        results.push(
+          mergePresetModel(presetModel, registryOverride, providerId, reasoningFormatTypes, defaultChatEndpoint)
+        )
+      } else {
+        results.push(createCustomModel(providerId, modelId))
       }
     }
 

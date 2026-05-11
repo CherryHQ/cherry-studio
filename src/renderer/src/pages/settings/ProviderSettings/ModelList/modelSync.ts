@@ -17,7 +17,7 @@ import { isEmpty } from 'lodash'
 
 const logger = loggerService.withContext('ProviderModelSync')
 
-type ProviderRegistryModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/registry-models`>
+type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/models:resolve`>
 type ProviderRotatedKeyPath = Extract<ConcreteApiPaths, `/providers/${string}/rotated-key`>
 type ProviderRotatedKeyResponse = { apiKey: string }
 
@@ -85,76 +85,64 @@ async function enrichFetchedModels(providerId: string, fetchedModels: LegacyMode
     return []
   }
 
-  try {
-    const registryModelsPath: ProviderRegistryModelsPath = `/providers/${providerId}/registry-models`
-    const resolved = await dataApiService.post(registryModelsPath, {
-      body: {
-        models: filteredModels.map((model) => ({
-          modelId: model.id
-        }))
-      }
-    })
+  const resolveModelsPath: ProviderResolveModelsPath = `/providers/${providerId}/models:resolve`
+  const resolved = (await dataApiService.get(resolveModelsPath, {
+    query: {
+      ids: filteredModels.map((model) => model.id)
+    }
+  })) as Model[]
 
-    const resolvedMap = new Map<string, Model>()
-    for (const model of resolved) {
-      const key = model.apiModelId ?? parseUniqueModelId(model.id).modelId
-      if (!resolvedMap.has(key)) {
-        resolvedMap.set(key, model)
+  const resolvedMap = new Map<string, Model>()
+  for (const model of resolved) {
+    const key = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+    if (!resolvedMap.has(key)) {
+      resolvedMap.set(key, model)
+    }
+  }
+
+  const REGISTRY_FIELDS = [
+    'name',
+    'description',
+    'group',
+    'capabilities',
+    'inputModalities',
+    'outputModalities',
+    'endpointTypes',
+    'contextWindow',
+    'maxOutputTokens',
+    'maxInputTokens',
+    'reasoning',
+    'pricing',
+    'family',
+    'ownedBy'
+  ] as const
+
+  return filteredModels.map((fetched) => {
+    const base = normalizeFetchedModel(providerId, fetched)
+    const registry =
+      resolvedMap.get(fetched.id) ??
+      resolvedMap.get(fetched.id.includes('/') ? fetched.id.substring(fetched.id.lastIndexOf('/') + 1) : fetched.id) ??
+      resolvedMap.get(
+        (fetched.id.includes('/') ? fetched.id.substring(fetched.id.lastIndexOf('/') + 1) : fetched.id).replaceAll(
+          '.',
+          '-'
+        )
+      )
+
+    if (!registry) {
+      return base
+    }
+
+    const merged = { ...base }
+    for (const field of REGISTRY_FIELDS) {
+      const value = registry[field]
+      if (value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0)) {
+        ;(merged as Record<string, unknown>)[field] = value
       }
     }
 
-    const REGISTRY_FIELDS = [
-      'name',
-      'description',
-      'group',
-      'capabilities',
-      'inputModalities',
-      'outputModalities',
-      'endpointTypes',
-      'contextWindow',
-      'maxOutputTokens',
-      'maxInputTokens',
-      'reasoning',
-      'pricing',
-      'family',
-      'ownedBy'
-    ] as const
-
-    return filteredModels.map((fetched) => {
-      const base = normalizeFetchedModel(providerId, fetched)
-      const registry =
-        resolvedMap.get(fetched.id) ??
-        resolvedMap.get(
-          fetched.id.includes('/') ? fetched.id.substring(fetched.id.lastIndexOf('/') + 1) : fetched.id
-        ) ??
-        resolvedMap.get(
-          (fetched.id.includes('/') ? fetched.id.substring(fetched.id.lastIndexOf('/') + 1) : fetched.id).replaceAll(
-            '.',
-            '-'
-          )
-        )
-
-      if (!registry) {
-        return base
-      }
-
-      const merged = { ...base }
-      for (const field of REGISTRY_FIELDS) {
-        const value = registry[field]
-        if (value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0)) {
-          ;(merged as Record<string, unknown>)[field] = value
-        }
-      }
-
-      return merged
-    })
-  } catch (error) {
-    logger.warn('Failed to enrich fetched models against registry, falling back to raw fetch results', {
-      providerId,
-      error
-    })
-    return filteredModels.map((model) => normalizeFetchedModel(providerId, model))
-  }
+    return merged
+  })
 }
 
 export async function fetchResolvedProviderModels(providerId: string, provider: Provider): Promise<Model[]> {

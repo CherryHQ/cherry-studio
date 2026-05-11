@@ -80,8 +80,7 @@ describe('AgentService', () => {
       presetModelId: 'claude-sonnet-4-5',
       name: 'Claude Sonnet 4.5',
       isEnabled: true,
-      isHidden: false,
-      sortOrder: 0
+      isHidden: false
     })
   }
 

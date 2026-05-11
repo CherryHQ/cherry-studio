@@ -144,6 +144,8 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
           const rejectedDeletes = deleteResults.filter((result) => result.status === 'rejected')
           if (rejectedDeletes.length > 0) {
             logger.warn(`Failed to delete ${rejectedDeletes.length} CherryIN OAuth key(s) after logout`)
+            window.toast.warning(t('settings.provider.oauth.logout_warning'))
+            return
           }
 
           window.toast.success(t('settings.provider.oauth.logout_success'))

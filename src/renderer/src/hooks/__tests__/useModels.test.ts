@@ -1,3 +1,4 @@
+import type { BulkUpdateModelItem } from '@shared/data/api/schemas/models'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
@@ -333,7 +334,7 @@ describe('useModelMutations', () => {
 
     const { result } = renderHook(() => useModelMutations())
 
-    const items = [
+    const items: BulkUpdateModelItem[] = [
       { uniqueModelId: 'openai::gpt-4o', patch: { isEnabled: false } },
       { uniqueModelId: 'openai::gpt-4o-mini', patch: { isEnabled: true } }
     ]
@@ -399,7 +400,7 @@ describe('useModelMutations', () => {
 
     const { result } = renderHook(() => useModelMutations())
 
-    const items = [{ uniqueModelId: 'openai::gpt-4o', patch: { isEnabled: false } }]
+    const items: BulkUpdateModelItem[] = [{ uniqueModelId: 'openai::gpt-4o', patch: { isEnabled: false } }]
     await act(async () => {
       await expect(result.current.updateModels(items)).rejects.toThrow('Bulk patch failed')
     })

@@ -16,7 +16,8 @@ import {
   ParameterSupportDbSchema,
   RuntimeModelPricingSchema,
   RuntimeReasoningSchema,
-  type UniqueModelId
+  type UniqueModelId,
+  UniqueModelIdSchema
 } from '../../types/model'
 
 /** Query parameters for listing models */
@@ -93,7 +94,6 @@ export const UpdateModelSchema = CreateModelSchema.omit({
     isEnabled: z.boolean().optional(),
     isHidden: z.boolean().optional(),
     isDeprecated: z.boolean().optional(),
-    sortOrder: z.number().int().optional(),
     notes: z.string().optional()
   })
 export type UpdateModelDto = z.infer<typeof UpdateModelSchema>
@@ -105,7 +105,7 @@ export type UpdateModelDto = z.infer<typeof UpdateModelSchema>
  * lift one-off updates into a batch without changing field semantics.
  */
 export const BulkUpdateModelItemSchema = z.object({
-  uniqueModelId: z.string().min(1),
+  uniqueModelId: UniqueModelIdSchema,
   patch: UpdateModelSchema
 })
 export type BulkUpdateModelItem = z.infer<typeof BulkUpdateModelItemSchema>
@@ -119,17 +119,6 @@ export type BulkUpdateModelItem = z.infer<typeof BulkUpdateModelItemSchema>
  */
 export const BulkUpdateModelsSchema = z.array(BulkUpdateModelItemSchema).min(1).max(MODELS_BULK_UPDATE_MAX_ITEMS)
 export type BulkUpdateModelsDto = z.infer<typeof BulkUpdateModelsSchema>
-
-/** DTO for resolving raw model IDs against registry presets */
-export const EnrichModelsSchema = z.object({
-  /** Raw model IDs from SDK listModels() */
-  models: z.array(
-    z.object({
-      modelId: z.string().min(1)
-    })
-  )
-})
-export type EnrichModelsDto = z.infer<typeof EnrichModelsSchema>
 
 /**
  * Model API Schema definitions

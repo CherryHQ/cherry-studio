@@ -299,6 +299,19 @@ describe('useProviderMutations', () => {
     })
   })
 
+  it('should set up PUT api-keys mutation with /* wildcard refresh', () => {
+    renderHook(() => useProviderMutations('openai'))
+
+    const replaceKeysCall = mockUseMutation.mock.calls.find(
+      (c: any[]) => c[0] === 'PUT' && c[1] === '/providers/:providerId/api-keys'
+    )
+
+    expect(replaceKeysCall).toBeDefined()
+    expect(replaceKeysCall![2]).toEqual({
+      refresh: ['/providers', '/providers/openai', '/providers/openai/*']
+    })
+  })
+
   it('should build correct refresh paths for hyphenated provider IDs', () => {
     renderHook(() => useProviderMutations('openai-main'))
 
@@ -364,10 +377,13 @@ describe('useProviderMutations', () => {
     expect(mockTrigger).toHaveBeenCalledWith({ params: { providerId: 'openai' }, body: { authConfig } })
   })
 
-  it('should update API keys via patchTrigger — /* wildcard covers sub-path, no manual invalidate', async () => {
-    const mockTrigger = vi.fn().mockResolvedValue({})
-    mockUseMutation.mockImplementation(() => ({
-      trigger: mockTrigger,
+  it('should update API keys via dedicated PUT api-keys resource', async () => {
+    const replaceKeysTrigger = vi.fn().mockResolvedValue({})
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger:
+        _method === 'PUT' && path === '/providers/:providerId/api-keys'
+          ? replaceKeysTrigger
+          : vi.fn().mockResolvedValue({}),
       isLoading: false,
       error: undefined
     }))
@@ -379,7 +395,7 @@ describe('useProviderMutations', () => {
       await result.current.updateApiKeys(apiKeys)
     })
 
-    expect(mockTrigger).toHaveBeenCalledWith({ params: { providerId: 'openai' }, body: { apiKeys } })
+    expect(replaceKeysTrigger).toHaveBeenCalledWith({ params: { providerId: 'openai' }, body: { keys: apiKeys } })
   })
 
   it('should log and rethrow updateProvider errors', async () => {
@@ -554,8 +570,11 @@ describe('useProviderMutations', () => {
   it('should log and rethrow updateApiKeys errors', async () => {
     const error = new Error('API key update failed')
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
-    mockUseMutation.mockImplementation(() => ({
-      trigger: vi.fn().mockRejectedValue(error),
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger:
+        _method === 'PUT' && path === '/providers/:providerId/api-keys'
+          ? vi.fn().mockRejectedValue(error)
+          : vi.fn().mockResolvedValue({}),
       isLoading: false,
       error: undefined
     }))

@@ -31,8 +31,7 @@ describe('KnowledgeBaseService', () => {
         presetModelId: 'embed-model',
         name: 'embed-model',
         isEnabled: true,
-        isHidden: false,
-        sortOrder: 0
+        isHidden: false
       }
     ])
   }

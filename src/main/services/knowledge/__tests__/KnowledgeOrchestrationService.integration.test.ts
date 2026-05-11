@@ -72,8 +72,7 @@ describe('KnowledgeOrchestrationService integration', () => {
       presetModelId: 'text-embedding-3-small',
       name: 'text-embedding-3-small',
       isEnabled: true,
-      isHidden: false,
-      sortOrder: 0
+      isHidden: false
     })
     await dbh.db.insert(groupTable).values({
       id: 'group-1',

@@ -16,6 +16,8 @@ import {
   ListProviderApiKeysQuerySchema,
   ListProvidersQuerySchema,
   type ProviderSchemas,
+  ReplaceProviderApiKeysSchema,
+  ResolveProviderModelsQuerySchema,
   UpdateApiKeySchema,
   UpdateProviderSchema
 } from '@shared/data/api/schemas/providers'
@@ -66,15 +68,19 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
     POST: async ({ params, body }) => {
       const parsed = AddProviderApiKeySchema.parse(body)
       return await providerService.addApiKey(params.providerId, parsed.key, parsed.label)
+    },
+
+    PUT: async ({ params, body }) => {
+      const parsed = ReplaceProviderApiKeysSchema.parse(body)
+      return await providerService.replaceApiKeys(params.providerId, parsed.keys)
     }
   },
 
-  '/providers/:providerId/registry-models': {
-    POST: async ({ params, body }) => {
-      return await providerRegistryService.resolveModels(
-        params.providerId,
-        body.models.map((m) => m.modelId)
-      )
+  '/providers/:providerId/models:resolve': {
+    GET: async ({ params, query }) => {
+      const parsed = ResolveProviderModelsQuerySchema.parse(query)
+      const ids = Array.isArray(parsed.ids) ? parsed.ids : [parsed.ids]
+      return await providerRegistryService.resolveModels(params.providerId, ids)
     }
   },
 

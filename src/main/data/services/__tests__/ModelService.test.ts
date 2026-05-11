@@ -30,6 +30,23 @@ function providerRow(providerId: string, name: string, orderKey = generateOrderK
   return { providerId, name, orderKey }
 }
 
+type NewUserModel = typeof userModelTable.$inferInsert
+
+function modelRow(providerId: string, modelId: string, values: Partial<NewUserModel> = {}): NewUserModel {
+  return {
+    id: createUniqueModelId(providerId, modelId),
+    providerId,
+    modelId,
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false,
+    isDeprecated: false,
+    orderKey: generateOrderKeyBetween(null, null),
+    ...values
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // FIELD_MAP completeness — prevents forgetting to map new DTO fields
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,7 +71,6 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'isEnabled',
       'isHidden',
       'isDeprecated',
-      'sortOrder',
       'notes'
     ]
 
@@ -78,23 +94,21 @@ describe('ModelService.update', () => {
 
   async function seedExistingModel() {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-    await dbh.db.insert(userModelTable).values({
-      id: createUniqueModelId('openai', 'gpt-4o'),
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      presetModelId: 'gpt-4o',
-      name: 'GPT-4o',
-      capabilities: ['function-call'],
-      inputModalities: ['text'],
-      outputModalities: ['text'],
-      contextWindow: 128_000,
-      maxOutputTokens: 4096,
-      supportsStreaming: true,
-      isEnabled: true,
-      isHidden: false,
-      isDeprecated: false,
-      sortOrder: 0
-    })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        presetModelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: ['function-call'],
+        inputModalities: ['text'],
+        outputModalities: ['text'],
+        contextWindow: 128_000,
+        maxOutputTokens: 4096,
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        isDeprecated: false
+      })
+    )
   }
 
   it('only writes provided fields — partial update does not clear others', async () => {
@@ -327,12 +341,7 @@ describe('ModelService.create', () => {
 
   it('translates duplicate model create into a 409 conflict', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-    await dbh.db.insert(userModelTable).values({
-      id: createUniqueModelId('openai', 'gpt-4o'),
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      name: 'GPT-4o'
-    })
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { name: 'GPT-4o' }))
 
     await expect(
       modelService.create([
@@ -436,12 +445,7 @@ describe('ModelService.create', () => {
 
   it('rolls back all inserts when one item conflicts (transaction atomicity)', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-    await dbh.db.insert(userModelTable).values({
-      id: createUniqueModelId('openai', 'gpt-4o'),
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      name: 'GPT-4o'
-    })
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { name: 'GPT-4o' }))
 
     await expect(
       modelService.create([
@@ -486,12 +490,7 @@ describe('ModelService.delete', () => {
     const modelId = createUniqueModelId('openai', 'gpt-4o')
 
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-    await dbh.db.insert(userModelTable).values({
-      id: modelId,
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      name: 'GPT-4o'
-    })
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: modelId, name: 'GPT-4o' }))
     await dbh.db.insert(pinTable).values({
       entityType: 'model',
       entityId: modelId,
@@ -521,36 +520,24 @@ describe('ModelService.list', () => {
         providerRow('anthropic', 'Anthropic', anthropicOrderKey)
       ])
     await dbh.db.insert(userModelTable).values([
-      {
-        id: createUniqueModelId('openai', 'gpt-4o'),
-        providerId: 'openai',
-        modelId: 'gpt-4o',
+      modelRow('openai', 'gpt-4o', {
         name: 'GPT-4o',
         capabilities: ['function-call'],
         isEnabled: true,
-        isDeprecated: false,
-        sortOrder: 0
-      },
-      {
-        id: createUniqueModelId('openai', 'gpt-3.5'),
-        providerId: 'openai',
-        modelId: 'gpt-3.5',
+        isDeprecated: false
+      }),
+      modelRow('openai', 'gpt-3.5', {
         name: 'GPT-3.5',
         capabilities: ['embedding'],
         isEnabled: false,
-        isDeprecated: false,
-        sortOrder: 1
-      },
-      {
-        id: createUniqueModelId('anthropic', 'claude-3'),
-        providerId: 'anthropic',
-        modelId: 'claude-3',
+        isDeprecated: false
+      }),
+      modelRow('anthropic', 'claude-3', {
         name: 'Claude 3',
         capabilities: ['function-call', 'reasoning'],
         isEnabled: true,
-        isDeprecated: false,
-        sortOrder: 0
-      }
+        isDeprecated: false
+      })
     ])
   }
 
@@ -618,12 +605,7 @@ describe('ModelService.getByKey', () => {
 
   it('returns model for valid composite key', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-    await dbh.db.insert(userModelTable).values({
-      id: createUniqueModelId('openai', 'gpt-4o'),
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      name: 'GPT-4o'
-    })
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { name: 'GPT-4o' }))
 
     const model = await modelService.getByKey('openai', 'gpt-4o')
 
@@ -650,12 +632,7 @@ describe('ModelService.findByIdTx', () => {
   it('returns the model when the unique model id exists', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     const uid = createUniqueModelId('openai', 'gpt-4o')
-    await dbh.db.insert(userModelTable).values({
-      id: uid,
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      name: 'GPT-4o'
-    })
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: uid, name: 'GPT-4o' }))
 
     await expect(modelService.findByIdTx(dbh.db, uid)).resolves.toMatchObject({
       id: uid,
@@ -672,12 +649,7 @@ describe('ModelService.findByIdTx', () => {
     const uid = createUniqueModelId('openai', 'gpt-4o')
 
     await dbh.db.transaction(async (tx) => {
-      await tx.insert(userModelTable).values({
-        id: uid,
-        providerId: 'openai',
-        modelId: 'gpt-4o',
-        name: 'GPT-4o'
-      })
+      await tx.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: uid, name: 'GPT-4o' }))
       await expect(modelService.findByIdTx(tx, uid)).resolves.toMatchObject({ id: uid })
     })
   })
@@ -694,10 +666,12 @@ describe('ModelService.getNamesByUniqueIdsTx', () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     const uid1 = createUniqueModelId('openai', 'gpt-4o')
     const uid2 = createUniqueModelId('openai', 'gpt-4o-mini')
-    await dbh.db.insert(userModelTable).values([
-      { id: uid1, providerId: 'openai', modelId: 'gpt-4o', name: 'GPT-4o' },
-      { id: uid2, providerId: 'openai', modelId: 'gpt-4o-mini', name: 'GPT-4o mini' }
-    ])
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'gpt-4o', { id: uid1, name: 'GPT-4o' }),
+        modelRow('openai', 'gpt-4o-mini', { id: uid2, name: 'GPT-4o mini' })
+      ])
 
     const result = await modelService.getNamesByUniqueIdsTx(dbh.db, [uid1, uid2, 'openai::missing'])
 
@@ -709,7 +683,7 @@ describe('ModelService.getNamesByUniqueIdsTx', () => {
   it('filters null / undefined / empty inputs and dedupes', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     const uid = createUniqueModelId('openai', 'gpt-4o')
-    await dbh.db.insert(userModelTable).values({ id: uid, providerId: 'openai', modelId: 'gpt-4o', name: 'GPT-4o' })
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: uid, name: 'GPT-4o' }))
 
     const result = await modelService.getNamesByUniqueIdsTx(dbh.db, [uid, uid, null, undefined, ''])
 
@@ -721,10 +695,12 @@ describe('ModelService.getNamesByUniqueIdsTx', () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     const uidNull = createUniqueModelId('openai', 'gpt-null')
     const uidEmpty = createUniqueModelId('openai', 'gpt-empty')
-    await dbh.db.insert(userModelTable).values([
-      { id: uidNull, providerId: 'openai', modelId: 'gpt-null', name: null },
-      { id: uidEmpty, providerId: 'openai', modelId: 'gpt-empty', name: '' }
-    ])
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'gpt-null', { id: uidNull, name: null }),
+        modelRow('openai', 'gpt-empty', { id: uidEmpty, name: '' })
+      ])
 
     const result = await modelService.getNamesByUniqueIdsTx(dbh.db, [uidNull, uidEmpty])
 
@@ -747,12 +723,7 @@ describe('ModelService.delete', () => {
 
   it('removes the model row from the database', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-    await dbh.db.insert(userModelTable).values({
-      id: createUniqueModelId('openai', 'gpt-4o'),
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      name: 'GPT-4o'
-    })
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { name: 'GPT-4o' }))
 
     await modelService.delete('openai', 'gpt-4o')
 
@@ -768,20 +739,12 @@ describe('ModelService.delete', () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     const targetModelId = createUniqueModelId('openai', 'gpt-4o')
     const siblingModelId = createUniqueModelId('openai', 'gpt-4o-mini')
-    await dbh.db.insert(userModelTable).values([
-      {
-        id: targetModelId,
-        providerId: 'openai',
-        modelId: 'gpt-4o',
-        name: 'GPT-4o'
-      },
-      {
-        id: siblingModelId,
-        providerId: 'openai',
-        modelId: 'gpt-4o-mini',
-        name: 'GPT-4o mini'
-      }
-    ])
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'gpt-4o', { id: targetModelId, name: 'GPT-4o' }),
+        modelRow('openai', 'gpt-4o-mini', { id: siblingModelId, name: 'GPT-4o mini' })
+      ])
     const targetPin = await pinService.pin({ entityType: 'model', entityId: targetModelId })
     const siblingPin = await pinService.pin({ entityType: 'model', entityId: siblingModelId })
 

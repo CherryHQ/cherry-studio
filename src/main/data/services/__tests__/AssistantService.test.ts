@@ -50,8 +50,7 @@ describe('AssistantDataService', () => {
         presetModelId: 'gpt-4',
         name: 'GPT-4',
         isEnabled: true,
-        isHidden: false,
-        sortOrder: 0
+        isHidden: false
       },
       {
         id: createUniqueModelId('anthropic', 'claude-3'),
@@ -60,8 +59,7 @@ describe('AssistantDataService', () => {
         presetModelId: 'claude-3',
         name: 'Claude 3',
         isEnabled: true,
-        isHidden: false,
-        sortOrder: 0
+        isHidden: false
       },
       {
         id: createUniqueModelId('openai', 'text-embedding-3-large'),
@@ -70,8 +68,7 @@ describe('AssistantDataService', () => {
         presetModelId: 'text-embedding-3-large',
         name: 'text-embedding-3-large',
         isEnabled: true,
-        isHidden: false,
-        sortOrder: 0
+        isHidden: false
       }
     ])
   }

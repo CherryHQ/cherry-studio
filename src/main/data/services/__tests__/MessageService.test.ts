@@ -31,8 +31,7 @@ describe('MessageService', () => {
         presetModelId: 'model-A',
         name: 'model-A',
         isEnabled: true,
-        isHidden: false,
-        sortOrder: 0
+        isHidden: false
       },
       {
         id: createUniqueModelId('provider-b', 'model-B'),
@@ -41,8 +40,7 @@ describe('MessageService', () => {
         presetModelId: 'model-B',
         name: 'model-B',
         isEnabled: true,
-        isHidden: false,
-        sortOrder: 0
+        isHidden: false
       }
     ])
   })

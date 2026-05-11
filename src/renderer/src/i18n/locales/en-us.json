@@ -6468,6 +6468,7 @@
       },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",
+      "reorder_failed": "Failed to reorder providers",
       "request_configuration": "Request configuration",
       "request_configuration_tooltip": "Configure API Host and custom request headers",
       "save_failed": "Failed to save provider settings",

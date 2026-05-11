@@ -6,6 +6,7 @@ import { trim } from 'lodash'
 import { Plus, Settings, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { v4 as uuidv4 } from 'uuid'
 
 import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
@@ -33,11 +34,7 @@ interface HeaderRow {
 type HeadersUiMode = 'list' | 'json'
 
 function newRow(partial?: Partial<Pick<HeaderRow, 'key' | 'value'>>): HeaderRow {
-  const id =
-    typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  return { id, key: partial?.key ?? '', value: partial?.value ?? '' }
+  return { id: uuidv4(), key: partial?.key ?? '', value: partial?.value ?? '' }
 }
 
 function headersObjectToRows(obj: Record<string, string>): HeaderRow[] {

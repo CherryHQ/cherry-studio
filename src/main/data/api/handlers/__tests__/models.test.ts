@@ -114,9 +114,9 @@ describe('/models', () => {
     ] satisfies CreateModelInput[])
   })
 
-  it('falls back to custom model creation when registry lookup fails', async () => {
+  it('falls back to custom model creation when registry lookup returns NOT_FOUND', async () => {
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
-    lookupModelMock.mockRejectedValue(new Error('registry down'))
+    lookupModelMock.mockRejectedValue(DataApiErrorFactory.notFound('Registry model', 'custom-model'))
     createMock.mockResolvedValue([{ id: 'openai::custom-model' }])
 
     await modelHandlers['/models'].POST({
@@ -130,8 +130,26 @@ describe('/models', () => {
       }
     ] satisfies CreateModelInput[])
     expect(warnSpy).toHaveBeenCalledWith(
-      'Registry lookup failed during create, falling back to custom',
+      'Registry lookup missed during create, falling back to custom',
       expect.objectContaining({ providerId: 'openai', modelId: 'custom-model' })
+    )
+  })
+
+  it('rethrows non-NOT_FOUND registry lookup errors instead of creating custom models', async () => {
+    const error = new Error('registry down')
+    const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
+    lookupModelMock.mockRejectedValue(error)
+
+    await expect(
+      modelHandlers['/models'].POST({
+        body: [{ providerId: 'openai', modelId: 'gpt-4o' }]
+      } as any)
+    ).rejects.toBe(error)
+
+    expect(createMock).not.toHaveBeenCalled()
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Registry lookup failed during create',
+      expect.objectContaining({ providerId: 'openai', modelId: 'gpt-4o', error })
     )
   })
 
@@ -163,11 +181,13 @@ describe('/models', () => {
     expect(result).toEqual(created)
   })
 
-  it('falls back to custom model creation when registry lookup fails for one batch item', async () => {
+  it('falls back to custom model creation when registry lookup returns NOT_FOUND for one batch item', async () => {
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
     const registryData = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
 
-    lookupModelMock.mockResolvedValueOnce(registryData).mockRejectedValueOnce(new Error('lookup failed'))
+    lookupModelMock
+      .mockResolvedValueOnce(registryData)
+      .mockRejectedValueOnce(DataApiErrorFactory.notFound('Model', 'my-model'))
     createMock.mockResolvedValue([])
 
     await modelHandlers['/models'].POST({
@@ -188,7 +208,7 @@ describe('/models', () => {
       }
     ] satisfies CreateModelInput[])
     expect(warnSpy).toHaveBeenCalledWith(
-      'Registry lookup failed during batch create, falling back to custom',
+      'Registry lookup missed during batch create, falling back to custom',
       expect.objectContaining({ providerId: 'custom/provider', modelId: 'my-model' })
     )
   })

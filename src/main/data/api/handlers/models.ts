@@ -9,7 +9,7 @@
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
@@ -51,10 +51,19 @@ async function enrichCreateItems(dtos: CreateModelDto[]) {
           registryData: await providerRegistryService.lookupModel(dto.providerId, dto.modelId)
         }
       } catch (error) {
+        if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) {
+          logger.error('Registry lookup failed during create', {
+            providerId: dto.providerId,
+            modelId: dto.modelId,
+            error
+          })
+          throw error
+        }
+
         logger.warn(
           dtos.length === 1
-            ? 'Registry lookup failed during create, falling back to custom'
-            : 'Registry lookup failed during batch create, falling back to custom',
+            ? 'Registry lookup missed during create, falling back to custom'
+            : 'Registry lookup missed during batch create, falling back to custom',
           {
             providerId: dto.providerId,
             modelId: dto.modelId,

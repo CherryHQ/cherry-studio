@@ -154,7 +154,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   }, [])
 
   const handleReorderError = useCallback(() => {
-    window.toast.error(t('settings.models.manage.sync_pull_failed'))
+    window.toast.error(t('settings.provider.reorder_failed'))
   }, [t])
 
   const handleSubmitEditor = useCallback(

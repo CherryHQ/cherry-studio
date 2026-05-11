@@ -6468,6 +6468,7 @@
       },
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",
+      "reorder_failed": "調整服務商順序失敗",
       "request_configuration": "請求設定",
       "request_configuration_tooltip": "設定 API Host 與自訂請求標頭",
       "save_failed": "服務商設定儲存失敗",

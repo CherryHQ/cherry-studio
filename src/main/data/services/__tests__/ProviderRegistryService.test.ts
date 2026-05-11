@@ -284,6 +284,47 @@ describe('ProviderRegistryService', () => {
       expect(loggerSpy).toHaveBeenCalledWith('Failed to fetch provider for reasoning config', error)
     })
 
+    it('should reject when a single registry model merge fails instead of returning an incomplete array', async () => {
+      setupRegistryData()
+      mockReadModels.mockReturnValueOnce({
+        version: '1.0',
+        models: [
+          {
+            id: 'broken-model',
+            name: 'Broken',
+            capabilities: ['function-call'],
+            reasoning: {}
+          }
+        ]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValueOnce({
+        version: '1.0',
+        overrides: [
+          {
+            providerId: 'openai',
+            modelId: 'broken-model',
+            replaceWith: Symbol('invalid-replacement') as unknown as string
+          }
+        ]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValueOnce({
+        version: '1.0',
+        providers: [
+          {
+            id: 'openai',
+            name: 'OpenAI',
+            metadata: {},
+            endpointConfigs: {
+              'openai-chat-completions': { reasoningFormatType: 'openai-chat' }
+            },
+            defaultChatEndpoint: 'openai-chat-completions'
+          }
+        ]
+      } as unknown as ReturnType<typeof readProviderRegistry>)
+
+      await expect(providerRegistryService.resolveModels('openai', ['broken-model'])).rejects.toThrow()
+    })
+
     // ── Regression: normalize fallback ────────────────────────────────────────
     // These two cases previously returned a bare custom model (name === modelId)
     // because lookupRegistryModel only did an exact-match lookup. The normalize

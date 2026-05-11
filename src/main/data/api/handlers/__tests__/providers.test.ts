@@ -1,12 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { createMock, listMock, getByProviderIdMock, updateMock, deleteMock, getApiKeysMock } = vi.hoisted(() => ({
+const {
+  createMock,
+  listMock,
+  getByProviderIdMock,
+  updateMock,
+  deleteMock,
+  getApiKeysMock,
+  replaceApiKeysMock,
+  resolveModelsMock
+} = vi.hoisted(() => ({
   createMock: vi.fn(),
   listMock: vi.fn(),
   getByProviderIdMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
-  getApiKeysMock: vi.fn()
+  getApiKeysMock: vi.fn(),
+  replaceApiKeysMock: vi.fn(),
+  resolveModelsMock: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -16,13 +27,14 @@ vi.mock('@data/services/ProviderService', () => ({
     getByProviderId: getByProviderIdMock,
     update: updateMock,
     delete: deleteMock,
-    getApiKeys: getApiKeysMock
+    getApiKeys: getApiKeysMock,
+    replaceApiKeys: replaceApiKeysMock
   }
 }))
 
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
-    resolveModels: vi.fn()
+    resolveModels: resolveModelsMock
   }
 }))
 
@@ -89,6 +101,43 @@ describe('providerHandlers', () => {
 
       expect(getApiKeysMock).toHaveBeenCalledWith('openai', { enabled: true })
       expect(result).toEqual({ keys: enabledKeys })
+    })
+
+    it('replaces API keys through the dedicated api-keys resource', async () => {
+      const keys = [{ id: 'key-a', key: 'sk-a', isEnabled: true }]
+      replaceApiKeysMock.mockResolvedValueOnce({ id: 'openai', apiKeys: [{ id: 'key-a', isEnabled: true }] })
+
+      await providerHandlers['/providers/:providerId/api-keys'].PUT({
+        params: { providerId: 'openai' },
+        body: { keys }
+      } as never)
+
+      expect(replaceApiKeysMock).toHaveBeenCalledWith('openai', keys)
+    })
+  })
+
+  describe('/providers/:providerId/models:resolve', () => {
+    it('resolves a single ids query string through ProviderRegistryService', async () => {
+      resolveModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
+
+      const result = await providerHandlers['/providers/:providerId/models:resolve'].GET({
+        params: { providerId: 'openai' },
+        query: { ids: 'gpt-4o' }
+      } as never)
+
+      expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o'])
+      expect(result).toEqual([{ id: 'openai::gpt-4o' }])
+    })
+
+    it('resolves repeated ids arrays without a request body', async () => {
+      resolveModelsMock.mockResolvedValueOnce([])
+
+      await providerHandlers['/providers/:providerId/models:resolve'].GET({
+        params: { providerId: 'openai' },
+        query: { ids: ['gpt-4o', 'o3'] }
+      } as never)
+
+      expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o', 'o3'])
     })
   })
 })

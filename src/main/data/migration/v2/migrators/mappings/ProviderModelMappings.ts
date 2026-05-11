@@ -391,7 +391,7 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
   return hasValue ? settings : null
 }
 
-export function transformModel(legacy: LegacyModel, providerId: string, sortOrder: number): NewUserModel {
+export function transformModel(legacy: LegacyModel, providerId: string): Omit<NewUserModel, 'orderKey'> {
   const hasCustomizedCapabilities =
     legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
 
@@ -409,20 +409,19 @@ export function transformModel(legacy: LegacyModel, providerId: string, sortOrde
     endpointTypes: mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types),
     contextWindow: null,
     maxOutputTokens: null,
-    supportsStreaming: legacy.supported_text_delta ?? null,
+    supportsStreaming: legacy.supported_text_delta ?? true,
     reasoning: null,
     parameters: null,
     pricing: mapPricing(legacy.pricing),
     isEnabled: true,
     isHidden: false,
-    sortOrder,
     userOverrides: hasCustomizedCapabilities ? ['capabilities'] : null
   }
 }
 
-function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapability[] | null {
+function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapability[] {
   if (!capabilities || capabilities.length === 0) {
-    return null
+    return []
   }
 
   const mapped: ModelCapability[] = []
@@ -435,7 +434,7 @@ function mapCapabilities(capabilities?: LegacyModel['capabilities']): ModelCapab
     }
   }
 
-  return mapped.length > 0 ? Array.from(new Set(mapped)) : null
+  return mapped.length > 0 ? Array.from(new Set(mapped)) : []
 }
 
 function mapEndpointTypes(

@@ -1,5 +1,5 @@
-// TODO(v2-cleanup): Phase 5 迁移完成后删除此文件
-// 将 v2 DataApi Provider 桥接为 v1 Provider 形状，供尚未迁移的下游使用。
+// TODO(v2-cleanup): Delete this file after Phase 5 migration is complete.
+// Bridges v2 DataApi Provider shape to v1 Provider shape for downstream code not yet migrated.
 
 import type { Model as V1Model, Provider as V1Provider, ProviderType } from '@renderer/types'
 import type { Model as V2Model } from '@shared/data/types/model'
@@ -7,11 +7,11 @@ import { ENDPOINT_TYPE, isUniqueModelId, parseUniqueModelId } from '@shared/data
 import type { Provider as V2Provider } from '@shared/data/types/provider'
 
 export interface V1ShimOptions {
-  /** 来自 useModels()（v2 Model 与 v1 在运行时可互操作） */
+  /** From useModels(); v2 Model and v1 Model are runtime-compatible here. */
   models?: V2Model[]
-  /** 来自 useProviderApiKeys() keys join(',') 或表单本地 key */
+  /** From useProviderApiKeys() keys joined by comma, or the local form key. */
   apiKey?: string
-  /** 覆盖 baseUrls 推导，例如表单中的 apiHost */
+  /** Overrides baseUrl inference, e.g. apiHost from the form. */
   apiHost?: string
 }
 
@@ -75,7 +75,7 @@ function apiFeaturesToApiOptions(v2: V2Provider): V1Provider['apiOptions'] {
 }
 
 /**
- * 将 v2 DataApi Model 桥接为 v1 Model 形状，供 AiProvider / checkApi 等仍依赖 `model.provider` 的代码使用。
+ * Bridge v2 DataApi Model shape to v1 Model shape for code that still depends on `model.provider`.
  */
 export function toV1ModelShim(v2: V2Model): V1Model {
   const apiId = v2.apiModelId?.trim() || (isUniqueModelId(v2.id) ? parseUniqueModelId(v2.id).modelId : v2.id)
@@ -92,7 +92,7 @@ export function toV1ModelShim(v2: V2Model): V1Model {
   } as V1Model
 }
 
-/** 调用仍基于 v1 `Model` 的 `checkApi` 前使用：已是 v1 则原样返回，否则走 {@link toV1ModelShim}。 */
+/** Use before `checkApi` calls that still expect a v1 `Model`: return v1 as-is, otherwise bridge via {@link toV1ModelShim}. */
 export function toV1ModelForCheckApi(model: unknown): V1Model {
   if (
     typeof model === 'object' &&
@@ -106,7 +106,7 @@ export function toV1ModelForCheckApi(model: unknown): V1Model {
 }
 
 /**
- * 将 v2 Provider 桥接为 v1 Provider 形状（临时过渡层）。
+ * Bridge v2 Provider shape to v1 Provider shape as a temporary compatibility layer.
  */
 export function toV1ProviderShim(v2Provider: V2Provider, options: V1ShimOptions = {}): V1Provider {
   const cache = v2Provider.settings?.cacheControl

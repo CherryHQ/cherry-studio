@@ -37,7 +37,7 @@ export function usePullReconcileSubmit({ providerId, onApplyCommitted }: UsePull
         }
 
         if (toAdd.length > 0) {
-          const dtos = toAdd.map((m) => toCreateModelDto(providerId, m))
+          const dtos = toAdd.map((model) => toCreateModelDto(providerId, model))
           for (const chunk of chunkArray(dtos, MODELS_BATCH_MAX_ITEMS)) {
             await createModels(chunk)
           }
