@@ -2,7 +2,7 @@ import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@rendere
 import type { WebSearchCapability, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 import type { WebSearchProviderUpdates } from '@shared/data/utils/webSearchProviderMerger'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import type { ResolvedWebSearchProviderCapability } from '../utils/webSearchProviderMeta'
 
@@ -14,18 +14,11 @@ export function useWebSearchProviderForm(
   activeCapability?: WebSearchCapability
 ) {
   const [apiKeys, setApiKeys] = useState<string[]>(provider.apiKeys)
-  const [apiHosts, setApiHosts] = useState<Record<string, string>>({})
+  const [apiHosts, setApiHosts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(provider.capabilities.map((capability) => [capability.feature, capability.apiHost ?? '']))
+  )
   const [basicAuthUsername, setBasicAuthUsername] = useState(provider.basicAuthUsername)
   const [basicAuthPassword, setBasicAuthPassword] = useState(provider.basicAuthPassword)
-
-  useEffect(() => {
-    setApiKeys(provider.apiKeys)
-    setApiHosts(
-      Object.fromEntries(provider.capabilities.map((capability) => [capability.feature, capability.apiHost ?? '']))
-    )
-    setBasicAuthUsername(provider.basicAuthUsername)
-    setBasicAuthPassword(provider.basicAuthPassword)
-  }, [provider.apiKeys, provider.capabilities, provider.basicAuthUsername, provider.basicAuthPassword])
 
   const apiKeyInput = useMemo(() => apiKeys.join(','), [apiKeys])
   const apiHostCapabilities = useMemo(

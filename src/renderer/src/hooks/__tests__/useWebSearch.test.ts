@@ -94,6 +94,24 @@ describe('useWebSearch', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBe(3000)
   })
 
+  it('keeps the current cutoff limit when compression updates pass undefined', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.web_search.exclude_domains': [],
+      'chat.web_search.max_results': 5,
+      'chat.web_search.compression.method': 'cutoff',
+      'chat.web_search.compression.cutoff_limit': 5000
+    })
+
+    const { result } = renderHook(() => useWebSearchSettings())
+
+    await act(async () => {
+      await result.current.updateCompressionConfig({ method: 'none', cutoffLimit: undefined })
+    })
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.method')).toBe('none')
+    expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBe(5000)
+  })
+
   it('exposes normalized web search settings state', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.web_search.exclude_domains': ['example.com'],

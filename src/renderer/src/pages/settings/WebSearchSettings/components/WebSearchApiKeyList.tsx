@@ -141,7 +141,7 @@ export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }
     useWebSearchApiKeyList(providerId)
 
   if (!provider) {
-    throw new Error(`Web search provider with id ${providerId} not found`)
+    return <div className="py-3 text-muted-foreground text-xs leading-tight">{t('error.no_api_key')}</div>
   }
 
   return (

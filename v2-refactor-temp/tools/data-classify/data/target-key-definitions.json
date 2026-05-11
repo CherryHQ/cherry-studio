@@ -90,13 +90,6 @@
       "description": "Web search max results (from complex migration)"
     },
     {
-      "targetKey": "chat.web_search.search_with_time",
-      "type": "boolean",
-      "defaultValue": true,
-      "status": "classified",
-      "description": "Prepend today's date to the query as a textual hint (no provider-side time filtering)"
-    },
-    {
       "targetKey": "chat.web_search.provider_overrides",
       "type": "PreferenceTypes.WebSearchProviderOverrides",
       "defaultValue": {},

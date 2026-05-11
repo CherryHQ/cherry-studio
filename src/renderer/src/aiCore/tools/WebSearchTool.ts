@@ -77,8 +77,16 @@ export const webSearchTool = () =>
       additionalContext: z.string().optional().describe('Single focused query when the model provides legacy input.')
     }),
     execute: async ({ queries, additionalContext }) => {
+      const keywords = normalizeInputs(
+        queries?.length ? queries : [additionalContext ?? ''],
+        MAX_BUILTIN_WEB_SEARCH_QUERIES
+      )
+      if (keywords.length === 0) {
+        throw new Error('Provide at least one search query in `queries` (string array).')
+      }
+
       return window.api.webSearch.searchKeywords({
-        keywords: normalizeInputs(queries?.length ? queries : [additionalContext ?? ''], MAX_BUILTIN_WEB_SEARCH_QUERIES)
+        keywords
       })
     },
     toModelOutput: ({ output }) => toWebSearchModelOutput(output, 'search')

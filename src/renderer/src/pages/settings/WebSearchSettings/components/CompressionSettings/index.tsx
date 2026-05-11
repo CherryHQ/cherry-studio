@@ -17,7 +17,7 @@ const CompressionSettings = () => {
   const handleCompressionMethodChange = (value: 'none' | 'cutoff') => {
     void updateCompressionConfig({
       method: value,
-      cutoffLimit: value === 'cutoff' ? compressionConfig?.cutoffLimit || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT : undefined
+      ...(value === 'cutoff' ? { cutoffLimit: compressionConfig?.cutoffLimit || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } : {})
     })
   }
 

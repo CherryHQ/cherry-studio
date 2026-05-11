@@ -12,6 +12,9 @@ const searchKeywordsMock = vi.fn()
 const fetchUrlsMock = vi.fn()
 const toastSuccessMock = vi.fn()
 const toastErrorMock = vi.fn()
+const mocks = vi.hoisted(() => ({
+  useWebSearchApiKeyList: vi.fn()
+}))
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
@@ -105,6 +108,11 @@ vi.mock('../components/WebSearchProviderLogo', () => ({
   default: ({ providerName }: { providerName: string }) => <span aria-label={`${providerName} logo`} />
 }))
 
+vi.mock('../hooks/useWebSearchApiKeyList', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/useWebSearchApiKeyList')>()),
+  useWebSearchApiKeyList: (...args: unknown[]) => mocks.useWebSearchApiKeyList(...args)
+}))
+
 describe('WebSearchSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -132,6 +140,15 @@ describe('WebSearchSettings', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.max_results', 5)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.method', 'none')
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_limit', 2000)
+    mocks.useWebSearchApiKeyList.mockReturnValue({
+      provider: undefined,
+      keys: [],
+      displayItems: [],
+      hasPendingNewKey: false,
+      addPendingKey: vi.fn(),
+      updateListItem: vi.fn(),
+      removeListItem: vi.fn()
+    })
   })
 
   it('renders general settings by default', () => {
@@ -186,6 +203,22 @@ describe('WebSearchSettings', () => {
     expect(toastSuccessMock).toHaveBeenCalledWith('settings.tool.websearch.check_success')
   })
 
+  it('keeps local API key drafts when provider overrides change externally', () => {
+    const { rerender } = render(<WebSearchSettings />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Tavily/ })[0])
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api_key.label'), {
+      target: { value: 'draft-tavily-key' }
+    })
+
+    MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.provider_overrides', {
+      zhipu: { apiKeys: ['zhipu-key'] }
+    })
+    rerender(<WebSearchSettings />)
+
+    expect(screen.getByPlaceholderText('settings.provider.api_key.label')).toHaveValue('draft-tavily-key')
+  })
+
   it('checks the active fetchUrls capability with the fixed URL probe', async () => {
     render(<WebSearchSettings />)
 
@@ -209,5 +242,12 @@ describe('WebSearchSettings', () => {
     await waitFor(() => {
       expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.check_failed')
     })
+  })
+
+  it('shows a fallback instead of throwing when the API key list provider is missing', async () => {
+    const { WebSearchApiKeyList } = await import('../components/WebSearchApiKeyList')
+
+    expect(() => render(<WebSearchApiKeyList providerId={'missing-provider' as any} />)).not.toThrow()
+    expect(screen.getByText('error.no_api_key')).toBeInTheDocument()
   })
 })

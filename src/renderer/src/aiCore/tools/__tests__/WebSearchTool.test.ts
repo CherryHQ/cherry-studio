@@ -67,6 +67,16 @@ describe('webSearchTool', () => {
 
     expect(mocks.searchKeywords).toHaveBeenCalledWith({ keywords: ['latest cherry studio'] })
   })
+
+  it('rejects empty search inputs before calling main web search IPC', async () => {
+    const searchTool = webSearchTool() as any
+
+    await expect(searchTool.execute({ queries: [' ', ''] })).rejects.toThrow(
+      'Provide at least one search query in `queries` (string array).'
+    )
+
+    expect(mocks.searchKeywords).not.toHaveBeenCalled()
+  })
 })
 
 describe('fetchUrlsTool', () => {

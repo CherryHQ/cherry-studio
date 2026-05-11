@@ -79,7 +79,11 @@ const WebSearchSettings: FC = () => {
           </MenuList>
         </Scrollbar>
         <div className={`${settingsContentScrollClassName} relative flex`}>
-          {activeEntry ? <WebSearchProviderSetting entry={activeEntry} /> : <WebSearchGeneralSettings />}
+          {activeEntry ? (
+            <WebSearchProviderSetting key={activeEntry.key} entry={activeEntry} />
+          ) : (
+            <WebSearchGeneralSettings />
+          )}
         </div>
       </div>
     </div>

@@ -154,7 +154,8 @@ export const useWebSearchSettings = (): WebSearchSettingsState & {
     updateCompressionConfig: (config) => {
       const nextConfig = {
         ...state.compressionConfig,
-        ...config
+        ...config,
+        cutoffLimit: config.cutoffLimit !== undefined ? config.cutoffLimit : state.compressionConfig.cutoffLimit
       }
       return setPreferences({
         compressionMethod: nextConfig.method,
