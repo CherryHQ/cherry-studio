@@ -938,6 +938,7 @@
         "agent": "匯出助手"
       },
       "import": {
+        "action": "匯入助手",
         "button": "匯入",
         "error": {
           "fetch_failed": "從 URL 取得資料失敗",
@@ -1758,6 +1759,7 @@
     "models": "模型",
     "more": "更多",
     "name": "名稱",
+    "next": "下一頁",
     "next_match": "下一場比賽",
     "no_results": "沒有結果",
     "none": "無",
@@ -1773,6 +1775,7 @@
     },
     "powered_by": "技術提供",
     "preview": "預覽",
+    "previous": "上一頁",
     "previous_match": "上一場比賽",
     "prompt": "提示詞",
     "provider": "供應商",
@@ -2051,7 +2054,8 @@
     "empty_preview": "沒有內容可顯示",
     "generating": "產生中",
     "preview": "預覽",
-    "split": "分割畫面"
+    "split": "分割畫面",
+    "view_mode": "檢視模式"
   },
   "import": {
     "chatgpt": {
@@ -2085,126 +2089,233 @@
   },
   "knowledge": {
     "add": {
-      "title": "新增知識庫"
+      "group": "分组",
+      "icon": "图标",
+      "submit": "创建",
+      "title": "新建知识库"
     },
-    "add_directory": "新增目錄",
-    "add_file": "新增檔案",
-    "add_image": "新增圖片",
-    "add_note": "新增筆記",
-    "add_sitemap": "網站地圖",
-    "add_url": "新增網址",
-    "add_video": "新增影片",
-    "cancel_index": "取消索引",
-    "chunk_overlap": "重疊大小",
-    "chunk_overlap_placeholder": "預設值（不建議修改）",
-    "chunk_overlap_tooltip": "相鄰文字塊之間重複的內容量，確保分段後的文字塊之間仍然有上下文聯絡，提升模型處理長文字的整體效果",
-    "chunk_size": "分段大小",
-    "chunk_size_change_warning": "分段大小和重疊大小修改只針對新新增的內容有效",
-    "chunk_size_placeholder": "預設值（不建議修改）",
-    "chunk_size_too_large": "分段大小不能超過模型上下文限制（{{max_context}}）",
-    "chunk_size_tooltip": "將檔案切割分段，每段大小不得超過模型的上下文上限",
-    "clear_selection": "清除選擇",
-    "delete": "刪除",
-    "delete_confirm": "確定要刪除此知識庫嗎？",
-    "dimensions": "嵌入維度",
-    "dimensions_auto_set": "自動設定嵌入維度",
-    "dimensions_default": "模型將使用預設嵌入維度",
-    "dimensions_error_invalid": "無效的嵌入維度",
-    "dimensions_set_right": "⚠️ 請確認模型支援所設定的嵌入維度大小",
-    "dimensions_size_placeholder": "留空表示不設定",
-    "dimensions_size_too_large": "嵌入維度不能超過模型上下文限制（{{max_context}}）",
-    "dimensions_size_tooltip": "嵌入維度大小，數值越大消耗的 Token 也越多。留空則不傳遞 dimensions 參數。",
-    "directories": "目錄",
-    "directory_placeholder": "請輸入目錄路徑",
-    "document_count": "請求檔案片段數量",
-    "document_count_default": "預設",
-    "document_count_help": "請求檔案片段數量越多，附帶的資訊越多，但需要消耗的 Token 也越多",
-    "drag_file": "拖曳檔案到這裡",
-    "drag_image": "拖曳圖片到這裡",
-    "edit_remark": "修改備註",
-    "edit_remark_placeholder": "請輸入備註內容",
-    "embedding_model": "嵌入模型",
-    "embedding_model_required": "知識庫嵌入模型是必需的",
-    "empty": "暫無知識庫",
-    "error": {
-      "failed_to_create": "知識庫建立失敗",
-      "failed_to_edit": "知識庫編輯失敗",
-      "model_invalid": "未選擇模型",
-      "video": {
-        "local_file_missing": "影片檔案不存在",
-        "youtube_url_missing": "YouTube 影片連結不存在"
+    "context": {
+      "delete": "删除知识库",
+      "delete_confirm_description": "删除后将无法恢复该知识库。",
+      "delete_confirm_title": "确认删除知识库",
+      "move_to": "移动到",
+      "rename": "重命名"
+    },
+    "data_source": {
+      "actions": {
+        "delete": "删除",
+        "preview_source": "预览原文",
+        "reindex": "重新索引",
+        "view_chunks": "查看 Chunks"
+      },
+      "add_dialog": {
+        "directory": {
+          "description": "将递归导入文件夹中的支持文件",
+          "title": "点击选择文件夹"
+        },
+        "footer": {
+          "selected_directories": "已选 {{count}} 个目录",
+          "selected_files": "已选 {{count}} 个文件",
+          "selected_notes": "已选 {{count}} 个笔记"
+        },
+        "note": {
+          "description": "选择已有笔记作为知识库数据源",
+          "empty_description": "真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或站点地图。",
+          "empty_title": "暂未接入笔记数据源"
+        },
+        "placeholder": {
+          "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
+          "title": "点击选择文件或拖拽到此处"
+        },
+        "sitemap": {
+          "description": "输入 Sitemap 地址：",
+          "help": "将读取 Sitemap 中包含的页面并建立索引",
+          "placeholder": "https://example.com/sitemap.xml"
+        },
+        "sources": {
+          "directory": "目录",
+          "file": "文件",
+          "note": "笔记",
+          "sitemap": "网站",
+          "url": "网址"
+        },
+        "submit": {
+          "error": "添加数据源失败",
+          "success": "数据源已添加到知识库"
+        },
+        "title": "添加数据源",
+        "url": {
+          "description": "输入网页链接：",
+          "help": "将自动抓取页面文本并分块索引",
+          "input_label": "网页地址",
+          "placeholder": "https://example.com",
+          "title": "导入单个网页"
+        }
+      },
+      "chunk_delete_confirm_description": "删除后该 Chunk 将不再参与召回，重新索引数据源后会重新生成。",
+      "chunk_delete_confirm_title": "确认删除 Chunk",
+      "chunks_count": "{{count}} chunks",
+      "delete_confirm_description": "删除后将无法恢复该数据源及其索引数据。",
+      "delete_confirm_title": "确认删除数据源",
+      "delete_failed": "刪除資料來源失敗",
+      "empty_description": "暂无数据源",
+      "filters": {
+        "all": "全部",
+        "directory": "目录",
+        "file": "文件",
+        "note": "笔记",
+        "sitemap": "网站",
+        "url": "网址"
+      },
+      "preview": {
+        "failed": "預覽原文失敗",
+        "unavailable": "目前資料來源沒有可預覽的原文"
+      },
+      "ready_summary": "{{ready}}/{{total}} 就绪",
+      "reindex_failed": "資料來源重新索引失敗",
+      "status": {
+        "chunking": "分块中",
+        "embedding": "嵌入中",
+        "error": "错误",
+        "pending": "等待中",
+        "ready": "就绪"
       }
     },
+    "dimensions": "嵌入维度",
+    "dimensions_auto_set": "自動設定嵌入維度",
+    "dimensions_error_invalid": "無效的嵌入維度",
+    "dimensions_size_placeholder": "留空表示不設定",
+    "drag_file": "拖曳檔案到這裡",
+    "embedding_model": "嵌入模型",
+    "embedding_model_required": "知识库嵌入模型是必需的",
+    "empty": "暂无知识库",
+    "error": {
+      "failed_base_unknown": "該知識庫遷移失敗，請重建知識庫並選擇新的嵌入模型。",
+      "failed_to_create": "知识库创建失败",
+      "failed_to_delete": "知識庫刪除失敗",
+      "failed_to_edit": "知识库编辑失败",
+      "failed_to_move": "知識庫移動失敗",
+      "missing_embedding_model": "遷移時未找到原知識庫使用的嵌入模型，請重建知識庫並選擇新的嵌入模型。",
+      "model_invalid": "未選擇模型"
+    },
     "file_hint": "支援 {{file_types}} 格式",
-    "image_hint": "支援 {{image_types}} 格式",
-    "images": "圖片",
-    "index_all": "索引全部",
-    "index_cancelled": "索引已取消",
-    "index_started": "索引開始",
-    "invalid_url": "無效的網址",
-    "migrate": {
-      "button": {
-        "text": "遷移"
-      },
-      "confirm": {
-        "content": "偵測到嵌入模型或維度有變更，無法直接儲存設定，可以執行遷移。知識庫遷移不會刪除舊知識庫，而是建立一個副本後重新處理所有知識庫條目，可能消耗大量 Token，請謹慎操作。",
-        "ok": "開始遷移",
-        "title": "知識庫遷移"
-      },
+    "groups": {
+      "add": "新建分组",
+      "create_base_here": "在此分组新建",
+      "delete": "删除分组",
+      "delete_confirm_description": "删除后，该分组下的知识库将移至未分组。",
+      "delete_confirm_title": "确认删除分组",
       "error": {
-        "failed": "遷移失敗"
+        "failed_to_create": "分组创建失败",
+        "failed_to_delete": "分組刪除失敗",
+        "failed_to_update": "分组重命名失败"
       },
-      "source_dimensions": "源維度",
-      "source_model": "源模型",
-      "target_dimensions": "目標維度",
-      "target_model": "目標模型"
+      "name_placeholder": "输入分组名称...",
+      "name_required": "分组名称为必填项",
+      "rename": "重命名",
+      "rename_title": "重命名分组",
+      "ungrouped": "未分组"
     },
-    "model_info": "模型資訊",
-    "name_required": "知識庫名稱為必填欄位",
-    "no_bases": "暫無知識庫",
-    "no_match": "不符合知識庫內容",
-    "no_provider": "知識庫模型供應商遺失，該知識庫將不再支援，請重新建立知識庫",
-    "not_set": "未設定",
-    "not_support": "知識庫資料庫引擎已更新，該知識庫將不再支援，請重新建立知識庫",
-    "notes": "筆記",
-    "notes_placeholder": "輸入此知識庫的附加資訊或上下文...",
+    "meta": {
+      "documents_count": "{{count}} 文档"
+    },
+    "name_required": "知识库名称为必填项",
+    "not_set": "未设置",
     "provider_not_found": "未找到供應商",
-    "rename": "重新命名",
-    "search": "搜尋知識庫",
-    "search_placeholder": "輸入查詢內容",
-    "settings": {
-      "preprocessing": "預處理",
-      "preprocessing_tooltip": "預處理上傳的檔案",
-      "title": "知識庫設定"
+    "rag": {
+      "chunk_overlap": "重叠大小",
+      "chunk_overlap_invalid": "分块重叠必须大于等于 0",
+      "chunk_overlap_must_be_smaller": "分块重叠必须小于分块大小",
+      "chunk_overlap_requires_chunk_size": "分块重叠依赖分块大小",
+      "chunk_size": "分段大小",
+      "chunk_size_change_warning": "分段大小和重叠大小修改只针对新添加的内容有效",
+      "chunk_size_invalid": "分块大小必须大于 0",
+      "chunking": "分块规则 (Chunking)",
+      "default_separator": "自动（推荐）",
+      "dimensions": "向量維度",
+      "document_count": "請求文件片段數 (Top K)",
+      "embedding_model": "Embedding 模型",
+      "embedding_model_select": "模型選擇",
+      "file_processing": "文件預處理",
+      "file_processing_hint": "文件預處理將在文件導入時自動執行，選擇合適的處理服務商可提升文件解析品質",
+      "hints": {
+        "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
+        "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
+        "dimensions": "当前嵌入模型输出的向量维度，用于创建和匹配向量索引。",
+        "document_count": "每次召回返回的最大文档片段数，越大覆盖越多但消耗更多上下文。",
+        "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
+        "hybrid_alpha": "混合检索中向量得分的权重，值越高越偏向语义匹配。",
+        "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
+        "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
+        "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。",
+        "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。",
+        "threshold_disabled": "该检索模式按排序返回结果，不使用相似度阈值。"
+      },
+      "hybrid_alpha": "Hybrid Alpha",
+      "hybrid_alpha_hint": "仅在 Hybrid 检索模式下可配置",
+      "processor": "处理服务商",
+      "refresh_dimensions": "刷新向量維度",
+      "rerank_disabled": "不使用",
+      "rerank_model": "重排模型 (Rerank)",
+      "reset_action": "恢復預設",
+      "reset_defaults": "恢复默认",
+      "retrieval": "检索设置",
+      "save_action": "儲存",
+      "saved": "已儲存",
+      "search_mode": {
+        "bm25": "全文检索",
+        "default": "向量检索",
+        "hybrid": "混合检索（推荐）",
+        "title": "检索模式"
+      },
+      "separator_rule": "分隔符规则",
+      "threshold": "相似度阈值",
+      "tokens_unit": "tokens"
     },
-    "sitemap_added": "新增成功",
-    "sitemap_placeholder": "請輸入網站地圖 URL",
-    "sitemaps": "網站",
-    "source": "來源",
-    "status": "狀態",
-    "status_completed": "已完成",
-    "status_embedding_completed": "嵌入完成",
+    "recall": {
+      "collapse": "收起片段",
+      "copy": "复制片段",
+      "duration": "{{duration}}ms",
+      "empty_description": "结果将展示匹配的文档片段和分数",
+      "empty_title": "输入查询语句开始检索测试",
+      "expand": "展开片段",
+      "history_clear": "清空",
+      "history_remove": "删除历史",
+      "history_title": "搜索历史",
+      "placeholder": "输入测试 Query...",
+      "ranking_only": "按排序返回",
+      "result_count": "{{count}} 个结果",
+      "result_rank": "排序 #{{rank}}",
+      "result_relevance": "相关度 {{score}}",
+      "search_failed": "召回測試檢索失敗",
+      "searching": "正在检索...",
+      "submit": "检索",
+      "top_score": "最高: {{score}}"
+    },
+    "rename_title": "重命名知识库",
+    "restore": {
+      "action": "重建知識庫",
+      "default_name": "{{name}}_副本",
+      "failed_to_restore": "知識庫重建失敗",
+      "submit": "重建",
+      "title": "重建知識庫"
+    },
+    "search": "搜索知识库",
+    "search_placeholder": "輸入查詢內容",
+    "status": {
+      "completed": "就绪",
+      "failed": "失败",
+      "processing": "处理中"
+    },
     "status_embedding_failed": "嵌入失敗",
-    "status_failed": "失敗",
-    "status_new": "已新增",
-    "status_pending": "等待中",
-    "status_preprocess_completed": "預處理完成",
     "status_preprocess_failed": "預處理失敗",
-    "status_processing": "處理中",
     "subtitle_file": "字幕檔案",
-    "threshold": "相符度門檻",
-    "threshold_placeholder": "未設定",
-    "threshold_too_large_or_small": "門檻值不能大於 1 或小於 0",
-    "threshold_tooltip": "用於衡量使用者問題與知識庫內容之間的相關性（0-1）",
-    "title": "知識庫",
-    "topN": "回傳結果數量",
-    "topN_placeholder": "未設定",
-    "topN_too_large_or_small": "回傳結果數量不能大於 30 或小於 1",
-    "topN_tooltip": "回傳的相符結果數量，數值越大，相符結果越多，但消耗的 Token 也越多",
-    "url_added": "網址已新增",
-    "url_placeholder": "請輸入網址，多個網址用換行符號分隔",
-    "urls": "網址",
-    "videos": "影片",
+    "tabs": {
+      "data_source": "数据源",
+      "rag_config": "RAG 配置",
+      "recall_test": "召回测试"
+    },
+    "title": "知识库",
     "videos_file": "影片檔案"
   },
   "languages": {
@@ -2233,6 +2344,470 @@
   "launchpad": {
     "apps": "應用",
     "miniApps": "小程式"
+  },
+  "library": {
+    "action": {
+      "create": "新增",
+      "delete": "刪除",
+      "disable": "停用",
+      "duplicate": "複製",
+      "edit": "編輯",
+      "enable": "啟用",
+      "manage_tags": "管理標籤",
+      "uninstall": "解除安裝"
+    },
+    "assistant_catalog": {
+      "add": "新增",
+      "add_failed": "新增助手失敗",
+      "browse_label": "助手分類",
+      "empty_description": "此分類下暫時沒有助手預設",
+      "empty_title": "暫無可新增助手",
+      "mine": "我的",
+      "no_match_description": "請嘗試其他搜尋關鍵字",
+      "no_match_title": "找不到相符的助手",
+      "preview": "預覽",
+      "preview_description": "簡介",
+      "preview_prompt": "提示詞",
+      "scroll_left": "向左捲動分類",
+      "scroll_right": "向右捲動分類"
+    },
+    "badge": {
+      "update": "[to be translated]:Update"
+    },
+    "config": {
+      "agent": {
+        "create_banner": "儲存後才能綁定工具和 MCP 服務",
+        "create_title": "新增智能體",
+        "field": {
+          "accessible_paths": {
+            "add": "[to be translated]:Add directory",
+            "empty": "[to be translated]:Not set (defaults to the workspace root)",
+            "hint": "[to be translated]:Limits directories the agent can access",
+            "label": "[to be translated]:Accessible directories"
+          },
+          "allowed_tools": {
+            "add": "[to be translated]:Add tool",
+            "empty": "[to be translated]:Leave empty to use the permission mode default",
+            "label": "[to be translated]:Allowed tools"
+          },
+          "avatar": {
+            "hint": "[to be translated]:Used to identify it in the library and sessions"
+          },
+          "description": {
+            "hint": "[to be translated]:Helps identify what this agent is for",
+            "label": "[to be translated]:Description",
+            "placeholder": "[to be translated]:What this agent is for…"
+          },
+          "env_vars": {
+            "help": "[to be translated]:One KEY=VALUE per line",
+            "label": "[to be translated]:Environment variables"
+          },
+          "heartbeat_enabled": {
+            "label": "[to be translated]:Heartbeat check"
+          },
+          "heartbeat_interval": {
+            "label": "[to be translated]:Heartbeat interval (minutes)"
+          },
+          "instructions": {
+            "hint": "[to be translated]:Defines the agent's role and behavior boundaries",
+            "label": "[to be translated]:System prompt",
+            "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
+          },
+          "max_turns": {
+            "help": "[to be translated]:0 means use the default",
+            "label": "[to be translated]:Max conversation turns"
+          },
+          "mcps": {
+            "add": "[to be translated]:Add MCP server",
+            "empty": "[to be translated]:None bound",
+            "label": "[to be translated]:MCP servers (id)"
+          },
+          "model": {
+            "help": "[to be translated]:UniqueModelId; will switch to a picker backed by /models later",
+            "hint": "[to be translated]:Main reasoning and execution",
+            "label": "[to be translated]:Primary model (required)"
+          },
+          "name": {
+            "hint": "[to be translated]:Shown in the library and session lists",
+            "label": "[to be translated]:Agent name",
+            "placeholder": "[to be translated]:Give the agent a name"
+          },
+          "permission_mode": {
+            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
+            "label": "[to be translated]:Permission mode",
+            "option": {
+              "acceptEdits": "[to be translated]:Accept edits",
+              "bypassPermissions": "[to be translated]:Bypass permissions (Soul)",
+              "default": "[to be translated]:Default",
+              "plan": "[to be translated]:Plan mode"
+            }
+          },
+          "plan_model": {
+            "hint": "[to be translated]:Task decomposition and planning",
+            "label": "[to be translated]:Plan model (optional)"
+          },
+          "small_model": {
+            "hint": "[to be translated]:Lightweight checks and formatting",
+            "label": "[to be translated]:Small model (optional)"
+          },
+          "soul_enabled": {
+            "help": "[to be translated]:When enabled, automatically grants bypassPermissions",
+            "label": "[to be translated]:Soul mode"
+          }
+        },
+        "model_config": "[to be translated]:Model configuration",
+        "section": {
+          "advanced": {
+            "desc": "[to be translated]:Execution limits and runtime parameters",
+            "label": "[to be translated]:Advanced",
+            "title": "[to be translated]:Advanced"
+          },
+          "basic": {
+            "desc": "[to be translated]:Agent name, description, and primary model",
+            "label": "[to be translated]:Basic",
+            "title": "[to be translated]:Basic"
+          },
+          "permission": {
+            "desc": "控制 Agent 可執行操作的授權範圍",
+            "label": "權限模式",
+            "title": "權限模式"
+          },
+          "prompt": {
+            "desc": "[to be translated]:System prompt and behavioral constraints",
+            "label": "[to be translated]:Prompt",
+            "title": "[to be translated]:Prompt"
+          },
+          "tools": {
+            "add": "新增",
+            "desc": "[to be translated]:MCP servers, allowed tools, and runtime settings",
+            "label": "[to be translated]:Tools & runtime",
+            "no_builtin_enabled": "未啟用任何內建工具",
+            "no_mcp_bound": "未綁定任何 MCP 服務",
+            "no_skills_enabled": "未啟用任何技能",
+            "search_placeholder": "搜尋工具或 Server...",
+            "skills_coming_soon": "Skill 綁定即將支援",
+            "skills_require_save": "儲存後才能啟用技能",
+            "tab": {
+              "mcp": "MCP Server",
+              "skills": "Skills",
+              "tools": "內建工具"
+            },
+            "title": "[to be translated]:Tools & runtime"
+          }
+        }
+      },
+      "basic": {
+        "context_count": "[to be translated]:Context count",
+        "creative": "[to be translated]:Creative",
+        "custom_params": "[to be translated]:Custom parameters",
+        "custom_params_add": "[to be translated]:Add parameter",
+        "custom_params_name": "[to be translated]:Parameter name",
+        "default_value": "[to be translated]:Model default",
+        "desc": "填寫頭像、名稱、簡介和系統提示詞",
+        "description_label": "[to be translated]:Description",
+        "field": {
+          "avatar": {
+            "hint": "[to be translated]:Used to identify the assistant in the library and chats"
+          },
+          "context_count": {
+            "hint": "[to be translated]:Number of recent messages kept as context"
+          },
+          "custom_params": {
+            "hint": "[to be translated]:Extra provider parameters sent with requests"
+          },
+          "description": {
+            "hint": "[to be translated]:Helps distinguish what this assistant is for",
+            "placeholder": "[to be translated]:What this assistant is for..."
+          },
+          "max_tokens": {
+            "hint": "[to be translated]:Caps response length when enabled"
+          },
+          "max_tool_calls": {
+            "hint": "[to be translated]:Limits tool-call loops when enabled"
+          },
+          "model": {
+            "hint": "[to be translated]:Overrides the global default model for this assistant"
+          },
+          "name": {
+            "hint": "[to be translated]:Shown in the library and assistant selectors",
+            "placeholder": "[to be translated]:Give the assistant a name"
+          },
+          "stream_output": {
+            "hint": "[to be translated]:Shows responses as they are generated"
+          },
+          "tags": {
+            "hint": "[to be translated]:Used for filtering and organizing assistants"
+          },
+          "temperature": {
+            "hint": "[to be translated]:Controls randomness when enabled"
+          },
+          "tool_use_mode": {
+            "hint": "[to be translated]:Controls how tools are exposed to the model"
+          },
+          "top_p": {
+            "hint": "[to be translated]:Limits token sampling range when enabled"
+          }
+        },
+        "json_invalid": "[to be translated]:Invalid JSON format",
+        "max_tokens": "[to be translated]:Max tokens",
+        "max_tool_calls": "[to be translated]:Max tool calls",
+        "model": "[to be translated]:Default model",
+        "model_clear": "[to be translated]:Clear",
+        "model_not_found": "[to be translated]:Model not found (may have been removed): {{id}}",
+        "model_pick": "[to be translated]:+ Pick model",
+        "pick_avatar": "[to be translated]:Pick avatar",
+        "precise": "[to be translated]:Precise",
+        "stream_output": "[to be translated]:Stream output",
+        "tag_empty": "[to be translated]:No tags available",
+        "tag_hint": "[to be translated]:To add a new tag, use the \"+ Tag\" entry in the library top bar",
+        "tag_placeholder": "[to be translated]:Select tags",
+        "tag_search": "[to be translated]:Search tags",
+        "tags": "[to be translated]:Tags",
+        "temperature": "[to be translated]:Temperature",
+        "title": "基礎設定",
+        "tool_use_function": "[to be translated]:Function",
+        "tool_use_mode": "[to be translated]:Tool call mode",
+        "tool_use_prompt": "[to be translated]:Prompt",
+        "top_p": "[to be translated]:Top-P",
+        "unlimited": "[to be translated]:Unlimited"
+      },
+      "breadcrumb": "[to be translated]:Library",
+      "knowledge": {
+        "add": "[to be translated]:Add knowledge base",
+        "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
+        "doc_count": "[to be translated]:{{count}} docs",
+        "empty_desc": "[to be translated]:Once linked, the assistant can answer based on document content",
+        "empty_title": "[to be translated]:No knowledge bases linked",
+        "invalid_suffix": "[to be translated]:... (unavailable)",
+        "linked": "[to be translated]:Linked knowledge bases",
+        "linked_hint": "[to be translated]:Controls which knowledge bases this assistant can retrieve from",
+        "no_more": "[to be translated]:No more knowledge bases available",
+        "remove_aria": "[to be translated]:Remove",
+        "search": "[to be translated]:Search knowledge bases...",
+        "title": "[to be translated]:Knowledge bases"
+      },
+      "prompt": {
+        "create_title": "[to be translated]:New Prompt",
+        "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
+        "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
+        "edit_title": "[to be translated]:Edit Prompt",
+        "field": {
+          "content": {
+            "label": "[to be translated]:Content",
+            "too_long": "[to be translated]:Content must be {{max}} characters or fewer"
+          },
+          "name": {
+            "label": "[to be translated]:Name",
+            "too_long": "[to be translated]:Name must be {{max}} characters or fewer"
+          }
+        },
+        "generate": "[to be translated]:Generate prompt",
+        "insert_variable": "[to be translated]:Insert variable",
+        "label": "[to be translated]:System prompt",
+        "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
+        "title": "[to be translated]:Prompt",
+        "tokens_label": "[to be translated]:Tokens: ",
+        "variables_title": "[to be translated]:Available variables",
+        "vars": {
+          "arch": "[to be translated]:CPU architecture",
+          "date": "[to be translated]:Date",
+          "datetime": "[to be translated]:Date and time",
+          "language": "[to be translated]:Language",
+          "model_name": "[to be translated]:Model name",
+          "os": "[to be translated]:Operating system",
+          "time": "[to be translated]:Time",
+          "username": "[to be translated]:Username"
+        }
+      },
+      "save_failed": "[to be translated]:Save failed",
+      "saving": "[to be translated]:Saving...",
+      "section": {
+        "basic": {
+          "desc": "頭像、名稱、簡介、系統提示詞",
+          "label": "基礎設定"
+        },
+        "knowledge": {
+          "desc": "[to be translated]:Linked knowledge bases and retrieval",
+          "label": "[to be translated]:Knowledge"
+        },
+        "more": {
+          "desc": "模型、標籤和參數",
+          "label": "更多設定"
+        },
+        "prompt": {
+          "desc": "[to be translated]:System prompt and variables",
+          "label": "[to be translated]:Prompt"
+        },
+        "tools": {
+          "desc": "[to be translated]:MCP servers and tool configuration",
+          "label": "[to be translated]:Tools"
+        }
+      },
+      "tools": {
+        "add_mcp": "[to be translated]:Add MCP server",
+        "added": "[to be translated]:Added MCP servers",
+        "added_hint": "[to be translated]:Manual mode exposes only the servers in this list",
+        "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
+        "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
+        "empty_title": "[to be translated]:No MCP servers added",
+        "inactive_badge": "[to be translated]:Inactive",
+        "info_main": "[to be translated]:MCP (Model Context Protocol) lets the model safely invoke external tools.",
+        "info_sub": "[to be translated]:Enabling only necessary servers improves safety and response speed.",
+        "mode": {
+          "auto": {
+            "desc": "[to be translated]:The model decides which enabled MCP tools to call",
+            "label": "[to be translated]:Auto"
+          },
+          "disabled": {
+            "desc": "[to be translated]:No MCP tools are available during chat",
+            "label": "[to be translated]:Disabled"
+          },
+          "manual": {
+            "desc": "[to be translated]:Expose only the MCP servers selected below",
+            "label": "[to be translated]:Manual"
+          }
+        },
+        "no_more": "[to be translated]:No more servers available",
+        "search": "[to be translated]:Search available servers...",
+        "switch_title_active": "[to be translated]:Toggle off to remove",
+        "switch_title_inactive": "[to be translated]:This server is disabled in MCP settings; remove it to re-add later",
+        "title": "[to be translated]:Tools"
+      }
+    },
+    "create_menu": {
+      "create": "[to be translated]:New {{type}}",
+      "import": "[to be translated]:Import {{type}}"
+    },
+    "delete": {
+      "agent": {
+        "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
+        "title": "[to be translated]:Delete agent"
+      },
+      "skill": {
+        "content": "[to be translated]:Are you sure you want to uninstall this skill? It will be removed from the global library and all agent workspace symlinks will be cleaned up.",
+        "title": "[to be translated]:Uninstall skill"
+      }
+    },
+    "delete_confirm": {
+      "cancel": "取消",
+      "confirm": "刪除",
+      "description": "確定要刪除「{{name}}」嗎？此操作無法復原。",
+      "title": "確認刪除"
+    },
+    "duplicate_assistant_failed": "[to be translated]:Failed to duplicate assistant",
+    "duplicate_name": "[to be translated]:{{name}} (copy)",
+    "empty_state": {
+      "description": "點選「新增」建立你的第一個資源",
+      "empty_description": "[to be translated]:Create your first agent or assistant",
+      "empty_title": "[to be translated]:No resources yet",
+      "no_match_description": "[to be translated]:Try a different search keyword",
+      "no_match_title": "[to be translated]:No matching resources",
+      "title": "尚無資源"
+    },
+    "export_assistant_failed": "[to be translated]:Failed to export assistant",
+    "import_dialog": {
+      "clipboard": {
+        "button": "[to be translated]:Parse and import",
+        "placeholder": "[to be translated]:Paste JSON configuration here..."
+      },
+      "error": {
+        "content_too_large": "[to be translated]:Content too large (>5 MB)",
+        "file_too_large": "[to be translated]:File too large (>5 MB)",
+        "invalid_url": "[to be translated]:Invalid URL",
+        "response_too_large": "[to be translated]:Response too large (>5 MB)",
+        "timeout": "[to be translated]:Request timed out. Check that the URL is reachable.",
+        "unsupported_protocol": "[to be translated]:Only http or https URLs are supported"
+      },
+      "failure": "[to be translated]:Import failed: {{error}}",
+      "file": {
+        "drop_hint": "[to be translated]:Drag and drop a file here, or click to pick one",
+        "formats": "[to be translated]:Supports .json"
+      },
+      "partial_success": "[to be translated]:Partial success: {{success}} imported, {{failed}} failed ({{first_name}}: {{first_error}})",
+      "subtitle": "[to be translated]:JSON configuration files are supported",
+      "success": "[to be translated]:Imported successfully: {{name}}",
+      "tab": {
+        "clipboard": "[to be translated]:Clipboard",
+        "file": "[to be translated]:File upload",
+        "url": "[to be translated]:Import from URL"
+      },
+      "url": {
+        "button": "[to be translated]:Fetch and import",
+        "hint": "[to be translated]:Import from a GitHub Gist, GitHub repo, or any public URL",
+        "supports": "[to be translated]:Raw file URLs are supported"
+      }
+    },
+    "import_skill_dialog": {
+      "local": {
+        "drop_hint": "[to be translated]:Drop a ZIP or directory here, or click to choose a ZIP",
+        "formats": "[to be translated]:Supports .zip files and directories containing SKILL.md"
+      },
+      "subtitle": "[to be translated]:Install a skill from a ZIP file or directory",
+      "title": "[to be translated]:Import skill"
+    },
+    "no_match": "無相符結果",
+    "pending_backend": {
+      "description": "此資源的寫入操作即將上線,目前僅顯示佔位。",
+      "title": "資料層接入中"
+    },
+    "sidebar": {
+      "all_resources": "[to be translated]:All resources",
+      "all_tags": "全部標籤",
+      "no_tags": "尚無標籤",
+      "subtitle": "[to be translated]:Manage your AI resources",
+      "tags": "標籤",
+      "title": "[to be translated]:Library"
+    },
+    "skill_detail": {
+      "created_at": "建立時間",
+      "delete_description": "移除此技能及其所有配置,此操作無法復原",
+      "delete_title": "刪除技能",
+      "description": "描述",
+      "file_preview": "檔案預覽",
+      "installed": "已安裝",
+      "no_description": "暫無描述",
+      "source_files": "來源檔案",
+      "updated_at": "最近更新"
+    },
+    "sort": {
+      "created": "依建立時間",
+      "name": "依名稱",
+      "updated": "依更新時間"
+    },
+    "subtitle": "管理你的助手、智能體與技能",
+    "tag_picker": {
+      "no_tags": "[to be translated]:No tags yet",
+      "placeholder": "[to be translated]:New tag name..."
+    },
+    "tag_sync_failed": "[to be translated]:Failed to sync tags",
+    "time_ago": {
+      "days": "[to be translated]:{{count}} day(s) ago",
+      "hours": "[to be translated]:{{count}} hour(s) ago",
+      "just_now": "[to be translated]:Just now",
+      "minutes": "[to be translated]:{{count}} minute(s) ago",
+      "months": "[to be translated]:{{count}} month(s) ago"
+    },
+    "title": "資源庫",
+    "toolbar": {
+      "add_tag_placeholder": "[to be translated]:Tag name...",
+      "new_resource": "[to be translated]:New resource",
+      "search_placeholder": "搜尋資源...",
+      "tag_button": "[to be translated]:Tag"
+    },
+    "type": {
+      "agent": "智能體",
+      "assistant": "助手",
+      "new_agent": "[to be translated]:New agent",
+      "new_assistant": "[to be translated]:New assistant",
+      "new_prompt": "[to be translated]:New Prompt",
+      "prompt": "[to be translated]:Prompt",
+      "skill": "技能"
+    },
+    "uninstall_failed": "[to be translated]:Failed to uninstall",
+    "view": {
+      "grid": "網格檢視",
+      "list": "列表檢視"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -3361,18 +3936,25 @@
     "uninstalling": "解除安裝中..."
   },
   "preview": {
+    "close": "關閉預覽",
     "copy": {
       "image": "複製為圖片",
       "src": "複製圖片來源"
     },
     "dialog": "開啟預覽視窗",
+    "flip_horizontal": "水平翻轉",
+    "flip_vertical": "垂直翻轉",
     "label": "預覽",
+    "next": "下一張圖片",
     "pan": "移動",
     "pan_down": "下移",
     "pan_left": "左移",
     "pan_right": "右移",
     "pan_up": "上移",
+    "previous": "上一張圖片",
     "reset": "重設",
+    "rotate_left": "向左旋轉",
+    "rotate_right": "向右旋轉",
     "source": "檢視原始碼",
     "zoom_in": "放大",
     "zoom_out": "縮小"
@@ -3401,6 +3983,7 @@
     "dashscope": "阿里雲百鍊",
     "deepseek": "深度求索",
     "dmxapi": "DMXAPI",
+    "doc2x": "Doc2X",
     "doubao": "火山引擎",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
@@ -3418,6 +4001,7 @@
     "lmstudio": "LM Studio",
     "longcat": "龍貓",
     "mimo": "小米 MiMo",
+    "mineru": "MinerU",
     "minimax": "MiniMax CN",
     "minimax-global": "MiniMax",
     "mistral": "Mistral",
@@ -3428,9 +4012,12 @@
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
+    "open-mineru": "Open MinerU",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
+    "ovocr": "Intel OV(NPU) OCR",
+    "paddleocr": "PaddleOCR",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
@@ -3440,7 +4027,9 @@
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
+    "system": "系統 OCR",
     "tencent-cloud-ti": "騰訊雲 TI",
+    "tesseract": "Tesseract",
     "together": "Together",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
@@ -3734,6 +4323,9 @@
         "summary": "請直接以{{language}}回覆，無須任何說明。"
       },
       "translate": {
+        "error": {
+          "no_selected_text": "未選取要翻譯的文字"
+        },
         "smart_translate_tips": "智慧翻譯：內容將優先翻譯為目標語言；內容已是目標語言時，將翻譯為備用語言"
       },
       "window": {
@@ -4112,15 +4704,6 @@
         "select_success": "資料目錄已變更，應用程式將重新啟動以套用變更",
         "select_title": "變更應用程式資料目錄",
         "stop_quit_app_reason": "應用程式目前正在移轉資料，無法關閉"
-      },
-      "app_knowledge": {
-        "button": {
-          "delete": "刪除檔案"
-        },
-        "label": "知識庫文件",
-        "remove_all": "刪除知識庫檔案",
-        "remove_all_confirm": "刪除知識庫文件可以減少儲存空間佔用，但不會刪除知識庫向量化資料，刪除之後將無法開啟原始檔，是否刪除？",
-        "remove_all_success": "檔案刪除成功"
       },
       "app_logs": {
         "button": "開啟日誌",
@@ -6108,8 +6691,12 @@
     "detecting": "偵測中...",
     "empty": "翻譯內容為空",
     "error": {
+      "auto_copy_failed": "自動複製翻譯結果失敗",
       "chat_qwen_mt": "Qwen MT 模型無法在對話中使用，請前往翻譯頁面",
       "detect": {
+        "empty": "偵測到的語言為空",
+        "failed": "語言偵測失敗",
+        "invalid": "偵測到的語言不受支援",
         "qwen_mt": "QwenMT 模型不能用於語言偵測",
         "unknown": "偵測到未知語言",
         "update_setting": "設定失敗"
@@ -6117,6 +6704,7 @@
       "empty": "翻譯結果為空",
       "failed": "翻譯失敗",
       "invalid_source": "無效的來源語言",
+      "languages_load_failed": "無法載入翻譯語言。部分功能可能無法使用。",
       "not_configured": "翻譯模型未設定",
       "not_supported": "不支援的語言 {{language}}",
       "unknown": "翻譯過程中遇到未知錯誤"
@@ -6129,6 +6717,7 @@
       "error": {
         "check_type": "檢查檔案類型時發生錯誤",
         "multiple": "不允許上傳多個檔案",
+        "ocr": "辨識圖片文字失敗",
         "too_large": "檔案過大",
         "unknown": "讀取檔案內容失敗"
       },
@@ -6140,11 +6729,20 @@
       "delete": "刪除翻譯歷史",
       "empty": "翻譯歷史為空",
       "error": {
+        "add": "新增翻譯紀錄失敗",
+        "clear": "清除翻譯紀錄失敗",
         "delete": "刪除失敗",
+        "load": "無法載入翻譯紀錄",
         "save": "儲存翻譯歷史失敗"
       },
       "search": {
         "placeholder": "搜尋翻譯歷史"
+      },
+      "success": {
+        "add": "已儲存至紀錄",
+        "clear": "歷史紀錄已清除",
+        "delete": "已刪除",
+        "update": "已儲存"
       },
       "title": "翻譯歷史"
     },
@@ -6174,6 +6772,9 @@
       "autoCopy": "翻譯完成後自動複製",
       "bidirectional": "雙向翻譯設定",
       "bidirectional_tip": "開啟後，僅支援在來源語言和目標語言之間進行雙向翻譯",
+      "error": {
+        "save": "儲存翻譯設定失敗"
+      },
       "model": "模型設定",
       "model_desc": "翻譯服務使用的模型",
       "model_placeholder": "選擇翻譯模型",

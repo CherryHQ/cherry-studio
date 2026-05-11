@@ -1,10 +1,10 @@
-import { LoadingOutlined } from '@ant-design/icons'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import useTranslate from '@renderer/hooks/useTranslate'
+import { useLanguages } from '@renderer/hooks/translate/useTranslateLanguages'
 import { translateText } from '@renderer/services/TranslateService'
-import { Languages } from 'lucide-react'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { Languages, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,9 +22,9 @@ const logger = loggerService.withContext('TranslateButton')
 const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoading }) => {
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
-  const [targetLanguage] = usePreference('feature.translate.chat.target_language')
+  const [targetLanguage] = usePreference('chat.input.translate.target_language')
   const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
-  const { getLanguageByLangcode } = useTranslate()
+  const { getLabel, languages } = useLanguages()
 
   const translateConfirm = () => {
     if (!showTranslateConfirm) {
@@ -49,11 +49,12 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
 
     setIsTranslating(true)
     try {
-      const translatedText = await translateText(text, getLanguageByLangcode(targetLanguage))
+      const targetVo = languages?.find((l) => l.langCode === targetLanguage)
+      const translatedText = await translateText(text, targetVo ?? targetLanguage)
       onTranslated(translatedText)
     } catch (error) {
       logger.error('Translation failed:', error as Error)
-      window.toast.error(t('translate.error.failed'))
+      window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
     } finally {
       setIsTranslating(false)
     }
@@ -64,7 +65,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   }, [isLoading])
 
   return (
-    <Tooltip content={t('chat.input.translate', { target_language: getLanguageByLangcode(targetLanguage).label() })}>
+    <Tooltip content={t('chat.input.translate', { target_language: getLabel(targetLanguage, false) })}>
       <Button
         onClick={handleTranslate}
         disabled={disabled || isTranslating}
@@ -72,7 +73,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
         variant="ghost"
         size="icon-sm"
         className="rounded-full">
-        {isTranslating ? <LoadingOutlined spin /> : <Languages size={18} />}
+        {isTranslating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}
       </Button>
     </Tooltip>
   )

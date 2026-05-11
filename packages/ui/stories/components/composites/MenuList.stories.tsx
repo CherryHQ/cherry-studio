@@ -84,6 +84,27 @@ export const Disabled: Story = {
   }
 }
 
+export const WithDescription: Story = {
+  args: {
+    icon: <Settings2 size={16} />,
+    label: 'General Settings',
+    description: 'App-wide preferences and behavior'
+  }
+}
+
+// `descriptionClassName` lets consumers override the default description style
+// (`text-[10px] text-muted-foreground mt-0.5`). tailwind-merge handles conflicts;
+// `group-data-[active=true]:` selectors work because the root carries `group`.
+export const CustomDescriptionStyle: Story = {
+  args: {
+    icon: <Settings2 size={16} strokeWidth={1.6} />,
+    label: 'General Settings',
+    description: 'Smaller, dimmer description text that brightens when the item is active',
+    descriptionClassName: 'mt-px text-[9px] text-muted-foreground/45 group-data-[active=true]:text-muted-foreground/70',
+    active: true
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Settings Menu — default variant with border active
 // ---------------------------------------------------------------------------

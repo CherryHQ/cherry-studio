@@ -1,10 +1,12 @@
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { isPreprocessProviderId } from '@renderer/types'
-import { Modal } from 'antd'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DocPreprocessApiKeyList, LlmApiKeyList } from './list'
+
+const CLOSE_ANIMATION_MS = 200
 
 interface ShowParams {
   providerId: string
@@ -22,15 +24,29 @@ interface Props extends ShowParams {
  */
 const PopupContainer: React.FC<Props> = ({ providerId, title, resolve, showHealthCheck = true, providerType }) => {
   const [open, setOpen] = useState(true)
+  const resolvedRef = useRef(false)
   const { t } = useTranslation()
 
-  const onCancel = () => {
-    setOpen(false)
+  const resolveAfterClose = () => {
+    if (resolvedRef.current) return
+    resolvedRef.current = true
+    window.setTimeout(() => {
+      resolve(null)
+    }, CLOSE_ANIMATION_MS)
   }
 
-  const onClose = () => {
-    resolve(null)
+  const closePopup = () => {
+    setOpen(false)
+    resolveAfterClose()
   }
+
+  const onOpenChange = (next: boolean) => {
+    if (!next) {
+      closePopup()
+    }
+  }
+
+  const dialogTitle = title || t('settings.provider.api.key.list.title')
 
   const ListComponent = useMemo(() => {
     const type = providerType || (isPreprocessProviderId(providerId) ? 'preprocess' : 'llm')
@@ -45,17 +61,14 @@ const PopupContainer: React.FC<Props> = ({ providerId, title, resolve, showHealt
   }, [providerId, showHealthCheck, providerType])
 
   return (
-    <Modal
-      title={title || t('settings.provider.api.key.list.title')}
-      open={open}
-      onCancel={onCancel}
-      afterClose={onClose}
-      transitionName="animation-move-down"
-      centered
-      width={600}
-      footer={null}>
-      {ListComponent}
-    </Modal>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>{dialogTitle}</DialogTitle>
+        </DialogHeader>
+        {ListComponent}
+      </DialogContent>
+    </Dialog>
   )
 }
 

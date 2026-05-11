@@ -79,7 +79,7 @@ describe('FileProcessingOverrideMappings', () => {
           mineru: {
             apiKeys: ['mineru-key'],
             capabilities: {
-              markdown_conversion: {
+              document_to_markdown: {
                 apiHost: 'https://mineru-proxy.example.com'
               }
             },
@@ -88,11 +88,11 @@ describe('FileProcessingOverrideMappings', () => {
           mistral: {
             apiKeys: ['mistral-key'],
             capabilities: {
-              markdown_conversion: {
+              document_to_markdown: {
                 apiHost: 'https://mistral-proxy.example.com',
                 modelId: 'mistral-ocr-custom'
               },
-              text_extraction: {
+              image_to_text: {
                 apiHost: 'https://mistral-proxy.example.com',
                 modelId: 'mistral-ocr-custom'
               }
@@ -147,7 +147,7 @@ describe('FileProcessingOverrideMappings', () => {
       })
     })
 
-    it('should apply mistral preprocess credentials to both markdown and text extraction', () => {
+    it('should apply mistral preprocess credentials to markdown conversion and image OCR', () => {
       const result = mergeFileProcessingOverrides({
         preprocessProviders: [
           {
@@ -166,11 +166,11 @@ describe('FileProcessingOverrideMappings', () => {
           mistral: {
             apiKeys: ['mistral-key'],
             capabilities: {
-              markdown_conversion: {
+              document_to_markdown: {
                 apiHost: 'https://mistral-proxy.example.com',
                 modelId: 'mistral-ocr-custom'
               },
-              text_extraction: {
+              image_to_text: {
                 apiHost: 'https://mistral-proxy.example.com',
                 modelId: 'mistral-ocr-custom'
               }
@@ -290,7 +290,7 @@ describe('FileProcessingOverrideMappings', () => {
           ovocr: {
             apiKeys: ['ovocr-key'],
             capabilities: {
-              text_extraction: {
+              image_to_text: {
                 apiHost: 'https://ovocr.example.com'
               }
             },

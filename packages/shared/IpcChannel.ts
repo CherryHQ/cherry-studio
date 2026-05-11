@@ -202,6 +202,10 @@ export enum IpcChannel {
   KnowledgeRuntime_ListItemChunks = 'knowledge-runtime:list-item-chunks',
   KnowledgeRuntime_DeleteItemChunk = 'knowledge-runtime:delete-item-chunk',
 
+  FileProcessing_StartTask = 'file-processing:start-task',
+  FileProcessing_GetTask = 'file-processing:get-task',
+  FileProcessing_CancelTask = 'file-processing:cancel-task',
+
   //file
   File_Open = 'file:open',
   File_OpenPath = 'file:openPath',
@@ -488,7 +492,8 @@ export enum IpcChannel {
 
   // Agent operations
   Agent_RunTask = 'agent:run-task',
-  Agent_GetModels = 'agent:get-models'
+  Agent_GetModels = 'agent:get-models',
+  Agent_ListTools = 'agent:list-tools'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

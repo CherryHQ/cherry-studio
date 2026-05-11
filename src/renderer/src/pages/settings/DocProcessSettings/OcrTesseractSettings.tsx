@@ -1,7 +1,7 @@
 import { Combobox, type ComboboxOption, Flex, InfoTooltip } from '@cherrystudio/ui'
 import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
+import { useLanguages } from '@renderer/hooks/translate'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
-import useTranslate from '@renderer/hooks/useTranslate'
 import type { TesseractLangCode } from '@renderer/types'
 import { BuiltinOcrProviderIds, isOcrTesseractProvider } from '@renderer/types'
 import { useCallback, useMemo, useState } from 'react'
@@ -18,17 +18,15 @@ export const OcrTesseractSettings = () => {
   }
 
   const [langs, setLangs] = useState<Partial<Record<TesseractLangCode, boolean>>>(provider.config?.langs ?? {})
-  const { translateLanguages } = useTranslate()
+  const { languages, getLabel } = useLanguages()
 
   const options = useMemo(
     () =>
-      translateLanguages
-        .map((lang) => ({
-          value: TESSERACT_LANG_MAP[lang.langCode],
-          label: lang.emoji + ' ' + lang.label()
-        }))
-        .filter((option) => option.value),
-    [translateLanguages]
+      languages?.flatMap((lang) => {
+        const value = TESSERACT_LANG_MAP[lang.langCode]
+        return value ? [{ value, label: getLabel(lang) ?? lang.langCode }] : []
+      }) ?? [],
+    [languages, getLabel]
   )
 
   // TODO: type safe objectKeys

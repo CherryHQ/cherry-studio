@@ -1,4 +1,4 @@
-import { Dropdown } from 'antd'
+import { ContextMenu as UIContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@cherrystudio/ui'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -73,7 +73,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children }) => {
       {
         key: 'copy',
         label: t('common.copy'),
-        onClick: () => {
+        onSelect: () => {
           if (selectedText) {
             navigator.clipboard
               .writeText(selectedText)
@@ -89,7 +89,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children }) => {
       {
         key: 'quote',
         label: t('chat.message.quote'),
-        onClick: () => {
+        onSelect: () => {
           if (selectedText) {
             void window.api?.quoteToMainWindow(selectedText)
           }
@@ -110,9 +110,18 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children }) => {
   }
 
   return (
-    <Dropdown onOpenChange={onOpenChange} menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
-      {children}
-    </Dropdown>
+    <UIContextMenu onOpenChange={onOpenChange}>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      {contextMenuItems.length > 0 && (
+        <ContextMenuContent>
+          {contextMenuItems.map((item) => (
+            <ContextMenuItem key={item.key} onSelect={item.onSelect}>
+              {item.label}
+            </ContextMenuItem>
+          ))}
+        </ContextMenuContent>
+      )}
+    </UIContextMenu>
   )
 }
 

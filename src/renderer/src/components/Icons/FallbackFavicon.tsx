@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import { useEffect, useState } from 'react'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('FallbackFavicon')
 
@@ -143,40 +142,18 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
 
   // Render based on current state
   if (faviconState.status === 'failed') {
-    return <FaviconPlaceholder>{hostname.charAt(0).toUpperCase()}</FaviconPlaceholder>
+    return (
+      <div className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-primary/15 font-bold text-[10px] text-primary">
+        {hostname.charAt(0).toUpperCase()}
+      </div>
+    )
   }
 
   if (faviconState.status === 'loaded') {
-    return <Favicon src={faviconState.src} alt={alt} onError={handleError} />
+    return <img src={faviconState.src} alt={alt} onError={handleError} className="h-4 w-4 rounded-[4px] bg-muted" />
   }
 
-  return <FaviconLoading />
+  return <div className="h-4 w-4 rounded-[4px] bg-muted" />
 }
-
-const FaviconLoading = styled.div`
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  background-color: var(--color-background-mute);
-`
-
-const FaviconPlaceholder = styled.div`
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  background-color: var(--color-primary-1);
-  color: var(--color-primary-6);
-  font-size: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-`
-const Favicon = styled.img`
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  background-color: var(--color-background-mute);
-`
 
 export default FallbackFavicon

@@ -11,6 +11,7 @@
   --cs-destructive-hover: var(--cs-red-400);
   --cs-success: var(--cs-green-500);
   --cs-warning: var(--cs-amber-500);
+  --cs-info: var(--cs-blue-500);
 
   /* Background & Foreground */
   --cs-background: var(--cs-white);
@@ -47,6 +48,10 @@
 
 /* Dark Mode */
 .dark {
+  --cs-success: var(--cs-green-400);
+  --cs-warning: var(--cs-amber-400);
+  --cs-info: var(--cs-blue-400);
+
   /* Background & Foreground */
   --cs-background: oklch(0.191 0 0 / 0.55);
   --cs-background-subtle: oklch(1 0 0 / 0.02);
@@ -55,7 +60,7 @@
   --cs-foreground-muted: oklch(1 0 0 / 0.4);
 
   /* Card & Popover */
-  --cs-card: var(--cs-black);
+  --cs-card: var(--cs-neutral-900);
   --cs-popover: var(--cs-black);
 
   /* Border */

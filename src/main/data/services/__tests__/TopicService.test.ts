@@ -263,7 +263,7 @@ describe('TopicService', () => {
     })
 
     it('purges the pin row when an underlying topic is deleted', async () => {
-      // Without purgeForEntity in the delete tx, the pin row would survive
+      // Without purgeForEntityTx in the delete tx, the pin row would survive
       // and a future POST /pins for the same id would hit the UNIQUE index.
       await dbh.db
         .insert(topicTable)

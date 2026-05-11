@@ -108,6 +108,21 @@ export const getProviderLabel = (id: string): string => {
   return getLabel(providerKeyMap, id)
 }
 
+const fileProcessorKeyMap = {
+  doc2x: 'provider.doc2x',
+  mineru: 'provider.mineru',
+  ovocr: 'provider.ovocr',
+  paddleocr: 'provider.paddleocr',
+  system: 'provider.system',
+  tesseract: 'provider.tesseract',
+  mistral: 'provider.mistral',
+  'open-mineru': 'provider.open-mineru'
+} as const
+
+export const getFileProcessorLabel = (id: string): string => {
+  return getLabel(fileProcessorKeyMap, id)
+}
+
 const backupProgressKeyMap = {
   completed: 'backup.progress.completed',
   compressing: 'backup.progress.compressing',
@@ -149,6 +164,7 @@ const titleKeyMap = {
   home: 'title.home',
   knowledge: 'title.knowledge',
   launchpad: 'title.launchpad',
+  library: 'library.title',
   'mcp-servers': 'title.mcp-servers',
   notes: 'title.notes',
   paintings: 'title.paintings',

@@ -33,6 +33,10 @@ export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
 export type KnowledgeSearchMode = z.infer<typeof KnowledgeSearchModeSchema>
 export const DEFAULT_KNOWLEDGE_SEARCH_MODE: KnowledgeSearchMode = 'hybrid'
 
+export const KNOWLEDGE_SEARCH_SCORE_KINDS = ['relevance', 'ranking'] as const
+export const KnowledgeSearchScoreKindSchema = z.enum(KNOWLEDGE_SEARCH_SCORE_KINDS)
+export type KnowledgeSearchScoreKind = z.infer<typeof KnowledgeSearchScoreKindSchema>
+
 export const KNOWLEDGE_BASE_STATUSES = ['completed', 'failed'] as const
 export const KnowledgeBaseStatusSchema = z.enum(KNOWLEDGE_BASE_STATUSES)
 export type KnowledgeBaseStatus = z.infer<typeof KnowledgeBaseStatusSchema>
@@ -48,6 +52,7 @@ export const KnowledgeThresholdSchema = z.number().min(0).max(1)
 export const KnowledgeDocumentCountSchema = z.number().int().positive()
 export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
 export const KnowledgeBaseEmojiSchema = z.emoji()
+export type KnowledgeBaseEmoji = z.infer<typeof KnowledgeBaseEmojiSchema>
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE = 1024
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP = 200
 export const DEFAULT_KNOWLEDGE_BASE_EMOJI = '📁'
@@ -70,8 +75,8 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   embeddingModelId: z.string().trim().min(1).nullable(),
   status: KnowledgeBaseStatusSchema,
   error: KnowledgeBaseErrorCodeSchema.nullable(),
-  rerankModelId: z.string().optional(),
-  fileProcessorId: z.string().optional(),
+  rerankModelId: z.string().nullable().optional(),
+  fileProcessorId: z.string().nullable().optional(),
   chunkSize: KnowledgeChunkSizeSchema,
   chunkOverlap: KnowledgeChunkOverlapSchema,
   threshold: KnowledgeThresholdSchema.optional(),
@@ -359,6 +364,8 @@ export type KnowledgeSourceMetadata = Pick<KnowledgeChunkMetadata, 'source'>
 export const KnowledgeSearchResultSchema = z.strictObject({
   pageContent: z.string(),
   score: z.number(),
+  scoreKind: KnowledgeSearchScoreKindSchema,
+  rank: z.number().int().positive(),
   metadata: KnowledgeChunkMetadataSchema,
   itemId: z.string().optional(),
   chunkId: z.string()
@@ -380,8 +387,8 @@ export type KnowledgeItemChunk = z.infer<typeof KnowledgeItemChunkSchema>
 const KnowledgeBaseRuntimeConfigSchema = z.strictObject({
   dimensions: z.number().int().positive(),
   embeddingModelId: z.string().trim().min(1),
-  rerankModelId: z.string().optional(),
-  fileProcessorId: z.string().optional(),
+  rerankModelId: z.string().nullable().optional(),
+  fileProcessorId: z.string().nullable().optional(),
   chunkSize: KnowledgeChunkSizeSchema.optional(),
   chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
   threshold: KnowledgeThresholdSchema.optional(),
@@ -421,6 +428,7 @@ export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
 
 export const RestoreKnowledgeBaseSchema = z.strictObject({
   sourceBaseId: z.string().trim().min(1),
+  name: z.string().trim().min(1),
   // Dimensions must be the resolved embedding vector size for embeddingModelId.
   // Automatic callers should fill this from AI Core dimension detection; manual
   // callers are responsible for confirming the value matches the selected model.

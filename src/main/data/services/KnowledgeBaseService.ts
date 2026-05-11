@@ -55,6 +55,8 @@ function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
     dimensions: row.dimensions,
     embeddingModelId: row.embeddingModelId,
     error: row.error,
+    rerankModelId: row.rerankModelId,
+    fileProcessorId: row.fileProcessorId,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   })
