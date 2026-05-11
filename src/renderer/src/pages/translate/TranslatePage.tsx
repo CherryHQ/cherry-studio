@@ -68,7 +68,7 @@ const TranslatePage: FC = () => {
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const { models } = useModels({ enabled: true })
   const detectLanguage = useDetectLang()
-  const { add: addHistory } = useTranslateHistory({ add: { showErrorToast: false } })
+  const { add: addHistory } = useTranslateHistory()
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { ocr } = useOcr()
@@ -205,22 +205,23 @@ const TranslatePage: FC = () => {
           setTimeoutTimer(
             'auto-copy',
             async () => {
-              await copy(translated)
+              try {
+                await copy(translated)
+              } catch (error) {
+                logger.error('Failed to auto copy translated text', error as Error)
+                window.toast.error(t('translate.error.auto_copy_failed'))
+              }
             },
             100
           )
         }
 
-        try {
-          await addHistory({
-            sourceText: rawText,
-            targetText: translated,
-            sourceLanguage: actualSourceLanguage,
-            targetLanguage: actualTargetLanguage
-          })
-        } catch (error) {
-          logger.warn('Failed to save translate history', error as Error)
-        }
+        await addHistory({
+          sourceText: rawText,
+          targetText: translated,
+          sourceLanguage: actualSourceLanguage,
+          targetLanguage: actualTargetLanguage
+        })
       } catch (error) {
         if (isAbortError(error)) {
           window.toast.info(t('translate.info.aborted'))
@@ -305,6 +306,14 @@ const TranslatePage: FC = () => {
       abortCompletion(translatingState.abortKey)
     }
   }, [translatingState.abortKey])
+
+  useEffect(() => {
+    return () => {
+      if (!translatingState.abortKey) return
+      abortCompletion(translatingState.abortKey)
+      setTranslatingState({ isTranslating: false, abortKey: null })
+    }
+  }, [setTranslatingState, translatingState.abortKey])
 
   const handleExchange = useCallback(() => {
     if (sourceLanguage === 'auto' || translatingState.isTranslating || isDetecting) return
@@ -520,6 +529,8 @@ const TranslatePage: FC = () => {
   const onPaste = useCallback(
     async (event: ClipboardEvent<HTMLTextAreaElement>) => {
       if (isProcessing) return
+      const hasFiles = !!event.clipboardData.files && event.clipboardData.files.length > 0
+      if (!hasFiles) return
       setIsProcessing(true)
       try {
         const clipboardText = event.clipboardData.getData('text')
@@ -527,34 +538,32 @@ const TranslatePage: FC = () => {
           return
         }
 
-        if (event.clipboardData.files && event.clipboardData.files.length > 0) {
-          event.preventDefault()
-          const file = getSingleFile(event.clipboardData.files) as File
-          if (!file) return
+        event.preventDefault()
+        const file = getSingleFile(event.clipboardData.files) as File
+        if (!file) return
 
-          const filePath = window.api.file.getPathForFile(file)
-          let selectedFile: FileMetadata | null
+        const filePath = window.api.file.getPathForFile(file)
+        let selectedFile: FileMetadata | null
 
-          if (!filePath) {
-            if (!file.type.startsWith('image/')) {
-              window.toast.info(t('common.file.not_supported', { type: getFileExtension(file.name) }))
-              return
-            }
-            const tempFilePath = await window.api.file.createTempFile(file.name)
-            const arrayBuffer = await file.arrayBuffer()
-            const uint8Array = new Uint8Array(arrayBuffer)
-            await window.api.file.write(tempFilePath, uint8Array)
-            selectedFile = await window.api.file.get(tempFilePath)
-          } else {
-            selectedFile = await window.api.file.get(filePath)
-          }
-
-          if (!selectedFile) {
-            window.toast.error(t('translate.files.error.unknown'))
+        if (!filePath) {
+          if (!file.type.startsWith('image/')) {
+            window.toast.info(t('common.file.not_supported', { type: getFileExtension(file.name) }))
             return
           }
-          await processFile(selectedFile)
+          const tempFilePath = await window.api.file.createTempFile(file.name)
+          const arrayBuffer = await file.arrayBuffer()
+          const uint8Array = new Uint8Array(arrayBuffer)
+          await window.api.file.write(tempFilePath, uint8Array)
+          selectedFile = await window.api.file.get(tempFilePath)
+        } else {
+          selectedFile = await window.api.file.get(filePath)
         }
+
+        if (!selectedFile) {
+          window.toast.error(t('translate.files.error.unknown'))
+          return
+        }
+        await processFile(selectedFile)
       } catch (error) {
         logger.error('onPaste:', error as Error)
         window.toast.error(t('chat.input.file_error'))

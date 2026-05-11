@@ -60,6 +60,15 @@ describe('PageSidePanel', () => {
       expect(onClose).toHaveBeenCalledTimes(1)
     })
 
+    it('does not call onClose twice for one pointerdown+click sequence', () => {
+      const onClose = vi.fn()
+      render(<PageSidePanel open={true} onClose={onClose} />)
+      const closeBtn = screen.getByLabelText('Close')
+      fireEvent.pointerDown(closeBtn)
+      fireEvent.click(closeBtn)
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
     it('renders the close button as a non-submit button', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} />)
       expect(screen.getByLabelText('Close')).toHaveAttribute('type', 'button')

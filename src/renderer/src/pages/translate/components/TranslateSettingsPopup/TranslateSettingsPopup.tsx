@@ -1,1 +1,0 @@
-export { TranslateSettingsPanelContent } from '../../TranslateSettings'

@@ -1,4 +1,5 @@
 import { ConfirmDialog, EmptyState, PageSidePanel } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useLanguages, useTranslateHistories, useTranslateHistory } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils'
@@ -10,6 +11,8 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'rea
 import { useTranslation } from 'react-i18next'
 
 import IconButton from './IconButton'
+
+const logger = loggerService.withContext('TranslateHistory')
 
 type DisplayedTranslateHistoryItem = TranslateHistory & {
   _sourceLabel: string
@@ -93,7 +96,8 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
       try {
         await navigator.clipboard.writeText(value)
         window.toast.success(t('translate.copied'))
-      } catch {
+      } catch (error) {
+        logger.error('Failed to copy translate history text', error as Error)
         window.toast.error(t('common.copy_failed'))
       }
     },

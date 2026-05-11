@@ -52,6 +52,7 @@ function PageSidePanel({
   const headerId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
+  const closedByPointerDownRef = useRef(false)
 
   const handleClose = useCallback(
     (event?: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
@@ -64,6 +65,7 @@ function PageSidePanel({
 
   useEffect(() => {
     if (open) {
+      closedByPointerDownRef.current = false
       triggerRef.current = document.activeElement as HTMLElement | null
       requestAnimationFrame(() => {
         panelRef.current?.focus()
@@ -123,8 +125,19 @@ function PageSidePanel({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    onPointerDown={handleClose}
-                    onClick={handleClose}
+                    onPointerDown={(event) => {
+                      closedByPointerDownRef.current = true
+                      handleClose(event)
+                    }}
+                    onClick={(event) => {
+                      if (closedByPointerDownRef.current) {
+                        closedByPointerDownRef.current = false
+                        event.preventDefault()
+                        event.stopPropagation()
+                        return
+                      }
+                      handleClose(event)
+                    }}
                     aria-label={closeLabel}
                     data-slot="page-side-panel-close"
                     className={cn(

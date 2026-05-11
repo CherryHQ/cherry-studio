@@ -15,6 +15,17 @@ const dropMock = vi.hoisted(() => ({
   getTextFromDropEvent: vi.fn()
 }))
 
+const translateCoreMock = vi.hoisted(() => ({
+  addHistory: vi.fn(),
+  detectLanguage: vi.fn(),
+  setTimeoutTimer: vi.fn(),
+  translateText: vi.fn(),
+  determineTargetLanguage: vi.fn(),
+  abortCompletion: vi.fn(),
+  isAbortError: vi.fn(),
+  formatErrorMessageWithPrefix: vi.fn((_: unknown, prefix: string) => prefix)
+}))
+
 vi.mock('react-i18next', () => ({
   initReactI18next: {
     type: '3rdParty',
@@ -57,11 +68,11 @@ vi.mock('@renderer/context/CodeStyleProvider', () => ({
 }))
 
 vi.mock('@renderer/hooks/translate', () => ({
-  useTranslateHistory: () => ({ add: vi.fn() })
+  useTranslateHistory: () => ({ add: translateCoreMock.addHistory })
 }))
 
 vi.mock('@renderer/hooks/translate/useDetectLang', () => ({
-  useDetectLang: () => vi.fn()
+  useDetectLang: () => translateCoreMock.detectLanguage
 }))
 
 vi.mock('@renderer/hooks/useDrag', () => ({
@@ -105,7 +116,7 @@ vi.mock('@renderer/hooks/useTemporaryValue', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
-  useTimer: () => ({ setTimeoutTimer: vi.fn() })
+  useTimer: () => ({ setTimeoutTimer: translateCoreMock.setTimeoutTimer })
 }))
 
 vi.mock('@renderer/services/TokenService', () => ({
@@ -113,7 +124,7 @@ vi.mock('@renderer/services/TokenService', () => ({
 }))
 
 vi.mock('@renderer/services/TranslateService', () => ({
-  translateText: vi.fn()
+  translateText: translateCoreMock.translateText
 }))
 
 vi.mock('@renderer/utils', () => ({
@@ -123,12 +134,12 @@ vi.mock('@renderer/utils', () => ({
 }))
 
 vi.mock('@renderer/utils/abortController', () => ({
-  abortCompletion: vi.fn()
+  abortCompletion: translateCoreMock.abortCompletion
 }))
 
 vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessageWithPrefix: (_error: unknown, prefix: string) => prefix,
-  isAbortError: () => false
+  formatErrorMessageWithPrefix: translateCoreMock.formatErrorMessageWithPrefix,
+  isAbortError: translateCoreMock.isAbortError
 }))
 
 vi.mock('@renderer/utils/input', () => ({
@@ -139,7 +150,7 @@ vi.mock('@renderer/utils/input', () => ({
 vi.mock('@renderer/utils/translate', () => ({
   createInputScrollHandler: () => vi.fn(),
   createOutputScrollHandler: () => vi.fn(),
-  determineTargetLanguage: () => ({ success: true, language: 'en' }),
+  determineTargetLanguage: translateCoreMock.determineTargetLanguage,
   UNKNOWN_LANG_CODE: 'unknown'
 }))
 
@@ -164,12 +175,14 @@ vi.mock('../components/TranslateInputPane', () => ({
   default: ({
     text,
     onTextChange,
+    onKeyDown,
     onSelectFile,
     onDrop,
     tokenCount
   }: {
     text: string
     onTextChange: (value: string) => void
+    onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
     onSelectFile: () => void
     onDrop: (event: React.DragEvent<HTMLDivElement>) => void
     tokenCount: number
@@ -179,6 +192,7 @@ vi.mock('../components/TranslateInputPane', () => ({
         aria-label="translate.input.placeholder"
         value={text}
         onChange={(event) => onTextChange(event.target.value)}
+        onKeyDown={onKeyDown}
       />
       <button type="button" aria-label="common.upload_files" onClick={onSelectFile} />
       <span data-testid="token-count">{tokenCount}</span>
@@ -191,11 +205,24 @@ vi.mock('../components/TranslateLanguageBar', () => ({
 }))
 
 vi.mock('../components/TranslateOutputPane', () => ({
-  default: ({ onTranslate }: { onTranslate: () => Promise<void> | void }) => (
-    <button type="button" onClick={() => void onTranslate()}>
-      translate.button.translate
-    </button>
-  )
+  default: ({
+    translating,
+    onTranslate,
+    onAbort
+  }: {
+    translating: boolean
+    onTranslate: () => Promise<void> | void
+    onAbort: () => void
+  }) =>
+    translating ? (
+      <button type="button" aria-label="common.stop" onClick={onAbort}>
+        common.stop
+      </button>
+    ) : (
+      <button type="button" onClick={() => void onTranslate()}>
+        translate.button.translate
+      </button>
+    )
 }))
 
 vi.mock('../TranslateSettings', () => ({
@@ -230,6 +257,20 @@ describe('TranslatePage', () => {
     dropMock.getFilesFromDropEvent.mockResolvedValue(null)
     dropMock.getTextFromDropEvent.mockReset()
     dropMock.getTextFromDropEvent.mockResolvedValue(null)
+    translateCoreMock.addHistory.mockReset()
+    translateCoreMock.addHistory.mockResolvedValue(undefined)
+    translateCoreMock.detectLanguage.mockReset()
+    translateCoreMock.detectLanguage.mockResolvedValue('en-us')
+    translateCoreMock.setTimeoutTimer.mockReset()
+    translateCoreMock.translateText.mockReset()
+    translateCoreMock.translateText.mockResolvedValue('translated text')
+    translateCoreMock.determineTargetLanguage.mockReset()
+    translateCoreMock.determineTargetLanguage.mockReturnValue({ success: true, language: 'zh-cn' })
+    translateCoreMock.abortCompletion.mockReset()
+    translateCoreMock.isAbortError.mockReset()
+    translateCoreMock.isAbortError.mockReturnValue(false)
+    translateCoreMock.formatErrorMessageWithPrefix.mockReset()
+    translateCoreMock.formatErrorMessageWithPrefix.mockImplementation((_: unknown, prefix: string) => prefix)
     ;(window as any).toast = {
       error: vi.fn(),
       info: vi.fn(),
@@ -305,5 +346,149 @@ describe('TranslatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
     await waitFor(() => expect(screen.getByTestId('token-count')).toHaveTextContent('3'))
+  })
+
+  it('keeps translating enabled for plain-text paste without entering file-processing state', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => 'pasted text',
+        files: []
+      }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalledTimes(1))
+  })
+
+  it('shows warning and skips translate when source and target language are the same', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn',
+      'feature.translate.page.target_language': 'en-us'
+    })
+    translateCoreMock.determineTargetLanguage.mockReturnValueOnce({ success: false, errorType: 'same_language' })
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect((window as any).toast.warning).toHaveBeenCalledWith('translate.language.same'))
+    expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+  })
+
+  it('shows unknown-language warning and skips translate when detection returns unknown', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'auto'
+    })
+    translateCoreMock.detectLanguage.mockResolvedValueOnce('unknown')
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.error.detect.unknown'))
+    expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+  })
+
+  it('shows aborted info and resets translating state when translate throws abort error', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    const abortError = new Error('aborted')
+    translateCoreMock.translateText.mockRejectedValueOnce(abortError)
+    translateCoreMock.isAbortError.mockImplementationOnce((error: unknown) => error === abortError)
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect((window as any).toast.info).toHaveBeenCalledWith('translate.info.aborted'))
+    expect(MockUseCacheUtils.getCacheValue('translate.translating')).toEqual({ isTranslating: false, abortKey: null })
+  })
+
+  it('shows failure toast and resets translating state when translate throws non-abort error', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    const translateError = new Error('translate failed')
+    translateCoreMock.translateText.mockRejectedValueOnce(translateError)
+    translateCoreMock.formatErrorMessageWithPrefix.mockImplementationOnce((_error: unknown, prefix: string) => {
+      return `${prefix}: reason`
+    })
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.error.failed: reason'))
+    expect(MockUseCacheUtils.getCacheValue('translate.translating')).toEqual({ isTranslating: false, abortKey: null })
+  })
+
+  it('triggers translate on Cmd/Ctrl+Enter keyboard shortcut', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    translateCoreMock.translateText.mockResolvedValueOnce('keyboard translated')
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+
+    fireEvent.keyDown(screen.getByLabelText('translate.input.placeholder'), { key: 'Enter', ctrlKey: true })
+
+    await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalledTimes(1))
+  })
+
+  it('ignores duplicate translate trigger while translating is in progress', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    let resolveTranslate: (value: string) => void = () => {}
+    translateCoreMock.translateText.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolveTranslate = resolve
+      })
+    )
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'common.stop' }))
+    rerender(<TranslatePage />)
+
+    await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalledTimes(1))
+    await act(async () => {
+      resolveTranslate('done')
+    })
+  })
+
+  it('aborts in-flight translation and clears translating state on unmount', () => {
+    MockUseCacheUtils.setCacheValue('translate.translating', { isTranslating: true, abortKey: 'abort-key-1' })
+
+    const { unmount } = render(<TranslatePage />)
+    unmount()
+
+    expect(translateCoreMock.abortCompletion).toHaveBeenCalledWith('abort-key-1')
+    expect(MockUseCacheUtils.getCacheValue('translate.translating')).toEqual({ isTranslating: false, abortKey: null })
   })
 })
