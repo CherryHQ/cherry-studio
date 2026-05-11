@@ -91,14 +91,21 @@ export async function exists(path: FilePath): Promise<boolean> {
  * filesystems `exists('foo.pdf')` returns true when only `Foo.pdf` is on disk,
  * which would otherwise falsely block a `Foo.pdf → foo.pdf` rename.
  *
- * Returns false if either path does not exist or stat fails for any reason
- * (caller is expected to have already verified both with `exists()`).
+ * Returns false if either path does not exist (ENOENT — the expected miss)
+ * or stat fails for any other reason. Non-ENOENT failures are warn-logged
+ * so callers that surface the boolean as "target already exists" (e.g.
+ * rename) leave a breadcrumb tying the misleading message to the real
+ * underlying permission / symlink-loop / fd-exhaustion issue.
  */
 export async function isSameFile(a: FilePath, b: FilePath): Promise<boolean> {
   try {
     const [sa, sb] = await Promise.all([fsStat(a), fsStat(b)])
     return sa.dev === sb.dev && sa.ino === sb.ino
-  } catch {
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code !== 'ENOENT') {
+      logger.warn('isSameFile: stat failed, treating as different file', { a, b, code, err })
+    }
     return false
   }
 }
