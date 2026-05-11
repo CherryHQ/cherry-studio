@@ -834,7 +834,7 @@
       "running": "Running",
       "stopped": "Stopped"
     },
-    "title": "API Gateway"
+    "title": "API Server"
   },
   "appMenu": {
     "about": "About",
@@ -1050,6 +1050,17 @@
         "xhigh": "Extra High",
         "xhigh_description": "Extra high level reasoning"
       },
+      "regular_phrases": {
+        "add": "Add Phrase",
+        "contentLabel": "Content",
+        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+        "delete": "Delete Phrase",
+        "deleteConfirm": "Are you sure to delete this phrase?",
+        "edit": "Edit Phrase",
+        "title": "Regular Phrase",
+        "titleLabel": "Title",
+        "titlePlaceholder": "Enter title"
+      },
       "title": "Assistant Settings",
       "tool_use_mode": {
         "function": "Function",
@@ -1192,7 +1203,7 @@
       },
       "new_session": "New Session {{Command}}",
       "new_topic": "New Topic {{Command}}",
-      "paste_text_file_confirm": "Paste into input bar?",
+      "paste_text_file": "Paste into input",
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
@@ -1488,6 +1499,7 @@
         "title_tip": "Tips: Double-click the topic name to rename it directly in place"
       },
       "export": {
+        "failed": "Export failed",
         "image": "Export as image",
         "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
@@ -2339,6 +2351,7 @@
   },
   "launchpad": {
     "apps": "Apps",
+    "minapps": "Minapps",
     "miniApps": "MiniApps"
   },
   "library": {
@@ -3155,6 +3168,64 @@
       "fetch_complete": "{{count}} search result(s)",
       "partial_failure": "{{count}} search result(s), some searches failed"
     }
+  },
+  "minapp": {
+    "add_to_launchpad": "Add to Launchpad",
+    "add_to_sidebar": "Add to Sidebar",
+    "popup": {
+      "close": "Close MinApp",
+      "devtools": "Developer Tools",
+      "goBack": "Go Back",
+      "goForward": "Go Forward",
+      "minimize": "Minimize MinApp",
+      "openExternal": "Open in Browser",
+      "open_link_external_off": "Current: Open links in default window",
+      "open_link_external_on": "Current: Open links in browser",
+      "refresh": "Refresh",
+      "rightclick_copyurl": "Right-click to copy URL"
+    },
+    "remove_from_launchpad": "Remove from Launchpad",
+    "remove_from_sidebar": "Remove from Sidebar",
+    "sidebar": {
+      "close": {
+        "title": "Close"
+      },
+      "closeall": {
+        "title": "Close All"
+      },
+      "hide": {
+        "title": "Hide"
+      },
+      "remove_custom": {
+        "title": "Delete Custom App"
+      }
+    },
+    "title": "MinApp"
+  },
+  "minapps": {
+    "ant-ling": "Ant Ling",
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Baidu AI Search",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "Hailuo",
+    "ima": "ima",
+    "metaso": "Metaso",
+    "minimax-agent": "Minimax Agent CN",
+    "minimax-global": "Minimax Agent",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "stepfun": "Stepfun",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "zhihu": "Zhihu"
   },
   "miniApp": {
     "add_to_launchpad": "Add to Launchpad",
@@ -4339,7 +4410,7 @@
         "r_regenerate": "R: Regenerate"
       }
     },
-    "name": "Selection",
+    "name": "Selection Assistant",
     "settings": {
       "actions": {
         "add_tooltip": {
@@ -4713,7 +4784,7 @@
       },
       "clear_cache": {
         "button": "Clear Cache",
-        "confirm": "Clearing the cache will delete application cache data, including miniapp data. This action is irreversible, continue?",
+        "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
         "error": "Error clearing cache",
         "success": "Cache cleared",
         "title": "Clear Cache"
@@ -5330,6 +5401,9 @@
         "knowledge": {
           "icon": "Show Knowledge icon"
         },
+        "minapp": {
+          "icon": "Show MinApp icon"
+        },
         "miniApp": {
           "icon": "Show MiniApp icon"
         },
@@ -5807,6 +5881,61 @@
       "title": "Mini Apps Settings",
       "visible": "Visible Mini Apps"
     },
+    "miniapps": {
+      "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",
+      "cache_description": "Set the maximum number of active mini apps to keep in memory",
+      "cache_settings": "Cache Settings",
+      "cache_title": "Mini App Cache Limit",
+      "custom": {
+        "conflicting_ids": "Conflicting IDs with default apps: {{ids}}",
+        "duplicate_ids": "Duplicate IDs found: {{ids}}",
+        "edit_description": "Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+        "edit_title": "Edit Custom Mini App",
+        "id": "ID",
+        "id_error": "ID is required.",
+        "id_placeholder": "Enter ID",
+        "logo": "Logo",
+        "logo_file": "Upload Logo File",
+        "logo_upload_button": "Upload",
+        "logo_upload_error": "Failed to upload logo.",
+        "logo_upload_label": "Upload Logo",
+        "logo_upload_success": "Logo uploaded successfully.",
+        "logo_url": "Logo URL",
+        "logo_url_label": "Logo URL",
+        "logo_url_placeholder": "Enter logo URL",
+        "name": "Name",
+        "name_error": "Name is required.",
+        "name_placeholder": "Enter name",
+        "placeholder": "Enter custom mini app configuration (JSON format)",
+        "remove_error": "Failed to remove custom mini app.",
+        "remove_success": "Custom mini app removed successfully.",
+        "save": "Save",
+        "save_error": "Failed to save custom mini app.",
+        "save_success": "Custom mini app saved successfully.",
+        "title": "Custom",
+        "url": "URL",
+        "url_error": "URL is required.",
+        "url_placeholder": "Enter URL"
+      },
+      "disabled": "Hidden Mini Apps",
+      "display_title": "Mini App Display Settings",
+      "empty": "Drag mini apps from the left to hide them",
+      "open_link_external": {
+        "title": "Open new-window links in browser"
+      },
+      "region": {
+        "auto": "Auto detect",
+        "cn": "China",
+        "description": "Filtering unsupported mini-programs based on the region",
+        "global": "Global",
+        "title": "Mini Program filter"
+      },
+      "reset_tooltip": "Reset to default",
+      "sidebar_description": "Show active mini apps in the sidebar",
+      "sidebar_title": "Sidebar Active Mini Apps Display",
+      "title": "Mini Apps Settings",
+      "visible": "Visible Mini Apps"
+    },
     "model": "Default Model",
     "models": {
       "add": {
@@ -5892,7 +6021,7 @@
       },
       "copy_model_id_tooltip": "Click to copy model ID: {{id}}",
       "default_assistant_model": "Default Assistant Model",
-      "default_assistant_model_description": "Used when an assistant has no model",
+      "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
       "list_title": "Model list",
       "manage": {
@@ -6403,6 +6532,20 @@
       "select": "Select",
       "title": "Quick Menu"
     },
+    "quickPhrase": {
+      "add": "Add Phrase",
+      "assistant": "Assistant Phrases",
+      "contentLabel": "Content",
+      "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Delete Phrase",
+      "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
+      "edit": "Edit Phrase",
+      "global": "Global Phrases",
+      "locationLabel": "Add Location",
+      "title": "Quick Phrases",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Please enter phrase title"
+    },
     "scheduledTasks": {
       "description": "Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
       "noAgents": "Scheduled tasks require agents with Soul Mode or Bypass Permissions enabled. Update an agent's settings to get started.",
@@ -6453,7 +6596,7 @@
       "selection_assistant_toggle": "Toggle Selection Assistant",
       "show_app": "Show/Hide App",
       "show_settings": "Open Settings",
-      "title": "Shortcuts",
+      "title": "Keyboard Shortcuts",
       "toggle_new_context": "Clear Context",
       "toggle_show_topics": "Toggle Topics",
       "toggle_sidebar": "Toggle Sidebar",
@@ -6566,9 +6709,9 @@
           "api_url_label": "Obtain Access Token and API URL",
           "paddleocr_url_label": "PaddleOCR Official Website"
         },
-        "provider": "Doc Provider",
-        "provider_placeholder": "Choose a doc provider",
-        "title": "Doc Process",
+        "provider": "Document Processing Provider",
+        "provider_placeholder": "Choose a document processing provider",
+        "title": "Document Processing",
         "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
       },
       "title": "Other Settings",
@@ -6728,7 +6871,7 @@
   },
   "tab": {
     "close": "Close Tab",
-    "moveToFirst": "Move to First",
+    "move_to_first": "Move to First",
     "new": "New Tab",
     "pin": "Pin Tab",
     "unpin": "Unpin Tab"
@@ -6796,6 +6939,7 @@
         },
         "label": "Automatic detection method",
         "llm": {
+          "label": "LLM",
           "tip": "Using the quick model for language detection consumes fewer tokens."
         },
         "placeholder": "Select automatic detection method",
@@ -6842,9 +6986,12 @@
       "reading": "Reading file content..."
     },
     "history": {
+      "back": "Back to list",
       "clear": "Clear History",
       "clear_description": "Clear history will delete all translation history, continue?",
+      "copy_target": "Copy result",
       "delete": "Delete translation history",
+      "delete_description": "Delete this translation history record? This action cannot be undone.",
       "empty": "No translation history",
       "error": {
         "add": "Failed to add translation history",
@@ -6853,15 +7000,21 @@
         "load": "Failed to load translation history",
         "save": "Failed to save translation history"
       },
+      "filter": {
+        "starred": "Only starred"
+      },
+      "reuse": "Reuse",
       "search": {
         "placeholder": "Search translation history"
       },
+      "source": "Source",
       "success": {
         "add": "Saved to history",
         "clear": "History cleared",
         "delete": "Deleted",
         "update": "Saved"
       },
+      "target": "Target",
       "title": "Translation History"
     },
     "info": {
@@ -6901,6 +7054,7 @@
       "scroll_sync": "Scroll Sync Settings",
       "title": "Translation Settings"
     },
+    "source_language": "Source Language",
     "stop": "Stop Translation",
     "success": {
       "custom": {

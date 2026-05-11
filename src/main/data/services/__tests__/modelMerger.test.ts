@@ -197,7 +197,9 @@ describe('mergePresetModel + applyUserOverlay', () => {
     const overlay: UserModelOverlay = {
       name: null,
       contextWindow: null,
-      capabilities: null
+      capabilities: null,
+      isEnabled: true,
+      isHidden: false
     }
     const baseline = mergePresetModel(presetModel, null, 'openai')
     const model = applyUserOverlay(baseline, overlay)

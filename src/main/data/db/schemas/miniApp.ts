@@ -39,7 +39,7 @@ export const miniAppTable = sqliteTable(
     // Fractional-indexing order key, scoped per status (see data-ordering-guide.md)
     ...orderKeyColumns,
 
-    bordered: integer({ mode: 'boolean' }).default(true),
+    bordered: integer({ mode: 'boolean' }).notNull().default(true),
     background: text(),
     supportedRegions: text('supported_regions', { mode: 'json' }).$type<MiniAppRegion[]>(),
     configuration: text({ mode: 'json' }),

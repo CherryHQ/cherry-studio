@@ -445,10 +445,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   )
 
   const appendTxtContentToInput = useCallback(
-    async (file: FileMetadata, event: React.MouseEvent<HTMLDivElement>) => {
-      event.preventDefault()
-      event.stopPropagation()
-
+    async (file: FileMetadata) => {
       try {
         const targetPath = file.path
         const content = await window.api.file.readExternal(targetPath, true)
@@ -634,7 +631,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
             <HolderOutlined style={{ fontSize: 12 }} />
           </DragHandle>
           {files.length > 0 && (
-            <AttachmentPreview files={files} setFiles={setFiles} onAttachmentContextMenu={appendTxtContentToInput} />
+            <AttachmentPreview files={files} setFiles={setFiles} onPasteAsText={appendTxtContentToInput} />
           )}
           {topContent}
 

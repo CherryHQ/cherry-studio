@@ -2,7 +2,7 @@
   "version": "6",
   "dialect": "sqlite",
   "id": "c58158ab-a95e-47a3-bd2b-97babf031693",
-  "prevId": "5a09801a-f80b-404a-96f0-c2c6d6f94ce9",
+  "prevId": "73a57fc7-c92c-48b3-a151-04bb07faf9f3",
   "tables": {
     "agent": {
       "name": "agent",
@@ -2144,7 +2144,7 @@
           "name": "bordered",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": true
         },
@@ -2906,7 +2906,7 @@
           "name": "is_enabled",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": true
         },
@@ -2914,7 +2914,7 @@
           "name": "is_hidden",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": false
         },
@@ -2922,7 +2922,7 @@
           "name": "is_deprecated",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": false
         },
@@ -3071,7 +3071,7 @@
           "name": "is_enabled",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": true
         },

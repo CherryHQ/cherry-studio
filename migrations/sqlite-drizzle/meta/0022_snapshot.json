@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5a09801a-f80b-404a-96f0-c2c6d6f94ce9",
+  "id": "73a57fc7-c92c-48b3-a151-04bb07faf9f3",
   "prevId": "adf49fb7-cac0-487e-8e22-c94ea17d55bd",
   "tables": {
     "agent": {
@@ -2144,7 +2144,7 @@
           "name": "bordered",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": true
         },
@@ -2899,7 +2899,7 @@
           "name": "is_enabled",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": true
         },
@@ -2907,7 +2907,7 @@
           "name": "is_hidden",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": false
         },
@@ -2915,7 +2915,7 @@
           "name": "is_deprecated",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": false
         },
@@ -3064,9 +3064,17 @@
           "name": "is_enabled",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -3081,13 +3089,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
         }
       },
       "indexes": {
@@ -3096,14 +3097,9 @@
           "columns": ["preset_provider_id"],
           "isUnique": false
         },
-        "user_provider_enabled_idx": {
-          "name": "user_provider_enabled_idx",
-          "columns": ["is_enabled"],
-          "isUnique": false
-        },
-        "user_provider_order_key_idx": {
-          "name": "user_provider_order_key_idx",
-          "columns": ["order_key"],
+        "user_provider_enabled_sort_idx": {
+          "name": "user_provider_enabled_sort_idx",
+          "columns": ["is_enabled", "sort_order"],
           "isUnique": false
         }
       },

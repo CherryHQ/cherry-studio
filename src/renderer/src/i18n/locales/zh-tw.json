@@ -834,7 +834,7 @@
       "running": "執行中",
       "stopped": "已停止"
     },
-    "title": "API 閘道"
+    "title": "API 伺服器"
   },
   "appMenu": {
     "about": "關於",
@@ -1050,6 +1050,17 @@
         "xhigh": "極力思考",
         "xhigh_description": "超高階推理"
       },
+      "regular_phrases": {
+        "add": "新增短語",
+        "contentLabel": "內容",
+        "contentPlaceholder": "請輸入短語內容，支援使用變數，然後按 Tab 鍵可以快速定位到變數進行修改。例如：\n幫我規劃從 ${from} 到 ${to} 的行程，然後傳送到 ${email}",
+        "delete": "刪除短語",
+        "deleteConfirm": "確定要刪除這個短語嗎？",
+        "edit": "編輯短語",
+        "title": "常用短語",
+        "titleLabel": "標題",
+        "titlePlaceholder": "輸入標題"
+      },
       "title": "助手設定",
       "tool_use_mode": {
         "function": "函式",
@@ -1192,7 +1203,7 @@
       },
       "new_session": "新工作階段 {{Command}}",
       "new_topic": "新話題 {{Command}}",
-      "paste_text_file_confirm": "貼到輸入框？",
+      "paste_text_file": "貼到輸入框",
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
@@ -1488,6 +1499,7 @@
         "title_tip": "提示：雙擊話題名可以直接就地重新命名"
       },
       "export": {
+        "failed": "匯出失敗",
         "image": "匯出為圖片",
         "image_saved": "圖片儲存成功",
         "joplin": "匯出到 Joplin",
@@ -2339,6 +2351,7 @@
   },
   "launchpad": {
     "apps": "應用",
+    "minapps": "小程式",
     "miniApps": "小程式"
   },
   "library": {
@@ -3155,6 +3168,64 @@
       "fetch_complete": "{{count}} 個搜尋結果",
       "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
+  },
+  "minapp": {
+    "add_to_launchpad": "新增到啟動台",
+    "add_to_sidebar": "新增到側邊欄",
+    "popup": {
+      "close": "關閉小工具",
+      "devtools": "開發者工具",
+      "goBack": "上一頁",
+      "goForward": "下一頁",
+      "minimize": "最小化小工具",
+      "openExternal": "在瀏覽器中開啟",
+      "open_link_external_off": "目前：使用預設視窗開啟連結",
+      "open_link_external_on": "目前：在瀏覽器中開啟連結",
+      "refresh": "重新整理",
+      "rightclick_copyurl": "右鍵複製 URL"
+    },
+    "remove_from_launchpad": "從啟動台移除",
+    "remove_from_sidebar": "從側邊欄移除",
+    "sidebar": {
+      "close": {
+        "title": "關閉"
+      },
+      "closeall": {
+        "title": "關閉所有"
+      },
+      "hide": {
+        "title": "隱藏"
+      },
+      "remove_custom": {
+        "title": "刪除自訂小工具"
+      }
+    },
+    "title": "小工具"
+  },
+  "minapps": {
+    "ant-ling": "Ant Ling",
+    "baichuan": "百小應",
+    "baidu-ai-search": "百度 AI 搜尋",
+    "chatglm": "智譜清言",
+    "dangbei": "當貝 AI",
+    "doubao": "豆包",
+    "hailuo": "海螺",
+    "ima": "ima",
+    "metaso": "秘塔 AI 搜尋",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
+    "nami-ai": "奈米 AI",
+    "nami-ai-search": "奈米 AI 搜尋",
+    "qwen": "通義千問",
+    "sensechat": "商量",
+    "stepfun": "階躍 AI",
+    "tencent-yuanbao": "騰訊元寶",
+    "tiangong-ai": "天工 AI",
+    "wanzhi": "萬知",
+    "wenxin": "文心一言",
+    "wps-copilot": "WPS 靈犀",
+    "xiaoyi": "小藝",
+    "zhihu": "知乎直答"
   },
   "miniApp": {
     "add_to_launchpad": "新增到啟動台",
@@ -5330,6 +5401,9 @@
         "knowledge": {
           "icon": "顯示知識圖示"
         },
+        "minapp": {
+          "icon": "顯示小工具圖示"
+        },
         "miniApp": {
           "icon": "顯示小工具圖示"
         },
@@ -5807,6 +5881,61 @@
       "title": "小程式設定",
       "visible": "顯示的小程式"
     },
+    "miniapps": {
+      "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
+      "cache_description": "設定同時保持活躍狀態的小程式最大數量",
+      "cache_settings": "快取設定",
+      "cache_title": "小程式快取數量",
+      "custom": {
+        "conflicting_ids": "與預設應用 ID 衝突：{{ids}}",
+        "duplicate_ids": "發現重複的 ID: {{ids}}",
+        "edit_description": "編輯自訂小程式設定",
+        "edit_title": "編輯自訂小程式",
+        "id": "ID",
+        "id_error": "ID 是必填項",
+        "id_placeholder": "請輸入 ID",
+        "logo": "Logo",
+        "logo_file": "上傳 Logo 檔案",
+        "logo_upload_button": "上傳",
+        "logo_upload_error": "Logo 上傳失敗",
+        "logo_upload_label": "上傳 Logo",
+        "logo_upload_success": "Logo 上傳成功",
+        "logo_url": "Logo URL",
+        "logo_url_label": "Logo URL",
+        "logo_url_placeholder": "請輸入 Logo URL",
+        "name": "名稱",
+        "name_error": "名稱為必填欄位",
+        "name_placeholder": "請輸入名稱",
+        "placeholder": "請輸入自訂小程式設定（JSON 格式）",
+        "remove_error": "自訂小程式刪除失敗",
+        "remove_success": "自訂小程式刪除成功",
+        "save": "儲存",
+        "save_error": "自訂小程式儲存失敗",
+        "save_success": "自訂小程式儲存成功",
+        "title": "自訂",
+        "url": "URL",
+        "url_error": "URL 是必填項",
+        "url_placeholder": "請輸入 URL"
+      },
+      "disabled": "隱藏的小程式",
+      "display_title": "小程式顯示設定",
+      "empty": "把要隱藏的小程式從左側拖曳到這裡",
+      "open_link_external": {
+        "title": "在瀏覽器中開啟新視窗連結"
+      },
+      "region": {
+        "auto": "自動檢測",
+        "cn": "中國",
+        "description": "根據所在地區篩選不支援的小程式",
+        "global": "全球",
+        "title": "小程式區域篩選"
+      },
+      "reset_tooltip": "重設為預設值",
+      "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
+      "sidebar_title": "側邊欄活躍小程式顯示設定",
+      "title": "小程式設定",
+      "visible": "顯示的小程式"
+    },
     "model": "預設模型",
     "models": {
       "add": {
@@ -5892,7 +6021,7 @@
       },
       "copy_model_id_tooltip": "點選複製模型 ID：{{id}}",
       "default_assistant_model": "預設助手模型",
-      "default_assistant_model_description": "助手未指定模型時使用",
+      "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "empty": "找不到模型",
       "list_title": "模型列表",
       "manage": {
@@ -6403,6 +6532,20 @@
       "select": "選擇",
       "title": "快捷選單"
     },
+    "quickPhrase": {
+      "add": "新增短語",
+      "assistant": "助手提示詞",
+      "contentLabel": "內容",
+      "contentPlaceholder": "請輸入短語內容，支援使用變數，然後按 Tab 鍵可以快速定位到變數進行修改。例如：\n幫我規劃從 ${from} 到 ${to} 的行程，然後傳送到 ${email}",
+      "delete": "刪除短語",
+      "deleteConfirm": "刪除後無法復原，是否繼續？",
+      "edit": "編輯短語",
+      "global": "全域快速短語",
+      "locationLabel": "新增位置",
+      "title": "快捷短語",
+      "titleLabel": "標題",
+      "titlePlaceholder": "請輸入短語標題"
+    },
     "scheduledTasks": {
       "description": "管理所有代理的排程任務。任務將依設定好的排程自動執行。",
       "noAgents": "排程任務需要開啟靈魂模式或無權限模式的代理才能執行。請先在代理設定中啟用。",
@@ -6728,7 +6871,7 @@
   },
   "tab": {
     "close": "關閉分頁",
-    "moveToFirst": "移至第一個",
+    "move_to_first": "移至第一個",
     "new": "新標籤頁",
     "pin": "釘選分頁",
     "unpin": "取消固定分頁"
@@ -6796,6 +6939,7 @@
         },
         "label": "自動偵測方法",
         "llm": {
+          "label": "LLM",
           "tip": "使用快速模型進行語言偵測，消耗少量 token。"
         },
         "placeholder": "選擇自動偵測方法",
@@ -6842,9 +6986,12 @@
       "reading": "讀取檔案內容中..."
     },
     "history": {
+      "back": "返回列表",
       "clear": "清空歷史",
       "clear_description": "清空歷史將刪除所有翻譯歷史記錄，是否繼續？",
+      "copy_target": "複製譯文",
       "delete": "刪除翻譯歷史",
+      "delete_description": "確定要刪除這筆翻譯歷史記錄嗎？此操作無法復原。",
       "empty": "翻譯歷史為空",
       "error": {
         "add": "新增翻譯紀錄失敗",
@@ -6853,15 +7000,21 @@
         "load": "無法載入翻譯紀錄",
         "save": "儲存翻譯歷史失敗"
       },
+      "filter": {
+        "starred": "僅顯示收藏"
+      },
+      "reuse": "使用此翻譯",
       "search": {
         "placeholder": "搜尋翻譯歷史"
       },
+      "source": "原文",
       "success": {
         "add": "已儲存至紀錄",
         "clear": "歷史紀錄已清除",
         "delete": "已刪除",
         "update": "已儲存"
       },
+      "target": "譯文",
       "title": "翻譯歷史"
     },
     "info": {
@@ -6901,6 +7054,7 @@
       "scroll_sync": "滾動同步設定",
       "title": "翻譯設定"
     },
+    "source_language": "來源語言",
     "stop": "停止翻譯",
     "success": {
       "custom": {

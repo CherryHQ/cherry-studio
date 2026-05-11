@@ -1,7 +1,7 @@
 import { Button } from '@cherrystudio/ui'
-import ContextMenu from '@renderer/components/ContextMenu'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import Scrollbar from '@renderer/components/Scrollbar'
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import type { Citation } from '@renderer/types'
 import { fetchWebContent, fetchXOEmbed, isXPostUrl } from '@renderer/utils/fetch'
@@ -168,7 +168,7 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
   const displayTitle = isXPost && oembedData?.author ? `@${oembedData.author}` : citation.title
 
   return (
-    <ContextMenu>
+    <SelectionContextMenu>
       <WebSearchCard>
         <WebSearchCardHeader>
           {citation.showFavicon && citation.url && (
@@ -187,13 +187,13 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
           <WebSearchCardContent className="selectable-text">{fetchedContent}</WebSearchCardContent>
         )}
       </WebSearchCard>
-    </ContextMenu>
+    </SelectionContextMenu>
   )
 }
 
 const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
   return (
-    <ContextMenu>
+    <SelectionContextMenu>
       <WebSearchCard>
         <WebSearchCardHeader>
           {citation.showFavicon && <FileSearch width={16} />}
@@ -206,7 +206,7 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
         </WebSearchCardHeader>
         <WebSearchCardContent className="selectable-text">{citation.content ?? ''}</WebSearchCardContent>
       </WebSearchCard>
-    </ContextMenu>
+    </SelectionContextMenu>
   )
 }
 
