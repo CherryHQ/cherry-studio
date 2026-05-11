@@ -45,6 +45,7 @@ describe('knowledge runtime payload schemas', () => {
         schema: KnowledgeRuntimeRestoreBasePayloadSchema,
         payload: {
           sourceBaseId: 'base-1',
+          name: 'Base 1_bak',
           dimensions: 3072,
           embeddingModelId: 'openai::text-embedding-3-large'
         }

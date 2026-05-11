@@ -369,6 +369,124 @@ describe('KnowledgeQueueManager', () => {
     expect(executeAfterReset).toHaveBeenCalledOnce()
   })
 
+  it('rejects new external writes while reset is waiting for running work', async () => {
+    const manager = new KnowledgeQueueManager()
+    const started = createDeferred()
+    const finish = createDeferred()
+    const executeAfterReset = vi.fn(async () => undefined)
+
+    const runningPromise = manager.enqueue(
+      createIndexTask('running', async () => {
+        started.resolve()
+        await finish.promise
+      })
+    )
+    const runningError = captureError(runningPromise)
+
+    await started.promise
+
+    const resetPromise = manager.reset('reset')
+    const rejectedDuringReset = captureError(
+      manager.runWithBaseWriteLockForBase(BASE_ID, async () => {
+        await executeAfterReset()
+      })
+    )
+
+    await expect(rejectedDuringReset).resolves.toMatchObject({ message: 'reset' })
+    expect(executeAfterReset).not.toHaveBeenCalled()
+
+    finish.resolve()
+
+    await expect(resetPromise).resolves.toEqual([createTaskDescriptor('running')])
+    await expect(runningError).resolves.toMatchObject({ message: 'reset' })
+
+    await expect(manager.runWithBaseWriteLockForBase(BASE_ID, executeAfterReset)).resolves.toBeUndefined()
+    expect(executeAfterReset).toHaveBeenCalledOnce()
+  })
+
+  it('waits for active external writes before reset resolves', async () => {
+    const manager = new KnowledgeQueueManager()
+    const activeWriteStarted = createDeferred()
+    const releaseActiveWrite = createDeferred()
+    let resetResolved = false
+    const events: string[] = []
+
+    const externalPromise = manager.runWithBaseWriteLockForBase(BASE_ID, async () => {
+      events.push('lock:external')
+      activeWriteStarted.resolve()
+      await releaseActiveWrite.promise
+      events.push('unlock:external')
+    })
+
+    await activeWriteStarted.promise
+
+    const resetPromise = manager.reset('reset').then((entries) => {
+      resetResolved = true
+      return entries
+    })
+    await flushPromises()
+
+    expect(resetResolved).toBe(false)
+    expect(events).toEqual(['lock:external'])
+
+    releaseActiveWrite.resolve()
+
+    await expect(resetPromise).resolves.toEqual([])
+    await expect(externalPromise).resolves.toBeUndefined()
+    expect(events).toEqual(['lock:external', 'unlock:external'])
+  })
+
+  it('waits for external writes already chained behind queued writes before reset resolves', async () => {
+    const manager = new KnowledgeQueueManager()
+    const queuedWriteStarted = createDeferred()
+    const releaseQueuedWrite = createDeferred()
+    const releaseExternalWrite = createDeferred()
+    let resetResolved = false
+    const events: string[] = []
+
+    const queuedPromise = manager.enqueue(
+      createIndexTask('queued', async (context) => {
+        await context.runWithBaseWriteLock(async () => {
+          events.push('lock:queued')
+          queuedWriteStarted.resolve()
+          await releaseQueuedWrite.promise
+          events.push('unlock:queued')
+        })
+      })
+    )
+    const queuedError = captureError(queuedPromise)
+
+    await queuedWriteStarted.promise
+
+    const externalPromise = manager.runWithBaseWriteLockForBase(BASE_ID, async () => {
+      events.push('lock:external')
+      await releaseExternalWrite.promise
+      events.push('unlock:external')
+    })
+    const resetPromise = manager.reset('reset').then((entries) => {
+      resetResolved = true
+      return entries
+    })
+
+    await flushPromises()
+    expect(resetResolved).toBe(false)
+    expect(events).toEqual(['lock:queued'])
+
+    releaseQueuedWrite.resolve()
+
+    await vi.waitFor(() => {
+      expect(events).toEqual(['lock:queued', 'unlock:queued', 'lock:external'])
+    })
+    expect(resetResolved).toBe(false)
+
+    releaseExternalWrite.resolve()
+
+    await expect(resetPromise).resolves.toEqual([createTaskDescriptor('queued')])
+    await expect(queuedError).resolves.toMatchObject({ message: 'reset' })
+    await expect(externalPromise).resolves.toBeUndefined()
+    expect(events).toEqual(['lock:queued', 'unlock:queued', 'lock:external', 'unlock:external'])
+  })
+
   it('rejects a second reset with the current reset reason while reset is running', async () => {
     const manager = new KnowledgeQueueManager()
     const started = createDeferred()
@@ -431,6 +549,65 @@ describe('KnowledgeQueueManager', () => {
     releaseFirstWrite.resolve()
     await expect(Promise.all([firstPromise, secondPromise])).resolves.toEqual([undefined, undefined])
     expect(events).toEqual(['lock:first', 'unlock:first', 'lock:second'])
+  })
+
+  it('serializes external writes with queued writes for the same base', async () => {
+    const manager = new KnowledgeQueueManager()
+    const releaseQueuedWrite = createDeferred()
+    const queuedInWriteLock = createDeferred()
+    const events: string[] = []
+
+    const queuedPromise = manager.enqueue(
+      createIndexTask('queued', async (context) => {
+        await context.runWithBaseWriteLock(async () => {
+          events.push('lock:queued')
+          queuedInWriteLock.resolve()
+          await releaseQueuedWrite.promise
+          events.push('unlock:queued')
+        })
+      })
+    )
+
+    await queuedInWriteLock.promise
+    const externalPromise = manager.runWithBaseWriteLockForBase(BASE_ID, async () => {
+      events.push('lock:external')
+    })
+    await flushPromises()
+
+    expect(events).toEqual(['lock:queued'])
+
+    releaseQueuedWrite.resolve()
+    await expect(Promise.all([queuedPromise, externalPromise])).resolves.toEqual([undefined, undefined])
+    expect(events).toEqual(['lock:queued', 'unlock:queued', 'lock:external'])
+  })
+
+  it('does not block different-base external writes', async () => {
+    const manager = new KnowledgeQueueManager()
+    const releaseFirstBaseWrite = createDeferred()
+    const firstBaseInWriteLock = createDeferred()
+    const events: string[] = []
+
+    const queuedPromise = manager.enqueue(
+      createIndexTask('queued', async (context) => {
+        await context.runWithBaseWriteLock(async () => {
+          events.push('lock:base-1')
+          firstBaseInWriteLock.resolve()
+          await releaseFirstBaseWrite.promise
+          events.push('unlock:base-1')
+        })
+      })
+    )
+
+    await firstBaseInWriteLock.promise
+    await manager.runWithBaseWriteLockForBase('base-2', async () => {
+      events.push('lock:base-2')
+    })
+
+    expect(events).toEqual(['lock:base-1', 'lock:base-2'])
+
+    releaseFirstBaseWrite.resolve()
+    await expect(queuedPromise).resolves.toBeUndefined()
+    expect(events).toEqual(['lock:base-1', 'lock:base-2', 'unlock:base-1'])
   })
 
   it('does not enter the base write lock body after being interrupted while waiting', async () => {

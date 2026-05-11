@@ -2085,126 +2085,233 @@
   },
   "knowledge": {
     "add": {
-      "title": "新增知識庫"
+      "group": "分组",
+      "icon": "图标",
+      "submit": "创建",
+      "title": "新建知识库"
     },
-    "add_directory": "新增目錄",
-    "add_file": "新增檔案",
-    "add_image": "新增圖片",
-    "add_note": "新增筆記",
-    "add_sitemap": "網站地圖",
-    "add_url": "新增網址",
-    "add_video": "新增影片",
-    "cancel_index": "取消索引",
-    "chunk_overlap": "重疊大小",
-    "chunk_overlap_placeholder": "預設值（不建議修改）",
-    "chunk_overlap_tooltip": "相鄰文字塊之間重複的內容量，確保分段後的文字塊之間仍然有上下文聯絡，提升模型處理長文字的整體效果",
-    "chunk_size": "分段大小",
-    "chunk_size_change_warning": "分段大小和重疊大小修改只針對新新增的內容有效",
-    "chunk_size_placeholder": "預設值（不建議修改）",
-    "chunk_size_too_large": "分段大小不能超過模型上下文限制（{{max_context}}）",
-    "chunk_size_tooltip": "將檔案切割分段，每段大小不得超過模型的上下文上限",
-    "clear_selection": "清除選擇",
-    "delete": "刪除",
-    "delete_confirm": "確定要刪除此知識庫嗎？",
-    "dimensions": "嵌入維度",
-    "dimensions_auto_set": "自動設定嵌入維度",
-    "dimensions_default": "模型將使用預設嵌入維度",
-    "dimensions_error_invalid": "無效的嵌入維度",
-    "dimensions_set_right": "⚠️ 請確認模型支援所設定的嵌入維度大小",
-    "dimensions_size_placeholder": "留空表示不設定",
-    "dimensions_size_too_large": "嵌入維度不能超過模型上下文限制（{{max_context}}）",
-    "dimensions_size_tooltip": "嵌入維度大小，數值越大消耗的 Token 也越多。留空則不傳遞 dimensions 參數。",
-    "directories": "目錄",
-    "directory_placeholder": "請輸入目錄路徑",
-    "document_count": "請求檔案片段數量",
-    "document_count_default": "預設",
-    "document_count_help": "請求檔案片段數量越多，附帶的資訊越多，但需要消耗的 Token 也越多",
-    "drag_file": "拖曳檔案到這裡",
-    "drag_image": "拖曳圖片到這裡",
-    "edit_remark": "修改備註",
-    "edit_remark_placeholder": "請輸入備註內容",
-    "embedding_model": "嵌入模型",
-    "embedding_model_required": "知識庫嵌入模型是必需的",
-    "empty": "暫無知識庫",
-    "error": {
-      "failed_to_create": "知識庫建立失敗",
-      "failed_to_edit": "知識庫編輯失敗",
-      "model_invalid": "未選擇模型",
-      "video": {
-        "local_file_missing": "影片檔案不存在",
-        "youtube_url_missing": "YouTube 影片連結不存在"
+    "context": {
+      "delete": "删除知识库",
+      "delete_confirm_description": "删除后将无法恢复该知识库。",
+      "delete_confirm_title": "确认删除知识库",
+      "move_to": "移动到",
+      "rename": "重命名"
+    },
+    "data_source": {
+      "actions": {
+        "delete": "删除",
+        "preview_source": "预览原文",
+        "reindex": "重新索引",
+        "view_chunks": "查看 Chunks"
+      },
+      "add_dialog": {
+        "directory": {
+          "description": "将递归导入文件夹中的支持文件",
+          "title": "点击选择文件夹"
+        },
+        "footer": {
+          "selected_directories": "已选 {{count}} 个目录",
+          "selected_files": "已选 {{count}} 个文件",
+          "selected_notes": "已选 {{count}} 个笔记"
+        },
+        "note": {
+          "description": "选择已有笔记作为知识库数据源",
+          "empty_description": "真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或站点地图。",
+          "empty_title": "暂未接入笔记数据源"
+        },
+        "placeholder": {
+          "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
+          "title": "点击选择文件或拖拽到此处"
+        },
+        "sitemap": {
+          "description": "输入 Sitemap 地址：",
+          "help": "将读取 Sitemap 中包含的页面并建立索引",
+          "placeholder": "https://example.com/sitemap.xml"
+        },
+        "sources": {
+          "directory": "目录",
+          "file": "文件",
+          "note": "笔记",
+          "sitemap": "网站",
+          "url": "网址"
+        },
+        "submit": {
+          "error": "添加数据源失败",
+          "success": "数据源已添加到知识库"
+        },
+        "title": "添加数据源",
+        "url": {
+          "description": "输入网页链接：",
+          "help": "将自动抓取页面文本并分块索引",
+          "input_label": "网页地址",
+          "placeholder": "https://example.com",
+          "title": "导入单个网页"
+        }
+      },
+      "chunk_delete_confirm_description": "删除后该 Chunk 将不再参与召回，重新索引数据源后会重新生成。",
+      "chunk_delete_confirm_title": "确认删除 Chunk",
+      "chunks_count": "{{count}} chunks",
+      "delete_confirm_description": "删除后将无法恢复该数据源及其索引数据。",
+      "delete_confirm_title": "确认删除数据源",
+      "delete_failed": "刪除資料來源失敗",
+      "empty_description": "暂无数据源",
+      "filters": {
+        "all": "全部",
+        "directory": "目录",
+        "file": "文件",
+        "note": "笔记",
+        "sitemap": "网站",
+        "url": "网址"
+      },
+      "preview": {
+        "failed": "預覽原文失敗",
+        "unavailable": "目前資料來源沒有可預覽的原文"
+      },
+      "ready_summary": "{{ready}}/{{total}} 就绪",
+      "reindex_failed": "資料來源重新索引失敗",
+      "status": {
+        "chunking": "分块中",
+        "embedding": "嵌入中",
+        "error": "错误",
+        "pending": "等待中",
+        "ready": "就绪"
       }
     },
+    "dimensions": "嵌入维度",
+    "dimensions_auto_set": "自動設定嵌入維度",
+    "dimensions_error_invalid": "無效的嵌入維度",
+    "dimensions_size_placeholder": "留空表示不設定",
+    "drag_file": "拖曳檔案到這裡",
+    "embedding_model": "嵌入模型",
+    "embedding_model_required": "知识库嵌入模型是必需的",
+    "empty": "暂无知识库",
+    "error": {
+      "failed_base_unknown": "該知識庫遷移失敗，請重建知識庫並選擇新的嵌入模型。",
+      "failed_to_create": "知识库创建失败",
+      "failed_to_delete": "知識庫刪除失敗",
+      "failed_to_edit": "知识库编辑失败",
+      "failed_to_move": "知識庫移動失敗",
+      "missing_embedding_model": "遷移時未找到原知識庫使用的嵌入模型，請重建知識庫並選擇新的嵌入模型。",
+      "model_invalid": "未選擇模型"
+    },
     "file_hint": "支援 {{file_types}} 格式",
-    "image_hint": "支援 {{image_types}} 格式",
-    "images": "圖片",
-    "index_all": "索引全部",
-    "index_cancelled": "索引已取消",
-    "index_started": "索引開始",
-    "invalid_url": "無效的網址",
-    "migrate": {
-      "button": {
-        "text": "遷移"
-      },
-      "confirm": {
-        "content": "偵測到嵌入模型或維度有變更，無法直接儲存設定，可以執行遷移。知識庫遷移不會刪除舊知識庫，而是建立一個副本後重新處理所有知識庫條目，可能消耗大量 Token，請謹慎操作。",
-        "ok": "開始遷移",
-        "title": "知識庫遷移"
-      },
+    "groups": {
+      "add": "新建分组",
+      "create_base_here": "在此分组新建",
+      "delete": "删除分组",
+      "delete_confirm_description": "删除后，该分组下的知识库将移至未分组。",
+      "delete_confirm_title": "确认删除分组",
       "error": {
-        "failed": "遷移失敗"
+        "failed_to_create": "分组创建失败",
+        "failed_to_delete": "分組刪除失敗",
+        "failed_to_update": "分组重命名失败"
       },
-      "source_dimensions": "源維度",
-      "source_model": "源模型",
-      "target_dimensions": "目標維度",
-      "target_model": "目標模型"
+      "name_placeholder": "输入分组名称...",
+      "name_required": "分组名称为必填项",
+      "rename": "重命名",
+      "rename_title": "重命名分组",
+      "ungrouped": "未分组"
     },
-    "model_info": "模型資訊",
-    "name_required": "知識庫名稱為必填欄位",
-    "no_bases": "暫無知識庫",
-    "no_match": "不符合知識庫內容",
-    "no_provider": "知識庫模型供應商遺失，該知識庫將不再支援，請重新建立知識庫",
-    "not_set": "未設定",
-    "not_support": "知識庫資料庫引擎已更新，該知識庫將不再支援，請重新建立知識庫",
-    "notes": "筆記",
-    "notes_placeholder": "輸入此知識庫的附加資訊或上下文...",
+    "meta": {
+      "documents_count": "{{count}} 文档"
+    },
+    "name_required": "知识库名称为必填项",
+    "not_set": "未设置",
     "provider_not_found": "未找到供應商",
-    "rename": "重新命名",
-    "search": "搜尋知識庫",
-    "search_placeholder": "輸入查詢內容",
-    "settings": {
-      "preprocessing": "預處理",
-      "preprocessing_tooltip": "預處理上傳的檔案",
-      "title": "知識庫設定"
+    "rag": {
+      "chunk_overlap": "重叠大小",
+      "chunk_overlap_invalid": "分块重叠必须大于等于 0",
+      "chunk_overlap_must_be_smaller": "分块重叠必须小于分块大小",
+      "chunk_overlap_requires_chunk_size": "分块重叠依赖分块大小",
+      "chunk_size": "分段大小",
+      "chunk_size_change_warning": "分段大小和重叠大小修改只针对新添加的内容有效",
+      "chunk_size_invalid": "分块大小必须大于 0",
+      "chunking": "分块规则 (Chunking)",
+      "default_separator": "自动（推荐）",
+      "dimensions": "向量維度",
+      "document_count": "請求文件片段數 (Top K)",
+      "embedding_model": "Embedding 模型",
+      "embedding_model_select": "模型選擇",
+      "file_processing": "文件預處理",
+      "file_processing_hint": "文件預處理將在文件導入時自動執行，選擇合適的處理服務商可提升文件解析品質",
+      "hints": {
+        "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
+        "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
+        "dimensions": "当前嵌入模型输出的向量维度，用于创建和匹配向量索引。",
+        "document_count": "每次召回返回的最大文档片段数，越大覆盖越多但消耗更多上下文。",
+        "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
+        "hybrid_alpha": "混合检索中向量得分的权重，值越高越偏向语义匹配。",
+        "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
+        "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
+        "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。",
+        "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。",
+        "threshold_disabled": "该检索模式按排序返回结果，不使用相似度阈值。"
+      },
+      "hybrid_alpha": "Hybrid Alpha",
+      "hybrid_alpha_hint": "仅在 Hybrid 检索模式下可配置",
+      "processor": "处理服务商",
+      "refresh_dimensions": "刷新向量維度",
+      "rerank_disabled": "不使用",
+      "rerank_model": "重排模型 (Rerank)",
+      "reset_action": "恢復預設",
+      "reset_defaults": "恢复默认",
+      "retrieval": "检索设置",
+      "save_action": "儲存",
+      "saved": "已儲存",
+      "search_mode": {
+        "bm25": "全文检索",
+        "default": "向量检索",
+        "hybrid": "混合检索（推荐）",
+        "title": "检索模式"
+      },
+      "separator_rule": "分隔符规则",
+      "threshold": "相似度阈值",
+      "tokens_unit": "tokens"
     },
-    "sitemap_added": "新增成功",
-    "sitemap_placeholder": "請輸入網站地圖 URL",
-    "sitemaps": "網站",
-    "source": "來源",
-    "status": "狀態",
-    "status_completed": "已完成",
-    "status_embedding_completed": "嵌入完成",
+    "recall": {
+      "collapse": "收起片段",
+      "copy": "复制片段",
+      "duration": "{{duration}}ms",
+      "empty_description": "结果将展示匹配的文档片段和分数",
+      "empty_title": "输入查询语句开始检索测试",
+      "expand": "展开片段",
+      "history_clear": "清空",
+      "history_remove": "删除历史",
+      "history_title": "搜索历史",
+      "placeholder": "输入测试 Query...",
+      "ranking_only": "按排序返回",
+      "result_count": "{{count}} 个结果",
+      "result_rank": "排序 #{{rank}}",
+      "result_relevance": "相关度 {{score}}",
+      "search_failed": "召回測試檢索失敗",
+      "searching": "正在检索...",
+      "submit": "检索",
+      "top_score": "最高: {{score}}"
+    },
+    "rename_title": "重命名知识库",
+    "restore": {
+      "action": "重建知識庫",
+      "default_name": "{{name}}_副本",
+      "failed_to_restore": "知識庫重建失敗",
+      "submit": "重建",
+      "title": "重建知識庫"
+    },
+    "search": "搜索知识库",
+    "search_placeholder": "輸入查詢內容",
+    "status": {
+      "completed": "就绪",
+      "failed": "失败",
+      "processing": "处理中"
+    },
     "status_embedding_failed": "嵌入失敗",
-    "status_failed": "失敗",
-    "status_new": "已新增",
-    "status_pending": "等待中",
-    "status_preprocess_completed": "預處理完成",
     "status_preprocess_failed": "預處理失敗",
-    "status_processing": "處理中",
     "subtitle_file": "字幕檔案",
-    "threshold": "相符度門檻",
-    "threshold_placeholder": "未設定",
-    "threshold_too_large_or_small": "門檻值不能大於 1 或小於 0",
-    "threshold_tooltip": "用於衡量使用者問題與知識庫內容之間的相關性（0-1）",
-    "title": "知識庫",
-    "topN": "回傳結果數量",
-    "topN_placeholder": "未設定",
-    "topN_too_large_or_small": "回傳結果數量不能大於 30 或小於 1",
-    "topN_tooltip": "回傳的相符結果數量，數值越大，相符結果越多，但消耗的 Token 也越多",
-    "url_added": "網址已新增",
-    "url_placeholder": "請輸入網址，多個網址用換行符號分隔",
-    "urls": "網址",
-    "videos": "影片",
+    "tabs": {
+      "data_source": "数据源",
+      "rag_config": "RAG 配置",
+      "recall_test": "召回测试"
+    },
+    "title": "知识库",
     "videos_file": "影片檔案"
   },
   "languages": {
@@ -3872,6 +3979,7 @@
     "dashscope": "阿里雲百鍊",
     "deepseek": "深度求索",
     "dmxapi": "DMXAPI",
+    "doc2x": "Doc2X",
     "doubao": "火山引擎",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
@@ -3889,6 +3997,7 @@
     "lmstudio": "LM Studio",
     "longcat": "龍貓",
     "mimo": "小米 MiMo",
+    "mineru": "MinerU",
     "minimax": "MiniMax CN",
     "minimax-global": "MiniMax",
     "mistral": "Mistral",
@@ -3899,9 +4008,12 @@
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
+    "open-mineru": "Open MinerU",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
+    "ovocr": "Intel OV(NPU) OCR",
+    "paddleocr": "PaddleOCR",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
@@ -3911,7 +4023,9 @@
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
+    "system": "系統 OCR",
     "tencent-cloud-ti": "騰訊雲 TI",
+    "tesseract": "Tesseract",
     "together": "Together",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
@@ -4623,15 +4737,6 @@
         "select_success": "資料目錄已變更，應用程式將重新啟動以套用變更",
         "select_title": "變更應用程式資料目錄",
         "stop_quit_app_reason": "應用程式目前正在移轉資料，無法關閉"
-      },
-      "app_knowledge": {
-        "button": {
-          "delete": "刪除檔案"
-        },
-        "label": "知識庫文件",
-        "remove_all": "刪除知識庫檔案",
-        "remove_all_confirm": "刪除知識庫文件可以減少儲存空間佔用，但不會刪除知識庫向量化資料，刪除之後將無法開啟原始檔，是否刪除？",
-        "remove_all_success": "檔案刪除成功"
       },
       "app_logs": {
         "button": "開啟日誌",
