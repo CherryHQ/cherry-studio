@@ -121,5 +121,21 @@ describe('internal/entry/create.createInternal', () => {
       expect(deps.danglingCache.addEntry).not.toHaveBeenCalled()
       expect(deps.danglingCache.onFsEvent).not.toHaveBeenCalled()
     })
+
+    it('propagates findCaseInsensitivePeers errors instead of silently falling through to create()', async () => {
+      // Regression guard for 32953d389: that commit removed an ineffective
+      // try/catch around the peer SELECT, on the rationale that hiding the
+      // error one frame earlier just makes the imminent INSERT failure
+      // harder to diagnose. If a future maintainer re-wraps this call
+      // ("looks risky, let me defend"), the throw goes silent and
+      // ensureExternal happily reaches create() — destroying the
+      // diagnosability win. This test fails the moment that try/catch comes
+      // back: the probe error stops bubbling.
+      const file = path.join(tmp, 'peer-probe-fail.txt')
+      await writeFile(file, 'x')
+      const probeErr = new Error('peer SELECT boom')
+      vi.spyOn(fileEntryService, 'findCaseInsensitivePeers').mockRejectedValueOnce(probeErr)
+      await expect(ensureExternal(deps, { externalPath: file as FilePath })).rejects.toBe(probeErr)
+    })
   })
 })
