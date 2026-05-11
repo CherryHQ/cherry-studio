@@ -32,8 +32,10 @@ describe('assistant', () => {
     description: '',
     settings: DEFAULT_SETTINGS,
     modelId: null,
+    modelName: null,
     mcpServerIds: [],
     knowledgeBaseIds: [],
+    tags: [],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
   }

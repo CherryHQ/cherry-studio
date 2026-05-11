@@ -1,7 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { usePartsMap } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
-import { type Topic, type TranslateLanguageCode } from '@renderer/types'
+import { type Topic, type TranslateLangCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -91,8 +91,8 @@ export function useMessage(messageId: string, topic: Topic) {
    */
   const getTranslationUpdater = useCallback(
     async (
-      targetLanguage: TranslateLanguageCode,
-      sourceLanguage?: TranslateLanguageCode
+      targetLanguage: TranslateLangCode,
+      sourceLanguage?: TranslateLangCode
     ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
       if (!topic.id || !v2) return null
 

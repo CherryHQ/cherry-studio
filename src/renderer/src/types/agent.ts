@@ -10,6 +10,12 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentBase, AgentEntity, AgentTool, AgentType } from '@shared/data/types/agent'
 import * as z from 'zod'
 
+// v2 callers in `pages/library/editor/agent`, `hooks/agents/useAgentTools`,
+// and `hooks/agents/permissionMode` import `Tool` / `AgentType` from
+// `@renderer/types`. Re-export the canonical shared types here so those call
+// sites resolve without forking a renderer-only `ToolSchema`.
+export type { AgentType, AgentTool as Tool }
+
 // ------------------ Permission mode (renderer-side mirror of the
 //                    `claude-agent-sdk` enum, used by UI cards/forms) ------
 export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])

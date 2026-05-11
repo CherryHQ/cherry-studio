@@ -62,8 +62,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         description: '',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         modelId: null,
+        modelName: null,
         mcpServerIds: [],
         knowledgeBaseIds: [],
+        tags: [],
         createdAt: now,
         updatedAt: now
       }
