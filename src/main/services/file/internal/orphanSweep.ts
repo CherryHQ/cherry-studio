@@ -430,6 +430,28 @@ async function runStartupFileSweepInner(deps: RunStartupFileSweepDeps): Promise<
       filesOnDisk: candidatesCount,
       bytesOnDisk: candidatesBytes
     })
+    // Per architecture §10.4 the (count, bytes) floor is an absolute "small
+    // residue is always fine" carve-out, so a 19-file 100%-of-disk plan is
+    // intentionally allowed through. Surface it at warn-level so on-call has
+    // a forensic breadcrumb when a user reports "Cherry deleted my files":
+    // the fraction would otherwise have tripped the safety threshold.
+    if (!abortReason && planned.length > 0) {
+      const countFraction = planned.length / Math.max(1, candidatesCount)
+      const byteFraction = plannedBytes / Math.max(1, candidatesBytes)
+      if (countFraction > ABORT_FRACTION || byteFraction > ABORT_FRACTION) {
+        logger.warn('orphan-file-sweep-below-floor', {
+          event: 'orphan-file-sweep-below-floor',
+          plannedCount: planned.length,
+          plannedBytes,
+          filesOnDisk: candidatesCount,
+          bytesOnDisk: candidatesBytes,
+          countFraction,
+          byteFraction,
+          smallResidueCountFloor: SMALL_RESIDUE_COUNT_FLOOR,
+          smallResidueBytesFloor: SMALL_RESIDUE_BYTES_FLOOR
+        })
+      }
+    }
     if (abortReason) {
       return {
         entriesInDb: idSnapshot.size,
