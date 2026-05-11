@@ -12,6 +12,22 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+// Shared error spy: write.ts logs the post-commit metadata-sync failure
+// through `loggerService.withContext('file/internal/write').error`. Every
+// withContext caller in this test process gets the same vi.fn so the
+// post-commit regression test can assert on it directly.
+const mockLoggerError = vi.hoisted(() => vi.fn())
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: mockLoggerError
+    })
+  }
+}))
+
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
@@ -248,6 +264,46 @@ describe('internal/content/write', () => {
       // External rows must keep size=null per the schema CHECK; only the cache reflects the new version.
       expect(refreshed.size).toBeNull()
       expect(cacheStore.get(e.id)?.size).toBe('updated payload'.length)
+    })
+
+    it('error-logs WRITE_STREAM_DB_DESYNC when the post-commit re-stat fails', async () => {
+      // The atomic rename has already committed by the time the 'finish' hook
+      // runs, so a failure in the re-stat + DB-size update + versionCache.set
+      // sequence leaves the disk and DB silently out of sync. The contract
+      // recovered after 6837801d1: error-level log carrying the stable code
+      // WRITE_STREAM_DB_DESYNC and the full err object (no `.message`-only
+      // squeeze). Mocking the stat call to throw is the only way to exercise
+      // this branch without a real disk fault.
+      const { createWriteStream } = await import('../write')
+      const fsModule = await import('@main/utils/file/fs')
+      const e = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([0x01]),
+        name: 'desync',
+        ext: 'bin'
+      })
+      mockLoggerError.mockClear()
+      const statErr = new Error('post-commit stat boom')
+      vi.spyOn(fsModule, 'stat').mockRejectedValue(statErr)
+      const stream = await createWriteStream(deps, e.id)
+      stream.write(Buffer.from('payload'))
+      stream.end()
+      await new Promise<void>((resolve, reject) => {
+        stream.once('finish', () => setImmediate(resolve))
+        stream.once('error', reject)
+      })
+      // Two microtask hops: the 'finish' handler kicks off the async post-
+      // commit chain, the rejected stat resolves on the next tick.
+      await new Promise<void>((r) => setImmediate(r))
+      await new Promise<void>((r) => setImmediate(r))
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        expect.stringContaining('post-commit'),
+        expect.objectContaining({
+          code: 'WRITE_STREAM_DB_DESYNC',
+          id: e.id,
+          err: statErr
+        })
+      )
     })
   })
 })
