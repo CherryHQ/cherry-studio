@@ -25,7 +25,7 @@ export function PaddleOCRModelSettings({ value, onChange }: PaddleOCRModelSettin
           <SelectTrigger
             size="sm"
             aria-label={t('settings.tool.file_processing.processors.paddleocr.fields.parse_model')}
-            className="min-w-[150px]">
+            className="min-w-37.5">
             <SelectValue />
           </SelectTrigger>
           <SelectContent align="start" className="w-56">

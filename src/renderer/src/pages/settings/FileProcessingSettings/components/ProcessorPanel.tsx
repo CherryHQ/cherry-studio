@@ -177,7 +177,7 @@ export function ProcessorPanel({
         <>
           <SettingSubtitle>{t('settings.tool.file_processing.sections.authentication')}</SettingSubtitle>
           <SettingRow className="items-start gap-4 py-1">
-            <SettingRowTitle className="w-[150px] shrink-0 pt-2">
+            <SettingRowTitle className="w-37.5 shrink-0 pt-2">
               {t('settings.tool.file_processing.fields.api_key')}
             </SettingRowTitle>
             <div className="min-w-0 flex-1">
@@ -216,7 +216,7 @@ export function ProcessorPanel({
             <>
               <SettingDivider />
               <SettingRow className="items-start gap-4 py-1">
-                <SettingRowTitle className="w-[150px] shrink-0 pt-2">
+                <SettingRowTitle className="w-37.5 shrink-0 pt-2">
                   {t('settings.tool.file_processing.fields.api_base_url')}
                 </SettingRowTitle>
                 <Input
