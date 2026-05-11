@@ -8,7 +8,7 @@ vi.mock('@application', async () => {
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
-import { getProcessorConfigById, resolveProcessorConfigByFeature } from '../resolveProcessorConfig'
+import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from '../resolveProcessorConfig'
 
 describe('resolveProcessorConfig', () => {
   beforeEach(() => {
@@ -16,7 +16,7 @@ describe('resolveProcessorConfig', () => {
     MockMainPreferenceServiceUtils.resetMocks()
   })
 
-  it('getProcessorConfigById merges preference override into preset config', () => {
+  it('getFileProcessorConfigById merges preference override into preset config', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.overrides', {
       'open-mineru': {
         apiKeys: ['secret-key'],
@@ -26,12 +26,12 @@ describe('resolveProcessorConfig', () => {
           }
         },
         options: {
-          profile: 'local-dev'
+          langs: ['eng']
         }
       }
     })
 
-    expect(getProcessorConfigById('open-mineru')).toEqual({
+    expect(getFileProcessorConfigById('open-mineru')).toEqual({
       id: 'open-mineru',
       type: 'api',
       capabilities: [
@@ -44,13 +44,13 @@ describe('resolveProcessorConfig', () => {
       ],
       apiKeys: ['secret-key'],
       options: {
-        profile: 'local-dev'
+        langs: ['eng']
       }
     })
   })
 
-  it('getProcessorConfigById throws notFound for an unknown processor id', () => {
-    expect(() => getProcessorConfigById('missing' as never)).toThrowError('File processor not found: missing')
+  it('getFileProcessorConfigById throws notFound for an unknown processor id', () => {
+    expect(() => getFileProcessorConfigById('missing' as never)).toThrowError('File processor not found: missing')
   })
 
   it('uses the explicit processor when one is provided', () => {

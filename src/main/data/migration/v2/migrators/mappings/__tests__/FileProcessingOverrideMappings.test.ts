@@ -25,7 +25,7 @@ describe('FileProcessingOverrideMappings', () => {
             name: 'MinerU',
             apiKey: 'mineru-key',
             apiHost: 'https://mineru-proxy.example.com',
-            options: { enable_formula: false }
+            options: { langs: ['eng'] }
           },
           {
             id: 'mistral',
@@ -83,7 +83,7 @@ describe('FileProcessingOverrideMappings', () => {
                 apiHost: 'https://mineru-proxy.example.com'
               }
             },
-            options: { enable_formula: false }
+            options: { langs: ['eng'] }
           },
           mistral: {
             apiKeys: ['mistral-key'],
@@ -266,6 +266,34 @@ describe('FileProcessingOverrideMappings', () => {
       })
     })
 
+    it('should ignore unsupported legacy processor options', () => {
+      const result = mergeFileProcessingOverrides({
+        preprocessProviders: [
+          {
+            id: 'mineru',
+            name: 'MinerU',
+            options: { enable_formula: false }
+          }
+        ],
+        ocrProviders: [
+          {
+            id: 'ovocr',
+            name: 'OVOCR',
+            capabilities: { image: true },
+            config: {
+              api: {
+                apiVersion: '2026-03-23'
+              }
+            }
+          }
+        ]
+      })
+
+      expect(result).toEqual({
+        'feature.file_processing.overrides': {}
+      })
+    })
+
     it('should migrate nested ocr api config fields', () => {
       const result = mergeFileProcessingOverrides({
         preprocessProviders: [],
@@ -293,9 +321,6 @@ describe('FileProcessingOverrideMappings', () => {
               image_to_text: {
                 apiHost: 'https://ovocr.example.com'
               }
-            },
-            options: {
-              apiVersion: '2026-03-23'
             }
           }
         }
@@ -324,6 +349,39 @@ describe('FileProcessingOverrideMappings', () => {
         'feature.file_processing.overrides': {
           ovocr: {
             apiKeys: ['shared-key']
+          }
+        }
+      })
+    })
+
+    it('should preserve migrated override strings while pruning empty values', () => {
+      const result = mergeFileProcessingOverrides({
+        preprocessProviders: [
+          {
+            id: 'mistral',
+            name: 'Mistral',
+            apiKey: ' mistral-key ',
+            apiHost: ' https://mistral-proxy.example.com ',
+            model: ' mistral-ocr-custom '
+          }
+        ],
+        ocrProviders: []
+      })
+
+      expect(result).toEqual({
+        'feature.file_processing.overrides': {
+          mistral: {
+            apiKeys: [' mistral-key '],
+            capabilities: {
+              document_to_markdown: {
+                apiHost: ' https://mistral-proxy.example.com ',
+                modelId: ' mistral-ocr-custom '
+              },
+              image_to_text: {
+                apiHost: ' https://mistral-proxy.example.com ',
+                modelId: ' mistral-ocr-custom '
+              }
+            }
           }
         }
       })
