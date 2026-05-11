@@ -1,18 +1,17 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import type { ProviderSettingsDisplayModel } from '@renderer/pages/settings/ProviderSettings/config/models'
 import { getModelClipboardId } from '@renderer/pages/settings/ProviderSettings/ModelList/utils'
 import { cn } from '@renderer/utils'
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
-import ModelTagsWithLabel from './ModelTagsWithLabel'
+import ModelTagsWithLabel, { type ModelTagsWithLabelModel } from './ModelTagsWithLabel'
 
 const logger = loggerService.withContext('ModelIdWithTags')
 
 interface ModelIdWithTagsProps {
-  model: ProviderSettingsDisplayModel
+  model: ModelTagsWithLabelModel
   fontSize?: React.CSSProperties['fontSize']
   showIdentifier?: boolean
   style?: React.CSSProperties

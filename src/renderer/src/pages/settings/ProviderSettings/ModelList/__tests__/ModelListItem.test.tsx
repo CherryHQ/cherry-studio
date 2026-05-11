@@ -39,7 +39,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/pages/settings/ProviderSettings/config/models', async (importOriginal) => ({
+vi.mock('@renderer/config/models', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getModelLogo: () => null
 }))

@@ -5,8 +5,7 @@ import { AlertTriangle, CheckCircle2, Plus, Trash2 } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ModelTagsWithLabel from '../components/ModelTagsWithLabel'
-import type { ProviderSettingsDisplayModel } from '../config/models/types'
+import ModelTagsWithLabel, { type ModelTagsWithLabelModel } from '../components/ModelTagsWithLabel'
 import { modelSyncClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 import type { ModelSyncPreviewResponse } from './modelSyncPreviewTypes'
 import type { ModelPullApplyPayload } from './useModelListSyncSelections'
@@ -130,7 +129,7 @@ export default function ModelSyncPreviewPanel({ preview, isApplying, onApply, on
                       <span className="shrink-0 text-muted-foreground/60 text-xs">{model.contextWindow}</span>
                     ) : null}
                     <div className={modelSyncClasses.fetchCapabilityStrip}>
-                      <ModelTagsWithLabel model={model as ProviderSettingsDisplayModel} size={8} showLabel={false} />
+                      <ModelTagsWithLabel model={model as ModelTagsWithLabelModel} size={8} showLabel={false} />
                     </div>
                   </div>
                 )
@@ -205,7 +204,7 @@ export default function ModelSyncPreviewPanel({ preview, isApplying, onApply, on
                         ) : null}
                         <div className={modelSyncClasses.fetchCapabilityStrip}>
                           <ModelTagsWithLabel
-                            model={item.model as ProviderSettingsDisplayModel}
+                            model={item.model as ModelTagsWithLabelModel}
                             size={8}
                             showLabel={false}
                           />

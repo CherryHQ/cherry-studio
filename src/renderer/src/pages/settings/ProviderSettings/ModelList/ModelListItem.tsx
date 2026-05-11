@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback, Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { getModelLogo } from '@renderer/pages/settings/ProviderSettings/config/models'
+import { getModelLogo } from '@renderer/config/models'
 import { getModelClipboardId } from '@renderer/pages/settings/ProviderSettings/ModelList/utils'
 import { cn } from '@renderer/utils'
 import type { Model } from '@shared/data/types/model'

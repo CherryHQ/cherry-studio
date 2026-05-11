@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { getModelLogo } from '@renderer/pages/settings/ProviderSettings/config/models'
+import { getModelLogo } from '@renderer/config/models'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { isNewApiProvider } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { cn } from '@renderer/utils'

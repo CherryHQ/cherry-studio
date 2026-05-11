@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback, Button, Input, RadioGroup, RadioGroupItem, Tooltip } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { getModelLogo } from '@renderer/pages/settings/ProviderSettings/config/models'
+import { getModelLogo } from '@renderer/config/models'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { cn } from '@renderer/utils'

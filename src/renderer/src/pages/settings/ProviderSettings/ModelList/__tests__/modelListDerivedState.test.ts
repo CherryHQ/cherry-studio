@@ -1,9 +1,9 @@
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { isFunctionCallingModel, isGenerateImageModel, isVisionModel } from '@shared/utils/model'
 import { describe, expect, it } from 'vitest'
 
-import { isFunctionCallingModel, isGenerateImageModel, isVisionModel } from '../../config/models'
 import {
   applyModelFilters,
   calculateModelListDerivedState,
