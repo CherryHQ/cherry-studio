@@ -7,10 +7,12 @@
  * `allSourceTypes` (in `packages/shared/data/types/file/ref/index.ts`) without
  * adding a checker here = TypeScript build error.
  *
- * Phase status: Phase 1b.4 lands the typed surface + temp_session checker.
- * Subsequent variants (knowledge_item / chat_message / painting / note) ship
- * incrementally as their owning DB tables migrate to v2 (the stubs in this
- * file are conservative no-ops until then — see per-checker JSDoc).
+ * Phase status: Phase 1b.4 lands the typed surface + temp_session and
+ * knowledge_item checkers. Other business domains (chat_message / painting /
+ * note) will be added when their owning DB tables migrate to v2 — each new
+ * variant lands as a single PR introducing (a) the ref schema variant, (b)
+ * the source-type tuple entry, AND (c) the checker below, so the three
+ * surfaces stay in lockstep.
  */
 
 import { application } from '@application'
@@ -42,22 +44,6 @@ export const tempSessionChecker: SourceTypeChecker<'temp_session'> = {
   sourceType: 'temp_session',
   checkExists: async () => new Set()
 }
-
-/**
- * Conservative no-op stub: returns every input id as alive, so the orphan
- * scanner deletes nothing for this sourceType. Replace with a real DB lookup
- * once the owning v2 table lands (Phase 2 batch migration).
- */
-function makeStubChecker<T extends FileRefSourceType>(sourceType: T): SourceTypeChecker<T> {
-  return {
-    sourceType,
-    checkExists: async (sourceIds) => new Set(sourceIds)
-  }
-}
-
-export const chatMessageChecker: SourceTypeChecker<'chat_message'> = makeStubChecker('chat_message')
-export const paintingChecker: SourceTypeChecker<'painting'> = makeStubChecker('painting')
-export const noteChecker: SourceTypeChecker<'note'> = makeStubChecker('note')
 
 /**
  * SQLite parameter cap is configurable but defaults to 999; keep batches well
@@ -106,10 +92,7 @@ async function runWithBusyRetry<T>(op: () => Promise<T>): Promise<T> {
 export function createDefaultOrphanCheckerRegistry(): OrphanCheckerRegistry {
   return {
     temp_session: tempSessionChecker,
-    chat_message: chatMessageChecker,
-    knowledge_item: knowledgeItemChecker,
-    painting: paintingChecker,
-    note: noteChecker
+    knowledge_item: knowledgeItemChecker
   }
 }
 

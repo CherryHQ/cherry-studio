@@ -280,10 +280,9 @@ describe('FileRefService', () => {
         sourceId: 'in-temp',
         role: 'pending'
       })
-      // Other sourceTypes deliberately not seeded — their checker stubs in
-      // Phase 1b.4 don't have schema variants yet; this test just verifies
-      // that a query for them returns empty.
-      expect(await fileRefService.listDistinctSourceIds('chat_message')).toEqual([])
+      // The other registered sourceType (`knowledge_item`) is intentionally
+      // not seeded — this test verifies that a query for it returns empty.
+      expect(await fileRefService.listDistinctSourceIds('knowledge_item')).toEqual([])
       expect(await fileRefService.listDistinctSourceIds('temp_session')).toEqual(['in-temp'])
     })
   })

@@ -146,7 +146,7 @@ describe('fileRefTable — CASCADE FK', () => {
     await dbh.db.insert(fileRefTable).values({
       id: randomUUID(),
       fileEntryId: entry.id,
-      sourceType: 'chat_message',
+      sourceType: 'knowledge_item',
       sourceId: 'msg-1',
       role: 'attachment',
       createdAt: TS,
@@ -167,7 +167,7 @@ describe('fileRefTable — CASCADE FK', () => {
       dbh.db.insert(fileRefTable).values({
         id: randomUUID(),
         fileEntryId: uuidv7(),
-        sourceType: 'chat_message',
+        sourceType: 'knowledge_item',
         sourceId: 'msg-orphan',
         role: 'attachment',
         createdAt: TS,
@@ -186,7 +186,7 @@ describe('fileRefTable — unique constraint', () => {
 
     const refValues = {
       fileEntryId: entry.id,
-      sourceType: 'chat_message',
+      sourceType: 'knowledge_item',
       sourceId: 'msg-dup',
       role: 'attachment',
       createdAt: TS,
@@ -203,7 +203,7 @@ describe('fileRefTable — unique constraint', () => {
 
     const common = {
       fileEntryId: entry.id,
-      sourceType: 'chat_message',
+      sourceType: 'knowledge_item',
       sourceId: 'msg-multi-role',
       createdAt: TS,
       updatedAt: TS

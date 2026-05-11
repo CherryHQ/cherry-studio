@@ -267,10 +267,7 @@ describe('runDbSweep (umbrella + observability)', () => {
       fileEntryService,
       fileRefService,
       registry: {
-        chat_message: { sourceType: 'chat_message', checkExists: async (ids) => new Set(ids) },
         knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
-        painting: { sourceType: 'painting', checkExists: async (ids) => new Set(ids) },
-        note: { sourceType: 'note', checkExists: async (ids) => new Set(ids) },
         temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() }
       } as never
     })
@@ -305,17 +302,14 @@ describe('runDbSweep (umbrella + observability)', () => {
       fileEntryService,
       fileRefService: failingFileRefService,
       registry: {
-        chat_message: { sourceType: 'chat_message', checkExists: async (ids) => new Set(ids) },
         knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
-        painting: { sourceType: 'painting', checkExists: async (ids) => new Set(ids) },
-        note: { sourceType: 'note', checkExists: async (ids) => new Set(ids) },
         temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() }
       } as never
     })
     expect(report.outcome).toBe('partial')
     if (report.outcome === 'partial') {
-      // Every sourceType's listDistinctSourceIds throws → all 5 errored.
-      expect(Object.keys(report.errorsByType)).toHaveLength(5)
+      // Every registered sourceType's listDistinctSourceIds throws → all errored.
+      expect(Object.keys(report.errorsByType)).toHaveLength(2)
       expect(report.errorsByType.temp_session).toMatch(/boom/)
     }
     expect(warnSpy).toHaveBeenCalledWith(
@@ -337,10 +331,7 @@ describe('runDbSweep (umbrella + observability)', () => {
       fileEntryService: failingEntryService,
       fileRefService,
       registry: {
-        chat_message: { sourceType: 'chat_message', checkExists: async (ids) => new Set(ids) },
         knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
-        painting: { sourceType: 'painting', checkExists: async (ids) => new Set(ids) },
-        note: { sourceType: 'note', checkExists: async (ids) => new Set(ids) },
         temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() }
       } as never
     })

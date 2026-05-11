@@ -6,9 +6,10 @@ Each business domain that references files (e.g. chat messages, knowledge items,
 
 ```
 ref/
-├── essential.ts     # Common fields (id, fileEntryId, timestamps) + createRefSchema factory
-├── tempSession.ts   # Temp session variant (tracks temp files in use)
-├── index.ts         # Aggregates all variants into FileRefSchema (discriminatedUnion)
+├── essential.ts       # Common fields (id, fileEntryId, timestamps) + createRefSchema factory
+├── tempSession.ts     # Temp session variant (tracks temp files in use)
+├── knowledgeItem.ts   # knowledge_item variant (role is a Phase-2 placeholder)
+├── index.ts           # Aggregates all variants into FileRefSchema (discriminatedUnion)
 └── README.md
 ```
 
@@ -53,25 +54,27 @@ export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
 
   export const allSourceTypes = [
     tempSessionSourceType,
-    'chat_message',  // already listed today as a tuple-only entry; no change
-    'knowledge_item',
-    'painting',
-    'note'
+    knowledgeItemSourceType,
++   chatMessageSourceType,
   ] as const
 
   export const FileRefSchema = z.discriminatedUnion('sourceType', [
     tempSessionFileRefSchema,
+    knowledgeItemFileRefSchema,
 +   chatMessageFileRefSchema,
   ])
 ```
 
-### 3. Register a real `SourceTypeChecker`
+### 3. Register a `SourceTypeChecker`
 
-In `src/main/data/services/orphan/FileRefCheckerRegistry.ts`, replace the
-conservative no-op stub for the new variant with a real DB-backed checker
-(see `knowledgeItemChecker` as a template). The
-`Record<FileRefSourceType, SourceTypeChecker<...>>` mapped type makes this a
-compile-time gate: missing the checker is a build error.
+In `src/main/data/services/orphan/FileRefCheckerRegistry.ts`, add a real
+DB-backed checker for the new variant (see `knowledgeItemChecker` as a
+template). The `Record<FileRefSourceType, SourceTypeChecker<...>>` mapped
+type makes this a compile-time gate: missing the checker is a build error.
+
+The tuple entry, the discriminated-union schema, and the checker must all
+land in the same PR — keeping these three surfaces in lockstep prevents
+the "type declared but schema unaware" gap.
 
 ### 4. Done
 

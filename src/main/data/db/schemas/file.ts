@@ -112,7 +112,10 @@ export const fileRefTable = sqliteTable(
       .notNull()
       .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
 
-    // Business source type (e.g. 'chat_message', 'knowledge_item', 'painting', 'note')
+    // Business source type — registered variants live in
+    // `packages/shared/data/types/file/ref/index.ts#allSourceTypes`; today
+    // 'temp_session' and 'knowledge_item'. Stored as free-form text at the DB
+    // layer so adding a new variant doesn't require a schema migration.
     sourceType: text().notNull(),
     // Business object ID (polymorphic, no FK constraint)
     sourceId: text().notNull(),

@@ -1,7 +1,8 @@
 /**
  * FileRef aggregated schema
  *
- * Combines all business-domain ref variants into a single discriminated union.
+ * Combines all currently-registered business-domain ref variants into a
+ * single discriminated union.
  *
  * ## Adding a new variant (e.g. `chat_message`)
  *
@@ -29,12 +30,18 @@
 
 import * as z from 'zod'
 
+import {
+  knowledgeItemFileRefSchema,
+  knowledgeItemRefFields,
+  knowledgeItemRoleSchema,
+  knowledgeItemSourceType
+} from './knowledgeItem'
 import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempSessionSourceType } from './tempSession'
 
 // ─── SourceType type (load-bearing — keys the OrphanRefScanner registry) ───
 
 /**
- * All expected FileRef source types — the complete type union.
+ * All currently-registered FileRef source types — the complete type union.
  *
  * The tuple form is required so `FileRefSourceType` infers as a union of
  * string literals rather than `string` — this lets `Record<FileRefSourceType, …>`
@@ -42,41 +49,44 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
  * registry uses this property: a new variant in `allSourceTypes` without a
  * matching `SourceTypeChecker` is a compile error.
  *
- * ## Variant registration status
+ * ## Phase 1b registered variants
  *
- * - `temp_session` — full Zod schema variant landed (`./tempSession.ts`).
- *   Transient paste/draft refs.
- * - `chat_message` / `knowledge_item` / `painting` / `note` — tuple entry only;
- *   the discriminated `FileRefSchema` union does not yet include their
- *   variant schemas. `OrphanRefScanner` ships a conservative no-op stub
- *   checker for each so the type union and the runtime registry stay in sync;
- *   the real checkers come online when the owning DB tables migrate to v2.
+ * - `temp_session` — transient paste/draft refs (`./tempSession.ts`).
+ * - `knowledge_item` — refs from `knowledge_item` rows (`./knowledgeItem.ts`).
+ *   `role` is a placeholder string; Phase 2 KnowledgeService wiring will
+ *   collapse it to a closed enum once the role vocabulary settles.
  *
- * The type union stays complete now so registries keyed by `FileRefSourceType`
- * (OrphanRefScanner, DataApi param typing) do not change when new variants
- * land — only the `FileRefSchema` discriminated union grows additively.
+ * Other business domains (chat_message / painting / note) deliberately do
+ * NOT appear here. They will be added when their owning DB tables migrate
+ * to v2 — at which point each variant gains its tuple entry, its
+ * `createRefSchema` variant, AND its `SourceTypeChecker` in one PR. Keeping
+ * those three surfaces in lockstep prevents the "type declared but schema
+ * unaware" gap.
  */
-export const allSourceTypes = [
-  tempSessionSourceType,
-  'chat_message',
-  'knowledge_item',
-  'painting',
-  'note'
-] as const satisfies readonly string[]
+export const allSourceTypes = [tempSessionSourceType, knowledgeItemSourceType] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
 // ─── Discriminated Union ───
 
 /**
- * Runtime-validated FileRef schema. Today only `tempSession` is registered;
- * other variants listed in `FileRefSourceType` are intentionally absent here
- * until their schema files land. Constructing a FileRef for an unregistered
- * sourceType via `FileRefSchema.parse` will throw — which is the desired
- * behavior (current producers are restricted to tempSession refs).
+ * Runtime-validated FileRef schema covering every variant in `allSourceTypes`.
+ * `FileRefSchema.parse` accepts any registered variant and rejects rows
+ * whose `sourceType` is not in this union — the desired behavior, because
+ * a row with an unregistered sourceType implies either a stale Phase 1b
+ * artefact or a bug that bypassed the variant-registration discipline.
  */
-export const FileRefSchema = z.discriminatedUnion('sourceType', [tempSessionFileRefSchema])
+export const FileRefSchema = z.discriminatedUnion('sourceType', [tempSessionFileRefSchema, knowledgeItemFileRefSchema])
 export type FileRef = z.infer<typeof FileRefSchema>
 
 // ─── Re-exports ───
 
-export { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempSessionSourceType }
+export {
+  knowledgeItemFileRefSchema,
+  knowledgeItemRefFields,
+  knowledgeItemRoleSchema,
+  knowledgeItemSourceType,
+  tempSessionFileRefSchema,
+  tempSessionRefFields,
+  tempSessionRoles,
+  tempSessionSourceType
+}

@@ -8,15 +8,8 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const {
-  chatMessageChecker,
-  createDefaultOrphanCheckerRegistry,
-  knowledgeItemChecker,
-  noteChecker,
-  orphanCheckerRegistry,
-  paintingChecker,
-  tempSessionChecker
-} = await import('../FileRefCheckerRegistry')
+const { createDefaultOrphanCheckerRegistry, knowledgeItemChecker, orphanCheckerRegistry, tempSessionChecker } =
+  await import('../FileRefCheckerRegistry')
 
 import type { OrphanCheckerRegistry } from '../FileRefCheckerRegistry'
 
@@ -122,32 +115,10 @@ describe('FileRefCheckerRegistry', () => {
     })
   })
 
-  describe('unmigrated source types (conservative no-op stubs)', () => {
-    it.each([
-      ['chat_message' as const, () => chatMessageChecker],
-      ['painting' as const, () => paintingChecker],
-      ['note' as const, () => noteChecker]
-    ])('%s: returns every input id as alive (preserves all refs)', async (sourceType, getChecker) => {
-      const checker = getChecker()
-      expect(checker.sourceType).toBe(sourceType)
-      const alive = await checker.checkExists(['x', 'y', 'z'])
-      expect(alive).toEqual(new Set(['x', 'y', 'z']))
-    })
-
-    it.each([
-      ['chat_message' as const, () => chatMessageChecker],
-      ['painting' as const, () => paintingChecker],
-      ['note' as const, () => noteChecker]
-    ])('%s: empty input → empty output', async (_sourceType, getChecker) => {
-      const alive = await getChecker().checkExists([])
-      expect(alive.size).toBe(0)
-    })
-  })
-
   describe('createDefaultOrphanCheckerRegistry / orphanCheckerRegistry', () => {
     it('exposes a checker for every FileRefSourceType', () => {
       const registry = createDefaultOrphanCheckerRegistry()
-      const expected = ['temp_session', 'chat_message', 'knowledge_item', 'painting', 'note'] as const
+      const expected = ['temp_session', 'knowledge_item'] as const
       for (const sourceType of expected) {
         expect(registry[sourceType].sourceType).toBe(sourceType)
         expect(typeof registry[sourceType].checkExists).toBe('function')
@@ -157,9 +128,6 @@ describe('FileRefCheckerRegistry', () => {
     it('singleton wires the same checker instances', () => {
       expect(orphanCheckerRegistry.temp_session).toBe(tempSessionChecker)
       expect(orphanCheckerRegistry.knowledge_item).toBe(knowledgeItemChecker)
-      expect(orphanCheckerRegistry.chat_message).toBe(chatMessageChecker)
-      expect(orphanCheckerRegistry.painting).toBe(paintingChecker)
-      expect(orphanCheckerRegistry.note).toBe(noteChecker)
     })
   })
 
@@ -175,26 +143,20 @@ describe('FileRefCheckerRegistry', () => {
    */
   describe('type-level exhaustiveness (file-manager-architecture §7 compile-time invariant)', () => {
     it('rejects a registry literal missing any FileRefSourceType key', () => {
-      // @ts-expect-error — `note` is missing → TS2741
+      // @ts-expect-error — `knowledge_item` is missing → TS2741
       const incomplete: OrphanCheckerRegistry = {
-        temp_session: tempSessionChecker,
-        chat_message: chatMessageChecker,
-        knowledge_item: knowledgeItemChecker,
-        painting: paintingChecker
-        // note: noteChecker  ← intentionally omitted
+        temp_session: tempSessionChecker
+        // knowledge_item: knowledgeItemChecker  ← intentionally omitted
       }
       expect(incomplete).toBeDefined()
     })
 
     it('rejects assigning a checker of the wrong sourceType brand', () => {
       const wrongBrand: OrphanCheckerRegistry = {
-        // @ts-expect-error — chatMessageChecker is SourceTypeChecker<'chat_message'>,
+        // @ts-expect-error — knowledgeItemChecker is SourceTypeChecker<'knowledge_item'>,
         // not assignable to slot keyed 'temp_session'
-        temp_session: chatMessageChecker,
-        chat_message: chatMessageChecker,
-        knowledge_item: knowledgeItemChecker,
-        painting: paintingChecker,
-        note: noteChecker
+        temp_session: knowledgeItemChecker,
+        knowledge_item: knowledgeItemChecker
       }
       expect(wrongBrand).toBeDefined()
     })
