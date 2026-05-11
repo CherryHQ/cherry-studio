@@ -9,7 +9,7 @@ import {
   updateProcessorApiKeys,
   updateProcessorCapabilityOverride,
   updateProcessorLanguageOptions
-} from '@shared/data/utils/fileProcessorMerger'
+} from '@shared/data/utils/fileProcessingUtils'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const FILE_PROCESSING_KEYS = {

@@ -1,5 +1,5 @@
 /**
- * File processor preset and user override merging utilities.
+ * File processor preset and user override utilities.
  */
 
 import type {
@@ -22,6 +22,15 @@ export function findFileProcessorCapability(
   feature: FileProcessorFeature
 ): FileProcessorFeatureCapability | undefined {
   return processor.capabilities.find((capability) => capability.feature === feature)
+}
+
+export function getFileProcessorPresetById(processorId: FileProcessorId): FileProcessorPreset | undefined {
+  return PRESETS_FILE_PROCESSORS.find((item) => item.id === processorId)
+}
+
+export function fileProcessorSupportsFeature(processorId: FileProcessorId, feature: FileProcessorFeature): boolean {
+  const preset = getFileProcessorPresetById(processorId)
+  return Boolean(preset && findFileProcessorCapability(preset, feature))
 }
 
 function mergeCapabilityConfig<T extends { apiHost?: string; modelId?: string }>(

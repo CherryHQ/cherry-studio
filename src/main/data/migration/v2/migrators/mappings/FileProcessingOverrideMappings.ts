@@ -7,7 +7,7 @@ import {
   type FileProcessorOverride,
   type FileProcessorOverrides
 } from '@shared/data/preference/preferenceTypes'
-import { getFileProcessorPresetById } from '@shared/data/presets/file-processing'
+import { getFileProcessorPresetById } from '@shared/data/utils/fileProcessingUtils'
 
 import type { TransformResult } from './ComplexPreferenceMappings'
 

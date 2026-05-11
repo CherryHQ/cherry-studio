@@ -274,13 +274,3 @@ export const PRESETS_FILE_PROCESSORS: readonly FileProcessorPreset[] = FILE_PROC
   id,
   ...FILE_PROCESSOR_PRESET_MAP[id]
 }))
-
-export function getFileProcessorPresetById(processorId: FileProcessorId): FileProcessorPreset | undefined {
-  return PRESETS_FILE_PROCESSORS.find((item) => item.id === processorId)
-}
-
-export function fileProcessorSupportsFeature(processorId: FileProcessorId, feature: FileProcessorFeature): boolean {
-  return Boolean(
-    getFileProcessorPresetById(processorId)?.capabilities.some((capability) => capability.feature === feature)
-  )
-}

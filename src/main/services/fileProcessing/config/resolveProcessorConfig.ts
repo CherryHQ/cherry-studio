@@ -5,12 +5,12 @@ import type {
   FileProcessorOverrides,
   PreferenceKeyType
 } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import {
-  type FileProcessorMerged,
   fileProcessorSupportsFeature,
-  getFileProcessorPresetById
-} from '@shared/data/presets/file-processing'
-import { mergeFileProcessorPreset } from '@shared/data/utils/fileProcessorMerger'
+  getFileProcessorPresetById,
+  mergeFileProcessorPreset
+} from '@shared/data/utils/fileProcessingUtils'
 
 const DEFAULT_PROCESSOR_KEY_BY_FEATURE = {
   document_to_markdown: 'feature.file_processing.default_document_to_markdown',

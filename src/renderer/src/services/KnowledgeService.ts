@@ -1,4 +1,3 @@
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type { Span } from '@opentelemetry/api'
 import { AiProvider } from '@renderer/aiCore'
@@ -21,7 +20,6 @@ import { ChunkType } from '@renderer/types/chunk'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { routeToEndpoint } from '@renderer/utils'
 import type { ExtractResults } from '@renderer/utils/extract'
-import { refreshKnowledgePreprocessProvider } from '@renderer/utils/fileProcessingKnowledge'
 import { createCitationBlock } from '@renderer/utils/messageUtils/create'
 import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils/provider'
 import { REFERENCE_PROMPT } from '@shared/config/prompts'
@@ -39,10 +37,6 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
   const rerankProvider = getProviderByModel(base.rerankModel)
   const aiProvider = new AiProvider(base.model)
   const rerankAiProvider = new AiProvider(rerankProvider)
-  const updatedPreprocessProvider = refreshKnowledgePreprocessProvider(
-    base.preprocessProvider,
-    preferenceService.getCachedValue('feature.file_processing.overrides')
-  )
 
   const actualProvider = aiProvider.getActualProvider()
 
@@ -89,8 +83,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
       apiKey: rerankAiProvider.getApiKey() || 'secret',
       baseURL: rerankHost
     },
-    documentCount: base.documentCount,
-    preprocessProvider: updatedPreprocessProvider
+    documentCount: base.documentCount
   }
 }
 

@@ -6,9 +6,9 @@ import {
   updateProcessorApiKeys,
   updateProcessorCapabilityOverride,
   updateProcessorLanguageOptions
-} from '../fileProcessorMerger'
+} from '../fileProcessingUtils'
 
-describe('fileProcessorMerger', () => {
+describe('fileProcessingUtils', () => {
   it('finds a processor capability by feature', () => {
     const paddleocr = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === 'paddleocr')
 

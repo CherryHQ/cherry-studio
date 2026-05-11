@@ -8,7 +8,7 @@ import type {
   FileProcessingTaskResult,
   FileProcessingTaskStatus
 } from '@shared/data/types/fileProcessing'
-import { mergeFileProcessorPresets } from '@shared/data/utils/fileProcessorMerger'
+import { mergeFileProcessorPresets } from '@shared/data/utils/fileProcessingUtils'
 import type { FileMetadata } from '@types'
 import { CheckCircle2, CircleAlert, FileText, Image, Loader2, Play, Upload } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
