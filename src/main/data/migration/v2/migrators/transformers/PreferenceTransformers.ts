@@ -255,7 +255,7 @@ export function normalizeWebSearchDefaultProvider(sources: { defaultProvider?: s
 interface WebSearchCompressionConfigSource {
   method?: string
   cutoffLimit?: number | null
-  [legacyKey: string]: unknown
+  cutoffUnit?: string
 }
 
 const WEB_SEARCH_COMPRESSION_METHODS = ['none', 'cutoff'] as const

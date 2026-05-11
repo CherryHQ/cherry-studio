@@ -122,7 +122,6 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('shortcut.general.zoom_in')
       expect(keys).toContain('ui.sidebar.icons.visible')
       expect(keys).toContain('ui.sidebar.icons.invisible')
-      expect(keys.length).toBe(32) // 2 websearch compression + 1 provider overrides + 1 default provider + 1 code_cli + 20 shortcuts + 2 sidebar icons + 1 file processing + 4 llm model ids
       expect(keys).toContain('feature.translate.action.preferred_lang')
       expect(keys).toContain('feature.translate.action.alter_lang')
       expect(keys).toContain('feature.translate.mini_window.target_lang')

@@ -168,7 +168,7 @@ describe('PreferenceTransformers', () => {
       expect(result['chat.web_search.compression.cutoff_limit']).toBe(2000)
     })
 
-    it('should flatten compression config while dropping legacy cutoff unit', () => {
+    it('should flatten compression config while dropping v1 cutoff unit', () => {
       const result = flattenCompressionConfig({
         compressionConfig: {
           method: 'cutoff',

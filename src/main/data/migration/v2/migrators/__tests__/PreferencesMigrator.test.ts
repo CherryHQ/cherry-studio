@@ -177,10 +177,9 @@ describe('PreferencesMigrator', () => {
 
       const method = await selectByKey(dbh.db, 'chat.web_search.compression.method')
       const limit = await selectByKey(dbh.db, 'chat.web_search.compression.cutoff_limit')
-      const unit = await selectByKey(dbh.db, 'chat.web_search.compression.cutoff_unit')
       expect(method[0]?.value).toBe('cutoff')
       expect(limit[0]?.value).toBe(2000)
-      expect(unit[0]?.value).toBe('token')
+      expect(await selectByKey(dbh.db, 'chat.web_search.compression.cutoff_unit')).toHaveLength(0)
     })
 
     it('merges preprocess + ocr providers through complex mapping (N → 1 merge)', async () => {
