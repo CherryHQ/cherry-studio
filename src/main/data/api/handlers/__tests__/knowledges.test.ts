@@ -196,13 +196,34 @@ describe('knowledgeHandlers', () => {
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
     })
 
-    it('should reject optional config null clears before calling the service', async () => {
+    it('should pass nullable model and processor clears before calling the service', async () => {
+      updateKnowledgeBaseMock.mockResolvedValueOnce({
+        id: 'kb-1',
+        rerankModelId: null,
+        fileProcessorId: null
+      })
+
       await expect(
         knowledgeHandlers['/knowledge-bases/:id'].PATCH({
           params: { id: 'kb-1' },
           body: {
             rerankModelId: null,
-            fileProcessorId: null,
+            fileProcessorId: null
+          }
+        })
+      ).resolves.toMatchObject({ id: 'kb-1', rerankModelId: null, fileProcessorId: null })
+
+      expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', {
+        rerankModelId: null,
+        fileProcessorId: null
+      })
+    })
+
+    it('should reject non-nullable optional config null clears before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
+          params: { id: 'kb-1' },
+          body: {
             threshold: null,
             documentCount: null,
             hybridAlpha: null

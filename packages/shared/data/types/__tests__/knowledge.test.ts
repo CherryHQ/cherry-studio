@@ -6,6 +6,8 @@ describe('KnowledgeSearchResultSchema', () => {
   const result = {
     pageContent: 'hello',
     score: 0.9,
+    scoreKind: 'relevance',
+    rank: 1,
     metadata: {
       itemId: 'item-1',
       itemType: 'note',

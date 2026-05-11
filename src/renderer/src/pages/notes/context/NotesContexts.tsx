@@ -1,14 +1,13 @@
 import type { UseInPlaceEditReturn } from '@renderer/hooks/useInPlaceEdit'
 import type { NotesTreeNode } from '@renderer/types/note'
-import type { MenuProps } from 'antd'
+import type { ReactNode } from 'react'
 import { createContext, use } from 'react'
 
 // ==================== 1. Actions Context (Static, rarely changes) ====================
 export interface NotesActionsContextType {
-  getMenuItems: (node: NotesTreeNode) => MenuProps['items']
+  renderMenuItems: (node: NotesTreeNode) => ReactNode
   onSelectNode: (node: NotesTreeNode) => void
   onToggleExpanded: (nodeId: string) => void
-  onDropdownOpenChange: (key: string | null) => void
 }
 
 export const NotesActionsContext = createContext<NotesActionsContextType | null>(null)
@@ -89,21 +88,6 @@ export const useNotesSearch = () => {
   const context = use(NotesSearchContext)
   if (!context) {
     throw new Error('useNotesSearch must be used within NotesSearchContext.Provider')
-  }
-  return context
-}
-
-// ==================== 6. UI Context (Medium frequency updates) ====================
-export interface NotesUIContextType {
-  openDropdownKey: string | null
-}
-
-export const NotesUIContext = createContext<NotesUIContextType | null>(null)
-
-export const useNotesUI = () => {
-  const context = use(NotesUIContext)
-  if (!context) {
-    throw new Error('useNotesUI must be used within NotesUIContext.Provider')
   }
   return context
 }

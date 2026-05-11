@@ -834,7 +834,7 @@
       "running": "Running",
       "stopped": "Stopped"
     },
-    "title": "API Gateway"
+    "title": "API Server"
   },
   "appMenu": {
     "about": "About",
@@ -1050,6 +1050,17 @@
         "xhigh": "Extra High",
         "xhigh_description": "Extra high level reasoning"
       },
+      "regular_phrases": {
+        "add": "Add Phrase",
+        "contentLabel": "Content",
+        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+        "delete": "Delete Phrase",
+        "deleteConfirm": "Are you sure to delete this phrase?",
+        "edit": "Edit Phrase",
+        "title": "Regular Phrase",
+        "titleLabel": "Title",
+        "titlePlaceholder": "Enter title"
+      },
       "title": "Assistant Settings",
       "tool_use_mode": {
         "function": "Function",
@@ -1192,7 +1203,7 @@
       },
       "new_session": "New Session {{Command}}",
       "new_topic": "New Topic {{Command}}",
-      "paste_text_file_confirm": "Paste into input bar?",
+      "paste_text_file": "Paste into input",
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
@@ -1488,6 +1499,7 @@
         "title_tip": "Tips: Double-click the topic name to rename it directly in place"
       },
       "export": {
+        "failed": "Export failed",
         "image": "Export as image",
         "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
@@ -2085,126 +2097,233 @@
   },
   "knowledge": {
     "add": {
-      "title": "Add Knowledge Base"
+      "group": "Group",
+      "icon": "Icon",
+      "submit": "Create",
+      "title": "New Knowledge Base"
     },
-    "add_directory": "Add Directory",
-    "add_file": "Add File",
-    "add_image": "Add Image",
-    "add_note": "Add Note",
-    "add_sitemap": "Website Map",
-    "add_url": "Add URL",
-    "add_video": "Add video",
-    "cancel_index": "Cancel Indexing",
-    "chunk_overlap": "Chunk Overlap",
-    "chunk_overlap_placeholder": "Default (not recommended to change)",
-    "chunk_overlap_tooltip": "The amount of duplicate content between adjacent chunks, ensuring that the chunks are still contextually related, improving the overall effect of processing long text",
-    "chunk_size": "Chunk Size",
-    "chunk_size_change_warning": "Chunk size and overlap size changes only apply to new content",
-    "chunk_size_placeholder": "Default (not recommended to change)",
-    "chunk_size_too_large": "Chunk size cannot exceed model context limit ({{max_context}})",
-    "chunk_size_tooltip": "Split documents into chunks, each chunk size, not exceeding model context limit",
-    "clear_selection": "Clear selection",
-    "delete": "Delete",
-    "delete_confirm": "Are you sure you want to delete this knowledge base?",
-    "dimensions": "Embedding dimension",
-    "dimensions_auto_set": "Auto-set embedding dimensions",
-    "dimensions_default": "The model will use default embedding dimensions",
-    "dimensions_error_invalid": "Invalid embedding dimension",
-    "dimensions_set_right": "⚠️ Please ensure the model supports the set embedding dimension size",
-    "dimensions_size_placeholder": "Leave empty to not pass dimensions",
-    "dimensions_size_too_large": "The embedding dimension cannot exceed the model's context limit ({{max_context}}).",
-    "dimensions_size_tooltip": "Embedding dimension size, the larger the value, the more tokens will be consumed. Leave empty to not pass dimensions parameter.",
-    "directories": "Directories",
-    "directory_placeholder": "Enter Directory Path",
-    "document_count": "Requested Document Chunks",
-    "document_count_default": "Default",
-    "document_count_help": "The more document chunks requested, the more information is included, but the more tokens are consumed",
-    "drag_file": "Drag file here",
-    "drag_image": "Drag image here",
-    "edit_remark": "Edit Remark",
-    "edit_remark_placeholder": "Please enter remark content",
-    "embedding_model": "Embedding Model",
-    "embedding_model_required": "Knowledge Base Embedding Model is required",
-    "empty": "No knowledge base found",
-    "error": {
-      "failed_to_create": "Knowledge base creation failed",
-      "failed_to_edit": "Knowledge base editing failed",
-      "model_invalid": "No model selected",
-      "video": {
-        "local_file_missing": "Video file not found",
-        "youtube_url_missing": "YouTube video URL not found"
+    "context": {
+      "delete": "Delete Knowledge Base",
+      "delete_confirm_description": "This knowledge base cannot be recovered after deletion.",
+      "delete_confirm_title": "Delete Knowledge Base?",
+      "move_to": "Move to",
+      "rename": "Rename"
+    },
+    "data_source": {
+      "actions": {
+        "delete": "Delete",
+        "preview_source": "Preview Source",
+        "reindex": "Reindex",
+        "view_chunks": "View Chunks"
+      },
+      "add_dialog": {
+        "directory": {
+          "description": "Recursively import supported files from a folder",
+          "title": "Click to select a folder"
+        },
+        "footer": {
+          "selected_directories": "{{count}} directories selected",
+          "selected_files": "{{count}} files selected",
+          "selected_notes": "{{count}} notes selected"
+        },
+        "note": {
+          "description": "Select existing notes as knowledge base sources",
+          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, URLs, or sitemaps.",
+          "empty_title": "Notes are not connected yet"
+        },
+        "placeholder": {
+          "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
+          "title": "Click to select files or drag them here"
+        },
+        "sitemap": {
+          "description": "Enter a sitemap URL:",
+          "help": "Pages listed in the sitemap will be read and indexed",
+          "placeholder": "https://example.com/sitemap.xml"
+        },
+        "sources": {
+          "directory": "Folder",
+          "file": "File",
+          "note": "Note",
+          "sitemap": "Website",
+          "url": "URL"
+        },
+        "submit": {
+          "error": "Failed to add data source",
+          "success": "Data source added to knowledge base"
+        },
+        "title": "Add Data Source",
+        "url": {
+          "description": "Enter a webpage URL:",
+          "help": "Page text will be fetched, chunked, and indexed automatically",
+          "input_label": "Webpage URL",
+          "placeholder": "https://example.com",
+          "title": "Import a single webpage"
+        }
+      },
+      "chunk_delete_confirm_description": "After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will generate it again.",
+      "chunk_delete_confirm_title": "Delete Chunk?",
+      "chunks_count": "{{count}} chunks",
+      "delete_confirm_description": "This data source and its index data cannot be recovered after deletion.",
+      "delete_confirm_title": "Delete Data Source?",
+      "delete_failed": "Failed to delete data source",
+      "empty_description": "No data sources yet",
+      "filters": {
+        "all": "All",
+        "directory": "Folders",
+        "file": "Files",
+        "note": "Notes",
+        "sitemap": "Websites",
+        "url": "URLs"
+      },
+      "preview": {
+        "failed": "Failed to preview source",
+        "unavailable": "This data source has no source to preview"
+      },
+      "ready_summary": "{{ready}}/{{total}} ready",
+      "reindex_failed": "Failed to reindex data source",
+      "status": {
+        "chunking": "Chunking",
+        "embedding": "Embedding",
+        "error": "Error",
+        "pending": "Waiting",
+        "ready": "Ready"
       }
     },
+    "dimensions": "Embedding Dimensions",
+    "dimensions_auto_set": "Auto-set embedding dimensions",
+    "dimensions_error_invalid": "Invalid embedding dimension",
+    "dimensions_size_placeholder": "Leave empty to not pass dimensions",
+    "drag_file": "Drag file here",
+    "embedding_model": "Embedding Model",
+    "embedding_model_required": "Knowledge base embedding model is required",
+    "empty": "No knowledge bases",
+    "error": {
+      "failed_base_unknown": "This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
+      "failed_to_create": "Failed to create knowledge base",
+      "failed_to_delete": "Failed to delete knowledge base",
+      "failed_to_edit": "Failed to edit knowledge base",
+      "failed_to_move": "Failed to move knowledge base",
+      "missing_embedding_model": "The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
+      "model_invalid": "No model selected"
+    },
     "file_hint": "Support {{file_types}}",
-    "image_hint": "Support {{image_types}}",
-    "images": "Images",
-    "index_all": "Index All",
-    "index_cancelled": "Indexing cancelled",
-    "index_started": "Indexing started",
-    "invalid_url": "Invalid URL",
-    "migrate": {
-      "button": {
-        "text": "Migrate"
-      },
-      "confirm": {
-        "content": "Detected changes in embedding model or dimension, cannot save configuration directly. Knowledge base migration will not delete the existing knowledge base, but will create a copy and then reprocess all knowledge base entries, which may consume a large number of tokens, please proceed with caution.",
-        "ok": "Start Migration",
-        "title": "Knowledge Base Migration"
-      },
+    "groups": {
+      "add": "New Group",
+      "create_base_here": "Create here",
+      "delete": "Delete Group",
+      "delete_confirm_description": "Knowledge bases in this group will be moved to Ungrouped after deletion.",
+      "delete_confirm_title": "Delete Group?",
       "error": {
-        "failed": "Migration failed"
+        "failed_to_create": "Failed to create group",
+        "failed_to_delete": "Failed to delete group",
+        "failed_to_update": "Failed to rename group"
       },
-      "source_dimensions": "Source Dimensions",
-      "source_model": "Source Model",
-      "target_dimensions": "Target Dimensions",
-      "target_model": "Target Model"
+      "name_placeholder": "Enter group name...",
+      "name_required": "Group name is required",
+      "rename": "Rename",
+      "rename_title": "Rename Group",
+      "ungrouped": "Ungrouped"
     },
-    "model_info": "Model Info",
-    "name_required": "Knowledge Base Name is required",
-    "no_bases": "No knowledge bases available",
-    "no_match": "No matching content found in the knowledge base.",
-    "no_provider": "Knowledge base model provider is not set, the knowledge base will no longer be supported, please create a new knowledge base",
+    "meta": {
+      "documents_count": "{{count}} documents"
+    },
+    "name_required": "Knowledge base name is required",
     "not_set": "Not Set",
-    "not_support": "Knowledge base database engine updated, the knowledge base will no longer be supported, please create a new knowledge base",
-    "notes": "Notes",
-    "notes_placeholder": "Enter additional information or context for this knowledge base...",
     "provider_not_found": "Provider not found",
-    "rename": "Rename",
-    "search": "Search knowledge base",
-    "search_placeholder": "Enter text to search",
-    "settings": {
-      "preprocessing": "Preprocessing",
-      "preprocessing_tooltip": "Preprocess uploaded files",
-      "title": "Knowledge Base Settings"
+    "rag": {
+      "chunk_overlap": "Overlap Size",
+      "chunk_overlap_invalid": "Chunk overlap must be greater than or equal to 0",
+      "chunk_overlap_must_be_smaller": "Chunk overlap must be smaller than chunk size",
+      "chunk_overlap_requires_chunk_size": "Chunk size is required when chunk overlap is set",
+      "chunk_size": "Chunk Size",
+      "chunk_size_change_warning": "Chunk size and overlap changes only apply to newly added content",
+      "chunk_size_invalid": "Chunk size must be greater than 0",
+      "chunking": "Chunking",
+      "default_separator": "Auto (recommended)",
+      "dimensions": "Vector Dimensions",
+      "document_count": "Requested Chunks (Top K)",
+      "embedding_model": "Embedding Model",
+      "embedding_model_select": "Model Selection",
+      "file_processing": "Document Preprocessing",
+      "file_processing_hint": "Document preprocessing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
+      "hints": {
+        "chunk_overlap": "Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
+        "chunk_size": "Target token count for each document chunk. This affects retrieval granularity and context length.",
+        "dimensions": "The vector dimension output by the current embedding model, used to create and match vector indexes.",
+        "document_count": "Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
+        "embedding_model": "Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
+        "hybrid_alpha": "Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
+        "processor": "Parser used when importing files to extract body text, tables, and related content.",
+        "rerank_model": "Model used to rerank initial retrieval results and improve final chunk relevance.",
+        "search_mode": "Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both.",
+        "threshold": "Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter.",
+        "threshold_disabled": "This retrieval mode returns ordered results and does not use a similarity threshold."
+      },
+      "hybrid_alpha": "Hybrid Alpha",
+      "hybrid_alpha_hint": "Only configurable in Hybrid retrieval mode",
+      "processor": "Processing Provider",
+      "refresh_dimensions": "Refresh vector dimensions",
+      "rerank_disabled": "Disabled",
+      "rerank_model": "Rerank Model",
+      "reset_action": "Restore Defaults",
+      "reset_defaults": "Reset Defaults",
+      "retrieval": "Retrieval Settings",
+      "save_action": "Save",
+      "saved": "Saved",
+      "search_mode": {
+        "bm25": "Full-text Search",
+        "default": "Vector Search",
+        "hybrid": "Hybrid Search (recommended)",
+        "title": "Search Mode"
+      },
+      "separator_rule": "Separator Rule",
+      "threshold": "Similarity Threshold",
+      "tokens_unit": "tokens"
     },
-    "sitemap_added": "Added successfully",
-    "sitemap_placeholder": "Enter Website Map URL",
-    "sitemaps": "Websites",
-    "source": "Source",
-    "status": "Status",
-    "status_completed": "Completed",
-    "status_embedding_completed": "Embedding Completed",
+    "recall": {
+      "collapse": "Collapse Chunk",
+      "copy": "Copy Chunk",
+      "duration": "{{duration}}ms",
+      "empty_description": "Matched document chunks and scores will appear here",
+      "empty_title": "Enter a query to test retrieval",
+      "expand": "Expand Chunk",
+      "history_clear": "Clear",
+      "history_remove": "Remove History",
+      "history_title": "Search History",
+      "placeholder": "Enter test query...",
+      "ranking_only": "Ordered results",
+      "result_count": "{{count}} results",
+      "result_rank": "Rank #{{rank}}",
+      "result_relevance": "Relevance {{score}}",
+      "search_failed": "Failed to run recall test",
+      "searching": "Searching...",
+      "submit": "Search",
+      "top_score": "Top: {{score}}"
+    },
+    "rename_title": "Rename Knowledge Base",
+    "restore": {
+      "action": "Rebuild knowledge base",
+      "default_name": "{{name}}_bak",
+      "failed_to_restore": "Failed to rebuild knowledge base",
+      "submit": "Rebuild",
+      "title": "Rebuild Knowledge Base"
+    },
+    "search": "Search Knowledge Base",
+    "search_placeholder": "Enter text to search",
+    "status": {
+      "completed": "Ready",
+      "failed": "Failed",
+      "processing": "Processing"
+    },
     "status_embedding_failed": "Embedding Failed",
-    "status_failed": "Failed",
-    "status_new": "Added",
-    "status_pending": "Pending",
-    "status_preprocess_completed": "Preprocessing Completed",
     "status_preprocess_failed": "Preprocessing Failed",
-    "status_processing": "Processing",
     "subtitle_file": "subtitle file",
-    "threshold": "Matching threshold",
-    "threshold_placeholder": "Not set",
-    "threshold_too_large_or_small": "Threshold cannot be greater than 1 or less than 0",
-    "threshold_tooltip": "Used to evaluate the relevance between the user's question and the content in the knowledge base (0-1)",
+    "tabs": {
+      "data_source": "Data Sources",
+      "rag_config": "RAG Config",
+      "recall_test": "Recall Test"
+    },
     "title": "Knowledge Base",
-    "topN": "Number of results returned",
-    "topN_placeholder": "Not set",
-    "topN_too_large_or_small": "The number of results returned cannot be greater than 30 or less than 1.",
-    "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed.",
-    "url_added": "URL added",
-    "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-    "urls": "URLs",
-    "videos": "video",
     "videos_file": "video file"
   },
   "languages": {
@@ -2232,6 +2351,7 @@
   },
   "launchpad": {
     "apps": "Apps",
+    "minapps": "Minapps",
     "miniApps": "MiniApps"
   },
   "library": {
@@ -3048,6 +3168,64 @@
       "fetch_complete": "{{count}} search result(s)",
       "partial_failure": "{{count}} search result(s), some searches failed"
     }
+  },
+  "minapp": {
+    "add_to_launchpad": "Add to Launchpad",
+    "add_to_sidebar": "Add to Sidebar",
+    "popup": {
+      "close": "Close MinApp",
+      "devtools": "Developer Tools",
+      "goBack": "Go Back",
+      "goForward": "Go Forward",
+      "minimize": "Minimize MinApp",
+      "openExternal": "Open in Browser",
+      "open_link_external_off": "Current: Open links in default window",
+      "open_link_external_on": "Current: Open links in browser",
+      "refresh": "Refresh",
+      "rightclick_copyurl": "Right-click to copy URL"
+    },
+    "remove_from_launchpad": "Remove from Launchpad",
+    "remove_from_sidebar": "Remove from Sidebar",
+    "sidebar": {
+      "close": {
+        "title": "Close"
+      },
+      "closeall": {
+        "title": "Close All"
+      },
+      "hide": {
+        "title": "Hide"
+      },
+      "remove_custom": {
+        "title": "Delete Custom App"
+      }
+    },
+    "title": "MinApp"
+  },
+  "minapps": {
+    "ant-ling": "Ant Ling",
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Baidu AI Search",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "Hailuo",
+    "ima": "ima",
+    "metaso": "Metaso",
+    "minimax-agent": "Minimax Agent CN",
+    "minimax-global": "Minimax Agent",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "stepfun": "Stepfun",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "zhihu": "Zhihu"
   },
   "miniApp": {
     "add_to_launchpad": "Add to Launchpad",
@@ -3872,6 +4050,7 @@
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
     "dmxapi": "DMXAPI",
+    "doc2x": "Doc2X",
     "doubao": "Volcengine",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
@@ -3889,6 +4068,7 @@
     "lmstudio": "LM Studio",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
+    "mineru": "MinerU",
     "minimax": "MiniMax CN",
     "minimax-global": "MiniMax",
     "mistral": "Mistral",
@@ -3899,9 +4079,12 @@
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
+    "open-mineru": "Open MinerU",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
+    "ovocr": "Intel OV(NPU) OCR",
+    "paddleocr": "PaddleOCR",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
@@ -3911,7 +4094,9 @@
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
+    "system": "System OCR",
     "tencent-cloud-ti": "Tencent Cloud TI",
+    "tesseract": "Tesseract",
     "together": "Together",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
@@ -4223,7 +4408,7 @@
         "r_regenerate": "R: Regenerate"
       }
     },
-    "name": "Selection",
+    "name": "Selection Assistant",
     "settings": {
       "actions": {
         "add_tooltip": {
@@ -4587,15 +4772,6 @@
         "select_title": "Change App Data Directory",
         "stop_quit_app_reason": "The app is currently migrating data and cannot be exited"
       },
-      "app_knowledge": {
-        "button": {
-          "delete": "Delete File"
-        },
-        "label": "Knowledge Base Files",
-        "remove_all": "Remove Knowledge Base Files",
-        "remove_all_confirm": "Deleting knowledge base files will reduce the storage space occupied, but will not delete the knowledge base vector data, after deletion, the source file will no longer be able to be opened. Continue?",
-        "remove_all_success": "Files removed successfully"
-      },
       "app_logs": {
         "button": "Open Logs",
         "label": "App Logs"
@@ -4606,7 +4782,7 @@
       },
       "clear_cache": {
         "button": "Clear Cache",
-        "confirm": "Clearing the cache will delete application cache data, including miniapp data. This action is irreversible, continue?",
+        "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
         "error": "Error clearing cache",
         "success": "Cache cleared",
         "title": "Clear Cache"
@@ -5223,6 +5399,9 @@
         "knowledge": {
           "icon": "Show Knowledge icon"
         },
+        "minapp": {
+          "icon": "Show MinApp icon"
+        },
         "miniApp": {
           "icon": "Show MiniApp icon"
         },
@@ -5700,6 +5879,61 @@
       "title": "Mini Apps Settings",
       "visible": "Visible Mini Apps"
     },
+    "miniapps": {
+      "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",
+      "cache_description": "Set the maximum number of active mini apps to keep in memory",
+      "cache_settings": "Cache Settings",
+      "cache_title": "Mini App Cache Limit",
+      "custom": {
+        "conflicting_ids": "Conflicting IDs with default apps: {{ids}}",
+        "duplicate_ids": "Duplicate IDs found: {{ids}}",
+        "edit_description": "Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+        "edit_title": "Edit Custom Mini App",
+        "id": "ID",
+        "id_error": "ID is required.",
+        "id_placeholder": "Enter ID",
+        "logo": "Logo",
+        "logo_file": "Upload Logo File",
+        "logo_upload_button": "Upload",
+        "logo_upload_error": "Failed to upload logo.",
+        "logo_upload_label": "Upload Logo",
+        "logo_upload_success": "Logo uploaded successfully.",
+        "logo_url": "Logo URL",
+        "logo_url_label": "Logo URL",
+        "logo_url_placeholder": "Enter logo URL",
+        "name": "Name",
+        "name_error": "Name is required.",
+        "name_placeholder": "Enter name",
+        "placeholder": "Enter custom mini app configuration (JSON format)",
+        "remove_error": "Failed to remove custom mini app.",
+        "remove_success": "Custom mini app removed successfully.",
+        "save": "Save",
+        "save_error": "Failed to save custom mini app.",
+        "save_success": "Custom mini app saved successfully.",
+        "title": "Custom",
+        "url": "URL",
+        "url_error": "URL is required.",
+        "url_placeholder": "Enter URL"
+      },
+      "disabled": "Hidden Mini Apps",
+      "display_title": "Mini App Display Settings",
+      "empty": "Drag mini apps from the left to hide them",
+      "open_link_external": {
+        "title": "Open new-window links in browser"
+      },
+      "region": {
+        "auto": "Auto detect",
+        "cn": "China",
+        "description": "Filtering unsupported mini-programs based on the region",
+        "global": "Global",
+        "title": "Mini Program filter"
+      },
+      "reset_tooltip": "Reset to default",
+      "sidebar_description": "Show active mini apps in the sidebar",
+      "sidebar_title": "Sidebar Active Mini Apps Display",
+      "title": "Mini Apps Settings",
+      "visible": "Visible Mini Apps"
+    },
     "model": "Default Model",
     "models": {
       "add": {
@@ -5761,7 +5995,7 @@
         "use_all_keys": "Key(s)"
       },
       "default_assistant_model": "Default Assistant Model",
-      "default_assistant_model_description": "Used when an assistant has no model",
+      "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
       "manage": {
         "add_listed": {
@@ -6178,6 +6412,20 @@
       "select": "Select",
       "title": "Quick Menu"
     },
+    "quickPhrase": {
+      "add": "Add Phrase",
+      "assistant": "Assistant Phrases",
+      "contentLabel": "Content",
+      "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Delete Phrase",
+      "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
+      "edit": "Edit Phrase",
+      "global": "Global Phrases",
+      "locationLabel": "Add Location",
+      "title": "Quick Phrases",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Please enter phrase title"
+    },
     "scheduledTasks": {
       "description": "Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
       "noAgents": "Scheduled tasks require agents with Soul Mode or Bypass Permissions enabled. Update an agent's settings to get started.",
@@ -6228,7 +6476,7 @@
       "selection_assistant_toggle": "Toggle Selection Assistant",
       "show_app": "Show/Hide App",
       "show_settings": "Open Settings",
-      "title": "Shortcuts",
+      "title": "Keyboard Shortcuts",
       "toggle_new_context": "Clear Context",
       "toggle_show_topics": "Toggle Topics",
       "toggle_sidebar": "Toggle Sidebar",
@@ -6341,9 +6589,9 @@
           "api_url_label": "Obtain Access Token and API URL",
           "paddleocr_url_label": "PaddleOCR Official Website"
         },
-        "provider": "Doc Provider",
-        "provider_placeholder": "Choose a doc provider",
-        "title": "Doc Process",
+        "provider": "Document Processing Provider",
+        "provider_placeholder": "Choose a document processing provider",
+        "title": "Document Processing",
         "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
       },
       "title": "Other Settings",
@@ -6503,7 +6751,7 @@
   },
   "tab": {
     "close": "Close Tab",
-    "moveToFirst": "Move to First",
+    "move_to_first": "Move to First",
     "new": "New Tab",
     "pin": "Pin Tab",
     "unpin": "Unpin Tab"
@@ -6571,6 +6819,7 @@
         },
         "label": "Automatic detection method",
         "llm": {
+          "label": "LLM",
           "tip": "Using the quick model for language detection consumes fewer tokens."
         },
         "placeholder": "Select automatic detection method",
@@ -6617,9 +6866,12 @@
       "reading": "Reading file content..."
     },
     "history": {
+      "back": "Back to list",
       "clear": "Clear History",
       "clear_description": "Clear history will delete all translation history, continue?",
+      "copy_target": "Copy result",
       "delete": "Delete translation history",
+      "delete_description": "Delete this translation history record? This action cannot be undone.",
       "empty": "No translation history",
       "error": {
         "add": "Failed to add translation history",
@@ -6628,15 +6880,21 @@
         "load": "Failed to load translation history",
         "save": "Failed to save translation history"
       },
+      "filter": {
+        "starred": "Only starred"
+      },
+      "reuse": "Reuse",
       "search": {
         "placeholder": "Search translation history"
       },
+      "source": "Source",
       "success": {
         "add": "Saved to history",
         "clear": "History cleared",
         "delete": "Deleted",
         "update": "Saved"
       },
+      "target": "Target",
       "title": "Translation History"
     },
     "info": {
@@ -6676,6 +6934,7 @@
       "scroll_sync": "Scroll Sync Settings",
       "title": "Translation Settings"
     },
+    "source_language": "Source Language",
     "stop": "Stop Translation",
     "success": {
       "custom": {
