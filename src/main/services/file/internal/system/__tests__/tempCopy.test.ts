@@ -12,6 +12,18 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+const mockLoggerWarn = vi.hoisted(() => vi.fn())
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: mockLoggerWarn,
+      error: vi.fn()
+    })
+  }
+}))
+
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
@@ -101,5 +113,46 @@ describe('internal/system/tempCopy', () => {
     })
     const after = await readFile(sourcePhysical)
     expect(Array.from(after)).toEqual([0x01])
+  })
+
+  it('preserves the fn error when cleanup also throws (no error hijack)', async () => {
+    // Regression guard for 4afe77df9: a naked `await rm(dir)` in finally would
+    // let the cleanup error replace fn's. With the try/catch wrapper, fn's
+    // error must propagate while cleanup's failure surfaces only through
+    // loggerService.
+    mockLoggerWarn.mockClear()
+    const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'a', ext: 'bin' })
+    const fnErr = new Error('library failed')
+    const cleanupErr = Object.assign(new Error('EBUSY: dir held by external process'), { code: 'EBUSY' })
+    const fsModule = await import('@main/utils/file/fs')
+    vi.spyOn(fsModule, 'removeDir').mockRejectedValueOnce(cleanupErr)
+
+    await expect(
+      withTempCopy(deps, e.id, async () => {
+        throw fnErr
+      })
+    ).rejects.toBe(fnErr)
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining('cleanup failed'),
+      expect.objectContaining({ err: cleanupErr })
+    )
+  })
+
+  it('logs cleanup failure but still resolves with fn result on the happy path', async () => {
+    // The cleanup failure must not flip a successful fn outcome to a
+    // rejection — caller already got its result; the leak is a side effect.
+    mockLoggerWarn.mockClear()
+    const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'a', ext: 'bin' })
+    const cleanupErr = Object.assign(new Error('EACCES'), { code: 'EACCES' })
+    const fsModule = await import('@main/utils/file/fs')
+    vi.spyOn(fsModule, 'removeDir').mockRejectedValueOnce(cleanupErr)
+
+    const result = await withTempCopy(deps, e.id, async () => 'ok')
+    expect(result).toBe('ok')
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining('cleanup failed'),
+      expect.objectContaining({ err: cleanupErr })
+    )
   })
 })

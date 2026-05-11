@@ -8,13 +8,13 @@
  * library writes to it, the original entry is unaffected.
  */
 
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
 import { resolvePhysicalPath } from '@data/utils/pathResolver'
 import { loggerService } from '@logger'
-import { copy as fsCopy } from '@main/utils/file/fs'
+import { copy as fsCopy, removeDir as fsRemoveDir } from '@main/utils/file/fs'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 
@@ -48,7 +48,7 @@ export async function withTempCopy<T>(
     // (`feature.files.tempcopy.temp`) and is reaped on the next OS-level
     // temp cleanup. No application-side sweeper is planned.
     try {
-      await rm(dir, { recursive: true, force: true })
+      await fsRemoveDir(dir as FilePath)
     } catch (cleanupErr) {
       logger.warn('withTempCopy: temp dir cleanup failed; directory will leak until OS temp reap', {
         dir,
