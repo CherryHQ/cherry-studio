@@ -12,11 +12,11 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '..'
+import { WebSearchGeneralSettings } from './components/WebSearchGeneralSettings'
 import WebSearchProviderLogo from './components/WebSearchProviderLogo'
+import { WebSearchProviderSetting } from './components/WebSearchProviderSetting'
 import { useWebSearchProviderLists } from './hooks/useWebSearchProviderLists'
 import { getWebSearchCapabilityTitleKey } from './utils/webSearchProviderMeta'
-import WebSearchGeneralSettings from './WebSearchGeneralSettings'
-import WebSearchProviderSetting from './WebSearchProviderSetting'
 
 const WebSearchSettings: FC = () => {
   const { t } = useTranslation()

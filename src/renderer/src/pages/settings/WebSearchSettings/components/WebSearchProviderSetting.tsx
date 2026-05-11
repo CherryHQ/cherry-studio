@@ -16,24 +16,24 @@ import {
   SettingSubtitle,
   SettingTitle,
   SettingTitleExternalLink
-} from '..'
-import { WebSearchApiKeyListPopup } from './components/WebSearchApiKeyList'
-import WebSearchProviderLogo from './components/WebSearchProviderLogo'
-import { useWebSearchDefaultProviderAction } from './hooks/useWebSearchDefaultProviderAction'
-import { useWebSearchProviderCheck } from './hooks/useWebSearchProviderCheck'
-import { useWebSearchProviderForm } from './hooks/useWebSearchProviderForm'
+} from '../..'
+import { useWebSearchDefaultProviderAction } from '../hooks/useWebSearchDefaultProviderAction'
+import { useWebSearchProviderCheck } from '../hooks/useWebSearchProviderCheck'
+import { useWebSearchProviderForm } from '../hooks/useWebSearchProviderForm'
 import {
   getWebSearchProviderApiKeyWebsite,
   getWebSearchProviderDescriptionKey,
   getWebSearchProviderOfficialWebsite,
   type WebSearchProviderMenuEntry
-} from './utils/webSearchProviderMeta'
+} from '../utils/webSearchProviderMeta'
+import { WebSearchApiKeyListPopup } from './WebSearchApiKeyList'
+import WebSearchProviderLogo from './WebSearchProviderLogo'
 
 interface Props {
   entry: WebSearchProviderMenuEntry
 }
 
-const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
+export const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
   const {
     defaultFetchUrlsProvider,
     defaultSearchKeywordsProvider: defaultProvider,
@@ -238,5 +238,3 @@ const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
     </SettingContainer>
   )
 }
-
-export default WebSearchProviderSetting
