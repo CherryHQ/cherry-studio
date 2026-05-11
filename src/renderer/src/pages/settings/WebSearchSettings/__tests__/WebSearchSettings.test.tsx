@@ -7,6 +7,7 @@ import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import WebSearchSettings from '..'
+import type * as WebSearchApiKeyListHook from '../hooks/useWebSearchApiKeyList'
 
 const searchKeywordsMock = vi.fn()
 const fetchUrlsMock = vi.fn()
@@ -109,7 +110,7 @@ vi.mock('../components/WebSearchProviderLogo', () => ({
 }))
 
 vi.mock('../hooks/useWebSearchApiKeyList', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../hooks/useWebSearchApiKeyList')>()),
+  ...(await importOriginal<typeof WebSearchApiKeyListHook>()),
   useWebSearchApiKeyList: (...args: unknown[]) => mocks.useWebSearchApiKeyList(...args)
 }))
 
