@@ -1,8 +1,7 @@
 import { loggerService } from '@logger'
-import { webSearchProviderRequiresApiKey } from '@renderer/config/webSearchProviders'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useWebSearchProviderCheck')
@@ -19,15 +18,7 @@ type UseWebSearchProviderCheckOptions = {
 export function useWebSearchProviderCheck({ provider, capability, commitForm }: UseWebSearchProviderCheckOptions) {
   const { t } = useTranslation()
   const [checking, setChecking] = useState(false)
-  const canCheck = useMemo(() => {
-    if (provider.id === 'fetch') {
-      return false
-    }
-
-    return (
-      webSearchProviderRequiresApiKey(provider.id) || provider.capabilities.some((item) => item.apiHost !== undefined)
-    )
-  }, [provider.capabilities, provider.id])
+  const canCheck = provider.id !== 'fetch'
 
   const checkProvider = useCallback(() => {
     if (checking || !canCheck) {

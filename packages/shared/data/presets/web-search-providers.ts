@@ -113,7 +113,7 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
   searxng: {
     name: 'Searxng',
     type: 'api',
-    capabilities: [{ feature: 'searchKeywords', apiHost: '' }]
+    capabilities: [{ feature: 'searchKeywords', apiHost: 'http://localhost:8080' }]
   },
   exa: {
     name: 'Exa',

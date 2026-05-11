@@ -1,7 +1,8 @@
-import { getWebSearchProviderLogo } from '@renderer/config/webSearchProviders'
 import { cn } from '@renderer/utils'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
+
+import { getWebSearchProviderLogo } from '../utils/webSearchProviderMeta'
 
 interface WebSearchProviderLogoProps {
   providerId: WebSearchProviderId

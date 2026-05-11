@@ -12,7 +12,6 @@ import type { Model } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
-import { getWebSearchProviderAvailability } from '@renderer/utils/webSearchProviders'
 import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
 import { useCallback } from 'react'
@@ -43,19 +42,8 @@ export const useWebSearchPanelController = (assistantId: string) => {
   }, [navigate, t])
 
   const canEnableExternalWebSearch = useCallback(() => {
-    const requiredProviders = [
-      { provider: defaultWebSearchProvider, capability: 'searchKeywords' as const },
-      { provider: defaultFetchUrlsProvider, capability: 'fetchUrls' as const }
-    ]
-
-    for (const { provider, capability } of requiredProviders) {
+    for (const provider of [defaultWebSearchProvider, defaultFetchUrlsProvider]) {
       if (!provider) {
-        openWebSearchSettings()
-        return false
-      }
-
-      const availability = getWebSearchProviderAvailability(provider, capability)
-      if (!availability.available) {
         openWebSearchSettings()
         return false
       }

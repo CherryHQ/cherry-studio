@@ -52,6 +52,13 @@ describe('web search provider schemas', () => {
     expect(findWebSearchCapability(fetch!, 'fetchUrls')).toEqual({ feature: 'fetchUrls' })
   })
 
+  it('models Searxng with a localhost default host', () => {
+    const searxng = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'searxng')
+
+    expect(searxng).toBeDefined()
+    expect(findWebSearchCapability(searxng!, 'searchKeywords')?.apiHost).toBe('http://localhost:8080')
+  })
+
   it('accepts valid provider overrides', () => {
     const result = WebSearchProviderOverridesSchema.safeParse({
       tavily: {

@@ -1,4 +1,3 @@
-import { webSearchProviderRequiresApiKey } from '@renderer/config/webSearchProviders'
 import type {
   WebSearchCapability,
   WebSearchProviderId,
@@ -17,8 +16,6 @@ type WebSearchProviderOverride = NonNullable<WebSearchProviderOverrides[WebSearc
 export type WebSearchProviderUpdates = Partial<
   Pick<ResolvedWebSearchProvider, 'apiKeys' | 'capabilities' | 'engines' | 'basicAuthUsername' | 'basicAuthPassword'>
 >
-
-export type WebSearchConfigAvailability = { available: true } | { available: false; reason: 'apiKey' | 'apiHost' }
 
 function mergeProviderCapabilities(
   presetCapabilities: readonly WebSearchProviderFeatureCapability[],
@@ -98,30 +95,6 @@ function mergeCapabilityUpdates(
     }),
     currentCapabilities ? { ...currentCapabilities } : {}
   )
-}
-
-export function getWebSearchProviderAvailability(
-  provider: ResolvedWebSearchProvider,
-  capability: WebSearchCapability = 'searchKeywords'
-): WebSearchConfigAvailability {
-  if (webSearchProviderRequiresApiKey(provider.id) && provider.apiKeys.length === 0) {
-    return { available: false, reason: 'apiKey' }
-  }
-
-  const capabilityConfig = findWebSearchCapability(provider, capability)
-  if (!capabilityConfig) {
-    return { available: false, reason: 'apiHost' }
-  }
-
-  if (provider.id === 'fetch' && capability === 'fetchUrls') {
-    return { available: true }
-  }
-
-  if (capabilityConfig.apiHost !== undefined && !capabilityConfig.apiHost.trim()) {
-    return { available: false, reason: 'apiHost' }
-  }
-
-  return { available: true }
 }
 
 function normalizeWebSearchProviderOverride(

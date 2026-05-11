@@ -1,7 +1,8 @@
+import type { CompoundIcon } from '@cherrystudio/ui'
+import { Bocha, Cherryin, Exa, Jina, Querit, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
 import type { WebSearchCapability, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import { findWebSearchCapability } from '@shared/data/presets/web-search-providers'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
-import type { TFunction } from 'i18next'
 
 export type ResolvedWebSearchProviderCapability = ResolvedWebSearchProvider['capabilities'][number]
 
@@ -19,36 +20,94 @@ export type WebSearchProviderFeatureSection = {
 
 const WEB_SEARCH_CAPABILITY_ORDER: readonly WebSearchCapability[] = ['searchKeywords', 'fetchUrls'] as const
 
-const WEB_SEARCH_PROVIDER_AVATAR_COLORS = {
-  bocha: '#0f766e',
-  exa: '#111827',
-  'exa-mcp': '#111827',
-  fetch: '#16a34a',
-  jina: '#7c3aed',
-  querit: '#2563eb',
-  searxng: '#0ea5e9',
-  tavily: '#6366f1',
-  zhipu: '#7c3aed'
-} as const satisfies Record<WebSearchProviderId, string>
+type WebSearchProviderDisplayMeta = {
+  avatarColor: string
+  descriptionKey: string
+  logo: CompoundIcon
+  officialWebsite?: string
+  apiKeyWebsite?: string
+}
 
-const WEB_SEARCH_PROVIDER_DESCRIPTION_KEYS = {
-  bocha: 'settings.tool.websearch.provider_description.bocha',
-  exa: 'settings.tool.websearch.provider_description.exa',
-  'exa-mcp': 'settings.tool.websearch.provider_description.exa_mcp',
-  fetch: 'settings.tool.websearch.provider_description.fetch',
-  jina: 'settings.tool.websearch.provider_description.jina',
-  querit: 'settings.tool.websearch.provider_description.querit',
-  searxng: 'settings.tool.websearch.provider_description.searxng',
-  tavily: 'settings.tool.websearch.provider_description.tavily',
-  zhipu: 'settings.tool.websearch.provider_description.zhipu'
-} as const satisfies Record<WebSearchProviderId, string>
+const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchProviderDisplayMeta> = {
+  bocha: {
+    avatarColor: '#0f766e',
+    descriptionKey: 'settings.tool.websearch.provider_description.bocha',
+    logo: Bocha,
+    officialWebsite: 'https://bochaai.com',
+    apiKeyWebsite: 'https://open.bochaai.com/overview'
+  },
+  exa: {
+    avatarColor: '#111827',
+    descriptionKey: 'settings.tool.websearch.provider_description.exa',
+    logo: Exa,
+    officialWebsite: 'https://exa.ai',
+    apiKeyWebsite: 'https://dashboard.exa.ai/api-keys'
+  },
+  'exa-mcp': {
+    avatarColor: '#111827',
+    descriptionKey: 'settings.tool.websearch.provider_description.exa_mcp',
+    logo: Exa,
+    officialWebsite: 'https://exa.ai'
+  },
+  fetch: {
+    avatarColor: '#16a34a',
+    descriptionKey: 'settings.tool.websearch.provider_description.fetch',
+    logo: Cherryin
+  },
+  jina: {
+    avatarColor: '#7c3aed',
+    descriptionKey: 'settings.tool.websearch.provider_description.jina',
+    logo: Jina,
+    officialWebsite: 'https://jina.ai/reader',
+    apiKeyWebsite: 'https://jina.ai'
+  },
+  querit: {
+    avatarColor: '#2563eb',
+    descriptionKey: 'settings.tool.websearch.provider_description.querit',
+    logo: Querit,
+    officialWebsite: 'https://querit.ai',
+    apiKeyWebsite: 'https://www.querit.ai/en/dashboard/api-keys'
+  },
+  searxng: {
+    avatarColor: '#0ea5e9',
+    descriptionKey: 'settings.tool.websearch.provider_description.searxng',
+    logo: Searxng,
+    officialWebsite: 'https://docs.searxng.org'
+  },
+  tavily: {
+    avatarColor: '#6366f1',
+    descriptionKey: 'settings.tool.websearch.provider_description.tavily',
+    logo: Tavily,
+    officialWebsite: 'https://tavily.com',
+    apiKeyWebsite: 'https://app.tavily.com/home'
+  },
+  zhipu: {
+    avatarColor: '#7c3aed',
+    descriptionKey: 'settings.tool.websearch.provider_description.zhipu',
+    logo: Zhipu,
+    officialWebsite: 'https://docs.bigmodel.cn/cn/guide/tools/web-search',
+    apiKeyWebsite: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+  }
+}
 
 export function getWebSearchProviderAvatarColor(providerId: WebSearchProviderId): string {
-  return WEB_SEARCH_PROVIDER_AVATAR_COLORS[providerId]
+  return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].avatarColor
 }
 
 export function getWebSearchProviderDescriptionKey(providerId: WebSearchProviderId): string {
-  return WEB_SEARCH_PROVIDER_DESCRIPTION_KEYS[providerId]
+  return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].descriptionKey
+}
+
+export function getWebSearchProviderLogo(providerId: WebSearchProviderId): CompoundIcon {
+  return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].logo
+}
+
+export function getWebSearchProviderOfficialWebsite(providerId: WebSearchProviderId): string | undefined {
+  return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].officialWebsite
+}
+
+export function getWebSearchProviderApiKeyWebsite(providerId: WebSearchProviderId): string | undefined {
+  return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].apiKeyWebsite
 }
 
 export function getWebSearchCapabilityTitleKey(capability: WebSearchCapability): string {
@@ -112,19 +171,4 @@ export function resolveWebSearchEntryCapability(
   }
 
   return provider.capabilities[0]?.feature ?? 'searchKeywords'
-}
-
-export function getUnavailableProviderDialogConfig(
-  provider: ResolvedWebSearchProvider,
-  t: TFunction,
-  missingReason: 'apiKey' | 'apiHost'
-) {
-  const missingFieldLabel =
-    missingReason === 'apiKey' ? t('settings.tool.websearch.apikey') : t('settings.provider.api_host')
-
-  return {
-    title: t('settings.tool.websearch.search_provider'),
-    content: `${provider.name} ${missingFieldLabel}`,
-    okText: t('settings.tool.websearch.api_key_required.ok')
-  }
 }

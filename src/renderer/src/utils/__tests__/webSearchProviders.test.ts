@@ -1,23 +1,6 @@
-import type {
-  WebSearchCapability,
-  WebSearchProviderId,
-  WebSearchProviderOverrides
-} from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it } from 'vitest'
 
-import {
-  getWebSearchProviderAvailability,
-  resolveWebSearchProviders,
-  updateWebSearchProviderOverride
-} from '../webSearchProviders'
-
-type AvailabilityCase = {
-  name: string
-  overrides: WebSearchProviderOverrides
-  providerId: WebSearchProviderId
-  capability?: WebSearchCapability
-  expected: ReturnType<typeof getWebSearchProviderAvailability>
-}
+import { resolveWebSearchProviders, updateWebSearchProviderOverride } from '../webSearchProviders'
 
 describe('webSearchProviders', () => {
   it('resolves renderer providers from preference overrides', () => {
@@ -43,6 +26,16 @@ describe('webSearchProviders', () => {
         engines: ['web'],
         basicAuthUsername: 'user',
         basicAuthPassword: 'pass'
+      })
+    )
+  })
+
+  it('resolves Searxng with a localhost default host', () => {
+    const providers = resolveWebSearchProviders({})
+
+    expect(providers.find((provider) => provider.id === 'searxng')).toEqual(
+      expect.objectContaining({
+        capabilities: [{ feature: 'searchKeywords', apiHost: 'http://localhost:8080' }]
       })
     )
   })
@@ -178,60 +171,4 @@ describe('webSearchProviders', () => {
       }
     })
   })
-
-  const availabilityCases: AvailabilityCase[] = [
-    {
-      name: 'requires an API key even when the preset has a host',
-      overrides: {},
-      providerId: 'tavily',
-      expected: { available: false, reason: 'apiKey' }
-    },
-    {
-      name: 'rejects blank API keys for API-key providers',
-      overrides: { tavily: { apiKeys: ['   '] } },
-      providerId: 'tavily',
-      expected: { available: false, reason: 'apiKey' }
-    },
-    {
-      name: 'enables API-key providers with a configured key',
-      overrides: { tavily: { apiKeys: ['tavily-key'] } },
-      providerId: 'tavily',
-      expected: { available: true }
-    },
-    {
-      name: 'requires a host for non-API-key providers without preset hosts',
-      overrides: {},
-      providerId: 'searxng',
-      expected: { available: false, reason: 'apiHost' }
-    },
-    {
-      name: 'enables non-API-key providers with a configured host',
-      overrides: { searxng: { capabilities: { searchKeywords: { apiHost: 'https://search.example.com' } } } },
-      providerId: 'searxng',
-      expected: { available: true }
-    },
-    {
-      name: 'enables non-API-key providers that have a preset host',
-      overrides: {},
-      providerId: 'exa-mcp',
-      expected: { available: true }
-    },
-    {
-      name: 'enables the hostless built-in fetch provider for URL fetching',
-      overrides: {},
-      providerId: 'fetch',
-      capability: 'fetchUrls',
-      expected: { available: true }
-    }
-  ]
-
-  it.each(availabilityCases)(
-    'checks provider config availability: $name',
-    ({ overrides, providerId, capability, expected }) => {
-      const providers = resolveWebSearchProviders(overrides)
-      const provider = providers.find((item) => item.id === providerId)!
-
-      expect(getWebSearchProviderAvailability(provider, capability)).toEqual(expected)
-    }
-  )
 })

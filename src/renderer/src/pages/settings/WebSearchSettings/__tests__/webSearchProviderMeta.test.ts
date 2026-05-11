@@ -1,15 +1,16 @@
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
-import type { TFunction } from 'i18next'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   createWebSearchMenuEntry,
   flattenWebSearchFeatureSections,
-  getUnavailableProviderDialogConfig,
   getWebSearchCapabilityTitleKey,
   getWebSearchFeatureSections,
+  getWebSearchProviderApiKeyWebsite,
   getWebSearchProviderAvatarColor,
   getWebSearchProviderDescriptionKey,
+  getWebSearchProviderLogo,
+  getWebSearchProviderOfficialWebsite,
   resolveWebSearchEntryCapability
 } from '../utils/webSearchProviderMeta'
 
@@ -53,6 +54,10 @@ describe('webSearchProviderMeta', () => {
   it('returns provider display metadata', () => {
     expect(getWebSearchProviderAvatarColor('tavily')).toBe('#6366f1')
     expect(getWebSearchProviderDescriptionKey('exa-mcp')).toBe('settings.tool.websearch.provider_description.exa_mcp')
+    expect(getWebSearchProviderLogo('fetch')).toBeTruthy()
+    expect(getWebSearchProviderOfficialWebsite('jina')).toBe('https://jina.ai/reader')
+    expect(getWebSearchProviderApiKeyWebsite('jina')).toBe('https://jina.ai')
+    expect(getWebSearchProviderApiKeyWebsite('fetch')).toBeUndefined()
   })
 
   it('returns capability title keys', () => {
@@ -95,30 +100,5 @@ describe('webSearchProviderMeta', () => {
     expect(resolveWebSearchEntryCapability(providers[2], 'searchKeywords')).toBe('searchKeywords')
     expect(resolveWebSearchEntryCapability(providers[0], 'fetchUrls')).toBe('searchKeywords')
     expect(resolveWebSearchEntryCapability(providers[1], 'unknown')).toBe('fetchUrls')
-  })
-
-  it('builds unavailable provider dialog config', () => {
-    const t = vi.fn((key: string) => key) as unknown as TFunction
-
-    expect(
-      getUnavailableProviderDialogConfig(
-        {
-          id: 'tavily',
-          name: 'Tavily',
-          type: 'api',
-          apiKeys: [],
-          capabilities: [],
-          engines: [],
-          basicAuthUsername: '',
-          basicAuthPassword: ''
-        },
-        t,
-        'apiKey'
-      )
-    ).toEqual({
-      title: 'settings.tool.websearch.search_provider',
-      content: 'Tavily settings.tool.websearch.apikey',
-      okText: 'settings.tool.websearch.api_key_required.ok'
-    })
   })
 })

@@ -1,9 +1,4 @@
 import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, RowFlex, Tooltip } from '@cherrystudio/ui'
-import {
-  WEB_SEARCH_PROVIDER_CONFIG,
-  webSearchProviderRequiresApiKey,
-  webSearchProviderSupportsBasicAuth
-} from '@renderer/config/webSearchProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { useNavigate } from '@tanstack/react-router'
@@ -27,7 +22,12 @@ import WebSearchProviderLogo from './components/WebSearchProviderLogo'
 import { useWebSearchDefaultProviderAction } from './hooks/useWebSearchDefaultProviderAction'
 import { useWebSearchProviderCheck } from './hooks/useWebSearchProviderCheck'
 import { useWebSearchProviderForm } from './hooks/useWebSearchProviderForm'
-import { getWebSearchProviderDescriptionKey, type WebSearchProviderMenuEntry } from './utils/webSearchProviderMeta'
+import {
+  getWebSearchProviderApiKeyWebsite,
+  getWebSearchProviderDescriptionKey,
+  getWebSearchProviderOfficialWebsite,
+  type WebSearchProviderMenuEntry
+} from './utils/webSearchProviderMeta'
 
 interface Props {
   entry: WebSearchProviderMenuEntry
@@ -57,14 +57,13 @@ const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
     capability === 'fetchUrls' ? defaultFetchUrlsProvider : defaultProvider,
     capability === 'fetchUrls' ? setDefaultFetchUrlsProvider : setDefaultSearchKeywordsProvider
   )
-  const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
-  const apiKeyWebsite = webSearchProviderConfig?.websites?.apiKey
-  const officialWebsite = webSearchProviderConfig?.websites?.official
-  const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
-  const supportsBasicAuth = webSearchProviderSupportsBasicAuth(provider.id)
+  const apiKeyWebsite = getWebSearchProviderApiKeyWebsite(provider.id)
+  const officialWebsite = getWebSearchProviderOfficialWebsite(provider.id)
   const usesLlmProviderApiKey = provider.id === 'zhipu'
+  const showApiKeySettings = provider.type === 'api' && provider.id !== 'fetch' && provider.id !== 'searxng'
+  const supportsBasicAuth = provider.id === 'searxng'
   const descriptionKey = getWebSearchProviderDescriptionKey(provider.id)
-  const showApiKeyCheckButton = needsApiKey && !usesLlmProviderApiKey && providerCheck.canCheck
+  const showApiKeyCheckButton = showApiKeySettings && !usesLlmProviderApiKey && providerCheck.canCheck
   const showApiHostCheckButton = !showApiKeyCheckButton && providerCheck.canCheck
 
   const openApiKeyList = async () => {
@@ -102,7 +101,7 @@ const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
         <SettingHelpText className="mt-2">{t(descriptionKey)}</SettingHelpText>
         <SettingDivider style={{ width: '100%', margin: '10px 0' }} />
 
-        {needsApiKey && usesLlmProviderApiKey && (
+        {usesLlmProviderApiKey && (
           <>
             <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
               {t('settings.provider.api_key.label')}
@@ -114,7 +113,7 @@ const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
           </>
         )}
 
-        {needsApiKey && !usesLlmProviderApiKey && (
+        {showApiKeySettings && !usesLlmProviderApiKey && (
           <>
             <SettingSubtitle
               style={{
