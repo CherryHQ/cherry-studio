@@ -1519,6 +1519,193 @@ async function migrateFileEntry(oldFile: DexieFileRow): Promise<FileEntryRow> {
 
 **执行时机**：Schema 放宽（Step A）可**随时独立 PR**；FileMigrator 实现（Step B）在 Phase 3 FileMigrator 整合时落地。
 
+### 2.10 FileMigrator 整体规约与跨 migrator 协议
+
+> 本节不重复 §2.2–§2.9 的字段映射，而是把 FileMigrator 的**整体职责、在引擎中的位置、与业务 migrator 的协作契约、失败处理和观测性**串成一份规约。字段级映射的具体规则散在前面各节（§2.7 拆分 / §2.8 created_at / §2.9 id 保留 / §2.3 file_ref 来源），本节只在 §2.10.6 用一张交叉引用表回链。
+
+#### 2.10.1 FileMigrator 在 MigrationEngine 中的位置
+
+- **文件位置**：`src/main/data/migration/v2/migrators/FileMigrator.ts`（新增；对齐其他 migrator 的命名风格）
+- **id（migrator 唯一标识）**：`'file'`
+- **执行顺序（`BaseMigrator.order`）**：建议 **`order = 2.7`**——在 `AgentsMigrator` (2.5) 之后、`KnowledgeMigrator` (3) 之前。这保证：
+  - 所有引用 `FileEntry` 的业务 migrator（Knowledge 3 / Chat 4 / 未来 Painting）都在 FileMigrator 之后跑
+  - 与 BootConfig / Preferences / Assistant 等不引用 file 的 migrator 不存在虚假依赖
+- **依赖**：
+  - `MigrationContext.db` —— SQLite 写入
+  - `MigrationContext.sources.dexieExport.tableExists('files')` / `createStreamReader('files')` —— 读 v1 Dexie 导出的 `files.json`
+- **输出**：
+  - 写入 `file_entry` 行（来自 v1 Dexie `files` 表，经 external 去重后）
+  - **不写 `file_ref` 行**——所有 ref 由对应业务 migrator 在迁移引用源时写入（见 §2.10.3）
+  - 在 `MigrationContext.sharedData` 写入跨 migrator 协议产物（见 §2.10.3）
+
+#### 2.10.2 物理文件命名兼容性验证
+
+**前置假设**：v1 internal 物理文件统一存于 `{userData}/Data/Files/{id}{ext}`（参考 `FileStorage.ts` 各 setter 的 `name: uuid + ext` 模式，其中 v1 `ext` **含**前导点，所以拼接后形如 `uuid-abc.pdf`）。v2 `resolvePhysicalPath` 解析为 `{userData}/Data/Files/{id}.{ext}`（v2 `ext` **不含**前导点，拼接后同样是 `uuid-abc.pdf`）。
+
+**结论**：v1 / v2 在物理文件名层面**字节相同**，不需要重命名物理文件。FileMigrator 只在 schema 层做 `ext` 归一化（`'.pdf' → 'pdf'`），磁盘原样保留——与 §5.1 "不移动物理文件" 硬约束一致。
+
+**防御性抽样验证**（FileMigrator 启动时一次性执行）：
+
+```typescript
+// 概念代码 — 抽样 20 条 internal 行验证物理存在
+const sample = candidateEntries.filter((e) => e.origin === 'internal').slice(0, 20)
+let missing = 0
+for (const entry of sample) {
+  if (!(await pathExists(resolvePhysicalPath(entry)))) missing++
+}
+if (sample.length > 0 && missing / sample.length > 0.5) {
+  throw new MigrationFatalError(
+    `Physical file naming assumption violated: ${missing}/${sample.length} sampled internal files not found at {id}.{ext}; aborting before mass orphan`
+  )
+}
+```
+
+抽样失败率 > 50% 表明命名约定假设已破——例如 v1 用了 `{id}_${origin_name}` 之类的非标准命名。直接中止迁移并让开发者调查；否则盲目继续会产生大量"DB 有行、磁盘无文件"的孤儿 entry。
+
+抽样通过、个别失败（< 50%）只 `recordWarning` 不阻塞：这些是历史损坏，v1 时代就存在。
+
+#### 2.10.3 跨 migrator 协议：file_ref 重建
+
+`file_ref` 行**不由 FileMigrator 写入**，而由各业务 migrator 在迁移自己的引用源时同步写入。这把"业务对象 → 引用文件"的关系局部性留在业务 migrator 内部，避免 FileMigrator 反向依赖各业务表。
+
+**引用源责任分配**：
+
+| 引用源（v1）                            | 责任 migrator                | sourceType         | role           | 写入时机                                                                       |
+| --------------------------------------- | ---------------------------- | ------------------ | -------------- | ------------------------------------------------------------------------------ |
+| `message_blocks.file.id`（FILE block）  | ChatMigrator                 | `'chat_message'`   | `'attachment'` | 迁移每条 message_block 时                                                      |
+| `message_blocks.file.id`（IMAGE block） | ChatMigrator                 | `'chat_message'`   | `'image'`      | 同上                                                                           |
+| Redux `paintings[].files[].id`          | PaintingMigrator（**延后**） | `'painting'`       | `'asset'`      | painting 域整体迁移上线后；期间靠 `painting` checker 兜底（见 §2.3.9 / §6 Q7） |
+| `knowledge_items.data.file.id`          | KnowledgeMigrator            | `'knowledge_item'` | `'source'`     | 迁移每个 knowledge_item 时同步写（见 §6 Q9 关于现有 `loadFileLookup` 的去向）  |
+| AI provider upload cache                | （延后到 FileUploadService） | —                  | —              | 本轮不迁；`purpose` 字段丢弃（见 §2.2）                                        |
+
+**MigrationContext 扩展（跨 migrator 数据传递）**：
+
+FileMigrator 完成后在 `ctx.sharedData` 注入两份只读产物：
+
+```typescript
+// 概念代码 — FileMigrator.run 结束前
+ctx.sharedData.set('fileMigrator.idRemap', /* ReadonlyMap<oldId, FileEntryId> */)
+ctx.sharedData.set('fileMigrator.knownIds', /* ReadonlySet<FileEntryId> */)
+```
+
+- **`idRemap`** 服务 external 去重——`canonicalizeExternalPath` 合并掉的 loser id 在表里映射到 surviving id。internal 文件**不在表里**（一对一保留）。
+- **`knownIds`** 是所有成功写入 `file_entry` 的 id 全集，供业务 migrator 校验 "这个 fileId 是否真的迁过去了"。
+
+业务 migrator 通过这两份产物访问 file 子系统，**不直接查 DB**（保持迁移期单向数据流；同时避免对 fileEntryService 启动顺序产生隐式依赖）。
+
+**业务 migrator 调用约定**：
+
+```typescript
+// 概念代码 — ChatMigrator 迁移 message_block 时
+const idRemap = ctx.sharedData.get('fileMigrator.idRemap') as ReadonlyMap<string, FileEntryId>
+const knownIds = ctx.sharedData.get('fileMigrator.knownIds') as ReadonlySet<FileEntryId>
+
+async function migrateOneMessageBlock(block) {
+  if (block.file?.id) {
+    const fileEntryId = idRemap.get(block.file.id) ?? (block.file.id as FileEntryId)
+    if (!knownIds.has(fileEntryId)) {
+      // FileMigrator 没成功迁过这个 id —— 跳过 ref，告警
+      this.recordWarning(`message_block ${block.id}: file ${block.file.id} missing in file_entry; ref skipped`)
+      return
+    }
+    await ctx.db
+      .insert(fileRef)
+      .values({
+        fileEntryId,
+        sourceType: 'chat_message',
+        sourceId: block.id,
+        role: block.type === 'IMAGE' ? 'image' : 'attachment'
+      })
+      .onConflictDoNothing() // 重跑幂等
+  }
+  // ... 继续写入 message_block ...
+}
+```
+
+**关键约定**：
+
+1. **任何业务 migrator 在写入引用 fileEntryId 之前必须查 `idRemap`**——这是 surviving id 的唯一来源；internal 文件查表 miss 时退回原 id（即 v4），external 文件未经查表写入会引用已合并掉的 loser id
+2. **`fileRefService.create`（或等价 `db.insert(fileRef)`）在迁移期使用 `onConflictDoNothing` 语义**——避免重跑时触发 `UNIQUE(fileEntryId, sourceType, sourceId, role)` 冲突
+3. **单条 ref 写入失败 → `recordWarning` 跳过；不整批回滚**。理由：v1 `count` 本就是启发式数字，少几行 ref 不破坏迁移完整性；后台 `OrphanRefScanner` 兜底——漏建的 ref 体现为 `file_entry` "零引用"，由 cleanup UI 展示给用户
+4. **`fileEntryId` 在 `knownIds` 缺失（FileMigrator 没迁成功）→ `recordWarning` 跳过整个 ref**。比"插入 ref 引用不存在的 entry"安全：后者会破坏 FK 完整性
+
+#### 2.10.4 FileMigrator 失败处理矩阵
+
+| 失败场景                                                                  | 处理策略                                                                                                                |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `dexieExport.tableExists('files')` 返回 false                             | `recordWarning` 后跳过；FileMigrator 不产生任何 file_entry。业务 migrator 后续遇到 file id 查 `knownIds` miss → warn-skip ref（链式安全） |
+| 单条 file 字段缺失（`origin_name` undefined 等）                          | `recordWarning` + skip 该行；不中止迁移                                                                                 |
+| `canonicalizeExternalPath` 抛出（含 null byte）                           | **严重错误**：抛 `MigrationFatalError` 中止——v1 数据已被注入恶意路径，需人工调查                                       |
+| External 去重时 surviving 选择失败                                        | 抛 `MigrationFatalError` 中止                                                                                           |
+| `file_entry` INSERT 违反 schema CHECK（origin/size/externalPath 三元约束）| 抛 `MigrationFatalError` 中止——mapping 逻辑有 bug                                                                      |
+| §2.10.2 物理抽样失败率 > 50%                                              | 抛 `MigrationFatalError` 中止（前条文已规约）                                                                           |
+| 部分 file_entry 写入后引擎中断                                            | 整批回滚（FileMigrator 在单事务中执行 `file_entry` 写入）；下次启动重跑                                                 |
+
+**回滚原则**：FileMigrator 的 `file_entry` 写入在**单个 DB 事务**内执行；中断 = 全部回滚 = 下次重跑。避免"半迁移"状态下业务 migrator 看到不一致的 `knownIds`。
+
+注：业务 migrator 的 `file_ref` 写入**不**与 FileMigrator 同事务——业务 migrator 各自有自己的事务边界，靠 §2.10.3 的 `idRemap` / `knownIds` 协议保证一致性。
+
+#### 2.10.5 观测性
+
+FileMigrator 完成时发出一条 `info`-级结构化日志记录（通过 `loggerService.withContext('FileMigrator')`）：
+
+```typescript
+// 概念代码 — FileMigrator.run 结束发射
+{
+  event: 'file-migrator-completed',
+  v1FilesScanned: number,            // 输入流读到的 file 行总数
+  v1FilesSkippedMalformed: number,   // 缺字段 / canonicalize 失败 等
+  v1FilesMerged: number,             // external 去重折叠掉的 loser 数
+  fileEntriesInserted: number,       // 成功写入 file_entry 的总数（= scanned - skipped - merged）
+  sampleVerifyMissing: number,       // §2.10.2 物理抽样未通过的数量（> 50% 已 fatal）
+  durationMs: number,
+}
+```
+
+业务 migrator 在自身收尾阶段各自补一条 `*-file-refs-built` 记录：
+
+```typescript
+{
+  event: 'chat-migrator-file-refs-built' | 'knowledge-migrator-file-refs-built' | ...,
+  refsInserted: number,
+  refsSkippedMissingEntry: number,   // knownIds miss
+  refsSkippedConflict: number,       // onConflictDoNothing 命中（重跑常见）
+}
+```
+
+两类记录合起来构成 file 子系统迁移的端到端快照。
+
+#### 2.10.6 与 §2 字段映射节的交叉引用
+
+| §2 字段映射节             | 在 FileMigrator 里的对应动作                                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| §2.2 `purpose`            | 字段丢弃（不进 file_entry，不入 file_upload；后者本轮 deferred）                                            |
+| §2.3 `count`              | 字段丢弃；file_ref 由业务 migrator 写入（§2.10.3）                                                          |
+| §2.4 `tokens`             | 字段丢弃（死字段）                                                                                          |
+| §2.5 `type`               | 字段丢弃（v2 运行时通过 ext 派生）                                                                          |
+| §2.6 `path`               | 仅用于判定 `origin`（`isInternalPath(path)` → internal；否则 external + canonicalize 后存入 `externalPath`）|
+| §2.7 `name / origin_name` | 拆分：`name` ← origin_name 去 ext；`ext` ← 去前导点；旧"存储名" name 丢弃                                  |
+| §2.8 `created_at`         | ISO → ms epoch；`updatedAt` 同值（v1 无 updatedAt）                                                         |
+| §2.9 `id`                 | 保留原 v4；不重新分配（避免跨表 id 翻译）                                                                   |
+
+#### 2.10.7 复杂度与执行时机
+
+| 维度       | 评估                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------- |
+| 触达文件数 | 1 新文件（FileMigrator.ts）+ MigrationContext 类型扩展 + ~3 业务 migrator 改造（注 file_ref 写入）|
+| 改造性质   | "读 Dexie → 字段转换 → 去重 → 单事务批量 INSERT" + 业务 migrator 加 file_ref 写入逻辑           |
+| 最大复杂点 | External 去重 surviving 选择 + idRemap 跨 migrator 传递契约                                       |
+| **复杂度** | **M**                                                                                             |
+
+**前置条件 / PR 拆分顺序**：
+
+1. §2.9.3 Step A —— `FileEntryIdSchema` 放宽至 `z.uuid()`（独立 PR，可先行）
+2. `MigrationContext.sharedData` 协议扩展（添加 `fileMigrator.idRemap` / `fileMigrator.knownIds` 的 key 与读写工具，建议封装成 `getFileMigratorProducts(ctx)` helper 避免各 migrator 自己 cast `unknown`）
+3. FileMigrator 本体（含 §2.10.2 抽样验证 + §2.10.3 idRemap 计算 + §2.10.4 失败处理 + §2.10.5 日志记录）
+4. KnowledgeMigrator 改造（决议见 §6 Q9 后落地：在现有 `data.file.id` 处理流程后追加 file_ref 写入；`loadFileLookup` 去留按 Q9 结论）
+5. ChatMigrator 改造（在 message_block 流式迁移中追加 file_ref 写入；与现有 RFC §10 范围合并）
+6. PaintingMigrator 跟随 painting 域整体迁移（**不阻塞** v2 主线）
+
 ---
 
 ## 3. 消费域切换计划
@@ -1557,6 +1744,165 @@ async function migrateFileEntry(oldFile: DexieFileRow): Promise<FileEntryRow> {
 ### 3.3 Batch A-E 详细计划（待调研后逐个展开）
 
 （占位——每个 Batch 按 §3.2 模板展开）
+
+### 3.4 跨模块切换协调
+
+> 本节覆盖**字段退役（§2）和 Batch A-E 域切换（§3.1）之外**的跨模块协调点。这些事项不属于任何单个 consumer 的迁移，而是切换期需要全局协调的时序、phasing 和下线计划。
+
+#### 3.4.1 Backup / Restore 与 v2 file 子系统协调
+
+**v1 现状**：
+
+- `src/main/services/BackupManager.ts` 通过 `fs-extra.copy` 复制 `userData` 目录到打包暂存目录
+- 备份产物包含：物理文件树（`Data/Files/*`）+ Dexie 导出（含 `files.json`）+ LocalStorage / Redux state 导出
+- S3 / WebDAV 远端上传 zip 归档
+
+**v2 切换后的结构变化**：
+
+- Dexie `files` 表 Phase 6 删除，SQLite `file_entry` / `file_ref` 进场
+- 备份产物必须同时容纳：物理文件（位置不变）+ SQLite DB 文件 + 兼容期内仍存在的 Dexie 导出
+- 恢复时必须**原子化**还原物理文件 + SQLite DB，否则会触发：
+  - 物理文件还原 + DB 未还原 → 启动期 orphan-file-sweep 误删用户文件（命中 §10.4 安全阈值时只是不删，但 `count-fraction` 触发会变成日常发生）
+  - DB 还原 + 物理文件未还原 → `file_entry` 行指向不存在物理文件，全部变 dangling
+
+**改造点（按依赖顺序）**：
+
+| #   | 文件                                                  | 改动                                                                                                                                                                          |
+| --- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | `src/main/services/BackupManager.ts`                  | 备份产物结构扩展：除 Dexie 导出外，dump SQLite DB 文件（v2 已有的 file_entry / file_ref 表所在 DB）。建议路径 `<backup>/sqlite/<db-name>.db`；先 `DbService.checkpoint()` 把 WAL flush 到主文件再 copy |
+| B2  | BackupManager 恢复路径                                | 增加 SQLite DB 还原步骤：在恢复物理文件之前，先把 backup 中的 sqlite 文件 atomically rename 到目标位置（**DbService 启动前完成**）                                            |
+| B3  | BackupManager 版本兼容                                | 检测 backup 产物是 v1（无 sqlite 目录）还是 v2（含 sqlite 目录）。v1 backup 恢复到 v2 环境：保留 Dexie 导出，让 FileMigrator 走正常迁移路径                                  |
+| B4  | `FileManager.runStartupSweeps` / `OrphanRefScanner`   | 在「刚完成 backup restore」标志位下首次启动时**跳过 orphan sweep 一次**——给 DB ↔ FS 一个对齐窗口；标志位由 BackupManager 在 restore 完成时 set，FileManager onInit 读取后清空 |
+| B5  | Backup 产物加 v2 marker                               | `<backup>/manifest.json` 写 `formatVersion: 2`；v1 BackupManager 检测到 v2 marker 时拒绝恢复并提示用户                                                                        |
+
+**关键风险与缓解**：
+
+| 风险                                                  | 缓解                                                                                                                       |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 旧 v1 backup 没有 sqlite 文件，恢复到 v2 环境         | 走 FileMigrator 路径（Dexie `files.json` 仍在 backup 里，可作 input）                                                       |
+| Backup 中途有业务写入，导致 backup 内文件树和 DB 不一致 | 备份前 `DbService.checkpoint()` + 暂停业务写入窗口（沿用 v1 既有的 backup window 机制，如不存在需要新增）                  |
+| Restore 中途崩溃产生半还原状态                        | 所有还原内容先到 staging 目录，全部就绪后原子化 rename 到生产路径；崩溃后 staging 目录可识别并清理                          |
+| v2 backup 还原到 v1 环境（降级）                      | 不支持；v2 marker 检测到 v2 marker 后 v1 拒绝恢复                                                                          |
+
+**复杂度**：**L**（跨 main 进程多个子系统：BackupManager + DbService + FileManager）。
+
+**执行时机**：与 Phase 2 同步——FileMigrator 落地后立刻补 BackupManager。**不能等 Phase 6 cleanup**，否则 Phase 2 切换期间用户备份会丢失 SQLite 数据。
+
+#### 3.4.2 OrphanRefScanner 启动时机 gate
+
+**问题**：
+
+- RFC §6.4 规定 OrphanRefScanner 在 `Background` phase 启动，扫描 `file_ref` 找 sourceId 不存在的行删掉
+- FileManager 的 `runStartupSweeps`（启动期 file-sweep + orphan-entry-report）同样在 `onInit` 后 fire-and-forget
+- 如果 MigrationEngine 还在跑（FileMigrator 写完 file_entry → 业务 migrator 还没写完 file_ref），scanner 提早启动会看到「file_entry 但无 file_ref」状态——虽然 RFC §7.1 政策是「preserve」不删 entry，但 `orphan-ref-cleanup` 还是会扫——而且 §3.4.1 B4 的 backup-restore 场景也需要同样的 gate
+
+**规约**：
+
+| #   | 改动                                                                                                                |
+| --- | ------------------------------------------------------------------------------------------------------------------- |
+| O1  | `MigrationEngine` 完成所有 migrators（包括各业务 migrator 的 file_ref 创建）后，在 `ctx.sharedData` 写入 `'migration.completed': true` 或发射 lifecycle `Signal<void>` |
+| O2  | `OrphanRefScanner.start()` 与 `FileManager.runStartupSweeps()` 都 await 这个 Signal（启动期需要时 polling sharedData 或注入 Signal 依赖）|
+| O3  | 首次启动（DB 刚 migrate 出来）OrphanRefScanner 第一次扫描**额外跳过一轮**——给 PaintingMigrator 延后期、Phase 2 业务切换期一个宽限窗口（用 `firstRunAfterMigration` 标志） |
+| O4  | 文档明确：「OrphanRefScanner 不在 migration / restore 进行期间扫描」是规约，不是 best-effort                       |
+
+**复杂度**：**S**（Signal 接线 + 一行 await + flag bookkeeping）。
+
+**执行时机**：与 FileMigrator 落地同一 PR——否则首次 v2 启动就有概率把刚迁过来但 file_ref 还没建好的 entry 错判为 zero-ref（虽然 §7.1 政策保留 internal、policy matrix 处理掉 external 0-ref，但若 §7.2 deferred 提前实现就会出问题）。
+
+#### 3.4.3 Dexie `files` 表 phasing
+
+**问题**：§5.1 「保留 Dexie 备份直到 Phase 6」过于粗——Phase 2 切换期间 renderer 是否继续写 Dexie `files` 表？这条决定了 §4 shim 的有效边界和数据一致性窗口。
+
+**phasing 计划**：
+
+| 阶段                  | Dexie `files` 表状态                                                            | 写入路径                                                       | 读取路径                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Phase 1**           | 现状：renderer 持续读写                                                          | `FileManager.addFile` / `uploadFile` 等                        | `db.files.where(...)` 各处                                                                     |
+| **Phase 2 启动**      | **Frozen**：只读，不再接受新写入                                                | 新文件全部走 v2 `createInternalEntry` / `ensureExternalEntry` | Batch A 适配层 `toFileMetadata` 把 v2 `FileEntry` 投影回 Dexie 形状给尚未迁的桶 P 消费者         |
+| **Phase 2 切换期**    | 同上                                                                            | 同上                                                           | 各 Batch 逐步切到直接消费 `FileEntry`，`toFileMetadata` 调用点递减                              |
+| **Phase 6 Cleanup**   | 表删除（Dexie v12 upgrade）                                                     | n/a                                                            | n/a                                                                                            |
+
+**改造点**：
+
+| #   | 改动                                                                                                                                                       |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Phase 2 启动 PR：renderer 端所有 `db.files.put` / `add` / `update` / `delete` 调用点改抛 `DexieFilesFrozenError`；保留 `db.files.get` / `toArray` / `where` 仅供 `toFileMetadata` 适配 |
+| D2  | `useFiles` / 旧 `FileManager.uploadFile` 等业务入口改走 v2 IPC，写入产生 `FileEntry`，**不**回写 Dexie                                                     |
+| D3  | Phase 6 Cleanup PR：Dexie schema v12 移除 `files` 表 + 索引；删除 `toFileMetadata` shim 与 `FileMetadata` 类型本身                                         |
+
+**关键决策**：
+
+- **无双写期**——Phase 2 启动就 freeze。理由：双写期需要维护 Dexie ↔ SQLite 一致性，工程成本高于 shim 的读取适配
+- shim 单向（FileEntry → 旧 FileMetadata 形状）已经在 §4.1 规约；§3.4.3 与 §4.1 一致
+
+**复杂度**：**M**（renderer 多处入口要审计 + DexieFilesFrozenError 接线）。
+
+**执行时机**：Phase 2 启动作为 Batch A 之前的 prerequisite PR。
+
+#### 3.4.4 v1 `window.api.file.*` preload API 下线顺序
+
+**问题**：v1 preload 暴露 49 个 file 相关 API（`File_Read` / `File_Write` / `File_Upload` / `File_Delete` / `onFileChange` 回调 ...）。§4.3 提到 Phase 6 删 `FileMetadata` 类型和 `FileStorage`，但**没列 preload API 下线顺序**——49 个 channel 逐个下线是 Phase 6 cleanup 的实际工作量。
+
+**分类与下线规则**：
+
+| 类别                                                                                                              | 例                                                                                  | 下线时机                                                                  |
+| ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| **完全被 v2 IPC 取代**                                                                                            | `read` / `write` / `writeWithId` / `delete` / `rename` / `move` / `save` / `open` / `showInFolder` / `binaryImage` / `base64Image` / `base64File` / `pdfInfo` / `isTextFile` / `isDirectory` | 对应 Batch 完成后立刻 deprecate；Phase 6 删 preload entry + main 端 handler |
+| **被 v2 取代但调用点散落**                                                                                        | `readExternal` / `saveBase64Image` / `savePastedImage` / `download` / `copy`        | Batch C-E 期间逐步迁移到 `read({encoding})` / `getMetadata` / `createInternalEntry({source:'url'})`；Phase 6 删 |
+| **保留**（v2 设计上承接、签名不变）                                                                                | `select` / `selectFolder`（Electron dialog）/ `openPath` / `getPathForFile`         | 保留——这些是 Electron 原生能力封装，不属于 file 子系统范畴               |
+| **watcher 相关**                                                                                                  | `startFileWatcher` / `stopFileWatcher` / `pauseFileWatcher` / `resumeFileWatcher` / `onFileChange` | 改走 `createDirectoryWatcher` + 业务自己的 IPC 转发协议（见 §3.4.5 注）  |
+| **业务自治**                                                                                                      | `clear` / `mkdir` / `validateNotesDirectory` / `getDirectoryStructure` / `batchUploadMarkdown` / `checkFileName` | 由 Notes / Knowledge 自治；保留或迁到对应业务 module 的 IPC，不进 `window.api.file.*` |
+
+**改造原则**：
+
+- 每个 Batch 完成时 deprecate 自己用到的 v1 API（preload 加 `@deprecated` JSDoc + 首次调用 `console.warn` 一次，避免日志洪水）
+- Phase 6 cleanup PR 一次性 `delete` preload 暴露 + 对应 IPC handler 注册
+
+**复杂度**：**M**（49 个 API 逐个 audit；多数是机械下线，少数需要先确认所有调用点都已切换）。
+
+**执行时机**：各 Batch 完成时 deprecate；Phase 6 一次性删除。
+
+#### 3.4.5 `remotefile/*` services 过渡期生命周期
+
+**v1 现状**：
+
+- `src/main/services/remotefile/{Gemini,OpenAI,Mistral}Service.ts` 实现 `BaseFileService` 接口（`uploadFile` / `retrieveFile` / `listFiles` / `deleteFile`）
+- chat 流程通过 `window.api.fileService.upload(provider, file)` 走这些 services
+- 上传缓存机制：`fileProcessor.ts` 在上传前查 cached `fileId`，命中则跳过
+
+**v2 终态**：
+
+- `FileUploadService` + `file_upload` 表（RFC §9.8 Phase X，依赖 Vercel AI SDK 稳定）
+- chat 流程改走 `FileUploadService.ensureUploaded(entryId, provider)`，cache 由 `file_upload` 表持久化
+
+**过渡期协议**：
+
+| 阶段                                | chat 上传路径                                                                                                  | 输入                                                                |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| **Phase 1 / Phase 2 启动**          | `remotefile/*` services 不变；`fileProcessor.ts` 改读 v2 `FileEntry` 后调 `entryDisplayName(entry)` 拼 displayName（§2.7 D6） | `FileEntry`（v2），但 `BaseFileService` API 接口不变               |
+| **Phase 2 Batch B（AI Core）**      | `fileProcessor.ts` / `messageConverter.ts` 切到 v2 API；**`remotefile/*` services 维持不变**                  | 同上                                                                |
+| **Phase X（FileUploadService 落地）**| `FileUploadService.ensureUploaded` 接管；`remotefile/*` services 标 `@deprecated`                            | `FileEntry` + `file_upload` cache                                  |
+| **Phase X+1（清理）**               | `remotefile/*` services 删除                                                                                  | n/a                                                                 |
+
+**关键决策**：
+
+- Phase 2 切换**不**等 FileUploadService——`remotefile/*` services 继续担当 upload 通道，仅需在 displayName / purpose 字段层对接 v2 schema（已在 §2.2 / §2.7 规约）
+- 过渡期不引入新 cache 表，`fileProcessor.ts` 旧 cache 逻辑临时保留在 renderer 内存里——避免 `file_upload` 表设计在 Vercel AI SDK 稳定前被锁死
+- watcher 转发协议（§3.4.4 watcher 类）：业务模块用 `createDirectoryWatcher` 后，自定义 IPC channel（建议 `<module>-event`，如 `notes-event`）把事件转发给 renderer；不复用 `file-manager-event` 通道——后者由 FileManager 占有，业务事件不应混入
+
+**复杂度**：**S**（字段层适配已在 §2.2 / §2.7 规约，本节只追加生命周期约定）。
+
+**执行时机**：Batch B 完成；Phase X 落地时进入下线倒计时。
+
+#### 3.4.6 §3.4 各项的总览
+
+| 子节  | 主题                       | 严重性 | 与 Phase 关系                            | 落地 PR                          |
+| ----- | -------------------------- | ------ | ----------------------------------------- | -------------------------------- |
+| 3.4.1 | Backup / Restore 协调      | 🔴 高  | Phase 2 同步（不能等 Phase 6）            | 与 FileMigrator 同期或紧随       |
+| 3.4.2 | OrphanRefScanner gate      | 🔴 高  | 与 FileMigrator 同 PR                     | 同 FileMigrator PR              |
+| 3.4.3 | Dexie `files` 表 phasing   | 🟡 中  | Phase 2 启动 prerequisite                  | Batch A 之前                     |
+| 3.4.4 | preload API 下线           | 🟢 低  | 各 Batch deprecate；Phase 6 删除          | 散落 + Phase 6 cleanup PR        |
+| 3.4.5 | `remotefile/*` 过渡期      | 🟢 低  | Batch B 字段层；Phase X 下线              | Batch B（字段）+ Phase X+1（删）|
 
 ---
 
@@ -1655,6 +2001,7 @@ function toFileMetadata(entry: FileEntry, physicalPath: FilePath): FileMetadata 
 | 6   | FilesPage 按 ref_count 排序是否保留为默认？                                      | 倾向保留能力，默认关闭                                | §2.3.11         |
 | 7   | PaintingMigrator 延后期间 painting 引用的孤儿判定                                | `sourceType='painting'` checker 查 PaintingState 兜底 | §2.3.9 Step A   |
 | 8   | `FilesPage.handleDelete` 的"强制删除 + 级联清消息 block"是否仍由 renderer 驱动？ | 未决                                                  | §2.3.9 B7       |
+| 9   | FileMigrator 上线后，`KnowledgeMigrator.loadFileLookup`（现状直接 stream-read v1 `files.json` 构造 lookup）是保留作为业务字段补全的旁路、还是统一改走 `ctx.sharedData['fileMigrator.knownIds']` 唯一路径？ | 未决 | §2.10.3 / §2.10.7 Step 4 |
 
 ---
 
@@ -1674,3 +2021,5 @@ function toFileMetadata(entry: FileEntry, physicalPath: FilePath): FileMetadata 
 | 日期       | 版本 | 变更                                                   |
 | ---------- | ---- | ------------------------------------------------------ |
 | 2026-04-19 | 0.1  | 初稿：从 RFC §10.6 抽出，建立字段退役 + 域切换两线框架 |
+| 2026-05-11 | 0.2  | 新增 §2.10 FileMigrator 整体规约与跨 migrator 协议（位置/order、物理命名抽样验证、`idRemap`/`knownIds` 跨 migrator 传递契约、失败处理矩阵、观测性记录、与 §2.x 字段映射的交叉引用表）；§6 加 Q9（KnowledgeMigrator `loadFileLookup` 在新协议下的去留） |
+| 2026-05-11 | 0.3  | 新增 §3.4 跨模块切换协调（Backup-Restore 协调 / OrphanRefScanner 启动 gate / Dexie `files` 表 phasing / v1 `window.api.file.*` 下线顺序 / `remotefile/*` services 过渡期）；与 RFC §13 同步勾掉对应条目 |
