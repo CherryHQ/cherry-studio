@@ -1,5 +1,5 @@
 import { Input, RowFlex, Textarea } from '@cherrystudio/ui'
-import { useProviderAuthConfig, useProviderMutations, useProviderPresetMetadata } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderAuthConfig, useProviderMutations } from '@renderer/hooks/useProviders'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -10,7 +10,7 @@ import {
   ProviderHelpText,
   ProviderHelpTextRow,
   ProviderSettingsSubtitle
-} from '../shared/primitives/ProviderSettingsPrimitives'
+} from '../primitives/ProviderSettingsPrimitives'
 
 interface Props {
   providerId: string
@@ -18,8 +18,8 @@ interface Props {
 
 const VertexAISettings: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
+  const { provider } = useProvider(providerId)
   const { data: authConfig } = useProviderAuthConfig(providerId)
-  const { data: presetMetadata } = useProviderPresetMetadata(providerId)
   const { updateAuthConfig: saveAuthConfigToServer } = useProviderMutations(providerId)
 
   const gcpConfig = authConfig?.type === 'iam-gcp' ? authConfig : null
@@ -40,7 +40,7 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
     }
   }, [authConfig])
 
-  const apiKeyWebsite = presetMetadata?.websites?.apiKey
+  const apiKeyWebsite = provider?.websites?.apiKey
 
   const saveAuthConfig = async () => {
     await saveAuthConfigToServer({

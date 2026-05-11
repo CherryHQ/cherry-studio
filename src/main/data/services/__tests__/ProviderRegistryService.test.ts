@@ -202,53 +202,33 @@ describe('ProviderRegistryService', () => {
   })
 
   describe('registry load failure', () => {
-    it('should throw when models.json cannot be read', () => {
+    it('should throw when models.json cannot be read', async () => {
       setupRegistryData()
       mockReadModels.mockImplementation(() => {
         throw new Error('ENOENT: no such file')
       })
 
-      expect(() => providerRegistryService.getRegistryModelsByProvider('openai')).toThrow('ENOENT')
+      await expect(providerRegistryService.lookupModel('openai', 'gpt-4o')).rejects.toThrow('ENOENT')
     })
 
-    it('should throw when providers.json cannot be read', () => {
+    it('should throw when providers.json cannot be read', async () => {
       setupRegistryData()
       mockReadProviders.mockImplementation(() => {
         throw new Error('ENOENT: no such file')
       })
 
-      expect(() => providerRegistryService.getRegistryModelsByProvider('openai')).toThrow('ENOENT')
+      await expect(providerRegistryService.lookupModel('openai', 'gpt-4o')).rejects.toThrow('ENOENT')
     })
   })
 
   describe('cache reuse', () => {
-    it('should only read models.json once across multiple calls', () => {
+    it('should only read models.json once across multiple calls', async () => {
       setupRegistryData()
 
-      providerRegistryService.getRegistryModelsByProvider('openai')
-      providerRegistryService.getRegistryModelsByProvider('openai')
+      await providerRegistryService.resolveModels('openai', ['gpt-4o'])
+      await providerRegistryService.resolveModels('openai', ['gpt-4o'])
 
       expect(mockReadModels).toHaveBeenCalledTimes(1)
-    })
-  })
-
-  describe('getRegistryModelsByProvider', () => {
-    it('should return merged models for a known provider', () => {
-      setupRegistryData()
-
-      const models = providerRegistryService.getRegistryModelsByProvider('openai')
-
-      expect(models).toHaveLength(1)
-      expect(models[0].id).toContain('gpt-4o')
-      expect(models[0].name).toBe('GPT-4o')
-    })
-
-    it('should return empty array for unknown provider', () => {
-      setupRegistryData()
-
-      const models = providerRegistryService.getRegistryModelsByProvider('unknown-provider')
-
-      expect(models).toHaveLength(0)
     })
   })
 

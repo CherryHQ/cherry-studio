@@ -1,13 +1,28 @@
+import { resolve } from 'node:path'
+
+import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { clearProviderPresetDisplayMetadataCache } from '@data/services/ProviderRegistryMetadata'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('ProviderService API keys', () => {
   const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    clearProviderPresetDisplayMetadataCache()
+    vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.provider_registry.data' && filename) {
+        return resolve('packages/provider-registry/data', filename)
+      }
+
+      return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+    })
+  })
 
   async function seedProvider() {
     await dbh.db.insert(userProviderTable).values({
@@ -37,6 +52,25 @@ describe('ProviderService API keys', () => {
     await providerService.addApiKey('openai', 'sk-new', 'Duplicate')
     const keys = await readApiKeys()
     expect(keys.filter((entry) => entry.key === 'sk-new')).toHaveLength(1)
+  })
+
+  it('merges preset description and websites into the runtime provider read', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'openai-work',
+      presetProviderId: 'openai',
+      name: 'OpenAI Work',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+
+    const provider = await providerService.getByProviderId('openai-work')
+
+    expect(provider.description).toBe('OpenAI - AI model provider')
+    expect(provider.websites).toMatchObject({
+      official: 'https://openai.com/',
+      apiKey: 'https://platform.openai.com/api-keys',
+      docs: 'https://platform.openai.com/docs',
+      models: 'https://platform.openai.com/docs/models'
+    })
   })
 
   it('updates API key fields and rejects empty or duplicate key values', async () => {

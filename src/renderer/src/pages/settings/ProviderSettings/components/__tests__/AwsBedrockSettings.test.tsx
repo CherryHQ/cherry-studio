@@ -6,7 +6,6 @@ import AwsBedrockSettings from '../../ProviderSpecific/AwsBedrockSettings'
 const updateAuthConfigMock = vi.fn()
 const useProviderMock = vi.fn()
 const useProviderAuthConfigMock = vi.fn()
-const useProviderPresetMetadataMock = vi.fn()
 const setInputApiKeyMock = vi.fn()
 const commitInputApiKeyNowMock = vi.fn()
 
@@ -18,7 +17,7 @@ vi.mock('@cherrystudio/ui', () => ({
   RowFlex: ({ children }: any) => <div>{children}</div>
 }))
 
-vi.mock('../../shared/primitives/ProviderSettingsPrimitives', () => ({
+vi.mock('../../primitives/ProviderSettingsPrimitives', () => ({
   ProviderHelpLink: ({ children, ...props }: any) => <a {...props}>{children}</a>,
   ProviderHelpText: ({ children }: any) => <span>{children}</span>,
   ProviderHelpTextRow: ({ children }: any) => <div>{children}</div>,
@@ -27,8 +26,7 @@ vi.mock('../../shared/primitives/ProviderSettingsPrimitives', () => ({
 
 vi.mock('@renderer/hooks/useProviders', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args),
-  useProviderAuthConfig: (...args: any[]) => useProviderAuthConfigMock(...args),
-  useProviderPresetMetadata: (...args: any[]) => useProviderPresetMetadataMock(...args)
+  useProviderAuthConfig: (...args: any[]) => useProviderAuthConfigMock(...args)
 }))
 
 vi.mock('../../hooks/providerSetting/useAuthenticationApiKey', () => ({
@@ -49,7 +47,6 @@ vi.mock('react-i18next', () => ({
 describe('AwsBedrockSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    useProviderPresetMetadataMock.mockReturnValue({ data: { websites: {} } })
     useProviderAuthConfigMock.mockReturnValue({ data: null })
   })
 

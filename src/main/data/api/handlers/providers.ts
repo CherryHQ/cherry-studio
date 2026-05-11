@@ -70,10 +70,6 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   },
 
   '/providers/:providerId/registry-models': {
-    GET: async ({ params }) => {
-      return providerRegistryService.getRegistryModelsByProvider(params.providerId)
-    },
-
     POST: async ({ params, body }) => {
       return await providerRegistryService.resolveModels(
         params.providerId,
@@ -85,12 +81,6 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:providerId/auth-config': {
     GET: async ({ params }) => {
       return providerService.getAuthConfig(params.providerId)
-    }
-  },
-
-  '/providers/:providerId/preset-metadata': {
-    GET: async ({ params }) => {
-      return providerRegistryService.getProviderPresetMetadata(params.providerId)
     }
   },
 

@@ -4,12 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProviderMeta } from '../useProviderMeta'
 
 const useProviderMock = vi.fn()
-const useProviderPresetMetadataMock = vi.fn()
 const useTranslationMock = vi.fn()
 
 vi.mock('@renderer/hooks/useProviders', () => ({
-  useProvider: (...args: any[]) => useProviderMock(...args),
-  useProviderPresetMetadata: (...args: any[]) => useProviderPresetMetadataMock(...args)
+  useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
 vi.mock('react-i18next', () => ({
@@ -30,7 +28,7 @@ describe('useProviderMeta', () => {
     })
   })
 
-  it('reads provider website links from preset metadata', () => {
+  it('reads provider website links from the provider read', () => {
     useProviderMock.mockReturnValue({
       provider: {
         id: 'openai',
@@ -46,11 +44,7 @@ describe('useProviderMeta', () => {
           enableThinking: true
         },
         settings: {},
-        isEnabled: true
-      }
-    })
-    useProviderPresetMetadataMock.mockReturnValue({
-      data: {
+        isEnabled: true,
         websites: {
           official: 'https://openai.com',
           apiKey: 'https://platform.openai.com/api-keys',
@@ -68,7 +62,7 @@ describe('useProviderMeta', () => {
     expect(result.current.modelsWebsite).toBe('https://platform.openai.com/docs/models')
   })
 
-  it('reads provider website links for inherited providers from preset metadata', () => {
+  it('reads provider website links for inherited providers from the provider read', () => {
     useProviderMock.mockReturnValue({
       provider: {
         id: 'openai-main',
@@ -84,11 +78,7 @@ describe('useProviderMeta', () => {
           enableThinking: true
         },
         settings: {},
-        isEnabled: true
-      }
-    })
-    useProviderPresetMetadataMock.mockReturnValue({
-      data: {
+        isEnabled: true,
         websites: {
           official: 'https://openai.com',
           docs: 'https://platform.openai.com/docs/overview'
@@ -102,7 +92,7 @@ describe('useProviderMeta', () => {
     expect(result.current.docsWebsite).toBe('https://platform.openai.com/docs/overview')
   })
 
-  it('returns empty website links for fully custom providers without preset metadata', () => {
+  it('returns empty website links for fully custom providers without websites', () => {
     useProviderMock.mockReturnValue({
       provider: {
         id: 'custom-provider',
@@ -120,9 +110,6 @@ describe('useProviderMeta', () => {
         settings: {},
         isEnabled: true
       }
-    })
-    useProviderPresetMetadataMock.mockReturnValue({
-      data: {}
     })
 
     const { result } = renderHook(() => useProviderMeta('custom-provider'))

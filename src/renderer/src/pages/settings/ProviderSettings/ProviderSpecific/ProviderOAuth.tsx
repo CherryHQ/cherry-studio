@@ -2,7 +2,7 @@ import { Button, RowFlex } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { useProvider, useProviderPresetMetadata } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProviders'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { hasApiKeys } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
@@ -17,7 +17,6 @@ interface Props {
 const ProviderOAuth: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
   const { provider, updateProvider, addApiKey } = useProvider(providerId)
-  const { data: presetMetadata } = useProviderPresetMetadata(providerId)
 
   const setApiKey = async (newKey: string) => {
     await addApiKey(newKey, 'OAuth')
@@ -31,7 +30,7 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
   if (provider.id === 'ppio') {
     providerWebsite = 'ppio.com'
   }
-  const officialWebsite = presetMetadata?.websites?.official
+  const officialWebsite = provider.websites?.official
 
   const Icon = resolveProviderIcon(provider.id)
 

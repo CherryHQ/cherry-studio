@@ -2,9 +2,9 @@ import { Button } from '@cherrystudio/ui'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderActions from '../../shared/primitives/ProviderActions'
-import ProviderSettingsDrawer from '../../shared/primitives/ProviderSettingsDrawer'
-import { drawerClasses } from '../../shared/primitives/ProviderSettingsPrimitives'
+import { drawerClasses } from '../../primitives/classNames'
+import ProviderActions from '../../primitives/ProviderActions'
+import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
 import AddModelFormPanel, { type AddModelDrawerFooterBinding } from './AddModelFormPanel'
 import type { AddModelDrawerPrefill } from './types'
 
@@ -16,8 +16,6 @@ interface AddModelDrawerProps {
 }
 
 /**
- * Optional wrapper around `AddModelFormPanel` (full form) for tests or non-inline flows. Inline add lives in `ManageModelsDrawer`.
- *
  * The wrapper stays mounted so `PageSidePanel`'s `AnimatePresence` can play its exit animation when `open` flips to `false`.
  */
 export default function AddModelDrawer({ providerId, open, prefill, onClose }: AddModelDrawerProps) {

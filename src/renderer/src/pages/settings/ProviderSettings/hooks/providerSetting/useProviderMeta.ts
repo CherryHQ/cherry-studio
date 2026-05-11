@@ -1,4 +1,4 @@
-import { useProvider, useProviderPresetMetadata } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProviders'
 import {
   getFancyProviderName,
   isAnthropicSupportedProvider,
@@ -8,24 +8,9 @@ import {
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-/**
- * Boundary rule: this is a domain-cohesive read-only provider metadata hook.
- * It should internalize provider lookup and translation access, and expose only minimal presentation metadata.
- * Callers should pass only providerId, never provider snapshots plus language plumbing that this hook can resolve itself.
- *
- * Intent: expose the small set of shared, read-only provider presentation metadata used across the settings page.
- * Scope: use in Provider Settings components that need links, labels, and visibility toggles.
- * Does not handle: endpoint previews, persistence, or any effectful state.
- *
- * @example
- * ```tsx
- * const meta = useProviderMeta(providerId)
- * <ProviderHeader name={meta.fancyProviderName} docsWebsite={meta.docsWebsite} />
- * ```
- */
+/** Exposes read-only provider presentation metadata used across provider settings. */
 export function useProviderMeta(providerId: string) {
   const { provider } = useProvider(providerId)
-  const { data: presetMetadata } = useProviderPresetMetadata(providerId)
   const { i18n } = useTranslation()
 
   return useMemo(() => {
@@ -35,10 +20,10 @@ export function useProviderMeta(providerId: string) {
 
     return {
       fancyProviderName: provider ? getFancyProviderName(provider) : '',
-      officialWebsite: presetMetadata?.websites?.official,
-      apiKeyWebsite: presetMetadata?.websites?.apiKey,
-      docsWebsite: presetMetadata?.websites?.docs,
-      modelsWebsite: presetMetadata?.websites?.models,
+      officialWebsite: provider?.websites?.official,
+      apiKeyWebsite: provider?.websites?.apiKey,
+      docsWebsite: provider?.websites?.docs,
+      modelsWebsite: provider?.websites?.models,
       isAzureOpenAI: provider ? isAzureOpenAIProvider(provider) : false,
       isCherryIN: provider?.id === 'cherryin',
       isDmxapi: provider?.id === 'dmxapi',
@@ -48,5 +33,5 @@ export function useProviderMeta(providerId: string) {
       isApiKeyFieldVisible: !hideApiInput && !isAnthropicOAuth && !hideApiKeyInput,
       isConnectionFieldVisible: !hideApiInput && !isAnthropicOAuth && provider?.id !== 'dmxapi'
     }
-  }, [i18n.language, presetMetadata, provider])
+  }, [i18n.language, provider])
 }

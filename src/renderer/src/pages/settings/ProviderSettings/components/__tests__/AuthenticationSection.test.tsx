@@ -26,8 +26,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/hooks/useProviders', () => ({
-  useProvider: (...args: any[]) => useProviderMock(...args),
-  useProviderPresetMetadata: () => ({ data: {} })
+  useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
 vi.mock('../../hooks/providerSetting/useProviderConnectionCheck', () => ({

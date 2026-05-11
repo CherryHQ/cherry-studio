@@ -9,8 +9,6 @@ import {
   useProviderApiKeys,
   useProviderAuthConfig,
   useProviderMutations,
-  useProviderPresetMetadata,
-  useProviderRegistryModels,
   useProviders
 } from '../useProviders'
 
@@ -718,74 +716,6 @@ describe('useProviderApiKeys', () => {
     renderHook(() => useProviderApiKeys('openai-main'))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/api-keys', {
-      params: { providerId: 'openai-main' }
-    })
-  })
-})
-
-describe('useProviderRegistryModels', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('should query registry models for a provider', () => {
-    const mockModels = [{ id: 'gpt-4o', name: 'GPT-4o', providerId: 'openai' }]
-    mockUseQuery.mockImplementation(() => ({
-      data: mockModels,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      mutate: vi.fn()
-    }))
-
-    const { result } = renderHook(() => useProviderRegistryModels('openai'))
-
-    expect(result.current.data).toEqual(mockModels)
-    expect(result.current.isLoading).toBe(false)
-    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/registry-models', {
-      params: { providerId: 'openai' }
-    })
-  })
-
-  it('should build correct params for hyphenated provider IDs', () => {
-    renderHook(() => useProviderRegistryModels('openai-main'))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/registry-models', {
-      params: { providerId: 'openai-main' }
-    })
-  })
-})
-
-describe('useProviderPresetMetadata', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('should query preset metadata for a provider', () => {
-    const mockMetadata = { websites: { official: 'https://openai.com' } }
-    mockUseQuery.mockImplementation(() => ({
-      data: mockMetadata,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn(),
-      mutate: vi.fn()
-    }))
-
-    const { result } = renderHook(() => useProviderPresetMetadata('openai'))
-
-    expect(result.current.data).toEqual(mockMetadata)
-    expect(result.current.isLoading).toBe(false)
-    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/preset-metadata', {
-      params: { providerId: 'openai' }
-    })
-  })
-
-  it('should build correct params for hyphenated provider IDs', () => {
-    renderHook(() => useProviderPresetMetadata('openai-main'))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/preset-metadata', {
       params: { providerId: 'openai-main' }
     })
   })

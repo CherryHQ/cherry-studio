@@ -1,5 +1,5 @@
 import { Input, Label, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
-import { useProvider, useProviderAuthConfig, useProviderPresetMetadata } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProviders'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -11,7 +11,7 @@ import {
   ProviderHelpText,
   ProviderHelpTextRow,
   ProviderSettingsSubtitle
-} from '../shared/primitives/ProviderSettingsPrimitives'
+} from '../primitives/ProviderSettingsPrimitives'
 
 interface Props {
   providerId: string
@@ -21,13 +21,12 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
   const { provider, updateAuthConfig } = useProvider(providerId)
   const { data: authConfig } = useProviderAuthConfig(providerId)
-  const { data: presetMetadata } = useProviderPresetMetadata(providerId)
   const { inputApiKey, setInputApiKey, commitInputApiKeyNow } = useAuthenticationApiKey()
 
   const isIamMode = provider?.authType === 'iam-aws'
   const awsConfig = authConfig?.type === 'iam-aws' ? authConfig : null
 
-  const apiKeyWebsite = presetMetadata?.websites?.apiKey
+  const apiKeyWebsite = provider?.websites?.apiKey
 
   const [localAccessKeyId, setLocalAccessKeyId] = useState(awsConfig?.accessKeyId ?? '')
   const [localSecretAccessKey, setLocalSecretAccessKey] = useState(awsConfig?.secretAccessKey ?? '')

@@ -2,7 +2,6 @@
  * Registry Service — merge-dependent operations that bridge registry data with SQLite.
  *
  * Responsibilities:
- * - getRegistryModelsByProvider: read-only merged model list
  * - resolveModels: resolve raw SDK model entries against registry
  * - lookupModel: DB-aware single model lookup with reasoning config
  * - mergePresetModel / createCustomModel / applyCapabilityOverride / extractReasoningFormatTypes:
@@ -26,7 +25,6 @@ import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE, REASONING_EFFORT } from '@c
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/apiErrors'
-import type { ProviderPresetMetadata } from '@shared/data/api/schemas/providers'
 import type { Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
@@ -130,8 +128,8 @@ export function createCustomModel(providerId: string, modelId: string): Model {
 /**
  * Two-layer merge: preset → override. No user data involved.
  *
- * Used by `resolveModels`, `getRegistryModelsByProvider`, and (via composition with
- * `applyUserOverlay` in ModelService) by `ModelService.create` and the migrator.
+ * Used by `resolveModels` and (via composition with `applyUserOverlay` in ModelService)
+ * by `ModelService.create` and the migrator.
  */
 export function mergePresetModel(
   presetModel: ProtoModelConfig,
@@ -423,55 +421,6 @@ class ProviderRegistryService {
       logger.error('Failed to fetch provider for reasoning config', error as Error)
       throw error
     }
-  }
-
-  /**
-   * Get read-only preset metadata for a provider.
-   *
-   * Resolves custom providers through `presetProviderId` so renderer code can
-   * request metadata by runtime provider ID without knowing the preset linkage.
-   *
-   * Used by: `GET /providers/:providerId/preset-metadata`
-   */
-  async getProviderPresetMetadata(providerId: string): Promise<ProviderPresetMetadata> {
-    const provider = await providerService.getByProviderId(providerId)
-    const presetProviderId = provider.presetProviderId ?? provider.id
-    const registryProvider = this.getLoader()
-      .loadProviders()
-      .find((p) => p.id === presetProviderId)
-
-    return {
-      websites: registryProvider?.metadata?.website
-    }
-  }
-
-  /**
-   * Get all registry models for a provider as fully merged Model objects.
-   *
-   * Read-only — does not write to the database. Uses only registry data
-   * (models.json + provider-models.json + providers.json) without DB queries
-   * for user overrides.
-   *
-   * Used by: `GET /providers/:providerId/registry-models`
-   *
-   * @param providerId - The provider whose registry models to return
-   * @returns Array of merged Model objects with preset + override data applied
-   */
-  getRegistryModelsByProvider(providerId: string): Model[] {
-    const loader = this.getLoader()
-    const { defaultChatEndpoint, reasoningFormatTypes } = this.getRegistryReasoningConfig(providerId)
-
-    const overrides = loader.getOverridesForProvider(providerId)
-    if (overrides.length === 0) return []
-
-    const mergedModels: Model[] = []
-    for (const override of overrides) {
-      const baseModel = loader.findModel(override.modelId)
-      if (!baseModel) continue
-      mergedModels.push(mergePresetModel(baseModel, override, providerId, reasoningFormatTypes, defaultChatEndpoint))
-    }
-
-    return mergedModels
   }
 
   /**

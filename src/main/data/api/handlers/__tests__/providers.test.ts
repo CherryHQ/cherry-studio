@@ -22,9 +22,7 @@ vi.mock('@data/services/ProviderService', () => ({
 
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
-    getRegistryModelsByProvider: vi.fn(),
-    resolveModels: vi.fn(),
-    getProviderPresetMetadata: vi.fn()
+    resolveModels: vi.fn()
   }
 }))
 

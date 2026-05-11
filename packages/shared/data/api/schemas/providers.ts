@@ -17,8 +17,7 @@ import {
   EndpointConfigSchema,
   type Provider,
   type ProviderSettings,
-  ProviderSettingsSchema,
-  type ProviderWebsites
+  ProviderSettingsSchema
 } from '../../types/provider'
 import type { OrderEndpoints } from './_endpointHelpers'
 import type { EnrichModelsDto } from './models'
@@ -114,10 +113,6 @@ export const UpdateApiKeySchema = z.strictObject({
 })
 export type UpdateApiKeyDto = z.infer<typeof UpdateApiKeySchema>
 
-export interface ProviderPresetMetadata {
-  websites?: ProviderWebsites
-}
-
 // Re-exported for handler-side re-use
 export type { ApiKeyEntry, AuthConfig, EndpointConfig, ProviderSettings }
 
@@ -203,17 +198,10 @@ export type ProviderSchemas = {
   }
 
   /**
-   * Registry models for a provider
-   * GET: Get all registry preset models (read-only, no DB writes)
-   * POST: Enrich raw SDK model entries against registry presets
-   * @example GET /providers/openai/registry-models
+   * Resolve raw SDK model entries against registry presets.
    * @example POST /providers/openai/registry-models { "models": [{ "modelId": "gpt-4o" }] }
    */
   '/providers/:providerId/registry-models': {
-    GET: {
-      params: { providerId: string }
-      response: Model[]
-    }
     /** Resolve raw model IDs against registry presets */
     POST: {
       params: { providerId: string }
@@ -233,18 +221,6 @@ export type ProviderSchemas = {
     GET: {
       params: { providerId: string }
       response: AuthConfig | null
-    }
-  }
-
-  /**
-   * Read-only preset metadata for a provider.
-   * Returns registry-backed display metadata without widening the runtime
-   * Provider contract.
-   */
-  '/providers/:providerId/preset-metadata': {
-    GET: {
-      params: { providerId: string }
-      response: ProviderPresetMetadata
     }
   }
 

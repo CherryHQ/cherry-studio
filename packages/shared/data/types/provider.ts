@@ -231,6 +231,8 @@ export const ProviderSchema = z.object({
   name: z.string(),
   /** Description */
   description: z.string().optional(),
+  /** Preset provider website links */
+  websites: ProviderWebsitesSchema.optional(),
   /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
   endpointConfigs: z.record(EndpointTypeSchema, EndpointConfigSchema).optional() as z.ZodOptional<
     z.ZodType<Partial<Record<EndpointType, EndpointConfig>>>

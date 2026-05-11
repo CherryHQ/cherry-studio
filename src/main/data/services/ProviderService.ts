@@ -11,6 +11,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import type { NewUserProvider, UserProvider } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { pinService } from '@data/services/PinService'
+import { getProviderPresetDisplayMetadata } from '@data/services/ProviderRegistryMetadata'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
@@ -35,6 +36,8 @@ type NewUserProviderInput = Omit<NewUserProvider, 'orderKey'>
  * Convert database row to Provider entity
  */
 function rowToRuntimeProvider(row: UserProvider): Provider {
+  const presetMetadata = getProviderPresetDisplayMetadata(row.presetProviderId ?? row.providerId)
+
   // Process API keys (strip actual key values for security)
   // oxlint-disable-next-line no-unused-vars
   const apiKeys = (row.apiKeys ?? []).map(({ key: _key, ...rest }) => rest)
@@ -61,6 +64,8 @@ function rowToRuntimeProvider(row: UserProvider): Provider {
     id: row.providerId,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
+    description: presetMetadata.description,
+    websites: presetMetadata.websites,
     endpointConfigs: row.endpointConfigs ?? undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? undefined,
     apiKeys,

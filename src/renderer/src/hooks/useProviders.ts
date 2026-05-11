@@ -18,7 +18,7 @@ const logger = loggerService.withContext('useProviders')
  * All SWR cache keys that must revalidate after any mutation to a provider:
  * - `/providers` — the list
  * - `/providers/${id}` — the entity (useProvider)
- * - `/providers/${id}/*` — all sub-resources (api-keys, auth-config, registry-models, …)
+ * - `/providers/${id}/*` — all sub-resources (api-keys, auth-config, …)
  *
  * Concrete paths are only needed here for SWR refresh arrays — queries and mutations
  * use schema template paths directly, so no `as ConcreteApiPaths` casts are needed there.
@@ -227,18 +227,6 @@ export function useProviderAuthConfig(providerId: string) {
 
 export function useProviderApiKeys(providerId: string) {
   return useQuery('/providers/:providerId/api-keys', { params: { providerId } })
-}
-
-export function useProviderRegistryModels(providerId: string) {
-  const result = useQuery('/providers/:providerId/registry-models', { params: { providerId } })
-  // Schema: GET /providers/:id/registry-models -> Model[]
-  return { ...result, data: result.data }
-}
-
-export function useProviderPresetMetadata(providerId: string) {
-  const result = useQuery('/providers/:providerId/preset-metadata', { params: { providerId } })
-  // Schema: GET /providers/:id/preset-metadata -> ProviderPresetMetadata
-  return { ...result, data: result.data }
 }
 
 // ─── Dynamic ID operations (for context menus, URL schema handlers) ──
