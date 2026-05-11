@@ -1,6 +1,7 @@
 import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudio/ui'
 import { useLanguages } from '@renderer/hooks/translate'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import { getProcessorLanguageOptions } from '@shared/data/utils/fileProcessorMerger'
 import { splitApiKeyString } from '@shared/utils/api'
 import { List, SquareCheckBig } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -24,7 +25,6 @@ import {
   supportsApiSettings,
   supportsLanguageOptions
 } from '../utils/fileProcessingMeta'
-import { getProcessorLanguageOptions } from '../utils/fileProcessingPreferences'
 import { FileProcessingApiKeyListPopup } from './FileProcessingApiKeyList'
 import { PaddleOCRDeploymentInfo } from './PaddleOCRDeploymentInfo'
 import { PaddleOCRModelSettings } from './PaddleOCRModelSettings'

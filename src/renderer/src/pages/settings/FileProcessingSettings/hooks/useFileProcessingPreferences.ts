@@ -4,14 +4,13 @@ import type {
   FileProcessorId,
   FileProcessorOverrides
 } from '@shared/data/preference/preferenceTypes'
-import { mergeFileProcessorPresets } from '@shared/data/presets/file-processing'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-
 import {
+  mergeFileProcessorPresets,
   updateProcessorApiKeys,
   updateProcessorCapabilityOverride,
   updateProcessorLanguageOptions
-} from '../utils/fileProcessingPreferences'
+} from '@shared/data/utils/fileProcessorMerger'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const FILE_PROCESSING_KEYS = {
   defaultDocumentProcessor: 'feature.file_processing.default_document_to_markdown',

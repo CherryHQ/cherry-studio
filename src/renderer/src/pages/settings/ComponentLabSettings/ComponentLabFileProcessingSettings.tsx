@@ -2,12 +2,13 @@ import { Badge, Button } from '@cherrystudio/ui'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import { type FileProcessorMerged, mergeFileProcessorPresets } from '@shared/data/presets/file-processing'
+import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type {
   FileProcessingArtifact,
   FileProcessingTaskResult,
   FileProcessingTaskStatus
 } from '@shared/data/types/fileProcessing'
+import { mergeFileProcessorPresets } from '@shared/data/utils/fileProcessorMerger'
 import type { FileMetadata } from '@types'
 import { CheckCircle2, CircleAlert, FileText, Image, Loader2, Play, Upload } from 'lucide-react'
 import type { FC, ReactNode } from 'react'

@@ -1,10 +1,58 @@
+/**
+ * File processor preset and user override merging utilities.
+ */
+
 import type {
+  FileProcessorCapabilityOverride,
   FileProcessorFeature,
   FileProcessorId,
   FileProcessorOptions,
   FileProcessorOverride,
   FileProcessorOverrides
-} from '@shared/data/preference/preferenceTypes'
+} from '../preference/preferenceTypes'
+import {
+  type FileProcessorFeatureCapability,
+  type FileProcessorMerged,
+  type FileProcessorPreset,
+  PRESETS_FILE_PROCESSORS
+} from '../presets/file-processing'
+
+export function findFileProcessorCapability(
+  processor: { capabilities: readonly FileProcessorFeatureCapability[] },
+  feature: FileProcessorFeature
+): FileProcessorFeatureCapability | undefined {
+  return processor.capabilities.find((capability) => capability.feature === feature)
+}
+
+function mergeCapabilityConfig<T extends { apiHost?: string; modelId?: string }>(
+  capability: T,
+  override?: FileProcessorCapabilityOverride
+): T {
+  return {
+    ...capability,
+    ...(override?.apiHost !== undefined ? { apiHost: override.apiHost } : {}),
+    ...(override?.modelId !== undefined ? { modelId: override.modelId } : {})
+  }
+}
+
+export function mergeFileProcessorPreset(
+  preset: FileProcessorPreset,
+  override?: FileProcessorOverride
+): FileProcessorMerged {
+  return {
+    id: preset.id,
+    type: preset.type,
+    capabilities: preset.capabilities.map((capability) =>
+      mergeCapabilityConfig(capability, override?.capabilities?.[capability.feature])
+    ),
+    apiKeys: override?.apiKeys,
+    options: override?.options
+  }
+}
+
+export function mergeFileProcessorPresets(overrides: FileProcessorOverrides): FileProcessorMerged[] {
+  return PRESETS_FILE_PROCESSORS.map((preset) => mergeFileProcessorPreset(preset, overrides[preset.id]))
+}
 
 function setProcessorOverride(
   overrides: FileProcessorOverrides,

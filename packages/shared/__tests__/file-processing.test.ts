@@ -11,7 +11,6 @@ import {
   FileProcessorTemplatesSchema,
   FileProcessorTypeSchema,
   getFileProcessorPresetById,
-  mergeFileProcessorPreset,
   PRESETS_FILE_PROCESSORS
 } from '../data/presets/file-processing'
 import { FILE_TYPE } from '../data/types/file'
@@ -21,6 +20,7 @@ import {
   FileProcessingTaskStartResultSchema,
   ListAvailableFileProcessorsResultSchema
 } from '../data/types/fileProcessing'
+import { mergeFileProcessorPreset } from '../data/utils/fileProcessorMerger'
 
 describe('FileProcessorFeatureCapabilitySchema', () => {
   it('accepts image_to_text with image inputs', () => {

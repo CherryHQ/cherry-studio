@@ -1,11 +1,8 @@
 import type { KnowledgeBase, PreprocessProvider, PreprocessProviderId } from '@renderer/types/knowledge'
 import { isPreprocessProviderId } from '@renderer/types/knowledge'
 import type { FileProcessorOverrides } from '@shared/data/preference/preferenceTypes'
-import {
-  type FileProcessorFeatureCapability,
-  type FileProcessorMerged,
-  mergeFileProcessorPresets
-} from '@shared/data/presets/file-processing'
+import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@shared/data/presets/file-processing'
+import { mergeFileProcessorPresets } from '@shared/data/utils/fileProcessorMerger'
 
 type DocumentToMarkdownCapability = Extract<FileProcessorFeatureCapability, { feature: 'document_to_markdown' }>
 type Translate = (key: string) => string

@@ -1,12 +1,22 @@
 import { describe, expect, it } from 'vitest'
 
+import { PRESETS_FILE_PROCESSORS } from '../../presets/file-processing'
 import {
+  findFileProcessorCapability,
   updateProcessorApiKeys,
   updateProcessorCapabilityOverride,
   updateProcessorLanguageOptions
-} from '../utils/fileProcessingPreferences'
+} from '../fileProcessorMerger'
 
-describe('fileProcessingPreferences', () => {
+describe('fileProcessorMerger', () => {
+  it('finds a processor capability by feature', () => {
+    const paddleocr = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === 'paddleocr')
+
+    expect(paddleocr).toBeDefined()
+    expect(findFileProcessorCapability(paddleocr!, 'image_to_text')?.output).toBe('text')
+    expect(findFileProcessorCapability(paddleocr!, 'document_to_markdown')?.output).toBe('markdown')
+  })
+
   it('updates API keys without mutating other processor overrides', () => {
     const result = updateProcessorApiKeys(
       {
