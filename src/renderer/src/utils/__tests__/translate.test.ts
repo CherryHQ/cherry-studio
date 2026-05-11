@@ -59,7 +59,7 @@ describe('createOutputScrollHandler', () => {
         scrollTop: 20,
         scrollHeight: 240,
         clientHeight: 120,
-        ...(overrides || {})
+        ...overrides
       }
     }) as React.UIEvent<HTMLDivElement>
 
