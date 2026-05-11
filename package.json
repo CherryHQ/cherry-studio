@@ -500,7 +500,8 @@
       "@ai-sdk/openai@3.0.53": "patches/@ai-sdk__openai@3.0.53.patch",
       "@ai-sdk/google@3.0.64": "patches/@ai-sdk__google@3.0.64.patch",
       "@ai-sdk/anthropic": "patches/@ai-sdk__anthropic.patch",
-      "@ai-sdk/deepseek@2.0.29": "patches/@ai-sdk__deepseek@2.0.29.patch"
+      "@ai-sdk/deepseek@2.0.29": "patches/@ai-sdk__deepseek@2.0.29.patch",
+      "@cherrystudio/embedjs-loader-web@0.1.31": "patches/@cherrystudio+embedjs-loader-web@0.1.31.patch"
     },
     "onlyBuiltDependencies": [
       "@j178/prek",

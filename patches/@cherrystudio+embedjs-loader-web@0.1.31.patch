@@ -1,0 +1,36 @@
+diff --git a/src/web-loader.cjs b/src/web-loader.cjs
+--- a/src/web-loader.cjs
++++ b/src/web-loader.cjs
+@@ -24,10 +24,12 @@
+         });
+         try {
+             const data = this.isUrl ? (await (0, embedjs_utils_1.getSafe)(this.urlOrContent, { format: 'text' })).body : this.urlOrContent;
+-            const text = (0, html_to_text_1.convert)(data, {
++            const converted = (0, html_to_text_1.convert)(data, {
+                 wordwrap: false,
+                 preserveNewlines: false,
+-            }).replace(/(?:https?|ftp):\/\/[\n\S]+/g, '');
++            });
++            // Only strip URLs when input is a remote URL; preserve URLs in local content
++            const text = this.isUrl ? converted.replace(/(?:https?|ftp):\/\/[\n\S]+/g, '') : converted;
+             const tuncatedObjectString = this.isUrl ? undefined : (0, embedjs_utils_1.truncateCenterString)(this.urlOrContent, 50);
+             const chunks = await chunker.splitText((0, embedjs_utils_1.cleanString)(text));
+             for (const chunk of chunks) {
+diff --git a/src/web-loader.js b/src/web-loader.js
+--- a/src/web-loader.js
++++ b/src/web-loader.js
+@@ -20,10 +20,12 @@
+         });
+         try {
+             const data = this.isUrl ? (await getSafe(this.urlOrContent, { format: 'text' })).body : this.urlOrContent;
+-            const text = convert(data, {
++            const converted = convert(data, {
+                 wordwrap: false,
+                 preserveNewlines: false,
+-            }).replace(/(?:https?|ftp):\/\/[\n\S]+/g, '');
++            });
++            // Only strip URLs when input is a remote URL; preserve URLs in local content
++            const text = this.isUrl ? converted.replace(/(?:https?|ftp):\/\/[\n\S]+/g, '') : converted;
+             const tuncatedObjectString = this.isUrl ? undefined : truncateCenterString(this.urlOrContent, 50);
+             const chunks = await chunker.splitText(cleanString(text));
+             for (const chunk of chunks) {
