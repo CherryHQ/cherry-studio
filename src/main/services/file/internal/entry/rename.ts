@@ -53,6 +53,12 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   // statement avoids the half-renamed state where the FS file is at the new
   // path but the DB row still carries the old `name` projection.
   const renamed = await deps.fileEntryService.setExternalPathAndName(id, canonical, newName)
+  // Invalidate the cached FileVersion: `fsMove` may have fallen back to
+  // copy+unlink across devices (EXDEV), producing a new inode whose mtime
+  // differs from the snapshot captured before the rename. A subsequent
+  // `writeIfUnchanged(id, expectedVersion)` would otherwise OCC-compare
+  // against a stale version and either spuriously succeed or fail.
+  deps.versionCache.invalidate(id)
   // Reverse-index swap. The old path is fully invalidated; the new path
   // takes over with a fresh 'present' observation since fsMove just succeeded.
   deps.danglingCache.removeEntry(id, oldPath)

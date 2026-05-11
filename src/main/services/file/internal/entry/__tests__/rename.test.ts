@@ -186,4 +186,18 @@ describe('internal/entry/rename', () => {
     expect(deps.danglingCache.addEntry).toHaveBeenCalledWith(entry.id, expect.stringContaining('reindex-new'))
     expect(deps.danglingCache.onFsEvent).toHaveBeenCalledWith(expect.stringContaining('reindex-new'), 'present', 'ops')
   })
+
+  it('invalidates the versionCache on external rename so OCC reads fresh stat after fsMove', async () => {
+    // EXDEV fallback in fsMove turns the rename into copy+unlink, producing
+    // a new inode with a different mtime. A subsequent writeIfUnchanged(id,
+    // expectedVersion) would otherwise compare against a pre-rename snapshot
+    // and either spuriously succeed or fail. Internal renames don't move the
+    // physical file so they don't need this — only external does.
+    const original = path.join(tmp, 'occ-stale.txt')
+    await writeFile(original, 'v1')
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    vi.mocked(deps.versionCache.invalidate).mockClear()
+    await rename(deps, entry.id, 'occ-fresh')
+    expect(deps.versionCache.invalidate).toHaveBeenCalledWith(entry.id)
+  })
 })
