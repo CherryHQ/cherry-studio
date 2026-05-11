@@ -21,8 +21,9 @@ import {
   getProcessorApiKeyWebsite,
   getProcessorNameKey,
   getTesseractLanguageCode,
+  shouldShowLanguageOptions,
   supportsApiSettings,
-  supportsLanguageOptions
+  supportsLanguageConfig
 } from '../utils/fileProcessingMeta'
 import { FileProcessingApiKeyListPopup } from './FileProcessingApiKeyList'
 import { PaddleOCRDeploymentInfo } from './PaddleOCRDeploymentInfo'
@@ -75,7 +76,7 @@ export function ProcessorPanel({
     setApiKeysInput(processor.apiKeys?.join(', ') ?? '')
     setApiHostInput(entry.capability.apiHost ?? '')
     setModelIdInput(entry.capability.modelId ?? '')
-  }, [entry.capability.apiHost, entry.capability.modelId, processor.apiKeys])
+  }, [entry.key])
 
   const languageOptions = useMemo(() => {
     if (!languages) {
@@ -107,9 +108,20 @@ export function ProcessorPanel({
 
   const selectedLanguages = processor.options?.langs ?? []
 
-  const handleApiKeysBlur = useCallback(() => {
-    void onSetApiKeys(processor.id, splitApiKeyString(formatApiKeys(apiKeysInput)))
-  }, [apiKeysInput, onSetApiKeys, processor.id])
+  const persist = useCallback(
+    async (action: () => Promise<void>) => {
+      try {
+        await action()
+      } catch {
+        window.toast.error(t('settings.tool.file_processing.errors.save_failed'))
+      }
+    },
+    [t]
+  )
+
+  const handleApiKeysBlur = useCallback(async () => {
+    await persist(() => onSetApiKeys(processor.id, splitApiKeyString(formatApiKeys(apiKeysInput))))
+  }, [apiKeysInput, onSetApiKeys, persist, processor.id])
 
   const openApiKeyList = useCallback(async () => {
     await FileProcessingApiKeyListPopup.show({
@@ -120,34 +132,36 @@ export function ProcessorPanel({
     })
   }, [apiKeysInput, onSetApiKeys, processor.id, processorName, t])
 
-  const handleApiHostBlur = useCallback(() => {
-    void onSetCapabilityField(processor.id, entry.feature, 'apiHost', apiHostInput)
-  }, [apiHostInput, entry.feature, onSetCapabilityField, processor.id])
+  const handleApiHostBlur = useCallback(async () => {
+    await persist(() => onSetCapabilityField(processor.id, entry.feature, 'apiHost', apiHostInput))
+  }, [apiHostInput, entry.feature, onSetCapabilityField, persist, processor.id])
 
   const setModelIdInputAndPersist = useCallback(
-    (value: string) => {
+    async (value: string) => {
       setModelIdInput(value)
-      void onSetCapabilityField(processor.id, entry.feature, 'modelId', value)
+      await persist(() => onSetCapabilityField(processor.id, entry.feature, 'modelId', value))
     },
-    [entry.feature, onSetCapabilityField, processor.id]
+    [entry.feature, onSetCapabilityField, persist, processor.id]
   )
 
-  const handleSetDefault = useCallback(() => {
+  const handleSetDefault = useCallback(async () => {
     if (!isDefault) {
-      void onSetDefaultProcessor(entry.feature, processor.id)
+      await persist(() => onSetDefaultProcessor(entry.feature, processor.id))
     }
-  }, [entry.feature, isDefault, onSetDefaultProcessor, processor.id])
+  }, [entry.feature, isDefault, onSetDefaultProcessor, persist, processor.id])
 
   const handleLanguagesChange = useCallback(
-    (value: string | string[]) => {
-      if (!supportsLanguageOptions(processor.id)) {
+    async (value: string | string[]) => {
+      const processorId = processor.id
+
+      if (!supportsLanguageConfig(processorId)) {
         return
       }
 
       const langs = Array.isArray(value) ? value : []
-      void onSetLanguageOptions(processor.id, langs)
+      await persist(() => onSetLanguageOptions(processorId, langs))
     },
-    [onSetLanguageOptions, processor.id]
+    [onSetLanguageOptions, persist, processor.id]
   )
 
   return (
@@ -164,7 +178,7 @@ export function ProcessorPanel({
             {t('common.default')}
           </Badge>
         ) : (
-          <Button variant="outline" size="sm" onClick={handleSetDefault}>
+          <Button variant="outline" size="sm" onClick={() => void handleSetDefault()}>
             {t('settings.tool.file_processing.actions.set_as_default')}
           </Button>
         )}
@@ -185,7 +199,7 @@ export function ProcessorPanel({
                   type="password"
                   value={apiKeysInput}
                   onChange={(event) => setApiKeysInput(event.target.value)}
-                  onBlur={handleApiKeysBlur}
+                  onBlur={() => void handleApiKeysBlur()}
                   placeholder={t('settings.tool.file_processing.fields.api_keys_placeholder')}
                   spellCheck={false}
                 />
@@ -221,7 +235,7 @@ export function ProcessorPanel({
                 <Input
                   value={apiHostInput}
                   onChange={(event) => setApiHostInput(event.target.value)}
-                  onBlur={handleApiHostBlur}
+                  onBlur={() => void handleApiHostBlur()}
                   placeholder={t('settings.provider.api_host')}
                 />
               </SettingRow>
@@ -231,7 +245,7 @@ export function ProcessorPanel({
       ) : null}
 
       {processor.id === 'paddleocr' && entry.capability.modelId !== undefined ? (
-        <PaddleOCRModelSettings value={modelIdInput} onChange={setModelIdInputAndPersist} />
+        <PaddleOCRModelSettings value={modelIdInput} onChange={(value) => void setModelIdInputAndPersist(value)} />
       ) : null}
 
       {processor.id === 'paddleocr' ? <PaddleOCRDeploymentInfo /> : null}
@@ -253,11 +267,11 @@ export function ProcessorPanel({
         </>
       ) : null}
 
-      {supportsLanguageOptions(processor.id) ? (
+      {shouldShowLanguageOptions(processor.id) ? (
         <TesseractLanguagePacks
           options={languageOptions}
           selectedLanguages={selectedLanguages}
-          onChange={handleLanguagesChange}
+          onChange={(value) => void handleLanguagesChange(value)}
         />
       ) : null}
     </div>

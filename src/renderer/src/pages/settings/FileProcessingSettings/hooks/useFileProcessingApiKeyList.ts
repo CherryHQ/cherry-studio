@@ -37,9 +37,9 @@ export function useFileProcessingApiKeyList({
   const keys = useMemo(() => normalizeFileProcessingApiKeys(apiKeys), [apiKeys])
 
   const updateKeys = useCallback(
-    (nextKeys: string[]) => {
+    async (nextKeys: string[]) => {
       const normalizedKeys = normalizeFileProcessingApiKeys(nextKeys)
-      void onSetApiKeys(processorId, normalizedKeys)
+      await onSetApiKeys(processorId, normalizedKeys)
     },
     [onSetApiKeys, processorId]
   )
@@ -49,7 +49,7 @@ export function useFileProcessingApiKeyList({
   }, [])
 
   const addKey = useCallback(
-    (key: string): ApiKeyValidity => {
+    async (key: string): Promise<ApiKeyValidity> => {
       const result = validateFileProcessingApiKey(
         key,
         keys,
@@ -61,7 +61,7 @@ export function useFileProcessingApiKeyList({
         return result
       }
 
-      updateKeys([...keys, key])
+      await updateKeys([...keys, key])
       setPendingNewKey(null)
       return { isValid: true }
     },
@@ -69,7 +69,7 @@ export function useFileProcessingApiKeyList({
   )
 
   const updateKey = useCallback(
-    (index: number, key: string): ApiKeyValidity => {
+    async (index: number, key: string): Promise<ApiKeyValidity> => {
       const otherKeys = keys.filter((_, itemIndex) => itemIndex !== index)
       const result = validateFileProcessingApiKey(
         key,
@@ -87,37 +87,37 @@ export function useFileProcessingApiKeyList({
         return { isValid: false, error: 'Invalid index' }
       }
 
-      updateKeys(nextKeys)
+      await updateKeys(nextKeys)
       return { isValid: true }
     },
     [keys, t, updateKeys]
   )
 
   const removeKey = useCallback(
-    (index: number) => {
+    async (index: number) => {
       const nextKeys = removeFileProcessingApiKey(keys, index)
       if (nextKeys) {
-        updateKeys(nextKeys)
+        await updateKeys(nextKeys)
       }
     },
     [keys, updateKeys]
   )
 
   const updateListItem = useCallback(
-    (item: FileProcessingApiKeyListItem, key: string): ApiKeyValidity => {
+    (item: FileProcessingApiKeyListItem, key: string): Promise<ApiKeyValidity> => {
       return item.isNew ? addKey(key) : updateKey(item.index, key)
     },
     [addKey, updateKey]
   )
 
   const removeListItem = useCallback(
-    (item: FileProcessingApiKeyListItem) => {
+    async (item: FileProcessingApiKeyListItem) => {
       if (item.isNew) {
         setPendingNewKey(null)
         return
       }
 
-      removeKey(item.index)
+      await removeKey(item.index)
     },
     [removeKey]
   )

@@ -107,6 +107,6 @@ export type FileProcessingProcessorCapabilities = {
 export type FileProcessingProcessorRegistry = {
   [processorId in FileProcessorId]: {
     capabilities: FileProcessingProcessorCapabilities
-    isAvailable: boolean | (() => boolean)
+    isAvailable: () => boolean
   }
 }

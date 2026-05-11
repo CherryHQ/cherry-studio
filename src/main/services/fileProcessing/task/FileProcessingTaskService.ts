@@ -257,9 +257,7 @@ export class FileProcessingTaskService extends BaseService {
 
   listAvailableProcessorIds(): FileProcessorId[] {
     return Object.entries(processorRegistry)
-      .filter(([, processor]) =>
-        typeof processor.isAvailable === 'function' ? processor.isAvailable() : processor.isAvailable
-      )
+      .filter(([, processor]) => processor.isAvailable())
       .map(([processorId]) => processorId as FileProcessorId)
   }
 

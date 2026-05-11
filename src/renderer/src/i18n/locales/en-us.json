@@ -6576,6 +6576,10 @@
         "actions": {
           "set_as_default": "Set as default"
         },
+        "errors": {
+          "load_processors_failed": "Failed to load available processors",
+          "save_failed": "Save failed"
+        },
         "features": {
           "document_to_markdown": {
             "title": "Document Processing"

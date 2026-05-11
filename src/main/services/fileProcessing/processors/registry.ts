@@ -15,7 +15,7 @@ import type { FileProcessingProcessorRegistry } from './types'
 
 export const processorRegistry = {
   tesseract: {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {
       image_to_text: tesseractImageToTextHandler
     }
@@ -27,7 +27,7 @@ export const processorRegistry = {
     }
   },
   paddleocr: {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {
       image_to_text: paddleImageToTextHandler,
       document_to_markdown: paddleDocumentToMarkdownHandler
@@ -40,26 +40,26 @@ export const processorRegistry = {
     }
   },
   mineru: {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {
       document_to_markdown: mineruDocumentToMarkdownHandler
     }
   },
   doc2x: {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {
       document_to_markdown: doc2xDocumentToMarkdownHandler
     }
   },
   mistral: {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {
       document_to_markdown: mistralDocumentToMarkdownHandler,
       image_to_text: mistralImageToTextHandler
     }
   },
   'open-mineru': {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {
       document_to_markdown: openMineruDocumentToMarkdownHandler
     }

@@ -6576,6 +6576,10 @@
         "actions": {
           "set_as_default": "設為預設"
         },
+        "errors": {
+          "load_processors_failed": "載入可用處理器失敗",
+          "save_failed": "儲存失敗"
+        },
         "features": {
           "document_to_markdown": {
             "title": "文件處理"

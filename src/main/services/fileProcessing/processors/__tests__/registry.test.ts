@@ -53,9 +53,7 @@ describe('processorRegistry', () => {
     { isLinux: true, isMac: false, isWin: false, expected: false }
   ])('marks System OCR availability from main platform constants %#', async ({ isLinux, isMac, isWin, expected }) => {
     const processorRegistry = await importRegistryWithPlatform({ isLinux, isMac, isWin })
-    const availability = processorRegistry.system.isAvailable
 
-    expect(typeof availability).toBe('function')
-    expect(typeof availability === 'function' ? availability() : availability).toBe(expected)
+    expect(processorRegistry.system.isAvailable()).toBe(expected)
   })
 })

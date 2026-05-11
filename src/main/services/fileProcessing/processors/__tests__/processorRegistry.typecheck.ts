@@ -11,7 +11,7 @@ import type {
 
 const validRegistry = {
   tesseract: {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {
       image_to_text: {
         prepare: () => ({
@@ -25,11 +25,11 @@ const validRegistry = {
     }
   },
   system: {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {}
   },
   paddleocr: {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {}
   },
   ovocr: {
@@ -37,11 +37,11 @@ const validRegistry = {
     capabilities: {}
   },
   mineru: {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {}
   },
   doc2x: {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {
       document_to_markdown: {
         prepare: () => ({
@@ -64,11 +64,11 @@ const validRegistry = {
     }
   },
   mistral: {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {}
   },
   'open-mineru': {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {}
   }
 } satisfies FileProcessingProcessorRegistry
@@ -111,7 +111,7 @@ const validTypedRemoteContextHandler: FileProcessingCapabilityHandler<'document_
 const validTypedRemoteContextRegistry = {
   ...validRegistry,
   doc2x: {
-    isAvailable: true,
+    isAvailable: () => true,
     capabilities: {
       document_to_markdown: validTypedRemoteContextHandler
     }

@@ -18,8 +18,8 @@ const DEFAULT_KEY_BY_FEATURE = {
 } as const satisfies Record<FileProcessorFeature, keyof typeof FILE_PROCESSING_KEYS>
 
 export function useFileProcessingPreferences() {
-  const [preferences, setPreferences] = useMultiplePreferences(FILE_PROCESSING_KEYS, { optimistic: false })
-  const [overrides, setOverrides] = usePreference('feature.file_processing.overrides', { optimistic: false })
+  const [preferences, setPreferences] = useMultiplePreferences(FILE_PROCESSING_KEYS)
+  const [overrides, setOverrides] = usePreference('feature.file_processing.overrides')
 
   const processors = useMemo<FileProcessorMerged[]>(() => {
     return PRESETS_FILE_PROCESSORS.map((preset) => {

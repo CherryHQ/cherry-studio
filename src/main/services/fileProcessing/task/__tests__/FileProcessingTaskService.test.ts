@@ -12,7 +12,7 @@ import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLog
 
 type ProcessorRegistryMockEntry = {
   capabilities: Record<string, unknown>
-  isAvailable: boolean | (() => boolean)
+  isAvailable: () => boolean
 }
 
 const { processorRegistryMock, resolveProcessorConfigByFeatureMock, persistResultMock, cleanupResultsDirMock } =
@@ -238,7 +238,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.tesseract = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         image_to_text: handler
       }
@@ -308,7 +308,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock['open-mineru'] = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -368,7 +368,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock['open-mineru'] = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -431,7 +431,7 @@ describe('FileProcessingTaskService', () => {
 
     resolveProcessorConfigByFeatureMock.mockReturnValueOnce(createConfig('doc2x', 'document_to_markdown', ['document']))
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {}
     }
 
@@ -444,7 +444,7 @@ describe('FileProcessingTaskService', () => {
     ).rejects.toThrow('File processor doc2x does not support document_to_markdown')
 
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: {
           prepare: vi.fn().mockReturnValue({
@@ -488,7 +488,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.tesseract = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         image_to_text: handler
       }
@@ -565,7 +565,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock['open-mineru'] = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -656,7 +656,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock['open-mineru'] = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -734,7 +734,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.tesseract = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         image_to_text: handler
       }
@@ -812,7 +812,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.tesseract = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         image_to_text: handler
       }
@@ -877,7 +877,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -945,7 +945,7 @@ describe('FileProcessingTaskService', () => {
         })
     }
     processorRegistryMock.tesseract = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         image_to_text: handler
       }
@@ -1059,7 +1059,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -1227,7 +1227,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -1294,7 +1294,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -1376,7 +1376,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -1444,7 +1444,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -1541,7 +1541,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -1698,7 +1698,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -1810,7 +1810,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -1899,7 +1899,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -2005,7 +2005,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -2092,7 +2092,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: handler
       }
@@ -2147,7 +2147,7 @@ describe('FileProcessingTaskService', () => {
       prepare: vi.fn().mockRejectedValue(new Error('missing api key'))
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: prepareHandler
       }
@@ -2177,7 +2177,7 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: startHandler
       }
@@ -2279,13 +2279,13 @@ describe('FileProcessingTaskService', () => {
       })
     }
     processorRegistryMock.doc2x = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         document_to_markdown: remoteHandler
       }
     }
     processorRegistryMock.tesseract = {
-      isAvailable: true,
+      isAvailable: () => true,
       capabilities: {
         image_to_text: backgroundHandler
       }

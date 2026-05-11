@@ -43,8 +43,8 @@ interface FileProcessingApiKeyListProps {
 
 interface FileProcessingApiKeyItemProps {
   item: ApiKeyListItem
-  onUpdate: (newKey: string) => ApiKeyValidity
-  onRemove: () => void
+  onUpdate: (newKey: string) => Promise<ApiKeyValidity>
+  onRemove: () => Promise<void>
 }
 
 const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onUpdate, onRemove }) => {
@@ -65,19 +65,23 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
     setIsEditing(item.isNew || !item.key.trim())
   }, [item.isNew, item.key])
 
-  const handleSave = () => {
-    const result = onUpdate(editValue)
-    if (!result.isValid) {
-      window.toast.warning(result.error)
-      return
-    }
+  const handleSave = async () => {
+    try {
+      const result = await onUpdate(editValue)
+      if (!result.isValid) {
+        window.toast.warning(result.error)
+        return
+      }
 
-    setIsEditing(false)
+      setIsEditing(false)
+    } catch {
+      window.toast.error(t('settings.tool.file_processing.errors.save_failed'))
+    }
   }
 
   const handleCancelEdit = () => {
     if (item.isNew || !item.key.trim()) {
-      onRemove()
+      void onRemove()
       return
     }
 
@@ -101,7 +105,11 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
     })
 
     if (confirmed) {
-      onRemove()
+      try {
+        await onRemove()
+      } catch {
+        window.toast.error(t('settings.tool.file_processing.errors.save_failed'))
+      }
     }
   }
 
@@ -116,7 +124,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
             onChange={(event) => setEditValue(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
-                handleSave()
+                void handleSave()
               }
             }}
             placeholder={t('settings.provider.api.key.new_key.placeholder')}
@@ -129,7 +137,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
               variant={hasUnsavedChanges ? 'default' : 'ghost'}
               size="icon-sm"
               aria-label={t('common.save')}
-              onClick={handleSave}>
+              onClick={() => void handleSave()}>
               <Check className="size-3.5" />
             </Button>
             <Button

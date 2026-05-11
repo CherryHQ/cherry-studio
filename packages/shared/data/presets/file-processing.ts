@@ -31,7 +31,7 @@ export const ImageToTextCapabilitySchema = z
     feature: z.literal('image_to_text'),
     inputs: z.array(z.literal('image')).min(1),
     output: z.literal('text'),
-    apiHost: z.url().optional(),
+    apiHost: z.string().optional(),
     modelId: z.string().min(1).optional()
   })
   .strict()
@@ -42,7 +42,7 @@ export const DocumentToMarkdownCapabilitySchema = z
     feature: z.literal('document_to_markdown'),
     inputs: z.array(z.literal('document')).min(1),
     output: z.literal('markdown'),
-    apiHost: z.url().optional(),
+    apiHost: z.string().optional(),
     modelId: z.string().min(1).optional()
   })
   .strict()
@@ -122,7 +122,7 @@ export const FileProcessorOptionsSchema: z.ZodType<FileProcessorOptions> = z
  */
 export const FileProcessorCapabilityOverrideSchema: z.ZodType<FileProcessorCapabilityOverride> = z
   .object({
-    apiHost: z.url().optional(),
+    apiHost: z.string().optional(),
     modelId: z.string().min(1).optional()
   })
   .strict()

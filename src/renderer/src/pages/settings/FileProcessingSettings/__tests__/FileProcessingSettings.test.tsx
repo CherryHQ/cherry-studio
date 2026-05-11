@@ -350,6 +350,7 @@ describe('FileProcessingSettings', () => {
         expect.objectContaining({ message: 'IPC failed' })
       )
     })
+    expect(screen.getByText('settings.tool.file_processing.errors.load_processors_failed')).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
     ).not.toBeInTheDocument()
@@ -373,6 +374,53 @@ describe('FileProcessingSettings', () => {
           apiKeys: ['key-1', 'key-2']
         }
       })
+    })
+  })
+
+  it('keeps API host drafts when another field save rerenders the same processor', async () => {
+    const { rerender } = render(<FileProcessingSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
+
+    const apiHostInput = screen.getByPlaceholderText('settings.provider.api_host')
+    fireEvent.change(apiHostInput, {
+      target: { value: 'https://draft.example.com' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'), {
+      target: { value: 'key-1' }
+    })
+    fireEvent.blur(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'))
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        mistral: {
+          apiKeys: ['key-1']
+        }
+      })
+    })
+
+    overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
+    rerender(<FileProcessingSettings />)
+
+    expect(screen.getByPlaceholderText('settings.provider.api_host')).toHaveValue('https://draft.example.com')
+  })
+
+  it('reports API host save failures', async () => {
+    setOverridesMock.mockRejectedValueOnce(new Error('persist failed'))
+    render(<FileProcessingSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api_host'), {
+      target: { value: 'https://draft.example.com' }
+    })
+    fireEvent.blur(screen.getByPlaceholderText('settings.provider.api_host'))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
     })
   })
 

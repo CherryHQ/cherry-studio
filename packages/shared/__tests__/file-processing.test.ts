@@ -110,7 +110,7 @@ describe('FileProcessorOverrideSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('rejects invalid urls', () => {
+  it('accepts custom api host strings', () => {
     const result = FileProcessorOverrideSchema.safeParse({
       capabilities: {
         document_to_markdown: {
@@ -119,7 +119,7 @@ describe('FileProcessorOverrideSchema', () => {
       }
     })
 
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   it('rejects unknown feature overrides', () => {

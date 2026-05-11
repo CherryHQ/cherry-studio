@@ -178,8 +178,16 @@ export function supportsApiSettings(processor: FileProcessorMerged): boolean {
   return processor.type === 'api'
 }
 
-export function supportsLanguageOptions(processorId: FileProcessorId): processorId is 'system' | 'tesseract' {
-  return processorId === 'tesseract' || (processorId === 'system' && isWin)
+export function supportsLanguageConfig(processorId: FileProcessorId): processorId is 'system' | 'tesseract' {
+  return processorId === 'system' || processorId === 'tesseract'
+}
+
+export function canConfigureLanguageOptions(processorId: Extract<FileProcessorId, 'system' | 'tesseract'>): boolean {
+  return processorId === 'tesseract' || isWin
+}
+
+export function shouldShowLanguageOptions(processorId: FileProcessorId): processorId is 'system' | 'tesseract' {
+  return supportsLanguageConfig(processorId) && canConfigureLanguageOptions(processorId)
 }
 
 export function getTesseractLanguageCode(languageCode: string): string | undefined {

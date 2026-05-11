@@ -96,7 +96,11 @@ const FileProcessingSettings: FC = () => {
 
         <Scrollbar className={settingsContentScrollClassName}>
           <div className={settingsContentBodyClassName}>
-            {activeEntry ? (
+            {availableProcessors.status === 'error' ? (
+              <div className="flex h-full min-h-55 items-center justify-center text-foreground-muted text-sm">
+                {t('settings.tool.file_processing.errors.load_processors_failed')}
+              </div>
+            ) : activeEntry ? (
               <ProcessorPanel
                 entry={activeEntry}
                 defaultDocumentProcessor={defaultDocumentProcessor}

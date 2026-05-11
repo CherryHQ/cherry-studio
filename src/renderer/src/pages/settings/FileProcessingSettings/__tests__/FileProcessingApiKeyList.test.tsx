@@ -92,9 +92,12 @@ describe('FileProcessingApiKeyList', () => {
     await waitFor(() => {
       expect(setApiKeysMock).toHaveBeenCalledWith('mistral', ['key-1'])
     })
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText('settings.provider.api.key.new_key.placeholder')).not.toBeInTheDocument()
+    })
   })
 
-  it('rejects duplicate API keys', () => {
+  it('rejects duplicate API keys', async () => {
     render(<FileProcessingApiKeyList processorId="mistral" apiKeys={['key-1']} onSetApiKeys={setApiKeysMock} />)
 
     fireEvent.click(screen.getByRole('button', { name: /common.add/ }))
@@ -104,7 +107,9 @@ describe('FileProcessingApiKeyList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
     expect(setApiKeysMock).not.toHaveBeenCalled()
-    expect(window.toast.warning).toHaveBeenCalledWith('settings.provider.api.key.error.duplicate')
+    await waitFor(() => {
+      expect(window.toast.warning).toHaveBeenCalledWith('settings.provider.api.key.error.duplicate')
+    })
   })
 
   it('removes the last API key', async () => {
@@ -115,6 +120,34 @@ describe('FileProcessingApiKeyList', () => {
     await waitFor(() => {
       expect(setApiKeysMock).toHaveBeenCalledWith('mistral', [])
     })
+  })
+
+  it('keeps editing when API key persistence fails', async () => {
+    setApiKeysMock.mockRejectedValueOnce(new Error('persist failed'))
+    render(<FileProcessingApiKeyList processorId="mistral" apiKeys={[]} onSetApiKeys={setApiKeysMock} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /common.add/ }))
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder'), {
+      target: { value: 'key-1' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
+    })
+    expect(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder')).toHaveValue('key-1')
+  })
+
+  it('reports remove failures without treating the deletion as successful', async () => {
+    setApiKeysMock.mockRejectedValueOnce(new Error('persist failed'))
+    render(<FileProcessingApiKeyList processorId="mistral" apiKeys={['key-1']} onSetApiKeys={setApiKeysMock} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
+    })
+    expect(screen.getByText('key-1')).toBeInTheDocument()
   })
 
   it('updates saved key rows from apiKeys props', () => {
