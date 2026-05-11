@@ -87,7 +87,7 @@ export function buildPathRegistry() {
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
     // MCP
-    'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
+    'feature.mcp': path.join(appUserData, 'mcp'),
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
     'feature.mcp.workspace': path.join(appUserDataData, 'Workspace'),
     // MCP memory server's knowledge-graph JSON for the built-in MCP server
