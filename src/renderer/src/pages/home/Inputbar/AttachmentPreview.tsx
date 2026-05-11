@@ -6,6 +6,7 @@ import {
   ContextMenuTrigger,
   Tooltip
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import ImageViewer from '@renderer/components/ImageViewer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAttachment } from '@renderer/hooks/useAttachment'
@@ -30,6 +31,8 @@ import {
 import type { FC } from 'react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('AttachmentPreview')
 
 interface Props {
   files: FileMetadata[]
@@ -160,7 +163,10 @@ const AttachmentItem: FC<{
     void window.api.file
       .isTextFile(file.path)
       .then(setIsTextFile)
-      .catch(() => setIsTextFile(false))
+      .catch((error) => {
+        logger.warn('isTextFile probe failed; treating attachment as binary', error as Error)
+        setIsTextFile(false)
+      })
   }
 
   const tag = (

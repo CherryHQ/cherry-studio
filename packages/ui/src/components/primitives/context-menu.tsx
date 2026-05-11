@@ -6,9 +6,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronRight } from 'lucide-react'
 import * as React from 'react'
 
-/* -------------------------------------------------------------------------- */
-/*                                  Variants                                   */
-/* -------------------------------------------------------------------------- */
+/* ─── Style variants ──────────────────────────────────────────────────────── */
 
 const menuContentStyles = cn(
   'bg-popover text-popover-foreground z-50 min-w-[8rem] overflow-hidden rounded-xs p-2',
@@ -21,7 +19,7 @@ const menuContentStyles = cn(
 const menuItemVariants = cva(
   cn(
     'relative flex cursor-default select-none items-center gap-2 rounded-2xs px-2 py-[9px] text-sm outline-hidden transition-colors',
-    'focus:bg-background-subtle',
+    'focus:bg-menu-item-hover',
     'data-[disabled]:pointer-events-none data-[disabled]:opacity-40',
     "[&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0"
   ),
@@ -43,9 +41,7 @@ const menuItemVariants = cva(
   }
 )
 
-/* -------------------------------------------------------------------------- */
-/*                                 Context Menu                                */
-/* -------------------------------------------------------------------------- */
+/* ─── Root / trigger / content / items ────────────────────────────────────── */
 
 function ContextMenu({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
   return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />
@@ -71,20 +67,19 @@ function ContextMenuRadioGroup({ ...props }: React.ComponentProps<typeof Context
   return <ContextMenuPrimitive.RadioGroup data-slot="context-menu-radio-group" {...props} />
 }
 
-/* -------------------------------------------------------------------------- */
-/*                              Context Menu Content                           */
-/* -------------------------------------------------------------------------- */
-
+// Sub-trigger only exposes the `inset` knob — `variant` is intentionally
+// excluded because a destructive submenu trigger isn't a real design state.
 function ContextMenuSubTrigger({
   className,
   inset,
   children,
   ...props
-}: React.ComponentProps<typeof ContextMenuPrimitive.SubTrigger> & VariantProps<typeof menuItemVariants>) {
+}: React.ComponentProps<typeof ContextMenuPrimitive.SubTrigger> &
+  Pick<VariantProps<typeof menuItemVariants>, 'inset'>) {
   return (
     <ContextMenuPrimitive.SubTrigger
       data-slot="context-menu-sub-trigger"
-      className={cn(menuItemVariants({ inset }), 'justify-between data-[state=open]:bg-background-subtle', className)}
+      className={cn(menuItemVariants({ inset }), 'justify-between data-[state=open]:bg-menu-item-hover', className)}
       {...props}>
       <span className="flex items-center gap-2">{children}</span>
       <ChevronRight className="size-4 text-foreground-secondary" />
@@ -118,10 +113,6 @@ function ContextMenuContent({ className, ...props }: React.ComponentProps<typeof
     </ContextMenuPrimitive.Portal>
   )
 }
-
-/* -------------------------------------------------------------------------- */
-/*                              Context Menu Item                              */
-/* -------------------------------------------------------------------------- */
 
 function ContextMenuItem({
   className,
@@ -180,9 +171,7 @@ function ContextMenuRadioItem({
   )
 }
 
-/* -------------------------------------------------------------------------- */
-/*                          Context Menu Decorative                            */
-/* -------------------------------------------------------------------------- */
+/* ─── Decorative ──────────────────────────────────────────────────────────── */
 
 function ContextMenuLabel({
   className,
@@ -220,31 +209,38 @@ function ContextMenuShortcut({ className, ...props }: React.ComponentProps<'span
   )
 }
 
-/* -------------------------------------------------------------------------- */
-/*                         Context Menu Item Content                           */
-/* -------------------------------------------------------------------------- */
+/* ─── ContextMenuItemContent (icon + label + shortcut/submenu chevron) ────── */
 
-interface ContextMenuItemContentProps {
+type ContextMenuItemContentBase = {
   icon?: React.ReactNode
   children: React.ReactNode
-  shortcut?: string
   badge?: React.ReactNode
-  hasSubmenu?: boolean
   className?: string
 }
 
+// Leaf items can carry a keyboard shortcut hint.
+type ContextMenuItemContentLeaf = ContextMenuItemContentBase & {
+  shortcut?: string
+  hasSubmenu?: never
+}
+
+// Submenu rows render a chevron and must not also display a shortcut.
+type ContextMenuItemContentSubmenu = ContextMenuItemContentBase & {
+  hasSubmenu: true
+  shortcut?: never
+}
+
+type ContextMenuItemContentProps = ContextMenuItemContentLeaf | ContextMenuItemContentSubmenu
+
 /**
- * A convenience component for consistent menu item content layout
- * Matches the Figma design with icon, text, badge, shortcut, and chevron support
+ * Convenience component for consistent menu-item content layout: icon + label
+ * plus an optional trailing badge and either a keyboard shortcut OR a submenu
+ * chevron (the two are mutually exclusive — see the discriminated union above).
  */
-function ContextMenuItemContent({
-  icon,
-  children,
-  shortcut,
-  badge,
-  hasSubmenu,
-  className
-}: ContextMenuItemContentProps) {
+function ContextMenuItemContent(props: ContextMenuItemContentProps) {
+  const { icon, children, badge, className } = props
+  const shortcut = 'shortcut' in props ? props.shortcut : undefined
+  const hasSubmenu = 'hasSubmenu' in props ? props.hasSubmenu : false
   return (
     <>
       <span className={cn('flex items-center gap-2', className)}>

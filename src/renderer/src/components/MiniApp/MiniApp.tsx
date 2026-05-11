@@ -54,10 +54,10 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     const e = toDataApiError(err)
     if (isDataApiError(e)) {
       logger.error('mutation failed', { code: e.code, message: e.message })
-      window.toast?.error?.(e.message || t(fallbackKey))
+      window.toast.error(e.message || t(fallbackKey))
     } else {
       logger.error('mutation failed', err as Error)
-      window.toast?.error?.(t(fallbackKey))
+      window.toast.error(t(fallbackKey))
     }
   }
 

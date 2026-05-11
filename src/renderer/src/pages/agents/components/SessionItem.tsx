@@ -10,6 +10,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { isMac } from '@renderer/config/constant'
@@ -32,7 +33,7 @@ import React, { memo, startTransition, useEffect, useMemo, useState } from 'reac
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-// const logger = loggerService.withContext('AgentItem')
+const logger = loggerService.withContext('SessionItem')
 
 interface SessionItemProps {
   session: AgentSessionEntity
@@ -136,6 +137,9 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
     try {
       startTopicRenaming(sessionTopicId)
       await renameAgentSessionIfNeeded(agentSession, sessionTopicId)
+    } catch (error) {
+      logger.error('auto-rename failed', error as Error)
+      window.toast.error(`${t('message.error.fetchTopicName')}: ${(error as Error).message ?? ''}`)
     } finally {
       finishTopicRenaming(sessionTopicId)
     }

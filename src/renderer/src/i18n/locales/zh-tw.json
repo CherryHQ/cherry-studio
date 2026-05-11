@@ -1488,6 +1488,7 @@
         "title_tip": "提示：雙擊話題名可以直接就地重新命名"
       },
       "export": {
+        "failed": "匯出失敗",
         "image": "匯出為圖片",
         "image_saved": "圖片儲存成功",
         "joplin": "匯出到 Joplin",
@@ -6608,7 +6609,7 @@
   },
   "tab": {
     "close": "關閉分頁",
-    "moveToFirst": "移至第一個",
+    "move_to_first": "移至第一個",
     "new": "新標籤頁",
     "pin": "釘選分頁",
     "unpin": "取消固定分頁"

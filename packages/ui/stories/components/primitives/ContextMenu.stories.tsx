@@ -384,12 +384,11 @@ export const InsetItems: Story = {
   )
 }
 
-// Figma Design - Assistant Menu
-export const FigmaAssistantMenu: Story = {
+export const AssistantMenu: Story = {
   render: () => (
     <ContextMenu>
       <ContextMenuTrigger className="flex h-[150px] w-[300px] items-center justify-center rounded-md border border-dashed text-sm">
-        Right click here (Figma Design)
+        Right click here
       </ContextMenuTrigger>
       <ContextMenuContent className="w-56">
         <ContextMenuItem>

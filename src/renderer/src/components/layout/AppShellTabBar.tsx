@@ -202,8 +202,10 @@ const NormalTabButton = ({
   const showIconOverlayClose = isCloseable && showClose && isNarrow
 
   return (
-    // Spread `rest` (which carries injected ContextMenuTrigger props) first so the
-    // drag handler / transform style / drag classes always win on a key collision.
+    // Spread injected ContextMenuTrigger props first; the explicit drag handler
+    // below then overrides any colliding `onContextMenu` chain ordering. The
+    // props type already excludes `onClick`/`onPointerDown`/`style`/`className`,
+    // so the spread can't clobber those — the order is just belt-and-braces.
     <button
       {...rest}
       ref={setRefs}
@@ -297,7 +299,7 @@ const TabRightClickMenu = ({
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="min-w-[130px]">
         <ContextMenuItem onSelect={onMoveToFirst}>
-          <ContextMenuItemContent icon={<ChevronsLeft size={14} />}>{t('tab.moveToFirst')}</ContextMenuItemContent>
+          <ContextMenuItemContent icon={<ChevronsLeft size={14} />}>{t('tab.move_to_first')}</ContextMenuItemContent>
         </ContextMenuItem>
         <ContextMenuItem onSelect={onPin}>
           <ContextMenuItemContent icon={isPinned ? <PinOff size={14} /> : <Pin size={14} />}>

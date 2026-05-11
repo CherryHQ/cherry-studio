@@ -1488,6 +1488,7 @@
         "title_tip": "提示: 双击话题名可以直接就地重命名"
       },
       "export": {
+        "failed": "导出失败",
         "image": "导出为图片",
         "image_saved": "图片保存成功",
         "joplin": "导出到 Joplin",
@@ -6608,7 +6609,7 @@
   },
   "tab": {
     "close": "关闭标签页",
-    "moveToFirst": "移到最左侧",
+    "move_to_first": "移到最左侧",
     "new": "新标签页",
     "pin": "固定标签页",
     "unpin": "取消固定"

@@ -1,6 +1,9 @@
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('SelectionContextMenu')
 
 interface SelectionContextMenuProps {
   children: React.ReactNode
@@ -74,11 +77,14 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children })
     navigator.clipboard
       .writeText(selectedText)
       .then(() => window.toast.success(t('message.copied')))
-      .catch(() => window.toast.error(t('message.copy.failed')))
+      .catch((error) => {
+        logger.error('clipboard write failed', error as Error)
+        window.toast.error(t('message.copy.failed'))
+      })
   }
 
   const handleQuote = () => {
-    void window.api?.quoteToMainWindow(selectedText)
+    void window.api.quoteToMainWindow(selectedText)
   }
 
   const hasSelection = selectedText.length > 0

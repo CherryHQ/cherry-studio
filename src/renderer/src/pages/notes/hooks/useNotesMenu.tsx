@@ -86,6 +86,18 @@ export const useNotesMenu = ({
     [activeNode, onSelectNode, t]
   )
 
+  const runExport = useCallback(
+    async (fn: () => Promise<unknown>) => {
+      try {
+        await fn()
+      } catch (error) {
+        logger.error('note export failed', error as Error)
+        window.toast.error(t('notes.export_failed'))
+      }
+    },
+    [t]
+  )
+
   const handleDeleteNodeWrapper = useCallback(
     (node: NotesTreeNode) => {
       const confirmText =
@@ -167,37 +179,37 @@ export const useNotesMenu = ({
                     </>
                   )}
                   {exportMenuOptions.markdown && (
-                    <ContextMenuItem onSelect={() => exportNote({ node, platform: 'markdown' })}>
+                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'markdown' }))}>
                       {t('chat.topics.export.md.label')}
                     </ContextMenuItem>
                   )}
                   {exportMenuOptions.docx && (
-                    <ContextMenuItem onSelect={() => exportNote({ node, platform: 'docx' })}>
+                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'docx' }))}>
                       {t('chat.topics.export.word')}
                     </ContextMenuItem>
                   )}
                   {exportMenuOptions.notion && (
-                    <ContextMenuItem onSelect={() => exportNote({ node, platform: 'notion' })}>
+                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'notion' }))}>
                       {t('chat.topics.export.notion')}
                     </ContextMenuItem>
                   )}
                   {exportMenuOptions.yuque && (
-                    <ContextMenuItem onSelect={() => exportNote({ node, platform: 'yuque' })}>
+                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'yuque' }))}>
                       {t('chat.topics.export.yuque')}
                     </ContextMenuItem>
                   )}
                   {exportMenuOptions.obsidian && (
-                    <ContextMenuItem onSelect={() => exportNote({ node, platform: 'obsidian' })}>
+                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'obsidian' }))}>
                       {t('chat.topics.export.obsidian')}
                     </ContextMenuItem>
                   )}
                   {exportMenuOptions.joplin && (
-                    <ContextMenuItem onSelect={() => exportNote({ node, platform: 'joplin' })}>
+                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'joplin' }))}>
                       {t('chat.topics.export.joplin')}
                     </ContextMenuItem>
                   )}
                   {exportMenuOptions.siyuan && (
-                    <ContextMenuItem onSelect={() => exportNote({ node, platform: 'siyuan' })}>
+                    <ContextMenuItem onSelect={() => void runExport(() => exportNote({ node, platform: 'siyuan' }))}>
                       {t('chat.topics.export.siyuan')}
                     </ContextMenuItem>
                   )}
@@ -226,7 +238,8 @@ export const useNotesMenu = ({
       handleAutoRename,
       exportMenuOptions,
       onCreateNote,
-      onCreateFolder
+      onCreateFolder,
+      runExport
     ]
   )
 

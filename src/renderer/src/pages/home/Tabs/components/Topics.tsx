@@ -11,6 +11,7 @@ import {
 } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import AddButton from '@renderer/components/AddButton'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import type { DraggableVirtualListRef } from '@renderer/components/DraggableList'
@@ -69,6 +70,8 @@ import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
+
+const logger = loggerService.withContext('Topics')
 
 interface Props {
   assistant: Assistant
@@ -276,13 +279,28 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         if (summaryText) {
           updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
         } else if (error) {
-          window.toast?.error(`${t('message.error.fetchTopicName')}: ${error}`)
+          window.toast.error(`${t('message.error.fetchTopicName')}: ${error}`)
         }
+      } catch (error) {
+        logger.error('auto-rename failed', error as Error)
+        window.toast.error(`${t('message.error.fetchTopicName')}: ${(error as Error).message ?? ''}`)
       } finally {
         finishTopicRenaming(topic.id)
       }
     },
     [t, updateTopic]
+  )
+
+  const runExport = useCallback(
+    async (fn: () => Promise<unknown>) => {
+      try {
+        await fn()
+      } catch (error) {
+        logger.error('topic export failed', error as Error)
+        window.toast.error(t('chat.topics.export.failed'))
+      }
+    },
+    [t]
   )
 
   const handleRenameTopic = useCallback(
@@ -324,7 +342,8 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         if (result?.success) {
           window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
         }
-      } catch {
+      } catch (error) {
+        logger.error('save to knowledge failed', error as Error)
         window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
       }
     },
@@ -355,7 +374,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             {topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
           </ContextMenuItemContent>
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => void exportTopicToNotes(topic, notesPath)}>
+        <ContextMenuItem onSelect={() => void runExport(() => exportTopicToNotes(topic, notesPath))}>
           <ContextMenuItemContent icon={<NotebookPen size={14} />}>{t('notes.save')}</ContextMenuItemContent>
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => onClearMessages(topic)}>
@@ -419,61 +438,69 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
               </ContextMenuItem>
             )}
             {exportMenuOptions.markdown && (
-              <ContextMenuItem onSelect={() => exportTopicAsMarkdown(topic)}>
+              <ContextMenuItem onSelect={() => void runExport(() => exportTopicAsMarkdown(topic))}>
                 {t('chat.topics.export.md.label')}
               </ContextMenuItem>
             )}
             {exportMenuOptions.markdown_reason && (
-              <ContextMenuItem onSelect={() => exportTopicAsMarkdown(topic, true)}>
+              <ContextMenuItem onSelect={() => void runExport(() => exportTopicAsMarkdown(topic, true))}>
                 {t('chat.topics.export.md.reason')}
               </ContextMenuItem>
             )}
             {exportMenuOptions.docx && (
               <ContextMenuItem
-                onSelect={async () => {
-                  const markdown = await topicToMarkdown(topic)
-                  void window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
-                }}>
+                onSelect={() =>
+                  void runExport(async () => {
+                    const markdown = await topicToMarkdown(topic)
+                    await window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
+                  })
+                }>
                 {t('chat.topics.export.word')}
               </ContextMenuItem>
             )}
             {exportMenuOptions.notion && (
-              <ContextMenuItem onSelect={() => void exportTopicToNotion(topic)}>
+              <ContextMenuItem onSelect={() => void runExport(() => exportTopicToNotion(topic))}>
                 {t('chat.topics.export.notion')}
               </ContextMenuItem>
             )}
             {exportMenuOptions.yuque && (
               <ContextMenuItem
-                onSelect={async () => {
-                  const markdown = await topicToMarkdown(topic)
-                  void exportMarkdownToYuque(topic.name, markdown)
-                }}>
+                onSelect={() =>
+                  void runExport(async () => {
+                    const markdown = await topicToMarkdown(topic)
+                    await exportMarkdownToYuque(topic.name, markdown)
+                  })
+                }>
                 {t('chat.topics.export.yuque')}
               </ContextMenuItem>
             )}
             {exportMenuOptions.obsidian && (
               <ContextMenuItem
-                onSelect={async () => {
-                  await ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' })
-                }}>
+                onSelect={() =>
+                  void runExport(() => ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' }))
+                }>
                 {t('chat.topics.export.obsidian')}
               </ContextMenuItem>
             )}
             {exportMenuOptions.joplin && (
               <ContextMenuItem
-                onSelect={async () => {
-                  const topicMessages = await TopicManager.getTopicMessages(topic.id)
-                  void exportMarkdownToJoplin(topic.name, topicMessages)
-                }}>
+                onSelect={() =>
+                  void runExport(async () => {
+                    const topicMessages = await TopicManager.getTopicMessages(topic.id)
+                    await exportMarkdownToJoplin(topic.name, topicMessages)
+                  })
+                }>
                 {t('chat.topics.export.joplin')}
               </ContextMenuItem>
             )}
             {exportMenuOptions.siyuan && (
               <ContextMenuItem
-                onSelect={async () => {
-                  const markdown = await topicToMarkdown(topic)
-                  void exportMarkdownToSiyuan(topic.name, markdown)
-                }}>
+                onSelect={() =>
+                  void runExport(async () => {
+                    const markdown = await topicToMarkdown(topic)
+                    await exportMarkdownToSiyuan(topic.name, markdown)
+                  })
+                }>
                 {t('chat.topics.export.siyuan')}
               </ContextMenuItem>
             )}
