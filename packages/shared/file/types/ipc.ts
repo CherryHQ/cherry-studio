@@ -253,8 +253,20 @@ export interface FileIpcApi {
   /** Unconditional atomic write. */
   write(handle: FileHandle, data: string | Uint8Array): Promise<FileVersion>
 
-  /** Optimistic-concurrency write. Throws StaleVersionError on version mismatch. */
-  writeIfUnchanged(handle: FileHandle, data: string | Uint8Array, expectedVersion: FileVersion): Promise<FileVersion>
+  /**
+   * Optimistic-concurrency write. Throws StaleVersionError on version mismatch.
+   *
+   * `expectedContentHash` (xxhash-h64 hex) is optional and only consulted on
+   * second-precision filesystems (FAT32 / SMB / NFS) where the observed mtime
+   * truncates to whole seconds — see `FileVersion` JSDoc for the full
+   * fallback contract.
+   */
+  writeIfUnchanged(
+    handle: FileHandle,
+    data: string | Uint8Array,
+    expectedVersion: FileVersion,
+    expectedContentHash?: string
+  ): Promise<FileVersion>
 
   // ─── E. Trash / Delete ───
 

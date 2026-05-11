@@ -176,18 +176,20 @@ export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
  * can **silently mis-identify two different files as equal**. `writeIfUnchanged`
  * would then run over "stale" data without tripping `StaleVersionError`.
  *
- * ## Fallback strategy (Phase 1b.2 implementation contract)
+ * ## Opt-in hash fallback
  *
- * When `writeIfUnchanged` suspects second-precision mtime ambiguity
- * (observed mtime has ms === 0 AND size matches expected), the implementation
- * MUST fall back to a xxhash-h64 `contentHash` comparison before committing.
- * Hash computation is deliberately deferred to this corner case — for the
- * common case (sub-second mtime resolution or size difference) the
- * `(mtime, size)` pair is sufficient.
+ * `writeIfUnchanged` accepts an optional `expectedContentHash` (xxhash-h64 hex
+ * of the content the caller last observed). When supplied AND the observed
+ * mtime is ambiguous (ms === 0 AND size matches), the implementation re-hashes
+ * the file on disk and throws `StaleVersionError` on mismatch. When omitted
+ * (the default), `writeIfUnchanged` proceeds optimistically under reduced
+ * mtime precision — the same behavior as on sub-second filesystems.
  *
- * `FileVersion` itself intentionally excludes content hash — embedding the
- * hash would force computing it on every read, which is wasteful. The hash
- * is only materialized inside the fallback path, not stored in the cache.
+ * `FileVersion` itself intentionally excludes the hash: the hot path
+ * (read → sub-second-precision compare) should not pay for hash computation,
+ * and `createReadStream` cannot produce a hash without breaking its lazy
+ * pipeline. Callers that need strict OCC on second-precision filesystems
+ * compute and supply the hash per-call.
  */
 export interface FileVersion {
   /** ms epoch (may be truncated to whole seconds on FAT/SMB/NFS — see caveat above) */
@@ -360,8 +362,19 @@ export interface IFileManager {
    * Optimistic-concurrency write.
    * Throws `StaleVersionError` if current version differs from expected.
    * Works for both internal and external entries.
+   *
+   * `expectedContentHash` is optional. When supplied AND the observed mtime
+   * is second-precision-ambiguous (ms === 0 AND size matches), the
+   * implementation re-hashes the file on disk and throws `StaleVersionError`
+   * on mismatch — guarding against same-size edits on FAT32 / SMB / NFS.
+   * See `FileVersion` JSDoc for details.
    */
-  writeIfUnchanged(id: FileEntryId, data: string | Uint8Array, expectedVersion: FileVersion): Promise<FileVersion>
+  writeIfUnchanged(
+    id: FileEntryId,
+    data: string | Uint8Array,
+    expectedVersion: FileVersion,
+    expectedContentHash?: string
+  ): Promise<FileVersion>
 
   /** Stream write with atomic commit (tmp + rename on close). Works for both origins. */
   createWriteStream(id: FileEntryId): Promise<AtomicWriteStream>
@@ -682,9 +695,10 @@ export class FileManager extends BaseService {
   async writeIfUnchanged(
     id: FileEntryId,
     data: string | Uint8Array,
-    expectedVersion: FileVersion
+    expectedVersion: FileVersion,
+    expectedContentHash?: string
   ): Promise<FileVersion> {
-    return internalWriteIfUnchanged(this.deps, id, data, expectedVersion)
+    return internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash)
   }
 
   async createWriteStream(id: FileEntryId): Promise<AtomicWriteStream> {

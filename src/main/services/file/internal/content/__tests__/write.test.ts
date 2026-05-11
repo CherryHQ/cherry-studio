@@ -153,6 +153,45 @@ describe('internal/content/write', () => {
       expect(next.size).toBe(4)
       expect(Array.from(await readFile(physical))).toEqual([5, 6, 7, 8])
     })
+
+    it('writes when expectedContentHash matches actual disk content (second-precision FS opt-in)', async () => {
+      const e = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([1, 2, 3, 4]),
+        name: 'hash-match',
+        ext: 'bin'
+      })
+      const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
+      await utimes(physical, 1700000000, 1700000000)
+      // Caller pre-computed the hash from a prior read; supplies it to opt
+      // into the hash fallback on this ambiguous-mtime filesystem.
+      const { hash } = await import('@main/utils/file/fs')
+      const actualHash = await hash(physical)
+      const expected: FileVersion = { mtime: 1700000000_000, size: 4 }
+      const next = await writeIfUnchanged(deps, e.id, new Uint8Array([9, 8, 7, 6]), expected, actualHash)
+      expect(next.size).toBe(4)
+      expect(Array.from(await readFile(physical))).toEqual([9, 8, 7, 6])
+    })
+
+    it('throws StaleVersionError when expectedContentHash mismatches actual disk content', async () => {
+      const e = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([1, 2, 3, 4]),
+        name: 'hash-mismatch',
+        ext: 'bin'
+      })
+      const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
+      await utimes(physical, 1700000000, 1700000000)
+      const expected: FileVersion = { mtime: 1700000000_000, size: 4 }
+      // Wrong xxhash-h64 hex (16 chars). With ambiguous mtime + matching size,
+      // the implementation must fall back to hash comparison and reject.
+      const wrongHash = 'deadbeefdeadbeef'
+      await expect(
+        writeIfUnchanged(deps, e.id, new Uint8Array([9, 8, 7, 6]), expected, wrongHash)
+      ).rejects.toBeInstanceOf(StaleVersionError)
+      // Original content untouched
+      expect(Array.from(await readFile(physical))).toEqual([1, 2, 3, 4])
+    })
   })
 
   describe('writeByPath', () => {

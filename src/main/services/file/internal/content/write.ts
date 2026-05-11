@@ -47,13 +47,14 @@ export async function writeIfUnchanged(
   deps: FileManagerDeps,
   id: FileEntryId,
   data: string | Uint8Array,
-  expected: FileVersion
+  expected: FileVersion,
+  expectedContentHash?: string
 ): Promise<FileVersion> {
   const entry = await deps.fileEntryService.getById(id)
   const physical = resolvePhysicalPath(entry) as FilePath
   let next: FileVersion
   try {
-    const out = await atomicWriteIfUnchanged(physical, data, expected)
+    const out = await atomicWriteIfUnchanged(physical, data, expected, expectedContentHash)
     next = { mtime: out.mtime, size: out.size }
   } catch (err) {
     if (err instanceof PathStaleVersionError) {
