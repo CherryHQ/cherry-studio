@@ -13,11 +13,14 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { resolvePhysicalPath } from '@data/utils/pathResolver'
+import { loggerService } from '@logger'
 import { copy as fsCopy } from '@main/utils/file/fs'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 
 import type { FileManagerDeps } from '../deps'
+
+const logger = loggerService.withContext('file/internal/system/tempCopy')
 
 export async function withTempCopy<T>(
   deps: FileManagerDeps,
@@ -37,6 +40,19 @@ export async function withTempCopy<T>(
     await fsCopy(physical, target)
     return await fn(target)
   } finally {
-    await rm(dir, { recursive: true, force: true })
+    // Cleanup must not hijack the original error. `rm({force:true})` tolerates
+    // ENOENT, but EBUSY (Windows: external process holds the file) and EACCES
+    // (sandbox containment changes) still throw — and a throw from finally
+    // would replace any error fn just raised, erasing the caller's stack.
+    // Log and swallow; orphan temp dirs are recovered by a future
+    // tempcopy-sweep pass (Phase 2).
+    try {
+      await rm(dir, { recursive: true, force: true })
+    } catch (cleanupErr) {
+      logger.warn('withTempCopy: temp dir cleanup failed; directory will leak until next sweep', {
+        dir,
+        err: cleanupErr
+      })
+    }
   }
 }
