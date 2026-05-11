@@ -622,7 +622,7 @@ describe('AiStreamManager', () => {
       mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'lo' } as UIMessageChunk)
       mgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p1' } as UIMessageChunk)
 
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn() }
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
       // `attach` is the public IPC-facing method; tests pass a minimal
       // WebContents-shaped stub.
       const response = mgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })

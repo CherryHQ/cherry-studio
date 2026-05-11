@@ -1,3 +1,4 @@
+import type { Span } from '@opentelemetry/api'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -219,6 +220,14 @@ export interface StreamExecution {
    * cares — the manager never inspects chunk payloads.
    */
   timings: TransportTimings
+  /**
+   * OTel root span wrapping this execution's lifetime. Created by the
+   * context provider so its traceId matches the persisted message row;
+   * stream-manager sets it as the active context around `runExecutionLoop`
+   * (AI SDK spans become children) and ends it on terminal status.
+   * Undefined for paths that don't track tracing (e.g. temporary topics).
+   */
+  rootSpan?: Span
 }
 
 // ── ActiveStream ────────────────────────────────────────────────────

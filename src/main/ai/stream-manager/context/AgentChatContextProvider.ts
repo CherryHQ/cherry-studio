@@ -13,7 +13,9 @@
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { sessionService } from '@data/services/SessionService'
+import { application } from '@main/core/application'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { trace } from '@opentelemetry/api'
 import type { Message } from '@shared/data/types/message'
 
 import {
@@ -26,6 +28,8 @@ import { AgentMessageBackend } from '../persistence/backends/AgentMessageBackend
 import type { StreamListener } from '../types'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
+
+const tracer = trace.getTracer('CherryStudio')
 
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
@@ -127,6 +131,22 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const assistantMessageId = crypto.randomUUID()
 
+    // OTel root span wraps this execution; child AI SDK spans inherit its
+    // traceId via stream-manager's `context.with` wrap. The traceId is
+    // recorded on the assistant message row for trace-viewer lookup.
+    const rootSpan = tracer.startSpan('chat.turn', {
+      attributes: {
+        'cs.topic_id': req.topicId,
+        'cs.trigger': req.trigger,
+        'cs.model_id': uniqueModelId,
+        'cs.role': 'assistant',
+        'cs.agent_id': agentId,
+        'cs.session_id': sessionId
+      }
+    })
+    const traceId = rootSpan.spanContext().traceId
+    application.get('SpanCacheService').setTopicId(traceId, req.topicId)
+
     // Start path: persist user message + reserve the pending assistant
     // placeholder atomically so the renderer's `useAgentSessionParts`
     // refresh (triggered by the upcoming `pending` broadcast) observes
@@ -188,7 +208,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
             uniqueModelId,
             messages: [{ id: userMessageId, role: 'user', parts: [{ type: 'text', text: userText }] }],
             messageId: assistantMessageId
-          }
+          },
+          rootSpan
         }
       ],
       userMessage,

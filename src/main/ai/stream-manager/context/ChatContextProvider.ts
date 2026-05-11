@@ -16,6 +16,7 @@
  *    requires writing a provider, never touching the dispatcher.
  */
 
+import type { Span } from '@opentelemetry/api'
 import type { Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -29,8 +30,10 @@ import type { MainDispatchRequest } from './dispatch'
  */
 export interface PreparedDispatch {
   topicId: string
-  /** One entry per execution the provider wants to launch. */
-  models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest }>
+  /**
+   * One entry per execution the provider wants to launch.
+   */
+  models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
   /** Subscriber + per-execution PersistenceListeners, already assembled. */
   listeners: StreamListener[]
   /**

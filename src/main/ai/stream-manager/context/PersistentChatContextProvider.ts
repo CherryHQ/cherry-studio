@@ -14,9 +14,12 @@
 
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
+import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { type Span, trace } from '@opentelemetry/api'
 import { applyApprovalDecisions } from '@shared/ai/transport'
+import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import type { AiStreamRequest } from '../../types/requests'
@@ -26,6 +29,39 @@ import type { CherryUIMessage, StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import type { MainContinueConversationRequest, MainDispatchRequest } from './dispatch'
 import { resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
+
+const tracer = trace.getTracer('CherryStudio')
+
+/**
+ * Create one OTel root span per execution. The span's `traceId` is the
+ * source of truth for `Message.traceId` written below; the span is then
+ * threaded through `PreparedDispatch.models[i].rootSpan` and stream-manager
+ * sets it as active context around `runExecutionLoop` so AI SDK spans
+ * become children sharing the traceId.
+ *
+ * Each root span is also registered in `SpanCacheService.topicMap` so
+ * `getSpans(topicId, traceId)` can shard correctly when the viewer queries.
+ */
+function startTurnRootSpans(
+  topicId: string,
+  trigger: string,
+  models: Model[]
+): Array<{ model: Model; span: Span; traceId: string }> {
+  const spanCache = application.get('SpanCacheService')
+  return models.map((model) => {
+    const span = tracer.startSpan('chat.turn', {
+      attributes: {
+        'cs.topic_id': topicId,
+        'cs.trigger': trigger,
+        'cs.model_id': model.id,
+        'cs.role': 'assistant'
+      }
+    })
+    const traceId = span.spanContext().traceId
+    spanCache.setTopicId(traceId, topicId)
+    return { model, span, traceId }
+  })
+}
 
 export class PersistentChatContextProvider implements ChatContextProvider {
   readonly name = 'persistent'
@@ -92,11 +128,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           } as const)
         : ({ mode: 'existing' as const, id: req.parentAnchorId } as const)
 
+    // Each execution gets its own OTel root span; the span's traceId is the
+    // canonical identifier the trace viewer keys on (Message.traceId === span.traceId).
+    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, models)
+
     const { userMessage, placeholders } = await messageService.reserveAssistantTurn({
       topicId: req.topicId,
       userMessage: userMessageInput,
       siblingsGroupId,
-      placeholders: models.map((model) => ({
+      placeholders: turnRootSpans.map(({ model, traceId }) => ({
         role: 'assistant',
         data: { parts: [] },
         status: 'pending',
@@ -106,8 +146,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           name: model.name,
           provider: model.providerId
         },
-        // TODO: replace with traceId from request after v2 refactor
-        traceId: crypto.randomUUID()
+        traceId
       }))
     })
 
@@ -116,7 +155,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       void topicNamingService.maybeRenameFromFirstUserMessage(req.topicId, userMessage.id)
     }
 
-    const assistantPlaceholders = models.map((model, i) => ({ model, placeholder: placeholders[i] }))
+    const assistantPlaceholders = turnRootSpans.map(({ model, span }, i) => ({
+      model,
+      placeholder: placeholders[i],
+      rootSpan: span
+    }))
 
     // 6. Build listeners: 1 subscriber + N persistence listeners (one per model).
     //    Each listener wraps a MessageServiceBackend that finalizes a single
@@ -154,9 +197,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
     const history = await this.buildHistory(userMessage.id)
-    const models_ = assistantPlaceholders.map(({ model, placeholder }) => ({
+    const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
       modelId: model.id,
-      request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id)
+      request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
+      rootSpan
     }))
 
     return {
@@ -214,6 +258,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const continueModelId = (anchor.modelId as UniqueModelId | undefined) ?? defaultModelId
     const [model] = await resolveModels([continueModelId], defaultModelId)
 
+    const [{ span: rootSpan }] = startTurnRootSpans(req.topicId, req.trigger, [model])
+
     const listeners: StreamListener[] = [
       subscriber,
       new PersistenceListener({
@@ -236,7 +282,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       models: [
         {
           modelId: model.id,
-          request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id)
+          request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id),
+          rootSpan
         }
       ],
       listeners,

@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
   ActiveExecution,
   AiStreamAbortRequest,
@@ -37,10 +38,38 @@ import type {
 
 const logger = loggerService.withContext('AiStreamManager')
 
+/**
+ * End the execution's OTel root span on a terminal status. Each terminal
+ * handler (done / paused / error) calls this exactly once; subsequent calls
+ * are no-ops because `exec.rootSpan` is cleared after end. Errors thrown
+ * by OTel are swallowed defensively — terminal persistence must not depend
+ * on tracing succeeding.
+ */
+function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error', error?: SerializedError): void {
+  const span = exec.rootSpan
+  if (!span) return
+  exec.rootSpan = undefined
+  try {
+    if (outcome === 'ok') {
+      span.setStatus({ code: SpanStatusCode.OK })
+    } else if (outcome === 'aborted') {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: 'aborted' })
+    } else {
+      const message = error?.message ?? 'stream execution errored'
+      span.setStatus({ code: SpanStatusCode.ERROR, message })
+      if (error) span.recordException({ name: error.name ?? 'StreamError', message })
+    }
+    span.end()
+  } catch (err) {
+    logger.warn('Failed to end root span', err as Error)
+  }
+}
+
 /** A single model's request inside a `send()` call. */
 export interface SendModelSpec {
   modelId: UniqueModelId
   request: AiStreamRequest
+  rootSpan?: Span
 }
 
 /** Input for `AiStreamManager.send`. */
@@ -268,11 +297,11 @@ export class AiStreamManager extends BaseService {
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
 
-    for (const { modelId, request } of input.models) {
+    for (const { modelId, request, rootSpan } of input.models) {
       if (executions.has(modelId)) {
         throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
       }
-      const exec = this.createAndLaunchExecution(input.topicId, modelId, request, input.siblingsGroupId)
+      const exec = this.createAndLaunchExecution(input.topicId, modelId, request, input.siblingsGroupId, rootSpan)
       executions.set(modelId, exec)
     }
 
@@ -441,6 +470,7 @@ export class AiStreamManager extends BaseService {
     if (!exec || exec.status !== 'streaming') return
 
     exec.status = 'done'
+    endRootSpan(exec, 'ok')
 
     // Compute topic status first so listeners get isTopicDone
     stream.status = this.computeTopicStatus(stream)
@@ -461,6 +491,7 @@ export class AiStreamManager extends BaseService {
     const exec = stream.executions.get(modelId)
     if (!exec || exec.status !== 'aborted') return
 
+    endRootSpan(exec, 'aborted')
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
 
@@ -482,6 +513,7 @@ export class AiStreamManager extends BaseService {
 
     exec.status = 'error'
     exec.error = error
+    endRootSpan(exec, 'error', error)
 
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
@@ -669,7 +701,8 @@ export class AiStreamManager extends BaseService {
     topicId: string,
     modelId: UniqueModelId,
     request: AiStreamRequest,
-    siblingsGroupId?: number
+    siblingsGroupId?: number,
+    rootSpan?: Span
   ): StreamExecution {
     // Each execution gets its own pending queue and replay ring buffer;
     // message-injection fan-out happens at the manager level (see
@@ -688,11 +721,22 @@ export class AiStreamManager extends BaseService {
       droppedChunks: 0,
       siblingsGroupId,
       timings: { startedAt: performance.now() },
-      loopPromise: Promise.resolve()
+      loopPromise: Promise.resolve(),
+      rootSpan
     }
     const requestWithQueue: AiStreamRequest = { ...request, pendingMessages }
 
-    exec.loopPromise = this.runExecutionLoop(topicId, modelId, requestWithQueue, exec).catch((err) => {
+    // If a root span was supplied, run the loop inside its active context
+    // so AI SDK auto-spans become children (sharing the traceId persisted
+    // on the message row). Without a span, fall back to current context.
+    const launchLoop = rootSpan
+      ? () =>
+          otelContext.with(trace.setSpan(otelContext.active(), rootSpan), () =>
+            this.runExecutionLoop(topicId, modelId, requestWithQueue, exec)
+          )
+      : () => this.runExecutionLoop(topicId, modelId, requestWithQueue, exec)
+
+    exec.loopPromise = launchLoop().catch((err) => {
       // Defensive: runExecutionLoop handles its own errors, but if it
       // throws synchronously (e.g. aiService.streamText fails before
       // returning a stream), funnel it into the standard error path.
@@ -977,6 +1021,13 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
     if (stream.cleanupTimer) clearTimeout(stream.cleanupTimer)
+    // Defensive: any execution whose terminal handler never fired (e.g.
+    // eviction during grace period) still has its rootSpan open. End it
+    // here as a leak guard — endRootSpan is idempotent (no-ops when
+    // rootSpan is already cleared).
+    for (const exec of stream.executions.values()) {
+      endRootSpan(exec, 'aborted')
+    }
     this.activeStreams.delete(topicId)
   }
 }
