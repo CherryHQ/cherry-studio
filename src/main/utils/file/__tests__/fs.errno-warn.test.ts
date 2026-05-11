@@ -79,9 +79,9 @@ function makeErrnoErr(code: string, message = code): NodeJS.ErrnoException {
 
 describe('move (EXDEV cross-device fallback)', () => {
   let tmp: string
-  let actualRename: NodeFsPromises['rename']
-  let actualUnlink: NodeFsPromises['unlink']
-  let actualStat: NodeFsPromises['stat']
+  let actualRename: typeof NodeFsPromises.rename
+  let actualUnlink: typeof NodeFsPromises.unlink
+  let actualStat: typeof NodeFsPromises.stat
 
   beforeEach(async () => {
     const actual = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
@@ -178,7 +178,7 @@ describe('move (EXDEV cross-device fallback)', () => {
 
 describe('isSameFile (non-ENOENT stat failure observability)', () => {
   let tmp: string
-  let actualStat: NodeFsPromises['stat']
+  let actualStat: typeof NodeFsPromises.stat
 
   beforeEach(async () => {
     const actual = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
