@@ -15,8 +15,7 @@ describe('AgentChannelService', () => {
       type: 'claude-code',
       name: `Agent ${id}`,
       instructions: 'test',
-      model: null,
-      orderKey: 'a0'
+      model: null
     })
   }
 

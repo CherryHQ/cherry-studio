@@ -67,7 +67,6 @@ describe('AgentService', () => {
       instructions: 'You are a helpful assistant.',
       // FK to user_model.id; tests insert NULL since they don't exercise model behavior.
       model: null,
-      orderKey: 'a0',
       ...overrides,
       id
     }
@@ -100,9 +99,9 @@ describe('AgentService', () => {
       expect(agent.id).toMatch(uuidV4Pattern)
     })
 
-    it('places newly created agents at the top of asc(orderKey) listings', async () => {
-      await insertAgent({ id: 'agent_existing_a', orderKey: 'a1' })
-      await insertAgent({ id: 'agent_existing_b', orderKey: 'a2' })
+    it('places newly created agents first under default sort (createdAt desc)', async () => {
+      await insertAgent({ id: 'agent_existing_a' })
+      await insertAgent({ id: 'agent_existing_b' })
 
       const created = await agentService.createAgent({
         type: 'claude-code',
@@ -142,7 +141,7 @@ describe('AgentService', () => {
   describe('listAgents', () => {
     it('respects limit and offset', async () => {
       for (let i = 0; i < 5; i++) {
-        await insertAgent({ name: `Agent ${i}`, orderKey: `a${i}` })
+        await insertAgent({ name: `Agent ${i}` })
       }
 
       const page1 = await agentService.listAgents({ limit: 2, offset: 0 })
@@ -158,9 +157,9 @@ describe('AgentService', () => {
     })
 
     it('sorts by name ascending when sortBy=name and orderBy=asc', async () => {
-      await insertAgent({ name: 'Zebra', orderKey: 'a0' })
-      await insertAgent({ name: 'Alpha', orderKey: 'a1' })
-      await insertAgent({ name: 'Mango', orderKey: 'a2' })
+      await insertAgent({ name: 'Zebra' })
+      await insertAgent({ name: 'Alpha' })
+      await insertAgent({ name: 'Mango' })
 
       const { agents } = await agentService.listAgents({ sortBy: 'name', orderBy: 'asc' })
 

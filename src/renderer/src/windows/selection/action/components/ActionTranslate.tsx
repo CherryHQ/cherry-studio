@@ -51,7 +51,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(() => {
     const candidate = language || navigator.language || defaultLanguage
-    const lang = getLanguage(candidate as TranslateLangCode)
+    const lang = getLanguage(candidate)
     if (lang) {
       return lang
     }

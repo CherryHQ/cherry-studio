@@ -3,17 +3,7 @@ import App from '@renderer/components/MiniApp/MiniApp'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  BookMarked,
-  Code,
-  FileSearch,
-  Folder,
-  Languages,
-  LayoutGrid,
-  NotepadText,
-  Palette,
-  Sparkle
-} from 'lucide-react'
+import { BookMarked, Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,12 +33,6 @@ const LaunchpadPage: FC = () => {
       text: t('title.paintings'),
       path: `/app/paintings/${defaultPaintingProvider}`,
       bgColor: 'linear-gradient(135deg, #EC4899, #F472B6)' // 绘画：活力粉色，代表创造力和艺术
-    },
-    {
-      icon: <Sparkle size={32} className="icon" />,
-      text: t('title.store'),
-      path: '/app/assistant',
-      bgColor: 'linear-gradient(135deg, #6366F1, #4F46E5)' // AI助手：靛蓝渐变，代表智能和科技
     },
     {
       icon: <Languages size={32} className="icon" />,

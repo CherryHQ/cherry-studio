@@ -1,6 +1,4 @@
 import { loggerService } from '@logger'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import SelectProviderModelPopup from '@renderer/pages/settings/ProviderSettings/SelectProviderModelPopup'
 import { checkApi } from '@renderer/services/ApiService'
 import type { Model, PreprocessProvider, Provider } from '@renderer/types'
 import { isPreprocessProviderId } from '@renderer/types'
@@ -9,8 +7,6 @@ import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
-import type { TFunction } from 'i18next'
-import { isEmpty } from 'lodash'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -256,10 +252,7 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
       const currentState = connectivityStates.get(keyToCheck)
       if (currentState?.checking) return
 
-      const model = isLlmProvider(provider) ? await getModelForCheck(provider, t) : undefined
-      if (model === null) return
-
-      await runConnectivityCheck(index, model)
+      await runConnectivityCheck(index, undefined)
     },
     [provider, keys, connectivityStates, t, runConnectivityCheck]
   )
@@ -268,10 +261,7 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
   const checkAllKeysConnectivity = useCallback(async () => {
     if (!provider || keys.length === 0) return
 
-    const model = isLlmProvider(provider) ? await getModelForCheck(provider, t) : undefined
-    if (model === null) return
-
-    await Promise.allSettled(keys.map((_, index) => runConnectivityCheck(index, model)))
+    await Promise.allSettled(keys.map((_, index) => runConnectivityCheck(index, undefined)))
   }, [provider, keys, t, runConnectivityCheck])
 
   // 计算是否有 key 正在检查
@@ -303,26 +293,4 @@ export function isPreprocessProvider(provider: ApiProvider): provider is Preproc
   // NOTE: mistral 同时提供预处理和llm服务，所以其llm provier可能被误判为预处理provider
   // 后面需要使用更严格的判断方式
   return isPreprocessProviderId(provider.id) && !isLlmProvider(provider)
-}
-
-// 获取模型用于检查
-async function getModelForCheck(provider: Provider, t: TFunction): Promise<Model | null> {
-  const modelsToCheck = provider.models.filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
-
-  if (isEmpty(modelsToCheck)) {
-    window.toast.error({
-      title: t('settings.provider.no_models_for_check'),
-      timeout: 5000
-    })
-    return null
-  }
-
-  try {
-    const selectedModel = await SelectProviderModelPopup.show({ provider })
-    if (!selectedModel) return null
-    return selectedModel
-  } catch (error) {
-    logger.error('failed to select model', error as Error)
-    return null
-  }
 }

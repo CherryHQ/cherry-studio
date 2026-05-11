@@ -26,7 +26,7 @@ export function useAssistants() {
 /**
  * Returns the runtime-composed default-assistant template. Use this only at
  * UI sites that need to render the "Default" preset card or seed a new
- * assistant from the template (e.g. AddAssistantPopup, settings pages). It is
+ * assistant from the template (e.g. settings pages). It is
  * NOT meant for chat call sites — a topic without an assistant should be
  * rendered by handling `useAssistant(...).assistant === undefined` directly,
  * not by faking up an Assistant.

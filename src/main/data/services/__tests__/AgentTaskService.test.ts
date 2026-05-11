@@ -16,7 +16,6 @@ describe('TaskService', () => {
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
       model: null,
-      orderKey: 'a0',
       // Soul mode required for createTask to pass assertAutonomous
       configuration: { soul_enabled: true },
       ...overrides,

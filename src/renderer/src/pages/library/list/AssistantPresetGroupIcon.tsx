@@ -1,7 +1,8 @@
-import { groupTranslations } from '@renderer/pages/store/assistants/presets/assistantPresetGroupTranslations'
 import { DynamicIcon, type IconName } from 'lucide-react/dynamic'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { groupTranslations } from './assistantPresetGroupTranslations'
 
 interface Props {
   groupName: string

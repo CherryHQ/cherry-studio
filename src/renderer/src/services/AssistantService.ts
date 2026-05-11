@@ -12,18 +12,8 @@ import { isQwenMTModel } from '@renderer/config/models/qwen'
 import { getStoreProviders } from '@renderer/hooks/useStore'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import { addAssistant } from '@renderer/store/assistants'
-import type {
-  Assistant,
-  AssistantPreset,
-  AssistantSettings,
-  LegacyAssistant,
-  Model,
-  TranslateAssistant,
-  TranslateLanguage
-} from '@renderer/types'
+import type { Assistant, AssistantSettings, Model, TranslateAssistant, TranslateLanguage } from '@renderer/types'
 import { DEFAULT_ASSISTANT_SETTINGS as SHARED_DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { v4 as uuid } from 'uuid'
 
 import { composeDefaultAssistant } from './defaultAssistant'
 import { getProviderByModel } from './ProviderService'
@@ -102,35 +92,4 @@ export function getAssistantById(id: string | undefined | null) {
   if (!id) return undefined
   const assistants = store.getState().assistants.assistants
   return assistants.find((a) => a.id === id)
-}
-
-/**
- * v1 legacy: dispatches Redux v1 slice. Going away with the slice itself.
- * Casts at the boundary to satisfy LegacyAssistant typing.
- */
-export async function createAssistantFromAgent(agent: AssistantPreset) {
-  const assistantId = uuid()
-  const now = new Date().toISOString()
-
-  const assistant: Assistant = {
-    id: assistantId,
-    name: agent.name,
-    emoji: agent.emoji,
-    prompt: agent.prompt,
-    description: agent.description,
-    settings: agent.settings ?? DEFAULT_ASSISTANT_SETTINGS,
-    modelId: agent.modelId ?? null,
-    modelName: null,
-    mcpServerIds: agent.mcpServerIds ?? [],
-    knowledgeBaseIds: agent.knowledgeBaseIds ?? [],
-    tags: [],
-    createdAt: now,
-    updatedAt: now
-  }
-
-  store.dispatch(addAssistant(assistant as unknown as LegacyAssistant))
-
-  window.toast.success(i18n.t('message.assistant.added.content'))
-
-  return assistant
 }

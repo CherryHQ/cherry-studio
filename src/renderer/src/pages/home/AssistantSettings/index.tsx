@@ -1,9 +1,8 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useAssistantPreset } from '@renderer/hooks/useAssistantPresets'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
-import type { Assistant, AssistantPreset } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { Menu, Modal } from 'antd'
 import { useState } from 'react'
@@ -32,25 +31,11 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
   const [menu, setMenu] = useState<AssistantSettingPopupTab>(tab || 'model')
 
   const _useAssistant = useAssistant(props.assistant.id)
-  const _useAgent = useAssistantPreset(props.assistant.id)
-  // The popup is opened from two places: a real assistant (DataApi-backed) and
-  // a preset card (Redux v1 slice). Treat the entry as a preset if Redux holds
-  // a record with this id. Falls back to v1 prop shape when neither lookup
-  // resolves yet (transient first-render state).
-  const isAgent = !!_useAgent.preset
 
-  const assistant: Assistant = isAgent
-    ? ((_useAgent.preset as Assistant | undefined) ?? props.assistant)
-    : (_useAssistant.assistant ?? props.assistant)
+  const assistant: Assistant = _useAssistant.assistant ?? props.assistant
 
-  // Normalize preset (full-record write) and assistant (partial PATCH) update
-  // shapes to the same partial-patch contract that child panels expect.
-  const updateAssistant: (patch: UpdateAssistantDto) => void = isAgent
-    ? (patch) => _useAgent.updateAssistantPreset({ ...(assistant as AssistantPreset), ...patch } as AssistantPreset)
-    : (patch) => void _useAssistant.updateAssistant(patch)
-  const updateAssistantSettings = isAgent
-    ? _useAgent.updateAssistantPresetSettings
-    : _useAssistant.updateAssistantSettings
+  const updateAssistant: (patch: UpdateAssistantDto) => void = (patch) => void _useAssistant.updateAssistant(patch)
+  const updateAssistantSettings = _useAssistant.updateAssistantSettings
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
 

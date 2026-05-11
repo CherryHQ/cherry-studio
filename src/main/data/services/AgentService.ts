@@ -19,8 +19,6 @@ import type { AgentType } from '@shared/data/types/agent'
 import { and, asc, count, desc, eq, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
-import { insertWithOrderKey } from './utils/orderKey'
-
 const logger = loggerService.withContext('AgentService')
 
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
@@ -51,7 +49,7 @@ export class AgentService {
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
-    const insertData: Omit<InsertAgentRow, 'orderKey'> = {
+    const insertData: InsertAgentRow = {
       id,
       type: req.type,
       name: req.name || 'New Agent',
@@ -68,12 +66,7 @@ export class AgentService {
     const row = await withSqliteErrors(
       () =>
         database.transaction(async (tx) => {
-          // Prepend: place new agent at the head of asc(orderKey) listings.
-          const inserted = await insertWithOrderKey(tx, agentsTable, insertData, {
-            pkColumn: agentsTable.id,
-            position: 'first'
-          })
-          if (!inserted) return null
+          await tx.insert(agentsTable).values(insertData)
           const [joined] = await tx
             .select({ agent: agentsTable, modelName: userModelTable.name })
             .from(agentsTable)
@@ -131,22 +124,20 @@ export class AgentService {
 
     const totalResult = await database.select({ count: count() }).from(agentsTable).where(whereClause)
 
-    const sortBy = options.sortBy ?? 'orderKey'
-    const orderBy = options.orderBy ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
+    // Agents are unordered: no fractional-indexing `orderKey`. Default to
+    // `createdAt desc` so the most recently created agent shows up first.
+    const sortBy = options.sortBy ?? 'createdAt'
+    const orderBy = options.orderBy ?? 'desc'
 
     const sortByToColumn: Record<
       string,
-      | typeof agentsTable.orderKey
-      | typeof agentsTable.createdAt
-      | typeof agentsTable.name
-      | typeof agentsTable.updatedAt
+      typeof agentsTable.createdAt | typeof agentsTable.name | typeof agentsTable.updatedAt
     > = {
-      orderKey: agentsTable.orderKey,
       createdAt: agentsTable.createdAt,
       updatedAt: agentsTable.updatedAt,
       name: agentsTable.name
     }
-    const sortField = sortByToColumn[sortBy] ?? agentsTable.orderKey
+    const sortField = sortByToColumn[sortBy] ?? agentsTable.createdAt
     const orderFn = orderBy === 'asc' ? asc : desc
 
     const baseQuery = database

@@ -16,8 +16,7 @@ async function insertAgent(db: ReturnType<typeof setupTestDatabase>['db'], id: s
     type: 'claude-code',
     name: 'Test Agent',
     instructions: 'You are a helpful assistant.',
-    model: null,
-    orderKey: 'a0'
+    model: null
   })
 }
 

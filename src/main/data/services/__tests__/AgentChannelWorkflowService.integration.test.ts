@@ -44,8 +44,7 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
       type: 'claude-code',
       name: `Agent ${id}`,
       instructions: 'test',
-      model: null,
-      orderKey: 'a0'
+      model: null
     })
   }
 

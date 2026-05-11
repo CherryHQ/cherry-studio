@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateDeleteTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { userModelTable } from './userModel'
 
 export const agentTable = sqliteTable(
@@ -18,10 +18,9 @@ export const agentTable = sqliteTable(
     mcps: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
     allowedTools: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
     configuration: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull().default(sql`'{}'`),
-    ...orderKeyColumns,
     ...createUpdateDeleteTimestamps
   },
-  (t) => [index('agent_name_idx').on(t.name), index('agent_type_idx').on(t.type), orderKeyIndex('agent')(t)]
+  (t) => [index('agent_name_idx').on(t.name), index('agent_type_idx').on(t.type)]
 )
 
 export type AgentRow = typeof agentTable.$inferSelect

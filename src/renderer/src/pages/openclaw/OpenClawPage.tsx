@@ -1,16 +1,18 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import { Openclaw } from '@cherrystudio/ui/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { CopyIcon } from '@renderer/components/Icons'
-import ModelSelector from '@renderer/components/ModelSelectorLegacy'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useSharedCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { loggerService } from '@renderer/services/LoggerService'
-import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { Model as SharedModel } from '@shared/data/types/model'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Download, ExternalLink, Loader2, Play, Square, X } from 'lucide-react'
+import { ChevronDown, Download, ExternalLink, Loader2, Play, Square, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,25 +24,6 @@ const logger = loggerService.withContext('OpenClawPage')
 
 const DEFAULT_DOCS_URL = 'https://docs.openclaw.ai/'
 const NO_API_KEY_PROVIDERS = new Set(['ollama', 'lmstudio', 'gpustack'])
-
-function toLegacyModelSelectorValue(modelId: UniqueModelId | null): string | null {
-  if (!modelId) return null
-
-  const parsed = parseUniqueModelId(modelId)
-  return JSON.stringify({ id: parsed.modelId, provider: parsed.providerId })
-}
-
-function fromLegacyModelSelectorValue(modelUniqId: string): UniqueModelId | null {
-  try {
-    const parsed = JSON.parse(modelUniqId) as { id?: unknown; provider?: unknown }
-    if (typeof parsed.id !== 'string' || typeof parsed.provider !== 'string') {
-      return null
-    }
-    return createUniqueModelId(parsed.provider, parsed.id)
-  } catch {
-    return null
-  }
-}
 
 interface TitleSectionProps {
   title: string
@@ -121,13 +104,26 @@ const OpenClawPage: FC = () => {
     return null
   }, [selectedModelId, availableProviders])
 
-  const selectedModelUniqId = useMemo(() => {
-    if (!selectedModelId || !isUniqueModelId(selectedModelId)) return null
-    return toLegacyModelSelectorValue(selectedModelId)
-  }, [selectedModelId])
-
   const selectedProvider = selectedModelInfo?.provider ?? null
   const selectedModel = selectedModelInfo?.model ?? null
+
+  const selectedUniqueModelId = useMemo<UniqueModelId | undefined>(() => {
+    return selectedModelId && isUniqueModelId(selectedModelId) ? selectedModelId : undefined
+  }, [selectedModelId])
+
+  /**
+   * Model-level filter that mirrors the legacy provider-level filter:
+   * the model's owning provider must be enabled and either have an API key
+   * or be one of the providers that operate without one (local runtimes).
+   */
+  const modelFilter = useCallback(
+    (model: SharedModel) => {
+      const provider = providers.find((p) => p.id === model.providerId)
+      if (!provider || !provider.enabled) return false
+      return !!provider.apiKey || NO_API_KEY_PROVIDERS.has(provider.type)
+    },
+    [providers]
+  )
 
   type PageState = 'checking' | 'not_installed' | 'installed' | 'installing' | 'uninstalling'
   const pageState: PageState = useMemo(() => {
@@ -237,13 +233,9 @@ const OpenClawPage: FC = () => {
     return cleanup
   }, [])
 
-  const handleModelSelect = (modelUniqId: string) => {
-    const nextModelId = fromLegacyModelSelectorValue(modelUniqId)
-    if (!nextModelId) {
-      logger.warn('Invalid model selector value, ignoring', { modelUniqId })
-      return
-    }
-    void setSelectedModelId(nextModelId)
+  const handleModelSelect = (next: UniqueModelId | undefined) => {
+    if (!next) return
+    void setSelectedModelId(next)
   }
 
   const handleStartGateway = async () => {
@@ -521,14 +513,20 @@ const OpenClawPage: FC = () => {
               {t('openclaw.model_config.model')}
             </div>
             <ModelSelector
-              style={{ width: '100%' }}
-              placeholder={t('openclaw.model_config.select_model')}
-              providers={availableProviders}
-              value={selectedModelUniqId}
-              onChange={handleModelSelect}
-              grouped
-              showAvatar
-              showSuffix
+              multiple={false}
+              selectionType="id"
+              value={selectedUniqueModelId}
+              filter={modelFilter}
+              onSelect={handleModelSelect}
+              trigger={
+                <Button variant="outline" className="w-full justify-start">
+                  {selectedModel ? <ModelAvatar model={selectedModel} size={18} /> : null}
+                  <span className="flex-1 truncate text-left">
+                    {selectedModel ? selectedModel.name : t('openclaw.model_config.select_model')}
+                  </span>
+                  <ChevronDown size={14} className="text-muted-foreground" />
+                </Button>
+              }
             />
             <div className="mt-1 text-xs" style={{ color: 'var(--color-text-3)' }}>
               {t('openclaw.model_config.sync_hint')}

@@ -196,10 +196,6 @@ export const EFFORT_RATIO: EffortRatio = {
   auto: 2
 }
 
-export type AssistantPreset = Assistant & {
-  group?: string[]
-}
-
 export type LegacyMessage = {
   id: string
   assistantId: string
