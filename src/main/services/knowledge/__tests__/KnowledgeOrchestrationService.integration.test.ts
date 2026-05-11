@@ -59,7 +59,7 @@ describe('KnowledgeOrchestrationService integration', () => {
       }
     })
 
-    const [providerOrderKey] = generateOrderKeySequence(1)
+    const [providerOrderKey, embeddingModelOrderKey] = generateOrderKeySequence(2)
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai',
       name: 'OpenAI',
@@ -72,7 +72,8 @@ describe('KnowledgeOrchestrationService integration', () => {
       presetModelId: 'text-embedding-3-small',
       name: 'text-embedding-3-small',
       isEnabled: true,
-      isHidden: false
+      isHidden: false,
+      orderKey: embeddingModelOrderKey
     })
     await dbh.db.insert(groupTable).values({
       id: 'group-1',

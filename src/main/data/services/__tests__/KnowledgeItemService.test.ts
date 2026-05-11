@@ -28,7 +28,8 @@ describe('KnowledgeItemService', () => {
       presetModelId: 'text-embedding-3-large',
       name: 'text-embedding-3-large',
       isEnabled: true,
-      isHidden: false
+      isHidden: false,
+      orderKey: generateOrderKeyBetween(null, null)
     })
     await dbh.db.insert(knowledgeBaseTable).values({
       id: 'kb-1',

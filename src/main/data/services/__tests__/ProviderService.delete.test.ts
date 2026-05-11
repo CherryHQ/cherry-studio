@@ -70,7 +70,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
   })
 
   it('should bulk purge pins for models owned by the deleted provider', async () => {
-    const [openaiWorkOrderKey, anthropicWorkOrderKey] = generateOrderKeySequence(2)
+    const [openaiWorkOrderKey, anthropicWorkOrderKey, gpt4oOrderKey, o3OrderKey, claudeOrderKey] =
+      generateOrderKeySequence(5)
 
     await dbh.db.insert(userProviderTable).values([
       {
@@ -93,19 +94,22 @@ describe('ProviderService.delete — preset protection boundary', () => {
         id: targetModelIds[0],
         providerId: 'openai-work',
         modelId: 'gpt-4o',
-        name: 'GPT-4o'
+        name: 'GPT-4o',
+        orderKey: gpt4oOrderKey
       },
       {
         id: targetModelIds[1],
         providerId: 'openai-work',
         modelId: 'o3',
-        name: 'o3'
+        name: 'o3',
+        orderKey: o3OrderKey
       },
       {
         id: siblingModelId,
         providerId: 'anthropic-work',
         modelId: 'claude-3',
-        name: 'Claude 3'
+        name: 'Claude 3',
+        orderKey: claudeOrderKey
       }
     ])
     const targetPins: Pin[] = []
@@ -131,6 +135,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
     const claude = createUniqueModelId('anthropic', 'claude-3')
     const openaiWorkOrderKey = generateOrderKeyBetween(null, null)
     const anthropicOrderKey = generateOrderKeyBetween(openaiWorkOrderKey, null)
+    const [gpt4OrderKey, gpt35OrderKey, claudeOrderKey] = generateOrderKeySequence(3)
 
     await dbh.db.insert(userProviderTable).values([
       {
@@ -147,9 +152,9 @@ describe('ProviderService.delete — preset protection boundary', () => {
       }
     ])
     await dbh.db.insert(userModelTable).values([
-      { id: gpt4, providerId: 'openai-work', modelId: 'gpt-4', name: 'GPT-4' },
-      { id: gpt35, providerId: 'openai-work', modelId: 'gpt-3.5', name: 'GPT-3.5' },
-      { id: claude, providerId: 'anthropic', modelId: 'claude-3', name: 'Claude 3' }
+      { id: gpt4, providerId: 'openai-work', modelId: 'gpt-4', name: 'GPT-4', orderKey: gpt4OrderKey },
+      { id: gpt35, providerId: 'openai-work', modelId: 'gpt-3.5', name: 'GPT-3.5', orderKey: gpt35OrderKey },
+      { id: claude, providerId: 'anthropic', modelId: 'claude-3', name: 'Claude 3', orderKey: claudeOrderKey }
     ])
     await dbh.db.insert(pinTable).values([
       { entityType: 'model', entityId: gpt4, orderKey: 'a0' },

@@ -36,7 +36,7 @@ describe('AssistantDataService', () => {
   })
 
   async function seedModelRefs() {
-    const [openaiKey, anthropicKey] = generateOrderKeySequence(2)
+    const [openaiKey, anthropicKey, gpt4Key, claude3Key, embeddingKey] = generateOrderKeySequence(5)
     await dbh.db.insert(userProviderTable).values([
       { providerId: 'openai', name: 'OpenAI', orderKey: openaiKey },
       { providerId: 'anthropic', name: 'Anthropic', orderKey: anthropicKey }
@@ -50,7 +50,8 @@ describe('AssistantDataService', () => {
         presetModelId: 'gpt-4',
         name: 'GPT-4',
         isEnabled: true,
-        isHidden: false
+        isHidden: false,
+        orderKey: gpt4Key
       },
       {
         id: createUniqueModelId('anthropic', 'claude-3'),
@@ -59,7 +60,8 @@ describe('AssistantDataService', () => {
         presetModelId: 'claude-3',
         name: 'Claude 3',
         isEnabled: true,
-        isHidden: false
+        isHidden: false,
+        orderKey: claude3Key
       },
       {
         id: createUniqueModelId('openai', 'text-embedding-3-large'),
@@ -68,7 +70,8 @@ describe('AssistantDataService', () => {
         presetModelId: 'text-embedding-3-large',
         name: 'text-embedding-3-large',
         isEnabled: true,
-        isHidden: false
+        isHidden: false,
+        orderKey: embeddingKey
       }
     ])
   }

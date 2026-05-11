@@ -21,7 +21,7 @@ describe('KnowledgeBaseService', () => {
 
   /** FK target for embedding_model_id → user_model.id */
   async function seedUserProvidersAndModelsForKb() {
-    const [openaiKey] = generateOrderKeySequence(1)
+    const [openaiKey, embedModelKey] = generateOrderKeySequence(2)
     await dbh.db.insert(userProviderTable).values([{ providerId: 'openai', name: 'OpenAI', orderKey: openaiKey }])
     await dbh.db.insert(userModelTable).values([
       {
@@ -31,7 +31,8 @@ describe('KnowledgeBaseService', () => {
         presetModelId: 'embed-model',
         name: 'embed-model',
         isEnabled: true,
-        isHidden: false
+        isHidden: false,
+        orderKey: embedModelKey
       }
     ])
   }

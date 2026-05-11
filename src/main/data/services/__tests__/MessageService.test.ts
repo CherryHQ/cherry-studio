@@ -17,7 +17,7 @@ describe('MessageService', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(async () => {
-    const [providerAKey, providerBKey] = generateOrderKeySequence(2)
+    const [providerAKey, providerBKey, modelAKey, modelBKey] = generateOrderKeySequence(4)
     await dbh.db.insert(userProviderTable).values([
       { providerId: 'provider-a', name: 'Provider A', orderKey: providerAKey },
       { providerId: 'provider-b', name: 'Provider B', orderKey: providerBKey }
@@ -31,7 +31,8 @@ describe('MessageService', () => {
         presetModelId: 'model-A',
         name: 'model-A',
         isEnabled: true,
-        isHidden: false
+        isHidden: false,
+        orderKey: modelAKey
       },
       {
         id: createUniqueModelId('provider-b', 'model-B'),
@@ -40,7 +41,8 @@ describe('MessageService', () => {
         presetModelId: 'model-B',
         name: 'model-B',
         isEnabled: true,
-        isHidden: false
+        isHidden: false,
+        orderKey: modelBKey
       }
     ])
   })
