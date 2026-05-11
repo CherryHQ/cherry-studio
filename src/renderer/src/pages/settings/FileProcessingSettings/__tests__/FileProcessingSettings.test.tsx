@@ -53,11 +53,11 @@ vi.mock('@renderer/config/constant', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/hooks/useTranslate', () => ({
-  default: () => ({
-    translateLanguages: [
-      { langCode: 'en-us', emoji: 'EN', label: () => 'English' },
-      { langCode: 'zh-cn', emoji: 'ZH', label: () => 'Chinese' }
+vi.mock('@renderer/hooks/translate', () => ({
+  useLanguages: () => ({
+    languages: [
+      { langCode: 'en-us', emoji: 'EN', value: 'English' },
+      { langCode: 'zh-cn', emoji: 'ZH', value: 'Chinese' }
     ]
   })
 }))

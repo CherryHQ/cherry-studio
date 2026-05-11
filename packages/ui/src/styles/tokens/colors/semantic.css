@@ -60,7 +60,7 @@
   --cs-foreground-muted: oklch(1 0 0 / 0.4);
 
   /* Card & Popover */
-  --cs-card: var(--cs-black);
+  --cs-card: var(--cs-neutral-900);
   --cs-popover: var(--cs-black);
 
   /* Border */

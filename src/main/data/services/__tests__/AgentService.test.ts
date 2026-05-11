@@ -1,8 +1,11 @@
 import path from 'node:path'
 
 import { agentTable } from '@data/db/schemas/agent'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { pinService } from '@data/services/PinService'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -61,6 +64,20 @@ describe('AgentService', () => {
     }
     await dbh.db.insert(agentTable).values(base)
     return { id }
+  }
+
+  async function seedModelRefs() {
+    await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic' })
+    await dbh.db.insert(userModelTable).values({
+      id: createUniqueModelId('anthropic', 'claude-sonnet-4-5'),
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet-4-5',
+      presetModelId: 'claude-sonnet-4-5',
+      name: 'Claude Sonnet 4.5',
+      isEnabled: true,
+      isHidden: false,
+      sortOrder: 0
+    })
   }
 
   describe('createAgent', () => {
@@ -154,6 +171,50 @@ describe('AgentService', () => {
 
       const names = agents.map((a) => a.name)
       expect(names).toEqual([...names].sort())
+    })
+
+    it('does not expose tags in agent rows', async () => {
+      const { id: taggedId } = await insertAgent({ id: 'agent_tag_test_1', name: 'tagged' })
+      const { id: untaggedId } = await insertAgent({ id: 'agent_tag_test_2', name: 'untagged' })
+
+      const { agents } = await agentService.listAgents()
+
+      const tagged = agents.find((agent) => agent.id === taggedId)
+      const untagged = agents.find((agent) => agent.id === untaggedId)
+      expect(tagged).toBeDefined()
+      expect(untagged).toBeDefined()
+      expect('tags' in (tagged as object)).toBe(false)
+      expect('tags' in (untagged as object)).toBe(false)
+    })
+
+    it('embeds modelName resolved from user_model', async () => {
+      await seedModelRefs()
+      const bound = await insertAgent({
+        id: 'agent_model_test_1',
+        name: 'bound',
+        model: 'anthropic::claude-sonnet-4-5'
+      })
+      const missing = await insertAgent({
+        id: 'agent_model_test_2',
+        name: 'missing',
+        model: 'anthropic::deleted-model'
+      })
+
+      const { agents } = await agentService.listAgents()
+      const byId = new Map(agents.map((agent) => [agent.id, agent]))
+
+      expect(byId.get(bound.id)?.modelName).toBe('Claude Sonnet 4.5')
+      expect(byId.get(missing.id)?.modelName).toBeNull()
+    })
+
+    it('filters by search against name OR description', async () => {
+      await insertAgent({ id: 'agent_search_1', name: 'Research Bot' })
+      await insertAgent({ id: 'agent_search_2', name: 'unrelated', description: 'used for research' })
+      await insertAgent({ id: 'agent_search_3', name: 'noise' })
+
+      const { agents } = await agentService.listAgents({ search: 'research' })
+
+      expect(agents.map((agent) => agent.id).sort()).toEqual(['agent_search_1', 'agent_search_2'])
     })
   })
 })

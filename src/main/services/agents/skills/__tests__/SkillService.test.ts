@@ -1,10 +1,16 @@
+import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
+
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { loggerService } from '@logger'
 import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/utils/markdownParser', () => ({
   parseSkillMetadata: vi.fn(),
@@ -21,6 +27,17 @@ const SKILL_ID_BUILTIN = '33333333-3333-4333-8333-333333333333'
 
 describe('SkillService', () => {
   const dbh = setupTestDatabase()
+  const tempDirs: string[] = []
+
+  async function createTempDir(prefix: string) {
+    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), prefix))
+    tempDirs.push(dir)
+    return dir
+  }
+
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => fs.promises.rm(dir, { recursive: true, force: true })))
+  })
 
   async function seedAgent() {
     await dbh.db.insert(agentTable).values({
@@ -38,6 +55,7 @@ describe('SkillService', () => {
       {
         id: SKILL_ID_1,
         name: 'skill-one',
+        description: 'Extract web content',
         folderName: 'skill-one',
         source: 'marketplace',
         contentHash: 'abc123',
@@ -46,6 +64,7 @@ describe('SkillService', () => {
       {
         id: SKILL_ID_2,
         name: 'skill-two',
+        description: 'Summarize local documents',
         folderName: 'skill-two',
         source: 'marketplace',
         contentHash: 'def456',
@@ -54,6 +73,7 @@ describe('SkillService', () => {
       {
         id: SKILL_ID_BUILTIN,
         name: 'builtin-skill',
+        description: 'Builtin helper',
         folderName: 'builtin-skill',
         source: 'builtin',
         contentHash: 'bbb999',
@@ -79,6 +99,21 @@ describe('SkillService', () => {
       expect(result.map((s) => s.name)).toContain('skill-one')
     })
 
+    it('returns source metadata tags and does not expose user tags', async () => {
+      const skillService = new SkillService()
+      await seedSkills()
+      await dbh.db
+        .update(agentGlobalSkillTable)
+        .set({ tags: ['source-ai'] })
+        .where(eq(agentGlobalSkillTable.id, SKILL_ID_1))
+
+      const result = await skillService.list()
+      const skill = result.find((s) => s.id === SKILL_ID_1)
+
+      expect(skill?.sourceTags).toEqual(['source-ai'])
+      expect('tags' in (skill as object)).toBe(false)
+    })
+
     it('reflects per-agent enablement when agentId is provided', async () => {
       const skillService = new SkillService()
       await seedAgent()
@@ -90,7 +125,7 @@ describe('SkillService', () => {
         isEnabled: true
       })
 
-      const result = await skillService.list(AGENT_ID)
+      const result = await skillService.list({ agentId: AGENT_ID })
 
       expect(result).toHaveLength(3)
       const one = result.find((s) => s.id === SKILL_ID_1)
@@ -104,9 +139,33 @@ describe('SkillService', () => {
       await seedAgent()
       await seedSkills()
 
-      const result = await skillService.list(AGENT_ID)
+      const result = await skillService.list({ agentId: AGENT_ID })
 
       expect(result.every((s) => s.isEnabled === false)).toBe(true)
+    })
+
+    it('filters by search against name or description in the database', async () => {
+      const skillService = new SkillService()
+      await seedSkills()
+
+      const byName = await skillService.list({ search: 'two' })
+      const byDescription = await skillService.list({ search: 'web content' })
+
+      expect(byName.map((s) => s.id)).toEqual([SKILL_ID_2])
+      expect(byDescription.map((s) => s.id)).toEqual([SKILL_ID_1])
+    })
+
+    it('treats LIKE wildcards in search as literal characters', async () => {
+      const skillService = new SkillService()
+      await seedSkills()
+      await dbh.db
+        .update(agentGlobalSkillTable)
+        .set({ name: 'percent-%-skill' })
+        .where(eq(agentGlobalSkillTable.id, SKILL_ID_1))
+
+      const result = await skillService.list({ search: '%' })
+
+      expect(result.map((s) => s.id)).toEqual([SKILL_ID_1])
     })
   })
 
@@ -128,6 +187,88 @@ describe('SkillService', () => {
         folderName: 'skill-one',
         source: 'marketplace'
       })
+      expect('tags' in (result as object)).toBe(false)
+    })
+  })
+
+  describe('listLocal', () => {
+    beforeEach(() => {
+      vi.mocked(parseSkillMetadata).mockClear()
+      vi.mocked(parseSkillMetadata).mockImplementation(async (skillPath, sourcePath) => ({
+        sourcePath,
+        filename: path.basename(skillPath),
+        name: path.basename(skillPath),
+        description: `${sourcePath} description`,
+        category: 'skills',
+        type: 'skill',
+        command: '',
+        version: '1.0.0',
+        size: 0,
+        contentHash: 'hash'
+      }))
+    })
+
+    it('lists user-owned local skill directories and symlinked directories', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-local-workdir-')
+      const skillsDir = path.join(workdir, '.claude', 'skills')
+      const externalSkillDir = await createTempDir('skill-local-external-')
+      await fs.promises.mkdir(path.join(skillsDir, 'plain-skill'), { recursive: true })
+      await fs.promises.writeFile(path.join(skillsDir, 'plain-skill', 'SKILL.md'), '# Plain skill')
+      await fs.promises.writeFile(path.join(externalSkillDir, 'SKILL.md'), '# Linked skill')
+      await fs.promises.symlink(externalSkillDir, path.join(skillsDir, 'linked-skill'), 'junction')
+
+      const result = await skillService.listLocal(workdir)
+
+      expect(result.map((skill) => skill.filename).sort()).toEqual(['linked-skill', 'plain-skill'])
+    })
+
+    it('skips Cherry-managed skill symlinks that point to the global skill storage', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-local-workdir-')
+      const skillsDir = path.join(workdir, '.claude', 'skills')
+      const globalSkillsRoot = await createTempDir('skill-global-root-')
+      const managedSkillDir = path.join(globalSkillsRoot, 'managed-skill')
+      await fs.promises.mkdir(managedSkillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(managedSkillDir, 'SKILL.md'), '# Managed skill')
+      await fs.promises.mkdir(skillsDir, { recursive: true })
+      await fs.promises.symlink(managedSkillDir, path.join(skillsDir, 'managed-skill'), 'junction')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        if (key === 'feature.agents.skills') {
+          return filename ? path.join(globalSkillsRoot, filename) : globalSkillsRoot
+        }
+        return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+      })
+
+      try {
+        const result = await skillService.listLocal(workdir)
+
+        expect(result).toEqual([])
+        expect(parseSkillMetadata).not.toHaveBeenCalled()
+      } finally {
+        getPathSpy.mockRestore()
+      }
+    })
+
+    it('warns and skips broken local skill symlinks', async () => {
+      const warnSpy = vi.spyOn(loggerService.withContext('SkillService'), 'warn').mockImplementation(() => undefined)
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-local-workdir-')
+      const skillsDir = path.join(workdir, '.claude', 'skills')
+      await fs.promises.mkdir(skillsDir, { recursive: true })
+      await fs.promises.symlink(path.join(workdir, 'missing-target'), path.join(skillsDir, 'broken-skill'), 'junction')
+
+      try {
+        const result = await skillService.listLocal(workdir)
+
+        expect(result).toEqual([])
+        expect(warnSpy).toHaveBeenCalledWith(
+          'Failed to resolve local skill symlink; skipping',
+          expect.objectContaining({ entry: 'broken-skill', skillsDir })
+        )
+      } finally {
+        warnSpy.mockRestore()
+      }
     })
   })
 

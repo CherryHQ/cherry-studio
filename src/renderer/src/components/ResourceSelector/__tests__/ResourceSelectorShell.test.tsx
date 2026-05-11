@@ -1,5 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -305,7 +305,7 @@ describe('ResourceSelectorShell', () => {
   })
 
   describe('edit button', () => {
-    it('fires onEditItem with the row id and does not trigger row select', () => {
+    it('fires onEditItem with the row id and does not trigger row select', async () => {
       const onEditItem = vi.fn()
       const onChange = vi.fn()
       render(
@@ -325,11 +325,64 @@ describe('ResourceSelectorShell', () => {
       const editButtons = screen.getAllByRole('button', { name: 'Edit' })
       // One edit button per non-pinned row; click the first.
       fireEvent.click(editButtons[0])
-      expect(onEditItem).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(onEditItem).toHaveBeenCalledTimes(1))
       expect(onChange).not.toHaveBeenCalled()
+      expect(screen.queryByPlaceholderText('Search')).not.toBeInTheDocument()
     })
 
-    it('renders a custom item action slot without triggering row select', () => {
+    it('closes the popover before running the edit action callback', async () => {
+      let popoverAtCallback: HTMLElement | null = null
+      const onEditItem = vi.fn(() => {
+        popoverAtCallback = screen.queryByPlaceholderText('Search')
+      })
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          onEditItem={onEditItem}
+          onCreateNew={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+
+      await waitFor(() => expect(onEditItem).toHaveBeenCalledWith('1'))
+      expect(popoverAtCallback).toBeNull()
+    })
+
+    it('closes the popover before running the create action callback', async () => {
+      let popoverAtCallback: HTMLElement | null = null
+      const onCreateNew = vi.fn(() => {
+        popoverAtCallback = screen.queryByPlaceholderText('Search')
+      })
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          onEditItem={vi.fn()}
+          onCreateNew={onCreateNew}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Create new' }))
+
+      await waitFor(() => expect(onCreateNew).toHaveBeenCalledTimes(1))
+      expect(popoverAtCallback).toBeNull()
+    })
+
+    it('renders a custom item action slot without triggering row select', async () => {
       const onEditItem = vi.fn()
       const onChange = vi.fn()
       render(
@@ -344,7 +397,7 @@ describe('ResourceSelectorShell', () => {
           value={null}
           onChange={onChange}
           renderItemAction={({ item, buttonProps }) => (
-            <button {...buttonProps} data-testid={`action-${item.id}`}>
+            <button {...buttonProps} type="button" data-testid={`action-${item.id}`}>
               Configure {item.name}
             </button>
           )}
@@ -357,7 +410,7 @@ describe('ResourceSelectorShell', () => {
 
       fireEvent.click(customAction)
 
-      expect(onEditItem).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(onEditItem).toHaveBeenCalledTimes(1))
       expect(onEditItem).toHaveBeenCalledWith('1')
       expect(onChange).not.toHaveBeenCalled()
     })

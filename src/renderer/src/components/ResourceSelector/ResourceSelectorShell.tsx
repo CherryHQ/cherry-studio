@@ -22,6 +22,7 @@ import {
   useEffect,
   useEffectEvent,
   useMemo,
+  useRef,
   useState
 } from 'react'
 
@@ -85,10 +86,10 @@ type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
   /** Disable pin toggles while a pin read/write is in flight (prevents over-fire from rapid clicks). */
   isPinActionDisabled?: boolean
 
-  onEditItem: (id: string) => void
+  onEditItem?: (id: string) => void
   /** Optional trailing action button slot for row-level configuration/edit affordances. */
   renderItemAction?: (props: ResourceSelectorShellItemActionSlotProps<T>) => ReactNode
-  onCreateNew: () => void
+  onCreateNew?: () => void
 
   labels: ResourceSelectorShellLabels
 
@@ -215,6 +216,26 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     },
     [openProp, onOpenChangeProp]
   )
+  const pendingCloseActionRef = useRef<(() => void) | null>(null)
+  const runPendingCloseAction = useCallback(() => {
+    const action = pendingCloseActionRef.current
+    if (!action) return
+
+    pendingCloseActionRef.current = null
+    action()
+  }, [])
+  const closeBeforeAction = useCallback(
+    (action: () => void) => {
+      pendingCloseActionRef.current = action
+      if (!open) {
+        runPendingCloseAction()
+        return
+      }
+
+      handleOpenChange(false)
+    },
+    [handleOpenChange, open, runPendingCloseAction]
+  )
 
   const [searchValue, setSearchValue] = useState('')
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
@@ -222,8 +243,11 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   // Reset search text on close. Filter panel + right-click menu dismiss is handled by EntitySelector.
   useEffect(() => {
-    if (!open) setSearchValue('')
-  }, [open])
+    if (open) return
+    setSearchValue('')
+    const timer = window.setTimeout(runPendingCloseAction, 0)
+    return () => window.clearTimeout(timer)
+  }, [open, runPendingCloseAction])
 
   // Fire onOpen for both Radix-internal and external (controlled) opens. Routing this through
   // an effect on the effective `open` value covers the controlled `open=true` path that
@@ -231,7 +255,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const handleOpen = useEffectEvent(() => onOpen?.())
   useEffect(() => {
     if (open) handleOpen()
-  }, [open])
+  }, [open, handleOpen])
 
   // Normalize caller's value to an id list for both the EntitySelector contract (string/string[])
   // and the toolbar's initial seed.
@@ -333,19 +357,21 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       const isPinned = pinnedSet.has(item.id)
       const actionButtonProps: ResourceSelectorShellItemActionSlotProps<T>['buttonProps'] = {
         type: 'button',
-        onClick: (event: MouseEvent<HTMLButtonElement>) => {
-          event.stopPropagation()
-          onEditItem(item.id)
-        },
+        ...(onEditItem && {
+          onClick: (event: MouseEvent<HTMLButtonElement>) => {
+            event.stopPropagation()
+            closeBeforeAction(() => onEditItem(item.id))
+          }
+        }),
         className: ITEM_ACTION_BUTTON_CLASS,
         'aria-label': labels.edit,
         title: labels.edit
       }
       const itemAction = renderItemAction ? (
         renderItemAction({ item, buttonProps: actionButtonProps })
-      ) : (
+      ) : onEditItem ? (
         <button {...actionButtonProps}>{DEFAULT_ITEM_ACTION_ICON}</button>
-      )
+      ) : null
 
       // Row root is a div, not a button, because it hosts real child buttons (Checkbox, pin
       // toggle, edit) — nested <button> is invalid HTML and trips React's validateDOMNesting.
@@ -410,6 +436,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       labels.edit,
       fallbackIcon,
       togglePin,
+      closeBeforeAction,
       onEditItem,
       renderItemAction,
       isPinActionDisabled
@@ -492,15 +519,14 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     [isMulti, isItemType, items, props.onChange, valueIds]
   )
 
-  const footer = (
+  const footer = onCreateNew ? (
     <>
       <Separator className="bg-border/20" />
       <div className="px-1.5 py-1">
         <button
           type="button"
           onClick={() => {
-            handleOpenChange(false)
-            onCreateNew()
+            closeBeforeAction(onCreateNew)
           }}
           className="flex w-full cursor-pointer items-center gap-2.5 rounded-2xs px-3 py-[5px] text-left text-muted-foreground text-sm transition-colors hover:bg-accent/20 hover:text-foreground">
           <Plus size={14} className="shrink-0" />
@@ -509,7 +535,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         </button>
       </div>
     </>
-  )
+  ) : undefined
 
   return (
     <EntitySelector
@@ -539,16 +565,18 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       }
       renderItemContextMenu={(item, { close }) => (
         <div className="min-w-0 rounded-2xs border border-border bg-popover p-0.5 shadow-md">
-          <button
-            type="button"
-            onClick={() => {
-              onEditItem(item.id)
-              close()
-            }}
-            className="flex w-full cursor-pointer items-center gap-1.5 rounded-3xs px-2 py-[3px] text-left text-foreground text-xs transition-colors hover:bg-accent/15">
-            <Pencil size={10} />
-            <span>{labels.edit}</span>
-          </button>
+          {onEditItem && (
+            <button
+              type="button"
+              onClick={() => {
+                close()
+                closeBeforeAction(() => onEditItem(item.id))
+              }}
+              className="flex w-full cursor-pointer items-center gap-1.5 rounded-3xs px-2 py-[3px] text-left text-foreground text-xs transition-colors hover:bg-accent/15">
+              <Pencil size={10} />
+              <span>{labels.edit}</span>
+            </button>
+          )}
           <button
             type="button"
             disabled={isPinActionDisabled}

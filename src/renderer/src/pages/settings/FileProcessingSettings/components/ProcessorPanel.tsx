@@ -1,5 +1,5 @@
 import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudio/ui'
-import useTranslate from '@renderer/hooks/useTranslate'
+import { useLanguages } from '@renderer/hooks/translate'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { splitApiKeyString } from '@shared/utils/api'
 import { List, SquareCheckBig } from 'lucide-react'
@@ -59,7 +59,7 @@ export function ProcessorPanel({
   onSetLanguageOptions
 }: ProcessorPanelProps) {
   const { t } = useTranslation()
-  const { translateLanguages } = useTranslate()
+  const { languages } = useLanguages()
   const processor = entry.processor
   const processorName = t(getProcessorNameKey(processor.id))
   const apiKeyWebsite = getProcessorApiKeyWebsite(processor.id)
@@ -79,8 +79,12 @@ export function ProcessorPanel({
   }, [entry.capability.apiHost, entry.capability.modelId, processor.apiKeys])
 
   const languageOptions = useMemo(() => {
+    if (!languages) {
+      return []
+    }
+
     if (processor.id === 'tesseract') {
-      return translateLanguages
+      return languages
         .map((language) => {
           const tesseractCode = getTesseractLanguageCode(language.langCode)
 
@@ -90,17 +94,17 @@ export function ProcessorPanel({
 
           return {
             value: tesseractCode,
-            label: language.label()
+            label: language.value
           }
         })
         .filter((option): option is ComboboxOption => Boolean(option))
     }
 
-    return translateLanguages.map((language) => ({
+    return languages.map((language) => ({
       value: language.langCode,
-      label: `${language.emoji} ${language.label()}`
+      label: `${language.emoji} ${language.value}`
     }))
-  }, [processor.id, translateLanguages])
+  }, [languages, processor.id])
 
   const selectedLanguages = useMemo(() => getProcessorLanguageOptions(processor.options), [processor.options])
 
