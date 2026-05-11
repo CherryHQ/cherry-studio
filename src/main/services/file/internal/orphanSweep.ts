@@ -1,5 +1,5 @@
 /**
- * Orphan sweep — Phase 1b.4 startup data-consistency pass.
+ * Orphan sweep — startup data-consistency pass.
  *
  * Two surfaces composed under one module:
  *

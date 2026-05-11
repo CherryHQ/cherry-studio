@@ -242,10 +242,10 @@ export interface AtomicWriteStream extends Writable {
  * Thrown by `writeIfUnchanged` when the current file version does not match the
  * caller's expected version. Caller should refresh or present a conflict UX.
  *
- * Note: the Phase 1b.2 implementation uses the xxhash-h64 fallback path
- * described on `FileVersion` when mtime resolution is ambiguous — a
- * `StaleVersionError` under that branch means the hash also diverged, i.e.
- * the content genuinely differs even when `(mtime, size)` looked equal.
+ * Note: this implementation uses the xxhash-h64 fallback path described on
+ * `FileVersion` when mtime resolution is ambiguous — a `StaleVersionError`
+ * under that branch means the hash also diverged, i.e. the content genuinely
+ * differs even when `(mtime, size)` looked equal.
  */
 export class StaleVersionError extends Error {
   constructor(
@@ -459,9 +459,8 @@ export interface IFileManager {
 /**
  * Lifecycle-managed FileManager singleton.
  *
- * Phase 1b.2 implements the full read + write surface — every IFileManager
- * method delegates to a pure function under `./internal/*` taking the deps
- * bundle this class owns.
+ * Every IFileManager method delegates to a pure function under `./internal/*`
+ * taking the deps bundle this class owns.
  *
  * Internal ops live as pure functions under `./internal/*` and receive a
  * `FileManagerDeps` bundle. The class owns lifecycle (BaseService) and
@@ -600,11 +599,10 @@ export class FileManager extends BaseService {
   }
 
   /**
-   * Phase 1b.1 returns the structural shape with `type: 'other'` for files
-   * (regardless of ext). Per-kind enrichment — image width/height, PDF
-   * pageCount, text encoding — lands in Phase 1b.2 alongside the full write
-   * path; renderer call sites that need those fields are expected to handle
-   * them as 1b.2-deliverable.
+   * Returns the structural shape with `type: 'other'` for files regardless
+   * of ext. Per-kind enrichment — image width/height, PDF pageCount, text
+   * encoding — is deferred; renderer call sites that need those fields are
+   * expected to tolerate their absence until enrichment lands.
    */
   async getMetadata(id: FileEntryId): Promise<PhysicalFileMetadata> {
     const entry = await this.deps.fileEntryService.getById(id)
@@ -652,7 +650,7 @@ export class FileManager extends BaseService {
     return resolvePhysicalPath(entry)
   }
 
-  // ─── Mutation methods (Phase 1b.2) ───
+  // ─── Mutation methods ───
 
   async createInternalEntry(params: CreateInternalEntryParams): Promise<FileEntry> {
     return internalCreateInternal(this.deps, params)
@@ -760,7 +758,7 @@ export class FileManager extends BaseService {
     return internalShellShowInFolder(resolvePhysicalPath(entry))
   }
 
-  // ─── Dangling state (Phase 1b.3) ───
+  // ─── Dangling state ───
 
   /**
    * Resolve the current `DanglingState` for an entry. Hot path: `'present'`
@@ -778,7 +776,7 @@ export class FileManager extends BaseService {
    * listener fires only on genuine transitions ('present' → 'missing' or
    * vice versa); same-state observations are silent. Returns a dispose
    * function. In-process only — renderer fan-out via the planned
-   * `file-manager-event` IPC channel is deferred to Phase 2.
+   * `file-manager-event` IPC channel is deferred.
    */
   subscribeDangling(params: { id: FileEntryId }, listener: (state: 'present' | 'missing') => void): () => void {
     return this.deps.danglingCache.subscribe(params.id, (_id, state) => {

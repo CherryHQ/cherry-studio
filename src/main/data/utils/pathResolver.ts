@@ -99,7 +99,7 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): FilePath {
  * discipline` — follow them exactly; do not improvise.
  * ─────────────────────────────────────────────────────────────────────────
  *
- * ## Phase 1b scope (this function's contract)
+ * ## Scope (this function's contract)
  *
  * Cheap, synchronous normalization — no FS IO, cross-platform uniform:
  *
@@ -126,7 +126,7 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): FilePath {
  *   `/Users/me/FILE.pdf` vs `/Users/me/file.pdf` can still produce two
  *   entries. Requires `fs.realpath()` (async, FS-IO-backed, requires file
  *   existence) — deferred until real user reports materialize.
- *   Mitigation in Phase 1b.1: `ensureExternalEntry` logs a `warn` on insert
+ *   Mitigation: `ensureExternalEntry` logs a `warn` on insert
  *   when a case-insensitive match against an existing row is found (see
  *   `file-manager-architecture.md §1.2 Duplicate-entry detection on
  *   insert`), giving operational visibility without blocking the insert.

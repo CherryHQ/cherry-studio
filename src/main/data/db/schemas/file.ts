@@ -5,8 +5,8 @@ import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from '.
 
 /**
  * NOTE: `file_upload` (AI provider upload cache) is intentionally NOT included
- * in Phase 1a — deferred until Vercel AI SDK's Files Upload API exits pre-release
- * status. Design is preserved in file-manager-architecture.md §9 for future reference.
+ * — deferred until Vercel AI SDK's Files Upload API exits pre-release status.
+ * Design is preserved in file-manager-architecture.md §9 for future reference.
  */
 
 /**

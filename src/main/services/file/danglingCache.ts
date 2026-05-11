@@ -1,9 +1,9 @@
 /**
  * DanglingCache — external-entry presence tracker.
  *
- * Phase status: Phase 1b.3 implementation. Wraps a `Map<entryId, CachedState>`
- * cache + `Map<canonicalPath, Set<entryId>>` reverse index, with TTL-based
- * lazy expiration (default 30 min, see [file-manager-architecture.md §11.2]).
+ * Wraps a `Map<entryId, CachedState>` cache + `Map<canonicalPath, Set<entryId>>`
+ * reverse index, with TTL-based lazy expiration (default 30 min, see
+ * [file-manager-architecture.md §11.2]).
  *
  * Responsibilities:
  * - Maintain a best-effort "present / missing / unknown" state per external
@@ -14,7 +14,7 @@
  *   DataApi never reads this cache — DataApi is strict SQL-only.
  * - Emit subscription events so the UI can react to external file
  *   disappearance without polling. Renderer fan-out via `webContents.send`
- *   is deferred to Phase 2 — this module exposes only an in-process `Event<T>`.
+ *   is deferred — this module exposes only an in-process `Event<T>`.
  *
  * Internal entries are always `'present'` — the cache is external-only.
  *
@@ -98,8 +98,7 @@ export interface DanglingCache {
 
   /**
    * Public event surface for cross-cutting consumers (e.g. FileManager
-   * fanning out to renderer windows in Phase 2). Fires only on genuine
-   * state transitions.
+   * fanning out to renderer windows). Fires only on genuine state transitions.
    */
   readonly onDanglingStateChanged: Event<DanglingStateChangedEvent>
 

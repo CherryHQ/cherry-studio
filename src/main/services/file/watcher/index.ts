@@ -1,11 +1,10 @@
 /**
  * DirectoryWatcher — generic FS-monitoring primitive.
  *
- * Phase status: Phase 1b.3 implementation. Wraps `chokidar@4` with a
- * minimal event surface (`add` / `unlink` / `change` / `ready` / `error`)
- * and auto-wires `add` / `unlink` events into the file-module's
- * `DanglingCache` singleton so external-entry presence tracking stays
- * coherent across all watchers.
+ * Wraps `chokidar@4` with a minimal event surface (`add` / `unlink` /
+ * `change` / `ready` / `error`) and auto-wires `add` / `unlink` events into
+ * the file-module's `DanglingCache` singleton so external-entry presence
+ * tracking stays coherent across all watchers.
  *
  * ## Positioning
  *
@@ -22,8 +21,8 @@
  *
  * The architecture doc specifies a richer API (separate `onAdd` / `onAddDir`
  * / `onUnlink` / `onUnlinkDir` / `onRename` / `onError` / `onReady` events
- * with rename-detection options). Phase 1b.3 ships only the events that have
- * a consumer in the current scope:
+ * with rename-detection options). This module currently ships only the
+ * events that have a consumer in the current scope:
  * - directory add/remove not surfaced (no consumer needs it)
  * - rename detection deferred (paired with `onRename` deliverable)
  *

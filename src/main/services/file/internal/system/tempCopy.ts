@@ -45,7 +45,7 @@ export async function withTempCopy<T>(
     // (sandbox containment changes) still throw — and a throw from finally
     // would replace any error fn just raised, erasing the caller's stack.
     // Log and swallow; orphan temp dirs are recovered by a future
-    // tempcopy-sweep pass (Phase 2).
+    // tempcopy-sweep pass (deferred).
     try {
       await rm(dir, { recursive: true, force: true })
     } catch (cleanupErr) {
