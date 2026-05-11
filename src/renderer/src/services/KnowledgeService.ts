@@ -3,7 +3,6 @@ import type { Span } from '@opentelemetry/api'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
-import store from '@renderer/store'
 import {
   type FileMetadata,
   type KnowledgeBase,
@@ -33,17 +32,6 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
   }
   const embedProvider = formatProviderApiHost(embedProviderRaw)
   const rerankProvider = formatProviderApiHost(rerankProviderRaw)
-
-  // get preprocess provider from store instead of base.preprocessProvider
-  const preprocessProvider = store
-    .getState()
-    .preprocess.providers.find((p) => p.id === base.preprocessProvider?.provider.id)
-  const updatedPreprocessProvider = preprocessProvider
-    ? {
-        type: 'preprocess' as const,
-        provider: preprocessProvider
-      }
-    : base.preprocessProvider
 
   let { baseURL } = routeToEndpoint(embedProvider.apiHost)
 
@@ -88,8 +76,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
       apiKey: getRotatedProviderApiKey(rerankProvider) || 'secret',
       baseURL: rerankHost
     },
-    documentCount: base.documentCount,
-    preprocessProvider: updatedPreprocessProvider
+    documentCount: base.documentCount
   }
 }
 

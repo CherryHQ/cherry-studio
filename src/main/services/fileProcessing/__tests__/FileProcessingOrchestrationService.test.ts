@@ -3,10 +3,11 @@ import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { startTaskMock, getTaskMock, cancelTaskMock } = vi.hoisted(() => ({
+const { startTaskMock, getTaskMock, cancelTaskMock, listAvailableProcessorIdsMock } = vi.hoisted(() => ({
   startTaskMock: vi.fn(),
   getTaskMock: vi.fn(),
-  cancelTaskMock: vi.fn()
+  cancelTaskMock: vi.fn(),
+  listAvailableProcessorIdsMock: vi.fn()
 }))
 
 vi.mock('@main/core/application', async () => {
@@ -16,7 +17,8 @@ vi.mock('@main/core/application', async () => {
       FileProcessingTaskService: {
         startTask: startTaskMock,
         getTask: getTaskMock,
-        cancelTask: cancelTaskMock
+        cancelTask: cancelTaskMock,
+        listAvailableProcessorIds: listAvailableProcessorIdsMock
       }
     } as any)
   }
@@ -49,7 +51,7 @@ describe('FileProcessingOrchestrationService', () => {
     expect(getDependencies(FileProcessingOrchestrationService)).toEqual(['FileProcessingTaskService'])
   })
 
-  it('registers only the three unified file processing IPC handlers', () => {
+  it('registers the unified file processing IPC handlers', () => {
     const service = new FileProcessingOrchestrationService()
     const ipcHandleSpy = vi.spyOn(service as any, 'ipcHandle').mockReturnValue({ dispose: vi.fn() })
     ;(service as any).onInit()
@@ -59,7 +61,8 @@ describe('FileProcessingOrchestrationService', () => {
     expect(handlerCalls).toEqual([
       'file-processing:start-task',
       'file-processing:get-task',
-      'file-processing:cancel-task'
+      'file-processing:cancel-task',
+      'file-processing:list-available-processors'
     ])
   })
 
@@ -185,5 +188,19 @@ describe('FileProcessingOrchestrationService', () => {
     )
     expect(getTaskMock).toHaveBeenCalledWith({ taskId: 'task-1' }, undefined)
     expect(cancelTaskMock).toHaveBeenCalledWith({ taskId: 'task-1' })
+  })
+
+  it('validates list-available-processors output', () => {
+    const service = new FileProcessingOrchestrationService()
+
+    listAvailableProcessorIdsMock.mockReturnValueOnce(['system', 'ovocr'])
+
+    expect(service.listAvailableProcessors()).toEqual({
+      processorIds: ['system', 'ovocr']
+    })
+
+    listAvailableProcessorIdsMock.mockReturnValueOnce(['missing'])
+
+    expect(() => service.listAvailableProcessors()).toThrow('[')
   })
 })
