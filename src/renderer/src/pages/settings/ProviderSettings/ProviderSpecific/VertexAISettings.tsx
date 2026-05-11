@@ -10,7 +10,7 @@ import {
   ProviderHelpText,
   ProviderHelpTextRow,
   ProviderSettingsSubtitle
-} from '../primitives/ProviderSettingsPrimitives'
+} from '../shared/primitives/ProviderSettingsPrimitives'
 
 interface Props {
   providerId: string
