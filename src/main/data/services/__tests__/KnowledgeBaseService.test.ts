@@ -271,6 +271,25 @@ describe('KnowledgeBaseService', () => {
       expect(row.emoji).toBe('📚')
     })
 
+    it('should clear nullable processor and rerank config fields', async () => {
+      await seedKnowledgeBase({
+        rerankModelId: createUniqueModelId('openai', 'embed-model'),
+        fileProcessorId: 'processor-1'
+      })
+
+      const result = await service.update('kb-1', {
+        rerankModelId: null,
+        fileProcessorId: null
+      })
+
+      expect(result.rerankModelId).toBeNull()
+      expect(result.fileProcessorId).toBeNull()
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      expect(row.rerankModelId).toBeNull()
+      expect(row.fileProcessorId).toBeNull()
+    })
+
     it('should clear stale hybrid config when search mode changes during update', async () => {
       await seedKnowledgeBase({
         chunkSize: 256,

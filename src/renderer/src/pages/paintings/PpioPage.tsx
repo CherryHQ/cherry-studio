@@ -6,7 +6,6 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
@@ -15,6 +14,7 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, PaintingsState, PpioPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { useNavigate } from '@tanstack/react-router'
 import type { UploadFile } from 'antd'
 import { Button, Input, Segmented, Select, Tooltip, Upload } from 'antd'
@@ -316,7 +316,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     setIsTranslating(true)
     try {
-      const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
+      const translatedText = await translateText(painting.prompt, BUILTIN_LANGUAGE.enUS.langCode)
       if (translatedText) {
         updatePaintingState({ prompt: translatedText })
       }

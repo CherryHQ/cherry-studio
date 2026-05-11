@@ -381,9 +381,10 @@ export function ModelSelector(props: ModelSelectorProps) {
   listItemsRef.current = listItems
   modelItemsRef.current = modelItems
 
+  const normalizedListVisibleCount = useMemo(() => Math.max(1, Math.floor(listVisibleCount)), [listVisibleCount])
   const listHeight = useMemo(
-    () => Math.min(listVisibleCount, listItems.length || 1) * ITEM_HEIGHT,
-    [listItems.length, listVisibleCount]
+    () => Math.min(normalizedListVisibleCount, listItems.length || 1) * ITEM_HEIGHT,
+    [listItems.length, normalizedListVisibleCount]
   )
   const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags])
 
@@ -506,7 +507,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     onClose: handleClose,
     onFocusItem: focusItem,
     onSelectItem: handleSelectItem,
-    pageSize: listVisibleCount
+    pageSize: normalizedListVisibleCount
   })
 
   useEffect(() => {

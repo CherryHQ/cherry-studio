@@ -512,7 +512,8 @@ export enum IpcChannel {
   WindowManager_Reused = 'window-manager:reused',
 
   // Agent operations
-  Agent_RunTask = 'agent:run-task'
+  Agent_RunTask = 'agent:run-task',
+  Agent_ListTools = 'agent:list-tools'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

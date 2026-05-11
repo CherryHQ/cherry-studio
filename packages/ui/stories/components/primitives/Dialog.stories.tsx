@@ -253,6 +253,34 @@ export const MultipleActions: Story = {
   )
 }
 
+// Custom Overlay
+// `overlayClassName` is forwarded to the internal `<DialogOverlay />`,
+// letting consumers tweak backdrop opacity / blur without bypassing
+// `DialogContent`. tailwind-merge composes with the default overlay classes.
+export const CustomOverlay: Story = {
+  render: () => (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline">Open with Blurred Overlay</Button>
+      </DialogTrigger>
+      <DialogContent overlayClassName="bg-black/40 backdrop-blur-sm" className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Custom Overlay</DialogTitle>
+          <DialogDescription>
+            The backdrop uses a lighter tint (`bg-black/40`) and a subtle blur (`backdrop-blur-sm`) instead of the
+            default opaque overlay.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button>Close</Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // Real World Examples
 export const RealWorldExamples: Story = {
   render: () => (

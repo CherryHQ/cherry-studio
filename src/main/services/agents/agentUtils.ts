@@ -1,14 +1,18 @@
 import { application } from '@application'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { getMcpApiService } from '@main/apiServer/services/mcp'
+import type { AgentTool as Tool } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { buildFunctionCallToolName } from '@shared/mcp'
 import type { SystemProviderId } from '@types'
 import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
 import { type AgentModelField, AgentModelValidationError } from './errors'
+import { builtinTools } from './services/claudecode/tools'
 
 const logger = loggerService.withContext('agentUtils')
 
@@ -80,6 +84,36 @@ export function resolveAccessiblePaths(paths?: string[]): string[] {
     paths = [path.join(application.getPath('feature.agents.workspaces'), uuidv4())]
   }
   return ensurePathsExist(paths)
+}
+
+export async function listMcpTools(agentType: AgentType, ids?: string[]): Promise<Tool[]> {
+  const tools: Tool[] = []
+  if (agentType === 'claude-code') {
+    tools.push(...builtinTools)
+  }
+  if (!ids?.length) {
+    return tools
+  }
+  for (const id of ids) {
+    try {
+      const server = await getMcpApiService().getServerInfo(id)
+      if (!server) {
+        continue
+      }
+      for (const tool of server.tools) {
+        tools.push({
+          id: buildFunctionCallToolName(server.name, tool.name),
+          name: tool.name,
+          type: 'mcp',
+          description: tool.description || '',
+          requirePermissions: true
+        })
+      }
+    } catch (error) {
+      logger.warn('Failed to list MCP tools', { id, error: error as Error })
+    }
+  }
+  return tools
 }
 
 /**

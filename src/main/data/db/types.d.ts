@@ -11,6 +11,8 @@ export interface ListOptions {
   offset?: number
   sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'orderKey'
   orderBy?: 'asc' | 'desc'
+  /** LIKE %kw% match against name OR description (case-insensitive). */
+  search?: string
 }
 
 export interface ISeeder {

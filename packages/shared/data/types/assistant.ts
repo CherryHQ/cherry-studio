@@ -8,6 +8,7 @@
 import * as z from 'zod'
 
 import { UniqueModelIdSchema } from './model'
+import { TagSchema } from './tag'
 
 // ============================================================================
 // Sub-Schemas
@@ -139,6 +140,17 @@ export const AssistantSchema = z.strictObject({
    *  fallback so the API-level type is non-optional. */
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string). Same nullable-at-DB / non-null-at-API pattern. */
-  updatedAt: z.iso.datetime()
+  updatedAt: z.iso.datetime(),
+  /** Tags associated with this assistant (embedded via inline join in list/get endpoints) */
+  tags: z.array(TagSchema),
+  /**
+   * Human-readable model name resolved from `user_model.name` at read time.
+   * Read-only embedded field — edits go through `modelId`. Renderer consumers
+   * (list / grid / card) display this directly instead of re-resolving the
+   * `providerId::modelId` unique id against provider state.
+   * `null` when the model row is missing (e.g. user removed the model after
+   * binding).
+   */
+  modelName: z.string().nullable()
 })
 export type Assistant = z.infer<typeof AssistantSchema>

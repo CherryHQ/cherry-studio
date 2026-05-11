@@ -1017,7 +1017,8 @@ const api = {
     trackTokenUsage: (data: TokenUsageData) => ipcRenderer.invoke(IpcChannel.Analytics_TrackTokenUsage, data)
   },
   agent: {
-    runTask: (agentId: string, taskId: string) => ipcRenderer.invoke(IpcChannel.Agent_RunTask, agentId, taskId)
+    runTask: (agentId: string, taskId: string) => ipcRenderer.invoke(IpcChannel.Agent_RunTask, agentId, taskId),
+    listTools: (request: unknown) => ipcRenderer.invoke(IpcChannel.Agent_ListTools, request)
   }
 }
 

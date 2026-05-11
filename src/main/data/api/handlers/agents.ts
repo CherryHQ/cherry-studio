@@ -19,23 +19,21 @@ import {
   type AgentSchemas,
   CreateAgentSchema,
   CreateTaskSchema,
+  ListAgentsQuerySchema,
   ListQuerySchema,
+  ListSkillsQuerySchema,
   UpdateAgentSchema,
   UpdateTaskSchema
 } from '@shared/data/api/schemas/agents'
-import * as z from 'zod'
-
-const SkillListQuerySchema = z.strictObject({
-  agentId: z.string().optional()
-})
 
 export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents': {
     GET: async ({ query }) => {
-      const parsed = ListQuerySchema.safeParse(query ?? {})
+      const parsed = ListAgentsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const { page, limit } = parsed.data
-      const { agents, total } = await agentService.listAgents({ limit, offset: (page - 1) * limit })
+      const { search, page, limit } = parsed.data
+      const offset = (page - 1) * limit
+      const { agents, total } = await agentService.listAgents({ limit, offset, search })
       return { items: agents, total, page }
     },
 
@@ -108,13 +106,16 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
 
   '/skills': {
     GET: async ({ query }) => {
-      const parsed = SkillListQuerySchema.safeParse(query ?? {})
+      const parsed = ListSkillsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      if (parsed.data.agentId) {
-        const agent = await agentService.getAgent(parsed.data.agentId)
-        if (!agent) throw DataApiErrorFactory.notFound('Agent', parsed.data.agentId)
+      const { agentId } = parsed.data
+
+      if (agentId) {
+        const agent = await agentService.getAgent(agentId)
+        if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
       }
-      return await skillService.list(parsed.data.agentId)
+
+      return await skillService.list(parsed.data)
     }
   },
 

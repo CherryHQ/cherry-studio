@@ -592,7 +592,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               {t('paintings.learn_more')}
               {(() => {
                 const Icon = resolveProviderIcon(newApiProvider.id)
-                return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
+                return Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null
               })()}
             </SettingHelpLink>
           </ProviderTitleContainer>

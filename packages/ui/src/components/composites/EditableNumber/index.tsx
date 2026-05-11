@@ -20,6 +20,12 @@ export interface EditableNumberProps {
   prefix?: string
   align?: 'start' | 'center' | 'end'
   formatter?: (value: number | null) => string | number
+  /**
+   * Switch the wrapper from `inline-block` (sizes to content — appropriate for
+   * compact slider companions) to `block w-full` so the field fills the row in
+   * stacked form layouts. Defaults to `false` to preserve existing call sites.
+   */
+  block?: boolean
 }
 
 const sizeClasses: Record<NonNullable<EditableNumberProps['size']>, string> = {
@@ -87,7 +93,8 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
   align = 'end',
   suffix,
   prefix,
-  formatter
+  formatter,
+  block = false
 }) => {
   const [isEditing, setIsEditing] = React.useState(false)
   const [inputValue, setInputValue] = React.useState(() => toInputValue(value, precision))
@@ -172,7 +179,7 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
   }
 
   return (
-    <div className="relative inline-block">
+    <div className={cn('relative', block ? 'block w-full' : 'inline-block')}>
       <input
         ref={inputRef}
         type="number"

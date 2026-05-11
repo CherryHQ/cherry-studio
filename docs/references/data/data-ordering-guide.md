@@ -158,7 +158,7 @@ Moves apply **sequentially in one transaction**; each anchor resolves against th
 - **Column**: `order_key TEXT NOT NULL`. Always injected via `...orderKeyColumns`; the spread locks the TS field name to `orderKey`.
 - **Index**: required. Use `orderKeyIndex(tableName)(t)` for whole-table or `scopedOrderKeyIndex(tableName, scopeColumn)(t)` for partitioned tables.
 - **Known partition dimensions** in the codebase:
-  - Live (active consumers): `group.entityType`, `pin.entityType`, `user_model.providerId`, `miniapp.status`, `user_provider.isEnabled`.
+  - Live (active consumers): `group.entityType`, `pin.entityType`, `user_model.providerId`, `miniapp.status`.
   - Planned / hypothetical: `topic.groupId` (adopted when `topic` migrates to the spec).
 - **No secondary order axes**. Each sortable table exposes exactly one `order_key`. Orthogonal user intents — e.g. "in a group" vs "pinned" — are modelled as separate tables, not as overloaded scope values on a shared column. Resource-specific design (polymorphic shape, purge contracts, concurrency semantics) lives in each schema / service's JSDoc, not here — this guide scopes to the ordering mechanism only.
 

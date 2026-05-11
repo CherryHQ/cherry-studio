@@ -11,6 +11,8 @@ import {
 } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { KnowledgeQueueManager } from '../../queue/KnowledgeQueueManager'
+
 const {
   chunkDocumentsMock,
   createVectorStoreMock,
@@ -148,6 +150,21 @@ vi.mock('../utils/prepare', () => ({
 }))
 
 const { KnowledgeRuntimeService } = await import('..')
+
+function createSearchNode(id: string, score: number, chunkIndex = 0) {
+  return {
+    id_: id,
+    score,
+    metadata: {
+      itemId: `item-${id}`,
+      itemType: 'note',
+      source: `note-${id}`,
+      chunkIndex,
+      tokenCount: 2
+    },
+    getContent: vi.fn(() => `content ${id}`)
+  }
+}
 
 function createBase(): KnowledgeBase {
   return {
@@ -416,6 +433,51 @@ describe('KnowledgeRuntimeService', () => {
     })
   })
 
+  it('serializes addItems acceptance with same-base queue writes before enqueueing runtime work', async () => {
+    const service = new KnowledgeRuntimeService()
+    const releaseActiveWrite = createDeferred()
+    const activeWriteStarted = createDeferred()
+    const events: string[] = []
+
+    const queue = (service as unknown as { queue: KnowledgeQueueManager }).queue
+    const activeWritePromise = queue.runWithBaseWriteLockForBase('kb-1', async () => {
+      events.push('lock:active')
+      activeWriteStarted.resolve()
+      await releaseActiveWrite.promise
+      events.push('unlock:active')
+    })
+
+    await activeWriteStarted.promise
+    const addPromise = service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
+    await flushPromises()
+
+    expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
+    expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalled()
+    expect(events).toEqual(['lock:active'])
+
+    releaseActiveWrite.resolve()
+    await addPromise
+    await activeWritePromise
+
+    expect(knowledgeItemCreateMock).toHaveBeenCalledWith('kb-1', {
+      groupId: undefined,
+      type: 'note',
+      data: { source: 'note-1', content: 'hello note-1' }
+    })
+    expect(events).toEqual(['lock:active', 'unlock:active'])
+    await vi.waitFor(() => {
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
+        createNoteItem('note-1', 'processing'),
+        expect.any(AbortSignal)
+      )
+    })
+    expect(
+      knowledgeItemUpdateStatusMock.mock.invocationCallOrder[
+        knowledgeItemUpdateStatusMock.mock.calls.findIndex((call) => call[0] === 'note-1' && call[1] === 'processing')
+      ]
+    ).toBeLessThan(loadKnowledgeItemDocumentsMock.mock.invocationCallOrder[0])
+  })
+
   it('cleans up accepted roots when batch acceptance fails', async () => {
     const service = new KnowledgeRuntimeService()
     const acceptError = new Error('create failed')
@@ -469,10 +531,20 @@ describe('KnowledgeRuntimeService', () => {
     const enqueueError = new Error('queue resetting')
     const enqueueMock = vi.fn().mockRejectedValue(enqueueError)
     const getSnapshotMock = vi.fn().mockReturnValue({ pending: [], running: [] })
+    const runWithBaseWriteLockForBaseMock = vi.fn(async (_baseId: string, task: () => Promise<unknown>) => task())
 
-    ;(service as unknown as { queue: { enqueue: typeof enqueueMock; getSnapshot: typeof getSnapshotMock } }).queue = {
+    ;(
+      service as unknown as {
+        queue: {
+          enqueue: typeof enqueueMock
+          getSnapshot: typeof getSnapshotMock
+          runWithBaseWriteLockForBase: typeof runWithBaseWriteLockForBaseMock
+        }
+      }
+    ).queue = {
       enqueue: enqueueMock,
-      getSnapshot: getSnapshotMock
+      getSnapshot: getSnapshotMock,
+      runWithBaseWriteLockForBase: runWithBaseWriteLockForBaseMock
     }
 
     await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
@@ -497,10 +569,20 @@ describe('KnowledgeRuntimeService', () => {
     const enqueueError = new Error('queue resetting')
     const enqueueMock = vi.fn().mockRejectedValue(enqueueError)
     const getSnapshotMock = vi.fn().mockReturnValue({ pending: [], running: [] })
+    const runWithBaseWriteLockForBaseMock = vi.fn(async (_baseId: string, task: () => Promise<unknown>) => task())
 
-    ;(service as unknown as { queue: { enqueue: typeof enqueueMock; getSnapshot: typeof getSnapshotMock } }).queue = {
+    ;(
+      service as unknown as {
+        queue: {
+          enqueue: typeof enqueueMock
+          getSnapshot: typeof getSnapshotMock
+          runWithBaseWriteLockForBase: typeof runWithBaseWriteLockForBaseMock
+        }
+      }
+    ).queue = {
       enqueue: enqueueMock,
-      getSnapshot: getSnapshotMock
+      getSnapshot: getSnapshotMock,
+      runWithBaseWriteLockForBase: runWithBaseWriteLockForBaseMock
     }
 
     await service.addItems('kb-1', [{ type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }])
@@ -520,6 +602,114 @@ describe('KnowledgeRuntimeService', () => {
     expect(prepareKnowledgeItemMock).not.toHaveBeenCalled()
   })
 
+  it('marks an indexable item failed when queue interrupt rejects before execution', async () => {
+    const service = new KnowledgeRuntimeService()
+    const enqueueError = new Error('Knowledge task interrupted by service shutdown')
+    enqueueError.name = 'KnowledgeQueueInterruptedError'
+    const enqueueMock = vi.fn().mockRejectedValue(enqueueError)
+    const getSnapshotMock = vi.fn().mockReturnValue({ pending: [], running: [] })
+    const runWithBaseWriteLockForBaseMock = vi.fn(async (_baseId: string, task: () => Promise<unknown>) => task())
+
+    ;(
+      service as unknown as {
+        queue: {
+          enqueue: typeof enqueueMock
+          getSnapshot: typeof getSnapshotMock
+          runWithBaseWriteLockForBase: typeof runWithBaseWriteLockForBaseMock
+        }
+      }
+    ).queue = {
+      enqueue: enqueueMock,
+      getSnapshot: getSnapshotMock,
+      runWithBaseWriteLockForBase: runWithBaseWriteLockForBaseMock
+    }
+
+    await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
+
+    await vi.waitFor(() => {
+      expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'failed', {
+        error: 'Knowledge task interrupted by service shutdown'
+      })
+    })
+    expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalled()
+  })
+
+  it('marks a pending indexable item failed when the real queue resets before execution', async () => {
+    const service = new KnowledgeRuntimeService()
+    const queue = (service as unknown as { queue: KnowledgeQueueManager }).queue
+    const runningBlockers = Array.from({ length: 5 }, () => createDeferred<object[]>())
+    const inputs = [
+      ...runningBlockers.map((_, index) => ({
+        type: 'note' as const,
+        data: { source: `note-${index + 1}`, content: `hello note-${index + 1}` }
+      })),
+      { type: 'note' as const, data: { source: 'note-pending', content: 'hello note-pending' } }
+    ]
+
+    knowledgeItemCreateMock.mockImplementation(async () =>
+      createNoteItem(`note-${knowledgeItemCreateMock.mock.calls.length}`, 'idle')
+    )
+    loadKnowledgeItemDocumentsMock.mockImplementation((item: KnowledgeItem) => {
+      const runningIndex = Number(item.id.replace('note-', '')) - 1
+      return runningBlockers[runningIndex]?.promise ?? Promise.resolve([{ text: 'unexpected pending execution' }])
+    })
+
+    await service.addItems('kb-1', inputs)
+
+    await vi.waitFor(() => {
+      expect(queue.getSnapshot().running).toHaveLength(5)
+      expect(queue.getSnapshot().pending).toHaveLength(1)
+    })
+
+    const resetPromise = queue.reset('queue resetting')
+
+    for (const blocker of runningBlockers) {
+      blocker.resolve([{ text: 'document' }])
+    }
+
+    await resetPromise
+
+    await vi.waitFor(() => {
+      expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-6', 'failed', { error: 'queue resetting' })
+    })
+    expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'note-6' }),
+      expect.any(AbortSignal)
+    )
+  })
+
+  it('marks a preparation root failed when queue interrupt rejects before execution', async () => {
+    const service = new KnowledgeRuntimeService()
+    const enqueueError = new Error('Knowledge task interrupted by service shutdown')
+    enqueueError.name = 'KnowledgeQueueInterruptedError'
+    const enqueueMock = vi.fn().mockRejectedValue(enqueueError)
+    const getSnapshotMock = vi.fn().mockReturnValue({ pending: [], running: [] })
+    const runWithBaseWriteLockForBaseMock = vi.fn(async (_baseId: string, task: () => Promise<unknown>) => task())
+
+    ;(
+      service as unknown as {
+        queue: {
+          enqueue: typeof enqueueMock
+          getSnapshot: typeof getSnapshotMock
+          runWithBaseWriteLockForBase: typeof runWithBaseWriteLockForBaseMock
+        }
+      }
+    ).queue = {
+      enqueue: enqueueMock,
+      getSnapshot: getSnapshotMock,
+      runWithBaseWriteLockForBase: runWithBaseWriteLockForBaseMock
+    }
+
+    await service.addItems('kb-1', [{ type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }])
+
+    await vi.waitFor(() => {
+      expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('dir-1', 'failed', {
+        error: 'Knowledge task interrupted by service shutdown'
+      })
+    })
+    expect(prepareKnowledgeItemMock).not.toHaveBeenCalled()
+  })
+
   it('marks an item failed when indexing throws', async () => {
     const service = new KnowledgeRuntimeService()
     const item = createNoteItem('note-1', 'processing')
@@ -530,6 +720,39 @@ describe('KnowledgeRuntimeService', () => {
     await vi.waitFor(() => {
       expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(item.id, 'failed', { error: 'read failed' })
     })
+    expect(vectorStoreAddMock).not.toHaveBeenCalled()
+  })
+
+  it('marks an item failed when the reader returns no documents', async () => {
+    const service = new KnowledgeRuntimeService()
+    const item = createNoteItem('note-1', 'processing')
+    loadKnowledgeItemDocumentsMock.mockResolvedValueOnce([])
+
+    await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
+
+    await vi.waitFor(() => {
+      expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(item.id, 'failed', {
+        error: 'KNOWLEDGE_EMPTY_CONTENT'
+      })
+    })
+    expect(chunkDocumentsMock).not.toHaveBeenCalled()
+    expect(embedDocumentsMock).not.toHaveBeenCalled()
+    expect(vectorStoreAddMock).not.toHaveBeenCalled()
+  })
+
+  it('marks an item failed when chunking produces no chunks', async () => {
+    const service = new KnowledgeRuntimeService()
+    const item = createNoteItem('note-1', 'processing')
+    chunkDocumentsMock.mockReturnValueOnce([])
+
+    await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
+
+    await vi.waitFor(() => {
+      expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(item.id, 'failed', {
+        error: 'KNOWLEDGE_EMPTY_CONTENT'
+      })
+    })
+    expect(embedDocumentsMock).not.toHaveBeenCalled()
     expect(vectorStoreAddMock).not.toHaveBeenCalled()
   })
 
@@ -1358,6 +1581,80 @@ describe('KnowledgeRuntimeService', () => {
     expect(vectorStoreDeleteMock).toHaveBeenCalledWith(item.id)
   })
 
+  it('lists chunks for leaf descendants when the requested item is a container', async () => {
+    const service = new KnowledgeRuntimeService()
+    const root = createDirectoryItem('dir-1', 'completed')
+    const fileChild = createNoteItem('file-child', 'completed')
+    const urlChild = createNoteItem('url-child', 'completed')
+    const fileChunk = {
+      id_: 'chunk-file-1',
+      metadata: {
+        itemId: fileChild.id,
+        itemType: 'note',
+        source: 'file child',
+        chunkIndex: 0,
+        tokenCount: 3
+      },
+      getContent: vi.fn(() => 'file child chunk')
+    }
+    const urlChunk = {
+      id_: 'chunk-url-1',
+      metadata: {
+        itemId: urlChild.id,
+        itemType: 'note',
+        source: 'url child',
+        chunkIndex: 0,
+        tokenCount: 4
+      },
+      getContent: vi.fn(() => 'url child chunk')
+    }
+
+    knowledgeItemGetLeafDescendantItemsMock.mockResolvedValueOnce([fileChild, urlChild])
+    vectorStoreListByExternalIdMock.mockImplementation(async (itemId: string) => {
+      if (itemId === fileChild.id) {
+        return [fileChunk]
+      }
+      if (itemId === urlChild.id) {
+        return [urlChunk]
+      }
+
+      return []
+    })
+
+    await expect(service.listItemChunks('kb-1', root.id)).resolves.toEqual([
+      {
+        id: 'chunk-file-1',
+        itemId: fileChild.id,
+        content: 'file child chunk',
+        metadata: fileChunk.metadata
+      },
+      {
+        id: 'chunk-url-1',
+        itemId: urlChild.id,
+        content: 'url child chunk',
+        metadata: urlChunk.metadata
+      }
+    ])
+
+    expect(knowledgeItemGetLeafDescendantItemsMock).toHaveBeenCalledWith('kb-1', [root.id])
+    expect(vectorStoreListByExternalIdMock).toHaveBeenCalledWith(fileChild.id)
+    expect(vectorStoreListByExternalIdMock).toHaveBeenCalledWith(urlChild.id)
+    expect(vectorStoreListByExternalIdMock).not.toHaveBeenCalledWith(root.id)
+  })
+
+  it('returns no chunks without creating a vector store when a container has no leaf descendants', async () => {
+    const service = new KnowledgeRuntimeService()
+    const root = createDirectoryItem('dir-empty', 'completed')
+
+    knowledgeItemGetLeafDescendantItemsMock.mockResolvedValueOnce([])
+
+    await expect(service.listItemChunks('kb-1', root.id)).resolves.toEqual([])
+
+    expect(knowledgeItemGetLeafDescendantItemsMock).toHaveBeenCalledWith('kb-1', [root.id])
+    expect(createVectorStoreMock).not.toHaveBeenCalled()
+    expect(vectorStoreListByExternalIdMock).not.toHaveBeenCalled()
+  })
+
   it('throws when search query embedding is empty', async () => {
     const service = new KnowledgeRuntimeService()
     embedManyMock.mockResolvedValueOnce({ embeddings: [] })
@@ -1367,19 +1664,92 @@ describe('KnowledgeRuntimeService', () => {
     expect(vectorStoreQueryMock).not.toHaveBeenCalled()
   })
 
-  it('returns empty search results for punctuation-only queries without embedding', async () => {
+  it('throws validation error for punctuation-only queries without embedding', async () => {
     const service = new KnowledgeRuntimeService()
 
-    await expect(service.search('kb-1', '...')).resolves.toEqual([])
+    await expect(service.search('kb-1', '...')).rejects.toMatchObject({
+      message: 'Query has no searchable tokens',
+      details: {
+        fieldErrors: {
+          query: ['Query has no searchable tokens']
+        }
+      }
+    })
 
     expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
     expect(embedManyMock).not.toHaveBeenCalled()
     expect(vectorStoreQueryMock).not.toHaveBeenCalled()
   })
 
+  it('embeds CJK search queries', async () => {
+    const service = new KnowledgeRuntimeService()
+
+    await expect(service.search('kb-1', '你好')).resolves.toEqual([])
+
+    expect(knowledgeBaseGetByIdMock).toHaveBeenCalledWith('kb-1')
+    expect(embedManyMock).toHaveBeenCalledWith({ model: { modelId: 'embedding-model' }, values: ['你好'] })
+    expect(vectorStoreQueryMock).toHaveBeenCalled()
+  })
+
+  it('marks vector search scores as relevance and filters them by threshold', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = { ...createBase(), searchMode: 'default' as const, threshold: 0.7 }
+    const lowNode = createSearchNode('chunk-low', 0.6, 0)
+    const highNode = createSearchNode('chunk-high', 0.8, 1)
+
+    knowledgeBaseGetByIdMock.mockResolvedValueOnce(base)
+    vectorStoreQueryMock.mockResolvedValueOnce({ nodes: [lowNode, highNode], similarities: [0.6, 0.8] })
+
+    await expect(service.search('kb-1', 'hello')).resolves.toEqual([
+      {
+        pageContent: 'content chunk-high',
+        score: 0.8,
+        scoreKind: 'relevance',
+        rank: 1,
+        metadata: highNode.metadata,
+        itemId: 'item-chunk-high',
+        chunkId: 'chunk-high'
+      }
+    ])
+  })
+
+  it.each(['bm25', 'hybrid'] as const)(
+    'marks %s search scores as ranking and does not filter by threshold',
+    async (searchMode) => {
+      const service = new KnowledgeRuntimeService()
+      const base = { ...createBase(), searchMode, threshold: 0.7 }
+      const firstNode = createSearchNode(`${searchMode}-first`, 0.2, 0)
+      const secondNode = createSearchNode(`${searchMode}-second`, 0.1, 1)
+
+      knowledgeBaseGetByIdMock.mockResolvedValueOnce(base)
+      vectorStoreQueryMock.mockResolvedValueOnce({ nodes: [firstNode, secondNode], similarities: [0.2, 0.1] })
+
+      await expect(service.search('kb-1', 'hello')).resolves.toEqual([
+        {
+          pageContent: `content ${searchMode}-first`,
+          score: 0.2,
+          scoreKind: 'ranking',
+          rank: 1,
+          metadata: firstNode.metadata,
+          itemId: `item-${searchMode}-first`,
+          chunkId: `${searchMode}-first`
+        },
+        {
+          pageContent: `content ${searchMode}-second`,
+          score: 0.1,
+          scoreKind: 'ranking',
+          rank: 2,
+          metadata: secondNode.metadata,
+          itemId: `item-${searchMode}-second`,
+          chunkId: `${searchMode}-second`
+        }
+      ])
+    }
+  )
+
   it('reranks search results when the base has a rerank model', async () => {
     const service = new KnowledgeRuntimeService()
-    const base = { ...createBase(), rerankModelId: 'openai::rerank-model' }
+    const base = { ...createBase(), rerankModelId: 'openai::rerank-model', threshold: 0.7 }
     const node = {
       id_: 'chunk-1',
       metadata: {
@@ -1394,7 +1764,9 @@ describe('KnowledgeRuntimeService', () => {
     const reranked = [
       {
         pageContent: 'hello world',
-        score: 0.99,
+        score: 0.6,
+        scoreKind: 'relevance' as const,
+        rank: 1,
         metadata: node.metadata,
         itemId: 'note-1',
         chunkId: 'chunk-1'
@@ -1405,12 +1777,14 @@ describe('KnowledgeRuntimeService', () => {
     vectorStoreQueryMock.mockResolvedValueOnce({ nodes: [node], similarities: [0.8] })
     rerankKnowledgeSearchResultsMock.mockResolvedValueOnce(reranked)
 
-    await expect(service.search('kb-1', 'hello')).resolves.toBe(reranked)
+    await expect(service.search('kb-1', 'hello')).resolves.toEqual([])
 
     expect(rerankKnowledgeSearchResultsMock).toHaveBeenCalledWith(base, 'hello', [
       {
         pageContent: 'hello world',
         score: 0.8,
+        scoreKind: 'ranking',
+        rank: 1,
         metadata: node.metadata,
         itemId: 'note-1',
         chunkId: 'chunk-1'

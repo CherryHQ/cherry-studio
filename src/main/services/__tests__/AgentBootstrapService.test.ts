@@ -17,8 +17,11 @@ vi.mock('@main/core/lifecycle', () => {
   }
 })
 
-vi.mock('@main/apiServer/services/models', () => ({
-  modelsService: { getModels: vi.fn() }
+vi.mock('@main/services/agents/agentUtils', () => ({
+  listMcpTools: vi.fn()
+}))
+vi.mock('../agents/agentUtils', () => ({
+  listMcpTools: vi.fn()
 }))
 vi.mock('@main/services/agents/services/SchedulerService', () => ({
   schedulerService: { runTaskNow: vi.fn(), restoreSchedulers: vi.fn(), stopAll: vi.fn() }
@@ -26,15 +29,12 @@ vi.mock('@main/services/agents/services/SchedulerService', () => ({
 vi.mock('@main/services/agents/services/channels', () => ({
   channelManager: { start: vi.fn(), stop: vi.fn() }
 }))
-vi.mock('@main/services/agents/services/channels/sessionStreamIpc', () => ({
-  registerSessionStreamIpc: vi.fn()
-}))
 vi.mock('@main/services/agents/services/builtin/BuiltinAgentBootstrap', () => ({
   bootstrapBuiltinAgents: vi.fn()
 }))
 vi.mock('../utils/rtk', () => ({ extractRtkBinaries: vi.fn() }))
 
-import { validateGetModelsFilter, validateRunTaskArgs } from '../AgentBootstrapService'
+import { validateListToolsArgs, validateRunTaskArgs } from '../AgentBootstrapService'
 
 describe('AgentBootstrapService validators', () => {
   it('accepts valid run-task args', () => {
@@ -46,17 +46,8 @@ describe('AgentBootstrapService validators', () => {
     expect(() => validateRunTaskArgs('agent_1', '')).toThrow()
   })
 
-  it('parses and defaults model filters', () => {
-    expect(validateGetModelsFilter(undefined)).toEqual({ offset: 0, limit: 20 })
-    expect(validateGetModelsFilter({ providerType: 'anthropic', limit: '5', offset: '1' })).toEqual({
-      providerType: 'anthropic',
-      limit: 5,
-      offset: 1
-    })
-  })
-
-  it('rejects invalid model filters', () => {
-    expect(() => validateGetModelsFilter({ providerType: 'nope' })).toThrow()
-    expect(() => validateGetModelsFilter({ limit: 0 })).toThrow()
+  it('parses and defaults list-tools args', () => {
+    expect(validateListToolsArgs(undefined)).toEqual({ type: 'claude-code', mcps: [] })
+    expect(validateListToolsArgs({ mcps: ['mcp-1'] })).toEqual({ type: 'claude-code', mcps: ['mcp-1'] })
   })
 })

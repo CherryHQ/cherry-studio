@@ -10,7 +10,6 @@ import { loggerService } from '@logger'
 import { MAX_CONTEXT_COUNT, UNLIMITED_CONTEXT_COUNT } from '@renderer/config/constant'
 import { getModelSupportedReasoningEffortOptions } from '@renderer/config/models'
 import { isQwenMTModel } from '@renderer/config/models/qwen'
-import { UNKNOWN } from '@renderer/config/translate'
 import { getStoreProviders } from '@renderer/hooks/useStore'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
@@ -21,6 +20,7 @@ import type {
   AssistantSettings,
   LegacyAssistant,
   Model,
+  TranslateAssistant,
   TranslateLanguage
 } from '@renderer/types'
 import { DEFAULT_ASSISTANT_SETTINGS as SHARED_DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
@@ -56,18 +56,6 @@ export function getDefaultAssistant(): Assistant {
 }
 
 /**
- * Translate-specific composition: assistant + the live translate model + the
- * per-call target language and prompt-rendered content. Lives here only because
- * `getDefaultTranslateAssistant` builds it; translate paths should compose
- * locally (see plan).
- */
-export type TranslateComposition = Assistant & {
-  model: Model
-  targetLanguage: TranslateLanguage
-  content: string
-}
-
-/**
  * Compose a translate "assistant" (really a model + prompt + target-language
  * bag). Throws when no translate model is configured or the language is
  * unknown.
@@ -76,7 +64,7 @@ export async function getDefaultTranslateAssistant(
   targetLanguage: TranslateLanguage,
   text: string,
   _settings?: Partial<AssistantSettings>
-): Promise<TranslateComposition> {
+): Promise<TranslateAssistant> {
   // Direct Redux read — the LLM slice still owns translate-model selection.
   // Goes away when this function is deleted in favour of `useTranslateModel`
   // composition inside ActionTranslate / TranslatePage.
@@ -86,11 +74,6 @@ export async function getDefaultTranslateAssistant(
   if (!model) {
     logger.error('No translate model')
     throw new Error(i18n.t('translate.error.not_configured'))
-  }
-
-  if (targetLanguage.langCode === UNKNOWN.langCode) {
-    logger.error('Unknown target language', targetLanguage)
-    throw new Error('Unknown target language')
   }
 
   const supportedOptions = getModelSupportedReasoningEffortOptions(model)
@@ -151,8 +134,10 @@ export async function createAssistantFromAgent(agent: AssistantPreset) {
     description: agent.description,
     settings: agent.settings ?? DEFAULT_ASSISTANT_SETTINGS,
     modelId: agent.modelId ?? null,
+    modelName: null,
     mcpServerIds: agent.mcpServerIds ?? [],
     knowledgeBaseIds: agent.knowledgeBaseIds ?? [],
+    tags: [],
     createdAt: now,
     updatedAt: now
   }

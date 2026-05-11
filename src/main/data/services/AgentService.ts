@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
+import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { ListOptions } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
@@ -15,7 +16,7 @@ import {
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
-import { and, asc, count, desc, eq, isNull } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { insertWithOrderKey } from './utils/orderKey'
@@ -30,14 +31,15 @@ function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   return data
 }
 
-function rowToAgent(row: AgentRow): AgentEntity {
+function rowToAgent(row: AgentRow, modelName: string | null = null): AgentEntity {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
-    updatedAt: timestampToISO(row.updatedAt)
+    updatedAt: timestampToISO(row.updatedAt),
+    modelName
   }
 }
 
@@ -65,17 +67,28 @@ export class AgentService {
 
     const row = await withSqliteErrors(
       () =>
-        database.transaction((tx) =>
+        database.transaction(async (tx) => {
           // Prepend: place new agent at the head of asc(orderKey) listings.
-          insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id, position: 'first' })
-        ),
+          const inserted = await insertWithOrderKey(tx, agentsTable, insertData, {
+            pkColumn: agentsTable.id,
+            position: 'first'
+          })
+          if (!inserted) return null
+          const [joined] = await tx
+            .select({ agent: agentsTable, modelName: userModelTable.name })
+            .from(agentsTable)
+            .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
+            .where(eq(agentsTable.id, id))
+            .limit(1)
+          return joined ?? null
+        }),
       defaultHandlersFor('Agent', id)
     )
     if (!row) {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    return rowToAgent(row as AgentRow)
+    return rowToAgent(row.agent, row.modelName || null)
   }
 
   private async findAgentRow(id: string, options: { includeDeleted?: boolean } = {}): Promise<AgentRow | undefined> {
@@ -90,15 +103,33 @@ export class AgentService {
   }
 
   async getAgent(id: string): Promise<AgentEntity | null> {
-    const row = await this.findAgentRow(id)
+    const database = application.get('DbService').getDb()
+    const [row] = await database
+      .select({ agent: agentsTable, modelName: userModelTable.name })
+      .from(agentsTable)
+      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
+      .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+      .limit(1)
     if (!row) return null
-    return rowToAgent(row)
+    return rowToAgent(row.agent, row.modelName || null)
   }
 
   async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
     const database = application.get('DbService').getDb()
-    const visibleAgents = isNull(agentsTable.deletedAt)
-    const totalResult = await database.select({ count: count() }).from(agentsTable).where(visibleAgents)
+
+    // AND-compose deletedAt-null + optional search. Search runs LIKE against
+    // name OR description with user-typed wildcards escaped.
+    const conditions: SQL[] = [isNull(agentsTable.deletedAt)]
+    if (options.search) {
+      const pattern = `%${options.search.replace(/[\\%_]/g, '\\$&')}%`
+      const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
+      const descMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
+      const searchClause = or(nameMatch, descMatch)
+      if (searchClause) conditions.push(searchClause)
+    }
+    const whereClause = and(...conditions)
+
+    const totalResult = await database.select({ count: count() }).from(agentsTable).where(whereClause)
 
     const sortBy = options.sortBy ?? 'orderKey'
     const orderBy = options.orderBy ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
@@ -118,7 +149,12 @@ export class AgentService {
     const sortField = sortByToColumn[sortBy] ?? agentsTable.orderKey
     const orderFn = orderBy === 'asc' ? asc : desc
 
-    const baseQuery = database.select().from(agentsTable).where(visibleAgents).orderBy(orderFn(sortField))
+    const baseQuery = database
+      .select({ agent: agentsTable, modelName: userModelTable.name })
+      .from(agentsTable)
+      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
+      .where(whereClause)
+      .orderBy(orderFn(sortField))
 
     const result =
       options.limit !== undefined
@@ -127,7 +163,7 @@ export class AgentService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const agents = result.map((row) => rowToAgent(row))
+    const agents = result.map((row) => rowToAgent(row.agent, row.modelName || null))
 
     return { agents, total: totalResult[0].count }
   }
@@ -170,8 +206,10 @@ export class AgentService {
     }
 
     // Sessions detach (agentId → NULL) via FK ON DELETE SET NULL; their rows
-    // and pins survive the agent. Only the agent's own pin entries need a
-    // pre-delete purge since `pin` has no FK back here.
+    // and pins survive the agent. Wrap pin purge + agent delete in one
+    // transaction so a partial delete cannot leave dangling cross-entity
+    // rows behind. `pin` has no FK back here, so this is the only purge
+    // needed up-front.
     const result = await withSqliteErrors(
       async () =>
         database.transaction(async (tx) => {

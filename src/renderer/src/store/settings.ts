@@ -23,8 +23,7 @@ import type {
   MathEngine,
   OpenAIServiceTier,
   PaintingProvider,
-  S3Config,
-  TranslateLanguageCode
+  S3Config
 } from '@renderer/types'
 import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
@@ -35,9 +34,10 @@ import type {
   LanguageVarious,
   MultiModelMessageStyle,
   SendMessageShortcut,
-  SidebarIcon
+  SidebarIcon,
+  TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
-import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { parseTranslateLangCode, ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 import type { OpenAICompletionsStreamOptions, OpenAIReasoningSummary, OpenAIVerbosity } from '@shared/types/aiSdk'
 import { v4 as uuid } from 'uuid'
@@ -65,7 +65,7 @@ export interface SettingsState {
   assistantsTabSortType: AssistantTabSortType
   sendMessageShortcut: SendMessageShortcut
   language: LanguageVarious
-  targetLanguage: TranslateLanguageCode
+  targetLanguage: TranslateLangCode
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
   proxyBypassRules?: string
@@ -259,7 +259,7 @@ export const initialState: SettingsState = {
   assistantsTabSortType: 'list',
   sendMessageShortcut: 'Enter',
   language: navigator.language as LanguageVarious,
-  targetLanguage: 'en-us',
+  targetLanguage: parseTranslateLangCode('en-us'),
   proxyMode: 'system',
   proxyUrl: undefined,
   proxyBypassRules: undefined,

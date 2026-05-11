@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -113,7 +113,7 @@ const AgentSessionMessages = ({
       <AgentSessionChatContextBridge topic={derivedTopic}>
         <MessagesContainer id="messages" className="messages-container">
           <NarrowLayout style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            <ContextMenu>
+            <SelectionContextMenu>
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
                 <ChatVirtualList
                   handleRef={chatListRef}
@@ -136,7 +136,7 @@ const AgentSessionMessages = ({
                   </div>
                 )}
               </div>
-            </ContextMenu>
+            </SelectionContextMenu>
           </NarrowLayout>
           {messageNavigation === 'anchor' && <MessageAnchorLine messages={adaptedMessages} />}
         </MessagesContainer>

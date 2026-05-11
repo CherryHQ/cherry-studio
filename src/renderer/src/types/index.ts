@@ -14,15 +14,17 @@ import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 export * from './file'
 export * from './note'
-export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+export type { LanguageVarious, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
-import type { TranslateLanguageCode } from '@shared/data/preference/preferenceTypes'
 import type {
   Assistant as DataApiAssistant,
   AssistantSettings as DataApiAssistantSettings,
   McpMode as DataApiMcpMode
 } from '@shared/data/types/assistant'
 import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { TranslateLanguage } from '@shared/data/types/translate'
+
+export type { TranslateLanguage }
 import * as z from 'zod'
 
 import type { FileMetadata } from './file'
@@ -84,6 +86,12 @@ export type LegacyAssistant = {
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
   targetLanguage?: TranslateLanguage
+}
+
+export type TranslateAssistant = Assistant & {
+  model: Model
+  content: string
+  targetLanguage: TranslateLanguage
 }
 
 export type AssistantMessage = {
@@ -601,34 +609,6 @@ export type EditImageParams = {
 export type GenerateImageResponse = {
   type: 'url' | 'base64'
   images: string[]
-}
-
-export type { TranslateLanguageCode }
-
-// langCode应当能够唯一确认一种语言
-export type TranslateLanguage = {
-  value: string
-  langCode: TranslateLanguageCode
-  label: () => string
-  emoji: string
-}
-
-export interface TranslateHistory {
-  id: string
-  sourceText: string
-  targetText: string
-  sourceLanguage: TranslateLanguageCode
-  targetLanguage: TranslateLanguageCode
-  createdAt: string
-  /** 收藏状态 */
-  star?: boolean
-}
-
-export type CustomTranslateLanguage = {
-  id: string
-  langCode: TranslateLanguageCode
-  value: string
-  emoji: string
 }
 
 export const AutoDetectionMethods = {

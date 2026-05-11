@@ -138,7 +138,12 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
   type: z.enum(['claude-code']),
   model: ModelIdAtomSchema.optional(),
   createdAt: z.string(),
-  updatedAt: z.string()
+  updatedAt: z.string(),
+  /**
+   * Human-readable primary model name resolved from `user_model.name` at read
+   * time. Edits still go through the `model` UniqueModelId field.
+   */
+  modelName: z.string().nullable()
 })
 export type AgentEntity = z.infer<typeof AgentEntitySchema>
 
@@ -198,7 +203,8 @@ export const InstalledSkillSchema = z.strictObject({
   sourceUrl: z.string().nullable(),
   namespace: z.string().nullable(),
   author: z.string().nullable(),
-  tags: z.array(z.string()),
+  /** Skill metadata tags from SKILL.md. */
+  sourceTags: z.array(z.string()).default([]),
   contentHash: z.string(),
   isEnabled: z.boolean(),
   createdAt: z.string(),
@@ -216,6 +222,7 @@ export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_M
 })
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
+// Update picks directly from the entity (not from Create) to avoid .default([]) bleeding into partial updates.
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial()
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
@@ -255,6 +262,42 @@ export const ListQuerySchema = z.strictObject({
 /** Wire-side (caller) shape — page/limit optional, defaults applied on parse. */
 export type ListQuery = z.input<typeof ListQuerySchema>
 
+export const AGENTS_DEFAULT_PAGE = 1
+export const AGENTS_DEFAULT_LIMIT = 100
+export const AGENTS_MAX_LIMIT = 500
+
+/**
+ * Query parameters for `GET /agents`.
+ * - `search` LIKEs against `name` OR `description` (case-insensitive,
+ *   wildcards in the raw input are escaped server-side).
+ */
+export const ListAgentsQuerySchema = z.strictObject({
+  /** Free-text match against name OR description (case-insensitive LIKE). */
+  search: z.string().trim().min(1).optional(),
+  /** Positive integer, defaults to {@link AGENTS_DEFAULT_PAGE}. */
+  page: z.int().positive().default(AGENTS_DEFAULT_PAGE),
+  /** Positive integer, max {@link AGENTS_MAX_LIMIT}, defaults to {@link AGENTS_DEFAULT_LIMIT}. */
+  limit: z.int().positive().max(AGENTS_MAX_LIMIT).default(AGENTS_DEFAULT_LIMIT)
+})
+export type ListAgentsQueryParams = z.input<typeof ListAgentsQuerySchema>
+export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
+
+/**
+ * Query parameters for `GET /skills`.
+ *
+ * Skills keep their historical direct-array response shape (no pagination UI
+ * in the resource library yet), but filtering must still happen in the service
+ * SQL layer:
+ * - `agentId` only controls per-agent `isEnabled` decoration.
+ * - `search` LIKEs against `name` OR `description`.
+ */
+export const ListSkillsQuerySchema = z.strictObject({
+  agentId: z.string().min(1).optional(),
+  search: z.string().trim().min(1).optional()
+})
+export type ListSkillsQueryParams = z.input<typeof ListSkillsQuerySchema>
+export type ListSkillsQuery = z.output<typeof ListSkillsQuerySchema>
+
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -263,7 +306,7 @@ export type AgentSchemas = {
   /** List all agents, create a new agent */
   '/agents': {
     GET: {
-      query?: ListQuery
+      query?: ListAgentsQueryParams
       response: OffsetPaginationResponse<AgentEntity>
     }
     POST: {
@@ -323,7 +366,7 @@ export type AgentSchemas = {
   /** List all installed skills (optionally filtered by agent) */
   '/skills': {
     GET: {
-      query: { agentId?: string }
+      query?: ListSkillsQueryParams
       response: InstalledSkill[]
     }
   }

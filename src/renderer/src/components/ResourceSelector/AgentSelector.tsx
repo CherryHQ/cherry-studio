@@ -1,20 +1,12 @@
-// TODO(library-routing): `onEditItem` and `onCreateNew` are temporary stubs that navigate to the
-//               legacy `/app/agents` list page. They should be wired to the V2 resource library
-//               once that flow ships (landing branch: `feat/v2/resource-library-agents`,
-//               upstream PR #14442):
-//                 - Edit → library agent detail / config page scoped to the selected id
-//                 - Create → library "new agent" entry flow
-//               Update this file together with the corresponding AssistantSelector TODO when the
-//               library routes are finalized.
-// TODO(tags): wire tag filter chips once the resource library PR (feat/v2/resource-library-agents,
-//             upstream PR #14442) is merged AND the /agents endpoint exposes a parallel
-//             tag association. The resource library PR adds the Assistant↔Tag model; agents are
-//             expected to follow the same shape once their DataApi lands.
-
 import { loggerService } from '@logger'
+import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
-import { useNavigate } from '@tanstack/react-router'
+import {
+  buildLibraryCreateSearch,
+  buildLibraryEditSearch,
+  buildLibraryRouteUrl
+} from '@renderer/pages/library/routeSearch'
 import { Bot } from 'lucide-react'
 import { type ReactElement, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,7 +42,7 @@ export type AgentSelectorProps = AgentSelectorSingleIdProps | AgentSelectorSingl
 export function AgentSelector(props: AgentSelectorProps) {
   const { trigger, open, onOpenChange } = props
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const openTab = useOptionalTabsContext()?.openTab
 
   const { data, isLoading } = useQuery('/agents', { query: { limit: 500 } })
   const {
@@ -103,14 +95,14 @@ export function AgentSelector(props: AgentSelectorProps) {
     pinnedIds,
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
-    onEditItem: () => {
-      // TODO(library-routing): replace with library agent edit route once `feat/v2/resource-library-agents` ships.
-      void navigate({ to: '/app/agents' })
-    },
-    onCreateNew: () => {
-      // TODO(library-routing): replace with library agent create route once `feat/v2/resource-library-agents` ships.
-      void navigate({ to: '/app/agents' })
-    },
+    ...(openTab && {
+      onEditItem: (id: string) => {
+        openTab(buildLibraryRouteUrl(buildLibraryEditSearch('agent', id)), { forceNew: true })
+      },
+      onCreateNew: () => {
+        openTab(buildLibraryRouteUrl(buildLibraryCreateSearch('agent')), { forceNew: true })
+      }
+    }),
     loading: isLoading || isPinnedLoading,
     labels: {
       searchPlaceholder: t('selector.agent.search_placeholder'),

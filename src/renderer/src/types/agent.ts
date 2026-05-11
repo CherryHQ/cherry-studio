@@ -51,6 +51,15 @@ export const isAgentEntity = (value: unknown): value is AgentEntity => {
 // ------------------ Form models (UI-only) --------------------------------
 export type AgentBaseWithId = Omit<AgentBase, 'model'> & { id: string; model?: string }
 
+export interface ListOptions {
+  limit?: number
+  offset?: number
+  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'sortOrder'
+  orderBy?: 'asc' | 'desc'
+  /** LIKE %kw% match against name OR description (case-insensitive). */
+  search?: string
+}
+
 export type BaseAgentForm = {
   id?: string
   type: AgentType
