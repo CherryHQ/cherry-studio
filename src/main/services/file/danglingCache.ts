@@ -22,16 +22,22 @@
  * for the full design.
  */
 
+import { stat } from 'node:fs/promises'
+
+import { loggerService } from '@logger'
 import type { Event } from '@main/core/lifecycle'
 import { Emitter } from '@main/core/lifecycle'
-import { exists as fsExists } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 
+const logger = loggerService.withContext('file/danglingCache')
+
 /**
- * Observed presence of an external file. Distinct from `DanglingState`
- * because `'unknown'` is an absence-of-observation signal produced by the
- * *cache*, not the FS.
+ * Confirmed presence observation. Strictly narrower than `DanglingState`:
+ * only the two states a probe / watcher event can *commit* to the cache.
+ * `'unknown'` is reserved for "no usable observation" (cache miss before
+ * first probe, or probe failed with a non-ENOENT error) and is never
+ * committed — see `DanglingCacheImpl.commit`.
  */
 export type ObservedPresence = 'present' | 'missing'
 
@@ -117,11 +123,17 @@ export interface DanglingCacheOptions {
   /** ms epoch source — overridable for tests. Default: `Date.now`. */
   readonly now?: () => number
   /**
-   * Stat probe: returns `'present'` if the path resolves to an existing
-   * file/dir, `'missing'` on ENOENT. Other FS errors propagate.
-   * Default: `@main/utils/file/exists` wrapper.
+   * Stat probe: returns
+   * - `'present'` if the path resolves to an existing file/dir,
+   * - `'missing'` on ENOENT / ENOTDIR (the path component proves non-existence),
+   * - `'unknown'` for any other FS error (EACCES, EIO, EMFILE, ELOOP, …) —
+   *   the probe could not determine presence, so the cache must not commit
+   *   a misleading `'missing'`. Default impl warn-logs the error before
+   *   returning `'unknown'`.
+   *
+   * Default: `defaultStatProbe` (stat-based, error-discriminating).
    */
-  readonly statProbe?: (path: FilePath) => Promise<ObservedPresence>
+  readonly statProbe?: (path: FilePath) => Promise<DanglingState>
   /** TTL window in ms (default 30 min, per architecture §11.2). */
   readonly ttlMs?: number
   /**
@@ -134,8 +146,16 @@ export interface DanglingCacheOptions {
 
 const DEFAULT_TTL_MS = 30 * 60 * 1000
 
-const defaultStatProbe = async (path: FilePath): Promise<ObservedPresence> => {
-  return (await fsExists(path)) ? 'present' : 'missing'
+const defaultStatProbe = async (path: FilePath): Promise<DanglingState> => {
+  try {
+    await stat(path)
+    return 'present'
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return 'missing'
+    logger.warn('statProbe failed; reporting unknown', { path, code, err })
+    return 'unknown'
+  }
 }
 
 class DanglingCacheImpl implements DanglingCache {
@@ -145,7 +165,7 @@ class DanglingCacheImpl implements DanglingCache {
   public readonly onDanglingStateChanged: Event<DanglingStateChangedEvent> = this._emitter.event
 
   private readonly now: () => number
-  private readonly statProbe: (path: FilePath) => Promise<ObservedPresence>
+  private readonly statProbe: (path: FilePath) => Promise<DanglingState>
   private readonly ttlMs: number
   private fileEntryService: FileEntrySource | undefined
 
@@ -163,9 +183,17 @@ class DanglingCacheImpl implements DanglingCache {
     return this.doStatAndUpdate(entry, 'stat')
   }
 
-  private async doStatAndUpdate(entry: FileEntry, source: CachedState['source']): Promise<ObservedPresence> {
+  /**
+   * Run the probe and reconcile the cache. `'unknown'` (probe could not
+   * determine presence) is deliberately NOT committed — leaving prior
+   * `'present'`/`'missing'` cache untouched is safer than overwriting it
+   * with a non-observation, and avoids latching a permanent false `'unknown'`
+   * on persistent FS errors (EACCES, etc.) within the TTL window.
+   */
+  private async doStatAndUpdate(entry: FileEntry, source: CachedState['source']): Promise<DanglingState> {
     const path = entry.externalPath as FilePath
     const state = await this.statProbe(path)
+    if (state === 'unknown') return 'unknown'
     this.commit(entry.id, state, source)
     return state
   }

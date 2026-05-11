@@ -1,4 +1,4 @@
-import type { FileEntry, FileEntryId } from '@shared/data/types/file'
+import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -77,6 +77,48 @@ describe('DanglingCache.check', () => {
     t += 1500
     expect(await cache.check(externalEntry('e-4', '/b.txt'))).toBe('missing')
     expect(statProbe).toHaveBeenCalledTimes(2)
+  })
+
+  it('probe "unknown": returns unknown without committing to cache', async () => {
+    // statProbe reports the probe could not determine presence (e.g. EACCES).
+    // The cache must surface "unknown" rather than falsely classify as missing,
+    // and must NOT commit — otherwise a transient EACCES would latch a
+    // permanent false "unknown" within the TTL window.
+    const statProbe = vi
+      .fn<(p: FilePath) => Promise<DanglingState>>()
+      .mockResolvedValueOnce('unknown')
+      .mockResolvedValueOnce('present')
+    const cache = createDanglingCacheImpl({ statProbe })
+    expect(await cache.check(externalEntry('e-unk', '/locked.txt'))).toBe('unknown')
+    // Next call still cold-stats (no cached state for e-unk)
+    expect(await cache.check(externalEntry('e-unk', '/locked.txt'))).toBe('present')
+    expect(statProbe).toHaveBeenCalledTimes(2)
+  })
+
+  it('probe "unknown" does not fire onDanglingStateChanged', async () => {
+    const statProbe = vi.fn<(p: FilePath) => Promise<DanglingState>>().mockResolvedValue('unknown')
+    const cache = createDanglingCacheImpl({ statProbe })
+    const seen: DanglingStateChangedEvent[] = []
+    cache.onDanglingStateChanged((e) => seen.push(e))
+    cache.addEntry('e-unk2' as FileEntryId, '/locked2.txt' as FilePath)
+    await cache.check(externalEntry('e-unk2', '/locked2.txt'))
+    expect(seen).toEqual([])
+  })
+
+  it('probe "unknown" leaves the prior cached observation intact', async () => {
+    // A transient FS error (EACCES, EMFILE, …) must not overwrite a known-good
+    // observation — otherwise the UI flip-flops on every transient failure.
+    const statProbe = vi.fn<(p: FilePath) => Promise<DanglingState>>().mockResolvedValue('unknown')
+    const cache = createDanglingCacheImpl({ statProbe })
+    cache.addEntry('e-mix' as FileEntryId, '/p.txt' as FilePath)
+    // Seed the cache with a confirmed 'present' via reverse-index event:
+    cache.onFsEvent('/p.txt' as FilePath, 'present', 'ops')
+    // forceRecheck probes (returns unknown) but must NOT clobber the cache.
+    expect(await cache.forceRecheck(externalEntry('e-mix', '/p.txt'))).toBe('unknown')
+    // A subsequent plain check sees the surviving 'present':
+    expect(await cache.check(externalEntry('e-mix', '/p.txt'))).toBe('present')
+    // statProbe ran only for the forceRecheck — the trailing check hit cache.
+    expect(statProbe).toHaveBeenCalledTimes(1)
   })
 })
 
