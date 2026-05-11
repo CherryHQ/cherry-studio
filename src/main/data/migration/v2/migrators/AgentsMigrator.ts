@@ -8,8 +8,6 @@ import { BaseMigrator } from './BaseMigrator'
 import {
   AGENTS_TABLE_MIGRATION_SPECS,
   type AgentsSchemaInfo,
-  type AgentsSourceTableName,
-  type AgentsTableMigrationSpec,
   type AgentsTableRowCounts,
   buildAgentsImportStatements,
   createEmptyAgentsSchemaInfo,
@@ -206,17 +204,9 @@ export class AgentsMigrator extends BaseMigrator {
 
     try {
       for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
-        // Older legacy `agents.db` files may lack tables added in later versions
-        // (e.g. `skills`/`agent_skills`). buildAgentsImportStatements skips specs
-        // whose source table is absent; the validator must skip the same specs
-        // (and any spec whose validateWhereClause joins to a missing legacy
-        // table) to avoid `no such table: agents_legacy.<x>` failures.
-        const missingLegacyTables = this.collectMissingLegacyTables(spec)
-        if (missingLegacyTables.length > 0) {
-          logger.info('Skipping validation for spec — legacy table(s) missing in agents.db:', {
-            targetTable: spec.targetTable,
-            missingLegacyTables
-          })
+        // Mirror the execute-side guard in buildAgentsImportStatements: legacy DBs
+        // from older app versions may lack tables added later (e.g. agent_skills).
+        if (!this.sourceSchemaInfo[spec.sourceTable].exists) {
           continue
         }
 
@@ -287,15 +277,6 @@ export class AgentsMigrator extends BaseMigrator {
 
   private createReader(ctx: MigrationContext): LegacyAgentsDbReader {
     return (this.reader ??= new LegacyAgentsDbReader(ctx.paths))
-  }
-
-  private collectMissingLegacyTables(spec: AgentsTableMigrationSpec): AgentsSourceTableName[] {
-    const referenced = new Set<AgentsSourceTableName>([spec.sourceTable])
-    const where = spec.validateWhereClause ?? ''
-    for (const match of where.matchAll(/agents_legacy\.(\w+)/g)) {
-      referenced.add(match[1] as AgentsSourceTableName)
-    }
-    return Array.from(referenced).filter((tableName) => !this.sourceSchemaInfo[tableName]?.exists)
   }
 
   private resolveSourceDbPath(reader: LegacyAgentsDbReader): string | null {

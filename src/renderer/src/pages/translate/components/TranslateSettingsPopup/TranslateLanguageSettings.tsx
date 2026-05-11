@@ -59,7 +59,7 @@ const TranslateLanguageSettings = () => {
         accessorKey: 'emoji',
         header: 'Emoji',
         meta: { width: 72, align: 'center' },
-        cell: ({ getValue }) => <span className="text-base">{String(getValue())}</span>
+        cell: ({ getValue }) => <span className="text-base">{getValue<string>()}</span>
       },
       {
         accessorKey: 'value',

@@ -25,42 +25,10 @@ const LEGACY_VECTOR_BACKUP_SUFFIX = '.embedjs.bak'
 const INDEXABLE_KNOWLEDGE_ITEM_TYPES = new Set<KnowledgeItemType>(['file', 'url', 'note'])
 const SKIP_WARNING_SAMPLE_LIMIT = 3
 
-// Windows holds SQLite/libsql file handles briefly after client.close(),
-// and Search Indexer / antivirus open new files the moment they appear.
-// fs.rm and fs.rename on these freshly-closed files transiently fail with
-// EBUSY or EPERM (libuv maps Windows ERROR_SHARING_VIOLATION to either).
-// Retry with exponential backoff: 100,200,400,800,1600,3200 → ≤6.3s total.
-const FILE_OP_MAX_ATTEMPTS = 7
-const FILE_OP_INITIAL_DELAY_MS = 100
-
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => {
     setImmediate(resolve)
   })
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-async function retryFileOp<T>(label: string, fn: () => Promise<T>): Promise<T> {
-  let delayMs = FILE_OP_INITIAL_DELAY_MS
-  for (let attempt = 1; attempt <= FILE_OP_MAX_ATTEMPTS; attempt++) {
-    try {
-      return await fn()
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code
-      const transient = code === 'EBUSY' || code === 'EPERM'
-      if (!transient || attempt === FILE_OP_MAX_ATTEMPTS) {
-        throw error
-      }
-      logger.warn(`${label} failed (${code}), retry ${attempt}/${FILE_OP_MAX_ATTEMPTS - 1} in ${delayMs}ms`)
-      await delay(delayMs)
-      delayMs *= 2
-    }
-  }
-  // Unreachable: loop either returns or throws.
-  throw new Error(`${label} failed after ${FILE_OP_MAX_ATTEMPTS} attempts`)
 }
 
 interface LegacyKnowledgeItemWithLoaders {
@@ -164,27 +132,6 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     }
 
     this.skippedWarnings.clear()
-  }
-
-  // Force the temp libsql DB to be a single self-contained file with no
-  // mmap regions. Without this, libsql defaults to WAL mode and creates
-  // `-wal` / `-shm` siblings plus mmap'd page cache; on Windows the OS
-  // can hold those handles for several seconds after close(), causing
-  // the immediate rename(tempPath → dbPath) to fail with EBUSY.
-  private async hardenTempStoreForFastClose(client: Client): Promise<void> {
-    await client.execute({ sql: 'PRAGMA journal_mode = DELETE', args: [] })
-    await client.execute({ sql: 'PRAGMA mmap_size = 0', args: [] })
-  }
-
-  // Final flush before close(): if the connection ever ran in WAL mode
-  // (e.g. because the file already existed in WAL state), truncate the
-  // WAL so close() leaves no auxiliary files behind.
-  private async finalizeTempStoreBeforeClose(client: Client): Promise<void> {
-    try {
-      await client.execute({ sql: 'PRAGMA wal_checkpoint(TRUNCATE)', args: [] })
-    } catch (error) {
-      logger.warn('wal_checkpoint(TRUNCATE) before close failed', error as Error)
-    }
   }
 
   private async ensureVectorStoreSchema(client: Client, dimensions: number): Promise<void> {
@@ -553,11 +500,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           id: uuidv4()
         }))
 
-        await retryFileOp(`rm stale tempPath ${tempPath}`, () => fs.promises.rm(tempPath, { force: true }))
+        await fs.promises.rm(tempPath, { force: true })
 
         const targetClient = createClient({ url: pathToFileURL(tempPath).toString() })
         try {
-          await this.hardenTempStoreForFastClose(targetClient)
           await this.ensureVectorStoreSchema(targetClient, plan.dimensions)
 
           for (let i = 0; i < rebuiltRows.length; i += INSERT_BATCH_SIZE) {
@@ -574,7 +520,6 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             )
             await yieldToEventLoop()
           }
-          await this.finalizeTempStoreBeforeClose(targetClient)
         } finally {
           targetClient.close()
         }
@@ -594,11 +539,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
         // First migration preserves the legacy embedjs DB; retries remove the stale failed target before swapping.
         if (!fs.existsSync(backupPath) && fs.existsSync(plan.dbPath)) {
-          await retryFileOp(`rename ${plan.dbPath} → ${backupPath}`, () => fs.promises.rename(plan.dbPath, backupPath))
+          await fs.promises.rename(plan.dbPath, backupPath)
         } else {
-          await retryFileOp(`rm ${plan.dbPath}`, () => fs.promises.rm(plan.dbPath, { force: true }))
+          await fs.promises.rm(plan.dbPath, { force: true })
         }
-        await retryFileOp(`rename ${tempPath} → ${plan.dbPath}`, () => fs.promises.rename(tempPath, plan.dbPath))
+        await fs.promises.rename(tempPath, plan.dbPath)
 
         this.successfulBaseIds.add(plan.baseId)
         this.targetCountByBaseId.set(plan.baseId, rebuiltRows.length)
@@ -608,7 +553,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         logger.error(errorMessage, error instanceof Error ? error : new Error(String(error)))
         this.executionErrors.push(errorMessage)
 
-        await retryFileOp(`rm tempPath ${tempPath} (cleanup)`, () => fs.promises.rm(tempPath, { force: true }))
+        await fs.promises.rm(tempPath, { force: true })
 
         return {
           success: false,
