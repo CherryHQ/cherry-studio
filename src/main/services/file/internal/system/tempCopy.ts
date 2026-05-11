@@ -44,12 +44,13 @@ export async function withTempCopy<T>(
     // ENOENT, but EBUSY (Windows: external process holds the file) and EACCES
     // (sandbox containment changes) still throw — and a throw from finally
     // would replace any error fn just raised, erasing the caller's stack.
-    // Log and swallow; orphan temp dirs are recovered by a future
-    // tempcopy-sweep pass (deferred).
+    // Log and swallow; the leaked directory lives under the OS temp tree
+    // (`feature.files.tempcopy.temp`) and is reaped on the next OS-level
+    // temp cleanup. No application-side sweeper is planned.
     try {
       await rm(dir, { recursive: true, force: true })
     } catch (cleanupErr) {
-      logger.warn('withTempCopy: temp dir cleanup failed; directory will leak until next sweep', {
+      logger.warn('withTempCopy: temp dir cleanup failed; directory will leak until OS temp reap', {
         dir,
         err: cleanupErr
       })
