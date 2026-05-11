@@ -1,3 +1,10 @@
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import MiniAppIcon from '@renderer/components/Icons/MiniAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
@@ -7,11 +14,8 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import type { MenuProps } from 'antd'
-import { Dropdown } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   app: MiniApp
@@ -62,131 +66,91 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     }
   }
 
-  const menuItems: MenuProps['items'] = [
-    {
-      key: 'togglePin',
-      label: isPinned
-        ? isTopNavbar
-          ? t('miniApp.remove_from_launchpad')
-          : t('miniApp.remove_from_sidebar')
-        : isTopNavbar
-          ? t('miniApp.add_to_launchpad')
-          : t('miniApp.add_to_sidebar'),
-      onClick: () => {
-        // Toggle pin: enabled ↔ pinned. Custom apps that were technically
-        // 'disabled' (shouldn't normally end up in the grid) fall back to
-        // 'enabled' on unpin, matching the previous diff behavior.
-        const nextStatus = isPinned ? 'enabled' : 'pinned'
-        updateAppStatus(app.appId, nextStatus).catch(
-          reportFailure(isPinned ? 'miniApp.unpin_failed' : 'miniApp.pin_failed')
-        )
+  const handleTogglePin = () => {
+    const nextStatus = isPinned ? 'enabled' : 'pinned'
+    updateAppStatus(app.appId, nextStatus).catch(
+      reportFailure(isPinned ? 'miniApp.unpin_failed' : 'miniApp.pin_failed')
+    )
+  }
+
+  const handleHide = () => {
+    updateAppStatus(app.appId, 'disabled')
+      .then(() => {
+        setOpenedKeepAliveMiniApps(openedKeepAliveMiniApps.filter((item) => item.appId !== app.appId))
+      })
+      .catch(reportFailure('miniApp.hide_failed'))
+  }
+
+  const handleRemoveCustom = async () => {
+    try {
+      await removeCustomMiniApp(app.appId)
+      window.toast.success(t('settings.miniApps.custom.remove_success'))
+    } catch (error) {
+      if (isDataApiError(error)) {
+        if (error.code === ErrorCode.NOT_FOUND) {
+          window.toast.warning(t('miniApp.error.not_found'))
+        } else if (!error.isRetryable) {
+          window.toast.error(t('settings.miniApps.custom.remove_error'))
+        } else {
+          window.toast.error(t('settings.miniApps.custom.remove_error'))
+        }
+      } else {
+        window.toast.error(t('settings.miniApps.custom.remove_error'))
       }
-    },
-    ...(!isPinned
-      ? [
-          {
-            key: 'hide',
-            label: t('miniApp.sidebar.hide.title'),
-            onClick: () => {
-              // Wait for the status flip to land before evicting from the
-              // keep-alive pool — otherwise a failed PATCH leaves the user
-              // with a still-disabled tab in the strip and no UI feedback.
-              updateAppStatus(app.appId, 'disabled')
-                .then(() => {
-                  setOpenedKeepAliveMiniApps(openedKeepAliveMiniApps.filter((item) => item.appId !== app.appId))
-                })
-                .catch(reportFailure('miniApp.hide_failed'))
-            }
-          }
-        ]
-      : []),
-    ...(app.presetMiniAppId == null
-      ? [
-          {
-            key: 'removeCustom',
-            label: t('miniApp.sidebar.remove_custom.title'),
-            danger: true,
-            onClick: async () => {
-              try {
-                await removeCustomMiniApp(app.appId)
-                window.toast.success(t('settings.miniApps.custom.remove_success'))
-              } catch (error) {
-                if (isDataApiError(error)) {
-                  if (error.code === ErrorCode.NOT_FOUND) {
-                    window.toast.warning(t('miniApp.error.not_found'))
-                  } else if (!error.isRetryable) {
-                    window.toast.error(t('settings.miniApps.custom.remove_error'))
-                  } else {
-                    window.toast.error(t('settings.miniApps.custom.remove_error'))
-                  }
-                } else {
-                  window.toast.error(t('settings.miniApps.custom.remove_error'))
-                }
-                logger.error('Failed to remove custom mini app:', error as Error)
-              }
-            }
-          }
-        ]
-      : [])
-  ]
+      logger.error('Failed to remove custom mini app:', error as Error)
+    }
+  }
 
   if (!shouldShow) {
     return null
   }
 
   return (
-    <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
-      <Container onClick={handleClick}>
-        <IconContainer>
-          <MiniAppIcon size={size} app={app} />
-          {isOpened && (
-            <StyledIndicator>
-              <IndicatorLight color="#22c55e" size={6} animation={!isActive} />
-            </StyledIndicator>
-          )}
-        </IconContainer>
-        <AppTitle>
-          <MarqueeText>{displayName}</MarqueeText>
-        </AppTitle>
-      </Container>
-    </Dropdown>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          onClick={handleClick}
+          className="flex min-h-21.25 cursor-pointer flex-col items-center justify-center overflow-hidden">
+          <div className="relative flex items-center justify-center">
+            <MiniAppIcon size={size} app={app} />
+            {isOpened && (
+              <div className="-right-0.5 -bottom-0.5 absolute rounded-full bg-background p-0.5">
+                <IndicatorLight color="#22c55e" size={6} animation={!isActive} />
+              </div>
+            )}
+          </div>
+          <div className="mt-1.25 w-full max-w-20 select-none text-center text-text-soft text-xs">
+            <MarqueeText>{displayName}</MarqueeText>
+          </div>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={handleTogglePin}>
+          {isPinned
+            ? isTopNavbar
+              ? t('miniApp.remove_from_launchpad')
+              : t('miniApp.remove_from_sidebar')
+            : isTopNavbar
+              ? t('miniApp.add_to_launchpad')
+              : t('miniApp.add_to_sidebar')}
+        </ContextMenuItem>
+        {!isPinned && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={handleHide}>{t('miniApp.sidebar.hide.title')}</ContextMenuItem>
+          </>
+        )}
+        {app.presetMiniAppId == null && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem variant="destructive" onSelect={handleRemoveCustom}>
+              {t('miniApp.sidebar.remove_custom.title')}
+            </ContextMenuItem>
+          </>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  overflow: hidden;
-  min-height: 85px;
-`
-
-const IconContainer = styled.div`
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-`
-
-const StyledIndicator = styled.div`
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  padding: 2px;
-  background: var(--color-background);
-  border-radius: 50%;
-`
-
-const AppTitle = styled.div`
-  font-size: 12px;
-  margin-top: 5px;
-  color: var(--color-text-soft);
-  text-align: center;
-  user-select: none;
-  width: 100%;
-  max-width: 80px;
-`
 
 export default MiniApp

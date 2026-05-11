@@ -8,7 +8,6 @@ import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import BeatLoader from 'react-spinners/BeatLoader'
-import styled from 'styled-components'
 
 import MinimalToolbar from './MinimalToolbar'
 
@@ -97,7 +96,7 @@ const MiniAppFullPageView: FC<Props> = ({ app }) => {
   }, [])
 
   return (
-    <Container>
+    <div className="flex h-full flex-col overflow-hidden">
       <MinimalToolbar
         app={app}
         webviewRef={webviewRef}
@@ -106,14 +105,14 @@ const MiniAppFullPageView: FC<Props> = ({ app }) => {
         onOpenDevTools={handleOpenDevTools}
       />
 
-      <WebviewArea>
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-background">
         {!isReady && (
-          <LoadingMask>
-            <LoadingOverlay>
+          <div className="absolute inset-0 z-100 flex items-center justify-center bg-background">
+            <div className="pointer-events-none flex flex-col items-center">
               <LogoAvatar logo={app.logo} size={60} />
               <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
-            </LoadingOverlay>
-          </LoadingMask>
+            </div>
+          </div>
         )}
 
         <WebviewContainer
@@ -124,44 +123,9 @@ const MiniAppFullPageView: FC<Props> = ({ app }) => {
           onLoadedCallback={handleWebviewLoaded}
           onNavigateCallback={handleWebviewNavigate}
         />
-      </WebviewArea>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-`
-
-const WebviewArea = styled.div`
-  flex: 1;
-  position: relative;
-  overflow: hidden;
-  background-color: var(--color-background);
-  min-height: 0; /* Ensure flex child can shrink */
-`
-
-const LoadingMask = styled.div`
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: var(--color-background);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
-
-const LoadingOverlay = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  pointer-events: none;
-`
 
 export default MiniAppFullPageView

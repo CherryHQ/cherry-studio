@@ -10,8 +10,6 @@
   -webkit-app-region: no-drag;
 }
 
-/* miniapp-drawer 有自己的拖拽规则 */
-
 /* 下拉菜单和弹出框内容不应该可拖拽 */
 .ant-dropdown,
 .ant-dropdown-menu,
@@ -52,17 +50,8 @@
   gap: 4px;
 }
 
-/* miniapp-drawer styles now handled by vaul + Tailwind in MiniAppPopupContainer */
-[navbar-position='left'] .miniapp-drawer {
-  max-width: calc(100vw - var(--sidebar-width));
-}
-
-[navbar-position='top'] .miniapp-drawer {
-  max-width: 100vw;
-}
-
 .ant-drawer-header {
-  /* 普通 drawer header 不应该可拖拽，除非被 miniapp-drawer 覆盖 */
+  /* drawer header 不应该可拖拽 */
   -webkit-app-region: no-drag;
 }
 
