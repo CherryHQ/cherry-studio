@@ -45,10 +45,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mockRename = vi.hoisted(() => vi.fn())
 const mockUnlink = vi.hoisted(() => vi.fn())
 const mockStat = vi.hoisted(() => vi.fn())
+const mockOpen = vi.hoisted(() => vi.fn())
 const mockLoggerWarn = vi.hoisted(() => vi.fn())
 
-// Partial mock: only `rename`, `unlink`, `stat` are spied; everything else
-// (open, readFile, writeFile, fsRm, mkdir, …) falls through to the real
+// Partial mock: only `rename`, `unlink`, `stat`, `open` are spied; everything
+// else (readFile, writeFile, fsRm, mkdir, …) falls through to the real
 // implementation so copy / atomicWrite still work as expected on the retry path.
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFsPromises>()
@@ -56,7 +57,8 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     ...actual,
     rename: mockRename,
     unlink: mockUnlink,
-    stat: mockStat
+    stat: mockStat,
+    open: mockOpen
   }
 })
 
@@ -71,7 +73,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { isSameFile, move: fsMove } = await import('../fs')
+const { atomicWriteFile, isSameFile, move: fsMove } = await import('../fs')
 
 function makeErrnoErr(code: string, message = code): NodeJS.ErrnoException {
   return Object.assign(new Error(message), { code }) as NodeJS.ErrnoException
@@ -82,22 +84,26 @@ describe('move (EXDEV cross-device fallback)', () => {
   let actualRename: typeof NodeFsPromises.rename
   let actualUnlink: typeof NodeFsPromises.unlink
   let actualStat: typeof NodeFsPromises.stat
+  let actualOpen: typeof NodeFsPromises.open
 
   beforeEach(async () => {
     const actual = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
     actualRename = actual.rename
     actualUnlink = actual.unlink
     actualStat = actual.stat
+    actualOpen = actual.open
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-move-exdev-'))
     mockRename.mockReset()
     mockUnlink.mockReset()
     mockStat.mockReset()
+    mockOpen.mockReset()
     mockLoggerWarn.mockClear()
     // Default mocks: pass through to the real implementations. Individual
     // tests override .mockImplementationOnce to inject EXDEV / EACCES / etc.
     mockRename.mockImplementation((...args) => actualRename(...(args as [string, string])))
     mockUnlink.mockImplementation((p) => actualUnlink(p as string))
     mockStat.mockImplementation((p) => actualStat(p as string))
+    mockOpen.mockImplementation((p, flags) => actualOpen(p as string, flags as never))
   })
 
   afterEach(async () => {
@@ -120,6 +126,9 @@ describe('move (EXDEV cross-device fallback)', () => {
       () => false
     )
     expect(stillThere).toBe(false)
+    // Pin the unlink call so a future "skip-unlink-on-EXDEV" regression fails
+    // here instead of silently leaving the source on disk.
+    expect(mockUnlink).toHaveBeenCalledWith(src)
     expect(mockLoggerWarn).not.toHaveBeenCalled()
   })
 
@@ -174,19 +183,42 @@ describe('move (EXDEV cross-device fallback)', () => {
     expect(mockUnlink).not.toHaveBeenCalled()
     expect(mockLoggerWarn).not.toHaveBeenCalled()
   })
+
+  it('on EXDEV + copy failure: copy error propagates, src unlink never attempted', async () => {
+    // The src-unlink step is gated on a successful copy. If copy throws (here:
+    // ENOENT because dest's parent directory does not exist), src must remain
+    // on disk and no source unlink should fire — otherwise a partial-move
+    // bug could lose data while masquerading as a normal failure.
+    // (createAtomicWriteStream internally calls unlink on its own tmp file
+    // during cleanup; we assert specifically that `src` is never passed to
+    // unlink rather than blanket-asserting zero calls.)
+    const src = path.join(tmp, 'src-copyfail.txt')
+    const dest = path.join(tmp, 'missing-subdir', 'dest.txt')
+    await writeFile(src, 'payload')
+    mockRename.mockRejectedValueOnce(makeErrnoErr('EXDEV', 'cross-device link'))
+
+    await expect(fsMove(src as FilePath, dest as FilePath)).rejects.toThrow(/ENOENT/)
+    expect(await readFile(src, 'utf-8')).toBe('payload')
+    expect(mockUnlink).not.toHaveBeenCalledWith(src)
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
 })
 
 describe('isSameFile (non-ENOENT stat failure observability)', () => {
   let tmp: string
   let actualStat: typeof NodeFsPromises.stat
+  let actualOpen: typeof NodeFsPromises.open
 
   beforeEach(async () => {
     const actual = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
     actualStat = actual.stat
+    actualOpen = actual.open
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-issamefile-warn-'))
     mockStat.mockReset()
+    mockOpen.mockReset()
     mockLoggerWarn.mockClear()
     mockStat.mockImplementation((p) => actualStat(p as string))
+    mockOpen.mockImplementation((p, flags) => actualOpen(p as string, flags as never))
   })
 
   afterEach(async () => {
@@ -227,6 +259,81 @@ describe('isSameFile (non-ENOENT stat failure observability)', () => {
     // mockStat default-passthrough surfaces a real ENOENT for `b`.
     const result = await isSameFile(a as FilePath, b as FilePath)
     expect(result).toBe(false)
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
+})
+
+describe('fsyncDirectoryOf (end-to-end warn observability via atomicWriteFile)', () => {
+  // The classifier `shouldSilenceFsyncDirError` is unit-tested in fs.test.ts;
+  // these tests pin the integration contract — atomicWriteFile actually
+  // consults the classifier on every directory-fsync attempt, so an inlining
+  // or skip refactor that bypassed the warn path would be caught here.
+  let tmp: string
+  let actualOpen: typeof NodeFsPromises.open
+  let actualRename: typeof NodeFsPromises.rename
+  let actualUnlink: typeof NodeFsPromises.unlink
+
+  beforeEach(async () => {
+    const actual = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
+    actualOpen = actual.open
+    actualRename = actual.rename
+    actualUnlink = actual.unlink
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-fsync-warn-'))
+    mockOpen.mockReset()
+    mockRename.mockReset()
+    mockUnlink.mockReset()
+    mockLoggerWarn.mockClear()
+    mockOpen.mockImplementation((p, flags) => actualOpen(p as string, flags as never))
+    mockRename.mockImplementation((...args) => actualRename(...(args as [string, string])))
+    mockUnlink.mockImplementation((p) => actualUnlink(p as string))
+  })
+
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+    vi.restoreAllMocks()
+  })
+
+  it('warn-logs when fsync(dir) fails with a non-silenced errno (EPERM)', async () => {
+    // Inject EPERM on the directory open call (flags === 'r'). The tmp file
+    // open call (flags === 'w') still passes through, so the rename succeeds
+    // and atomicWriteFile resolves — fsyncDirectoryOf is best-effort.
+    const target = path.join(tmp, 'data.txt')
+    const fsyncErr = makeErrnoErr('EPERM', 'operation not permitted')
+    mockOpen.mockImplementation(async (p, flags) => {
+      if (flags === 'r' && p === path.dirname(target)) {
+        throw fsyncErr
+      }
+      return actualOpen(p as string, flags as never)
+    })
+
+    await atomicWriteFile(target as FilePath, 'payload')
+
+    expect(await readFile(target, 'utf-8')).toBe('payload')
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining('fsync(dir) failed'),
+      expect.objectContaining({
+        target,
+        code: 'EPERM',
+        err: fsyncErr
+      })
+    )
+  })
+
+  it('stays silent when fsync(dir) fails with a silenced errno (EINVAL: FS rejects dir fsync)', async () => {
+    // Windows / FUSE / network mounts surface EINVAL/EISDIR/ENOTSUP for
+    // directory fsync; the classifier silences these because they are
+    // expected and would spam dashboards.
+    const target = path.join(tmp, 'data.txt')
+    mockOpen.mockImplementation(async (p, flags) => {
+      if (flags === 'r' && p === path.dirname(target)) {
+        throw makeErrnoErr('EINVAL', 'invalid argument')
+      }
+      return actualOpen(p as string, flags as never)
+    })
+
+    await atomicWriteFile(target as FilePath, 'payload')
+
+    expect(await readFile(target, 'utf-8')).toBe('payload')
     expect(mockLoggerWarn).not.toHaveBeenCalled()
   })
 })

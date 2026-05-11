@@ -42,6 +42,7 @@ describe('internal/system/tempCopy', () => {
 
   beforeEach(async () => {
     MockMainDbServiceUtils.setDb(dbh.db)
+    mockLoggerWarn.mockClear()
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-tempcopy-'))
     filesDir = path.join(tmp, 'Files')
     const { mkdir } = await import('node:fs/promises')
@@ -120,7 +121,6 @@ describe('internal/system/tempCopy', () => {
     // let the cleanup error replace fn's. With the try/catch wrapper, fn's
     // error must propagate while cleanup's failure surfaces only through
     // loggerService.
-    mockLoggerWarn.mockClear()
     const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'a', ext: 'bin' })
     const fnErr = new Error('library failed')
     const cleanupErr = Object.assign(new Error('EBUSY: dir held by external process'), { code: 'EBUSY' })
@@ -142,7 +142,6 @@ describe('internal/system/tempCopy', () => {
   it('logs cleanup failure but still resolves with fn result on the happy path', async () => {
     // The cleanup failure must not flip a successful fn outcome to a
     // rejection — caller already got its result; the leak is a side effect.
-    mockLoggerWarn.mockClear()
     const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'a', ext: 'bin' })
     const cleanupErr = Object.assign(new Error('EACCES'), { code: 'EACCES' })
     const fsModule = await import('@main/utils/file/fs')
