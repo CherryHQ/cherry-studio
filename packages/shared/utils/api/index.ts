@@ -34,3 +34,15 @@ export function formatApiHost(host?: string, supportApiVersion: boolean = true, 
     return withoutTrailingSharp(normalizedHost)
   }
 }
+
+/**
+ * Normalise an Ollama base URL: strip trailing `/v1` / `/api` / `/chat`,
+ * append `/api`.
+ */
+export function formatOllamaApiHost(host: string): string {
+  const normalizedHost = withoutTrailingSlash(host)
+    ?.replace(/\/v1$/, '')
+    ?.replace(/\/api$/, '')
+    ?.replace(/\/chat$/, '')
+  return formatApiHost(normalizedHost + '/api', false)
+}

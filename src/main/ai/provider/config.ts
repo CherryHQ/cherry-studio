@@ -14,12 +14,11 @@ import { generateSignature } from '@main/integration/cherryai'
 import { sessionService } from '@main/services/agents'
 import { anthropicService } from '@main/services/AnthropicService'
 import { copilotService } from '@main/services/CopilotService'
-import { formatOllamaApiHost } from '@shared/ai/provider/utils'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { defaultAppHeaders } from '@shared/utils'
-import { formatApiHost, isWithTrailingSharp } from '@shared/utils/api'
+import { formatApiHost, formatOllamaApiHost, isWithTrailingSharp } from '@shared/utils/api'
 import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@types'
 import { isEmpty } from 'lodash'
@@ -510,8 +509,10 @@ async function buildClaudeCodeConfig(ctx: BuilderContext): Promise<ProviderConfi
     const session = await sessionService.getById(ctx.agentSessionId)
     if (!session) throw new Error(`Agent session not found: ${ctx.agentSessionId}`)
 
-    // Look up last SDK session ID for resume (survives app restart)
-    const lastAgentSessionId = await agentSessionMessageService.getLastAgentSessionId(ctx.agentSessionId)
+    // Look up last SDK session ID for resume (survives app restart). The
+    // service returns `string | null` (no upstream session); the builder
+    // expects optional string, so coerce null → undefined here.
+    const lastAgentSessionId = (await agentSessionMessageService.getLastAgentSessionId(ctx.agentSessionId)) ?? undefined
     const sessionSettings = await buildClaudeCodeSessionSettings(session, ctx.actualProvider, { lastAgentSessionId })
 
     return {
