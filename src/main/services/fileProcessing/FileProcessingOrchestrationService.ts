@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
+import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 import { FileMetadataSchema } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
@@ -12,6 +13,7 @@ import type {
   FileProcessingTaskStartResult,
   GetFileProcessingTaskInput,
   GetFileProcessingTaskOptions,
+  ListAvailableFileProcessorsResult,
   StartFileProcessingTaskInput,
   StartFileProcessingTaskOptions
 } from './types'
@@ -82,6 +84,12 @@ export class FileProcessingOrchestrationService extends BaseService {
     return application.get('FileProcessingTaskService').cancelTask(input)
   }
 
+  listAvailableProcessors(): ListAvailableFileProcessorsResult {
+    return ListAvailableFileProcessorsResultSchema.parse({
+      processorIds: application.get('FileProcessingTaskService').listAvailableProcessorIds()
+    })
+  }
+
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.FileProcessing_StartTask, async (_, payload: unknown) => {
       return await this.startTask(StartTaskPayloadSchema.parse(payload))
@@ -91,6 +99,9 @@ export class FileProcessingOrchestrationService extends BaseService {
     })
     this.ipcHandle(IpcChannel.FileProcessing_CancelTask, async (_, payload: unknown) => {
       return await this.cancelTask(CancelTaskPayloadSchema.parse(payload))
+    })
+    this.ipcHandle(IpcChannel.FileProcessing_ListAvailableProcessors, () => {
+      return this.listAvailableProcessors()
     })
   }
 }

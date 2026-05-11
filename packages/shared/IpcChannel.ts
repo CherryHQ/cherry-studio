@@ -205,6 +205,7 @@ export enum IpcChannel {
   FileProcessing_StartTask = 'file-processing:start-task',
   FileProcessing_GetTask = 'file-processing:get-task',
   FileProcessing_CancelTask = 'file-processing:cancel-task',
+  FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
 
   //file
   File_Open = 'file:open',
