@@ -14,7 +14,7 @@
  */
 
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Helper: collect all chunks from the async generator.
@@ -38,6 +38,10 @@ async function collectAllText(loader: WebLoader): Promise<string> {
 // ---------------------------------------------------------------------------
 // Local content (isUrl = false) — URLs should be preserved in output
 // ---------------------------------------------------------------------------
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('WebLoader: local content (isUrl=false) — URL stripping', () => {
   // Each case contains an embedded URL that MUST survive in the output text.
@@ -84,17 +88,6 @@ describe('WebLoader: local content (isUrl=false) — URL stripping', () => {
     // After html-to-text conversion the link text remains; the URL should too
     expect(text).toContain('https://example.com/docs')
   })
-
-  it('treats bare URL as remote fetch (isUrl=true)', async () => {
-    const loader = new WebLoader({
-      urlOrContent: 'https://test.invalid/resource'
-    })
-    // A bare URL is treated as a remote URL, so getSafe is invoked.
-    // The .invalid TLD is guaranteed to fail DNS resolution, so the
-    // generator catches the error and yields no chunks.
-    const chunks = await collectChunks(loader)
-    expect(chunks).toEqual([])
-  })
 })
 
 // ---------------------------------------------------------------------------
@@ -102,20 +95,43 @@ describe('WebLoader: local content (isUrl=false) — URL stripping', () => {
 // ---------------------------------------------------------------------------
 
 describe('WebLoader: URL input (isUrl=true) — stripping regression', () => {
-  it('strips URLs from fetched page content (isUrl=true)', async () => {
-    // When input is a real URL, getSafe is called and the fetched HTML
-    // is processed. Embedded URLs in the fetched page should be stripped.
-    // This test documents the current "stripping works" regression baseline.
-    //
-    // NOTE: This test requires getSafe to be mockable or the URL to be
-    // unreachable. We use a clearly-fake URL so getSafe throws, and the
-    // generator silently yields nothing — confirming the URL was treated
-    // as isUrl=true (the fetch path was attempted).
+  it('fetches bare URL input and strips URLs from fetched page content', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          '<html><body><p>Remote page text before link.</p><p>See https://remote.example/docs</p></body></html>',
+          { status: 200 }
+        )
+      )
+
+    vi.stubGlobal('fetch', fetchMock)
+
     const loader = new WebLoader({
-      urlOrContent: 'https://this-domain-does-not-exist-xyzzy.invalid/test'
+      urlOrContent: 'https://example.test/resource'
     })
-    const chunks = await collectChunks(loader)
-    // Fetch fails → generator catches and yields nothing
-    expect(chunks).toEqual([])
+
+    const text = await collectAllText(loader)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.test/resource',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'User-Agent': expect.any(String)
+        })
+      })
+    )
+    expect(text).toContain('Remote page text before link')
+    expect(text).not.toContain('https://remote.example/docs')
+  })
+
+  it('yields no chunks when remote fetch fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network unavailable')))
+
+    const loader = new WebLoader({
+      urlOrContent: 'https://example.test/unavailable'
+    })
+
+    await expect(collectChunks(loader)).resolves.toEqual([])
   })
 })
