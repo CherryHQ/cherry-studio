@@ -27,11 +27,4 @@ const MessageContent: React.FC<Props> = ({ message }) => {
   )
 }
 
-// const SearchingText = styled.div`
-//   font-size: 14px;
-//   line-height: 1.6;
-//   text-decoration: none;
-//   color: var(--color-text-1);
-// `
-
 export default React.memo(MessageContent)

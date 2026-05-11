@@ -4,10 +4,9 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { NormalToolResponse } from '@renderer/types'
 import { Collapse } from 'antd'
 import { Check, ChevronRight, CornerDownRight } from 'lucide-react'
-import type { FC } from 'react'
+import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { chooseTool } from './chooseTool'
 import { getEffectiveStatus, ToolStatusIndicator } from './MessageAgentTools/GenericTools'
@@ -342,161 +341,143 @@ function stringifyResponse(value: unknown): string {
   }
 }
 
-// ── Styled ─────────────────────────────────────────────────────────
+const Container = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['my-2.5', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const Container = styled.div`
-  margin-top: 10px;
-  margin-bottom: 10px;
-`
+const CollapseShell = ({ className, ...props }: ComponentPropsWithoutRef<typeof Collapse>) => (
+  <Collapse
+    className={[
+      '[&_.ant-collapse-header]:items-center! overflow-hidden rounded-[7px] border border-(--color-border) bg-(--color-background) [&_.ant-collapse-content-box]:p-2.5! [&_.ant-collapse-header]:px-2.5! [&_.ant-collapse-header]:py-2!',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-const CollapseShell = styled(Collapse)`
-  border-radius: 7px;
-  border: 1px solid var(--color-border);
-  background-color: var(--color-background);
-  overflow: hidden;
+const ExpandIcon = ({
+  $isActive,
+  style,
+  ...props
+}: ComponentPropsWithoutRef<typeof ChevronRight> & { $isActive?: boolean }) => (
+  <ChevronRight
+    className="transition-transform duration-200"
+    style={{ transform: $isActive ? 'rotate(90deg)' : 'rotate(0deg)', ...style }}
+    {...props}
+  />
+)
 
-  .ant-collapse-header {
-    padding: 8px 10px !important;
-    align-items: center !important;
-  }
-  .ant-collapse-content-box {
-    padding: 10px !important;
-  }
-`
+const TitleRow = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={['flex w-full items-center justify-between gap-2.5', className].filter(Boolean).join(' ')}
+    {...props}
+  />
+)
 
-const ExpandIcon = styled(ChevronRight)<{ $isActive?: boolean }>`
-  transition: transform 0.2s;
-  transform: ${({ $isActive }) => ($isActive ? 'rotate(90deg)' : 'rotate(0deg)')};
-`
+const TitleText = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
+  <span
+    className={[
+      'overflow-hidden text-ellipsis whitespace-nowrap font-[var(--font-family-mono,monospace)] font-medium text-(--color-text) text-[13px]',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-const TitleRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  gap: 10px;
-`
+const Trailing = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['ml-auto flex items-center gap-1.5', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const TitleText = styled.span`
-  color: var(--color-text);
-  font-weight: 500;
-  font-size: 13px;
-  font-family: var(--font-family-mono, monospace);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
+const CopyButton = ({ className, ...props }: ComponentPropsWithoutRef<'button'>) => (
+  <button
+    type="button"
+    className={[
+      'flex cursor-pointer items-center rounded border-none bg-transparent p-1 text-(--color-text-2) opacity-70 hover:bg-(--color-bg-3) hover:opacity-100',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-const Trailing = styled.div`
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-left: auto;
-`
+const BodyContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex flex-col gap-2.5', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const CopyButton = styled.button`
-  background: none;
-  border: none;
-  padding: 4px;
-  cursor: pointer;
-  color: var(--color-text-2);
-  opacity: 0.7;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  &:hover {
-    opacity: 1;
-    background: var(--color-bg-3);
-  }
-`
+const NamespaceGroup = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex flex-col gap-1.5', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const BodyContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-`
+const ToolNameList = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex flex-wrap gap-1', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const NamespaceGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-`
+const ToolNameChip = ({ className, ...props }: ComponentPropsWithoutRef<'code'>) => (
+  <code
+    className={[
+      'inline-flex items-center rounded border border-(--color-border) bg-(--color-background-soft) px-1.5 py-0.5 font-[var(--font-family-mono,monospace)] text-(--color-text) text-xs',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-const ToolNameList = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-`
+const NamespaceTitle = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={['text-(--color-text-2) text-xs [&_small]:opacity-70', className].filter(Boolean).join(' ')}
+    {...props}
+  />
+)
 
-const ToolNameChip = styled.code`
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 6px;
-  font-family: var(--font-family-mono, monospace);
-  font-size: 12px;
-  color: var(--color-text);
-  background: var(--color-background-soft);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-`
+const ResponseSectionStyled = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex flex-col gap-1', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const NamespaceTitle = styled.div`
-  font-size: 12px;
-  color: var(--color-text-2);
-  small {
-    opacity: 0.7;
-  }
-`
+const CodeBlock = ({ className, ...props }: ComponentPropsWithoutRef<'pre'>) => (
+  <pre
+    className={[
+      'm-0 max-h-[300px] overflow-auto whitespace-pre-wrap break-words rounded bg-(--color-background-soft) p-2 font-[var(--font-family-mono,monospace)] text-xs [&[data-error=true]]:text-[var(--status-color-error,#ff4d4f)]',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-const ResponseSectionStyled = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-`
+const Highlighted = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={[
+      '[&_pre]:max-h-[300px] [&_pre]:overflow-auto [&_pre]:rounded [&_pre]:bg-(--color-background-soft)! [&_pre]:p-2 [&_pre]:text-xs',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-const CodeBlock = styled.pre`
-  margin: 0;
-  padding: 8px;
-  font-family: var(--font-family-mono, monospace);
-  font-size: 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  background: var(--color-background-soft);
-  border-radius: 4px;
-  overflow: auto;
-  max-height: 300px;
+const InnerHint = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={[
+      'flex items-center gap-1 text-(--color-text-3) text-[11px] [&_code]:font-[var(--font-family-mono,monospace)]',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-  &[data-error='true'] {
-    color: var(--status-color-error, #ff4d4f);
-  }
-`
-
-const Highlighted = styled.div`
-  & pre {
-    background: var(--color-background-soft) !important;
-    padding: 8px;
-    border-radius: 4px;
-    overflow: auto;
-    max-height: 300px;
-    font-size: 12px;
-  }
-`
-
-const InnerHint = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--color-text-3);
-  code {
-    font-family: var(--font-family-mono, monospace);
-  }
-`
-
-const Empty = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
-  font-style: italic;
-`
+const Empty = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['text-(--color-text-3) text-xs italic', className].filter(Boolean).join(' ')} {...props} />
+)
 
 export default memo(MessageMetaTool)

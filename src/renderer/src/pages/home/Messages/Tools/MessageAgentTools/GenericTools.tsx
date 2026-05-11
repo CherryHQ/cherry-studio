@@ -7,7 +7,6 @@ import { formatFileSize } from '@renderer/utils/file'
 import { Check, Ellipsis, TriangleAlert, X } from 'lucide-react'
 import { createContext, type ReactNode, use } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 export { default as ToolHeader, type ToolHeaderProps } from '../ToolHeader'
 
@@ -196,14 +195,19 @@ function getStatusColor(color: StatusColor): string {
   }
 }
 
-export const StatusIndicatorContainer = styled.span<{ $color: StatusColor }>`
-  font-size: 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  opacity: 0.85;
-  color: ${(props) => getStatusColor(props.$color)};
-`
+export function StatusIndicatorContainer({
+  $color,
+  style,
+  ...props
+}: React.ComponentPropsWithoutRef<'span'> & { $color: StatusColor }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-xs opacity-85"
+      style={{ color: getStatusColor($color), ...style }}
+      {...props}
+    />
+  )
+}
 
 export function TruncatedIndicator({ originalLength }: { originalLength: number }) {
   const { t } = useTranslation()

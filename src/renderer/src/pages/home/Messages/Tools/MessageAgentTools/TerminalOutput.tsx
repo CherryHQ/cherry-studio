@@ -1,8 +1,9 @@
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
 import Ansi from 'ansi-to-react'
+import type { ComponentPropsWithoutRef } from 'react'
 import { memo, useMemo } from 'react'
-import styled from 'styled-components'
 
 // ANSI escape codes — 256-color format for theme-specific palettes
 const RST = '\x1b[0m'
@@ -305,50 +306,19 @@ export const TerminalOutput = memo(function TerminalOutput({
   const colorized = useMemo(() => colorizeShellOutput(content, commandMode, palette), [content, commandMode, palette])
 
   return (
-    <TerminalContainer $maxHeight={maxHeight}>
+    <TerminalContainer style={{ maxHeight }}>
       <Ansi>{colorized}</Ansi>
     </TerminalContainer>
   )
 })
 
-export const TerminalContainer = styled.div<{ $maxHeight?: string }>`
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background-color: #1e1e1e;
-  color: #d4d4d4;
-  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-all;
-  overflow-y: auto;
-  max-height: ${(props) => props.$maxHeight ?? '15rem'};
-
-  [theme-mode='light'] & {
-    background-color: #f5f5f5;
-    color: #1e1e1e;
-  }
-
-  a,
-  [role='link'] {
-    color: #569cd6 !important;
-    text-decoration: underline;
-    text-decoration-style: dotted;
-    text-underline-offset: 2px;
-
-    &:hover {
-      color: #7cb9e8 !important;
-      text-decoration-style: solid;
-    }
-  }
-
-  [theme-mode='light'] & a,
-  [theme-mode='light'] & [role='link'] {
-    color: #0366d6 !important;
-
-    &:hover {
-      color: #0550ae !important;
-    }
-  }
-`
+export const TerminalContainer = ({ className, style, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      "m-0 overflow-y-auto whitespace-pre-wrap break-all rounded-md bg-[#1e1e1e] px-2.5 py-2 font-['Menlo','Monaco','Courier_New',monospace] text-[#d4d4d4] text-xs leading-normal [&_[role=link]:hover]:text-[#7cb9e8]! [&_[role=link]:hover]:decoration-solid [&_[role=link]]:text-[#569cd6]! [&_[role=link]]:underline [&_[role=link]]:decoration-dotted [&_[role=link]]:underline-offset-2 [&_a:hover]:text-[#7cb9e8]! [&_a:hover]:decoration-solid [&_a]:text-[#569cd6]! [&_a]:underline [&_a]:decoration-dotted [&_a]:underline-offset-2 [[theme-mode=light]_&]:bg-[#f5f5f5] [[theme-mode=light]_&]:text-[#1e1e1e] [[theme-mode=light]_&_[role=link]:hover]:text-[#0550ae]! [[theme-mode=light]_&_[role=link]]:text-[#0366d6]! [[theme-mode=light]_&_a:hover]:text-[#0550ae]! [[theme-mode=light]_&_a]:text-[#0366d6]!",
+      className
+    )}
+    style={{ maxHeight: '15rem', ...style }}
+    {...props}
+  />
+)

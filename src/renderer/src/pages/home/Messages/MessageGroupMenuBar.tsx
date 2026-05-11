@@ -17,7 +17,6 @@ import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceT
 import type { FC } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { usePartsMap } from './Blocks'
 import MessageGroupModelList from './MessageGroupModelList'
@@ -150,35 +149,44 @@ const MessageGroupMenuBar: FC<Props> = ({
   )
 }
 
-const GroupMenuBar = styled.div<{ $layout: MultiModelMessageStyle }>`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  padding: 8px;
-  border-radius: 10px;
-  margin: 8px 10px 16px;
-  justify-content: space-between;
-  overflow: hidden;
-  border: 0.5px solid var(--color-border);
-  height: 40px;
-`
+const GroupMenuBar = ({
+  className,
+  $layout,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { $layout: MultiModelMessageStyle }) => {
+  void $layout
+  return (
+    <div
+      className={[
+        'group-menu-bar mx-2.5 mt-2 mb-4 flex h-10 flex-row items-center justify-between gap-2.5 overflow-hidden rounded-[10px] border-(--color-border) border-[0.5px] p-2',
+        className
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      {...props}
+    />
+  )
+}
 
-const LayoutContainer = styled.div`
-  display: flex;
-  gap: 4px;
-  flex-direction: row;
-`
+const LayoutContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex flex-row gap-1', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const LayoutOption = styled.div<{ $active: boolean }>`
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background-color: ${({ $active }) => ($active ? 'var(--color-background-soft)' : 'transparent')};
-
-  &:hover {
-    background-color: ${({ $active }) => ($active ? 'var(--color-background-soft)' : 'var(--color-hover)')};
-  }
-`
+const LayoutOption = ({
+  className,
+  $active,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { $active: boolean }) => (
+  <div
+    className={[
+      'cursor-pointer rounded px-1.5 py-0.5 hover:bg-(--color-hover)',
+      $active && 'bg-(--color-background-soft) hover:bg-(--color-background-soft)',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
 export default memo(MessageGroupMenuBar)

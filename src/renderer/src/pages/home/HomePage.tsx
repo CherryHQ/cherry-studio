@@ -12,7 +12,6 @@ import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@s
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import styled from 'styled-components'
 
 import Chat from './Chat'
 import Navbar from './Navbar'
@@ -138,15 +137,24 @@ const HomePage: FC = () => {
   }, [showSidebar])
 
   if (!activeTopic) {
-    return <Container id="home-page" />
+    return (
+      <div
+        id="home-page"
+        className="flex flex-1 flex-col [[navbar-position='left']_&]:max-w-[calc(100vw-var(--sidebar-width))] [[navbar-position='top']_&]:max-w-screen"
+      />
+    )
   }
 
   const panePosition = topicPosition === 'right' ? 'right' : 'left'
 
   return (
-    <Container id="home-page">
+    <div
+      id="home-page"
+      className="flex flex-1 flex-col [[navbar-position='left']_&]:max-w-[calc(100vw-var(--sidebar-width))] [[navbar-position='top']_&]:max-w-screen">
       {isLeftNavbar && <Navbar position="left" />}
-      <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
+      <div
+        id={isLeftNavbar ? 'content-container' : undefined}
+        className="flex flex-1 flex-row overflow-hidden [[navbar-position='top']_&]:max-w-[calc(100vw-12px)]">
         <Chat
           activeTopic={activeTopic}
           setActiveTopic={setActiveTopic}
@@ -161,32 +169,9 @@ const HomePage: FC = () => {
             tempTopicId && activeTopic.id === tempTopicId ? persistTemporaryTopicAndRefresh : undefined
           }
         />
-      </ContentContainer>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  [navbar-position='left'] & {
-    max-width: calc(100vw - var(--sidebar-width));
-  }
-  [navbar-position='top'] & {
-    max-width: 100vw;
-  }
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  overflow: hidden;
-
-  [navbar-position='top'] & {
-    max-width: calc(100vw - 12px);
-  }
-`
 
 export default HomePage

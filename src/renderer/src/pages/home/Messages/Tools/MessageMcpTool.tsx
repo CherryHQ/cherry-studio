@@ -13,10 +13,9 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { Collapse, ConfigProvider, Progress } from 'antd'
 import { Check, ChevronRight, ShieldCheck } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
-import type { FC } from 'react'
+import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { useToolApproval } from './hooks/useToolApproval'
 import {
@@ -390,163 +389,105 @@ const ToolResponseContent: FC<{
   )
 }
 
-const ToolContentWrapper = styled.div`
-  padding: 1px;
-  border-radius: 8px;
-  overflow: hidden;
+const ToolContentWrapper = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={[
+      'overflow-hidden rounded-lg p-px [&.pending]:bg-(--color-background-soft) [&.pending_.ant-collapse]:border-none [&_.ant-collapse]:border [&_.ant-collapse]:border-(--color-border)',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-  .ant-collapse {
-    border: 1px solid var(--color-border);
-  }
+const ActionsBar = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex flex-row items-center justify-between p-2', className].filter(Boolean).join(' ')} {...props} />
+)
 
-  &.pending {
-    background-color: var(--color-background-soft);
-    .ant-collapse {
-      border: none;
-    }
-  }
-`
+const ActionLabel = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={['flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-(--color-text-2) text-sm', className]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-const ActionsBar = styled.div`
-  padding: 8px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-`
+const ExpandIcon = ({
+  $isActive,
+  style,
+  ...props
+}: ComponentPropsWithoutRef<typeof ChevronRight> & { $isActive?: boolean }) => (
+  <ChevronRight
+    className="transition-transform duration-200"
+    style={{ transform: $isActive ? 'rotate(90deg)' : 'rotate(0deg)', ...style }}
+    {...props}
+  />
+)
 
-const ActionLabel = styled.div`
-  flex: 1;
-  font-size: 14px;
-  color: var(--color-text-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
+const CollapseContainer = ({ className, ...props }: ComponentPropsWithoutRef<typeof Collapse>) => (
+  <Collapse
+    className={[
+      '[&_.ant-collapse-header]:items-center! overflow-hidden rounded-[7px] border-none bg-(--color-background) [--status-color-error:var(--color-status-error,#ff4d4f)] [--status-color-invoking:var(--color-primary)] [--status-color-success:var(--color-primary,green)] [--status-color-warning:var(--color-status-warning,#faad14)] [&_.ant-collapse-content-box]:p-0! [&_.ant-collapse-header]:px-2.5! [&_.ant-collapse-header]:py-2!',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-const ExpandIcon = styled(ChevronRight)<{ $isActive?: boolean }>`
-  transition: transform 0.2s;
-  transform: ${({ $isActive }) => ($isActive ? 'rotate(90deg)' : 'rotate(0deg)')};
-`
+const ToolContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['my-2.5 first:mt-0 first:pt-0', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const CollapseContainer = styled(Collapse)`
-  --status-color-warning: var(--color-status-warning, #faad14);
-  --status-color-invoking: var(--color-primary);
-  --status-color-error: var(--color-status-error, #ff4d4f);
-  --status-color-success: var(--color-primary, green);
-  border-radius: 7px;
-  border: none;
-  background-color: var(--color-background);
-  overflow: hidden;
+const MarkdownContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={['[&_pre]:bg-transparent! [&_pre_span]:whitespace-pre-wrap', className].filter(Boolean).join(' ')}
+    {...props}
+  />
+)
 
-  .ant-collapse-header {
-    padding: 8px 10px !important;
-    align-items: center !important;
-  }
+const MessageTitleLabel = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={['ml-1 flex w-full flex-row items-center justify-between gap-2.5 p-0', className]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-  .ant-collapse-content-box {
-    padding: 0 !important;
-  }
-`
+const TitleContent = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex flex-row items-center gap-2', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const ToolContainer = styled.div`
-  margin-top: 10px;
-  margin-bottom: 10px;
+const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>) => (
+  <Flex className={['font-medium text-(--color-text) text-[13px]', className].filter(Boolean).join(' ')} {...props} />
+)
 
-  &:first-child {
-    margin-top: 0;
-    padding-top: 0;
-  }
-`
+const ActionButtonsContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['ml-auto flex items-center gap-1.5', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const MarkdownContainer = styled.div`
-  & pre {
-    background: transparent !important;
-    span {
-      white-space: pre-wrap;
-    }
-  }
-`
+const ActionButton = ({ className, ...props }: ComponentPropsWithoutRef<'button'>) => (
+  <button
+    type="button"
+    className={[
+      'flex h-7 min-w-7 cursor-pointer items-center justify-center gap-1 rounded border-none bg-transparent p-1 text-(--color-text-2) opacity-70 transition-all duration-200 hover:bg-(--color-bg-3) hover:text-(--color-text) hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2 [&.confirm-button:hover]:bg-(--color-primary-bg) [&.confirm-button:hover]:text-(--color-primary) [&.confirm-button]:text-(--color-primary) [&_.iconfont]:text-sm',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-const MessageTitleLabel = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  gap: 10px;
-  padding: 0;
-  margin-left: 4px;
-`
-
-const TitleContent = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-`
-
-const ToolName = styled(Flex)`
-  color: var(--color-text);
-  font-weight: 500;
-  font-size: 13px;
-`
-
-const ActionButtonsContainer = styled.div`
-  display: flex;
-  gap: 6px;
-  margin-left: auto;
-  align-items: center;
-`
-
-const ActionButton = styled.button`
-  background: none;
-  border: none;
-  color: var(--color-text-2);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.7;
-  transition: all 0.2s;
-  border-radius: 4px;
-  gap: 4px;
-  min-width: 28px;
-  height: 28px;
-
-  &:hover {
-    opacity: 1;
-    color: var(--color-text);
-    background-color: var(--color-bg-3);
-  }
-
-  &.confirm-button {
-    color: var(--color-primary);
-
-    &:hover {
-      background-color: var(--color-primary-bg);
-      color: var(--color-primary);
-    }
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-    opacity: 1;
-  }
-
-  .iconfont {
-    font-size: 14px;
-  }
-`
-
-const ToolResponseContainer = styled.div`
-  border-radius: 0 0 4px 4px;
-  overflow: auto;
-  max-height: 300px;
-  border-top: none;
-  position: relative;
-`
+const ToolResponseContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={['relative max-h-[300px] overflow-auto rounded-b border-t-0', className].filter(Boolean).join(' ')}
+    {...props}
+  />
+)
 
 export default memo(MessageMcpTool)

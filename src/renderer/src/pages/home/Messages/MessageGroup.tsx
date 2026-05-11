@@ -16,7 +16,6 @@ import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceT
 import { Popover } from 'antd'
 import type { ComponentProps, WheelEvent as ReactWheelEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
-import styled from 'styled-components'
 
 import MessageItem from './Message'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
@@ -359,134 +358,61 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   )
 }
 
-const GroupContainer = styled.div`
-  &.horizontal,
-  &.grid {
-    padding: 4px 10px;
-    .group-menu-bar {
-      margin-left: 0;
-      margin-right: 0;
-    }
-  }
-  &.multi-select-mode {
-    padding: 5px 10px;
-  }
-`
+const GroupContainer = ({ className, ...props }: ComponentProps<'div'>) => (
+  <div
+    className={classNames(
+      '[&.grid]:px-2.5 [&.grid]:py-1 [&.grid_.group-menu-bar]:mx-0 [&.horizontal]:px-2.5 [&.horizontal]:py-1 [&.horizontal_.group-menu-bar]:mx-0 [&.multi-select-mode]:px-2.5 [&.multi-select-mode]:py-[5px]',
+      className
+    )}
+    {...props}
+  />
+)
 
-const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }>`
-  width: 100%;
-  display: grid;
-  overflow-y: visible;
-  gap: 16px;
+const GridContainer = ({
+  className,
+  $count,
+  $gridColumns,
+  style,
+  ...props
+}: ComponentProps<typeof Scrollbar> & { $count: number; $gridColumns: number }) => {
+  const isHorizontal = className?.includes('horizontal')
+  const isGrid = className?.includes('grid')
+  const isFoldOrVertical = className?.includes('fold') || className?.includes('vertical')
+  const gridTemplateColumns = isHorizontal
+    ? `repeat(${$count}, minmax(420px, 1fr))`
+    : isGrid
+      ? `repeat(${$count > 1 ? $gridColumns || 2 : 1}, minmax(0, 1fr))`
+      : isFoldOrVertical
+        ? 'repeat(1, minmax(0, 1fr))'
+        : undefined
 
-  &.horizontal {
-    padding-bottom: 4px;
-    grid-template-columns: repeat(${({ $count }) => $count}, minmax(420px, 1fr));
-    overflow-x: auto;
-    overflow-y: hidden;
-  }
-  &.fold,
-  &.vertical {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
-    gap: 8px;
-  }
-  &.grid {
-    grid-template-columns: repeat(
-      ${({ $count, $gridColumns }) => ($count > 1 ? $gridColumns || 2 : 1)},
-      minmax(0, 1fr)
-    );
-    grid-template-rows: auto;
-  }
-
-  &.multi-select-mode {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
-    gap: 10px;
-    .grid {
-      height: auto;
-    }
-    .message {
-      border: 0.5px solid var(--color-border);
-      border-radius: 10px;
-      padding: 10px;
-      .message-content-container {
-        max-height: 200px;
-        overflow-y: hidden !important;
-      }
-      .MessageFooter {
-        display: none;
-      }
-    }
-  }
-`
+  return (
+    <Scrollbar
+      className={classNames(
+        '[&.multi-select-mode_.message-content-container]:overflow-y-hidden! grid w-full gap-4 overflow-y-visible [&.fold]:gap-2 [&.grid]:grid-rows-[auto] [&.horizontal]:overflow-x-auto [&.horizontal]:overflow-y-hidden [&.horizontal]:pb-1 [&.multi-select-mode]:gap-2.5 [&.multi-select-mode_.MessageFooter]:hidden [&.multi-select-mode_.grid]:h-auto [&.multi-select-mode_.message-content-container]:max-h-[200px] [&.multi-select-mode_.message]:rounded-[10px] [&.multi-select-mode_.message]:border-(--color-border) [&.multi-select-mode_.message]:border-[0.5px] [&.multi-select-mode_.message]:p-2.5',
+        className
+      )}
+      style={{ gridTemplateColumns, ...style }}
+      {...props}
+    />
+  )
+}
 
 interface MessageWrapperProps {
   $isInPopover?: boolean
 }
 
-const MessageWrapper = styled.div<MessageWrapperProps>`
-  &.horizontal {
-    padding: 1px;
-    overflow-y: visible;
-    .message {
-      height: 100%;
-      border: 0.5px solid var(--color-border);
-      border-radius: 10px;
-    }
-    .message-content-container {
-      flex: 1;
-      padding-left: 0;
-      max-height: calc(100vh - 350px);
-      overflow-y: auto !important;
-      margin-right: -10px;
-    }
-    .MessageFooter {
-      margin-left: 0;
-      margin-top: 2px;
-      margin-bottom: 2px;
-    }
-  }
-  &.grid {
-    display: block;
-    height: 300px;
-    overflow-y: hidden;
-    border: 0.5px solid var(--color-border);
-    border-radius: 10px;
-    cursor: pointer;
-    .message {
-      height: 100%;
-    }
-    .message-content-container {
-      overflow: hidden;
-      padding-left: 0;
-      flex: 1;
-      pointer-events: none;
-    }
-    .MessageFooter {
-      margin-left: 0;
-      margin-top: 2px;
-      margin-bottom: 2px;
-    }
-  }
-  &.in-popover {
-    height: auto;
-    border: none;
-    max-height: 50vh;
-    overflow-y: auto;
-    cursor: default;
-    .message-content-container {
-      padding-left: 0;
-      pointer-events: auto;
-    }
-    .MessageFooter {
-      margin-left: 0;
-    }
-  }
-  &.fold {
-    display: none;
-    &.selected {
-      display: inline-block;
-    }
-  }
-`
+const MessageWrapper = ({ className, $isInPopover, ...props }: ComponentProps<'div'> & MessageWrapperProps) => {
+  void $isInPopover
+  return (
+    <div
+      className={classNames(
+        '[&.horizontal_.message-content-container]:overflow-y-auto! [&.fold.selected]:inline-block [&.fold]:hidden [&.grid]:block [&.grid]:h-[300px] [&.grid]:cursor-pointer [&.grid]:overflow-y-hidden [&.grid]:rounded-[10px] [&.grid]:border-(--color-border) [&.grid]:border-[0.5px] [&.grid_.MessageFooter]:mt-0.5 [&.grid_.MessageFooter]:mb-0.5 [&.grid_.MessageFooter]:ml-0 [&.grid_.message-content-container]:pointer-events-none [&.grid_.message-content-container]:flex-1 [&.grid_.message-content-container]:overflow-hidden [&.grid_.message-content-container]:pl-0 [&.grid_.message]:h-full [&.horizontal]:overflow-y-visible [&.horizontal]:p-px [&.horizontal_.MessageFooter]:mt-0.5 [&.horizontal_.MessageFooter]:mb-0.5 [&.horizontal_.MessageFooter]:ml-0 [&.horizontal_.message-content-container]:mr-[-10px] [&.horizontal_.message-content-container]:max-h-[calc(100vh-350px)] [&.horizontal_.message-content-container]:flex-1 [&.horizontal_.message-content-container]:pl-0 [&.horizontal_.message]:h-full [&.horizontal_.message]:rounded-[10px] [&.horizontal_.message]:border-(--color-border) [&.horizontal_.message]:border-[0.5px] [&.in-popover]:h-auto [&.in-popover]:max-h-[50vh] [&.in-popover]:cursor-default [&.in-popover]:overflow-y-auto [&.in-popover]:border-none [&.in-popover_.MessageFooter]:ml-0 [&.in-popover_.message-content-container]:pointer-events-auto [&.in-popover_.message-content-container]:pl-0',
+        className
+      )}
+      {...props}
+    />
+  )
+}
 
 export default memo(MessageGroup)

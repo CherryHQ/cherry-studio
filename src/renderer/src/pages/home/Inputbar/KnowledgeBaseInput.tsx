@@ -3,14 +3,13 @@ import HorizontalScrollContainer from '@renderer/components/HorizontalScrollCont
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import type { KnowledgeBase } from '@renderer/types'
 import type { FC } from 'react'
-import styled from 'styled-components'
 
 const KnowledgeBaseInput: FC<{
   selectedKnowledgeBases: KnowledgeBase[]
   onRemoveKnowledgeBase: (knowledgeBase: KnowledgeBase) => void
 }> = ({ selectedKnowledgeBases, onRemoveKnowledgeBase }) => {
   return (
-    <Container>
+    <div className="w-full px-[15px] py-[5px]">
       <HorizontalScrollContainer dependencies={[selectedKnowledgeBases]} expandable>
         {selectedKnowledgeBases.map((knowledgeBase) => (
           <CustomTag
@@ -23,13 +22,8 @@ const KnowledgeBaseInput: FC<{
           </CustomTag>
         ))}
       </HorizontalScrollContainer>
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  width: 100%;
-  padding: 5px 15px 5px 15px;
-`
 
 export default KnowledgeBaseInput

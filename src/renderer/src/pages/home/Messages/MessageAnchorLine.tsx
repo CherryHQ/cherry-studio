@@ -12,9 +12,8 @@ import { scrollIntoView } from '@renderer/utils/dom'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { CircleChevronDown } from 'lucide-react'
-import { type FC, useCallback, useEffect, useRef, useState } from 'react'
+import { type FC, type Ref, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { usePartsMap } from './Blocks'
 
@@ -270,84 +269,101 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   )
 }
 
-const MessageItemContainer = styled.div`
-  line-height: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: space-between;
-  text-align: right;
-  gap: 3px;
-  opacity: 0;
-  transform-origin: right center;
-  transition: transform cubic-bezier(0.25, 1, 0.5, 1) 150ms;
-  will-change: transform;
-`
+const MessageItemContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={[
+      'flex origin-right flex-col items-end justify-between gap-[3px] text-right leading-none opacity-0 transition-transform duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] [will-change:transform] group-hover:opacity-100',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-const MessageItemAvatar = styled(Avatar)`
-  transition:
-    width,
-    height,
-    cubic-bezier(0.25, 1, 0.5, 1) 150ms;
-  will-change: width, height;
-`
+const MessageItemAvatar = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Avatar>) => (
+  <Avatar
+    className={[
+      'transition-[width,height] duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] [will-change:width,height]',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-const MessageLineContainer = styled.div<{ $height: number | null }>`
-  width: 14px;
-  position: fixed;
-  top: calc(50% - var(--status-bar-height) - 10px);
-  right: 13px;
-  max-height: ${(props) =>
-    props.$height ? `${props.$height - 20}px` : 'calc(100% - var(--status-bar-height) * 2 - 20px)'};
-  transform: translateY(-50%);
-  z-index: 0;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  font-size: 5px;
-  overflow: hidden;
-  &:hover {
-    width: 500px;
-    overflow-x: visible;
-    overflow-y: hidden;
-    ${MessageItemContainer} {
-      opacity: 1;
-    }
-  }
-`
+const MessageLineContainer = ({
+  ref,
+  className,
+  $height,
+  style,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { $height: number | null } & {
+  ref?: React.RefObject<HTMLDivElement | null>
+}) => (
+  <div
+    ref={ref}
+    className={[
+      'group fixed right-[13px] z-0 flex w-[14px] translate-y-[-50%] select-none items-center justify-end overflow-hidden text-[5px] hover:w-[500px] hover:overflow-y-hidden hover:overflow-x-visible',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    style={{
+      top: 'calc(50% - var(--status-bar-height) - 10px)',
+      maxHeight: $height ? `${$height - 20}px` : 'calc(100% - var(--status-bar-height) * 2 - 20px)',
+      ...style
+    }}
+    {...props}
+  />
+)
+MessageLineContainer.displayName = 'MessageLineContainer'
 
-const MessagesList = styled.div`
-  display: flex;
-  flex-direction: column;
-  will-change: transform;
-`
+const MessagesList = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { ref?: Ref<HTMLDivElement> }) => (
+  <div
+    ref={ref}
+    className={['flex flex-col [will-change:transform]', className].filter(Boolean).join(' ')}
+    {...props}
+  />
+)
+MessagesList.displayName = 'MessagesList'
 
-const MessageItem = styled.div`
-  display: flex;
-  position: relative;
-  cursor: pointer;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 10px;
-  transform-origin: right center;
-  padding: 2px 0;
-  will-change: opacity;
-  opacity: 0.4;
-  transition: opacity 0.1s linear;
-`
+const MessageItem = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { ref?: Ref<HTMLDivElement> }) => (
+  <div
+    ref={ref}
+    className={[
+      'relative flex origin-right cursor-pointer items-center justify-end gap-2.5 py-0.5 opacity-40 transition-opacity duration-100 ease-linear [will-change:opacity]',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
+MessageItem.displayName = 'MessageItem'
 
-const MessageItemTitle = styled.div`
-  font-weight: 500;
-  color: var(--color-text);
-  white-space: nowrap;
-`
-const MessageItemContent = styled.div`
-  color: var(--color-text-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px;
-`
+const MessageItemTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={['whitespace-nowrap font-medium text-(--color-text)', className].filter(Boolean).join(' ')}
+    {...props}
+  />
+)
+const MessageItemContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={['max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-(--color-text-2)', className]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
 export default MessageAnchorLine

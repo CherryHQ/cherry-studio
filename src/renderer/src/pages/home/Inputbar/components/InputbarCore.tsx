@@ -1,4 +1,5 @@
 import { HolderOutlined } from '@ant-design/icons'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -22,7 +23,6 @@ import { CirclePause, Languages } from 'lucide-react'
 import type { CSSProperties, FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import NarrowLayout from '../../Messages/NarrowLayout'
 import AttachmentPreview from '../AttachmentPreview'
@@ -678,108 +678,60 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   )
 }
 
-// Styled Components
-const DragHandle = styled.div`
-  position: absolute;
-  top: -3px;
-  left: 0;
-  right: 0;
-  height: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: row-resize;
-  color: var(--color-icon);
-  opacity: 0;
-  transition: opacity 0.2s;
-  z-index: 1;
+const DragHandle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      '-top-[3px] absolute right-0 left-0 z-[1] flex h-1.5 cursor-row-resize items-center justify-center text-(--color-icon) opacity-0 transition-opacity duration-200 hover:opacity-100 [&_.anticon]:rotate-90 [&_.anticon]:text-sm',
+      className
+    )}
+    {...props}
+  />
+)
 
-  &:hover {
-    opacity: 1;
-  }
+const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn('relative z-[2] flex flex-col px-[18px] pt-0 pb-[18px] [[navbar-position=top]_&]:pb-2.5', className)}
+    {...props}
+  />
+)
 
-  .anticon {
-    transform: rotate(90deg);
-    font-size: 14px;
-  }
-`
+const InputBarContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      "relative rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) pt-2 transition-all duration-200 ease-in-out [&.file-dragging]:border-2 [&.file-dragging]:border-[#2ecc71] [&.file-dragging]:border-dashed [&.file-dragging]:before:pointer-events-none [&.file-dragging]:before:absolute [&.file-dragging]:before:inset-0 [&.file-dragging]:before:z-[5] [&.file-dragging]:before:rounded-[14px] [&.file-dragging]:before:bg-[rgba(46,204,113,0.03)] [&.file-dragging]:before:content-['']",
+      className
+    )}
+    {...props}
+  />
+)
 
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  z-index: 2;
-  padding: 0 18px 18px 18px;
-  [navbar-position='top'] & {
-    padding: 0 18px 10px 18px;
-  }
-`
+const Textarea = ({
+  ref,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof TextArea> & { ref?: React.RefObject<TextAreaRef | null> }) => (
+  <TextArea
+    ref={ref}
+    className={cn(
+      'resize-none! box-border flex w-full overflow-auto rounded-none p-0 transition-none! [&.ant-input]:leading-[1.4] [&::-webkit-scrollbar]:w-[3px]',
+      className
+    )}
+    {...props}
+  />
+)
+Textarea.displayName = 'Textarea'
 
-const InputBarContainer = styled.div`
-  border: 0.5px solid var(--color-border);
-  transition: all 0.2s ease;
-  position: relative;
-  border-radius: 17px;
-  padding-top: 8px;
-  background-color: var(--color-background-opacity);
+const BottomBar = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn('relative z-[2] flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-[5px]', className)}
+    {...props}
+  />
+)
 
-  &.file-dragging {
-    border: 2px dashed #2ecc71;
+const LeftSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex min-w-0 flex-1 items-center', className)} {...props} />
+)
 
-    &::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(46, 204, 113, 0.03);
-      border-radius: 14px;
-      z-index: 5;
-      pointer-events: none;
-    }
-  }
-`
-
-const Textarea = styled(TextArea)`
-  padding: 0;
-  border-radius: 0;
-  display: flex;
-  resize: none !important;
-  overflow: auto;
-  width: 100%;
-  box-sizing: border-box;
-  transition: none !important;
-  &.ant-input {
-    line-height: 1.4;
-  }
-  &::-webkit-scrollbar {
-    width: 3px;
-  }
-`
-
-const BottomBar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  padding: 5px 8px;
-  height: 40px;
-  gap: 16px;
-  position: relative;
-  z-index: 2;
-  flex-shrink: 0;
-`
-
-const LeftSection = styled.div`
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-`
-
-const RightSection = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-`
+const RightSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-row items-center gap-1.5', className)} {...props} />
+)

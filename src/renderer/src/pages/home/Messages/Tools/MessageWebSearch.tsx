@@ -4,7 +4,6 @@ import { webSearchInputSchema, type WebSearchOutputItem, webSearchOutputSchema }
 import { Typography } from 'antd'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const { Text } = Typography
 
@@ -18,17 +17,17 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
   return toolResponse.status !== 'done' ? (
     <Spinner
       text={
-        <PrepareToolWrapper>
+        <span className="flex items-center gap-1 py-[5px] pr-[5px] pl-0 text-sm">
           {t('message.searching')}
           <span>{query}</span>
-        </PrepareToolWrapper>
+        </span>
       }
     />
   ) : (
-    <MessageWebSearchToolTitleTextWrapper type="secondary">
+    <Text className="flex items-center gap-1 p-[5px]" type="secondary">
       <Search size={16} style={{ color: 'unset' }} />
       {t('message.websearch.fetch_complete', { count: resultCount })}
-    </MessageWebSearchToolTitleTextWrapper>
+    </Text>
   )
 }
 
@@ -37,7 +36,7 @@ export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: Norma
   if (toolResponse.status !== 'done' || !outputParse.success) return null
 
   return (
-    <MessageWebSearchToolBodyUlWrapper>
+    <ul className="flex flex-col gap-1 p-0 [&>li]:m-0 [&>li]:max-w-[70%] [&>li]:overflow-hidden [&>li]:text-ellipsis [&>li]:whitespace-nowrap [&>li]:p-0">
       {outputParse.data.map((result: WebSearchOutputItem) => (
         <li key={result.id}>
           <a href={result.url} target="_blank" rel="noreferrer">
@@ -45,37 +44,6 @@ export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: Norma
           </a>
         </li>
       ))}
-    </MessageWebSearchToolBodyUlWrapper>
+    </ul>
   )
 }
-
-const PrepareToolWrapper = styled.span`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 14px;
-  padding: 5px;
-  padding-left: 0;
-`
-
-const MessageWebSearchToolTitleTextWrapper = styled(Text)`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px;
-`
-
-const MessageWebSearchToolBodyUlWrapper = styled.ul`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0;
-  > li {
-    padding: 0;
-    margin: 0;
-    max-width: 70%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-`

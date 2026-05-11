@@ -4,7 +4,6 @@ import MarqueeText from '@renderer/components/MarqueeText'
 import { fetchXOEmbed, isXPostUrl } from '@renderer/utils/fetch'
 import { useQuery } from '@tanstack/react-query'
 import React, { memo, useCallback, useMemo } from 'react'
-import styled from 'styled-components'
 import * as z from 'zod'
 
 export const CitationSchema = z.object({
@@ -55,20 +54,41 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
   const tooltipContent = useMemo(
     () => (
       <div style={{ userSelect: 'text' }}>
-        <TooltipHeader role="button" aria-label={`Open ${sourceTitle} in new tab`} onClick={handleClick}>
+        <div
+          className="mb-2 flex cursor-pointer items-center gap-2 hover:opacity-80"
+          role="button"
+          aria-label={`Open ${sourceTitle} in new tab`}
+          onClick={handleClick}>
           <Favicon hostname={hostname} alt={sourceTitle} />
-          <TooltipTitle role="heading" aria-level={3} title={sourceTitle}>
+          <div
+            className="overflow-hidden text-ellipsis whitespace-nowrap text-(--color-text-1) text-sm leading-[1.4]"
+            role="heading"
+            aria-level={3}
+            title={sourceTitle}>
             <MarqueeText>{sourceTitle}</MarqueeText>
-          </TooltipTitle>
-        </TooltipHeader>
+          </div>
+        </div>
         {displayContent && (
-          <TooltipBody role="article" aria-label="Citation content">
+          <div
+            className="mb-2 overflow-hidden text-(--color-text-2) text-[13px] leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
+            role="article"
+            aria-label="Citation content"
+            style={{
+              display: '-webkit-box',
+              overflow: 'hidden',
+              WebkitBoxOrient: 'vertical',
+              WebkitLineClamp: 3
+            }}>
             {displayContent}
-          </TooltipBody>
+          </div>
         )}
-        <TooltipFooter role="button" aria-label={`Visit ${hostname}`} onClick={handleClick}>
+        <div
+          className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-(--color-link) text-xs hover:underline"
+          role="button"
+          aria-label={`Visit ${hostname}`}
+          onClick={handleClick}>
           {hostname}
-        </TooltipFooter>
+        </div>
       </div>
     ),
     [displayContent, hostname, handleClick, sourceTitle]
@@ -83,50 +103,5 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
     </Tooltip>
   )
 }
-
-const TooltipHeader = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  cursor: pointer;
-
-  &:hover {
-    opacity: 0.8;
-  }
-`
-
-const TooltipTitle = styled.div`
-  color: var(--color-text-1);
-  font-size: 14px;
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const TooltipBody = styled.div`
-  font-size: 13px;
-  line-height: 1.5;
-  margin-bottom: 8px;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  color: var(--color-text-2);
-`
-
-const TooltipFooter = styled.div`
-  font-size: 12px;
-  color: var(--color-link);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-
-  &:hover {
-    text-decoration: underline;
-  }
-`
 
 export default memo(CitationTooltip)

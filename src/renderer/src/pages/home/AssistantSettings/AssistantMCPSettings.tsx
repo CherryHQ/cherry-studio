@@ -5,7 +5,6 @@ import { getEffectiveMcpMode } from '@renderer/types'
 import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { Empty, Radio } from 'antd'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   assistant: Assistant
@@ -42,8 +41,8 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
   const enabledCount = enabledServerIds.length
 
   return (
-    <Container>
-      <HeaderContainer>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-4 flex items-center justify-between">
         <Box style={{ fontWeight: 'bold', fontSize: '14px' }}>
           {t('assistants.settings.mcp.title')}
           <InfoTooltip
@@ -51,51 +50,66 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
             iconProps={{ className: 'ml-1.5 text-xs text-color-text-2 cursor-help' }}
           />
         </Box>
-      </HeaderContainer>
+      </div>
 
-      <ModeSelector>
+      <div className="mb-4 [&_.ant-radio-button-wrapper:first-child]:rounded-lg [&_.ant-radio-button-wrapper:last-child]:rounded-lg [&_.ant-radio-button-wrapper:not(:first-child)::before]:hidden [&_.ant-radio-button-wrapper]:h-auto [&_.ant-radio-button-wrapper]:rounded-lg [&_.ant-radio-button-wrapper]:border [&_.ant-radio-button-wrapper]:border-(--color-border) [&_.ant-radio-button-wrapper]:px-4 [&_.ant-radio-button-wrapper]:py-3 [&_.ant-radio-group]:flex [&_.ant-radio-group]:flex-col [&_.ant-radio-group]:gap-2">
         <Radio.Group value={currentMode} onChange={(e) => handleModeChange(e.target.value)}>
           <Radio.Button value="disabled">
-            <ModeOption>
-              <ModeLabel>{t('assistants.settings.mcp.mode.disabled.label')}</ModeLabel>
-              <ModeDescription>{t('assistants.settings.mcp.mode.disabled.description')}</ModeDescription>
-            </ModeOption>
+            <div className="flex flex-col gap-0.5">
+              <span className="font-semibold">{t('assistants.settings.mcp.mode.disabled.label')}</span>
+              <span className="text-(--color-text-2) text-xs">
+                {t('assistants.settings.mcp.mode.disabled.description')}
+              </span>
+            </div>
           </Radio.Button>
           <Radio.Button value="auto">
-            <ModeOption>
-              <ModeLabel>{t('assistants.settings.mcp.mode.auto.label')}</ModeLabel>
-              <ModeDescription>{t('assistants.settings.mcp.mode.auto.description')}</ModeDescription>
-            </ModeOption>
+            <div className="flex flex-col gap-0.5">
+              <span className="font-semibold">{t('assistants.settings.mcp.mode.auto.label')}</span>
+              <span className="text-(--color-text-2) text-xs">
+                {t('assistants.settings.mcp.mode.auto.description')}
+              </span>
+            </div>
           </Radio.Button>
           <Radio.Button value="manual">
-            <ModeOption>
-              <ModeLabel>{t('assistants.settings.mcp.mode.manual.label')}</ModeLabel>
-              <ModeDescription>{t('assistants.settings.mcp.mode.manual.description')}</ModeDescription>
-            </ModeOption>
+            <div className="flex flex-col gap-0.5">
+              <span className="font-semibold">{t('assistants.settings.mcp.mode.manual.label')}</span>
+              <span className="text-(--color-text-2) text-xs">
+                {t('assistants.settings.mcp.mode.manual.description')}
+              </span>
+            </div>
           </Radio.Button>
         </Radio.Group>
-      </ModeSelector>
+      </div>
 
       {currentMode === 'manual' && (
         <>
           {allMcpServers.length > 0 && (
-            <EnabledCount>
+            <span className="mb-2 text-(--color-text-2) text-xs">
               {enabledCount} / {allMcpServers.length} {t('settings.mcp.active')}
-            </EnabledCount>
+            </span>
           )}
 
           {allMcpServers.length > 0 ? (
-            <ServerList>
+            <div className="flex flex-col gap-2 overflow-y-auto">
               {allMcpServers.map((server) => {
                 const isEnabled = enabledServerIds.includes(server.id)
 
                 return (
-                  <ServerItem key={server.id} isEnabled={isEnabled}>
-                    <ServerInfo>
-                      <ServerName>{server.name}</ServerName>
-                      {server.description && <ServerDescription>{server.description}</ServerDescription>}
-                      {server.baseUrl && <ServerUrl>{server.baseUrl}</ServerUrl>}
-                    </ServerInfo>
+                  <div
+                    key={server.id}
+                    className="flex items-center justify-between rounded-lg border border-(--color-border) bg-(--color-background-mute) px-4 py-3 transition-all duration-200"
+                    style={{ opacity: isEnabled ? 1 : 0.7 }}>
+                    <div className="flex flex-1 flex-col overflow-hidden">
+                      <div className="mb-1 font-semibold">{server.name}</div>
+                      {server.description && (
+                        <div className="mb-[3px] text-(--color-text-2) text-[0.85rem]">{server.description}</div>
+                      )}
+                      {server.baseUrl && (
+                        <div className="overflow-hidden text-ellipsis whitespace-nowrap text-(--color-text-3) text-[0.8rem]">
+                          {server.baseUrl}
+                        </div>
+                      )}
+                    </div>
                     <Tooltip
                       content={
                         !server.isActive
@@ -108,139 +122,22 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
                         onCheckedChange={() => handleServerToggle(server.id)}
                       />
                     </Tooltip>
-                  </ServerItem>
+                  </div>
                 )
               })}
-            </ServerList>
+            </div>
           ) : (
-            <EmptyContainer>
+            <div className="flex flex-1 items-center justify-center py-10">
               <Empty
                 description={t('assistants.settings.mcp.noServersAvailable', 'No MCP servers available')}
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
               />
-            </EmptyContainer>
+            </div>
           )}
         </>
       )}
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-`
-
-const HeaderContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-`
-
-const ModeSelector = styled.div`
-  margin-bottom: 16px;
-
-  .ant-radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .ant-radio-button-wrapper {
-    height: auto;
-    padding: 12px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border);
-
-    &:not(:first-child)::before {
-      display: none;
-    }
-
-    &:first-child {
-      border-radius: 8px;
-    }
-
-    &:last-child {
-      border-radius: 8px;
-    }
-  }
-`
-
-const ModeOption = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-`
-
-const ModeLabel = styled.span`
-  font-weight: 600;
-`
-
-const ModeDescription = styled.span`
-  font-size: 12px;
-  color: var(--color-text-2);
-`
-
-const EnabledCount = styled.span`
-  font-size: 12px;
-  color: var(--color-text-2);
-  margin-bottom: 8px;
-`
-
-const EmptyContainer = styled.div`
-  display: flex;
-  flex: 1;
-  justify-content: center;
-  align-items: center;
-  padding: 40px 0;
-`
-
-const ServerList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow-y: auto;
-`
-
-const ServerItem = styled.div<{ isEnabled: boolean }>`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-radius: 8px;
-  background-color: var(--color-background-mute);
-  border: 1px solid var(--color-border);
-  transition: all 0.2s ease;
-  opacity: ${(props) => (props.isEnabled ? 1 : 0.7)};
-`
-
-const ServerInfo = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-`
-
-const ServerName = styled.div`
-  font-weight: 600;
-  margin-bottom: 4px;
-`
-
-const ServerDescription = styled.div`
-  font-size: 0.85rem;
-  color: var(--color-text-2);
-  margin-bottom: 3px;
-`
-
-const ServerUrl = styled.div`
-  font-size: 0.8rem;
-  color: var(--color-text-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`
 
 export default AssistantMCPSettings

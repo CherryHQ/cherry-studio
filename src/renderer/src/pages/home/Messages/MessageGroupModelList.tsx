@@ -14,7 +14,6 @@ import { motion } from 'motion/react'
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 interface MessageGroupModelListProps {
   messages: Message[]
   selectMessageId: string
@@ -128,127 +127,82 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
   )
 }
 
-const Container = styled(RowFlex)`
-  flex: 1;
-  overflow: hidden;
-  align-items: center;
-  margin-left: 4px;
-`
+const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof RowFlex>) => (
+  <RowFlex className={['ml-1 flex-1 items-center overflow-hidden', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const DisplayModeToggle = styled.div<{ displayMode: MultiModelFoldDisplayMode }>`
-  display: flex;
-  cursor: pointer;
-  padding: 2px 6px 3px 6px;
-  border-radius: 4px;
-  width: 26px;
-  height: 26px;
+const DisplayModeToggle = ({
+  className,
+  displayMode,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { displayMode: MultiModelFoldDisplayMode }) => {
+  void displayMode
+  return (
+    <div
+      className={[
+        'flex h-[26px] w-[26px] cursor-pointer rounded px-1.5 pt-0.5 pb-[3px] hover:bg-(--color-hover)',
+        className
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      {...props}
+    />
+  )
+}
 
-  &:hover {
-    background-color: var(--color-hover);
-  }
-`
+const ModelsContainer = ({
+  className,
+  $displayMode,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof Scrollbar> & { $displayMode: MultiModelFoldDisplayMode }) => (
+  <Scrollbar
+    className={[
+      '[&_.avatar-group.ant-avatar-group>*:has(+_*:hover)]:-translate-x-0.5 flex flex-1 items-center overflow-x-auto px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&_.avatar-group.ant-avatar-group>*:first-child]:ml-0! [&_.avatar-group.ant-avatar-group>*:has(+_*:hover)]:mr-0.5! [&_.avatar-group.ant-avatar-group>*:hover+*+*]:ml-[-4px]! [&_.avatar-group.ant-avatar-group>*:hover+*]:ml-[5px]! [&_.avatar-group.ant-avatar-group>*]:relative [&_.avatar-group.ant-avatar-group>*]:ml-[-6px]! [&_.avatar-group.ant-avatar-group>*]:transition-[transform,margin] [&_.avatar-group.ant-avatar-group>*]:duration-[180ms] [&_.avatar-group.ant-avatar-group>*]:ease-out [&_.avatar-group.ant-avatar-group>*]:[will-change:transform] [&_.avatar-group.ant-avatar-group]:flex [&_.avatar-group.ant-avatar-group]:flex-nowrap [&_.avatar-group.ant-avatar-group]:items-center [&_.avatar-group.ant-avatar-group]:px-1 [&_.avatar-group.ant-avatar-group]:py-1.5',
+      $displayMode === 'expanded' ? 'flex-col justify-between' : 'flex-row justify-start',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-const ModelsContainer = styled(Scrollbar)<{ $displayMode: MultiModelFoldDisplayMode }>`
-  display: flex;
-  flex-direction: ${(props) => (props.$displayMode === 'expanded' ? 'column' : 'row')};
-  justify-content: ${(props) => (props.$displayMode === 'expanded' ? 'space-between' : 'flex-start')};
-  align-items: center;
-  overflow-x: auto;
-  flex: 1;
-  padding: 0 8px;
+const AvatarWrapper = ({
+  className,
+  $isSelected,
+  style,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { $isSelected: boolean }) => (
+  <div
+    className={[
+      'inline-flex cursor-pointer rounded-full bg-(--color-background) transition-[transform,margin,filter] duration-[180ms] ease-out hover:mr-1! hover:ml-2! hover:translate-x-1.5 hover:scale-115 hover:brightness-[1.02]',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    style={{ zIndex: $isSelected ? 1 : 0, border: $isSelected ? '2px solid var(--color-primary)' : 'none', ...style }}
+    {...props}
+  />
+)
 
-  &::-webkit-scrollbar {
-    display: none;
-  }
+const Segmented = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof AntdSegmented>) => (
+  <AntdSegmented
+    className={[
+      'w-full bg-transparent! [&_.ant-segmented-item-selected]:rounded-(--list-item-border-radius)! [&_.ant-segmented-item-selected]:border-(--color-border) [&_.ant-segmented-item-selected]:border-[0.5px] [&_.ant-segmented-item:hover]:bg-transparent! [&_.ant-segmented-item]:rounded-(--list-item-border-radius)! [&_.ant-segmented-thumb]:rounded-(--list-item-border-radius)! [&_.ant-segmented-thumb]:border-(--color-border) [&_.ant-segmented-thumb]:border-[0.5px]',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-  /* Card mode styles */
-  .avatar-group.ant-avatar-group {
-    display: flex;
-    align-items: center;
-    flex-wrap: nowrap;
-    padding: 6px 4px;
+const SegmentedLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex items-center gap-[5px] py-[3px]', className].filter(Boolean).join(' ')} {...props} />
+)
 
-    /* Base style - default overlapping effect */
-    & > * {
-      margin-left: -6px !important;
-      transition:
-        transform 0.18s ease-out,
-        margin 0.18s ease-out !important;
-      position: relative;
-      will-change: transform;
-    }
-
-    & > *:first-child {
-      margin-left: 0 !important;
-    }
-
-    /* Element before the hovered one */
-    & > *:has(+ *:hover) {
-      margin-right: 2px !important;
-      /* Use transform instead of margin to reduce layout recalculations */
-      transform: translateX(-2px);
-    }
-
-    /* Element after the hovered one */
-    & > *:hover + * {
-      margin-left: 5px !important;
-      /* Avoid transform here to prevent jittering */
-    }
-
-    /* Second element after the hovered one */
-    & > *:hover + * + * {
-      margin-left: -4px !important;
-    }
-  }
-`
-
-const AvatarWrapper = styled.div<{ $isSelected: boolean }>`
-  cursor: pointer;
-  display: inline-flex;
-  border-radius: 50%;
-  background: var(--color-background);
-  transition:
-    transform 0.18s ease-out,
-    margin 0.18s ease-out,
-    filter 0.18s ease-out;
-  z-index: ${(props) => (props.$isSelected ? 1 : 0)};
-  border: ${(props) => (props.$isSelected ? '2px solid var(--color-primary)' : 'none')};
-
-  &:hover {
-    transform: translateX(6px) scale(1.15);
-    filter: brightness(1.02);
-    margin-left: 8px !important;
-    margin-right: 4px !important;
-  }
-`
-
-const Segmented = styled(AntdSegmented)`
-  width: 100%;
-  background-color: transparent !important;
-
-  .ant-segmented-item {
-    border-radius: var(--list-item-border-radius) !important;
-    &:hover {
-      background: transparent !important;
-    }
-  }
-  .ant-segmented-thumb,
-  .ant-segmented-item-selected {
-    border: 0.5px solid var(--color-border);
-    border-radius: var(--list-item-border-radius) !important;
-  }
-`
-
-const SegmentedLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 0;
-`
-
-const ModelName = styled.span`
-  font-weight: 500;
-  font-size: 12px;
-`
+const ModelName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={['font-medium text-xs', className].filter(Boolean).join(' ')} {...props} />
+)
 
 export default memo(MessageGroupModelList)

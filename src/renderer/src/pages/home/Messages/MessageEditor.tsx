@@ -22,10 +22,9 @@ import { Space } from 'antd'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
 import { Save, Send, X } from 'lucide-react'
-import type { FC } from 'react'
+import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { FileNameRender, getFileIcon } from '../Inputbar/AttachmentPreview'
 import AttachmentButton from '../Inputbar/tools/components/AttachmentButton'
@@ -327,75 +326,39 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   )
 }
 
-const EditorContainer = styled(Space)`
-  margin: 15px 0 5px 0;
-  transition: all 0.2s ease;
-  width: 100%;
+const EditorContainer = ({ className, ...props }: ComponentPropsWithoutRef<typeof Space>) => (
+  <Space
+    className={[
+      "[&_.editing-message]:resize-none! my-[15px] mb-[5px] w-full transition-all duration-200 ease-in-out [&.file-dragging]:border-2 [&.file-dragging]:border-[#2ecc71] [&.file-dragging]:border-dashed [&.file-dragging]:before:pointer-events-none [&.file-dragging]:before:absolute [&.file-dragging]:before:inset-0 [&.file-dragging]:before:z-[5] [&.file-dragging]:before:rounded-[14px] [&.file-dragging]:before:bg-[rgba(46,204,113,0.03)] [&.file-dragging]:before:content-[''] [&_.editing-message.ant-input]:leading-[1.4] [&_.editing-message]:box-border [&_.editing-message]:w-full [&_.editing-message]:flex-1 [&_.editing-message]:overflow-auto [&_.editing-message]:rounded-[15px] [&_.editing-message]:border-(--color-border) [&_.editing-message]:border-[0.5px] [&_.editing-message]:bg-(--color-background-opacity) [&_.editing-message]:p-[1em] [&_.editing-message]:font-[Ubuntu]",
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-  &.file-dragging {
-    border: 2px dashed #2ecc71;
+const FileBlocksContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={['my-2 flex flex-wrap gap-2 rounded bg-transparent p-0', className].filter(Boolean).join(' ')}
+    {...props}
+  />
+)
 
-    &::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(46, 204, 113, 0.03);
-      border-radius: 14px;
-      z-index: 5;
-      pointer-events: none;
-    }
-  }
+const ActionBar = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['mt-2 flex justify-between px-2', className].filter(Boolean).join(' ')} {...props} />
+)
 
-  .editing-message {
-    background-color: var(--color-background-opacity);
-    border: 0.5px solid var(--color-border);
-    border-radius: 15px;
-    padding: 1em;
-    flex: 1;
-    font-family: Ubuntu;
-    resize: none !important;
-    overflow: auto;
-    width: 100%;
-    box-sizing: border-box;
-    &.ant-input {
-      line-height: 1.4;
-    }
-  }
-`
+const ActionBarLeft = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex items-center', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const FileBlocksContainer = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 0;
-  margin: 8px 0;
-  background: transparent;
-  border-radius: 4px;
-`
+const ActionBarMiddle = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex-1', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const ActionBar = styled.div`
-  display: flex;
-  padding: 0 8px;
-  justify-content: space-between;
-  margin-top: 8px;
-`
-
-const ActionBarLeft = styled.div`
-  display: flex;
-  align-items: center;
-`
-
-const ActionBarMiddle = styled.div`
-  flex: 1;
-`
-
-const ActionBarRight = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
+const ActionBarRight = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex items-center gap-2', className].filter(Boolean).join(' ')} {...props} />
+)
 
 export default memo(MessageEditor)

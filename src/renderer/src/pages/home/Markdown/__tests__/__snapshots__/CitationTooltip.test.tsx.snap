@@ -1,51 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
-.c0 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  cursor: pointer;
-}
-
-.c0:hover {
-  opacity: 0.8;
-}
-
-.c1 {
-  color: var(--color-text-1);
-  font-size: 14px;
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.c2 {
-  font-size: 13px;
-  line-height: 1.5;
-  margin-bottom: 8px;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  color: var(--color-text-2);
-}
-
-.c3 {
-  font-size: 12px;
-  color: var(--color-link);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.c3:hover {
-  text-decoration: underline;
-}
-
 <div
   class="rounded-[8px] border border-[var(--color-border)] bg-[var(--color-background)] p-3"
   data-testid="tooltip-wrapper"
@@ -61,7 +16,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
     >
       <div
         aria-label="Open Example Article in new tab"
-        class="c0"
+        class="mb-2 flex cursor-pointer items-center gap-2 hover:opacity-80"
         role="button"
       >
         <div
@@ -71,7 +26,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
         />
         <div
           aria-level="3"
-          class="c1"
+          class="overflow-hidden text-ellipsis whitespace-nowrap text-(--color-text-1) text-sm leading-[1.4]"
           role="heading"
           title="Example Article"
         >
@@ -88,14 +43,15 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
       </div>
       <div
         aria-label="Citation content"
-        class="c2"
+        class="mb-2 overflow-hidden text-(--color-text-2) text-[13px] leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
         role="article"
+        style="display: -webkit-box; overflow: hidden; -webkit-line-clamp: 3;"
       >
         This is the article content for testing purposes.
       </div>
       <div
         aria-label="Visit example.com"
-        class="c3"
+        class="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-(--color-link) text-xs hover:underline"
         role="button"
       >
         example.com

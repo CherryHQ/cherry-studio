@@ -12,7 +12,6 @@ import { scrollIntoView } from '@renderer/utils/dom'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 // Exclude some areas from the navigation
 const EXCLUDED_SELECTORS = [
@@ -367,62 +366,63 @@ interface NavigationContainerProps {
   $isVisible: boolean
 }
 
-const NavigationContainer = styled.div<NavigationContainerProps>`
-  position: fixed;
-  right: ${RIGHT_GAP}px;
-  top: 50%;
-  transform: translateY(-50%) translateX(${(props) => (props.$isVisible ? '0' : '32px')});
-  z-index: 999;
-  opacity: ${(props) => (props.$isVisible ? 1 : 0)};
-  transition:
-    transform 0.3s ease-in-out,
-    opacity 0.3s ease-in-out;
-  pointer-events: ${(props) => (props.$isVisible ? 'auto' : 'none')};
-`
+const NavigationContainer = ({
+  className,
+  $isVisible,
+  style,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & NavigationContainerProps) => (
+  <div
+    className={['fixed top-1/2 z-[999] transition-[transform,opacity] duration-300 ease-in-out', className]
+      .filter(Boolean)
+      .join(' ')}
+    style={{
+      right: RIGHT_GAP,
+      opacity: $isVisible ? 1 : 0,
+      pointerEvents: $isVisible ? 'auto' : 'none',
+      transform: `translateY(-50%) translateX(${$isVisible ? '0' : '32px'})`,
+      ...style
+    }}
+    {...props}
+  />
+)
 
 interface ButtonGroupProps {
   $isVisible: boolean
 }
 
-const ButtonGroup = styled.div<ButtonGroupProps>`
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-color);
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  backdrop-filter: ${(props) => (props.$isVisible ? 'blur(8px)' : 'blur(0px)')};
-  border: 1px solid var(--color-border);
-  transition:
-    backdrop-filter 0.25s ease-in-out,
-    background 0.25s ease-in-out;
-`
+const ButtonGroup = ({
+  className,
+  $isVisible,
+  style,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & ButtonGroupProps) => (
+  <div
+    className={[
+      'flex flex-col overflow-hidden rounded-lg border border-(--color-border) bg-(--bg-color) shadow-[0_2px_8px_rgba(0,0,0,0.1)] transition-[backdrop-filter,background] duration-250 ease-in-out',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    style={{ backdropFilter: $isVisible ? 'blur(8px)' : 'blur(0px)', ...style }}
+    {...props}
+  />
+)
 
-const NavigationButton = styled(Button)`
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0;
-  border: none;
-  color: var(--color-text);
-  transition: all 0.2s ease-in-out;
+const NavigationButton = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Button>) => (
+  <Button
+    className={[
+      'flex h-7 w-7 items-center justify-center rounded-none border-none text-(--color-text) transition-all duration-200 ease-in-out hover:bg-(--color-hover) hover:text-(--color-primary) [&_.anticon]:text-sm',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-  &:hover {
-    background-color: var(--color-hover);
-    color: var(--color-primary);
-  }
-
-  .anticon {
-    font-size: 14px;
-  }
-`
-
-const Divider = styled.div`
-  height: 1px;
-  background: var(--color-border);
-  margin: 0;
-`
+const Divider = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={['m-0 h-px bg-(--color-border)', className].filter(Boolean).join(' ')} {...props} />
+)
 
 export default ChatNavigation

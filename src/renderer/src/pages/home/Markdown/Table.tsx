@@ -7,7 +7,6 @@ import { Check, FileSpreadsheet } from 'lucide-react'
 import MarkdownIt from 'markdown-it'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 import type { Node } from 'unist'
 
 import { useMarkdownBlockContext } from './Markdown'
@@ -73,21 +72,29 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
   }, [blockId, node?.position, t, mdCtx?.content])
 
   return (
-    <TableWrapper className="table-wrapper">
+    <div className="table-wrapper relative hover:[&_.table-toolbar]:opacity-100">
       <table>{children}</table>
-      <ToolbarWrapper className="table-toolbar">
+      <div className="table-toolbar absolute top-2 right-2 z-10 flex gap-1 rounded opacity-0 transition-opacity duration-200 ease-in-out [transform:translateZ(0)] [will-change:opacity]">
         <Tooltip content={t('common.copy')} delay={800}>
-          <ToolButton role="button" aria-label={t('common.copy')} onClick={handleCopyTable}>
+          <div
+            className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-(--color-background-mute) text-(--color-text-3) opacity-100 transition-all duration-200 ease-in-out [will-change:background-color,opacity] hover:bg-(--color-background-soft)"
+            role="button"
+            aria-label={t('common.copy')}
+            onClick={handleCopyTable}>
             {copied ? <Check size={14} color="var(--color-primary)" /> : <CopyIcon size={14} />}
-          </ToolButton>
+          </div>
         </Tooltip>
         <Tooltip content={t('common.export.excel')} delay={800}>
-          <ToolButton role="button" aria-label={t('common.export.excel')} onClick={handleExportExcel}>
+          <div
+            className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-(--color-background-mute) text-(--color-text-3) opacity-100 transition-all duration-200 ease-in-out [will-change:background-color,opacity] hover:bg-(--color-background-soft)"
+            role="button"
+            aria-label={t('common.export.excel')}
+            onClick={handleExportExcel}>
             <FileSpreadsheet size={14} />
-          </ToolButton>
+          </div>
         </Tooltip>
-      </ToolbarWrapper>
-    </TableWrapper>
+      </div>
+    </div>
   )
 }
 
@@ -118,51 +125,5 @@ function convertMarkdownTableToHtml(markdownTable: string): string {
 
   return md.render(markdownTable)
 }
-
-const TableWrapper = styled.div`
-  position: relative;
-
-  .table-toolbar {
-    border-radius: 4px;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    transform: translateZ(0);
-    will-change: opacity;
-  }
-  &:hover {
-    .table-toolbar {
-      opacity: 1;
-    }
-  }
-`
-
-const ToolbarWrapper = styled.div`
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 10;
-  display: flex;
-  gap: 4px;
-`
-
-const ToolButton = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.2s ease;
-  opacity: 1;
-  color: var(--color-text-3);
-  background-color: var(--color-background-mute);
-  will-change: background-color, opacity;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-  }
-`
 
 export default memo(Table)

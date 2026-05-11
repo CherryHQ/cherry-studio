@@ -3,7 +3,6 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import type { Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import type { FC } from 'react'
-import styled from 'styled-components'
 
 import Topics from './TopicsTab'
 
@@ -25,48 +24,17 @@ const HomeTabs: FC<Props> = ({ activeTopic, setActiveTopic, position, style }) =
       : { borderLeft: isLeftNavbar ? borderStyle : 'none', borderTopLeftRadius: 0 }
 
   return (
-    <Container
+    <div
       style={{ ...border, ...style }}
-      className={classNames('home-tabs', { right: position === 'right' && topicPosition === 'right' })}>
-      <TabContent className="home-tabs-content">
+      className={classNames(
+        'home-tabs relative flex h-[calc(100vh-var(--navbar-height))] w-(--assistants-width) flex-col overflow-hidden transition-[width] duration-300 [&_.collapsed]:w-0 [&_.collapsed]:border-l-0 [[navbar-position=left]_&]:bg-(--color-background) [[navbar-position=top]_&]:h-[calc(100vh-var(--navbar-height))]',
+        { right: position === 'right' && topicPosition === 'right' }
+      )}>
+      <div className="home-tabs-content flex flex-1 flex-col overflow-hidden transition-[width] duration-300">
         <Topics activeTopic={activeTopic} setActiveTopic={setActiveTopic} position={position} />
-      </TabContent>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  width: var(--assistants-width);
-  transition: width 0.3s;
-  height: calc(100vh - var(--navbar-height));
-  position: relative;
-
-  &.right {
-    height: calc(100vh - var(--navbar-height));
-  }
-
-  [navbar-position='left'] & {
-    background-color: var(--color-background);
-  }
-  [navbar-position='top'] & {
-    height: calc(100vh - var(--navbar-height));
-  }
-  overflow: hidden;
-  .collapsed {
-    width: 0;
-    border-left: none;
-  }
-`
-
-const TabContent = styled.div`
-  display: flex;
-  transition: width 0.3s;
-  flex: 1;
-  flex-direction: column;
-  overflow-y: hidden;
-  overflow-x: hidden;
-`
 
 export default HomeTabs

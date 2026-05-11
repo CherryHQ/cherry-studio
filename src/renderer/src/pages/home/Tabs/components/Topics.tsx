@@ -63,7 +63,6 @@ import {
 } from 'lucide-react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 
@@ -741,96 +740,39 @@ export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position 
   )
 }
 
-const TopicListItem = styled.div`
-  padding: 7px 12px;
-  border-radius: var(--list-item-border-radius);
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  cursor: pointer;
-  width: calc(var(--assistants-width) - 20px);
+const TopicListItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={classNames(
+      'flex w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-col justify-between rounded-(--list-item-border-radius) px-3 py-[7px] text-[13px] hover:bg-(--color-list-item-hover) hover:transition-colors hover:duration-100 [&.active]:bg-(--color-list-item) [&.active]:shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] [&.active_.menu:hover]:text-(--color-text-2) [&.active_.menu]:opacity-100 [&.disabled]:opacity-50 [&.selected]:bg-(--color-primary-bg) [&.selected]:shadow-[inset_0_0_0_1px_var(--color-primary)] [&.singlealone.active]:bg-(--color-background-mute) [&.singlealone.active]:shadow-none [&.singlealone:hover]:bg-(--color-background-soft) [&_.menu]:text-(--color-text-3) [&_.menu]:opacity-0 hover:[&_.menu]:opacity-100',
+      className
+    )}
+    {...props}
+  />
+)
 
-  .menu {
-    opacity: 0;
-    color: var(--color-text-3);
-  }
+const TopicNameContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={classNames('flex h-5 flex-row items-center gap-1', className)} {...props} />
+)
 
-  &:hover {
-    background-color: var(--color-list-item-hover);
-    transition: background-color 0.1s;
+const TopicName = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={classNames(
+      'relative flex-1 overflow-hidden text-left text-[13px] [-webkit-box-orient:vertical] [-webkit-line-clamp:1] [display:-webkit-box] [&.animation-reveal]:[-webkit-box-orient:unset] [&.animation-reveal]:[-webkit-line-clamp:unset]',
+      className
+    )}
+    {...props}
+  />
+)
 
-    .menu {
-      opacity: 1;
-    }
-  }
-
-  &.active {
-    background-color: var(--color-list-item);
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    .menu {
-      opacity: 1;
-
-      &:hover {
-        color: var(--color-text-2);
-      }
-    }
-  }
-  &.singlealone {
-    &:hover {
-      background-color: var(--color-background-soft);
-    }
-    &.active {
-      background-color: var(--color-background-mute);
-      box-shadow: none;
-    }
-  }
-
-  &.selected {
-    background-color: var(--color-primary-bg);
-    box-shadow: inset 0 0 0 1px var(--color-primary);
-  }
-
-  &.disabled {
-    opacity: 0.5;
-  }
-`
-
-const TopicNameContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  height: 20px;
-`
-
-const TopicName = styled.div`
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 13px;
-  position: relative;
-  flex: 1;
-  text-align: left;
-
-  &.animation-reveal {
-    -webkit-line-clamp: unset;
-    -webkit-box-orient: unset;
-  }
-`
-
-const TopicEditInput = styled.input`
-  background: var(--color-background);
-  border: none;
-  color: var(--color-text-1);
-  font-size: 13px;
-  font-family: inherit;
-  padding: 2px 6px;
-  width: 100%;
-  outline: none;
-  padding: 0;
-`
+const TopicEditInput = ({ className, ...props }: React.ComponentPropsWithoutRef<'input'>) => (
+  <input
+    className={classNames(
+      'w-full border-none bg-(--color-background) p-0 font-[inherit] text-(--color-text-1) text-[13px] outline-none',
+      className
+    )}
+    {...props}
+  />
+)
 
 /**
  * Reads the per-topic stream status reactively. Lives as a sub-component
@@ -845,104 +787,49 @@ const TopicStreamIndicator = ({ topicId }: { topicId: string }) => {
   return null
 }
 
-const PendingIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-warning);
-`
+const PendingIndicator = () => (
+  <div className="animation-pulse absolute top-[15px] left-[3px] h-[5px] w-[5px] rounded-full bg-(--color-status-warning) [--pulse-size:5px]" />
+)
 
-const FulfilledIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-success);
-`
+const FulfilledIndicator = () => (
+  <div className="animation-pulse absolute top-[15px] left-[3px] h-[5px] w-[5px] rounded-full bg-(--color-status-success) [--pulse-size:5px]" />
+)
 
-const TopicPromptText = styled.div`
-  color: var(--color-text-2);
-  font-size: 12px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  ~ .prompt-text {
-    margin-top: 10px;
-  }
-`
+const TopicPromptText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={classNames(
+      'overflow-hidden text-(--color-text-2) text-xs [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [&~_.prompt-text]:mt-2.5',
+      className
+    )}
+    {...props}
+  />
+)
 
-const TopicTime = styled.div`
-  color: var(--color-text-3);
-  font-size: 11px;
-`
+const TopicTime = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={classNames('text-(--color-text-3) text-[11px]', className)} {...props} />
+)
 
-const MenuButton = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  min-width: 20px;
-  min-height: 20px;
-  .anticon {
-    font-size: 12px;
-  }
-`
+const MenuButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={classNames('flex min-h-5 min-w-5 flex-row items-center justify-center [&_.anticon]:text-xs', className)}
+    {...props}
+  />
+)
 
-const HeaderRow = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  padding-right: 10px;
-  margin-bottom: 8px;
-  margin-top: 2px;
-`
+const HeaderRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={classNames('mt-0.5 mb-2 flex flex-row items-center gap-1.5 pr-2.5', className)} {...props} />
+)
 
-const HeaderIconButton = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  min-height: 32px;
-  border-radius: var(--list-item-border-radius);
-  cursor: pointer;
-  color: var(--color-text-2);
-  transition: all 0.2s;
+const HeaderIconButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={classNames(
+      'flex h-8 min-h-8 w-8 min-w-8 cursor-pointer items-center justify-center rounded-(--list-item-border-radius) text-(--color-text-2) transition-all duration-200 hover:bg-(--color-background-mute) hover:text-(--color-text-1) [&.active:hover]:bg-(--color-background-mute) [&.active]:text-(--color-primary)',
+      className
+    )}
+    {...props}
+  />
+)
 
-  &:hover {
-    background-color: var(--color-background-mute);
-    color: var(--color-text-1);
-  }
-
-  &.active {
-    color: var(--color-primary);
-
-    &:hover {
-      background-color: var(--color-background-mute);
-    }
-  }
-`
-
-const SelectIcon = styled.div`
-  display: flex;
-  align-items: center;
-  margin-right: 4px;
-
-  &.disabled {
-    opacity: 0.5;
-  }
-`
+const SelectIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={classNames('mr-1 flex items-center [&.disabled]:opacity-50', className)} {...props} />
+)

@@ -1,4 +1,5 @@
-import styled from 'styled-components'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import type { ComponentPropsWithoutRef } from 'react'
 
 /**
  * Inner padded container for the chat list. Used by `ChatVirtualList`
@@ -6,14 +7,9 @@ import styled from 'styled-components'
  * scroller. Flex-direction is now natural (column) — `ChatVirtualList`
  * handles its own scroll-to-bottom semantics.
  */
-export const ScrollContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  padding: 10px 10px 20px;
-  .multi-select-mode & {
-    padding-bottom: 60px;
-  }
-`
+export const ScrollContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col px-2.5 pt-2.5 pb-5 [.multi-select-mode_&]:pb-[60px]', className)} {...props} />
+)
 
 interface ContainerProps {
   $right?: boolean
@@ -25,11 +21,11 @@ interface ContainerProps {
  * virtualized list, the system-prompt banner, the anchor rail, and
  * the multi-select selection box.
  */
-export const MessagesContainer = styled.div<ContainerProps>`
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-  z-index: 1;
-  position: relative;
-`
+export const MessagesContainer = ({
+  className,
+  $right,
+  ...props
+}: ComponentPropsWithoutRef<'div'> & ContainerProps) => {
+  void $right
+  return <div className={cn('relative z-[1] flex h-full flex-col overflow-hidden', className)} {...props} />
+}

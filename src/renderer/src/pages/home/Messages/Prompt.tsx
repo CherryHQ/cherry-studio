@@ -1,4 +1,3 @@
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
@@ -7,7 +6,6 @@ import { containsSupportedVariables } from '@renderer/utils/prompt'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   topic: Topic
@@ -15,12 +13,10 @@ interface Props {
 
 const Prompt: FC<Props> = ({ topic }) => {
   const { t } = useTranslation()
-  const { theme } = useTheme()
   const { assistant, model } = useAssistant(topic.assistantId)
 
   const prompt = assistant?.prompt || t('chat.default.description')
   const topicPrompt = topic.prompt || ''
-  const isDark = theme === 'dark'
 
   const processedPrompt = usePromptProcessor({ prompt, modelName: model?.name })
 
@@ -64,35 +60,16 @@ const Prompt: FC<Props> = ({ topic }) => {
   }
 
   return (
-    <Container
-      className="system-prompt"
-      onClick={() => assistant && AssistantSettingsPopup.show({ assistant, tab: 'prompt' })}
-      $isDark={isDark}>
-      <Text $isVisible={isVisible}>{displayText}</Text>
-    </Container>
+    <div
+      className="system-prompt mx-5 mt-[15px] mb-0 cursor-pointer rounded-[10px] border-(--color-border) border-[0.5px] px-4 py-[11px]"
+      onClick={() => assistant && AssistantSettingsPopup.show({ assistant, tab: 'prompt' })}>
+      <div
+        className="select-none overflow-hidden text-(--color-text-2) text-xs transition-opacity duration-300 ease-in-out [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box]"
+        style={{ opacity: isVisible ? 1 : 0 }}>
+        {displayText}
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div<{ $isDark: boolean }>`
-  padding: 11px 16px;
-  border-radius: 10px;
-  cursor: pointer;
-  border: 0.5px solid var(--color-border);
-  margin: 15px 20px;
-  margin-bottom: 0;
-`
-
-const Text = styled.div<{ $isVisible: boolean }>`
-  color: var(--color-text-2);
-  font-size: 12px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  user-select: none;
-
-  opacity: ${(props) => (props.$isVisible ? 1 : 0)};
-  transition: opacity 0.3s ease-in-out;
-`
 
 export default Prompt

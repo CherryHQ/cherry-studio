@@ -4,7 +4,6 @@ import type { NormalToolResponse } from '@renderer/types'
 import { kbSearchInputSchema, type KbSearchOutputItem, kbSearchOutputSchema } from '@shared/ai/builtinTools'
 import { Typography } from 'antd'
 import { FileSearch } from 'lucide-react'
-import styled from 'styled-components'
 
 const { Text } = Typography
 
@@ -17,17 +16,17 @@ export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse
   return toolResponse.status !== 'done' ? (
     <Spinner
       text={
-        <PrepareToolWrapper>
+        <span className="flex items-center gap-1 pl-0 text-sm">
           {i18n.t('message.searching')}
           <span>{query}</span>
-        </PrepareToolWrapper>
+        </span>
       }
     />
   ) : (
-    <MessageWebSearchToolTitleTextWrapper type="secondary">
+    <Text className="flex items-center gap-1" type="secondary">
       <FileSearch size={16} style={{ color: 'unset' }} />
       {i18n.t('message.websearch.fetch_complete', { count: resultCount })}
-    </MessageWebSearchToolTitleTextWrapper>
+    </Text>
   )
 }
 
@@ -36,41 +35,13 @@ export function MessageKnowledgeSearchToolBody({ toolResponse }: { toolResponse:
   if (toolResponse.status !== 'done' || !outputParse.success) return null
 
   return (
-    <MessageWebSearchToolBodyUlWrapper>
+    <ul className="flex flex-col gap-1 p-0 [&>li]:m-0 [&>li]:max-w-[70%] [&>li]:overflow-hidden [&>li]:text-ellipsis [&>li]:whitespace-nowrap [&>li]:p-0">
       {outputParse.data.map((result: KbSearchOutputItem) => (
         <li key={result.id}>
           <span>{result.id}</span>
           <span>{result.content}</span>
         </li>
       ))}
-    </MessageWebSearchToolBodyUlWrapper>
+    </ul>
   )
 }
-
-const PrepareToolWrapper = styled.span`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 14px;
-  padding-left: 0;
-`
-const MessageWebSearchToolTitleTextWrapper = styled(Text)`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
-
-const MessageWebSearchToolBodyUlWrapper = styled.ul`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0;
-  > li {
-    padding: 0;
-    margin: 0;
-    max-width: 70%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-`

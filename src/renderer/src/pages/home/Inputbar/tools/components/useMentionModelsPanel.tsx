@@ -17,7 +17,6 @@ import { AtSign, CircleX, Plus } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 export type MentionTriggerInfo = { type: 'input' | 'button'; position?: number; originalText?: string }
 
@@ -326,6 +325,6 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
   }
 }
 
-const ProviderName = styled.span`
-  font-weight: 500;
-`
+const ProviderName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={['font-medium', className].filter(Boolean).join(' ')} {...props} />
+)

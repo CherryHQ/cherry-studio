@@ -1,4 +1,5 @@
-import styled from 'styled-components'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import type { ComponentPropsWithoutRef } from 'react'
 
 import { SkeletonSpan } from '../MessageAgentTools/GenericTools'
 
@@ -60,45 +61,32 @@ export function ToolArgsTable({
   )
 }
 
-// Styled components extracted from MessageMcpTool
+export const ArgsSection = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn('px-3 py-2 font-[var(--font-family-mono,monospace)] text-xs leading-normal', className)}
+    {...props}
+  />
+)
 
-export const ArgsSection = styled.div`
-  padding: 8px 12px;
-  font-family: var(--font-family-mono, monospace);
-  font-size: 12px;
-  line-height: 1.5;
-`
+export const ArgsSectionTitle = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-2 font-semibold text-(--color-text-3) text-[11px] uppercase', className)} {...props} />
+)
 
-export const ArgsSectionTitle = styled.div`
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-3);
-  text-transform: uppercase;
-  margin-bottom: 8px;
-`
+export const ArgsTable = ({ className, ...props }: ComponentPropsWithoutRef<'table'>) => (
+  <table className={cn('w-full border-collapse', className)} {...props} />
+)
 
-export const ArgsTable = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-`
+export const ArgKey = ({ className, ...props }: ComponentPropsWithoutRef<'td'>) => (
+  <td
+    className={cn('w-[1%] whitespace-nowrap py-1 pr-2 pl-0 align-top font-medium text-(--color-primary)', className)}
+    {...props}
+  />
+)
 
-export const ArgKey = styled.td`
-  color: var(--color-primary);
-  padding: 4px 8px 4px 0;
-  white-space: nowrap;
-  vertical-align: top;
-  font-weight: 500;
-  width: 1%;
-`
+export const ArgValue = ({ className, ...props }: ComponentPropsWithoutRef<'td'>) => (
+  <td className={cn('whitespace-pre-wrap break-all py-1 text-(--color-text)', className)} {...props} />
+)
 
-export const ArgValue = styled.td`
-  color: var(--color-text);
-  padding: 4px 0;
-  word-break: break-all;
-  white-space: pre-wrap;
-`
-
-export const ResponseSection = styled.div`
-  padding: 8px 12px;
-  border-top: 1px solid var(--color-border);
-`
+export const ResponseSection = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('border-(--color-border) border-t px-3 py-2', className)} {...props} />
+)

@@ -4,7 +4,6 @@ import type { CollapseProps } from 'antd'
 import { Collapse } from 'antd'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { useToolApproval } from './hooks/useToolApproval'
 import { type StatusColor, StatusIndicatorContainer, StreamingContext } from './MessageAgentTools/GenericTools'
@@ -74,50 +73,18 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
   }, [toolResponse.tool?.name, approval.input, toolResponse.arguments, statusInfo])
 
   return (
-    <Container>
+    <div className="w-full max-w-xl overflow-hidden rounded-xl border border-(--color-border) bg-(--color-background-soft) [&_.ant-collapse-header]:px-3! [&_.ant-collapse-header]:py-2! [&_.ant-collapse-item]:border-none [&_.ant-collapse]:rounded-none [&_.ant-collapse]:border-none [&_.ant-collapse]:bg-transparent">
       {/* Tool content area with status in header */}
       {renderToolContent()}
 
       {/* Bottom action bar - only show when not invoking */}
       {!approval.isExecuting && (
-        <ActionsBar>
+        <div className="flex items-center justify-end border-(--color-border) border-t bg-(--color-background) px-3 py-2">
           <ToolApprovalActionsComponent {...approval} />
-        </ActionsBar>
+        </div>
       )}
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  width: 100%;
-  max-width: 36rem;
-  border-radius: 0.75rem;
-  border: 1px solid var(--color-border);
-  background-color: var(--color-background-soft);
-  overflow: hidden;
-
-  .ant-collapse {
-    border: none;
-    border-radius: 0;
-    background: transparent;
-  }
-
-  .ant-collapse-item {
-    border: none;
-  }
-
-  .ant-collapse-header {
-    padding: 8px 12px !important;
-  }
-`
-
-const ActionsBar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 8px 12px;
-  border-top: 1px solid var(--color-border);
-  background-color: var(--color-background);
-`
 
 export default ToolPermissionRequestCard

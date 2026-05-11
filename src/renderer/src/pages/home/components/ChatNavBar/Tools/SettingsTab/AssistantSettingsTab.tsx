@@ -8,6 +8,7 @@ import {
   SelectValue,
   Switch
 } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -32,10 +33,9 @@ import {
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Col, Row, Slider } from 'antd'
-import type { FC } from 'react'
+import type { ComponentPropsWithoutRef, FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import GroqSettingsGroup from './GroqSettingsGroup'
 import OpenAISettingsGroup from './OpenAISettingsGroup'
@@ -615,28 +615,17 @@ const AssistantSettingsTab: FC<Props> = (props) => {
   )
 }
 
-const Container = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  padding: 0 8px;
-  padding-right: 0;
-  padding-top: 2px;
-  padding-bottom: 10px;
-  margin-top: 3px;
-`
+const Container = ({ className, ...props }: ComponentPropsWithoutRef<typeof Scrollbar>) => (
+  <Scrollbar className={cn('mt-[3px] flex flex-1 flex-col px-2 pt-0.5 pr-0 pb-2.5', className)} {...props} />
+)
 
-const SettingRowTitleSmall = styled(SettingRowTitle)`
-  font-size: 13px;
-  gap: 4px;
-`
+const SettingRowTitleSmall = ({ className, ...props }: ComponentPropsWithoutRef<typeof SettingRowTitle>) => (
+  <SettingRowTitle className={cn('gap-1 text-[13px]', className)} {...props} />
+)
 
-const SettingGroup = styled.div<{ theme?: ThemeMode }>`
-  padding: 0 5px;
-  width: 100%;
-  margin-top: 0;
-  border-radius: 8px;
-  margin-bottom: 10px;
-`
+const SettingGroup = ({ className, theme, ...props }: ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode }) => {
+  void theme
+  return <div className={cn('mt-0 mb-2.5 w-full rounded-lg px-[5px]', className)} {...props} />
+}
 
 export default AssistantSettingsTab

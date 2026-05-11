@@ -17,10 +17,9 @@ import {
   Terminal,
   Wrench
 } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { type ToolStatus, ToolStatusIndicator } from './MessageAgentTools/GenericTools'
 import { AgentToolsType } from './MessageAgentTools/types'
@@ -127,71 +126,59 @@ const getToolDescription = (toolResponse?: MCPToolResponse | NormalToolResponse)
   return (args.description || args.file_path || args.pattern || args.query || args.command || args.url)?.toString()
 }
 
-// ============ Styled Components ============
-
-const HeaderContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  padding: 8px 12px;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-  min-width: 0;
-`
+const HeaderContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={[
+      'flex min-w-0 items-center gap-2 rounded-xl border border-(--color-border) bg-(--color-background) px-3 py-2 text-[13px]',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
 // Label variant: no border/padding, for use inside Collapse header
-const LabelContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 14px;
-  min-width: 0;
-`
+const LabelContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex min-w-0 items-center gap-1 text-sm', className].filter(Boolean).join(' ')} {...props} />
+)
 
-const ToolName = styled(Flex)`
-  font-weight: 500;
-  color: var(--color-text);
-  flex-shrink: 0;
+const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>) => (
+  <Flex
+    className={[
+      'shrink-0 font-medium text-(--color-text) [&_.name]:whitespace-nowrap [&_.tool-icon]:text-(--color-primary)',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-  .tool-icon {
-    color: var(--color-primary);
-  }
+const Description = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
+  <span
+    className={[
+      'inline-flex min-w-0 max-w-[300px] flex-1 items-center overflow-hidden text-ellipsis whitespace-nowrap font-normal text-(--color-text-2) text-[13px]',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-  .name {
-    white-space: nowrap;
-  }
-`
+const Stats = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
+  <span
+    className={['shrink-0 whitespace-nowrap font-normal text-(--color-text-2) text-xs', className]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-const Description = styled.span`
-  color: var(--color-text-2);
-  font-weight: 400;
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  flex: 1;
-  max-width: 300px;
-  display: inline-flex;
-  align-items: center;
-`
-
-const Stats = styled.span`
-  color: var(--color-text-2);
-  font-weight: 400;
-  font-size: 12px;
-  white-space: nowrap;
-  flex-shrink: 0;
-`
-
-const StatusWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  margin-left: auto;
-`
+const StatusWrapper = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['ml-auto flex shrink-0 items-center', className].filter(Boolean).join(' ')} {...props} />
+)
 
 // ============ MCP Tool sub-renderer ============
 

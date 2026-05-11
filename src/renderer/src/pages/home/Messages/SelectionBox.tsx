@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import styled from 'styled-components'
 
 interface SelectionBoxProps {
   isMultiSelectMode: boolean
@@ -137,7 +136,8 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
   if (!isDragging || !isMultiSelectMode) return null
 
   return (
-    <SelectionBoxContainer
+    <div
+      className="pointer-events-none absolute z-[100] border border-(--color-primary) border-dashed bg-[rgba(0,114,245,0.1)]"
       style={{
         left: Math.min(dragStart.x, dragCurrent.x),
         top: Math.min(dragStart.y, dragCurrent.y),
@@ -147,13 +147,5 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
     />
   )
 }
-
-const SelectionBoxContainer = styled.div`
-  position: absolute;
-  border: 1px dashed var(--color-primary);
-  background-color: rgba(0, 114, 245, 0.1);
-  pointer-events: none;
-  z-index: 100;
-`
 
 export default SelectionBox

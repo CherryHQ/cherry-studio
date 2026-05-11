@@ -1,9 +1,8 @@
 import { LoadingIcon } from '@renderer/components/Icons'
 import { Button, Dropdown } from 'antd'
 import { ChevronDown, CirclePlay, CircleX, ShieldCheck } from 'lucide-react'
-import type { FC, MouseEvent } from 'react'
+import type { ComponentPropsWithoutRef, FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import type { ToolApprovalActions, ToolApprovalState } from './hooks/useToolApproval'
 
@@ -108,30 +107,34 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
 
 // Styled components
 
-const ActionsContainer = styled.div<{ $compact: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: ${(props) => (props.$compact ? '4px' : '8px')};
+const ActionsContainer = ({
+  className,
+  $compact,
+  ...props
+}: ComponentPropsWithoutRef<'div'> & { $compact: boolean }) => (
+  <div
+    className={[
+      'flex items-center',
+      $compact
+        ? 'gap-1 [&_.ant-btn-sm]:h-6 [&_.ant-btn-sm]:px-1.5 [&_.ant-btn-sm]:py-0 [&_.ant-btn-sm]:text-xs'
+        : 'gap-2 [&_.ant-btn-sm]:h-7 [&_.ant-btn-sm]:px-2 [&_.ant-btn-sm]:py-0 [&_.ant-btn-sm]:text-[13px]',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
 
-  .ant-btn-sm {
-    height: ${(props) => (props.$compact ? '24px' : '28px')};
-    padding: ${(props) => (props.$compact ? '0 6px' : '0 8px')};
-    font-size: ${(props) => (props.$compact ? '12px' : '13px')};
-  }
-`
+const LoadingIndicator = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={['flex items-center gap-1.5 text-(--color-primary) text-xs', className].filter(Boolean).join(' ')}
+    {...props}
+  />
+)
 
-const LoadingIndicator = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-primary);
-  font-size: 12px;
-`
-
-const StyledDropdownButton = styled(Dropdown.Button)`
-  .ant-btn-group {
-    border-radius: 6px;
-  }
-`
+const StyledDropdownButton = ({ className, ...props }: ComponentPropsWithoutRef<typeof Dropdown.Button>) => (
+  <Dropdown.Button className={['[&_.ant-btn-group]:rounded-md', className].filter(Boolean).join(' ')} {...props} />
+)
 
 export default ToolApprovalActionsComponent

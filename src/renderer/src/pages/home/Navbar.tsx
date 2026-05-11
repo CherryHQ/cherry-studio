@@ -7,7 +7,6 @@ import { t } from 'i18next'
 import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import styled from 'styled-components'
 
 import NavbarIcon from '../../components/NavbarIcon'
 import UpdateAppButton from './components/UpdateAppButton'
@@ -79,14 +78,14 @@ const HeaderNavbar: FC<Props> = () => {
         <RowFlex className="items-center gap-1.5">
           <UpdateAppButton />
           <Tooltip placement="bottom" content={t('chat.assistant.search.placeholder')} delay={800}>
-            <NarrowIcon onClick={() => SearchPopup.show()}>
+            <NavbarIcon className="max-[1000px]:hidden" onClick={() => SearchPopup.show()}>
               <Search size={18} />
-            </NarrowIcon>
+            </NavbarIcon>
           </Tooltip>
           <Tooltip placement="bottom" content={t('navbar.expand')} delay={800}>
-            <NarrowIcon onClick={handleNarrowModeToggle}>
+            <NavbarIcon className="max-[1000px]:hidden" onClick={handleNarrowModeToggle}>
               <i className="iconfont icon-icon-adaptive-width"></i>
-            </NarrowIcon>
+            </NavbarIcon>
           </Tooltip>
           {topicPosition === 'right' && (
             <Tooltip
@@ -103,11 +102,5 @@ const HeaderNavbar: FC<Props> = () => {
     </Navbar>
   )
 }
-
-const NarrowIcon = styled(NavbarIcon)`
-  @media (max-width: 1000px) {
-    display: none;
-  }
-`
 
 export default HeaderNavbar
