@@ -107,22 +107,37 @@ describe('DanglingCache.check', () => {
 
   it('TTL-expired re-stat: probe "unknown" does NOT clobber the prior cached observation', async () => {
     // A transient FS error (EACCES, EMFILE, …) on TTL-expired re-stat must
-    // not overwrite a known-good observation — otherwise the UI flip-flops
-    // on every transient failure. The caller still sees 'unknown' for this
-    // call (surfaced from the probe), but byEntryId retains the prior state
-    // so a subsequent successful probe / event can reconcile cleanly.
+    // not overwrite a known-good observation. The strongest assertion uses
+    // a third probe to prove the cache's observedAt was NOT updated by the
+    // unknown call: if it had been, the third check would land inside the
+    // new TTL window and hit cache instead of stat-ing. The emitter-silence
+    // check pins the dual invariant — unknown never fires a transition.
     const statProbe = vi
       .fn<(p: FilePath) => Promise<DanglingState>>()
       .mockResolvedValueOnce('present')
       .mockResolvedValueOnce('unknown')
+      .mockResolvedValueOnce('present')
     let t = 1_000_000
     const cache = createDanglingCacheImpl({ statProbe, now: () => t, ttlMs: 1000 })
+    const events: DanglingStateChangedEvent[] = []
+    cache.onDanglingStateChanged((e) => events.push(e))
     // Seed: cold-miss stats and commits 'present' at t=1_000_000.
     expect(await cache.check(externalEntry('e-mix', '/p.txt'))).toBe('present')
-    // TTL window elapses → next check re-stats and receives 'unknown'.
+    // TTL window elapses → re-stat receives 'unknown', surfaces it, must NOT
+    // touch byEntryId (no commit, no observedAt refresh, no emit).
     t += 1500
     expect(await cache.check(externalEntry('e-mix', '/p.txt'))).toBe('unknown')
-    expect(statProbe).toHaveBeenCalledTimes(2)
+    // Third check 500ms later: if unknown had refreshed observedAt to t=2500,
+    // we'd be within the new TTL window (3000-2500<1000) and hit cache
+    // without stat-ing. Because unknown is uncommitted, observedAt is still
+    // 1_000_000 — 2_001_500-1_000_000=1_001_500 > 1000 TTL → re-stat fires.
+    t += 500
+    expect(await cache.check(externalEntry('e-mix', '/p.txt'))).toBe('present')
+    expect(statProbe).toHaveBeenCalledTimes(3)
+    // Only the initial seed fires a transition; unknown is silent, and the
+    // recovery 'present' matches the preserved cached state (no change → no
+    // event per architecture §11.7).
+    expect(events).toEqual([{ id: 'e-mix', state: 'present' }])
   })
 })
 

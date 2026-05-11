@@ -93,9 +93,11 @@ export async function exists(path: FilePath): Promise<boolean> {
  *
  * Returns false if either path does not exist (ENOENT — the expected miss)
  * or stat fails for any other reason. Non-ENOENT failures are warn-logged
- * so callers that surface the boolean as "target already exists" (e.g.
- * rename) leave a breadcrumb tying the misleading message to the real
- * underlying permission / symlink-loop / fd-exhaustion issue.
+ * here so downstream call sites that interpret `false` as "different file"
+ * leave a breadcrumb pointing at the real cause — e.g. `rename.ts` then
+ * throws `"target path already exists"` after `exists(target) && !isSameFile(...)`,
+ * a message that would otherwise mask the underlying permission /
+ * symlink-loop / fd-exhaustion error invisibly.
  */
 export async function isSameFile(a: FilePath, b: FilePath): Promise<boolean> {
   try {

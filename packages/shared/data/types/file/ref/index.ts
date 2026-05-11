@@ -55,7 +55,9 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
  * - `temp_session` — transient paste/draft refs (`./tempSession.ts`).
  * - `knowledge_item` — refs from `knowledge_item` rows (`./knowledgeItem.ts`).
  *   `role` is a single-element placeholder enum; KnowledgeService wiring will
- *   extend it once the role vocabulary settles.
+ *   extend it once the role vocabulary settles. No production code currently
+ *   writes `knowledge_item` refs, so the choice of placeholder value
+ *   (`'attachment'`) is inconsequential.
  *
  * Other business domains (chat_message / painting / note) deliberately do
  * NOT appear here. They will be added when their owning DB tables migrate

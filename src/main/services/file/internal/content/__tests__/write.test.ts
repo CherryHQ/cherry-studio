@@ -267,13 +267,11 @@ describe('internal/content/write', () => {
     })
 
     it('error-logs WRITE_STREAM_DB_DESYNC when the post-commit re-stat fails', async () => {
-      // The atomic rename has already committed by the time the 'finish' hook
-      // runs, so a failure in the re-stat + DB-size update + versionCache.set
-      // sequence leaves the disk and DB silently out of sync. The contract
-      // recovered after 6837801d1: error-level log carrying the stable code
-      // WRITE_STREAM_DB_DESYNC and the full err object (no `.message`-only
-      // squeeze). Mocking the stat call to throw is the only way to exercise
-      // this branch without a real disk fault.
+      // Once the atomic rename commits, a failure in the re-stat / DB-size /
+      // versionCache update silently desyncs disk and DB. The log must carry
+      // the stable WRITE_STREAM_DB_DESYNC code and the full err object so
+      // Sentry can group these — a downgrade to .message string would slip
+      // through CI without this assertion.
       const { createWriteStream } = await import('../write')
       const fsModule = await import('@main/utils/file/fs')
       const e = await createInternal(deps, {
