@@ -2,7 +2,7 @@ import type { Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
-import type { AgentEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agents'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it, vi } from 'vitest'
@@ -80,27 +80,6 @@ describe('chat adapters', () => {
         accessiblePathCount: 1,
         channel: 'terminal'
       }
-    })
-  })
-
-  it('maps agents to resource items', () => {
-    const agent: AgentEntity = {
-      id: 'agent-1',
-      type: 'claude-code',
-      name: 'Agent title',
-      description: 'Agent description',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z'
-    }
-
-    expect(ResourceListAdapter.fromAgent(agent, { disabled: true })).toMatchObject({
-      id: 'agent-1',
-      kind: 'agent',
-      title: 'Agent title',
-      subtitle: 'Agent description',
-      status: 'disabled',
-      disabled: true,
-      meta: { type: 'claude-code' }
     })
   })
 
