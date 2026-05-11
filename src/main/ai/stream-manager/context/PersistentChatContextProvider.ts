@@ -22,6 +22,7 @@ import { applyApprovalDecisions } from '@shared/ai/transport'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
+import { AdapterTracer, TRACER_NAME } from '../../trace'
 import type { AiStreamRequest } from '../../types/requests'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
@@ -30,7 +31,7 @@ import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvide
 import type { MainContinueConversationRequest, MainDispatchRequest } from './dispatch'
 import { resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
-const tracer = trace.getTracer('CherryStudio')
+const rawTracer = trace.getTracer(TRACER_NAME)
 
 /**
  * Create one OTel root span per execution. The span's `traceId` is the
@@ -49,7 +50,9 @@ function startTurnRootSpans(
 ): Array<{ model: Model; span: Span; traceId: string }> {
   const spanCache = application.get('SpanCacheService')
   return models.map((model) => {
-    const span = tracer.startSpan('chat.turn', {
+    const modelName = model.name ?? model.id
+    const adapterTracer = new AdapterTracer(rawTracer, topicId, modelName)
+    const span = adapterTracer.startSpan('chat.turn', {
       attributes: {
         'cs.topic_id': topicId,
         'cs.trigger': trigger,

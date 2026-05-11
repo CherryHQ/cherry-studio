@@ -23,13 +23,14 @@ import {
   isAgentSessionTopic,
   parseAgentSessionModel
 } from '../../provider/claudeCodeSettingsBuilder'
+import { AdapterTracer, TRACER_NAME } from '../../trace'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { AgentMessageBackend } from '../persistence/backends/AgentMessageBackend'
 import type { StreamListener } from '../types'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
 
-const tracer = trace.getTracer('CherryStudio')
+const rawTracer = trace.getTracer(TRACER_NAME)
 
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
@@ -133,8 +134,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     // OTel root span wraps this execution; child AI SDK spans inherit its
     // traceId via stream-manager's `context.with` wrap. The traceId is
-    // recorded on the assistant message row for trace-viewer lookup.
-    const rootSpan = tracer.startSpan('chat.turn', {
+    // recorded on the assistant message row for trace-viewer lookup. The
+    // `AdapterTracer` wrap ensures the root span itself is persisted to
+    // SpanCacheService (same pipe as the AI SDK children).
+    const adapterTracer = new AdapterTracer(rawTracer, req.topicId, uniqueModelId)
+    const rootSpan = adapterTracer.startSpan('chat.turn', {
       attributes: {
         'cs.topic_id': req.topicId,
         'cs.trigger': req.trigger,
