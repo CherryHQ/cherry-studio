@@ -15,7 +15,7 @@ import type { FileManagerDeps } from '../deps'
 
 export async function hash(deps: FileManagerDeps, id: FileEntryId): Promise<string> {
   const entry = await deps.fileEntryService.getById(id)
-  const physicalPath = resolvePhysicalPath(entry) as FilePath
+  const physicalPath = resolvePhysicalPath(entry)
   try {
     return await fsHash(physicalPath)
   } catch (err) {

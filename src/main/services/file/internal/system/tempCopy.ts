@@ -25,7 +25,7 @@ export async function withTempCopy<T>(
   fn: (tempPath: string) => Promise<T>
 ): Promise<T> {
   const entry = await deps.fileEntryService.getById(id)
-  const physical = resolvePhysicalPath(entry) as FilePath
+  const physical = resolvePhysicalPath(entry)
   // Centralised path: feature.files.tempcopy.temp is the parent dir; mkdtemp
   // appends a unique suffix per call so concurrent withTempCopy invocations
   // do not collide.

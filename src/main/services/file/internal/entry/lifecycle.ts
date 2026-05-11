@@ -39,7 +39,7 @@ export async function restore(deps: FileManagerDeps, id: FileEntryId): Promise<F
 
 export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
   const entry = await deps.fileEntryService.getById(id)
-  const physical = entry.origin === 'internal' ? (resolvePhysicalPath(entry) as FilePath) : undefined
+  const physical = entry.origin === 'internal' ? resolvePhysicalPath(entry) : undefined
   await deps.fileEntryService.delete(id)
   deps.versionCache.invalidate(id)
   if (entry.origin === 'external' && entry.externalPath) {

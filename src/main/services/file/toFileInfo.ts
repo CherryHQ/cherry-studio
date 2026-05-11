@@ -27,11 +27,11 @@
 import { resolvePhysicalPath } from '@data/utils/pathResolver'
 import { stat as fsStat } from '@main/utils/file/fs'
 import type { FileEntry } from '@shared/data/types/file'
-import { type FileInfo, type FilePath, getFileTypeByExt } from '@shared/file/types'
+import { type FileInfo, getFileTypeByExt } from '@shared/file/types'
 import mime from 'mime'
 
 export async function toFileInfo(entry: FileEntry): Promise<FileInfo> {
-  const physicalPath = resolvePhysicalPath(entry) as FilePath
+  const physicalPath = resolvePhysicalPath(entry)
   const s = await fsStat(physicalPath)
   const ext = entry.ext
   const inferredMime = ext ? (mime.getType(ext) ?? 'application/octet-stream') : 'application/octet-stream'

@@ -40,7 +40,7 @@ export async function read(
   options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
 ): Promise<ReadResult<string | Uint8Array>> {
   const entry = await deps.fileEntryService.getById(id)
-  const physicalPath = resolvePhysicalPath(entry) as FilePath
+  const physicalPath = resolvePhysicalPath(entry)
   try {
     return await readResolved(physicalPath, options)
   } catch (err) {

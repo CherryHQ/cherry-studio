@@ -32,7 +32,7 @@ const logger = loggerService.withContext('file/internal/write')
 
 export async function write(deps: FileManagerDeps, id: FileEntryId, data: string | Uint8Array): Promise<FileVersion> {
   const entry = await deps.fileEntryService.getById(id)
-  const physical = resolvePhysicalPath(entry) as FilePath
+  const physical = resolvePhysicalPath(entry)
   await atomicWriteFile(physical, data)
   const s = await fsStat(physical)
   const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
@@ -51,7 +51,7 @@ export async function writeIfUnchanged(
   expectedContentHash?: string
 ): Promise<FileVersion> {
   const entry = await deps.fileEntryService.getById(id)
-  const physical = resolvePhysicalPath(entry) as FilePath
+  const physical = resolvePhysicalPath(entry)
   let next: FileVersion
   try {
     const out = await atomicWriteIfUnchanged(physical, data, expected, expectedContentHash)
@@ -71,7 +71,7 @@ export async function writeIfUnchanged(
 
 export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId): Promise<AtomicWriteStream> {
   const entry = await deps.fileEntryService.getById(id)
-  const physical = resolvePhysicalPath(entry) as FilePath
+  const physical = resolvePhysicalPath(entry)
   const stream = createAtomicWriteStream(physical)
   stream.once('finish', async () => {
     try {

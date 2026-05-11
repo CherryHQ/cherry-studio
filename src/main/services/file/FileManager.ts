@@ -607,7 +607,7 @@ export class FileManager extends BaseService {
    */
   async getMetadata(id: FileEntryId): Promise<PhysicalFileMetadata> {
     const entry = await this.deps.fileEntryService.getById(id)
-    const physicalPath = resolvePhysicalPath(entry) as FilePath
+    const physicalPath = resolvePhysicalPath(entry)
     const s = await fsStat(physicalPath)
     if (s.isDirectory) {
       return {
@@ -631,7 +631,7 @@ export class FileManager extends BaseService {
 
   async getVersion(id: FileEntryId): Promise<FileVersion> {
     const entry = await this.deps.fileEntryService.getById(id)
-    const physicalPath = resolvePhysicalPath(entry) as FilePath
+    const physicalPath = resolvePhysicalPath(entry)
     const s = await fsStat(physicalPath)
     return { mtime: s.modifiedAt, size: s.size }
   }
@@ -648,7 +648,7 @@ export class FileManager extends BaseService {
 
   async getPhysicalPath(id: FileEntryId): Promise<FilePath> {
     const entry = await this.deps.fileEntryService.getById(id)
-    return resolvePhysicalPath(entry) as FilePath
+    return resolvePhysicalPath(entry)
   }
 
   // ─── Mutation methods (Phase 1b.2) ───
@@ -748,12 +748,12 @@ export class FileManager extends BaseService {
 
   async open(id: FileEntryId): Promise<void> {
     const entry = await this.deps.fileEntryService.getById(id)
-    return internalShellOpen(resolvePhysicalPath(entry) as FilePath)
+    return internalShellOpen(resolvePhysicalPath(entry))
   }
 
   async showInFolder(id: FileEntryId): Promise<void> {
     const entry = await this.deps.fileEntryService.getById(id)
-    return internalShellShowInFolder(resolvePhysicalPath(entry) as FilePath)
+    return internalShellShowInFolder(resolvePhysicalPath(entry))
   }
 
   // ─── Dangling state (Phase 1b.3) ───

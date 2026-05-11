@@ -9,7 +9,6 @@
 
 import { resolvePhysicalPath } from '@data/utils/pathResolver'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
 
 import type { FileManagerDeps } from '../deps'
 import { createInternal } from './create'
@@ -21,7 +20,7 @@ export interface CopyEntryParams {
 
 export async function copy(deps: FileManagerDeps, params: CopyEntryParams): Promise<FileEntry> {
   const src = await deps.fileEntryService.getById(params.id)
-  const physical = resolvePhysicalPath(src) as FilePath
+  const physical = resolvePhysicalPath(src)
   const dst = await createInternal(deps, { source: 'path', path: physical })
   if (params.newName !== undefined && params.newName !== dst.name) {
     return deps.fileEntryService.update(dst.id, { name: params.newName })
