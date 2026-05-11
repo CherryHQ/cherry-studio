@@ -1,6 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { ChatAgentShell } from '@renderer/components/chat'
 import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useApiServer } from '@renderer/hooks/useApiServer'
@@ -10,7 +10,6 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -95,23 +94,7 @@ const AgentPage = () => {
       <div
         id={isLeftNavbar ? 'content-container' : undefined}
         className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
-        <AnimatePresence initial={false}>
-          {showSidebar && (
-            <ErrorBoundary>
-              <motion.div
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 'var(--assistants-width)', opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                style={{ overflow: 'hidden' }}>
-                <AgentSidePanel />
-              </motion.div>
-            </ErrorBoundary>
-          )}
-        </AnimatePresence>
-        <ErrorBoundary>
-          <AgentChat />
-        </ErrorBoundary>
+        <ChatAgentShell showSidebar={showSidebar} sidebar={<AgentSidePanel />} main={<AgentChat />} />
       </div>
     </Container>
   )
