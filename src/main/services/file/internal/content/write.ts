@@ -82,12 +82,17 @@ export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId):
       }
       deps.versionCache.set(id, version)
     } catch (err) {
-      // post-commit metadata sync is best-effort: the file itself is already
-      // on disk. Log so a stat failure (race with delete) or DB write failure
-      // (file_entry.size out of sync with disk) is at least diagnosable.
-      logger.warn('createWriteStream: post-commit metadata sync failed', {
+      // The file is committed on disk but the metadata sync (re-stat + DB
+      // size update + versionCache.set) failed. This silently desyncs
+      // `file_entry.size` and any cached `FileVersion` from disk, which the
+      // module-level JSDoc explicitly warns against — surface it at `error`
+      // with a stable code so Sentry can group these for follow-up. The
+      // stream itself does NOT re-throw because the consumer has already
+      // observed `'finish'`; the only mitigation is observability.
+      logger.error('createWriteStream: post-commit metadata sync failed', {
+        code: 'WRITE_STREAM_DB_DESYNC',
         id,
-        err: (err as Error).message
+        err
       })
     }
   })
