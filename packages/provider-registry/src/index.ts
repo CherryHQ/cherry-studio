@@ -56,6 +56,5 @@ export { normalizeModelId } from './utils/normalize'
 export type { ModelLookupResult, RuntimeEndpointConfig } from './registry-utils'
 export { buildRuntimeEndpointConfigs, lookupRegistryModel, lookupRegistryProvider } from './registry-utils'
 
-// Shared vendor identity regex, used by shared model helpers and icon routing.
-export type { VendorKey } from './patterns/vendor-patterns'
-export { isVendor, matchVendor, VENDOR_PATTERNS } from './patterns/vendor-patterns'
+// Shared vendor identity regex, used by shared model helpers.
+export { VENDOR_PATTERNS } from './patterns/vendor-patterns'

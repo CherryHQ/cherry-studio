@@ -1,4 +1,4 @@
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -72,12 +72,14 @@ describe('useProviderConnectionCheck', () => {
           id: 'cherryin::claude-4-sonnet',
           name: 'Claude 4 Sonnet',
           providerId: 'cherryin',
+          capabilities: [],
           endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
         },
         {
           id: 'cherryin::rerank-1',
           name: 'Rerank',
           providerId: 'cherryin',
+          capabilities: [MODEL_CAPABILITY.RERANK],
           endpointTypes: [ENDPOINT_TYPE.JINA_RERANK]
         }
       ]

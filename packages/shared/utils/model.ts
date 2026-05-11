@@ -154,8 +154,8 @@ export const isMaxTemperatureOneModel = (model: Model): boolean => {
 
 // Vendor identity checks all delegate to `VENDOR_PATTERNS` in
 // `@cherrystudio/provider-registry`. Do NOT inline new regex here —
-// add the vendor to the registry's pattern map instead so icon routing
-// and capability inference stay aligned.
+// add the vendor to the registry's pattern map instead of duplicating
+// regexes in renderer code.
 
 /** Check if model is an Anthropic/Claude model */
 export const isAnthropicModel = (model: Model): boolean =>

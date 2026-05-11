@@ -2,17 +2,13 @@
  * Vendor identity regex patterns — the single source of truth for
  * "which vendor does this raw model ID belong to".
  *
- * Shared across three call sites:
+ * Shared by:
  *  - `@shared/utils/model` — vendor check functions (`isAnthropicModel`
  *    etc.) and capability inference (e.g. deciding which IDs to mark
  *    `REASONING` in the schema).
- *  - `@cherrystudio/ui` icon registry — vendor-level icon routing for
- *    models whose ID doesn't have a dedicated SKU icon.
- *  - Future callers doing vendor dispatch.
  *
- * Keeping these regex in the registry layer means both capability
- * inference and icon lookup stay in lockstep when a new vendor /
- * naming convention lands.
+ * Keeping these regex in the registry layer lets model capability
+ * inference use provider-owned vendor taxonomy instead of renderer config.
  *
  * Scope: **vendor identity only**. SKU-level patterns (`gpt-5.1-codex-mini`,
  * `claude-sonnet-4-6`, etc.) stay in their specific consumer modules —
@@ -84,27 +80,3 @@ export const VENDOR_PATTERNS = {
   /** Mistral family */
   mistral: /mistral|pixtral|codestral|ministral|voxtral|devstral|mixtral|magistral/i
 } as const satisfies Record<string, RegExp>
-
-export type VendorKey = keyof typeof VENDOR_PATTERNS
-
-/**
- * Return the vendor slug for a normalized model ID, or `undefined` if
- * no vendor pattern matches. Iteration order is stable (key insertion
- * order) but not semantically important — patterns don't overlap.
- */
-export function matchVendor(normalizedId: string): VendorKey | undefined {
-  for (const [vendor, pattern] of Object.entries(VENDOR_PATTERNS) as [VendorKey, RegExp][]) {
-    if (pattern.test(normalizedId)) return vendor
-  }
-  return undefined
-}
-
-/**
- * Lightweight vendor predicate factory. Exported primarily so consumers
- * can spell the check as `isVendor('anthropic')(id)` when composing
- * higher-level logic.
- */
-export function isVendor(vendor: VendorKey): (normalizedId: string) => boolean {
-  const pattern = VENDOR_PATTERNS[vendor]
-  return (id: string) => pattern.test(id)
-}
