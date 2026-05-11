@@ -3,7 +3,7 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
+import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
 import {
   type KnowledgeBase,
   KnowledgeChunkMetadataSchema,
@@ -31,40 +31,23 @@ import { chunkDocuments } from '../utils/chunk'
 import { embedDocuments } from '../utils/embed'
 import { filterIndexableKnowledgeItems, isIndexableKnowledgeItem } from '../utils/items'
 import { getEmbedModel } from '../utils/model'
+import { mapChunkDocument } from './utils/chunks'
 import { deleteItemVectors, deleteVectorsForEntries, failItems } from './utils/cleanup'
 import { prepareKnowledgeItem } from './utils/prepare'
+import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
 
 const logger = loggerService.withContext('KnowledgeRuntimeService')
 
 const SHUTDOWN_INTERRUPTED_REASON = 'Knowledge task interrupted by service shutdown'
 const DELETE_INTERRUPTED_REASON = 'Knowledge task interrupted by item deletion'
 const REINDEX_INTERRUPTED_REASON = 'Knowledge task interrupted by reindex'
-const EXPECTED_QUEUE_INTERRUPT_REASONS = new Set([
-  SHUTDOWN_INTERRUPTED_REASON,
-  DELETE_INTERRUPTED_REASON,
-  REINDEX_INTERRUPTED_REASON
-])
+const KNOWLEDGE_EMPTY_CONTENT_REASON = 'KNOWLEDGE_EMPTY_CONTENT'
 const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
 
 type QueueTaskLogContext = {
   baseId: string
   itemId: string
   kind: KnowledgeQueueTaskEntry['kind']
-}
-
-const mapChunkDocument = (chunk: {
-  id_: string
-  metadata: unknown
-  getContent: (mode?: MetadataMode) => string
-}): KnowledgeItemChunk => {
-  const metadata = KnowledgeChunkMetadataSchema.parse(chunk.metadata ?? {})
-
-  return {
-    id: chunk.id_,
-    itemId: metadata.itemId,
-    content: chunk.getContent(MetadataMode.NONE),
-    metadata
-  }
 }
 
 const assertNeverKnowledgeItem = (item: never): never => {
@@ -129,25 +112,27 @@ export class KnowledgeRuntimeService extends BaseService {
     const base = await knowledgeBaseService.getById(baseId)
     const acceptedItems: KnowledgeItem[] = []
 
-    try {
-      for (const input of inputs) {
-        const createdItem = await knowledgeItemService.create(base.id, input)
-        acceptedItems.push(createdItem)
-        acceptedItems[acceptedItems.length - 1] =
-          createdItem.type === 'directory' || createdItem.type === 'sitemap'
-            ? await knowledgeItemService.updateStatus(createdItem.id, 'processing', { phase: 'preparing' })
-            : await knowledgeItemService.updateStatus(createdItem.id, 'processing')
+    await this.queue.runWithBaseWriteLockForBase(base.id, async () => {
+      try {
+        for (const input of inputs) {
+          const createdItem = await knowledgeItemService.create(base.id, input)
+          acceptedItems.push(createdItem)
+          acceptedItems[acceptedItems.length - 1] =
+            createdItem.type === 'directory' || createdItem.type === 'sitemap'
+              ? await knowledgeItemService.updateStatus(createdItem.id, 'processing', { phase: 'preparing' })
+              : await knowledgeItemService.updateStatus(createdItem.id, 'processing')
+        }
+      } catch (error) {
+        const normalizedError = error instanceof Error ? error : new Error(String(error))
+        logger.error('Failed to add knowledge items', normalizedError, {
+          baseId: base.id,
+          accepted: acceptedItems.length,
+          total: inputs.length
+        })
+        await this.deleteAcceptedItemsBestEffort(acceptedItems, normalizedError, base.id)
+        throw error
       }
-    } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error(String(error))
-      logger.error('Failed to add knowledge items', normalizedError, {
-        baseId: base.id,
-        accepted: acceptedItems.length,
-        total: inputs.length
-      })
-      await this.deleteAcceptedItemsBestEffort(acceptedItems, normalizedError, base.id)
-      throw error
-    }
+    })
 
     for (const item of acceptedItems) {
       await this.submitRuntimeItem(base, item)
@@ -229,7 +214,10 @@ export class KnowledgeRuntimeService extends BaseService {
 
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
     if (!SEARCH_TOKEN_PATTERN.test(query)) {
-      return []
+      throw DataApiErrorFactory.validation(
+        { query: ['Query has no searchable tokens'] },
+        'Query has no searchable tokens'
+      )
     }
 
     const base = await knowledgeBaseService.getById(baseId)
@@ -251,12 +239,15 @@ export class KnowledgeRuntimeService extends BaseService {
       alpha: base.hybridAlpha
     })
     const nodes = results.nodes ?? []
+    const scoreKind = getInitialSearchScoreKind(base)
     const searchResults = nodes.map((node, index) => {
       const metadata = KnowledgeChunkMetadataSchema.parse(node.metadata ?? {})
 
       return {
         pageContent: node.getContent(MetadataMode.NONE),
         score: results.similarities[index] ?? 0,
+        scoreKind,
+        rank: index + 1,
         metadata,
         itemId: metadata.itemId,
         chunkId: node.id_
@@ -264,19 +255,25 @@ export class KnowledgeRuntimeService extends BaseService {
     })
 
     if (base.rerankModelId) {
-      return await rerankKnowledgeSearchResults(base, query, searchResults)
+      const rerankedResults = await rerankKnowledgeSearchResults(base, query, searchResults)
+      return withSearchRanks(applyRelevanceThreshold(rerankedResults, base.threshold))
     }
 
-    return searchResults
+    return withSearchRanks(applyRelevanceThreshold(searchResults, base.threshold))
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
     const base = await knowledgeBaseService.getById(baseId)
+    const leafItems = await knowledgeItemService.getLeafDescendantItems(baseId, [itemId])
+    if (leafItems.length === 0) {
+      return []
+    }
+
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const vectorStore = await vectorStoreService.createStore(base)
-    const chunks = await vectorStore.listByExternalId(itemId)
+    const chunkGroups = await Promise.all(leafItems.map((item) => vectorStore.listByExternalId(item.id)))
 
-    return chunks.map(mapChunkDocument)
+    return chunkGroups.flat().map(mapChunkDocument)
   }
 
   async deleteItemChunk(baseId: string, itemId: string, chunkId: string): Promise<void> {
@@ -317,7 +314,7 @@ export class KnowledgeRuntimeService extends BaseService {
     })
 
     void promise.catch((error) => {
-      if (wasAlreadyQueued || didStart || this.isExpectedQueueInterrupt(error)) {
+      if (wasAlreadyQueued || didStart) {
         return
       }
 
@@ -346,7 +343,7 @@ export class KnowledgeRuntimeService extends BaseService {
     })
 
     void promise.catch((error) => {
-      if (wasAlreadyQueued || didStart || this.isExpectedQueueInterrupt(error)) {
+      if (wasAlreadyQueued || didStart) {
         return
       }
 
@@ -421,7 +418,9 @@ export class KnowledgeRuntimeService extends BaseService {
       knowledgeItemService.updateStatus(item.id, 'processing', { phase: 'reading' })
     )
     const documents = await this.runTaskStep(context, () => loadKnowledgeItemDocuments(item, context.signal))
+    this.assertHasIndexableContent(documents)
     const chunks = await this.runTaskStep(context, () => chunkDocuments(base, item, documents))
+    this.assertHasIndexableContent(chunks)
     await context.runWithBaseWriteLock(() =>
       knowledgeItemService.updateStatus(item.id, 'processing', { phase: 'embedding' })
     )
@@ -509,23 +508,21 @@ export class KnowledgeRuntimeService extends BaseService {
   ): Promise<void> {
     const uniqueItems = [...new Map(items.map((item) => [item.id, item])).values()]
 
-    await Promise.all(
-      uniqueItems.map(async (item) => {
-        try {
-          await knowledgeItemService.delete(item.id)
-        } catch (cleanupError) {
-          logger.error(
-            'Failed to rollback accepted knowledge item after addItems failure',
-            cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
-            {
-              baseId,
-              itemId: item.id,
-              addError: originalError.message
-            }
-          )
-        }
-      })
-    )
+    for (const item of uniqueItems) {
+      try {
+        await knowledgeItemService.delete(item.id)
+      } catch (cleanupError) {
+        logger.error(
+          'Failed to rollback accepted knowledge item after addItems failure',
+          cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
+          {
+            baseId,
+            itemId: item.id,
+            addError: originalError.message
+          }
+        )
+      }
+    }
   }
 
   private async failItemsAndRethrow(
@@ -539,14 +536,6 @@ export class KnowledgeRuntimeService extends BaseService {
       operation: context.operation ?? 'strictRuntimeCleanup'
     })
     throw error
-  }
-
-  private isExpectedQueueInterrupt(error: unknown): boolean {
-    return (
-      error instanceof Error &&
-      error.name === 'KnowledgeQueueInterruptedError' &&
-      EXPECTED_QUEUE_INTERRUPT_REASONS.has(error.message)
-    )
   }
 
   private hasQueuedItem(itemId: string): boolean {
@@ -599,6 +588,12 @@ export class KnowledgeRuntimeService extends BaseService {
     const result = await step()
     context.signal.throwIfAborted()
     return result
+  }
+
+  private assertHasIndexableContent<T>(items: T[]): void {
+    if (items.length === 0) {
+      throw new Error(KNOWLEDGE_EMPTY_CONTENT_REASON)
+    }
   }
 
   private async shouldEnqueueLeaf(itemId: string): Promise<boolean> {

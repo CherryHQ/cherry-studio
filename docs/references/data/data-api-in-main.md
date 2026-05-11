@@ -336,6 +336,43 @@ Registry Services:
 
 See [Layered Preset Pattern](./best-practice-layered-preset-pattern.md) for the general architecture.
 
+### Registry Sub-Resource Endpoints
+
+Registry data reaches the renderer through sub-resource endpoints on the
+owning entity. Three rules govern their shape.
+
+**GET only.** Registry endpoints are stateless reads — preset merged with
+DB rows. `POST` is reserved for state changes; using it for reads breaks
+SWR caching, request dedup, and retry safety. For composite IDs containing
+`/`, use the greedy path form `:id*` (see
+[Greedy Path Parameters](./api-design-guidelines.md#greedy-path-parameters)).
+For batched lookups exceeding URL limits, split into multiple GETs — DataApi
+dedup makes burst reads cheap.
+
+**Colon-notation for derived views.** When the sub-resource name is
+ambiguous, disambiguate with AIP-136 colon notation:
+
+| Shape | Use for |
+|---|---|
+| `GET /:parent/:id/:sub` | List the merged collection |
+| `GET /:parent/:id/:sub:action` | Compute a derived view |
+| `GET /:parent/:id/:sub/:childId` | Look up one merged item |
+
+**Registry packages are main-only.** Packages like
+`@cherrystudio/provider-registry` ship the preset data Registry Services
+merge against. **Renderer code must not import them.** Two reasons:
+
+- **Bundle waste.** Registry packages are large (preset catalogs, vendor
+  metadata, icons). Importing them in the renderer ships the same payload
+  twice — once in the main bundle, once in every renderer entry that
+  touches it — for data the renderer already gets via DataApi.
+- **Merge already lives in main.** Registry Services merge preset + DB
+  rows on the main side. Re-doing the merge in the renderer duplicates
+  logic and re-introduces preset-version drift this layer was designed
+  to remove.
+
+The merged result reaches the renderer exclusively through these endpoints.
+
 ## Error Handling
 
 ### Using DataApiErrorFactory
