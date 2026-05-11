@@ -3,7 +3,7 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
+import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
 import {
   type KnowledgeBase,
   KnowledgeChunkMetadataSchema,
@@ -41,11 +41,7 @@ const logger = loggerService.withContext('KnowledgeRuntimeService')
 const SHUTDOWN_INTERRUPTED_REASON = 'Knowledge task interrupted by service shutdown'
 const DELETE_INTERRUPTED_REASON = 'Knowledge task interrupted by item deletion'
 const REINDEX_INTERRUPTED_REASON = 'Knowledge task interrupted by reindex'
-const EXPECTED_QUEUE_INTERRUPT_REASONS = new Set([
-  SHUTDOWN_INTERRUPTED_REASON,
-  DELETE_INTERRUPTED_REASON,
-  REINDEX_INTERRUPTED_REASON
-])
+const KNOWLEDGE_EMPTY_CONTENT_REASON = 'KNOWLEDGE_EMPTY_CONTENT'
 const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
 
 type QueueTaskLogContext = {
@@ -218,7 +214,10 @@ export class KnowledgeRuntimeService extends BaseService {
 
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
     if (!SEARCH_TOKEN_PATTERN.test(query)) {
-      return []
+      throw DataApiErrorFactory.validation(
+        { query: ['Query has no searchable tokens'] },
+        'Query has no searchable tokens'
+      )
     }
 
     const base = await knowledgeBaseService.getById(baseId)
@@ -315,7 +314,7 @@ export class KnowledgeRuntimeService extends BaseService {
     })
 
     void promise.catch((error) => {
-      if (wasAlreadyQueued || didStart || this.isExpectedQueueInterrupt(error)) {
+      if (wasAlreadyQueued || didStart) {
         return
       }
 
@@ -344,7 +343,7 @@ export class KnowledgeRuntimeService extends BaseService {
     })
 
     void promise.catch((error) => {
-      if (wasAlreadyQueued || didStart || this.isExpectedQueueInterrupt(error)) {
+      if (wasAlreadyQueued || didStart) {
         return
       }
 
@@ -419,7 +418,9 @@ export class KnowledgeRuntimeService extends BaseService {
       knowledgeItemService.updateStatus(item.id, 'processing', { phase: 'reading' })
     )
     const documents = await this.runTaskStep(context, () => loadKnowledgeItemDocuments(item, context.signal))
+    this.assertHasIndexableContent(documents)
     const chunks = await this.runTaskStep(context, () => chunkDocuments(base, item, documents))
+    this.assertHasIndexableContent(chunks)
     await context.runWithBaseWriteLock(() =>
       knowledgeItemService.updateStatus(item.id, 'processing', { phase: 'embedding' })
     )
@@ -537,14 +538,6 @@ export class KnowledgeRuntimeService extends BaseService {
     throw error
   }
 
-  private isExpectedQueueInterrupt(error: unknown): boolean {
-    return (
-      error instanceof Error &&
-      error.name === 'KnowledgeQueueInterruptedError' &&
-      EXPECTED_QUEUE_INTERRUPT_REASONS.has(error.message)
-    )
-  }
-
   private hasQueuedItem(itemId: string): boolean {
     const snapshot = this.queue.getSnapshot()
     return [...snapshot.pending, ...snapshot.running].some((entry) => entry.itemId === itemId)
@@ -595,6 +588,12 @@ export class KnowledgeRuntimeService extends BaseService {
     const result = await step()
     context.signal.throwIfAborted()
     return result
+  }
+
+  private assertHasIndexableContent<T>(items: T[]): void {
+    if (items.length === 0) {
+      throw new Error(KNOWLEDGE_EMPTY_CONTENT_REASON)
+    }
   }
 
   private async shouldEnqueueLeaf(itemId: string): Promise<boolean> {

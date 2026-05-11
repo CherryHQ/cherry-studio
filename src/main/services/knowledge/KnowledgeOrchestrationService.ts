@@ -31,8 +31,8 @@ import {
 const logger = loggerService.withContext('KnowledgeOrchestrationService')
 
 export interface KnowledgeRuntimeAddItemsPartialFailure {
-  sourceItemId: string
-  sourceItemType: string
+  sourceItemId: string | null
+  sourceItemType: KnowledgeItem['type'] | null
   message: string
 }
 
@@ -187,13 +187,11 @@ export class KnowledgeOrchestrationService extends BaseService {
           await this.addItems(restoredBase.id, inputs)
         } catch (error) {
           const message = normalizeFailureMessage(error)
-          failures.push(
-            ...rootItems.map((item) => ({
-              sourceItemId: item.id,
-              sourceItemType: item.type,
-              message
-            }))
-          )
+          failures.push({
+            sourceItemId: null,
+            sourceItemType: null,
+            message
+          })
         }
       }
 

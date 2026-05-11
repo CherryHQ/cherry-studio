@@ -3,11 +3,12 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { formatFileSize } from '@renderer/utils'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { normalizeKnowledgeError } from '../../utils'
@@ -130,6 +131,7 @@ const KnowledgeItemChunkDetailPanel = ({
   const [error, setError] = useState<Error | null>(null)
   const [deletingChunkId, setDeletingChunkId] = useState<string | null>(null)
   const [pendingDeleteChunk, setPendingDeleteChunk] = useState<KnowledgeItemChunk | null>(null)
+  const keepDeleteDialogOpenRef = useRef(false)
   const item = fetchedItem ?? initialItem
   const viewModel = item ? toKnowledgeItemRowViewModel(item, language) : null
   const Icon = viewModel?.icon.icon
@@ -176,6 +178,7 @@ const KnowledgeItemChunkDetailPanel = ({
   }, [baseId, itemId])
 
   const handleRequestDeleteChunk = (chunk: KnowledgeItemChunk) => {
+    keepDeleteDialogOpenRef.current = false
     setPendingDeleteChunk(chunk)
   }
 
@@ -187,6 +190,7 @@ const KnowledgeItemChunkDetailPanel = ({
 
     setDeletingChunkId(chunk.id)
     setError(null)
+    keepDeleteDialogOpenRef.current = false
 
     try {
       await window.api.knowledgeRuntime.deleteItemChunk(baseId, chunk.itemId, chunk.id)
@@ -201,9 +205,10 @@ const KnowledgeItemChunkDetailPanel = ({
         chunkId: chunk.id
       })
       setError(normalizedError)
+      window.toast.error(formatErrorMessageWithPrefix(normalizedError, t('knowledge.data_source.delete_failed')))
+      keepDeleteDialogOpenRef.current = true
     } finally {
       setDeletingChunkId(null)
-      setPendingDeleteChunk(null)
     }
   }
 
@@ -268,6 +273,10 @@ const KnowledgeItemChunkDetailPanel = ({
         open={Boolean(pendingDeleteChunk)}
         onOpenChange={(open) => {
           if (!open) {
+            if (keepDeleteDialogOpenRef.current) {
+              keepDeleteDialogOpenRef.current = false
+              return
+            }
             setPendingDeleteChunk(null)
           }
         }}

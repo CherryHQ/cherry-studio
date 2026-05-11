@@ -107,6 +107,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const [selectedBaseId, setSelectedBaseId] = useState('')
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [pendingSelectedBaseId, setPendingSelectedBaseId] = useState<string | null>(null)
+  const pendingSelectedBaseListRef = useRef<KnowledgeBase[] | null>(null)
   const { items: selectedBaseItems, isLoading: isItemsLoading } = useKnowledgeItems(selectedBaseId)
   const [activeTab, setActiveTab] = useState<KnowledgeTabKey>('data')
   const [navigatorWidth, setNavigatorWidth] = useState(NAVIGATOR_DEFAULT_WIDTH)
@@ -126,7 +127,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const selectedBase = useMemo(() => {
     return bases.find((base) => base.id === selectedBaseId)
-  }, [bases, selectedBaseId])
+  }, [bases, pendingSelectedBaseId, selectedBaseId])
 
   useEffect(() => {
     return () => {
@@ -135,18 +136,26 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   }, [])
 
   useEffect(() => {
-    if (bases.length === 0) {
-      if (!pendingSelectedBaseId && selectedBaseId) {
-        setSelectedBaseId('')
-      }
-      setSelectedItemId(null)
-      return
-    }
-
     if (pendingSelectedBaseId) {
       if (bases.some((base) => base.id === pendingSelectedBaseId)) {
         setPendingSelectedBaseId(null)
+        pendingSelectedBaseListRef.current = null
+        return
       }
+
+      if (bases === pendingSelectedBaseListRef.current) {
+        return
+      }
+
+      setPendingSelectedBaseId(null)
+      pendingSelectedBaseListRef.current = null
+    }
+
+    if (bases.length === 0) {
+      if (selectedBaseId) {
+        setSelectedBaseId('')
+      }
+      setSelectedItemId(null)
       return
     }
 
@@ -155,10 +164,11 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       setSelectedBaseId(bases[0].id)
       setSelectedItemId(null)
     }
-  }, [bases, pendingSelectedBaseId, selectedBaseId])
+  }, [bases, selectedBaseId])
 
   const selectBase = useCallback((baseId: string) => {
     setPendingSelectedBaseId(null)
+    pendingSelectedBaseListRef.current = null
     setSelectedBaseId(baseId)
     setSelectedItemId(null)
   }, [])
@@ -240,19 +250,27 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     }
   }, [])
 
-  const handleCreateBaseCreated = useCallback((createdBase: { id: string }) => {
-    setPendingSelectedBaseId(createdBase.id)
-    setSelectedBaseId(createdBase.id)
-    setSelectedItemId(null)
-  }, [])
+  const handleCreateBaseCreated = useCallback(
+    (createdBase: { id: string }) => {
+      setPendingSelectedBaseId(createdBase.id)
+      pendingSelectedBaseListRef.current = bases
+      setSelectedBaseId(createdBase.id)
+      setSelectedItemId(null)
+    },
+    [bases]
+  )
 
-  const handleRestoreBaseRestored = useCallback((restoredBase: { id: string }) => {
-    setRestoringBase(null)
-    setRestoreBaseInitialValues(undefined)
-    setPendingSelectedBaseId(restoredBase.id)
-    setSelectedBaseId(restoredBase.id)
-    setSelectedItemId(null)
-  }, [])
+  const handleRestoreBaseRestored = useCallback(
+    (restoredBase: { id: string }) => {
+      setRestoringBase(null)
+      setRestoreBaseInitialValues(undefined)
+      setPendingSelectedBaseId(restoredBase.id)
+      pendingSelectedBaseListRef.current = bases
+      setSelectedBaseId(restoredBase.id)
+      setSelectedItemId(null)
+    },
+    [bases]
+  )
 
   const submitCreateGroup = useCallback(
     async (name: string) => {
@@ -435,6 +453,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       handleRenameBaseDialogOpenChange,
       handleRenameGroupDialogOpenChange,
       handleRestoreBaseDialogOpenChange,
+      handleRestoreBaseRestored,
       isAddSourceDialogOpen,
       isCreateBaseDialogOpen,
       isCreateGroupDialogOpen,

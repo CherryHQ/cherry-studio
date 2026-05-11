@@ -1091,6 +1091,39 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2')
   })
 
+  it('falls back when a newly created base is missing after the base list refreshes', async () => {
+    const firstBase = createKnowledgeBase({ id: 'base-1', name: 'Base 1' })
+    const createdBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2', emoji: '📚' })
+    let bases = [firstBase]
+    const createBase = vi.fn().mockResolvedValue(createdBase)
+
+    mockUseKnowledgeBases.mockImplementation(() => ({
+      bases,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+    mockUseCreateKnowledgeBase.mockReturnValue({
+      createBase,
+      isCreating: false,
+      createError: undefined
+    })
+
+    const { rerender } = render(<KnowledgePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '新建知识库' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Create' }))
+
+    await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2'))
+
+    bases = [firstBase]
+    rerender(<KnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1')
+    })
+  })
+
   it('opens the create dialog with the selected group id from a group action', async () => {
     const createdBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2', emoji: '📚', groupId: 'group-2' })
     const createBase = vi.fn().mockResolvedValue(createdBase)
@@ -1196,6 +1229,56 @@ describe('KnowledgePage', () => {
     })
     expect(screen.queryByTestId('restore-dialog')).not.toBeInTheDocument()
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('restored-base')
+  })
+
+  it('falls back when a restored base is missing after the base list refreshes', async () => {
+    const failedBase = createKnowledgeBase({
+      id: 'failed-base',
+      name: 'Legacy KB',
+      groupId: 'group-1',
+      status: 'failed',
+      error: 'missing_embedding_model',
+      dimensions: null,
+      embeddingModelId: null
+    })
+    const restoredBase = createKnowledgeBase({
+      id: 'restored-base',
+      name: 'Legacy KB_副本',
+      groupId: 'group-1',
+      status: 'completed',
+      error: null,
+      dimensions: 1024,
+      embeddingModelId: 'openai::text-embedding-3-small'
+    })
+    let bases = [failedBase]
+    const restoreBase = vi.fn().mockResolvedValue(restoredBase)
+
+    mockUseKnowledgeBases.mockImplementation(() => ({
+      bases,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+    mockUseRestoreKnowledgeBase.mockReturnValue({
+      restoreBase,
+      isRestoring: false,
+      restoreError: undefined
+    })
+
+    const { rerender } = render(<KnowledgePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'RAG' }))
+    fireEvent.click(screen.getByRole('button', { name: 'RagRestore Legacy KB' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Restore' }))
+
+    await waitFor(() => expect(screen.getByTestId('selected-base-id')).toHaveTextContent('restored-base'))
+
+    bases = [failedBase]
+    rerender(<KnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('selected-base-id')).toHaveTextContent('failed-base')
+    })
   })
 
   it('clears the initial group id after closing a grouped create dialog', async () => {

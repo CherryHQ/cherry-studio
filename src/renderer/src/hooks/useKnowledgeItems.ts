@@ -2,7 +2,7 @@ import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { KNOWLEDGE_ITEMS_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeItem, KnowledgeItemStatus, KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 
 const KNOWLEDGE_V2_ITEMS_QUERY = {
   page: 1,
@@ -49,14 +49,7 @@ export const useKnowledgeItems = (baseId: string) => {
 export const useAddKnowledgeItems = (baseId: string) => {
   const [error, setError] = useState<Error | undefined>()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const isMountedRef = useRef(true)
   const invalidateCache = useInvalidateCache()
-
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false
-    }
-  }, [])
 
   const submit = useCallback(
     async (items: KnowledgeRuntimeAddItemInput[]): Promise<void> => {
@@ -68,14 +61,22 @@ export const useAddKnowledgeItems = (baseId: string) => {
         return Promise.reject(new Error('At least one knowledge source must be selected'))
       }
 
-      if (isMountedRef.current) {
-        setError(undefined)
-        setIsSubmitting(true)
-      }
+      setError(undefined)
+      setIsSubmitting(true)
 
+      let submitError: Error | undefined
       try {
         await window.api.knowledgeRuntime.addItems(baseId, items)
+      } catch (error) {
+        submitError = normalizeKnowledgeError(error)
 
+        addLogger.error('Failed to add knowledge sources', submitError, {
+          baseId,
+          sourceCount: items.length
+        })
+
+        setError(submitError)
+      } finally {
         try {
           await invalidateCache(`/knowledge-bases/${baseId}/items`)
         } catch (invalidateError) {
@@ -88,23 +89,11 @@ export const useAddKnowledgeItems = (baseId: string) => {
           )
         }
 
-        if (isMountedRef.current) {
-          setIsSubmitting(false)
-        }
-      } catch (error) {
-        const submitError = normalizeKnowledgeError(error)
+        setIsSubmitting(false)
+      }
 
-        addLogger.error('Failed to add knowledge sources', submitError, {
-          baseId,
-          sourceCount: items.length
-        })
-
-        if (isMountedRef.current) {
-          setError(submitError)
-          setIsSubmitting(false)
-        }
-
-        return Promise.reject(submitError)
+      if (submitError) {
+        throw submitError
       }
     },
     [baseId, invalidateCache]
@@ -131,9 +120,19 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
       setError(undefined)
       setIsDeleting(true)
 
+      let deleteError: Error | undefined
       try {
         await window.api.knowledgeRuntime.deleteItems(baseId, [item.id])
+      } catch (error) {
+        deleteError = normalizeKnowledgeError(error)
 
+        deleteLogger.error('Failed to delete knowledge source', deleteError, {
+          baseId,
+          itemId: item.id
+        })
+
+        setError(deleteError)
+      } finally {
         try {
           await invalidateCache(`/knowledge-bases/${baseId}/items`)
         } catch (invalidateError) {
@@ -148,17 +147,10 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
         }
 
         setIsDeleting(false)
-      } catch (error) {
-        const deleteError = normalizeKnowledgeError(error)
+      }
 
-        deleteLogger.error('Failed to delete knowledge source', deleteError, {
-          baseId,
-          itemId: item.id
-        })
-
-        setError(deleteError)
-        setIsDeleting(false)
-        return Promise.reject(deleteError)
+      if (deleteError) {
+        throw deleteError
       }
     },
     [baseId, invalidateCache]
@@ -185,9 +177,19 @@ export const useReindexKnowledgeItem = (baseId: string) => {
       setError(undefined)
       setIsReindexing(true)
 
+      let reindexError: Error | undefined
       try {
         await window.api.knowledgeRuntime.reindexItems(baseId, [item.id])
+      } catch (error) {
+        reindexError = normalizeKnowledgeError(error)
 
+        reindexLogger.error('Failed to reindex knowledge source', reindexError, {
+          baseId,
+          itemId: item.id
+        })
+
+        setError(reindexError)
+      } finally {
         try {
           await invalidateCache(`/knowledge-bases/${baseId}/items`)
         } catch (invalidateError) {
@@ -202,17 +204,10 @@ export const useReindexKnowledgeItem = (baseId: string) => {
         }
 
         setIsReindexing(false)
-      } catch (error) {
-        const reindexError = normalizeKnowledgeError(error)
+      }
 
-        reindexLogger.error('Failed to reindex knowledge source', reindexError, {
-          baseId,
-          itemId: item.id
-        })
-
-        setError(reindexError)
-        setIsReindexing(false)
-        return Promise.reject(reindexError)
+      if (reindexError) {
+        throw reindexError
       }
     },
     [baseId, invalidateCache]

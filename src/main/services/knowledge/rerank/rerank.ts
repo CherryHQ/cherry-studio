@@ -14,7 +14,7 @@ function mergeRerankResults(
   rerankResults: Array<{ index: number; relevanceScore: number }>
 ): KnowledgeSearchResult[] {
   const resultMap = new Map(
-    rerankResults.map((result) => [result.index, result.relevanceScore || DEFAULT_RELEVANT_SCORE])
+    rerankResults.map((result) => [result.index, result.relevanceScore ?? DEFAULT_RELEVANT_SCORE])
   )
 
   const rerankedResults: KnowledgeSearchResult[] = []

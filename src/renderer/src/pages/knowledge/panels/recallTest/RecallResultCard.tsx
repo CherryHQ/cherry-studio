@@ -1,10 +1,14 @@
 import { Button } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ChevronDown, ChevronUp, Copy, FileText } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { normalizeKnowledgeError } from '../../utils'
 import type { RecallResultItem } from './types'
 import { formatRecallPercent } from './utils'
+
+const logger = loggerService.withContext('RecallResultCard')
 
 interface RecallResultCardProps {
   item: RecallResultItem
@@ -20,7 +24,17 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
       : t('knowledge.recall.result_rank', { rank: item.rank })
 
   const copyContent = async () => {
-    await navigator.clipboard?.writeText(item.plainText).catch(() => undefined)
+    try {
+      await navigator.clipboard.writeText(item.plainText)
+    } catch (error) {
+      const normalizedError = normalizeKnowledgeError(error)
+      logger.error('Failed to copy recall result content', normalizedError, {
+        resultId: item.id,
+        sourceName: item.sourceName,
+        chunkIndex: item.chunkIndex
+      })
+      window.toast.error(t('message.copy.failed'))
+    }
   }
 
   return (

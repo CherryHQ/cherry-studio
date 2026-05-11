@@ -126,6 +126,7 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.chunk_delete_confirm_description':
               '删除后该 Chunk 将不再参与召回，重新索引数据源后会重新生成。',
             'knowledge.data_source.chunk_delete_confirm_title': '确认删除 Chunk',
+            'knowledge.data_source.delete_failed': '删除数据源失败',
             'knowledge.data_source.filters.file': '文件',
             'knowledge.rag.tokens_unit': 'tokens',
             'knowledge.data_source.status.ready': '就绪'
@@ -153,6 +154,12 @@ describe('KnowledgeItemChunkDetailPanel', () => {
           listItemChunks: listItemChunksMock,
           deleteItemChunk: deleteItemChunkMock
         }
+      }
+    })
+    Object.defineProperty(window, 'toast', {
+      configurable: true,
+      value: {
+        error: vi.fn()
       }
     })
   })
@@ -279,7 +286,8 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('delete failed')).toBeInTheDocument()
     })
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(window.toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
+    expect(screen.getByRole('dialog')).toHaveTextContent('确认删除 Chunk')
     expect(screen.getByText('真实 chunk 内容一')).toBeInTheDocument()
     expect(screen.getByText('真实 chunk 内容二')).toBeInTheDocument()
     expect(mockLogger.error).toHaveBeenCalledWith('Failed to delete knowledge item chunk', deleteError, {

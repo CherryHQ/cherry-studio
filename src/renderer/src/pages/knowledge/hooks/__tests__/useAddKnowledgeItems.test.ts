@@ -64,7 +64,7 @@ describe('useAddKnowledgeItems', () => {
     expect(result.current.isSubmitting).toBe(false)
   })
 
-  it('keeps submit rejected and exposes inline error when orchestration rejects', async () => {
+  it('keeps submit rejected, refreshes items, and exposes inline error when orchestration rejects', async () => {
     const submitError = new Error('create failed')
     mockAddItems.mockRejectedValueOnce(submitError)
 
@@ -84,12 +84,43 @@ describe('useAddKnowledgeItems', () => {
       ).rejects.toBe(submitError)
     })
 
-    expect(mockInvalidateCache).not.toHaveBeenCalled()
+    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases/base-1/items')
     expect(result.current.error).toBe(submitError)
     expect(result.current.isSubmitting).toBe(false)
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to add knowledge sources', submitError, {
       baseId: 'base-1',
       sourceCount: 1
     })
+  })
+
+  it('preserves the submit rejection when post-failure refresh also fails', async () => {
+    const submitError = new Error('create failed')
+    const invalidateError = new Error('refresh failed')
+    mockAddItems.mockRejectedValueOnce(submitError)
+    mockInvalidateCache.mockRejectedValueOnce(invalidateError)
+
+    const { result } = renderHook(() => useAddKnowledgeItems('base-1'))
+
+    await act(async () => {
+      await expect(
+        result.current.submit([
+          {
+            type: 'url' as const,
+            data: {
+              source: 'https://example.com/article',
+              url: 'https://example.com/article'
+            }
+          }
+        ])
+      ).rejects.toBe(submitError)
+    })
+
+    expect(loggerErrorSpy).toHaveBeenCalledWith(
+      'Failed to refresh knowledge source list after submit',
+      invalidateError,
+      {
+        baseId: 'base-1'
+      }
+    )
   })
 })

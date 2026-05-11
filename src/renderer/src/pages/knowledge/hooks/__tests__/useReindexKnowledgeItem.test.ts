@@ -38,11 +38,12 @@ describe('useReindexKnowledgeItem', () => {
 
     expect(mockReindexItems).toHaveBeenCalledWith('base-1', ['note-1'])
     expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases/base-1/items')
+    expect(mockReindexItems.mock.invocationCallOrder[0]).toBeLessThan(mockInvalidateCache.mock.invocationCallOrder[0])
     expect(result.current.error).toBeUndefined()
     expect(result.current.isReindexing).toBe(false)
   })
 
-  it('keeps reindex rejected and exposes inline error when orchestration rejects', async () => {
+  it('keeps reindex rejected, refreshes items, and exposes inline error when orchestration rejects', async () => {
     const reindexError = new Error('reindex failed')
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
     mockReindexItems.mockRejectedValueOnce(reindexError)
@@ -52,7 +53,8 @@ describe('useReindexKnowledgeItem', () => {
       await expect(result.current.reindexItem(item)).rejects.toBe(reindexError)
     })
 
-    expect(mockInvalidateCache).not.toHaveBeenCalled()
+    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases/base-1/items')
+    expect(mockReindexItems.mock.invocationCallOrder[0]).toBeLessThan(mockInvalidateCache.mock.invocationCallOrder[0])
     expect(result.current.error).toBe(reindexError)
     expect(result.current.isReindexing).toBe(false)
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to reindex knowledge source', reindexError, {

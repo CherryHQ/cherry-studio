@@ -38,11 +38,12 @@ describe('useDeleteKnowledgeItem', () => {
 
     expect(mockDeleteItems).toHaveBeenCalledWith('base-1', ['note-1'])
     expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases/base-1/items')
+    expect(mockDeleteItems.mock.invocationCallOrder[0]).toBeLessThan(mockInvalidateCache.mock.invocationCallOrder[0])
     expect(result.current.error).toBeUndefined()
     expect(result.current.isDeleting).toBe(false)
   })
 
-  it('keeps delete rejected and exposes inline error when runtime IPC rejects', async () => {
+  it('keeps delete rejected, refreshes items, and exposes inline error when runtime IPC rejects', async () => {
     const deleteError = new Error('delete failed')
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
     mockDeleteItems.mockRejectedValueOnce(deleteError)
@@ -52,7 +53,8 @@ describe('useDeleteKnowledgeItem', () => {
       await expect(result.current.deleteItem(item)).rejects.toBe(deleteError)
     })
 
-    expect(mockInvalidateCache).not.toHaveBeenCalled()
+    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases/base-1/items')
+    expect(mockDeleteItems.mock.invocationCallOrder[0]).toBeLessThan(mockInvalidateCache.mock.invocationCallOrder[0])
     expect(result.current.error).toBe(deleteError)
     expect(result.current.isDeleting).toBe(false)
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to delete knowledge source', deleteError, {

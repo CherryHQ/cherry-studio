@@ -366,7 +366,7 @@ describe('useDeleteKnowledgeBase', () => {
     expect(result.current.deleteError).toBeUndefined()
   })
 
-  it('keeps delete rejected when runtime IPC fails without refreshing the list', async () => {
+  it('keeps delete rejected when runtime IPC fails and still refreshes the list', async () => {
     const deleteError = new Error('delete failed')
     mockRuntimeDeleteBase.mockRejectedValueOnce(deleteError)
     const { result } = renderHook(() => useDeleteKnowledgeBase())
@@ -375,7 +375,7 @@ describe('useDeleteKnowledgeBase', () => {
       await expect(result.current.deleteBase('base-1')).rejects.toBe(deleteError)
     })
 
-    expect(mockInvalidateCache).not.toHaveBeenCalled()
+    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases')
     expect(result.current.isDeleting).toBe(false)
     expect(result.current.deleteError).toBe(deleteError)
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to delete knowledge base', deleteError, {

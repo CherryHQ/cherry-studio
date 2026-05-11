@@ -243,6 +243,7 @@ export const useDeleteKnowledgeBase = () => {
     async (baseId: string) => {
       setDeleteError(undefined)
       setIsDeleting(true)
+      let mutationError: Error | undefined
 
       try {
         await window.api.knowledgeRuntime.deleteBase(baseId)
@@ -252,8 +253,7 @@ export const useDeleteKnowledgeBase = () => {
           baseId
         })
         setDeleteError(normalizedError)
-        setIsDeleting(false)
-        throw normalizedError
+        mutationError = normalizedError
       }
 
       try {
@@ -265,6 +265,10 @@ export const useDeleteKnowledgeBase = () => {
       }
 
       setIsDeleting(false)
+
+      if (mutationError) {
+        throw mutationError
+      }
     },
     [invalidateCache]
   )

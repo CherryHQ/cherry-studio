@@ -166,7 +166,7 @@ function expectCompletedBaseNoopRebuildGuard(error: unknown) {
 
 function expectRestorePartialError(
   error: unknown,
-  failures: Array<{ sourceItemId: string; sourceItemType: string; message: string }>
+  failures: Array<{ sourceItemId: string | null; sourceItemType: string | null; message: string }>
 ) {
   expect(error).toBeInstanceOf(KnowledgeRuntimeAddItemsPartialError)
   expect(error).toMatchObject({
@@ -438,6 +438,31 @@ describe('KnowledgeOrchestrationService', () => {
     expect(runtimeReindexItemsMock).toHaveBeenCalledWith(restoredBase.id, [restoredRoot])
   })
 
+  it('allows restoring a failed base when embedding config is unchanged', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const sourceBase = {
+      ...createBase(),
+      id: 'source-kb',
+      status: 'failed' as const,
+      error: 'runtime failed'
+    }
+    const root = { ...createNoteItem('note-root'), baseId: sourceBase.id }
+    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([root])
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Source KB_bak',
+        embeddingModelId: sourceBase.embeddingModelId,
+        dimensions: sourceBase.dimensions
+      })
+    ).resolves.toEqual(createBase())
+
+    expect(knowledgeItemGetItemsByBaseIdMock).toHaveBeenCalledWith('source-kb', { groupId: null })
+    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', [{ type: root.type, data: root.data }])
+  })
+
   it('rebuilds a completed base when the embedding model changes', async () => {
     const service = new KnowledgeOrchestrationService()
     const sourceBase = { ...createBase(), id: 'source-kb', embeddingModelId: 'ollama::old-embed', dimensions: 1024 }
@@ -575,11 +600,7 @@ describe('KnowledgeOrchestrationService', () => {
         dimensions: 3072
       })
     ).rejects.toSatisfy((restoreError: unknown) => {
-      expectRestorePartialError(restoreError, [
-        { sourceItemId: firstRoot.id, sourceItemType: firstRoot.type, message: error.message },
-        { sourceItemId: failedRoot.id, sourceItemType: failedRoot.type, message: error.message },
-        { sourceItemId: thirdRoot.id, sourceItemType: thirdRoot.type, message: error.message }
-      ])
+      expectRestorePartialError(restoreError, [{ sourceItemId: null, sourceItemType: null, message: error.message }])
       return true
     })
 
@@ -647,9 +668,7 @@ describe('KnowledgeOrchestrationService', () => {
         dimensions: 3072
       })
     ).rejects.toSatisfy((restoreError: unknown) => {
-      expectRestorePartialError(restoreError, [
-        { sourceItemId: root.id, sourceItemType: root.type, message: error.message }
-      ])
+      expectRestorePartialError(restoreError, [{ sourceItemId: null, sourceItemType: null, message: error.message }])
       return true
     })
     expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
