@@ -1050,6 +1050,17 @@
         "xhigh": "Extra ridicat",
         "xhigh_description": "Raționament de nivel extra ridicat"
       },
+      "regular_phrases": {
+        "add": "[to be translated]:Add Phrase",
+        "contentLabel": "[to be translated]:Content",
+        "contentPlaceholder": "[to be translated]:Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+        "delete": "[to be translated]:Delete Phrase",
+        "deleteConfirm": "[to be translated]:Are you sure to delete this phrase?",
+        "edit": "[to be translated]:Edit Phrase",
+        "title": "[to be translated]:Regular Phrase",
+        "titleLabel": "[to be translated]:Title",
+        "titlePlaceholder": "[to be translated]:Enter title"
+      },
       "title": "Setări asistent",
       "tool_use_mode": {
         "function": "Funcție",
@@ -2420,6 +2431,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
+    "minapps": "[to be translated]:Minapps",
     "miniApps": "Mini-aplicații"
   },
   "library": {
@@ -3123,6 +3135,64 @@
       "fetch_complete": "{{count}} rezultat(e) căutare",
       "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
+  },
+  "minapp": {
+    "add_to_launchpad": "[to be translated]:Add to Launchpad",
+    "add_to_sidebar": "[to be translated]:Add to Sidebar",
+    "popup": {
+      "close": "[to be translated]:Close MinApp",
+      "devtools": "[to be translated]:Developer Tools",
+      "goBack": "[to be translated]:Go Back",
+      "goForward": "[to be translated]:Go Forward",
+      "minimize": "[to be translated]:Minimize MinApp",
+      "openExternal": "[to be translated]:Open in Browser",
+      "open_link_external_off": "[to be translated]:Current: Open links in default window",
+      "open_link_external_on": "[to be translated]:Current: Open links in browser",
+      "refresh": "[to be translated]:Refresh",
+      "rightclick_copyurl": "[to be translated]:Right-click to copy URL"
+    },
+    "remove_from_launchpad": "[to be translated]:Remove from Launchpad",
+    "remove_from_sidebar": "[to be translated]:Remove from Sidebar",
+    "sidebar": {
+      "close": {
+        "title": "[to be translated]:Close"
+      },
+      "closeall": {
+        "title": "[to be translated]:Close All"
+      },
+      "hide": {
+        "title": "[to be translated]:Hide"
+      },
+      "remove_custom": {
+        "title": "[to be translated]:Delete Custom App"
+      }
+    },
+    "title": "[to be translated]:MinApp"
+  },
+  "minapps": {
+    "ant-ling": "[to be translated]:Ant Ling",
+    "baichuan": "[to be translated]:Baichuan",
+    "baidu-ai-search": "[to be translated]:Baidu AI Search",
+    "chatglm": "[to be translated]:ChatGLM",
+    "dangbei": "[to be translated]:Dangbei",
+    "doubao": "[to be translated]:Doubao",
+    "hailuo": "[to be translated]:Hailuo",
+    "ima": "[to be translated]:ima",
+    "metaso": "[to be translated]:Metaso",
+    "minimax-agent": "[to be translated]:Minimax Agent CN",
+    "minimax-global": "[to be translated]:Minimax Agent",
+    "nami-ai": "[to be translated]:Nami AI",
+    "nami-ai-search": "[to be translated]:Nami AI Search",
+    "qwen": "[to be translated]:Qwen",
+    "sensechat": "[to be translated]:SenseChat",
+    "stepfun": "[to be translated]:Stepfun",
+    "tencent-yuanbao": "[to be translated]:Yuanbao",
+    "tiangong-ai": "[to be translated]:Skywork",
+    "wanzhi": "[to be translated]:Wanzhi",
+    "wenxin": "[to be translated]:ERNIE",
+    "wps-copilot": "[to be translated]:WPS Copilot",
+    "xiaoyi": "[to be translated]:Xiaoyi",
+    "zhihu": "[to be translated]:Zhihu"
   },
   "miniApp": {
     "add_to_launchpad": "Adaugă în Launchpad",
@@ -4287,6 +4357,9 @@
         "summary": "Vă rog să rezumați următorul conținut. Cerințe: Răspundeți în {{language}}; nu includeți nicio explicație a acestui prompt, oferiți direct răspunsul:"
       },
       "translate": {
+        "error": {
+          "no_selected_text": "[to be translated]:No text selected to translate"
+        },
         "smart_translate_tips": "Traducere inteligentă: Conținutul va fi tradus mai întâi în limba țintă; conținutul aflat deja în limba țintă va fi tradus în limba alternativă"
       },
       "window": {
@@ -5302,6 +5375,9 @@
         "knowledge": {
           "icon": "Afișează pictograma Cunoștințe"
         },
+        "minapp": {
+          "icon": "[to be translated]:Show MinApp icon"
+        },
         "miniApp": {
           "icon": "Afișează pictograma MiniApp"
         },
@@ -5778,6 +5854,61 @@
       "reset_tooltip": "Resetează la implicit",
       "title": "Setări mini-aplicații",
       "visible": "Mini-aplicații vizibile"
+    },
+    "miniapps": {
+      "cache_change_notice": "[to be translated]:Changes will take effect when the number of open mini apps reaches the set value",
+      "cache_description": "[to be translated]:Set the maximum number of active mini apps to keep in memory",
+      "cache_settings": "[to be translated]:Cache Settings",
+      "cache_title": "[to be translated]:Mini App Cache Limit",
+      "custom": {
+        "conflicting_ids": "[to be translated]:Conflicting IDs with default apps: {{ids}}",
+        "duplicate_ids": "[to be translated]:Duplicate IDs found: {{ids}}",
+        "edit_description": "[to be translated]:Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+        "edit_title": "[to be translated]:Edit Custom Mini App",
+        "id": "[to be translated]:ID",
+        "id_error": "[to be translated]:ID is required.",
+        "id_placeholder": "[to be translated]:Enter ID",
+        "logo": "[to be translated]:Logo",
+        "logo_file": "[to be translated]:Upload Logo File",
+        "logo_upload_button": "[to be translated]:Upload",
+        "logo_upload_error": "[to be translated]:Failed to upload logo.",
+        "logo_upload_label": "[to be translated]:Upload Logo",
+        "logo_upload_success": "[to be translated]:Logo uploaded successfully.",
+        "logo_url": "[to be translated]:Logo URL",
+        "logo_url_label": "[to be translated]:Logo URL",
+        "logo_url_placeholder": "[to be translated]:Enter logo URL",
+        "name": "[to be translated]:Name",
+        "name_error": "[to be translated]:Name is required.",
+        "name_placeholder": "[to be translated]:Enter name",
+        "placeholder": "[to be translated]:Enter custom mini app configuration (JSON format)",
+        "remove_error": "[to be translated]:Failed to remove custom mini app.",
+        "remove_success": "[to be translated]:Custom mini app removed successfully.",
+        "save": "[to be translated]:Save",
+        "save_error": "[to be translated]:Failed to save custom mini app.",
+        "save_success": "[to be translated]:Custom mini app saved successfully.",
+        "title": "[to be translated]:Custom",
+        "url": "[to be translated]:URL",
+        "url_error": "[to be translated]:URL is required.",
+        "url_placeholder": "[to be translated]:Enter URL"
+      },
+      "disabled": "[to be translated]:Hidden Mini Apps",
+      "display_title": "[to be translated]:Mini App Display Settings",
+      "empty": "[to be translated]:Drag mini apps from the left to hide them",
+      "open_link_external": {
+        "title": "[to be translated]:Open new-window links in browser"
+      },
+      "region": {
+        "auto": "[to be translated]:Auto detect",
+        "cn": "[to be translated]:China",
+        "description": "[to be translated]:Filtering unsupported mini-programs based on the region",
+        "global": "[to be translated]:Global",
+        "title": "[to be translated]:Mini Program filter"
+      },
+      "reset_tooltip": "[to be translated]:Reset to default",
+      "sidebar_description": "[to be translated]:Show active mini apps in the sidebar",
+      "sidebar_title": "[to be translated]:Sidebar Active Mini Apps Display",
+      "title": "[to be translated]:Mini Apps Settings",
+      "visible": "[to be translated]:Visible Mini Apps"
     },
     "model": "Model implicit",
     "models": {
@@ -6257,6 +6388,20 @@
       "select": "Selectează",
       "title": "Meniu rapid"
     },
+    "quickPhrase": {
+      "add": "[to be translated]:Add Phrase",
+      "assistant": "[to be translated]:Assistant Phrases",
+      "contentLabel": "[to be translated]:Content",
+      "contentPlaceholder": "[to be translated]:Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "[to be translated]:Delete Phrase",
+      "deleteConfirm": "[to be translated]:The phrase cannot be recovered after deletion, continue?",
+      "edit": "[to be translated]:Edit Phrase",
+      "global": "[to be translated]:Global Phrases",
+      "locationLabel": "[to be translated]:Add Location",
+      "title": "[to be translated]:Quick Phrases",
+      "titleLabel": "[to be translated]:Title",
+      "titlePlaceholder": "[to be translated]:Please enter phrase title"
+    },
     "scheduledTasks": {
       "description": "Gestionați sarcinile programate pentru toți agenții. Sarcinile rulează automat conform programului configurat.",
       "noAgents": "Niciun agent găsit. Creează mai întâi un agent pentru a adăuga sarcini programate.",
@@ -6663,8 +6808,12 @@
     "detecting": "Se detectează...",
     "empty": "Conținutul traducerii este gol",
     "error": {
+      "auto_copy_failed": "[to be translated]:Failed to auto-copy translation result",
       "chat_qwen_mt": "Modelul Qwen MT nu poate fi folosit în chat. Te rugăm să mergi la pagina de traducere.",
       "detect": {
+        "empty": "[to be translated]:Detected language is empty",
+        "failed": "[to be translated]:Language detection failed",
+        "invalid": "[to be translated]:Detected language is not supported",
         "qwen_mt": "Modelul QwenMT nu poate fi folosit pentru detectarea limbii",
         "unknown": "Limbă necunoscută detectată",
         "update_setting": "Setarea a eșuat"
@@ -6672,6 +6821,7 @@
       "empty": "Rezultatul traducerii este un conținut gol",
       "failed": "Traducerea a eșuat",
       "invalid_source": "Limbă sursă invalidă",
+      "languages_load_failed": "[to be translated]:Failed to load translate languages. Some features may be unavailable.",
       "not_configured": "Modelul de traducere nu este configurat",
       "not_supported": "Limbă neacceptată {{language}}",
       "unknown": "A apărut o eroare necunoscută în timpul traducerii"
@@ -6684,24 +6834,42 @@
       "error": {
         "check_type": "A apărut o eroare la verificarea tipului de fișier",
         "multiple": "Încărcarea mai multor fișiere nu este permisă",
+        "ocr": "[to be translated]:Failed to recognize image text",
         "too_large": "Fișier prea mare",
         "unknown": "Citirea conținutului fișierului a eșuat"
       },
       "reading": "Se citește conținutul fișierului..."
     },
     "history": {
+      "back": "[to be translated]:Back to list",
       "clear": "Golește istoricul",
       "clear_description": "Golirea istoricului va șterge tot istoricul traducerilor, continui?",
+      "copy_target": "[to be translated]:Copy result",
       "delete": "Șterge istoricul traducerilor",
+      "delete_description": "[to be translated]:Delete this translation history record? This action cannot be undone.",
       "empty": "Niciun istoric de traducere",
       "error": {
+        "add": "[to be translated]:Failed to add translation history",
+        "clear": "[to be translated]:Failed to clear translation history",
         "delete": "Ștergerea a eșuat",
         "load": "Nu s-a putut încărca istoricul traducerilor",
         "save": "Salvarea istoricului traducerilor a eșuat"
       },
-      "search": {
-        "placeholder": "Caută în istoricul traducerilor"
+      "filter": {
+        "starred": "[to be translated]:Only starred"
       },
+      "reuse": "[to be translated]:Reuse",
+      "search": {
+        "placeholder": "[to be translated]:Search translation history"
+      },
+      "source": "[to be translated]:Source",
+      "success": {
+        "add": "[to be translated]:Saved to history",
+        "clear": "[to be translated]:History cleared",
+        "delete": "[to be translated]:Deleted",
+        "update": "[to be translated]:Saved"
+      },
+      "target": "[to be translated]:Target",
       "title": "Istoric traduceri"
     },
     "info": {
@@ -6730,6 +6898,9 @@
       "autoCopy": "Copiază după traducere ",
       "bidirectional": "Setări traducere bidirecțională",
       "bidirectional_tip": "Când este activat, este acceptată doar traducerea bidirecțională între limbile sursă și țintă",
+      "error": {
+        "save": "[to be translated]:Failed to save translation settings"
+      },
       "model": "Setări model",
       "model_desc": "Model folosit pentru serviciul de traducere",
       "model_placeholder": "Selectează modelul de traducere",
@@ -6738,6 +6909,7 @@
       "scroll_sync": "Setări sincronizare derulare",
       "title": "Setări traducere"
     },
+    "source_language": "[to be translated]:Source Language",
     "stop": "Oprește traducerea",
     "success": {
       "custom": {

@@ -7,7 +7,7 @@ import { getProviderDisplayName } from '@renderer/components/ModelSelector/utils
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModels } from '@renderer/hooks/useModels'
 import { useProviders } from '@renderer/hooks/useProviders'
-import { TranslateSettingsPanelContent } from '@renderer/pages/translate/components/TranslateSettingsPopup/TranslateSettingsPopup'
+import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
 import { cn } from '@renderer/utils'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import {
