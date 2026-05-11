@@ -114,7 +114,7 @@ describe('useProviderAutoModelSync', () => {
     expect(syncProviderModelsMock).not.toHaveBeenCalled()
   })
 
-  it('logs auto sync failures and allows retrying the same signature', async () => {
+  it('logs auto sync failures and allows retrying when the same signature becomes eligible again', async () => {
     const syncError = new Error('sync down')
     syncProviderModelsMock.mockRejectedValueOnce(syncError).mockResolvedValueOnce([])
 
@@ -127,6 +127,21 @@ describe('useProviderAutoModelSync', () => {
       })
     )
 
+    useProviderApiKeysMock.mockReturnValue({
+      data: { keys: [] }
+    })
+    rerender()
+
+    await waitFor(() =>
+      expect(loggerInfoMock).toHaveBeenCalledWith('Skipping provider auto model sync', {
+        providerId: 'openai',
+        reason: 'no_api_keys'
+      })
+    )
+
+    useProviderApiKeysMock.mockReturnValue({
+      data: { keys: [{ id: 'key-1', key: 'sk-test', isEnabled: true }] }
+    })
     rerender()
 
     await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(2))
