@@ -10,6 +10,11 @@ const setInputApiKeyMock = vi.fn()
 const commitInputApiKeyNowMock = vi.fn()
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, onClick, ...props }: any) => (
+    <button type="button" onClick={onClick} {...props}>
+      {children}
+    </button>
+  ),
   Input: (props: any) => <input {...props} />,
   Label: ({ children, ...props }: any) => <label {...props}>{children}</label>,
   RadioGroup: ({ children }: any) => <div>{children}</div>,
@@ -17,7 +22,7 @@ vi.mock('@cherrystudio/ui', () => ({
   RowFlex: ({ children }: any) => <div>{children}</div>
 }))
 
-vi.mock('../../primitives/ProviderSettingsPrimitives', () => ({
+vi.mock('../../shared/primitives/ProviderSettingsPrimitives', () => ({
   ProviderHelpLink: ({ children, ...props }: any) => <a {...props}>{children}</a>,
   ProviderHelpText: ({ children }: any) => <span>{children}</span>,
   ProviderHelpTextRow: ({ children }: any) => <div>{children}</div>,
