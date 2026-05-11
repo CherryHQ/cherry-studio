@@ -678,6 +678,9 @@ export class FileManager extends BaseService {
         if (!cached) seen.set(canonical, entry)
         succeeded.push(entry.id)
       } catch (err) {
+        // Wire format only carries `.message`; preserve the stack via the
+        // logger side-channel for postmortem.
+        fileManagerLogger.warn('batchEnsureExternalEntries item failed', { sourceRef: params.externalPath, err })
         failed.push({ sourceRef: params.externalPath, error: (err as Error).message })
       }
     }
@@ -813,7 +816,9 @@ async function aggregateCreate<P>(
       succeeded.push(entry.id)
     } catch (err) {
       // No FileEntryId yet (insert never happened); report by input index so
-      // callers can correlate with the original `items` array.
+      // callers can correlate with the original `items` array. Wire format
+      // carries `.message`; side-channel the full err for stack preservation.
+      fileManagerLogger.warn('batch create item failed', { sourceRef: `#${i}`, err })
       failed.push({ sourceRef: `#${i}`, error: (err as Error).message })
     }
   }

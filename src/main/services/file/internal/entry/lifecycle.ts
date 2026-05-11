@@ -68,6 +68,10 @@ async function aggregate<T>(
       await op(id)
       succeeded.push(id)
     } catch (err) {
+      // Wire format only carries `.message` (string), so the stack is lost in
+      // BatchOperationResult. Side-channel through the logger keeps it
+      // available for postmortem without changing the consumer-facing shape.
+      logger.warn('batch op item failed', { id, err })
       failed.push({ id, error: (err as Error).message })
     }
   }
