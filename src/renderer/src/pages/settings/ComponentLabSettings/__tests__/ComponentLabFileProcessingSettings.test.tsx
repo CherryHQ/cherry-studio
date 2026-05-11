@@ -1,3 +1,4 @@
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { FileMetadata } from '@types'
 import type React from 'react'
@@ -11,7 +12,6 @@ const selectFileMock = vi.hoisted(() => vi.fn())
 const startTaskMock = vi.hoisted(() => vi.fn())
 const getTaskMock = vi.hoisted(() => vi.fn())
 const listAvailableProcessorsMock = vi.hoisted(() => vi.fn())
-const loggerWarnMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -35,14 +35,6 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/context/ThemeProvider', () => ({
   useTheme: () => ({ theme: 'light' })
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      warn: loggerWarnMock
-    })
-  }
 }))
 
 vi.mock('../..', () => ({
@@ -146,12 +138,14 @@ const documentFile: FileMetadata = {
 }
 
 describe('ComponentLabFileProcessingSettings', () => {
+  let loggerWarnSpy: ReturnType<typeof vi.spyOn>
+
   beforeEach(() => {
     selectFileMock.mockReset()
     startTaskMock.mockReset()
     getTaskMock.mockReset()
     listAvailableProcessorsMock.mockReset()
-    loggerWarnMock.mockReset()
+    loggerWarnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
     listAvailableProcessorsMock.mockResolvedValue({
       processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru']
     })
@@ -385,7 +379,7 @@ describe('ComponentLabFileProcessingSettings', () => {
     render(<ComponentLabFileProcessingSettings />)
 
     await waitFor(() => {
-      expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
         'Failed to list available file processors',
         expect.objectContaining({ message: 'IPC failed' })
       )

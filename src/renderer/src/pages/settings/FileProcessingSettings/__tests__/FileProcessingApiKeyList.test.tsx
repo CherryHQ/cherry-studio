@@ -1,3 +1,4 @@
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -5,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FileProcessingApiKeyList } from '../components/FileProcessingApiKeyList'
 
 const setApiKeysMock = vi.hoisted(() => vi.fn())
-const loggerErrorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -26,14 +26,6 @@ vi.mock('@renderer/components/TopView', () => ({
 
 vi.mock('@renderer/components/Icons', () => ({
   EditIcon: ({ size }: { size?: number }) => <span data-size={size}>edit</span>
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: loggerErrorMock
-    })
-  }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -64,8 +56,10 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 describe('FileProcessingApiKeyList', () => {
+  let loggerErrorSpy: ReturnType<typeof vi.spyOn>
+
   beforeEach(() => {
-    loggerErrorMock.mockReset()
+    loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     setApiKeysMock.mockReset()
     setApiKeysMock.mockResolvedValue(undefined)
     Object.defineProperty(window, 'modal', {
@@ -146,7 +140,7 @@ describe('FileProcessingApiKeyList', () => {
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
     })
-    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to save file processing API key', error)
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to save file processing API key', error)
     expect(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder')).toHaveValue('key-1')
   })
 
@@ -160,7 +154,7 @@ describe('FileProcessingApiKeyList', () => {
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
     })
-    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to remove file processing API key', error)
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to remove file processing API key', error)
     expect(screen.getByText('key-1')).toBeInTheDocument()
   })
 

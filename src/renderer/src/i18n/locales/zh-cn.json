@@ -6577,6 +6577,7 @@
           "set_as_default": "设为默认"
         },
         "errors": {
+          "invalid_api_host": "API 地址不合法",
           "load_processors_failed": "加载可用处理器失败",
           "save_failed": "保存失败"
         },

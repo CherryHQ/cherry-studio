@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as RendererConstantModule from '@renderer/config/constant'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,9 +11,6 @@ import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOCRDeploymentInfo'
 const setPreferencesMock = vi.hoisted(() => vi.fn())
 const setOverridesMock = vi.hoisted(() => vi.fn())
 const listAvailableProcessorsMock = vi.hoisted(() => vi.fn())
-const loggerErrorMock = vi.hoisted(() => vi.fn())
-const loggerInfoMock = vi.hoisted(() => vi.fn())
-const loggerWarnMock = vi.hoisted(() => vi.fn())
 const topViewShowMock = vi.hoisted(() => vi.fn())
 const topViewHideMock = vi.hoisted(() => vi.fn())
 const comboboxMockState = vi.hoisted(() => ({
@@ -66,16 +64,6 @@ vi.mock('@renderer/hooks/translate', () => ({
 vi.mock('@data/hooks/usePreference', () => ({
   useMultiplePreferences: () => [preferencesMock, setPreferencesMock],
   usePreference: () => [overridesMock.value, setOverridesMock]
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: loggerErrorMock,
-      info: loggerInfoMock,
-      warn: loggerWarnMock
-    })
-  }
 }))
 
 vi.mock('@renderer/components/Scrollbar', () => ({
@@ -226,6 +214,9 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 describe('FileProcessingSettings', () => {
+  let loggerErrorSpy: ReturnType<typeof vi.spyOn>
+  let loggerWarnSpy: ReturnType<typeof vi.spyOn>
+
   beforeEach(() => {
     preferencesMock.defaultDocumentProcessor = null
     preferencesMock.defaultImageProcessor = null
@@ -239,9 +230,8 @@ describe('FileProcessingSettings', () => {
     setPreferencesMock.mockResolvedValue(undefined)
     setOverridesMock.mockReset()
     setOverridesMock.mockResolvedValue(undefined)
-    loggerErrorMock.mockReset()
-    loggerInfoMock.mockReset()
-    loggerWarnMock.mockReset()
+    loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    loggerWarnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
     topViewShowMock.mockReset()
     topViewHideMock.mockReset()
     listAvailableProcessorsMock.mockReset()
@@ -345,7 +335,7 @@ describe('FileProcessingSettings', () => {
     ).not.toBeInTheDocument()
 
     await waitFor(() => {
-      expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
         'Failed to list available file processors',
         expect.objectContaining({ message: 'IPC failed' })
       )
@@ -423,7 +413,7 @@ describe('FileProcessingSettings', () => {
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
     })
-    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to save API host', error)
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to save API host', error)
   })
 
   it('trims API host before persisting', async () => {
@@ -451,6 +441,26 @@ describe('FileProcessingSettings', () => {
       })
     })
     expect(apiHostInput).toHaveValue('https://draft.example.com')
+  })
+
+  it('rejects invalid API host before persisting', async () => {
+    render(<FileProcessingSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
+
+    const apiHostInput = screen.getByPlaceholderText('settings.provider.api_host')
+    fireEvent.change(apiHostInput, {
+      target: { value: '  not-a-url  ' }
+    })
+    fireEvent.blur(apiHostInput)
+
+    await waitFor(() => {
+      expect(window.toast.warning).toHaveBeenCalledWith('settings.tool.file_processing.errors.invalid_api_host')
+    })
+    expect(setOverridesMock).not.toHaveBeenCalled()
+    expect(apiHostInput).toHaveValue('not-a-url')
   })
 
   it('opens the file processing API key list popup from the API key field', async () => {

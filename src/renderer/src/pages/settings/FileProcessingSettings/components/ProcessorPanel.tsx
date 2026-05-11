@@ -1,7 +1,7 @@
 import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useLanguages } from '@renderer/hooks/translate'
-import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
+import { formatApiKeys, splitApiKeyString, validateApiHost } from '@renderer/utils/api'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { List, SquareCheckBig } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -139,8 +139,12 @@ export function ProcessorPanel({
   const handleApiHostBlur = useCallback(async () => {
     const trimmedApiHost = apiHostInput.trim()
     setApiHostInput(trimmedApiHost)
+    if (!validateApiHost(trimmedApiHost)) {
+      window.toast.warning(t('settings.tool.file_processing.errors.invalid_api_host'))
+      return
+    }
     await persist(() => onSetCapabilityField(processor.id, entry.feature, 'apiHost', trimmedApiHost), 'save API host')
-  }, [apiHostInput, entry.feature, onSetCapabilityField, persist, processor.id])
+  }, [apiHostInput, entry.feature, onSetCapabilityField, persist, processor.id, t])
 
   const setModelIdInputAndPersist = useCallback(
     async (value: string) => {

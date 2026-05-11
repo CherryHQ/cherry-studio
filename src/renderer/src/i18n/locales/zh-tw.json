@@ -6577,6 +6577,7 @@
           "set_as_default": "設為預設"
         },
         "errors": {
+          "invalid_api_host": "API 位址不合法",
           "load_processors_failed": "載入可用處理器失敗",
           "save_failed": "儲存失敗"
         },

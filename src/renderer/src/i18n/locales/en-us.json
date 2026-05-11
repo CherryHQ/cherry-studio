@@ -6577,6 +6577,7 @@
           "set_as_default": "Set as default"
         },
         "errors": {
+          "invalid_api_host": "Invalid API host",
           "load_processors_failed": "Failed to load available processors",
           "save_failed": "Save failed"
         },
