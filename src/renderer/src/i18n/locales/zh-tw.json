@@ -4709,6 +4709,43 @@
         "valueProp": "目前 value"
       },
       "description": "僅在開發環境顯示，用於直接在應用內聯調 v2 選擇器等新元件。",
+      "fileProcessing": {
+        "artifact": {
+          "file": "Markdown 檔案",
+          "text": "文字結果"
+        },
+        "description": "透過真實 file processing IPC 執行所有已設定的檔案處理器，並比較結果。",
+        "duration": "{{seconds}} 秒",
+        "markdown": {
+          "description": "選擇文件，並執行所有文件轉 Markdown 處理器。",
+          "fileFilterName": "文件",
+          "noFile": "未選擇文件",
+          "select": "選擇文件",
+          "start": "測試 Markdown",
+          "title": "Markdown"
+        },
+        "noProcessors": "沒有處理器支援這個能力。",
+        "ocr": {
+          "description": "選擇圖片，並執行所有 OCR 處理器。",
+          "fileFilterName": "圖片",
+          "noFile": "未選擇圖片",
+          "select": "選擇圖片",
+          "start": "測試 OCR",
+          "title": "OCR"
+        },
+        "processorCount": "{{count}} 個處理器",
+        "status": {
+          "cancelled": "已取消",
+          "completed": "已完成",
+          "failed": "失敗",
+          "idle": "閒置",
+          "pending": "等待中",
+          "processing": "處理中",
+          "starting": "啟動中"
+        },
+        "taskId": "任務 ID",
+        "title": "文件解析"
+      },
       "label": "元件測試",
       "modelSelector": {
         "behaviorConfig": "互動與顯示設定",
@@ -6539,64 +6576,82 @@
     },
     "title": "設定",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "支援的語言"
+      "file_processing": {
+        "actions": {
+          "set_as_default": "設為預設"
         },
-        "error": {
-          "not_system": "系統 OCR 僅支援 Windows 與 MacOS"
+        "errors": {
+          "invalid_api_host": "API 位址不合法",
+          "load_processors_failed": "載入可用處理器失敗",
+          "save_failed": "儲存失敗"
         },
         "features": {
-          "paddleocr": "更適合中文文字，並更適用於收據、掃描檔案以及版面較複雜的圖片。",
-          "system": {
-            "macos": "使用內建 macOS OCR 引擎，無需設定，適合截圖與輕量文字擷取。",
-            "windows": "使用原生 Windows OCR 引擎，具備強大的作業系統整合能力，適用於基本的本機辨識工作。"
+          "document_to_markdown": {
+            "title": "文件處理"
           },
-          "tesseract": "一款經典的本地 OCR 選項，具備可自訂的語言套件，非常適合離線與多語言工作流程。"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "該供應商不存在"
-          },
-          "system": {
-            "no_need_configure": "MacOS 無需設定"
-          },
-          "title": "圖片"
-        },
-        "image_provider": "OCR 服務供應商",
-        "paddleocr": {
-          "aistudio_access_token": "星河社區訪問令牌",
-          "api_url": "API 網址",
-          "api_url_label": "取得訪問令牌及 API 網址"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "仰賴 Windows 提供的服務，需要在系統中下載語言套件，才能支援相關語言。"
+          "image_to_text": {
+            "title": "OCR"
           }
         },
-        "tesseract": {
-          "langs_tooltip": "閱讀文件以了解哪些自訂語言受支援"
+        "fields": {
+          "api_base_url": "API 位址 (Base URL)",
+          "api_key": "API 金鑰 (API Key)",
+          "api_keys_placeholder": "多個金鑰可用逗號分隔",
+          "languages": "語言"
         },
-        "title": "OCR 服務"
-      },
-      "preprocess": {
-        "features": {
-          "doc2x": "非常適合將 PDF 轉換為更乾淨的 Markdown 或可編輯文字，以便後續檢索與編輯。",
-          "mineru": "針對更高保真度的版面復原進行最佳化，特別適用於學術 PDF、表格與公式。",
-          "mistral": "強大的雲端文件理解能力，適用於結構化擷取、多頁檔案及複雜版面。",
-          "open_mineru": "一個開放的部署選項，適合希望自行託管或對處理流程有更高控制權的團隊。",
-          "paddleocr": "更輕量的整合選擇，非常適合中文文件、掃描檔及常見收據格式的內容。"
+        "processors": {
+          "doc2x": {
+            "description": "高級檔案還原引擎。",
+            "name": "Doc2x"
+          },
+          "mineru": {
+            "description": "OpenDataLab 開源的高品質 PDF 擷取工具。",
+            "name": "MinerU"
+          },
+          "mistral": {
+            "description": "檔案解析與理解服務。",
+            "name": "Mistral"
+          },
+          "open_mineru": {
+            "description": "可自行部署的 MinerU 服務，適合希望自行控制處理流程的團隊。",
+            "name": "Open MinerU"
+          },
+          "ovocr": {
+            "description": "使用 Intel OpenVINO 在本機執行的 OCR 引擎，支援 NPU 加速。",
+            "name": "Intel OV OCR"
+          },
+          "paddleocr": {
+            "deployment": {
+              "description": "你可以使用 PaddleOCR 官方支援的 Docker 映像本機部署，部署後填入 API 位址即可。",
+              "docs": "查看 Docker 部署文件"
+            },
+            "description": "百度飛槳 OCR 識別系統。",
+            "fields": {
+              "parse_model": "解析模型"
+            },
+            "name": "PaddleOCR"
+          },
+          "system": {
+            "description": "原生作業系統 OCR 引擎。",
+            "name": "System OCR",
+            "status": {
+              "available": "偵測到 macOS Live Text / Windows OCR 引擎可用。",
+              "no_configuration": "系統 OCR 直接呼叫系統底層能力。速度最快，但準確率受系統版本影響。"
+            }
+          },
+          "tesseract": {
+            "description": "Google 開源的光學字元辨識引擎，完全本機執行。",
+            "name": "Tesseract OCR"
+          }
         },
-        "paddleocr": {
-          "aistudio_access_token": "星河社區訪問令牌",
-          "api_url": "API 網址",
-          "api_url_label": "取得訪問令牌及 API 網址",
-          "paddleocr_url_label": "PaddleOCR 官方網站"
+        "sections": {
+          "authentication": "認證",
+          "description": "說明",
+          "language_packs": "語言套件",
+          "model_parameters": "模型參數",
+          "status": "狀態"
         },
-        "provider": "文件處理供應商",
-        "provider_placeholder": "選擇一個文件處理供應商",
-        "title": "文件處理",
-        "tooltip": "在「設定」->「工具」中設定文件處理服務供應商。文件處理可有效提升複雜格式文件及掃描文件的檢索效能"
+        "title": "文件解析"
       },
       "title": "其他設定",
       "websearch": {

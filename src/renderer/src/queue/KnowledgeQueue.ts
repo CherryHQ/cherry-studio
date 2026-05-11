@@ -239,7 +239,7 @@ export class KnowledgeQueue {
           updateBaseItemIsPreprocessed({
             baseId,
             itemId: item.id,
-            isPreprocessed: !!base.preprocessProvider
+            isPreprocessed: !!baseParams.preprocessProvider
           })
         )
       }

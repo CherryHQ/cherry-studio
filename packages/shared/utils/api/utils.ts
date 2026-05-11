@@ -22,6 +22,19 @@ export function formatApiKeys(value: string): string {
 }
 
 /**
+ * Splits an API key string into non-empty keys.
+ *
+ * Commas may be escaped as `\,` when they are part of a key value.
+ */
+export function splitApiKeyString(keyStr: string): string[] {
+  return keyStr
+    .split(/(?<!\\),/)
+    .map((key) => key.trim())
+    .map((key) => key.replace(/\\,/g, ','))
+    .filter(Boolean)
+}
+
+/**
  * Determines whether a host or path string contains a version-like segment (e.g., /v1, /v2beta).
  *
  * @param host - The host or path string to check.
