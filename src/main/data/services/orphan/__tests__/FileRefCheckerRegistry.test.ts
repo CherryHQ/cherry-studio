@@ -1,12 +1,27 @@
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })
+
+// Shared warn spy: runWithBusyRetry routes its retry + retry-exhausted
+// observations through `loggerService.withContext('file/orphan/...').warn`.
+// One vi.fn per process keeps the assertions trivial.
+const mockLoggerWarn = vi.hoisted(() => vi.fn())
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: mockLoggerWarn,
+      error: vi.fn()
+    })
+  }
+}))
 
 const { createDefaultOrphanCheckerRegistry, knowledgeItemChecker, orphanCheckerRegistry, tempSessionChecker } =
   await import('../FileRefCheckerRegistry')
@@ -18,6 +33,11 @@ describe('FileRefCheckerRegistry', () => {
 
   beforeEach(() => {
     MockMainDbServiceUtils.setDb(dbh.db)
+    mockLoggerWarn.mockClear()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   describe('temp_session checker', () => {
@@ -112,6 +132,126 @@ describe('FileRefCheckerRegistry', () => {
       expect(alive.has('ki-bulk-0500')).toBe(true) // second-chunk boundary
       expect(alive.has('ki-bulk-1199')).toBe(true) // last
       expect(alive.has('ki-not-real')).toBe(false)
+    })
+  })
+
+  describe('knowledge_item checker runWithBusyRetry behaviour', () => {
+    // Test the file-private runWithBusyRetry indirectly via its only call site
+    // (knowledgeItemChecker.checkExists). The DB is a real test SQLite instance,
+    // so we spy on the first .select() call to throw a synthetic SQLITE_BUSY —
+    // drizzle propagates the throw out of the chain and runWithBusyRetry's
+    // outer catch sees it. Subsequent select() calls fall through to the real
+    // implementation, exercising the retry branch with a real query.
+    function makeSqliteError(code: string, message = 'synthetic'): Error {
+      return Object.assign(new Error(message), { code })
+    }
+
+    async function seedOne(id: string) {
+      await dbh.db.insert(knowledgeBaseTable).values({
+        id: 'kb-retry-test',
+        name: 'KB',
+        emoji: '📁',
+        embeddingModelId: null,
+        dimensions: 1024,
+        status: 'failed',
+        error: 'missing_embedding_model',
+        chunkSize: 1024,
+        chunkOverlap: 200,
+        searchMode: 'default'
+      })
+      await dbh.db.insert(knowledgeItemTable).values({
+        id,
+        baseId: 'kb-retry-test',
+        type: 'note',
+        data: { source: 's', content: 'c' },
+        status: 'idle',
+        phase: null,
+        error: null
+      })
+    }
+
+    it('first SQLITE_BUSY then success: logs "retrying once" and returns the retry result', async () => {
+      await seedOne('ki-retry-ok')
+      let callCount = 0
+      const realSelect = dbh.db.select.bind(dbh.db)
+      vi.spyOn(dbh.db, 'select').mockImplementation(((...args: unknown[]) => {
+        callCount++
+        if (callCount === 1) throw makeSqliteError('SQLITE_BUSY', 'database is locked')
+        return (realSelect as (...args: unknown[]) => unknown)(...args)
+      }) as typeof dbh.db.select)
+
+      const alive = await knowledgeItemChecker.checkExists(['ki-retry-ok', 'ki-missing'])
+
+      expect(alive).toEqual(new Set(['ki-retry-ok']))
+      expect(mockLoggerWarn).toHaveBeenCalledTimes(1)
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        'orphan-sweep: SQLITE_BUSY, retrying once',
+        expect.objectContaining({ delayMs: expect.any(Number) })
+      )
+    })
+
+    it('persistent SQLITE_BUSY: logs both "retrying" and retry-exhausted, rethrows', async () => {
+      await seedOne('ki-busy-busy')
+      const busyErr = makeSqliteError('SQLITE_BUSY', 'database is locked')
+      vi.spyOn(dbh.db, 'select').mockImplementation((() => {
+        throw busyErr
+      }) as typeof dbh.db.select)
+
+      await expect(knowledgeItemChecker.checkExists(['ki-busy-busy'])).rejects.toBe(busyErr)
+
+      expect(mockLoggerWarn).toHaveBeenCalledTimes(2)
+      expect(mockLoggerWarn).toHaveBeenNthCalledWith(
+        1,
+        'orphan-sweep: SQLITE_BUSY, retrying once',
+        expect.objectContaining({ delayMs: expect.any(Number) })
+      )
+      expect(mockLoggerWarn).toHaveBeenNthCalledWith(
+        2,
+        'orphan-sweep: retry attempt also failed; surfacing as failure',
+        expect.objectContaining({
+          code: 'SQLITE_BUSY',
+          err: busyErr
+        })
+      )
+    })
+
+    it('SQLITE_BUSY then a different error: logs retry-exhausted with the new error code', async () => {
+      // Regression guard for T3 (commit 32a22f364): the previous gating on
+      // `retryErr.code === 'SQLITE_BUSY'` silently rethrew SQLITE_CORRUPT /
+      // SQLITE_IOERR / driver TypeErrors from the second attempt, hiding the
+      // "we already retried" signal. The code field must surface the actual
+      // failure mode, not the BUSY that triggered the retry.
+      await seedOne('ki-busy-corrupt')
+      const busyErr = makeSqliteError('SQLITE_BUSY')
+      const corruptErr = makeSqliteError('SQLITE_CORRUPT', 'database disk image is malformed')
+      let callCount = 0
+      vi.spyOn(dbh.db, 'select').mockImplementation((() => {
+        callCount++
+        if (callCount === 1) throw busyErr
+        throw corruptErr
+      }) as typeof dbh.db.select)
+
+      await expect(knowledgeItemChecker.checkExists(['ki-busy-corrupt'])).rejects.toBe(corruptErr)
+
+      expect(mockLoggerWarn).toHaveBeenCalledTimes(2)
+      expect(mockLoggerWarn).toHaveBeenNthCalledWith(
+        2,
+        'orphan-sweep: retry attempt also failed; surfacing as failure',
+        expect.objectContaining({
+          code: 'SQLITE_CORRUPT',
+          err: corruptErr
+        })
+      )
+    })
+
+    it('non-SQLITE_BUSY first failure: rethrows without retry or logging', async () => {
+      const corruptErr = makeSqliteError('SQLITE_CORRUPT')
+      vi.spyOn(dbh.db, 'select').mockImplementation((() => {
+        throw corruptErr
+      }) as typeof dbh.db.select)
+
+      await expect(knowledgeItemChecker.checkExists(['ki-x'])).rejects.toBe(corruptErr)
+      expect(mockLoggerWarn).not.toHaveBeenCalled()
     })
   })
 
