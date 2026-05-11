@@ -3,8 +3,11 @@
  * `ChatContextProvider` that needs multi-model / regenerate semantics.
  */
 
+import { application } from '@application'
+import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 // Monotonic counter so two regenerate clicks within the same millisecond
@@ -33,6 +36,20 @@ export async function resolveModels(
 
   const { providerId, modelId } = parseUniqueModelId(defaultModelId)
   return [await modelService.getByKey(providerId, modelId)]
+}
+
+export async function resolveAssistantModelId(
+  assistantId: string | null | undefined
+): Promise<{ assistantId: string; defaultModelId: UniqueModelId }> {
+  if (assistantId && assistantId !== DEFAULT_ASSISTANT_ID) {
+    const assistant = await assistantDataService.getById(assistantId)
+    if (!assistant.modelId) throw new Error(`Assistant ${assistantId} has no model configured`)
+    return { assistantId, defaultModelId: assistant.modelId }
+  }
+
+  const defaultModelId = application.get('PreferenceService').get('chat.default_model_id') as UniqueModelId | null
+  if (!defaultModelId) throw new Error('Default assistant has no model configured')
+  return { assistantId: DEFAULT_ASSISTANT_ID, defaultModelId }
 }
 
 /**

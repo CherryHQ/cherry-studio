@@ -12,7 +12,6 @@
  * Keep it last in the dispatcher providers array (see `./dispatch.ts`).
  */
 
-import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
@@ -29,7 +28,7 @@ import { MessageServiceBackend } from '../persistence/backends/MessageServiceBac
 import type { CherryUIMessage, StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import type { MainContinueConversationRequest, MainDispatchRequest } from './dispatch'
-import { resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
+import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
 const rawTracer = trace.getTracer(TRACER_NAME)
 
@@ -77,13 +76,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   async prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch> {
     // 1. Resolve context
     const topic = await topicService.getById(req.topicId)
-    const assistantId = topic?.assistantId
-    if (!assistantId) throw new Error(`Cannot resolve assistantId for topic ${req.topicId}`)
-
-    const assistant = await assistantDataService.getById(assistantId)
-    if (!assistant.modelId) throw new Error(`Assistant ${assistantId} has no model configured`)
-
-    const defaultModelId = assistant.modelId
+    const { assistantId, defaultModelId } = await resolveAssistantModelId(topic?.assistantId)
 
     // 2. continue-conversation takes a separate code path:
     //    no new placeholder is created — the existing assistant anchor is

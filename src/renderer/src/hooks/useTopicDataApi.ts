@@ -19,12 +19,19 @@ import {
 import { loggerService } from '@logger'
 import type { Topic as RendererTopic } from '@renderer/types'
 import type { CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topics'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
 import { useCallback, useEffect, useRef } from 'react'
 
 const logger = loggerService.withContext('useTopicDataApi')
 
 const EMPTY_TOPICS: readonly Topic[] = Object.freeze([])
+
+function omitDefaultAssistantId<T extends { assistantId?: string }>(dto: T): T {
+  if (dto.assistantId !== DEFAULT_ASSISTANT_ID) return dto
+  const { assistantId: _assistantId, ...rest } = dto
+  return rest as T
+}
 
 /**
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
@@ -41,7 +48,7 @@ const EMPTY_TOPICS: readonly Topic[] = Object.freeze([])
 export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
   return {
     id: t.id,
-    assistantId: t.assistantId ?? '',
+    assistantId: t.assistantId ?? DEFAULT_ASSISTANT_ID,
     name: t.name ?? '',
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
@@ -132,7 +139,7 @@ export function useTopicMutations() {
 
   const createTopic = useCallback(
     async (dto: CreateTopicDto): Promise<Topic> => {
-      const topic = await createTrigger({ body: dto })
+      const topic = await createTrigger({ body: omitDefaultAssistantId(dto) })
       logger.info('Created topic', { id: topic.id })
       return topic
     },
@@ -141,7 +148,7 @@ export function useTopicMutations() {
 
   const updateTopic = useCallback(
     async (topicId: string, dto: UpdateTopicDto): Promise<Topic> => {
-      const topic = await updateTrigger({ params: { id: topicId }, body: dto })
+      const topic = await updateTrigger({ params: { id: topicId }, body: omitDefaultAssistantId(dto) })
       logger.info('Updated topic', { id: topicId })
       return topic
     },

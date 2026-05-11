@@ -21,6 +21,7 @@
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTemporaryTopic')
@@ -54,8 +55,10 @@ export function useTemporaryTopic(assistantId: string | undefined): UseTemporary
 
     let cancelled = false
 
+    const body = assistantId === DEFAULT_ASSISTANT_ID ? {} : { assistantId }
+
     void dataApiService
-      .post('/temporary/topics', { body: { assistantId } })
+      .post('/temporary/topics', { body })
       .then((topic) => {
         activeIdRef.current = topic.id
         if (cancelled) {

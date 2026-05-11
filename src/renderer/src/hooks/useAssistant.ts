@@ -5,6 +5,7 @@ import { composeDefaultAssistant } from '@renderer/services/defaultAssistant'
 import type { Assistant, AssistantSettings, Model } from '@renderer/types'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
 
@@ -39,19 +40,24 @@ export function useDefaultAssistant(): { assistant: Assistant } {
 }
 
 export function useAssistant(id: string) {
-  const { assistant } = useAssistantApiById(id)
+  const isDefaultAssistant = id === DEFAULT_ASSISTANT_ID
+  const { assistant: defaultAssistant } = useDefaultAssistant()
+  const { assistant: apiAssistant } = useAssistantApiById(isDefaultAssistant ? undefined : id)
   const { updateAssistant: patchAssistant } = useAssistantMutations()
   const { defaultModel } = useDefaultModel()
+  const [, setDefaultModelId] = usePreference('chat.default_model_id')
 
+  const assistant = isDefaultAssistant ? defaultAssistant : apiAssistant
   const modelId = (assistant?.modelId ?? defaultModel?.id) as UniqueModelId
   const { model } = useModelById(modelId)
 
   const updateAssistantSettings = useCallback(
     (settings: Partial<AssistantSettings>) => {
       if (!id || !assistant) return
+      if (isDefaultAssistant) return
       void patchAssistant(id, { settings })
     },
-    [assistant, id, patchAssistant]
+    [assistant, id, isDefaultAssistant, patchAssistant]
   )
 
   return {
@@ -59,6 +65,10 @@ export function useAssistant(id: string) {
     model,
     setModel: (next: Model, extraSettings?: Partial<AssistantSettings>) => {
       if (!id || !assistant) return
+      if (isDefaultAssistant) {
+        void setDefaultModelId(createUniqueModelId(next.provider, next.id))
+        return
+      }
       const reasoning = reconcileReasoningEffortForModel(next, assistant.settings.reasoning_effort, id)
       const webSearch = reconcileWebSearchForModel(next, assistant.settings)
       const settingsPatch =
@@ -74,6 +84,12 @@ export function useAssistant(id: string) {
     },
     updateAssistant: (patch: UpdateAssistantDto) => {
       if (!id) return Promise.resolve(undefined)
+      if (isDefaultAssistant) {
+        if (patch.modelId) {
+          return setDefaultModelId(patch.modelId).then(() => composeDefaultAssistant(patch.modelId))
+        }
+        return Promise.resolve(assistant)
+      }
       return patchAssistant(id, patch)
     },
     updateAssistantSettings

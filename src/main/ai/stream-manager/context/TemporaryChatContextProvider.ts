@@ -12,7 +12,6 @@
  * the in-memory map and ownership flips to the persistent provider under the same id.
  */
 
-import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
@@ -24,7 +23,7 @@ import { TemporaryChatBackend } from '../persistence/backends/TemporaryChatBacke
 import type { CherryUIMessage, StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
-import { resolveModels } from './modelResolution'
+import { resolveAssistantModelId, resolveModels } from './modelResolution'
 
 const logger = loggerService.withContext('TemporaryChatContextProvider')
 
@@ -57,11 +56,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     const topic = temporaryChatService.getTopic(req.topicId)
     if (!topic) throw new Error(`Temporary topic not found: ${req.topicId}`)
 
-    const assistantId = topic.assistantId
-    if (!assistantId) throw new Error(`Temporary topic ${req.topicId} has no assistantId configured`)
-
-    const assistant = await assistantDataService.getById(assistantId)
-    if (!assistant.modelId) throw new Error(`Assistant ${assistantId} has no model configured`)
+    const { assistantId, defaultModelId } = await resolveAssistantModelId(topic.assistantId)
 
     // Multi-model isn't supported: TemporaryChatService forbids non-zero siblingsGroupId.
     // Temporary chats are "quick assistant / selection action" scenarios — @mentions
@@ -72,7 +67,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
         mentioned: req.mentionedModelIds
       })
     }
-    const models = await resolveModels(undefined, assistant.modelId)
+    const models = await resolveModels(undefined, defaultModelId)
     const model = models[0]
     const { modelId: rawModelId, providerId } = parseUniqueModelId(model.id)
     const modelSnapshot = {

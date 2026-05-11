@@ -186,6 +186,14 @@ describe('V2ChatContent', () => {
     })
   })
 
+  it('disables persistent history loading for freshly leased temporary topics', () => {
+    render(
+      <V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" onPersistTemporaryTopic={vi.fn()} />
+    )
+
+    expect(mockUseTopicMessagesV2).toHaveBeenCalledWith('topic-1', { enabled: false })
+  })
+
   it('renders only uiMessages in the list (execution overlay affects parts, not the list itself)', async () => {
     // Core architectural contract post-refactor: the rendered list is a
     // projection of `uiMessages` (DB truth). Overlay from an active

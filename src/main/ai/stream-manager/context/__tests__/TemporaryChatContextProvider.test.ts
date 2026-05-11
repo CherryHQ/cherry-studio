@@ -1,4 +1,6 @@
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ── Service mocks ────────────────────────────────────────────────────
@@ -63,6 +65,8 @@ describe('TemporaryChatContextProvider', () => {
     listMessagesMock.mockReset()
     getAssistantByIdMock.mockReset()
     getByKeyMock.mockReset()
+    MockMainPreferenceServiceUtils.resetMocks()
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
 
     // sensible defaults
     hasTopicMock.mockReturnValue(true)
@@ -108,9 +112,24 @@ describe('TemporaryChatContextProvider', () => {
     await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toThrow(/Temporary topic not found/i)
   })
 
-  it('throws when topic has no assistantId', async () => {
+  it('uses the default model preference when topic has no assistantId', async () => {
     getTopicMock.mockReturnValueOnce({ id: '1', assistantId: null })
-    await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toThrow(/no assistantId configured/i)
+
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(getAssistantByIdMock).not.toHaveBeenCalled()
+    expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
+    expect(prepared.models[0].request.assistantId).toBe(DEFAULT_ASSISTANT_ID)
+  })
+
+  it('uses the default model preference for the default assistant sentinel', async () => {
+    getTopicMock.mockReturnValueOnce({ id: '1', assistantId: DEFAULT_ASSISTANT_ID })
+
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(getAssistantByIdMock).not.toHaveBeenCalled()
+    expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
+    expect(prepared.models[0].request.assistantId).toBe(DEFAULT_ASSISTANT_ID)
   })
 
   it('appends the user message, then returns a PreparedDispatch with a TemporaryChatBackend listener', async () => {

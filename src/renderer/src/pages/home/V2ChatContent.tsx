@@ -13,7 +13,7 @@ import type { FileMetadata, Topic } from '@renderer/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('V2ChatContent')
@@ -62,6 +62,9 @@ interface Props {
  */
 const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, onPersistTemporaryTopic }) => {
   const { t } = useTranslation()
+  const [hasPersistedTemporaryTopic, setHasPersistedTemporaryTopic] = useState(false)
+  useEffect(() => setHasPersistedTemporaryTopic(false), [topic.id])
+  const isFreshTemporaryTopic = !!onPersistTemporaryTopic && !hasPersistedTemporaryTopic
   const {
     uiMessages,
     siblingsMap,
@@ -71,7 +74,7 @@ const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, onPersist
     loadOlder,
     hasOlder,
     mutate: messagesCacheMutate
-  } = useTopicMessagesV2(topic.id)
+  } = useTopicMessagesV2(topic.id, { enabled: !isFreshTemporaryTopic })
 
   if (isHistoryLoading) {
     return (
@@ -91,6 +94,8 @@ const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, onPersist
       setActiveTopic={setActiveTopic}
       mainHeight={mainHeight}
       onPersistTemporaryTopic={onPersistTemporaryTopic}
+      isFreshTemporaryTopic={isFreshTemporaryTopic}
+      onTemporaryTopicPersisted={() => setHasPersistedTemporaryTopic(true)}
       initialMessages={uiMessages}
       uiMessages={uiMessages}
       siblingsMap={siblingsMap}
@@ -108,6 +113,8 @@ const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, onPersist
 // ============================================================================
 
 interface InnerProps extends Props {
+  isFreshTemporaryTopic: boolean
+  onTemporaryTopicPersisted: () => void
   /** One-time seed for `useChat(messages:)` — consumed on mount only. */
   initialMessages: CherryUIMessage[]
   /** Live DB-backed message list; reactive to SWR refreshes. */
@@ -125,6 +132,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
   setActiveTopic,
   mainHeight,
   onPersistTemporaryTopic,
+  isFreshTemporaryTopic,
+  onTemporaryTopicPersisted,
   initialMessages,
   uiMessages,
   siblingsMap,
@@ -191,11 +200,12 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const handleSendV2 = useCallback(
     async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
-      if (onPersistTemporaryTopic) {
+      if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
         try {
           // Seed the new topic with the user's first message as a placeholder
           // name so the sidebar entry isn't blank while the auto-namer runs.
           await onPersistTemporaryTopic(text)
+          onTemporaryTopicPersisted()
         } catch (err) {
           logger.warn('failed to persist temporary topic, falling back', err as Error)
         }
@@ -227,7 +237,15 @@ const V2ChatContentInner: FC<InnerProps> = ({
         throw err
       }
     },
-    [onPersistTemporaryTopic, activeNodeId, sendMessage, capabilityBody, cache]
+    [
+      isFreshTemporaryTopic,
+      onPersistTemporaryTopic,
+      onTemporaryTopicPersisted,
+      activeNodeId,
+      sendMessage,
+      capabilityBody,
+      cache
+    ]
   )
 
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])

@@ -162,11 +162,13 @@ export interface UseTopicMessagesV2Result {
   mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]>
 }
 
-export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
+export function useTopicMessagesV2(topicId: string, options?: { enabled?: boolean }): UseTopicMessagesV2Result {
+  const enabled = options?.enabled !== false
   const { pages, isLoading, mutate, loadNext, hasNext } = useInfiniteQuery('/topics/:topicId/messages', {
     params: { topicId },
     query: { includeSiblings: true },
     limit: PAGE_SIZE,
+    enabled,
     swrOptions: { dedupingInterval: 0 }
   })
 
@@ -180,9 +182,13 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
   // Force a fresh fetch and track readiness so the loading gate blocks until fresh.
   const [isReady, setIsReady] = useState(false)
   useEffect(() => {
+    if (!enabled) {
+      setIsReady(true)
+      return
+    }
     setIsReady(false)
     void mutate().then(() => setIsReady(true))
-  }, [topicId, mutate])
+  }, [topicId, mutate, enabled])
 
   const projectionCacheRef = useRef<WeakMap<SharedMessage, CherryUIMessage>>(new WeakMap())
   const uiMessages = useMemo<CherryUIMessage[]>(
@@ -197,6 +203,7 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
   // into `useChat.state.messages`. Reuses the same projection helper as the
   // memo above so the two paths can't drift on flatten / cache semantics.
   const refresh = useCallback(async (): Promise<CherryUIMessage[]> => {
+    if (!enabled) return []
     const refreshed = await mutate()
     if (!refreshed?.length) return []
     const allItems = refreshed
@@ -204,12 +211,12 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
       .reverse()
       .flatMap((p) => p.items)
     return projectPagesToUI(allItems, projectionCacheRef.current)
-  }, [mutate])
+  }, [mutate, enabled])
 
   return {
     uiMessages,
     siblingsMap,
-    isLoading: isLoading || !isReady,
+    isLoading: enabled && (isLoading || !isReady),
     refresh,
     activeNodeId,
     loadOlder: loadNext,
