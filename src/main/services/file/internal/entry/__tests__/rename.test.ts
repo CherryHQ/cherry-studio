@@ -121,13 +121,19 @@ describe('internal/entry/rename', () => {
     await writeFile(filePath, 'x')
     const entry = await ensureExternal(deps, { externalPath: filePath as FilePath })
 
-    const fsPromises = await import('node:fs/promises')
-    const renameSpy = vi.spyOn(fsPromises, 'rename')
+    // Spy on the file module's `move` wrapper, not `node:fs/promises.rename`:
+    // the latter is a Node native ESM namespace member and Vitest cannot
+    // redefine it (`Cannot redefine property: rename`). The `rename` function
+    // under test always reaches `fsMove` before it ever calls fs.rename, so
+    // asserting on `move` is the appropriate granularity for "did the rename
+    // path actually execute".
+    const fsModule = await import('@main/utils/file/fs')
+    const moveSpy = vi.spyOn(fsModule, 'move')
 
     // Re-rename to the NFD form — same logical name, different codepoints.
     const result = await rename(deps, entry.id, nfdName)
 
-    expect(renameSpy).not.toHaveBeenCalled()
+    expect(moveSpy).not.toHaveBeenCalled()
     expect(result.id).toBe(entry.id)
     expect(result.externalPath).toBe(entry.externalPath) // still NFC-canonical
   })
