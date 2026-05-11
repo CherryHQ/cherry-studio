@@ -111,8 +111,8 @@ const UserModelRowSchema = z.object({
   supportsStreaming: z.boolean().nullish(),
   reasoning: z.record(z.string(), z.unknown()).nullish(),
   parameterSupport: z.record(z.string(), z.unknown()).nullish(),
-  isEnabled: z.boolean().nullish(),
-  isHidden: z.boolean().nullish(),
+  isEnabled: z.boolean(),
+  isHidden: z.boolean(),
   sortOrder: z.number().nullish(),
   notes: z.string().nullish()
 })
@@ -293,8 +293,8 @@ export function mergeModelWithUser(
     supportsStreaming: userModel.supportsStreaming ?? true,
     reasoning,
     pricing,
-    isEnabled: userModel.isEnabled ?? !(catalogOverride?.disabled ?? false),
-    isHidden: userModel.isHidden ?? false,
+    isEnabled: userModel.isEnabled,
+    isHidden: userModel.isHidden,
     replaceWith: replaceWith ? createUniqueModelId(providerId, replaceWith) : undefined
   }
 }

@@ -1,9 +1,15 @@
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuItemContent,
+  ContextMenuTrigger
+} from '@cherrystudio/ui'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { makeSvgSizeAdaptive } from '@renderer/utils/image'
-import { Dropdown } from 'antd'
 import { Eye } from 'lucide-react'
 import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface SvgProps extends React.SVGProps<SVGSVGElement> {
@@ -44,18 +50,6 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
     void ImagePreviewService.show(svgRef.current, { format: 'svg' })
   }, [])
 
-  const contextMenuItems = useMemo(
-    () => [
-      {
-        key: 'preview',
-        label: t('common.preview'),
-        icon: <Eye size="1rem" />,
-        onClick: onPreview
-      }
-    ],
-    [onPreview, t]
-  )
-
   // Create a mutable copy of props to potentially modify.
   const finalProps = { ...restProps }
 
@@ -68,9 +62,16 @@ const MarkdownSvgRenderer: FC<SvgProps> = (props) => {
   }
 
   return (
-    <Dropdown menu={{ items: contextMenuItems }} trigger={['contextMenu']}>
-      <svg ref={svgRef} {...finalProps} />
-    </Dropdown>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <svg ref={svgRef} {...finalProps} />
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={onPreview}>
+          <ContextMenuItemContent icon={<Eye size="1rem" />}>{t('common.preview')}</ContextMenuItemContent>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }
 

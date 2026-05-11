@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
@@ -317,7 +317,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           scrollableTarget="messages"
           inverse
           style={{ overflow: 'visible' }}>
-          <ContextMenu>
+          <SelectionContextMenu>
             <ScrollContainer>
               {groupedMessages.map(([key, groupMessages]) => (
                 <MessageGroup
@@ -333,7 +333,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
                 </LoaderContainer>
               )}
             </ScrollContainer>
-          </ContextMenu>
+          </SelectionContextMenu>
         </InfiniteScroll>
 
         {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}

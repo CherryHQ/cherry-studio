@@ -171,7 +171,9 @@ describe('mergeModelWithUser', () => {
       modelId: 'gpt-4o',
       presetModelId: 'gpt-4o',
       name: 'My GPT-4o',
-      contextWindow: 64_000
+      contextWindow: 64_000,
+      isEnabled: true,
+      isHidden: false
     }
     const model = mergeModelWithUser(userRow, null, presetModel, 'openai')
     expect(model.name).toBe('My GPT-4o')
@@ -191,7 +193,9 @@ describe('mergeModelWithUser', () => {
       presetModelId: 'gpt-4o',
       name: 'User Override',
       contextWindow: 50_000,
-      capabilities: [CAPABILITY.EMBEDDING]
+      capabilities: [CAPABILITY.EMBEDDING],
+      isEnabled: true,
+      isHidden: false
     }
     const model = mergeModelWithUser(userRow, override, presetModel, 'openai')
 
@@ -207,7 +211,8 @@ describe('mergeModelWithUser', () => {
       providerId: 'openai',
       modelId: 'gpt-4o',
       presetModelId: 'gpt-4o',
-      isEnabled: true
+      isEnabled: true,
+      isHidden: false
     }
     const model = mergeModelWithUser(userRow, override, presetModel, 'openai')
     expect(model.isEnabled).toBe(true)
@@ -220,7 +225,9 @@ describe('mergeModelWithUser', () => {
       presetModelId: 'gpt-4o',
       name: null,
       contextWindow: null,
-      capabilities: null
+      capabilities: null,
+      isEnabled: true,
+      isHidden: false
     }
     const model = mergeModelWithUser(userRow, null, presetModel, 'openai')
     expect(model.name).toBe('GPT-4o')
@@ -330,8 +337,8 @@ describe('mergeModelWithUser — field completeness', () => {
       maxOutputTokens: null,
       supportsStreaming: null,
       reasoning: null,
-      isEnabled: null,
-      isHidden: null
+      isEnabled: true,
+      isHidden: false
     }
     const model = mergeModelWithUser(userRow, null, fullPreset, 'openai')
 
@@ -356,7 +363,9 @@ describe('mergeModelWithUser — field completeness', () => {
       presetModelId: 'gpt-4o',
       name: 'My Model',
       contextWindow: 50_000,
-      capabilities: ['embedding']
+      capabilities: ['embedding'],
+      isEnabled: true,
+      isHidden: false
     }
     const model = mergeModelWithUser(userRow, override, fullPreset, 'openai')
 
