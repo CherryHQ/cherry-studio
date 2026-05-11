@@ -11,7 +11,7 @@ import { createMessageActionRegistry, createRightPaneRegistry } from '@renderer/
 
 ## Resource List
 
-Use `ResourceListAdapter` before passing topic, session, or agent data into future `ResourceList` components. The output is `ChatResourceItem`, which only contains UI fields such as `id`, `kind`, `title`, `subtitle`, `status`, `pinned`, `active`, `disabled`, and optional `meta`.
+Use `ResourceListAdapter` before passing topic or session data into future `ResourceList` components. The output is `ChatResourceItem`, which only contains UI fields such as `id`, `kind`, `title`, `subtitle`, `status`, `pinned`, `active`, `disabled`, and optional `meta`.
 
 ```ts
 const item = ResourceListAdapter.fromTopic(topic, {
@@ -116,7 +116,7 @@ Create registries at module scope, provider initialization, or in `useRef`. Regi
 const registryRef = useRef(createMessageActionRegistry())
 ```
 
-Keep adapter output small. Do not place raw `topic`, `session`, `agent`, or `message` objects in `meta`; that would re-couple components to private business shapes and make downstream memoization depend on raw object identity.
+Keep adapter output small. Do not place raw `topic`, `session`, or `message` objects in `meta`; that would re-couple components to private business shapes and make downstream memoization depend on raw object identity.
 
 ## Boundaries
 

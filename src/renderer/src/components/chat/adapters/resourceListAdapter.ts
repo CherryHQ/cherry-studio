@@ -1,8 +1,7 @@
 import type { Topic } from '@renderer/types'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 
-export type ChatResourceKind = 'topic' | 'session' | 'agent'
+export type ChatResourceKind = 'topic' | 'session'
 
 export type ChatResourceStatus = 'idle' | 'active' | 'streaming' | 'loading' | 'error' | 'disabled'
 
@@ -91,31 +90,7 @@ export function adaptSessionResource(
   }
 }
 
-export function adaptAgentResource(
-  agent: Pick<AgentEntity, 'id' | 'name' | 'description' | 'type'>,
-  options: ResourceAdapterOptions = {}
-): ChatResourceItem {
-  const active = options.active ?? false
-  const disabled = options.disabled ?? false
-
-  return {
-    id: agent.id,
-    kind: 'agent',
-    title: agent.name,
-    subtitle: options.subtitle ?? agent.description,
-    status: normalizeStatus({ active, disabled, status: options.status }),
-    pinned: options.pinned ?? false,
-    active,
-    disabled,
-    meta: {
-      type: agent.type,
-      ...options.meta
-    }
-  }
-}
-
 export const ResourceListAdapter = {
   fromTopic: adaptTopicResource,
-  fromSession: adaptSessionResource,
-  fromAgent: adaptAgentResource
+  fromSession: adaptSessionResource
 }
