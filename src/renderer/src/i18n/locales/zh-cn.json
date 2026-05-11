@@ -5858,9 +5858,7 @@
     "tool": {
       "file_processing": {
         "actions": {
-          "hide_api_key": "隐藏 API 密钥",
-          "set_as_default": "设为默认",
-          "show_api_key": "显示 API 密钥"
+          "set_as_default": "设为默认"
         },
         "features": {
           "document_to_markdown": {
@@ -5873,7 +5871,8 @@
         "fields": {
           "api_base_url": "API 地址 (Base URL)",
           "api_key": "API 密钥 (API Key)",
-          "api_keys_placeholder": "多个密钥可用逗号分隔"
+          "api_keys_placeholder": "多个密钥可用逗号分隔",
+          "languages": "语言"
         },
         "knowledge": {
           "provider": "文件处理器",
@@ -5922,10 +5921,6 @@
             }
           },
           "tesseract": {
-            "actions": {
-              "add_language": "添加语言",
-              "remove_language": "移除 {{language}}"
-            },
             "description": "Google 开源的光学字符识别引擎，完全本地运行。",
             "name": "Tesseract OCR"
           }

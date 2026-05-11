@@ -1,3 +1,5 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as RendererConstantModule from '@renderer/config/constant'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,9 +9,16 @@ import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOCRDeploymentInfo'
 
 const setPreferencesMock = vi.hoisted(() => vi.fn())
 const listAvailableProcessorsMock = vi.hoisted(() => vi.fn())
+const loggerErrorMock = vi.hoisted(() => vi.fn())
+const loggerInfoMock = vi.hoisted(() => vi.fn())
 const loggerWarnMock = vi.hoisted(() => vi.fn())
 const topViewShowMock = vi.hoisted(() => vi.fn())
 const topViewHideMock = vi.hoisted(() => vi.fn())
+const comboboxMockState = vi.hoisted(() => ({
+  onChange: undefined as ((value: string | string[]) => void) | undefined,
+  options: [] as Array<{ value: string; label: string }>,
+  value: undefined as string | string[] | undefined
+}))
 const selectMockState = vi.hoisted(() => ({
   onValueChange: undefined as ((value: string) => void) | undefined,
   value: undefined as string | undefined
@@ -34,10 +43,15 @@ vi.mock('@renderer/context/ThemeProvider', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
-vi.mock('@renderer/config/constant', () => ({
-  isMac: false,
-  isWin: true
-}))
+vi.mock('@renderer/config/constant', async (importOriginal) => {
+  const actual = await importOriginal<typeof RendererConstantModule>()
+
+  return {
+    ...actual,
+    isMac: false,
+    isWin: true
+  }
+})
 
 vi.mock('@renderer/hooks/useTranslate', () => ({
   default: () => ({
@@ -55,6 +69,8 @@ vi.mock('@data/hooks/usePreference', () => ({
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
+      error: loggerErrorMock,
+      info: loggerInfoMock,
       warn: loggerWarnMock
     })
   }
@@ -71,94 +87,156 @@ vi.mock('@renderer/components/TopView', () => ({
   }
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
-  Button: ({ asChild, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) => {
-    if (asChild) {
-      return <>{children}</>
-    }
-    return (
-      <button type="button" {...props}>
-        {children}
-      </button>
-    )
-  },
-  Combobox: () => <div />,
-  Command: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  CommandEmpty: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  CommandGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  CommandItem: ({
-    children,
-    onSelect,
-    ...props
-  }: React.HTMLAttributes<HTMLButtonElement> & { onSelect?: () => void }) => (
-    <button type="button" {...props} onClick={onSelect}>
-      {children}
-    </button>
-  ),
-  CommandList: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  Dialog: ({ children, open }: React.HTMLAttributes<HTMLDivElement> & { open?: boolean }) =>
-    open === false ? null : <>{children}</>,
-  DialogContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-    <div role="dialog" {...props}>
-      {children}
-    </div>
-  ),
-  DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
-  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-  Popover: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>,
-  PopoverContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  PopoverTrigger: ({ children }: React.HTMLAttributes<HTMLDivElement> & { asChild?: boolean }) => <>{children}</>,
-  Select: ({
-    children,
-    onValueChange,
-    value
-  }: React.HTMLAttributes<HTMLDivElement> & { onValueChange?: (value: string) => void; value?: string }) => {
-    selectMockState.onValueChange = onValueChange
-    selectMockState.value = value
-    return <div data-value={value}>{children}</div>
-  },
-  SelectContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  SelectItem: ({ children, value, ...props }: React.HTMLAttributes<HTMLButtonElement> & { value: string }) => (
-    <button type="button" {...props} onClick={() => selectMockState.onValueChange?.(value)}>
-      {children}
-    </button>
-  ),
-  SelectTrigger: (props: React.ButtonHTMLAttributes<HTMLButtonElement> & { selectedValue?: string; size?: string }) => {
-    const { children, selectedValue, size, ...buttonProps } = props
-    void size
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
 
-    return (
-      <button type="button" {...buttonProps}>
-        {children}
-        {selectedValue ?? selectMockState.value}
-      </button>
-    )
-  },
-  SelectValue: () => null,
-  Textarea: {
-    Input: ({
-      onValueChange,
+  return {
+    ...actual,
+    Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
+    Button: ({
+      asChild,
+      children,
       ...props
-    }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { onValueChange?: (value: string) => void }) => (
-      <textarea {...props} onChange={(event) => onValueChange?.(event.target.value)} />
+    }: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) => {
+      if (asChild) {
+        return <>{children}</>
+      }
+      return (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      )
+    },
+    Combobox: ({
+      emptyText,
+      onChange,
+      options,
+      value
+    }: React.HTMLAttributes<HTMLDivElement> & {
+      emptyText?: string
+      multiple?: boolean
+      onChange?: (value: string | string[]) => void
+      options?: Array<{ value: string; label: string }>
+      value?: string | string[]
+    }) => {
+      comboboxMockState.onChange = onChange
+      comboboxMockState.options = options ?? []
+      comboboxMockState.value = value
+
+      return (
+        <div>
+          {(options ?? []).length === 0 ? <span>{emptyText}</span> : null}
+          {(options ?? []).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                const currentValue = Array.isArray(value) ? value : []
+                const nextValue = currentValue.includes(option.value)
+                  ? currentValue.filter((item) => item !== option.value)
+                  : [...currentValue, option.value]
+
+                onChange?.(nextValue)
+              }}>
+              {option.label} ({option.value})
+            </button>
+          ))}
+        </div>
+      )
+    },
+    Dialog: ({ children, open }: React.HTMLAttributes<HTMLDivElement> & { open?: boolean }) =>
+      open === false ? null : <>{children}</>,
+    DialogContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div role="dialog" {...props}>
+        {children}
+      </div>
+    ),
+    DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
+    Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    MenuDivider: (props: React.HTMLAttributes<HTMLDivElement>) => <div {...props} />,
+    MenuItem: ({
+      active,
+      icon,
+      label,
+      suffix,
+      ...props
+    }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+      active?: boolean
+      icon?: React.ReactNode
+      label: string
+      suffix?: React.ReactNode
+    }) => {
+      void icon
+
+      return (
+        <button type="button" aria-pressed={active} {...props}>
+          {label}
+          {suffix}
+        </button>
+      )
+    },
+    MenuList: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    Popover: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>,
+    PopoverContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    PopoverTrigger: ({ children }: React.HTMLAttributes<HTMLDivElement> & { asChild?: boolean }) => <>{children}</>,
+    Select: ({
+      children,
+      onValueChange,
+      value
+    }: React.HTMLAttributes<HTMLDivElement> & { onValueChange?: (value: string) => void; value?: string }) => {
+      selectMockState.onValueChange = onValueChange
+      selectMockState.value = value
+      return <div data-value={value}>{children}</div>
+    },
+    SelectContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+    SelectItem: ({ children, value, ...props }: React.HTMLAttributes<HTMLButtonElement> & { value: string }) => (
+      <button type="button" {...props} onClick={() => selectMockState.onValueChange?.(value)}>
+        {children}
+      </button>
+    ),
+    SelectTrigger: (
+      props: React.ButtonHTMLAttributes<HTMLButtonElement> & { selectedValue?: string; size?: string }
+    ) => {
+      const { children, selectedValue, size, ...buttonProps } = props
+      void size
+
+      return (
+        <button type="button" {...buttonProps}>
+          {children}
+          {selectedValue ?? selectMockState.value}
+        </button>
+      )
+    },
+    SelectValue: () => null,
+    Textarea: {
+      Input: ({
+        onValueChange,
+        ...props
+      }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { onValueChange?: (value: string) => void }) => (
+        <textarea {...props} onChange={(event) => onValueChange?.(event.target.value)} />
+      )
+    },
+    Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement> & { content?: React.ReactNode; delay?: number }) => (
+      <>{children}</>
     )
-  },
-  Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement> & { content?: React.ReactNode; delay?: number }) => (
-    <>{children}</>
-  )
-}))
+  }
+})
 
 describe('FileProcessingSettings', () => {
   beforeEach(() => {
     preferencesMock.defaultDocumentProcessor = null
     preferencesMock.defaultImageProcessor = null
     preferencesMock.overrides = {}
+    comboboxMockState.onChange = undefined
+    comboboxMockState.options = []
+    comboboxMockState.value = undefined
     selectMockState.onValueChange = undefined
     selectMockState.value = undefined
     setPreferencesMock.mockReset()
     setPreferencesMock.mockResolvedValue(undefined)
+    loggerErrorMock.mockReset()
+    loggerInfoMock.mockReset()
     loggerWarnMock.mockReset()
     topViewShowMock.mockReset()
     topViewHideMock.mockReset()
@@ -207,19 +285,23 @@ describe('FileProcessingSettings', () => {
 
     render(<FileProcessingSettings />)
 
-    expect(screen.getByText('settings.tool.file_processing.processors.system.description')).toBeInTheDocument()
+    expect(screen.getAllByText('settings.tool.file_processing.processors.system.name').length).toBeGreaterThan(0)
+    expect(screen.queryByText('settings.tool.file_processing.processors.system.description')).not.toBeInTheDocument()
     expect(screen.getAllByText('common.default').length).toBeGreaterThan(0)
     expect(
       screen.queryByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' })
     ).not.toBeInTheDocument()
   })
 
-  it('uses the Open MinerU description', () => {
+  it('uses the Open MinerU label', () => {
     render(<FileProcessingSettings />)
 
     fireEvent.click(screen.getByRole('button', { name: /settings.tool.file_processing.processors.open_mineru.name/ }))
 
-    expect(screen.getByText('settings.tool.file_processing.processors.open_mineru.description')).toBeInTheDocument()
+    expect(screen.getAllByText('settings.tool.file_processing.processors.open_mineru.name').length).toBeGreaterThan(0)
+    expect(
+      screen.queryByText('settings.tool.file_processing.processors.open_mineru.description')
+    ).not.toBeInTheDocument()
   })
 
   it('shows OV OCR only when file processing reports it as available', async () => {
@@ -310,9 +392,6 @@ describe('FileProcessingSettings', () => {
   it('stores System OCR language options on Windows', async () => {
     render(<FileProcessingSettings />)
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'settings.tool.file_processing.processors.tesseract.actions.add_language' })
-    )
     fireEvent.click(screen.getByRole('button', { name: /English \(en-us\)/ }))
 
     await waitFor(() => {
@@ -425,7 +504,7 @@ describe('FileProcessingSettings', () => {
     ).toHaveTextContent('PP-StructureV3')
   })
 
-  it('manages Tesseract language packs with chips', async () => {
+  it('manages Tesseract language packs with the settings combobox', async () => {
     preferencesMock.overrides = {
       tesseract: {
         options: {
@@ -438,12 +517,8 @@ describe('FileProcessingSettings', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /settings.tool.file_processing.processors.tesseract.name/ }))
 
-    expect(screen.getAllByText('English').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('(eng)').length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: /English \(eng\)/ })).toBeInTheDocument()
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'settings.tool.file_processing.processors.tesseract.actions.add_language' })
-    )
     fireEvent.click(screen.getByRole('button', { name: /Chinese \(chi_sim\)/ }))
 
     await waitFor(() => {
@@ -458,9 +533,7 @@ describe('FileProcessingSettings', () => {
       })
     })
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'settings.tool.file_processing.processors.tesseract.actions.remove_language' })
-    )
+    fireEvent.click(screen.getByRole('button', { name: /English \(eng\)/ }))
 
     await waitFor(() => {
       expect(setPreferencesMock).toHaveBeenCalledWith({

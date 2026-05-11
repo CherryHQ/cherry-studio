@@ -1,4 +1,4 @@
-import { Badge, Button, type ComboboxOption, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudio/ui'
 import useTranslate from '@renderer/hooks/useTranslate'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { splitApiKeyString } from '@shared/utils/api'
@@ -7,21 +7,28 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  SettingDivider,
+  SettingHelpLink,
+  SettingHelpText,
+  SettingHelpTextRow,
+  SettingRow,
+  SettingRowTitle,
+  SettingSubtitle,
+  SettingTitle
+} from '../..'
+import {
   type FileProcessingMenuEntry,
   getProcessorApiKeyWebsite,
-  getProcessorDescriptionKey,
   getProcessorNameKey,
   getTesseractLanguageCode,
   supportsApiSettings,
   supportsLanguageOptions
 } from '../utils/fileProcessingMeta'
 import { getProcessorLanguageOptions } from '../utils/fileProcessingPreferences'
-import { PasswordField, TextField } from './Field'
 import { FileProcessingApiKeyListPopup } from './FileProcessingApiKeyList'
 import { PaddleOCRDeploymentInfo } from './PaddleOCRDeploymentInfo'
 import { PaddleOCRModelSettings } from './PaddleOCRModelSettings'
 import { ProcessorAvatar } from './ProcessorAvatar'
-import { SettingsSection } from './SettingsSection'
 import { TesseractLanguagePacks } from './TesseractLanguagePacks'
 
 type ProcessorPanelProps = {
@@ -56,7 +63,6 @@ export function ProcessorPanel({
   const processor = entry.processor
   const processorName = t(getProcessorNameKey(processor.id))
   const apiKeyWebsite = getProcessorApiKeyWebsite(processor.id)
-  const processorDescription = t(getProcessorDescriptionKey(processor.id))
   const isDefault =
     entry.feature === 'image_to_text'
       ? defaultImageProcessor === processor.id
@@ -142,12 +148,13 @@ export function ProcessorPanel({
   )
 
   return (
-    <div className="flex min-h-full flex-col gap-4 px-6 py-5">
-      <div className="mb-1 flex items-center gap-3">
-        <ProcessorAvatar processorId={processor.id} size="lg" />
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate font-semibold text-foreground/90 text-sm">{processorName}</h3>
-          <p className="mt-0.5 text-foreground/35 text-xs leading-tight">{processorDescription}</p>
+    <div className="flex w-full flex-col gap-3">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <ProcessorAvatar processorId={processor.id} />
+          <div className="min-w-0">
+            <SettingTitle className="justify-start truncate">{processorName}</SettingTitle>
+          </div>
         </div>
         {isDefault ? (
           <Badge className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-600 text-xs dark:text-emerald-400">
@@ -160,49 +167,64 @@ export function ProcessorPanel({
         )}
       </div>
 
+      <SettingDivider />
+
       {supportsApiSettings(processor) ? (
-        <SettingsSection title={t('settings.tool.file_processing.sections.authentication')}>
-          <PasswordField
-            label={t('settings.tool.file_processing.fields.api_key')}
-            value={apiKeysInput}
-            onChange={setApiKeysInput}
-            onBlur={handleApiKeysBlur}
-            placeholder={t('settings.tool.file_processing.fields.api_keys_placeholder')}
-            labelAction={
-              <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-6 shrink-0 text-foreground/40 shadow-none hover:text-foreground/70"
-                  aria-label={t('settings.provider.api.key.list.open')}
-                  onClick={() => void openApiKeyList()}>
-                  <List size={13} />
-                </Button>
-              </Tooltip>
-            }
-          />
-          {apiKeyWebsite ? (
-            <div className="-mt-1">
-              <a
-                href={apiKeyWebsite}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-block text-primary/70 text-sm leading-tight transition-colors hover:text-primary">
-                {t('settings.provider.get_api_key')}
-              </a>
+        <>
+          <SettingSubtitle>{t('settings.tool.file_processing.sections.authentication')}</SettingSubtitle>
+          <SettingRow className="items-start gap-4 py-1">
+            <SettingRowTitle className="w-[150px] shrink-0 pt-2">
+              {t('settings.tool.file_processing.fields.api_key')}
+            </SettingRowTitle>
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <Input
+                  type="password"
+                  value={apiKeysInput}
+                  onChange={(event) => setApiKeysInput(event.target.value)}
+                  onBlur={handleApiKeysBlur}
+                  placeholder={t('settings.tool.file_processing.fields.api_keys_placeholder')}
+                  spellCheck={false}
+                />
+                <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0"
+                    aria-label={t('settings.provider.api.key.list.open')}
+                    onClick={() => void openApiKeyList()}>
+                    <List size={13} />
+                  </Button>
+                </Tooltip>
+              </div>
+              {apiKeyWebsite ? (
+                <SettingHelpTextRow className="justify-between">
+                  <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                    {t('settings.provider.get_api_key')}
+                  </SettingHelpLink>
+                  <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
+                </SettingHelpTextRow>
+              ) : null}
             </div>
-          ) : null}
+          </SettingRow>
           {entry.capability.apiHost !== undefined ? (
-            <TextField
-              label={t('settings.tool.file_processing.fields.api_base_url')}
-              value={apiHostInput}
-              onChange={setApiHostInput}
-              onBlur={handleApiHostBlur}
-              placeholder={t('settings.provider.api_host')}
-            />
+            <>
+              <SettingDivider />
+              <SettingRow className="items-start gap-4 py-1">
+                <SettingRowTitle className="w-[150px] shrink-0 pt-2">
+                  {t('settings.tool.file_processing.fields.api_base_url')}
+                </SettingRowTitle>
+                <Input
+                  value={apiHostInput}
+                  onChange={(event) => setApiHostInput(event.target.value)}
+                  onBlur={handleApiHostBlur}
+                  placeholder={t('settings.provider.api_host')}
+                />
+              </SettingRow>
+            </>
           ) : null}
-        </SettingsSection>
+        </>
       ) : null}
 
       {processor.id === 'paddleocr' && entry.capability.modelId !== undefined ? (
@@ -212,19 +234,20 @@ export function ProcessorPanel({
       {processor.id === 'paddleocr' ? <PaddleOCRDeploymentInfo /> : null}
 
       {processor.id === 'system' ? (
-        <SettingsSection title={t('settings.tool.file_processing.sections.status')}>
-          <div className="flex items-start gap-2">
+        <>
+          <SettingSubtitle>{t('settings.tool.file_processing.sections.status')}</SettingSubtitle>
+          <SettingRow className="items-start justify-start gap-2 py-1">
             <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-emerald-500" />
             <div>
-              <p className="font-medium text-emerald-600 text-xs leading-tight dark:text-emerald-400">
+              <SettingRowTitle className="font-medium text-emerald-600 text-xs dark:text-emerald-400">
                 {t('settings.tool.file_processing.processors.system.status.available')}
-              </p>
-              <p className="mt-1 text-foreground/35 text-xs leading-tight">
+              </SettingRowTitle>
+              <SettingHelpText className="mt-1 text-xs">
                 {t('settings.tool.file_processing.processors.system.status.no_configuration')}
-              </p>
+              </SettingHelpText>
             </div>
-          </div>
-        </SettingsSection>
+          </SettingRow>
+        </>
       ) : null}
 
       {supportsLanguageOptions(processor.id) ? (

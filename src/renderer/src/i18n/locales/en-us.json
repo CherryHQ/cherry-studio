@@ -5858,9 +5858,7 @@
     "tool": {
       "file_processing": {
         "actions": {
-          "hide_api_key": "Hide API key",
-          "set_as_default": "Set as default",
-          "show_api_key": "Show API key"
+          "set_as_default": "Set as default"
         },
         "features": {
           "document_to_markdown": {
@@ -5873,7 +5871,8 @@
         "fields": {
           "api_base_url": "API Base URL",
           "api_key": "API Key",
-          "api_keys_placeholder": "Separate multiple keys with commas"
+          "api_keys_placeholder": "Separate multiple keys with commas",
+          "languages": "Languages"
         },
         "knowledge": {
           "provider": "File processor",
@@ -5922,10 +5921,6 @@
             }
           },
           "tesseract": {
-            "actions": {
-              "add_language": "Add language",
-              "remove_language": "Remove {{language}}"
-            },
             "description": "Google's open-source OCR engine that runs fully locally.",
             "name": "Tesseract OCR"
           }

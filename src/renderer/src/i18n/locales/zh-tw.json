@@ -5858,9 +5858,7 @@
     "tool": {
       "file_processing": {
         "actions": {
-          "hide_api_key": "隱藏 API 金鑰",
-          "set_as_default": "設為預設",
-          "show_api_key": "顯示 API 金鑰"
+          "set_as_default": "設為預設"
         },
         "features": {
           "document_to_markdown": {
@@ -5873,7 +5871,8 @@
         "fields": {
           "api_base_url": "API 位址 (Base URL)",
           "api_key": "API 金鑰 (API Key)",
-          "api_keys_placeholder": "多個金鑰可用逗號分隔"
+          "api_keys_placeholder": "多個金鑰可用逗號分隔",
+          "languages": "語言"
         },
         "knowledge": {
           "provider": "檔案處理器",
@@ -5922,10 +5921,6 @@
             }
           },
           "tesseract": {
-            "actions": {
-              "add_language": "新增語言",
-              "remove_language": "移除 {{language}}"
-            },
             "description": "Google 開源的光學字元辨識引擎，完全本機執行。",
             "name": "Tesseract OCR"
           }

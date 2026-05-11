@@ -1,14 +1,30 @@
+import { Badge, MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+  settingsContentBodyClassName,
+  settingsContentScrollClassName,
+  settingsSubmenuDividerClassName,
+  settingsSubmenuItemClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuScrollClassName,
+  settingsSubmenuSectionTitleClassName
+} from '..'
+import { ProcessorAvatar } from './components/ProcessorAvatar'
 import { ProcessorPanel } from './components/ProcessorPanel'
-import { ProcessorSidebar } from './components/ProcessorSidebar'
 import { useAvailableFileProcessors } from './hooks/useAvailableFileProcessors'
 import { useFileProcessingPreferences } from './hooks/useFileProcessingPreferences'
-import { flattenFeatureSections, getFeatureSections } from './utils/fileProcessingMeta'
+import {
+  type FileProcessingMenuEntry,
+  flattenFeatureSections,
+  getFeatureSections,
+  getFileProcessingFeatureTitleKey,
+  getProcessorNameKey
+} from './utils/fileProcessingMeta'
 
 const FileProcessingSettings: FC = () => {
   const { t } = useTranslation()
@@ -40,37 +56,63 @@ const FileProcessingSettings: FC = () => {
 
   const activeEntry = menuEntries.find((entry) => entry.key === activeKey)
 
+  const isDefaultEntry = (entry: FileProcessingMenuEntry) =>
+    entry.feature === 'image_to_text'
+      ? defaultImageProcessor === entry.processor.id
+      : defaultDocumentProcessor === entry.processor.id
+
   return (
     <div className="flex flex-1" data-theme-mode={themeMode}>
-      <div className="m-2 ml-0 flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-foreground/[0.06] bg-foreground/[0.02]">
-        <div className="flex min-h-0 flex-1">
-          <ProcessorSidebar
-            featureSections={featureSections}
-            activeKey={activeKey}
-            defaultDocumentProcessor={defaultDocumentProcessor}
-            defaultImageProcessor={defaultImageProcessor}
-            onSelect={setActiveKey}
-          />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <Scrollbar className="min-h-0 flex-1 [&::-webkit-scrollbar-thumb]:bg-border/20 [&::-webkit-scrollbar]:w-[3px]">
-              {activeEntry ? (
-                <ProcessorPanel
-                  entry={activeEntry}
-                  defaultDocumentProcessor={defaultDocumentProcessor}
-                  defaultImageProcessor={defaultImageProcessor}
-                  onSetApiKeys={setApiKeys}
-                  onSetCapabilityField={setCapabilityField}
-                  onSetDefaultProcessor={setDefaultProcessor}
-                  onSetLanguageOptions={setLanguageOptions}
-                />
-              ) : (
-                <div className="flex h-full min-h-[220px] items-center justify-center text-foreground-muted text-xs">
-                  {t('common.no_results')}
+      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
+        <Scrollbar className={settingsSubmenuScrollClassName}>
+          <MenuList className={settingsSubmenuListClassName}>
+            {featureSections.map((section, index) => (
+              <div key={section.feature}>
+                {index > 0 ? <MenuDivider className={settingsSubmenuDividerClassName} /> : null}
+                <div className={settingsSubmenuSectionTitleClassName}>
+                  {t(getFileProcessingFeatureTitleKey(section.feature))}
                 </div>
-              )}
-            </Scrollbar>
+                {section.entries.map((entry) => (
+                  <MenuItem
+                    key={entry.key}
+                    label={t(getProcessorNameKey(entry.processor.id))}
+                    active={activeKey === entry.key}
+                    onClick={() => setActiveKey(entry.key)}
+                    icon={<ProcessorAvatar processorId={entry.processor.id} />}
+                    className={settingsSubmenuItemClassName}
+                    suffix={
+                      isDefaultEntry(entry) ? (
+                        <Badge className="rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">
+                          {t('common.default')}
+                        </Badge>
+                      ) : undefined
+                    }
+                  />
+                ))}
+              </div>
+            ))}
+          </MenuList>
+        </Scrollbar>
+
+        <Scrollbar className={settingsContentScrollClassName}>
+          <div className={settingsContentBodyClassName}>
+            {activeEntry ? (
+              <ProcessorPanel
+                entry={activeEntry}
+                defaultDocumentProcessor={defaultDocumentProcessor}
+                defaultImageProcessor={defaultImageProcessor}
+                onSetApiKeys={setApiKeys}
+                onSetCapabilityField={setCapabilityField}
+                onSetDefaultProcessor={setDefaultProcessor}
+                onSetLanguageOptions={setLanguageOptions}
+              />
+            ) : (
+              <div className="flex h-full min-h-[220px] items-center justify-center text-foreground-muted text-sm">
+                {t('common.no_results')}
+              </div>
+            )}
           </div>
-        </div>
+        </Scrollbar>
       </div>
     </div>
   )

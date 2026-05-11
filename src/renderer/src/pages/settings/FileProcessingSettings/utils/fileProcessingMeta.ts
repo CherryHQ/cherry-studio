@@ -158,6 +158,10 @@ export function flattenFeatureSections(featureSections: FileProcessingFeatureSec
   return featureSections.flatMap((section) => section.entries)
 }
 
+export function getFileProcessingFeatureTitleKey(feature: FileProcessorFeature): string {
+  return `settings.tool.file_processing.features.${feature}.title`
+}
+
 export function getProcessorNameKey(processorId: FileProcessorId): string {
   return PROCESSOR_DISPLAY_META[processorId].nameKey
 }
