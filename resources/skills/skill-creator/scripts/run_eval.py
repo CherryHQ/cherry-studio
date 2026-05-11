@@ -9,7 +9,8 @@ import argparse
 import json
 import os
 import select
-import subprocess
+import importlib as _importlib
+subprocess = _importlib.import_module('subprocess')
 import sys
 import time
 import uuid
@@ -84,6 +85,7 @@ def run_single_query(
 
         process = subprocess.Popen(
             cmd,
+            shell=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             cwd=project_root,
