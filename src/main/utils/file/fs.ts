@@ -138,9 +138,12 @@ async function fsyncDirectoryOf(target: string): Promise<void> {
     }
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
-    // Platforms / filesystems that legitimately reject directory fsync — the
-    // rename is durable enough for our purposes on these systems.
-    if (code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP' || code === 'EPERM' || code === 'EACCES') {
+    // Filesystems that semantically reject directory fsync — the rename is
+    // durable enough on these systems. EPERM / EACCES are deliberately NOT in
+    // this list: those usually mean the userData directory's ACL drifted
+    // (sandbox containment shift, SELinux/AppArmor tightening, manual chown)
+    // and silently skipping the dashboard signal would mask the regression.
+    if (code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP') {
       return
     }
     logger.warn('fsync(dir) failed after atomic rename; durability not confirmed', { target, code, err })
