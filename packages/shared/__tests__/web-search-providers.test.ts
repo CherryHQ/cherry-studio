@@ -45,6 +45,13 @@ describe('web search provider schemas', () => {
     expect(findWebSearchCapability(jina!, 'fetchUrls')?.apiHost).toBe('https://r.jina.ai')
   })
 
+  it('models Fetch as a hostless built-in URL fetch provider', () => {
+    const fetch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'fetch')
+
+    expect(fetch).toBeDefined()
+    expect(findWebSearchCapability(fetch!, 'fetchUrls')).toEqual({ feature: 'fetchUrls' })
+  })
+
   it('accepts valid provider overrides', () => {
     const result = WebSearchProviderOverridesSchema.safeParse({
       tavily: {

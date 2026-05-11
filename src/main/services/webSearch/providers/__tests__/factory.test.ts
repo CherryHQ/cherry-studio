@@ -89,10 +89,7 @@ describe('createWebSearchProvider', () => {
     expect(createWebSearchProvider(createProvider({ id: 'bocha' }), rotationState)).toBeInstanceOf(BochaProvider)
     expect(createWebSearchProvider(createProvider({ id: 'querit' }), rotationState)).toBeInstanceOf(QueritProvider)
     expect(
-      createWebSearchProvider(
-        createProvider({ id: 'fetch', capabilities: [{ feature: 'fetchUrls', apiHost: '' }] }),
-        rotationState
-      )
+      createWebSearchProvider(createProvider({ id: 'fetch', capabilities: [{ feature: 'fetchUrls' }] }), rotationState)
     ).toBeInstanceOf(FetchProvider)
     expect(
       createWebSearchProvider(

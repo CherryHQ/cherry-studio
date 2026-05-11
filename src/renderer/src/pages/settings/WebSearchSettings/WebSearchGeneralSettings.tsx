@@ -1,26 +1,20 @@
-import { Settings2 } from 'lucide-react'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
+import { SettingContainer } from '..'
 import BasicSettings from './components/BasicSettings'
 import BlacklistSettings from './components/BlacklistSettings'
 import CompressionSettings from './components/CompressionSettings'
-import { WebSearchContentHeader, WebSearchContentScroll } from './components/WebSearchSettingsLayout'
 
 const WebSearchGeneralSettings: FC = () => {
-  const { t } = useTranslation()
+  const { theme } = useTheme()
 
   return (
-    <WebSearchContentScroll>
-      <WebSearchContentHeader
-        icon={<Settings2 className="size-3.5" />}
-        title={t('settings.tool.websearch.search_provider')}
-        description={t('settings.tool.websearch.blacklist_description')}
-      />
+    <SettingContainer theme={theme} className="px-5 py-4">
       <BasicSettings />
       <CompressionSettings />
       <BlacklistSettings />
-    </WebSearchContentScroll>
+    </SettingContainer>
   )
 }
 

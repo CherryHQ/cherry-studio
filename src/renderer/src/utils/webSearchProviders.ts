@@ -26,7 +26,7 @@ function mergeProviderCapabilities(
 ): WebSearchProviderFeatureCapability[] {
   return presetCapabilities.map((capability) => ({
     ...capability,
-    ...(override?.capabilities?.[capability.feature]?.apiHost !== undefined
+    ...(capability.apiHost !== undefined && override?.capabilities?.[capability.feature]?.apiHost !== undefined
       ? { apiHost: override.capabilities[capability.feature]?.apiHost?.trim() }
       : {})
   }))
@@ -148,7 +148,7 @@ function normalizeWebSearchProviderOverride(
 
       const typedFeature = feature as WebSearchCapability
       const presetCapability = findWebSearchCapability(preset, typedFeature)
-      if (!presetCapability) {
+      if (!presetCapability || presetCapability.apiHost === undefined) {
         continue
       }
 

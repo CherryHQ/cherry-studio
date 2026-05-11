@@ -6,20 +6,14 @@ import { useMemo } from 'react'
 import type { WebSearchProviderFeatureSection } from '../utils/webSearchProviderMeta'
 import { getWebSearchFeatureSections } from '../utils/webSearchProviderMeta'
 
-type WebSearchProviderSidebarItem = {
-  provider: ResolvedWebSearchProvider
-  isDefault: boolean
-}
-
 export function useWebSearchProviderLists(): ReturnType<typeof useWebSearchProviders> & {
   keywordProviders: ResolvedWebSearchProvider[]
   fetchUrlsProviders: ResolvedWebSearchProvider[]
-  sidebarProviders: WebSearchProviderSidebarItem[]
   featureSections: WebSearchProviderFeatureSection[]
   providerIds: string[]
 } {
   const webSearchProviders = useWebSearchProviders()
-  const { defaultSearchKeywordsProvider, defaultFetchUrlsProvider, providers } = webSearchProviders
+  const { providers } = webSearchProviders
 
   const providersByCapability = useMemo(() => {
     const keywordProviders: ResolvedWebSearchProvider[] = []
@@ -38,15 +32,6 @@ export function useWebSearchProviderLists(): ReturnType<typeof useWebSearchProvi
     return { keywordProviders, fetchUrlsProviders }
   }, [providers])
 
-  const sidebarProviders = useMemo(
-    () =>
-      providers.map((provider) => ({
-        provider,
-        isDefault: defaultSearchKeywordsProvider?.id === provider.id || defaultFetchUrlsProvider?.id === provider.id
-      })),
-    [defaultFetchUrlsProvider?.id, defaultSearchKeywordsProvider?.id, providers]
-  )
-
   const featureSections = useMemo(() => getWebSearchFeatureSections(providers), [providers])
 
   const providerIds = useMemo(() => providers.map((provider) => provider.id), [providers])
@@ -54,7 +39,6 @@ export function useWebSearchProviderLists(): ReturnType<typeof useWebSearchProvi
   return {
     ...webSearchProviders,
     ...providersByCapability,
-    sidebarProviders,
     featureSections,
     providerIds
   }

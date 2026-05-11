@@ -10,7 +10,7 @@ describe('useWebSearchProviderLists', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
   })
 
-  it('splits providers by capability and marks sidebar defaults', () => {
+  it('splits providers by capability and exposes feature sections', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'tavily')
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', 'fetch')
 
@@ -25,7 +25,5 @@ describe('useWebSearchProviderLists', () => {
     expect(result.current.featureSections.find((section) => section.capability === 'fetchUrls')?.entries).toEqual(
       expect.arrayContaining([expect.objectContaining({ key: 'fetchUrls:jina' })])
     )
-    expect(result.current.sidebarProviders.find(({ provider }) => provider.id === 'tavily')?.isDefault).toBe(true)
-    expect(result.current.sidebarProviders.find(({ provider }) => provider.id === 'fetch')?.isDefault).toBe(true)
   })
 })

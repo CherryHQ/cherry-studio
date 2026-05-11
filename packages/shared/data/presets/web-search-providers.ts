@@ -136,9 +136,9 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
     capabilities: [{ feature: 'searchKeywords', apiHost: 'https://api.querit.ai' }]
   },
   fetch: {
-    name: 'Fetch',
+    name: 'fetch',
     type: 'api',
-    capabilities: [{ feature: 'fetchUrls', apiHost: '' }]
+    capabilities: [{ feature: 'fetchUrls' }]
   },
   jina: {
     name: 'Jina',

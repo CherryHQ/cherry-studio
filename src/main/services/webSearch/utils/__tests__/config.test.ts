@@ -121,13 +121,12 @@ describe('webSearch config utils', () => {
 
     expect(fetchProvider).toMatchObject({
       id: 'fetch',
-      name: 'Fetch',
+      name: 'fetch',
       type: 'api',
       apiKeys: [],
       capabilities: [
         {
-          feature: 'fetchUrls',
-          apiHost: ''
+          feature: 'fetchUrls'
         }
       ]
     })

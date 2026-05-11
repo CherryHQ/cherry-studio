@@ -113,6 +113,14 @@ describe('webSearchProviders', () => {
     })
   })
 
+  it('drops API host overrides for hostless built-in providers', () => {
+    const overrides = updateWebSearchProviderOverride({}, 'fetch', {
+      capabilities: [{ feature: 'fetchUrls', apiHost: 'https://example.com' }]
+    })
+
+    expect(overrides).toEqual({})
+  })
+
   it('removes provider override when updates match preset defaults', () => {
     const overrides = updateWebSearchProviderOverride(
       {

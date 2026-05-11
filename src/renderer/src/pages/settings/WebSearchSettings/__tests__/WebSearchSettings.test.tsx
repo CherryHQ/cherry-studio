@@ -34,13 +34,41 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
     </div>
   ),
   Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
+  ButtonGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+    <div role="group" {...props}>
+      {children}
+    </div>
+  ),
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button type="button" {...props}>
       {children}
     </button>
   ),
+  Flex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   InfoTooltip: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>,
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  Label: ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => <label {...props}>{children}</label>,
+  MenuDivider: (props: React.HTMLAttributes<HTMLDivElement>) => <div role="separator" {...props} />,
+  MenuItem: ({
+    label,
+    icon,
+    suffix,
+    active,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    label: string
+    icon?: React.ReactNode
+    suffix?: React.ReactNode
+    active?: boolean
+  }) => (
+    <button type="button" data-active={active || undefined} {...props}>
+      {icon}
+      {label}
+      {suffix}
+    </button>
+  ),
+  MenuList: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+  RowFlex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   Select: ({
     children,
     onValueChange
@@ -87,9 +115,13 @@ describe('WebSearchSettings', () => {
   it('renders general settings by default', () => {
     render(<WebSearchSettings />)
 
-    expect(screen.getByRole('button', { name: 'settings.tool.websearch.search_provider' })).toHaveClass(
-      'border-primary/15'
+    expect(screen.getByRole('button', { name: 'settings.tool.websearch.search_provider' })).toHaveAttribute(
+      'data-active',
+      'true'
     )
+    expect(screen.getAllByText('settings.tool.websearch.default_provider').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('settings.tool.websearch.fetch_urls_provider').length).toBeGreaterThan(0)
+    expect(screen.getByText('settings.tool.websearch.search_max_result.label')).toBeInTheDocument()
   })
 
   it('switches provider panels using local page state', () => {
@@ -98,6 +130,18 @@ describe('WebSearchSettings', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Tavily/ })[0])
 
     expect(screen.getByText('settings.tool.websearch.provider_description.tavily')).toBeInTheDocument()
+    expect(screen.getAllByText('Tavily').length).toBeGreaterThan(0)
     expect(screen.getAllByText('settings.provider.api_key.label').length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'settings.tool.websearch.check' })).toBeDisabled()
+  })
+
+  it('does not show API host settings for the built-in URL fetch provider', () => {
+    render(<WebSearchSettings />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: /fetch/ })[0])
+
+    expect(screen.getAllByText('fetch').length).toBeGreaterThan(0)
+    expect(screen.getByText('settings.tool.websearch.provider_description.fetch')).toBeInTheDocument()
+    expect(screen.queryByText('settings.provider.api_host')).not.toBeInTheDocument()
   })
 })

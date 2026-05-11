@@ -11,7 +11,7 @@ type WebSearchProviderConfig = {
     supportsBasicAuth: boolean
   }
   websites: {
-    official: string
+    official?: string
     apiKey?: string
   }
 }
@@ -90,9 +90,7 @@ export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchPr
       requiresApiKey: false,
       supportsBasicAuth: false
     },
-    websites: {
-      official: 'https://github.com/zcaceres/fetch-mcp'
-    }
+    websites: {}
   },
   jina: {
     capabilities: {
@@ -151,7 +149,7 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
   },
   {
     id: 'fetch',
-    name: 'Fetch'
+    name: 'fetch'
   },
   {
     id: 'jina',

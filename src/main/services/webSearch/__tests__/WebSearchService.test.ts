@@ -61,10 +61,10 @@ const providerOverrides: ResolvedWebSearchProvider[] = [
   },
   {
     id: 'fetch',
-    name: 'Fetch',
+    name: 'fetch',
     type: 'api',
     apiKeys: [],
-    capabilities: [{ feature: 'fetchUrls', apiHost: '' }],
+    capabilities: [{ feature: 'fetchUrls' }],
     engines: [],
     basicAuthUsername: '',
     basicAuthPassword: ''

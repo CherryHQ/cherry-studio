@@ -11,7 +11,6 @@ import {
   Tooltip,
   WarnTooltip
 } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
@@ -75,8 +74,6 @@ import OVMSSettings from './OVMSSettings'
 import ProviderOAuth from './ProviderOAuth'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
-
-const logger = loggerService.withContext('ProviderSetting')
 
 interface Props {
   providerId: string

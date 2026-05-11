@@ -1,13 +1,16 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
 import { useTranslation } from 'react-i18next'
 
-import { Field } from '../Field'
-import { SettingsSection } from '../SettingsSection'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../../..'
 import CutoffSettings from './CutoffSettings'
 
+const INPUT_BOX_WIDTH_CUTOFF = '200px'
+
 const CompressionSettings = () => {
+  const { theme } = useTheme()
   const { t } = useTranslation()
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
 
@@ -24,10 +27,14 @@ const CompressionSettings = () => {
   ]
 
   return (
-    <SettingsSection title={t('settings.tool.websearch.compression.title')}>
-      <Field label={t('settings.tool.websearch.compression.method.label')}>
+    <SettingGroup theme={theme}>
+      <SettingTitle>{t('settings.tool.websearch.compression.title')}</SettingTitle>
+      <SettingDivider />
+
+      <SettingRow className="gap-8 py-2">
+        <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.compression.method.label')}</SettingRowTitle>
         <Select value={compressionConfig?.method || 'none'} onValueChange={handleCompressionMethodChange}>
-          <SelectTrigger className="h-7 w-full rounded-full bg-foreground/[0.06] text-xs leading-tight" size="sm">
+          <SelectTrigger style={{ width: INPUT_BOX_WIDTH_CUTOFF }}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -38,9 +45,9 @@ const CompressionSettings = () => {
             ))}
           </SelectContent>
         </Select>
-      </Field>
+      </SettingRow>
       {compressionConfig?.method === 'cutoff' && <CutoffSettings />}
-    </SettingsSection>
+    </SettingGroup>
   )
 }
 

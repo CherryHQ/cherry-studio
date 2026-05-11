@@ -19,6 +19,24 @@ const jinaProvider: ResolvedWebSearchProvider = {
 }
 
 describe('useWebSearchProviderForm', () => {
+  it('does not expose API host inputs for hostless providers', () => {
+    const updateProvider = vi.fn().mockResolvedValue(undefined)
+    const fetchProvider: ResolvedWebSearchProvider = {
+      id: 'fetch',
+      name: 'fetch',
+      type: 'api',
+      apiKeys: [],
+      capabilities: [{ feature: 'fetchUrls' }],
+      engines: [],
+      basicAuthUsername: '',
+      basicAuthPassword: ''
+    }
+
+    const { result } = renderHook(() => useWebSearchProviderForm(fetchProvider, updateProvider, 'fetchUrls'))
+
+    expect(result.current.apiHostCapabilities).toEqual([])
+  })
+
   it('shows only the active capability API host for multi-capability providers', () => {
     const updateProvider = vi.fn().mockResolvedValue(undefined)
 

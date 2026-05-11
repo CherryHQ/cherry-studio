@@ -53,7 +53,7 @@ function createProvider(
   const resolvedCapabilities =
     capabilities ??
     (id === 'fetch'
-      ? [{ feature: 'fetchUrls' as const, apiHost: resolvedApiHost }]
+      ? [{ feature: 'fetchUrls' as const }]
       : id === 'jina'
         ? [
             { feature: 'searchKeywords' as const, apiHost: 'https://s.jina.ai' },
@@ -268,7 +268,7 @@ describe('main web search API providers', () => {
       FetchProvider,
       createProvider({
         id: 'fetch',
-        name: 'Fetch',
+        name: 'fetch',
         apiKeys: [],
         apiHost: ''
       })

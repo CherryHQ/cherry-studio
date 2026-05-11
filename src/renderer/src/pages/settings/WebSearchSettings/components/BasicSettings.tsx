@@ -1,4 +1,5 @@
 import { InfoTooltip, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from '@cherrystudio/ui'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { getWebSearchProviderAvailability } from '@renderer/utils/webSearchProviders'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
@@ -8,13 +9,13 @@ import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
 import { useWebSearchProviderLists } from '../hooks/useWebSearchProviderLists'
 import { getUnavailableProviderDialogConfig } from '../utils/webSearchProviderMeta'
-import { Field } from './Field'
-import { SettingsSection } from './SettingsSection'
 import { WebSearchProviderOption } from './WebSearchProviderOption'
 
 const BasicSettings: FC = () => {
+  const { theme } = useTheme()
   const { t } = useTranslation()
   const {
     defaultSearchKeywordsProvider: defaultProvider,
@@ -65,14 +66,17 @@ const BasicSettings: FC = () => {
 
   return (
     <>
-      <SettingsSection title={t('settings.tool.websearch.search_provider')}>
-        <Field label={t('settings.tool.websearch.default_provider')}>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.tool.websearch.search_provider')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow className="gap-8 py-2">
+          <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.default_provider')}</SettingRowTitle>
           <Select
             value={defaultProvider?.id}
             onValueChange={(providerId) =>
               updateSelectedWebSearchProvider(providerId, 'searchKeywords', setDefaultSearchKeywordsProvider)
             }>
-            <SelectTrigger className="h-7 w-full rounded-full bg-foreground/[0.06] text-xs leading-tight" size="sm">
+            <SelectTrigger style={{ width: '200px' }}>
               <SelectValue placeholder={t('settings.tool.websearch.search_provider_placeholder')} />
             </SelectTrigger>
             <SelectContent>
@@ -83,14 +87,16 @@ const BasicSettings: FC = () => {
               ))}
             </SelectContent>
           </Select>
-        </Field>
-        <Field label={t('settings.tool.websearch.fetch_urls_provider')}>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow className="gap-8 py-2">
+          <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.fetch_urls_provider')}</SettingRowTitle>
           <Select
             value={defaultFetchUrlsProvider?.id}
             onValueChange={(providerId) =>
               updateSelectedWebSearchProvider(providerId, 'fetchUrls', setDefaultFetchUrlsProvider)
             }>
-            <SelectTrigger className="h-7 w-full rounded-full bg-foreground/[0.06] text-xs leading-tight" size="sm">
+            <SelectTrigger style={{ width: '200px' }}>
               <SelectValue placeholder={t('settings.tool.websearch.search_provider_placeholder')} />
             </SelectTrigger>
             <SelectContent>
@@ -101,28 +107,26 @@ const BasicSettings: FC = () => {
               ))}
             </SelectContent>
           </Select>
-        </Field>
-      </SettingsSection>
+        </SettingRow>
+      </SettingGroup>
 
-      <SettingsSection title={t('settings.general.label')}>
-        <Field
-          label={t('settings.tool.websearch.search_max_result.label')}
-          help={
-            maxResults > 20 &&
-            compressionConfig?.method === 'none' && (
+      <SettingGroup theme={theme} style={{ paddingBottom: 8 }}>
+        <SettingTitle>{t('settings.general.label')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow className="items-start gap-8">
+          <SettingRowTitle className="mt-2 min-w-32 shrink-0">
+            {t('settings.tool.websearch.search_max_result.label')}
+            {maxResults > 20 && compressionConfig?.method === 'none' && (
               <InfoTooltip
                 content={t('settings.tool.websearch.search_max_result.tooltip')}
-                iconProps={{ size: 10, color: 'currentColor', className: 'cursor-pointer text-muted-foreground/25' }}
+                iconProps={{ size: 16, color: 'var(--color-icon)', className: 'ml-1 cursor-pointer' }}
               />
-            )
-          }>
-          <div>
-            <div className="mb-1.5 flex justify-end">
-              <span className="font-semibold text-emerald-500 text-xs leading-tight">{draftMaxResults}</span>
-            </div>
+            )}
+          </SettingRowTitle>
+          <div className="-mb-2 mt-3 w-full max-w-xl">
             <Slider
               value={[draftMaxResults]}
-              className="w-full [&_[data-slot=slider-mark]]:text-foreground/30 [&_[data-slot=slider-mark]]:text-xs [&_[data-slot=slider-mark]]:leading-tight [&_[data-slot=slider-range]]:bg-emerald-500/60 [&_[data-slot=slider-thumb]]:border-white [&_[data-slot=slider-thumb]]:bg-emerald-500"
+              className="w-full"
               min={1}
               max={100}
               step={1}
@@ -137,8 +141,8 @@ const BasicSettings: FC = () => {
               onValueCommit={(value) => void setMaxResults(value[0])}
             />
           </div>
-        </Field>
-      </SettingsSection>
+        </SettingRow>
+      </SettingGroup>
     </>
   )
 }

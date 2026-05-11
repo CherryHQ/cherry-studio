@@ -5925,7 +5925,7 @@
           "bocha": "Chinese AI search API with real-time web and structured results.",
           "exa": "Neural search API for AI apps, tuned for semantic web retrieval.",
           "exa_mcp": "Expose Exa search to agents through the Exa MCP Server.",
-          "fetch": "Fetch web page content from a URL to enrich search results.",
+          "fetch": "Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
           "jina": "Jina Reader search and read APIs for retrieving clean web content.",
           "querit": "Search service for AI apps with web retrieval results.",
           "searxng": "Self-hostable free internet metasearch engine across many sources.",
