@@ -1,13 +1,18 @@
 import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateHistory as TranslateHistoryItem, TranslateLanguage } from '@shared/data/types/translate'
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import TranslateHistory from '../TranslateHistory'
 
 const translateHistoryMock = vi.hoisted(() => ({
-  useTranslateHistory: vi.fn()
+  useTranslateHistory: vi.fn(),
+  confirmDialogLastProps: null as {
+    onConfirm?: () => void | Promise<void>
+    onOpenChange?: (open: boolean) => void
+    title?: string
+  } | null
 }))
 
 vi.mock('react-i18next', () => ({
@@ -51,10 +56,22 @@ vi.mock('@renderer/utils', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  ConfirmDialog: () => null,
+  ConfirmDialog: (props: {
+    onConfirm?: () => void | Promise<void>
+    onOpenChange?: (open: boolean) => void
+    title?: string
+  }) => {
+    translateHistoryMock.confirmDialogLastProps = props
+    return <div>{props.title}</div>
+  },
   EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  PageSidePanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
+  PageSidePanel: ({ children, header }: { children: React.ReactNode; header?: React.ReactNode }) => (
+    <div>
+      {header}
+      {children}
+    </div>
+  )
 }))
 
 const english: TranslateLanguage = {
@@ -99,12 +116,20 @@ const histories: TranslateHistoryItem[] = [
 ]
 
 describe('TranslateHistory', () => {
+  const clearMock = vi.fn()
+  const updateMock = vi.fn()
+  const removeMock = vi.fn()
+
   beforeEach(() => {
     translateHistoryMock.useTranslateHistory.mockReset()
+    translateHistoryMock.confirmDialogLastProps = null
+    clearMock.mockReset()
+    updateMock.mockReset()
+    removeMock.mockReset()
     translateHistoryMock.useTranslateHistory.mockReturnValue({
-      clear: vi.fn(),
-      update: vi.fn(),
-      remove: vi.fn()
+      clear: clearMock,
+      update: updateMock,
+      remove: removeMock
     })
   })
 
@@ -114,5 +139,30 @@ describe('TranslateHistory', () => {
     expect(screen.getByText('hello')).toBeInTheDocument()
     expect(screen.getByText('bye')).toBeInTheDocument()
     expect(translateHistoryMock.useTranslateHistory).toHaveBeenCalledTimes(1)
+  })
+
+  it('invokes update mutation when clicking row star action', async () => {
+    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+
+    const row = screen.getByText('hello').closest('[role="button"]')
+    expect(row).toBeTruthy()
+    const rowStarButton = within(row as HTMLElement).getByRole('button', { name: 'translate.history.filter.starred' })
+    fireEvent.click(rowStarButton)
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalledWith('1', { star: true }))
+  })
+
+  it('invokes clear mutation from confirm dialog flow', async () => {
+    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.clear' }))
+
+    expect(translateHistoryMock.confirmDialogLastProps?.title).toBe('translate.history.clear')
+
+    await act(async () => {
+      await translateHistoryMock.confirmDialogLastProps?.onConfirm?.()
+    })
+
+    expect(clearMock).toHaveBeenCalledTimes(1)
   })
 })

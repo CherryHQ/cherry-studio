@@ -19,14 +19,59 @@ vi.mock('@renderer/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, onClick, disabled, ...rest }: React.ComponentProps<'button'>) => (
-    <button type="button" onClick={onClick} disabled={disabled} {...rest}>
-      {children}
-    </button>
-  ),
-  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  const { createContext, use, cloneElement, isValidElement } = await import('react')
+  type Ctx = { open: boolean; onOpenChange: (next: boolean) => void }
+  const PopoverCtx = createContext<Ctx>({ open: false, onOpenChange: () => {} })
+
+  const Popover = ({
+    children,
+    open,
+    onOpenChange
+  }: {
+    children?: React.ReactNode
+    open?: boolean
+    onOpenChange?: (next: boolean) => void
+  }) => <PopoverCtx value={{ open: open ?? false, onOpenChange: onOpenChange ?? (() => {}) }}>{children}</PopoverCtx>
+
+  const PopoverTrigger = ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) => {
+    const { open, onOpenChange } = use(PopoverCtx)
+    const toggle = () => onOpenChange(!open)
+    if (asChild && isValidElement(children)) {
+      const child = children as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>
+      return cloneElement(child, {
+        onClick: (e: React.MouseEvent) => {
+          child.props.onClick?.(e)
+          toggle()
+        }
+      })
+    }
+    return (
+      <button type="button" onClick={toggle}>
+        {children}
+      </button>
+    )
+  }
+
+  const PopoverContent = ({ children }: { children?: React.ReactNode }) => {
+    const { open } = use(PopoverCtx)
+    return open ? <div data-testid="popover-content">{children}</div> : null
+  }
+
+  return {
+    ...actual,
+    Popover,
+    PopoverTrigger,
+    PopoverContent,
+    Button: ({ children, onClick, disabled, ...rest }: React.ComponentProps<'button'>) => (
+      <button type="button" onClick={onClick} disabled={disabled} {...rest}>
+        {children}
+      </button>
+    ),
+    Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
+  }
+})
 
 const createLanguage = (langCode: string, value: string, emoji: string): TranslateLanguage => ({
   value,

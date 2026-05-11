@@ -25,6 +25,7 @@ const translateCoreMock = vi.hoisted(() => ({
   isAbortError: vi.fn(),
   formatErrorMessageWithPrefix: vi.fn((_: unknown, prefix: string) => prefix)
 }))
+const loggerWarnMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -117,6 +118,17 @@ vi.mock('@renderer/hooks/useTemporaryValue', () => ({
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: translateCoreMock.setTimeoutTimer })
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      error: vi.fn(),
+      warn: loggerWarnMock,
+      info: vi.fn(),
+      debug: vi.fn()
+    })
+  }
 }))
 
 vi.mock('@renderer/services/TokenService', () => ({
@@ -271,6 +283,7 @@ describe('TranslatePage', () => {
     translateCoreMock.isAbortError.mockReturnValue(false)
     translateCoreMock.formatErrorMessageWithPrefix.mockReset()
     translateCoreMock.formatErrorMessageWithPrefix.mockImplementation((_: unknown, prefix: string) => prefix)
+    loggerWarnMock.mockReset()
     ;(window as any).toast = {
       error: vi.fn(),
       info: vi.fn(),
@@ -490,5 +503,24 @@ describe('TranslatePage', () => {
 
     expect(translateCoreMock.abortCompletion).toHaveBeenCalledWith('abort-key-1')
     expect(MockUseCacheUtils.getCacheValue('translate.translating')).toEqual({ isTranslating: false, abortKey: null })
+  })
+
+  it('logs warning when abort is triggered without abortKey', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    MockUseCacheUtils.setCacheValue('translate.translating', { isTranslating: true, abortKey: null })
+    MockUseCacheUtils.setCacheValue('translate.input', 'hello')
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.stop' }))
+
+    expect(loggerWarnMock).toHaveBeenCalledWith('Abort requested without active abort key', {
+      isTranslating: true,
+      abortKey: null
+    })
+    expect(translateCoreMock.abortCompletion).not.toHaveBeenCalled()
   })
 })

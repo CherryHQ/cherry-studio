@@ -82,8 +82,12 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
   )
 
   const handleClear = useCallback(async () => {
-    await clearHistory()
-    setSelectedId(null)
+    try {
+      await clearHistory()
+      setSelectedId(null)
+    } catch {
+      // `useTranslateHistory` already handles toast/log feedback; swallow to keep ConfirmDialog close flow.
+    }
   }, [clearHistory])
 
   const handleClose = useCallback(() => {
@@ -237,7 +241,11 @@ const HistoryRow: FC<{
   const { t } = useTranslation()
 
   const handleStar = async () => {
-    await onUpdate(item.id, { star: !item.star })
+    try {
+      await onUpdate(item.id, { star: !item.star })
+    } catch {
+      // `useTranslateHistory` already reports mutation errors.
+    }
   }
 
   return (
@@ -296,12 +304,20 @@ const HistoryDetail: FC<{
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
   const handleStar = async () => {
-    await updateHistory(item.id, { star: !item.star })
+    try {
+      await updateHistory(item.id, { star: !item.star })
+    } catch {
+      // `useTranslateHistory` already reports mutation errors.
+    }
   }
 
   const handleDelete = async () => {
-    await deleteHistory(item.id)
-    onDeleted()
+    try {
+      await deleteHistory(item.id)
+      onDeleted()
+    } catch {
+      // `useTranslateHistory` already handles toast/log feedback; swallow to keep ConfirmDialog close flow.
+    }
   }
 
   return (

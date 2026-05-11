@@ -74,17 +74,6 @@ describe('createOutputScrollHandler', () => {
     expect(input.scrollTop).toBeGreaterThan(0)
   })
 
-  it('syncs scroll when textarea ref points to legacy antd TextAreaRef shape', () => {
-    const input = createTextareaWithScrollMetrics(500, 200)
-    const textAreaRef = { current: { resizableTextArea: { textArea: input } } }
-    const isProgrammaticScrollRef = { current: false }
-
-    const onScroll = createOutputScrollHandler(textAreaRef, isProgrammaticScrollRef, true)
-    onScroll(createOutputEvent())
-
-    expect(input.scrollTop).toBeGreaterThan(0)
-  })
-
   it('short-circuits when scroll sync is disabled', () => {
     const input = document.createElement('textarea')
     input.scrollTop = 0

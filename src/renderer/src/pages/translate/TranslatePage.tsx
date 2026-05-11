@@ -304,8 +304,13 @@ const TranslatePage: FC = () => {
   const onAbort = useCallback(() => {
     if (translatingState.abortKey) {
       abortCompletion(translatingState.abortKey)
+      return
     }
-  }, [translatingState.abortKey])
+    logger.warn('Abort requested without active abort key', {
+      isTranslating: translatingState.isTranslating,
+      abortKey: translatingState.abortKey
+    })
+  }, [translatingState.abortKey, translatingState.isTranslating])
 
   useEffect(() => {
     return () => {

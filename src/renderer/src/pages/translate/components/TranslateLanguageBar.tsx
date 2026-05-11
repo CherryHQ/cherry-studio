@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { useLanguages } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
@@ -8,7 +8,7 @@ import type {
   TranslateSourceLanguage
 } from '@shared/data/preference/preferenceTypes'
 import { ArrowLeftRight, ChevronDown } from 'lucide-react'
-import type { FC, ReactNode, RefObject } from 'react'
+import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -42,24 +42,18 @@ const TranslateLanguageBar: FC<Props> = ({
   const { languages, getLabel, getLanguage } = useLanguages()
   const [sourceOpen, setSourceOpen] = useState(false)
   const [targetOpen, setTargetOpen] = useState(false)
-  const [sourceAnchorX, setSourceAnchorX] = useState(0)
-  const [targetAnchorX, setTargetAnchorX] = useState(0)
-  const sourceRef = useRef<HTMLDivElement>(null)
-  const targetRef = useRef<HTMLDivElement>(null)
+  const [isSourceScrolling, setIsSourceScrolling] = useState(false)
+  const [isTargetScrolling, setIsTargetScrolling] = useState(false)
+  const sourceScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const targetScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => {
-    if (!sourceOpen && !targetOpen) return
-    const handler = (e: MouseEvent) => {
-      if (sourceOpen && sourceRef.current && !sourceRef.current.contains(e.target as Node)) {
-        setSourceOpen(false)
-      }
-      if (targetOpen && targetRef.current && !targetRef.current.contains(e.target as Node)) {
-        setTargetOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [sourceOpen, targetOpen])
+  useEffect(
+    () => () => {
+      if (sourceScrollTimerRef.current) clearTimeout(sourceScrollTimerRef.current)
+      if (targetScrollTimerRef.current) clearTimeout(targetScrollTimerRef.current)
+    },
+    []
+  )
 
   const selectableLanguages = useMemo(
     () => languages?.filter((lang) => String(lang.langCode) !== UNKNOWN_LANG_CODE) ?? [],
@@ -95,39 +89,66 @@ const TranslateLanguageBar: FC<Props> = ({
   const handleSourceSelect = (value: TranslateSourceLanguage) => {
     onSourceChange(value)
     setSourceOpen(false)
+    setTargetOpen(false)
   }
 
   const handleTargetSelect = (lang: TranslateLangCode) => {
     if (lang === UNKNOWN_LANG_CODE) return
     onTargetChange(lang)
     setTargetOpen(false)
+    setSourceOpen(false)
+  }
+
+  const handleSourceScroll = () => {
+    setIsSourceScrolling(true)
+    if (sourceScrollTimerRef.current) clearTimeout(sourceScrollTimerRef.current)
+    sourceScrollTimerRef.current = setTimeout(() => setIsSourceScrolling(false), 1000)
+  }
+
+  const handleTargetScroll = () => {
+    setIsTargetScrolling(true)
+    if (targetScrollTimerRef.current) clearTimeout(targetScrollTimerRef.current)
+    targetScrollTimerRef.current = setTimeout(() => setIsTargetScrolling(false), 1000)
   }
 
   return (
     <div className="flex h-10 shrink-0 items-center px-2">
-      <div ref={sourceRef} className="relative flex-1">
-        <button
-          type="button"
-          disabled={isBidirectional}
-          onClick={(e) => {
-            if (sourceRef.current) {
-              const rect = sourceRef.current.getBoundingClientRect()
-              setSourceAnchorX(e.clientX - rect.left)
-            }
-            setSourceOpen((v) => !v)
-            setTargetOpen(false)
-          }}
-          className={cn(
-            triggerButtonClassName,
-            'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent'
-          )}>
-          <span className="mr-0.5 text-[10px] text-foreground-muted">{t('translate.source_language')}</span>
-          <span className="text-sm leading-none">{sourceDisplay.emoji}</span>
-          <span className="max-w-[180px] truncate">{sourceDisplay.label}</span>
-          <ChevronDown size={11} className="text-foreground-muted" />
-        </button>
-        {sourceOpen && (
-          <LanguageDropdown anchorX={sourceAnchorX} containerRef={sourceRef}>
+      <Popover
+        open={sourceOpen && !isBidirectional}
+        onOpenChange={(next) => {
+          setSourceOpen(next)
+          if (next) setTargetOpen(false)
+        }}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            disabled={isBidirectional}
+            aria-haspopup="listbox"
+            aria-expanded={sourceOpen && !isBidirectional}
+            className={cn(
+              triggerButtonClassName,
+              'flex-1 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent'
+            )}>
+            <span className="mr-0.5 text-[10px] text-foreground-muted">{t('translate.source_language')}</span>
+            <span className="text-sm leading-none">{sourceDisplay.emoji}</span>
+            <span className="max-w-[180px] truncate">{sourceDisplay.label}</span>
+            <ChevronDown
+              size={11}
+              className={cn('text-foreground-muted transition-transform', sourceOpen && 'rotate-180')}
+            />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          sideOffset={4}
+          className="w-(--radix-popover-trigger-width) rounded-md border border-border bg-popover p-1 shadow-xl">
+          <div
+            role="listbox"
+            onScroll={handleSourceScroll}
+            style={{
+              scrollbarColor: isSourceScrolling ? 'var(--color-scrollbar-thumb) transparent' : 'transparent transparent'
+            }}
+            className="max-h-[240px] overflow-y-auto">
             <LanguageOption
               emoji={AUTO_EMOJI}
               label={
@@ -147,9 +168,9 @@ const TranslateLanguageBar: FC<Props> = ({
                 onSelect={() => handleSourceSelect(lang.langCode)}
               />
             ))}
-          </LanguageDropdown>
-        )}
-      </div>
+          </div>
+        </PopoverContent>
+      </Popover>
 
       <Tooltip content={t('translate.exchange.label')} placement="bottom">
         <Button
@@ -163,31 +184,46 @@ const TranslateLanguageBar: FC<Props> = ({
         </Button>
       </Tooltip>
 
-      <div ref={targetRef} className="relative flex-1">
+      <div className="flex-1">
         {isBidirectional ? (
           <div className="flex h-full items-center justify-center rounded-md text-center text-muted-foreground text-xs">
             {`${getLanguageLabel(bidirectionalPair[0])} ⇆ ${getLanguageLabel(bidirectionalPair[1])}`}
           </div>
         ) : (
-          <>
-            <button
-              type="button"
-              onClick={(e) => {
-                if (targetRef.current) {
-                  const rect = targetRef.current.getBoundingClientRect()
-                  setTargetAnchorX(e.clientX - rect.left)
-                }
-                setTargetOpen((v) => !v)
-                setSourceOpen(false)
-              }}
-              className={triggerButtonClassName}>
-              <span className="mr-0.5 text-[10px] text-foreground-muted">{t('translate.target_language')}</span>
-              <span className="text-sm leading-none">{target?.emoji ?? UNKNOWN_EMOJI}</span>
-              <span className="max-w-[180px] truncate">{targetLabel}</span>
-              <ChevronDown size={11} className="text-foreground-muted" />
-            </button>
-            {targetOpen && (
-              <LanguageDropdown anchorX={targetAnchorX} containerRef={targetRef}>
+          <Popover
+            open={targetOpen}
+            onOpenChange={(next) => {
+              setTargetOpen(next)
+              if (next) setSourceOpen(false)
+            }}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded={targetOpen}
+                className={triggerButtonClassName}>
+                <span className="mr-0.5 text-[10px] text-foreground-muted">{t('translate.target_language')}</span>
+                <span className="text-sm leading-none">{target?.emoji ?? UNKNOWN_EMOJI}</span>
+                <span className="max-w-[180px] truncate">{targetLabel}</span>
+                <ChevronDown
+                  size={11}
+                  className={cn('text-foreground-muted transition-transform', targetOpen && 'rotate-180')}
+                />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              sideOffset={4}
+              className="w-(--radix-popover-trigger-width) rounded-md border border-border bg-popover p-1 shadow-xl">
+              <div
+                role="listbox"
+                onScroll={handleTargetScroll}
+                style={{
+                  scrollbarColor: isTargetScrolling
+                    ? 'var(--color-scrollbar-thumb) transparent'
+                    : 'transparent transparent'
+                }}
+                className="max-h-[240px] overflow-y-auto">
                 {selectableLanguages.map((lang) => (
                   <LanguageOption
                     key={lang.langCode}
@@ -197,57 +233,17 @@ const TranslateLanguageBar: FC<Props> = ({
                     onSelect={() => handleTargetSelect(lang.langCode)}
                   />
                 ))}
-              </LanguageDropdown>
-            )}
-          </>
+              </div>
+            </PopoverContent>
+          </Popover>
         )}
       </div>
     </div>
   )
 }
 
-const DROPDOWN_WIDTH = 160
 const triggerButtonClassName =
   'flex h-full w-full items-center justify-center gap-1.5 rounded-md py-1.5 text-foreground text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
-
-const LanguageDropdown: FC<{
-  anchorX: number
-  containerRef: RefObject<HTMLDivElement | null>
-  children: ReactNode
-}> = ({ anchorX, containerRef, children }) => {
-  const containerWidth = containerRef.current?.clientWidth ?? 0
-  const half = DROPDOWN_WIDTH / 2
-  const maxLeft = Math.max(0, containerWidth - DROPDOWN_WIDTH)
-  const left = Math.min(Math.max(anchorX - half, 0), maxLeft)
-  const [isScrolling, setIsScrolling] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const handleScroll = () => {
-    setIsScrolling(true)
-    if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => setIsScrolling(false), 1000)
-  }
-
-  useEffect(
-    () => () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    },
-    []
-  )
-
-  return (
-    <div
-      role="listbox"
-      onScroll={handleScroll}
-      style={{
-        left,
-        scrollbarColor: isScrolling ? 'var(--color-scrollbar-thumb) transparent' : 'transparent transparent'
-      }}
-      className="absolute top-full z-50 mt-1 max-h-[240px] w-40 overflow-y-auto rounded-md border border-border bg-popover py-1 shadow-xl">
-      {children}
-    </div>
-  )
-}
 
 const LanguageOption: FC<{
   emoji: string
