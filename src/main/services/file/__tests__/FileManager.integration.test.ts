@@ -132,6 +132,60 @@ describe('FileManager (integration)', () => {
     await expect(fm.read(id)).rejects.toThrow(/ENOENT/)
   })
 
+  // Every external-touching read path (read / hash / getMetadata / getVersion)
+  // must report a missing physical file into DanglingCache so any subsequent
+  // UI query sees the file as dangling without waiting for a fresh stat. The
+  // four cases match the call sites wrapped by `observeExternalAccess`.
+  //
+  // Each case seeds an independent (id, externalPath) row to keep tests
+  // hermetic — running them as it.each on a shared id with mid-loop deletes
+  // makes failure attribution painful when the assertion regresses.
+  async function seedMissingExternal(id: FileEntryId, basename: string): Promise<string> {
+    const file = path.join(tmp, basename)
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'external',
+      name: basename.replace(/\.[^.]+$/, ''),
+      ext: 'txt',
+      size: null,
+      externalPath: file,
+      trashedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+    danglingCache.addEntry(id, file as never)
+    return file
+  }
+
+  it('INT-3a: read on missing external file flips DanglingCache to "missing"', async () => {
+    const id = '019606a0-0000-7000-8000-00000000ff31' as FileEntryId
+    await seedMissingExternal(id, 'flip-read.txt')
+    await expect(fm.read(id)).rejects.toThrow(/ENOENT/)
+    expect(await fm.getDanglingState({ id })).toBe('missing')
+  })
+
+  it('INT-3b: getContentHash on missing external file flips DanglingCache to "missing"', async () => {
+    const id = '019606a0-0000-7000-8000-00000000ff32' as FileEntryId
+    await seedMissingExternal(id, 'flip-hash.txt')
+    await expect(fm.getContentHash(id)).rejects.toThrow(/ENOENT/)
+    expect(await fm.getDanglingState({ id })).toBe('missing')
+  })
+
+  it('INT-3c: getMetadata on missing external file flips DanglingCache to "missing"', async () => {
+    const id = '019606a0-0000-7000-8000-00000000ff33' as FileEntryId
+    await seedMissingExternal(id, 'flip-meta.txt')
+    await expect(fm.getMetadata(id)).rejects.toThrow(/ENOENT/)
+    expect(await fm.getDanglingState({ id })).toBe('missing')
+  })
+
+  it('INT-3d: getVersion on missing external file flips DanglingCache to "missing"', async () => {
+    const id = '019606a0-0000-7000-8000-00000000ff34' as FileEntryId
+    await seedMissingExternal(id, 'flip-version.txt')
+    await expect(fm.getVersion(id)).rejects.toThrow(/ENOENT/)
+    expect(await fm.getDanglingState({ id })).toBe('missing')
+  })
+
   it('INT-4: write path round-trip — create internal, write, read, trash, restore, permanentDelete', async () => {
     const created = await fm.createInternalEntry({
       source: 'bytes',

@@ -3,7 +3,8 @@
  *
  * Pure functions taking FileManagerDeps as the first argument — call sites
  * are FileManager methods + IPC dispatchers. ENOENT on an external entry
- * triggers a `'missing'` ingestion into DanglingCache before re-throwing.
+ * triggers a `'missing'` ingestion into DanglingCache before re-throwing,
+ * via the shared `observeExternalAccess` wrapper.
  */
 
 import { resolvePhysicalPath } from '@data/utils/pathResolver'
@@ -14,6 +15,7 @@ import mime from 'mime'
 
 import type { FileVersion, ReadResult } from '../../FileManager'
 import type { FileManagerDeps } from '../deps'
+import { observeExternalAccess } from '../observe'
 
 type TextReadOptions = { encoding?: 'text'; detectEncoding?: boolean }
 type Base64ReadOptions = { encoding: 'base64' }
@@ -41,14 +43,7 @@ export async function read(
 ): Promise<ReadResult<string | Uint8Array>> {
   const entry = await deps.fileEntryService.getById(id)
   const physicalPath = resolvePhysicalPath(entry)
-  try {
-    return await readResolved(physicalPath, options)
-  } catch (err) {
-    if (entry.origin === 'external' && (err as NodeJS.ErrnoException).code === 'ENOENT') {
-      deps.danglingCache.onFsEvent(physicalPath, 'missing')
-    }
-    throw err
-  }
+  return observeExternalAccess(deps, entry, physicalPath, () => readResolved(physicalPath, options))
 }
 
 export async function readByPath(

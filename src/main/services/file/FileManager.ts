@@ -144,6 +144,7 @@ import {
   trash as internalTrash
 } from './internal/entry/lifecycle'
 import { rename as internalRename } from './internal/entry/rename'
+import { observeExternalAccess } from './internal/observe'
 import { type DbSweepReport, type OrphanReport, runDbSweep, runStartupFileSweep } from './internal/orphanSweep'
 import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
@@ -608,7 +609,7 @@ export class FileManager extends BaseService {
   async getMetadata(id: FileEntryId): Promise<PhysicalFileMetadata> {
     const entry = await this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
-    const s = await fsStat(physicalPath)
+    const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
     if (s.isDirectory) {
       return {
         kind: 'directory',
@@ -632,7 +633,7 @@ export class FileManager extends BaseService {
   async getVersion(id: FileEntryId): Promise<FileVersion> {
     const entry = await this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
-    const s = await fsStat(physicalPath)
+    const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
     return { mtime: s.modifiedAt, size: s.size }
   }
 
