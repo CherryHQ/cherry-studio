@@ -1873,6 +1873,7 @@
   },
   "endpoint_type": {
     "anthropic": "Anthropic",
+    "embedding": "Einbettung",
     "gemini": "Gemini",
     "image-generation": "Bilderzeugung (OpenAI)",
     "jina-rerank": "Jina Reranking",

@@ -1873,6 +1873,7 @@
   },
   "endpoint_type": {
     "anthropic": "Anthropic",
+    "embedding": "Ενσωμάτωση",
     "gemini": "Gemini",
     "image-generation": "Δημιουργία Εικόνων (OpenAI)",
     "jina-rerank": "Επαναταξινόμηση Jina",
