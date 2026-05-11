@@ -1,11 +1,11 @@
 import { useModels } from '@renderer/hooks/useModels'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProviders'
 import i18n from '@renderer/i18n'
-import { isRerankModel } from '@renderer/pages/settings/ProviderSettings/config/models'
 import { checkModelsHealth } from '@renderer/pages/settings/ProviderSettings/services/HealthCheckService'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { splitApiKeyString } from '@renderer/utils/api'
+import { isRerankModel } from '@shared/utils/model'
 import { isEmpty } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 

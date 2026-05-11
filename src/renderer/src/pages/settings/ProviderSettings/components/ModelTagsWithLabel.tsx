@@ -7,22 +7,17 @@ import {
   VisionTag,
   WebSearchTag
 } from '@renderer/components/Tags/Model'
+import { isFreeModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
-import {
-  isEmbeddingModel,
-  isFreeModel,
-  isFunctionCallingModel,
-  isReasoningModel,
-  isRerankModel,
-  isVisionModel,
-  isWebSearchModel,
-  type ProviderSettingsDisplayModel
-} from '@renderer/pages/settings/ProviderSettings/config/models'
+import { type Model, MODEL_CAPABILITY, type ModelCapability } from '@shared/data/types/model'
 import type { FC } from 'react'
 import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
+export type ModelTagsWithLabelModel = Pick<Model, 'id' | 'name' | 'providerId' | 'capabilities' | 'endpointTypes'> &
+  Partial<Pick<Model, 'description' | 'group'>>
+
 interface ModelTagsProps {
-  model: ProviderSettingsDisplayModel
+  model: ModelTagsWithLabelModel
   showFree?: boolean
   showReasoning?: boolean
   showToolsCalling?: boolean
@@ -31,6 +26,41 @@ interface ModelTagsProps {
   showTooltip?: boolean
   style?: React.CSSProperties
 }
+
+type CapabilityTagConfig = {
+  capability: ModelCapability
+  isVisible?: (props: Pick<ModelTagsProps, 'showReasoning' | 'showToolsCalling'>) => boolean
+  render: (props: { size: number; showTooltip: boolean; showLabel: boolean }) => React.ReactNode
+}
+
+const CAPABILITY_TAGS: readonly CapabilityTagConfig[] = [
+  {
+    capability: MODEL_CAPABILITY.IMAGE_RECOGNITION,
+    render: (props) => <VisionTag {...props} />
+  },
+  {
+    capability: MODEL_CAPABILITY.WEB_SEARCH,
+    render: (props) => <WebSearchTag {...props} />
+  },
+  {
+    capability: MODEL_CAPABILITY.REASONING,
+    isVisible: ({ showReasoning }) => showReasoning !== false,
+    render: (props) => <ReasoningTag {...props} />
+  },
+  {
+    capability: MODEL_CAPABILITY.FUNCTION_CALL,
+    isVisible: ({ showToolsCalling }) => showToolsCalling !== false,
+    render: (props) => <ToolsCallingTag {...props} />
+  },
+  {
+    capability: MODEL_CAPABILITY.EMBEDDING,
+    render: ({ size }) => <EmbeddingTag size={size} />
+  },
+  {
+    capability: MODEL_CAPABILITY.RERANK,
+    render: ({ size }) => <RerankerTag size={size} />
+  }
+] as const
 
 const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   model,
@@ -69,22 +99,22 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
     }
   }, [maxWidth, showLabel])
 
+  const capabilities = new Set(model.capabilities)
+  const tagProps = { size, showTooltip, showLabel: shouldShowLabel }
+
   return (
     <div
       ref={containerRef}
       className="flex min-w-0 max-w-full flex-row flex-wrap items-center gap-0.5 overflow-visible"
       style={style}>
-      {isVisionModel(model) && <VisionTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
-      {isWebSearchModel(model) && <WebSearchTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
-      {showReasoning && isReasoningModel(model) && (
-        <ReasoningTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />
+      {CAPABILITY_TAGS.map(({ capability, isVisible, render }) =>
+        capabilities.has(capability) && (isVisible?.({ showReasoning, showToolsCalling }) ?? true) ? (
+          <span key={capability} className="inline-flex">
+            {render(tagProps)}
+          </span>
+        ) : null
       )}
-      {showToolsCalling && isFunctionCallingModel(model) && (
-        <ToolsCallingTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />
-      )}
-      {isEmbeddingModel(model) && <EmbeddingTag size={size} />}
       {showFree && isFreeModel(model) && <FreeTag size={size} />}
-      {isRerankModel(model) && <RerankerTag size={size} />}
     </div>
   )
 }

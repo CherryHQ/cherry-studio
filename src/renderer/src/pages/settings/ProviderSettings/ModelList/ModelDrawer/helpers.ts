@@ -1,11 +1,3 @@
-import {
-  isEmbeddingModel,
-  isFunctionCallingModel,
-  isReasoningModel,
-  isRerankModel,
-  isVisionModel,
-  isWebSearchModel
-} from '@renderer/pages/settings/ProviderSettings/config/models'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
 import type {
@@ -109,14 +101,5 @@ export function toggleSetToCaps(original: string[], selected: Set<ModelCapabilit
 }
 
 export function getInitialSelectedCapabilities(model: Model): Set<ModelCapabilityToggle> {
-  const inferred = new Set<ModelCapabilityToggle>([
-    ...(isVisionModel(model) ? ([MODEL_CAPABILITY.IMAGE_RECOGNITION] as const) : []),
-    ...(isReasoningModel(model) ? ([MODEL_CAPABILITY.REASONING] as const) : []),
-    ...(isFunctionCallingModel(model) ? ([MODEL_CAPABILITY.FUNCTION_CALL] as const) : []),
-    ...(isWebSearchModel(model) ? ([MODEL_CAPABILITY.WEB_SEARCH] as const) : []),
-    ...(isEmbeddingModel(model) ? ([MODEL_CAPABILITY.EMBEDDING] as const) : []),
-    ...(isRerankModel(model) ? ([MODEL_CAPABILITY.RERANK] as const) : [])
-  ])
-
-  return new Set([...capsToToggleSet(model.capabilities ?? []), ...inferred])
+  return capsToToggleSet(model.capabilities ?? [])
 }

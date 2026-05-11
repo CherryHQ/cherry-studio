@@ -1,14 +1,14 @@
+import { isFreeModel } from '@renderer/config/models'
+import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import type { Model } from '@shared/data/types/model'
 import {
   isEmbeddingModel,
-  isFreeModel,
   isFunctionCallingModel,
   isReasoningModel,
   isRerankModel,
   isVisionModel,
   isWebSearchModel
-} from '@renderer/pages/settings/ProviderSettings/config/models'
-import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import type { Model } from '@shared/data/types/model'
+} from '@shared/utils/model'
 import { sortBy, toPairs } from 'lodash'
 
 import { normalizeModelGroupName } from './grouping'

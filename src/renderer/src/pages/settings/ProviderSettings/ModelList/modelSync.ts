@@ -2,11 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { AiProvider } from '@renderer/aiCore'
 import { toV1ProviderShim } from '@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim'
-import type {
-  Model as LegacyModel,
-  ModelCapability as LegacyModelCapability,
-  Provider as LegacyProvider
-} from '@renderer/types'
+import type { Model as LegacyModel, Provider as LegacyProvider } from '@renderer/types'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
@@ -14,8 +10,6 @@ import {
   ENDPOINT_TYPE,
   type EndpointType as RuntimeEndpointType,
   type Model,
-  MODEL_CAPABILITY,
-  type ModelCapability as RuntimeModelCapability,
   parseUniqueModelId
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -26,16 +20,6 @@ const logger = loggerService.withContext('ProviderModelSync')
 type ProviderRegistryModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/registry-models`>
 type ProviderRotatedKeyPath = Extract<ConcreteApiPaths, `/providers/${string}/rotated-key`>
 type ProviderRotatedKeyResponse = { apiKey: string }
-
-const LEGACY_CAPABILITY_TO_V2: Record<LegacyModelCapability['type'], RuntimeModelCapability | undefined> = {
-  text: undefined,
-  vision: MODEL_CAPABILITY.IMAGE_RECOGNITION,
-  embedding: MODEL_CAPABILITY.EMBEDDING,
-  reasoning: MODEL_CAPABILITY.REASONING,
-  function_calling: MODEL_CAPABILITY.FUNCTION_CALL,
-  web_search: MODEL_CAPABILITY.WEB_SEARCH,
-  rerank: MODEL_CAPABILITY.RERANK
-}
 
 const LEGACY_ENDPOINT_TO_V2: Record<string, RuntimeEndpointType> = {
   openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -69,11 +53,6 @@ export function toCreateModelDto(
 }
 
 function normalizeFetchedModel(providerId: string, model: LegacyModel): Model {
-  const capabilities =
-    model.capabilities
-      ?.map((capability) => LEGACY_CAPABILITY_TO_V2[capability.type])
-      .filter((capability): capability is RuntimeModelCapability => capability !== undefined) ?? []
-
   const endpointTypes = [
     ...(model.supported_endpoint_types
       ?.map((endpointType) => LEGACY_ENDPOINT_TO_V2[endpointType])
@@ -90,7 +69,9 @@ function normalizeFetchedModel(providerId: string, model: LegacyModel): Model {
     name: model.name,
     description: model.description,
     group: model.group,
-    capabilities,
+    // Capabilities are owned by v2 registry/DB enrichment. Do not consume
+    // legacy AiProvider.models() capability hints in renderer sync preview.
+    capabilities: [],
     endpointTypes: endpointTypes.length > 0 ? endpointTypes : undefined,
     supportsStreaming: model.supported_text_delta ?? true,
     isEnabled: true,
