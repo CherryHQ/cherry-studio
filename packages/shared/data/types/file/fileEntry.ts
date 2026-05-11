@@ -151,7 +151,7 @@ const AbsolutePathSchema = z
  * ## Authorized construction
  *
  * - **Production code**: only `canonicalizeExternalPath()` in
- *   `src/main/data/utils/pathResolver.ts` may produce values of this type.
+ *   `src/main/services/file/utils/pathResolver.ts` may produce values of this type.
  *   Other production code importing `CanonicalExternalPath` MUST receive it
  *   from that function (directly or transitively) — never via `as` cast.
  * - **Tests and fixtures**: may cast known-canonical string literals with

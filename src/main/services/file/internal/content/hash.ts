@@ -9,11 +9,11 @@
  * shared `observeExternalAccess` wrapper before re-throwing.
  */
 
-import { resolvePhysicalPath } from '@data/utils/pathResolver'
 import { hash as fsHash } from '@main/utils/file/fs'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 
+import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 import { observeExternalAccess } from '../observe'
 

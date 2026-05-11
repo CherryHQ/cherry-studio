@@ -71,7 +71,7 @@ The `origin` field of each FileEntry defines **content ownership**:
 - Symlink target merging
 - Windows 8.3 short-name resolution
 
-See the JSDoc for `canonicalizeExternalPath` in `src/main/data/utils/pathResolver.ts` for the detailed contract.
+See the JSDoc for `canonicalizeExternalPath` in `src/main/services/file/utils/pathResolver.ts` for the detailed contract.
 
 #### Rule evolution discipline
 
@@ -1378,7 +1378,7 @@ This checklist is the canonical addition procedure. A PR introducing a new origi
 
 | Location | Change required |
 |---|---|
-| `src/main/data/utils/pathResolver.ts` → `resolvePhysicalPath` | Add the new `entry.origin` branch; decide storage layout |
+| `src/main/services/file/utils/pathResolver.ts` → `resolvePhysicalPath` | Add the new `entry.origin` branch; decide storage layout |
 | Same file → `canonicalizeExternalPath` | If the new variant is path-based and distinct from `'external'`, decide whether it shares the canonical form or needs its own normalization + brand |
 
 ### 13.4 Behavior Policy Matrix

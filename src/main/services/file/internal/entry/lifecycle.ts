@@ -15,12 +15,12 @@
  * - For external origin, the user's file is **never** modified.
  */
 
-import { resolvePhysicalPath } from '@data/utils/pathResolver'
 import { loggerService } from '@logger'
 import { remove as fsRemove } from '@main/utils/file/fs'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { BatchOperationResult, FilePath } from '@shared/file/types'
 
+import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('internal/entry/lifecycle')

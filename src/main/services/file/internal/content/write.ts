@@ -12,7 +12,6 @@
  * trusted for the OCC compare (file-manager-architecture.md §4.4 trust boundary).
  */
 
-import { resolvePhysicalPath } from '@data/utils/pathResolver'
 import { loggerService } from '@logger'
 import type { AtomicWriteStream } from '@main/utils/file/fs'
 import {
@@ -26,6 +25,7 @@ import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 
 import { type FileVersion, StaleVersionError } from '../../FileManager'
+import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('file/internal/write')

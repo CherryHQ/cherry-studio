@@ -12,12 +12,12 @@ import { mkdtemp } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
-import { resolvePhysicalPath } from '@data/utils/pathResolver'
 import { loggerService } from '@logger'
 import { copy as fsCopy, removeDir as fsRemoveDir } from '@main/utils/file/fs'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 
+import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('file/internal/system/tempCopy')

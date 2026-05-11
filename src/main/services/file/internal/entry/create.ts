@@ -11,7 +11,6 @@
  */
 
 import { application } from '@application'
-import { canonicalizeExternalPath } from '@data/utils/pathResolver'
 import { loggerService } from '@logger'
 import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { FileEntry } from '@shared/data/types/file'
@@ -20,6 +19,7 @@ import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
 
 import type { CreateInternalEntryParams, EnsureExternalEntryParams } from '../../FileManager'
+import { canonicalizeExternalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('internal/entry/create')

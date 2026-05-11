@@ -24,11 +24,12 @@
  * @see architecture.md §2 for the reference-vs-data-shape design.
  */
 
-import { resolvePhysicalPath } from '@data/utils/pathResolver'
 import { stat as fsStat } from '@main/utils/file/fs'
 import type { FileEntry } from '@shared/data/types/file'
 import { type FileInfo, getFileTypeByExt } from '@shared/file/types'
 import mime from 'mime'
+
+import { resolvePhysicalPath } from './utils/pathResolver'
 
 export async function toFileInfo(entry: FileEntry): Promise<FileInfo> {
   const physicalPath = resolvePhysicalPath(entry)

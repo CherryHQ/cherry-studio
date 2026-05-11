@@ -10,11 +10,11 @@
 
 import path from 'node:path'
 
-import { canonicalizeExternalPath } from '@data/utils/pathResolver'
 import { exists, isSameFile, move as fsMove } from '@main/utils/file/fs'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 
+import { canonicalizeExternalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 
 export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: string): Promise<FileEntry> {

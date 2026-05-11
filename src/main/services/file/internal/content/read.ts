@@ -7,13 +7,13 @@
  * via the shared `observeExternalAccess` wrapper.
  */
 
-import { resolvePhysicalPath } from '@data/utils/pathResolver'
 import { read as fsRead, stat as fsStat } from '@main/utils/file/fs'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 import mime from 'mime'
 
 import type { FileVersion, ReadResult } from '../../FileManager'
+import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 import { observeExternalAccess } from '../observe'
 

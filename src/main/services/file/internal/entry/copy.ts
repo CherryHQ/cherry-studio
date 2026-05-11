@@ -7,9 +7,9 @@
  * so it inherits the same write+rollback semantics.
  */
 
-import { resolvePhysicalPath } from '@data/utils/pathResolver'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 
+import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 import { createInternal } from './create'
 
