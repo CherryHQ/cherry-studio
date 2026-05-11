@@ -19,8 +19,32 @@ const FALLBACK_PROMPT =
 const FALLBACK_MODEL_ID = createUniqueModelId('cherryai', 'qwen')
 
 const summaryLocks = new Set<string>()
-const summaryNamedTopics = new Set<string>()
 const agentSessionRenameLocks = new Set<string>()
+
+// "Topic was auto-summary-renamed once already" gate — delegated to the
+// shared CacheService so the entry is automatically TTL'd (`GC` every 10
+// min via CacheService) and cleared on service stop. Without this, a
+// module-level Set grew monotonically and the only cleanup was process
+// exit.
+//
+// Key shape: `topic.summary_named:${topicId}`
+// TTL: 1h — long enough that "already named once in this conversation"
+//      semantics hold for an active chat; short enough that an idle
+//      topic releases its entry naturally.
+const SUMMARY_NAMED_KEY_PREFIX = 'topic.summary_named:'
+const SUMMARY_NAMED_TTL_MS = 60 * 60 * 1000
+
+function summaryNamedKey(topicId: string): string {
+  return `${SUMMARY_NAMED_KEY_PREFIX}${topicId}`
+}
+
+function markNamedTopic(topicId: string): void {
+  application.get('CacheService').set(summaryNamedKey(topicId), true, SUMMARY_NAMED_TTL_MS)
+}
+
+function hasNamedTopic(topicId: string): boolean {
+  return application.get('CacheService').has(summaryNamedKey(topicId))
+}
 
 type StructuredMessage = {
   role: string
@@ -99,7 +123,7 @@ export class TopicNamingService {
     const enabled = application.get('PreferenceService').get('topic.naming.enabled')
     if (!enabled) return
     if (summaryLocks.has(topicId)) return
-    if (summaryNamedTopics.has(topicId)) return
+    if (hasNamedTopic(topicId)) return
 
     const topic = await this.getTopic(topicId)
     if (!topic || topic.isNameManuallyEdited) return
@@ -128,7 +152,7 @@ export class TopicNamingService {
       if (!title) return
 
       await this.renameTopic(topic, title)
-      summaryNamedTopics.add(topicId)
+      markNamedTopic(topicId)
     } finally {
       summaryLocks.delete(topicId)
     }
