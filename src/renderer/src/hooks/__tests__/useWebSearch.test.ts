@@ -9,7 +9,7 @@ describe('useWebSearch', () => {
     MockUsePreferenceUtils.resetMocks()
   })
 
-  it('updates one provider override while preserving other providers', async () => {
+  it('updates one provider API keys while preserving other provider overrides', async () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
       tavily: {
         apiKeys: ['tavily-key']
@@ -26,7 +26,7 @@ describe('useWebSearch', () => {
     const { result } = renderHook(() => useWebSearchProviders())
 
     await act(async () => {
-      await result.current.updateProviderOverride('zhipu', { apiKeys: ['zhipu-key'] })
+      await result.current.setApiKeys('zhipu', [' zhipu-key '])
     })
 
     expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.provider_overrides')).toEqual({
@@ -38,6 +38,34 @@ describe('useWebSearch', () => {
         capabilities: {
           searchKeywords: {
             apiHost: 'https://custom.zhipu.dev'
+          }
+        }
+      }
+    })
+  })
+
+  it('updates one provider capability host through dedicated setters', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      searxng: {
+        capabilities: {
+          searchKeywords: {
+            apiHost: 'https://search.example.com'
+          }
+        }
+      }
+    })
+
+    const { result } = renderHook(() => useWebSearchProviders())
+
+    await act(async () => {
+      await result.current.setCapabilityApiHost('searxng', 'searchKeywords', ' https://search.internal.test ')
+    })
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.provider_overrides')).toEqual({
+      searxng: {
+        capabilities: {
+          searchKeywords: {
+            apiHost: 'https://search.internal.test'
           }
         }
       }

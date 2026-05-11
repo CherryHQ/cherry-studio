@@ -254,9 +254,9 @@ describe('PreferenceTransformers', () => {
           {
             id: 'searxng',
             name: 'Searxng',
-            apiHost: 'https://searx.example.com',
-            engines: ['news'],
-            basicAuthUsername: 'user',
+            apiHost: ' https://searx.example.com ',
+            engines: [' news ', '  '],
+            basicAuthUsername: ' user ',
             basicAuthPassword: ' pass '
           }
         ]
@@ -272,7 +272,7 @@ describe('PreferenceTransformers', () => {
           },
           engines: ['news'],
           basicAuthUsername: 'user',
-          basicAuthPassword: ' pass '
+          basicAuthPassword: 'pass'
         }
       })
     })

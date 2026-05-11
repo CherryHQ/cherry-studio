@@ -391,7 +391,10 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
     }
 
     if (provider.engines && provider.engines.length > 0) {
-      override.engines = provider.engines
+      const engines = provider.engines.map((engine) => engine.trim()).filter(Boolean)
+      if (engines.length > 0) {
+        override.engines = engines
+      }
     }
 
     const basicAuthUsername = provider.basicAuthUsername?.trim()
@@ -399,8 +402,9 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
       override.basicAuthUsername = basicAuthUsername
     }
 
-    if (provider.basicAuthPassword) {
-      override.basicAuthPassword = provider.basicAuthPassword
+    const basicAuthPassword = provider.basicAuthPassword?.trim()
+    if (basicAuthPassword) {
+      override.basicAuthPassword = basicAuthPassword
     }
 
     if (Object.keys(override).length > 0) {

@@ -18,9 +18,19 @@ const jinaProvider: ResolvedWebSearchProvider = {
   basicAuthPassword: ''
 }
 
+function createActions() {
+  return {
+    providerOverrides: {},
+    updateProvider: vi.fn().mockResolvedValue(undefined),
+    setApiKeys: vi.fn().mockResolvedValue(undefined),
+    setCapabilityApiHost: vi.fn().mockResolvedValue(undefined),
+    setBasicAuth: vi.fn().mockResolvedValue(undefined)
+  }
+}
+
 describe('useWebSearchProviderForm', () => {
   it('does not expose API host inputs for hostless providers', () => {
-    const updateProvider = vi.fn().mockResolvedValue(undefined)
+    const actions = createActions()
     const fetchProvider: ResolvedWebSearchProvider = {
       id: 'fetch',
       name: 'fetch',
@@ -32,16 +42,16 @@ describe('useWebSearchProviderForm', () => {
       basicAuthPassword: ''
     }
 
-    const { result } = renderHook(() => useWebSearchProviderForm(fetchProvider, updateProvider, 'fetchUrls'))
+    const { result } = renderHook(() => useWebSearchProviderForm(fetchProvider, actions, 'fetchUrls'))
 
     expect(result.current.apiHostCapabilities).toEqual([])
   })
 
   it('shows only the active capability API host for multi-capability providers', () => {
-    const updateProvider = vi.fn().mockResolvedValue(undefined)
+    const actions = createActions()
 
-    const searchForm = renderHook(() => useWebSearchProviderForm(jinaProvider, updateProvider, 'searchKeywords'))
-    const fetchForm = renderHook(() => useWebSearchProviderForm(jinaProvider, updateProvider, 'fetchUrls'))
+    const searchForm = renderHook(() => useWebSearchProviderForm(jinaProvider, actions, 'searchKeywords'))
+    const fetchForm = renderHook(() => useWebSearchProviderForm(jinaProvider, actions, 'fetchUrls'))
 
     expect(searchForm.result.current.apiHostCapabilities).toEqual([
       { feature: 'searchKeywords', apiHost: 'https://s.jina.ai' }
@@ -52,8 +62,8 @@ describe('useWebSearchProviderForm', () => {
   })
 
   it('persists API host changes for the active capability only', async () => {
-    const updateProvider = vi.fn().mockResolvedValue(undefined)
-    const { result } = renderHook(() => useWebSearchProviderForm(jinaProvider, updateProvider, 'fetchUrls'))
+    const actions = createActions()
+    const { result } = renderHook(() => useWebSearchProviderForm(jinaProvider, actions, 'fetchUrls'))
 
     act(() => {
       result.current.setApiHostInput('fetchUrls', 'https://reader.example.com/')
@@ -62,11 +72,87 @@ describe('useWebSearchProviderForm', () => {
       await result.current.commitApiHost(result.current.apiHostCapabilities[0])
     })
 
-    expect(updateProvider).toHaveBeenCalledWith('jina', {
-      capabilities: [
-        { feature: 'searchKeywords', apiHost: 'https://s.jina.ai' },
-        { feature: 'fetchUrls', apiHost: 'https://reader.example.com' }
-      ]
+    expect(actions.setCapabilityApiHost).toHaveBeenCalledWith('jina', 'fetchUrls', 'https://reader.example.com')
+  })
+
+  it('persists trimmed basic auth credentials', async () => {
+    const actions = createActions()
+    const provider: ResolvedWebSearchProvider = {
+      ...jinaProvider,
+      id: 'searxng',
+      name: 'Searxng',
+      basicAuthUsername: '',
+      basicAuthPassword: ''
+    }
+    const { result } = renderHook(() => useWebSearchProviderForm(provider, actions, 'searchKeywords'))
+
+    act(() => {
+      result.current.setBasicAuthUsername(' user ')
+      result.current.setBasicAuthPassword(' pass ')
+    })
+    await act(async () => {
+      await result.current.commitForm()
+    })
+
+    expect(actions.updateProvider).toHaveBeenCalledWith('searxng', {
+      basicAuthUsername: 'user',
+      basicAuthPassword: 'pass'
+    })
+  })
+
+  it('persists combined form changes with one provider patch', async () => {
+    const actions = createActions()
+    const { result } = renderHook(() => useWebSearchProviderForm(jinaProvider, actions, 'fetchUrls'))
+
+    act(() => {
+      result.current.setApiKeyInput(' key-a ')
+      result.current.setApiHostInput('fetchUrls', ' https://reader.example.com/ ')
+    })
+    await act(async () => {
+      await result.current.commitForm()
+    })
+
+    expect(actions.updateProvider).toHaveBeenCalledWith('jina', {
+      apiKeys: ['key-a'],
+      capabilities: {
+        fetchUrls: {
+          apiHost: 'https://reader.example.com'
+        }
+      }
+    })
+  })
+
+  it('persists only the active capability in combined form changes', async () => {
+    const actions = {
+      ...createActions(),
+      providerOverrides: {
+        jina: {
+          capabilities: {
+            searchKeywords: {
+              apiHost: 'https://search.example.com'
+            }
+          }
+        }
+      }
+    }
+    const { result } = renderHook(() => useWebSearchProviderForm(jinaProvider, actions, 'fetchUrls'))
+
+    act(() => {
+      result.current.setApiHostInput('fetchUrls', ' https://reader.example.com/ ')
+    })
+    await act(async () => {
+      await result.current.commitForm()
+    })
+
+    expect(actions.updateProvider).toHaveBeenCalledWith('jina', {
+      capabilities: {
+        searchKeywords: {
+          apiHost: 'https://search.example.com'
+        },
+        fetchUrls: {
+          apiHost: 'https://reader.example.com'
+        }
+      }
     })
   })
 })

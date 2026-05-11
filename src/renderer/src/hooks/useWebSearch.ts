@@ -1,18 +1,24 @@
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { splitApiKeyString } from '@renderer/utils/api'
-import type { PreferenceDefaultScopeType, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
+import type {
+  PreferenceDefaultScopeType,
+  WebSearchCapability,
+  WebSearchProviderId,
+  WebSearchProviderOverride
+} from '@shared/data/preference/preferenceTypes'
+import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
-import {
-  mergeWebSearchProviderPresets,
-  updateWebSearchProviderOverride,
-  type WebSearchProviderUpdates
-} from '@shared/data/utils/webSearchProviderMerger'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useWebSearch')
+
+export type WebSearchBasicAuthPatch = {
+  username?: string
+  password?: string
+}
 
 type WebSearchPreferenceSnapshot = Pick<
   PreferenceDefaultScopeType,
@@ -53,6 +59,14 @@ function buildWebSearchSettingsState(preferences: WebSearchPreferenceValues): We
   }
 }
 
+function trimString(value: string): string {
+  return value.trim()
+}
+
+function trimStringList(values: readonly string[]): string[] {
+  return values.map(trimString).filter(Boolean)
+}
+
 export const useWebSearchProviders = () => {
   const [providerOverrides, setProviderOverrides] = usePreference('chat.web_search.provider_overrides', {
     optimistic: false
@@ -63,7 +77,29 @@ export const useWebSearchProviders = () => {
   const [defaultFetchUrlsProviderId, setDefaultFetchUrlsProviderId] = usePreference(
     'chat.web_search.default_fetch_urls_provider'
   )
-  const providers = useMemo(() => mergeWebSearchProviderPresets(providerOverrides), [providerOverrides])
+  const providers = useMemo<ResolvedWebSearchProvider[]>(() => {
+    return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
+      const override = providerOverrides[preset.id]
+
+      return {
+        ...preset,
+        apiKeys: trimStringList(override?.apiKeys ?? []),
+        capabilities: preset.capabilities.map((capability) => {
+          const capabilityOverride = override?.capabilities?.[capability.feature]
+
+          return {
+            ...capability,
+            ...('apiHost' in capability && capabilityOverride?.apiHost !== undefined
+              ? { apiHost: trimString(capabilityOverride.apiHost) }
+              : {})
+          }
+        }),
+        engines: trimStringList(override?.engines ?? []),
+        basicAuthUsername: trimString(override?.basicAuthUsername ?? ''),
+        basicAuthPassword: trimString(override?.basicAuthPassword ?? '')
+      }
+    })
+  }, [providerOverrides])
 
   const defaultSearchKeywordsProvider = useMemo(
     () => providers.find((item) => item.id === defaultSearchKeywordsProviderId),
@@ -74,9 +110,12 @@ export const useWebSearchProviders = () => {
     [defaultFetchUrlsProviderId, providers]
   )
 
-  const updateProviderOverride = useCallback(
-    (providerId: WebSearchProviderId, updates: WebSearchProviderUpdates) => {
-      return setProviderOverrides(updateWebSearchProviderOverride(providerOverrides, providerId, updates))
+  const updateProvider = useCallback(
+    async (providerId: WebSearchProviderId, patch: WebSearchProviderOverride) => {
+      await setProviderOverrides({
+        ...providerOverrides,
+        [providerId]: { ...providerOverrides[providerId], ...patch }
+      })
     },
     [providerOverrides, setProviderOverrides]
   )
@@ -86,20 +125,62 @@ export const useWebSearchProviders = () => {
     [providers]
   )
 
-  const updateProvider = useCallback(
-    (providerId: WebSearchProviderId, updates: WebSearchProviderUpdates) => {
-      return updateProviderOverride(providerId, updates)
+  const setApiKeys = useCallback(
+    (providerId: WebSearchProviderId, apiKeys: string[]) => {
+      return updateProvider(providerId, { apiKeys: trimStringList(apiKeys) })
     },
-    [updateProviderOverride]
+    [updateProvider]
+  )
+
+  const setCapabilityApiHost = useCallback(
+    (providerId: WebSearchProviderId, capability: WebSearchCapability, apiHost: string) => {
+      return updateProvider(providerId, {
+        capabilities: {
+          ...providerOverrides[providerId]?.capabilities,
+          [capability]: {
+            ...providerOverrides[providerId]?.capabilities?.[capability],
+            apiHost: trimString(apiHost)
+          }
+        }
+      })
+    },
+    [providerOverrides, updateProvider]
+  )
+
+  const setEngines = useCallback(
+    (providerId: WebSearchProviderId, engines: string[]) => {
+      return updateProvider(providerId, { engines: trimStringList(engines) })
+    },
+    [updateProvider]
+  )
+
+  const setBasicAuth = useCallback(
+    (providerId: WebSearchProviderId, patch: WebSearchBasicAuthPatch) => {
+      const currentOverride = providerOverrides[providerId]
+      const basicAuthUsername =
+        patch.username !== undefined ? trimString(patch.username) : trimString(currentOverride?.basicAuthUsername ?? '')
+      const basicAuthPassword =
+        patch.password !== undefined ? trimString(patch.password) : trimString(currentOverride?.basicAuthPassword ?? '')
+
+      return updateProvider(providerId, {
+        basicAuthUsername,
+        basicAuthPassword: basicAuthUsername ? basicAuthPassword : ''
+      })
+    },
+    [providerOverrides, updateProvider]
   )
 
   return {
+    providerOverrides,
     providers,
     defaultSearchKeywordsProvider,
     defaultFetchUrlsProvider,
     getProvider,
     updateProvider,
-    updateProviderOverride,
+    setApiKeys,
+    setCapabilityApiHost,
+    setEngines,
+    setBasicAuth,
     setDefaultSearchKeywordsProvider: (provider: ResolvedWebSearchProvider) => {
       return setDefaultSearchKeywordsProviderId(provider.id)
     },
@@ -110,7 +191,7 @@ export const useWebSearchProviders = () => {
 }
 
 export const useSyncZhipuWebSearchApiKeys = () => {
-  const { updateProvider } = useWebSearchProviders()
+  const { setApiKeys } = useWebSearchProviders()
   const { t } = useTranslation()
 
   return useCallback(
@@ -119,12 +200,12 @@ export const useSyncZhipuWebSearchApiKeys = () => {
         return
       }
 
-      void updateProvider('zhipu', { apiKeys: splitApiKeyString(apiKey) }).catch((error) => {
+      void setApiKeys('zhipu', splitApiKeyString(apiKey)).catch((error) => {
         logger.error('Failed to sync Zhipu web search API keys', { error })
         window.toast.error(t('error.diagnosis.unknown'))
       })
     },
-    [t, updateProvider]
+    [setApiKeys, t]
   )
 }
 

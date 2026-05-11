@@ -23,7 +23,7 @@ export type WebSearchApiKeyListItem = {
 }
 
 export function useWebSearchApiKeyList(providerId: WebSearchProviderId) {
-  const { getProvider, updateProvider } = useWebSearchProviders()
+  const { getProvider, setApiKeys } = useWebSearchProviders()
   const { t } = useTranslation()
   const [pendingNewKey, setPendingNewKey] = useState<PendingApiKey | null>(null)
   const provider = getProvider(providerId)
@@ -35,9 +35,9 @@ export function useWebSearchApiKeyList(providerId: WebSearchProviderId) {
         return
       }
 
-      void updateProvider(provider.id, { apiKeys: normalizeWebSearchApiKeys(nextKeys) })
+      void setApiKeys(provider.id, normalizeWebSearchApiKeys(nextKeys))
     },
-    [provider, updateProvider]
+    [provider, setApiKeys]
   )
 
   const addPendingKey = useCallback(() => {

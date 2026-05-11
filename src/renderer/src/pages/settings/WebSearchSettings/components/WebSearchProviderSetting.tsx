@@ -37,6 +37,10 @@ export const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
   const {
     defaultFetchUrlsProvider,
     defaultSearchKeywordsProvider: defaultProvider,
+    providerOverrides,
+    setApiKeys,
+    setBasicAuth,
+    setCapabilityApiHost,
     setDefaultFetchUrlsProvider,
     setDefaultSearchKeywordsProvider,
     updateProvider
@@ -45,7 +49,17 @@ export const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
   const { theme } = useTheme()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const providerForm = useWebSearchProviderForm(provider, updateProvider, capability)
+  const providerForm = useWebSearchProviderForm(
+    provider,
+    {
+      providerOverrides,
+      updateProvider,
+      setApiKeys,
+      setBasicAuth,
+      setCapabilityApiHost
+    },
+    capability
+  )
   const providerCheck = useWebSearchProviderCheck({
     provider,
     capability,

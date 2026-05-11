@@ -2,7 +2,6 @@ import type { CompoundIcon } from '@cherrystudio/ui'
 import { Bocha, Cherryin, Exa, Jina, Querit, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
 import type { WebSearchCapability, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
-import { findWebSearchCapability } from '@shared/data/utils/webSearchProviderMerger'
 
 export type ResolvedWebSearchProviderCapability = ResolvedWebSearchProvider['capabilities'][number]
 
@@ -120,7 +119,7 @@ export function createWebSearchMenuEntry(
   provider: ResolvedWebSearchProvider,
   capability: WebSearchCapability
 ): WebSearchProviderMenuEntry | null {
-  const providerCapability = findWebSearchCapability(provider, capability)
+  const providerCapability = provider.capabilities.find((item) => item.feature === capability)
 
   if (!providerCapability) {
     return null

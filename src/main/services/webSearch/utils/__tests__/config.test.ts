@@ -97,7 +97,7 @@ describe('webSearch config utils', () => {
     })
   })
 
-  it('preserves basic auth password whitespace when resolving providers', async () => {
+  it('trims basic auth password whitespace when resolving providers', async () => {
     const provider = await getProviderById('searxng', {
       async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
         if (key === 'chat.web_search.provider_overrides') {
@@ -112,7 +112,7 @@ describe('webSearch config utils', () => {
       }
     })
 
-    expect(provider.basicAuthPassword).toBe(' pass ')
+    expect(provider.basicAuthPassword).toBe('pass')
   })
 
   it('resolves URL fetch provider presets', async () => {
