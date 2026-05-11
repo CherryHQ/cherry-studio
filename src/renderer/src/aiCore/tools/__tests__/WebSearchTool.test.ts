@@ -109,4 +109,14 @@ describe('fetchUrlsTool', () => {
     expect(modelText).toContain('fetches URL content')
     expect(modelText).toContain('"title": "Example"')
   })
+
+  it('rejects empty URL inputs before calling main fetch URLs IPC', async () => {
+    const fetchTool = fetchUrlsTool() as any
+
+    await expect(fetchTool.execute({ urls: [' ', ''] })).rejects.toThrow(
+      'Provide at least one URL in `urls` (string array).'
+    )
+
+    expect(mocks.fetchUrls).not.toHaveBeenCalled()
+  })
 })

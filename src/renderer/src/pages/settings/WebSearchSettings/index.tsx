@@ -20,7 +20,18 @@ import { getWebSearchCapabilityTitleKey } from './utils/webSearchProviderMeta'
 
 const WebSearchSettings: FC = () => {
   const { t } = useTranslation()
-  const { defaultFetchUrlsProvider, defaultSearchKeywordsProvider, featureSections } = useWebSearchProviderLists()
+  const {
+    defaultFetchUrlsProvider,
+    defaultSearchKeywordsProvider,
+    featureSections,
+    providerOverrides,
+    setApiKeys,
+    setBasicAuth,
+    setCapabilityApiHost,
+    setDefaultFetchUrlsProvider,
+    setDefaultSearchKeywordsProvider,
+    updateProvider
+  } = useWebSearchProviderLists()
   const [activeKey, setActiveKey] = useState('general')
   const activeEntry = useMemo(
     () => featureSections.flatMap((section) => section.entries).find((entry) => entry.key === activeKey),
@@ -80,7 +91,21 @@ const WebSearchSettings: FC = () => {
         </Scrollbar>
         <div className={`${settingsContentScrollClassName} relative flex`}>
           {activeEntry ? (
-            <WebSearchProviderSetting key={activeEntry.key} entry={activeEntry} />
+            <WebSearchProviderSetting
+              key={activeEntry.key}
+              entry={activeEntry}
+              defaultProvider={
+                activeEntry.capability === 'fetchUrls' ? defaultFetchUrlsProvider : defaultSearchKeywordsProvider
+              }
+              providerOverrides={providerOverrides}
+              onSetApiKeys={setApiKeys}
+              onSetBasicAuth={setBasicAuth}
+              onSetCapabilityApiHost={setCapabilityApiHost}
+              onSetDefaultProvider={
+                activeEntry.capability === 'fetchUrls' ? setDefaultFetchUrlsProvider : setDefaultSearchKeywordsProvider
+              }
+              onUpdateProvider={updateProvider}
+            />
           ) : (
             <WebSearchGeneralSettings />
           )}

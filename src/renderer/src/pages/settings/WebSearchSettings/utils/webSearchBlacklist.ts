@@ -1,14 +1,20 @@
+import { loggerService } from '@logger'
 import { parseMatchPattern } from '@renderer/utils/blacklistMatchPattern'
+
+const logger = loggerService.withContext('WebSearchBlacklist')
 
 export type WebSearchBlacklistParseResult = {
   validDomains: string[]
   hasError: boolean
+  invalidEntries: string[]
 }
 
 export function parseWebSearchBlacklistInput(input: string): WebSearchBlacklistParseResult {
   const entries = input.split('\n').filter((url) => url.trim() !== '')
   const validDomains: string[] = []
-  const hasError = entries.some((entry) => {
+  const invalidEntries: string[] = []
+
+  for (const entry of entries) {
     const trimmedEntry = entry.trim()
 
     if (trimmedEntry.startsWith('/') && trimmedEntry.endsWith('/')) {
@@ -16,20 +22,22 @@ export function parseWebSearchBlacklistInput(input: string): WebSearchBlacklistP
         const regexPattern = trimmedEntry.slice(1, -1)
         new RegExp(regexPattern, 'i')
         validDomains.push(trimmedEntry)
-        return false
+        continue
       } catch {
-        return true
+        logger.warn('Invalid web search blacklist regular expression', { pattern: trimmedEntry })
+        invalidEntries.push(trimmedEntry)
+        continue
       }
     }
 
     const parsed = parseMatchPattern(trimmedEntry)
     if (parsed === null) {
-      return true
+      invalidEntries.push(trimmedEntry)
+      continue
     }
 
     validDomains.push(trimmedEntry)
-    return false
-  })
+  }
 
-  return { validDomains, hasError }
+  return { validDomains, hasError: invalidEntries.length > 0, invalidEntries }
 }

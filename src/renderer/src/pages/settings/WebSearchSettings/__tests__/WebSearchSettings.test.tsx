@@ -241,8 +241,25 @@ describe('WebSearchSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.check' }))
 
     await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.check_failed')
+      expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.check_failed: check failed')
     })
+  })
+
+  it('does not check the provider when saving drafts before the check fails', async () => {
+    MockUsePreferenceUtils.mockPreferenceError('chat.web_search.provider_overrides', new Error('persist failed'))
+
+    render(<WebSearchSettings />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Tavily/ })[0])
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api_key.label'), {
+      target: { value: 'tavily-key' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.check' }))
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.errors.save_failed')
+    })
+    expect(searchKeywordsMock).not.toHaveBeenCalled()
   })
 
   it('shows a fallback instead of throwing when the API key list provider is missing', async () => {

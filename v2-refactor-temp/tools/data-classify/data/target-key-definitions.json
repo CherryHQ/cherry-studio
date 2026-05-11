@@ -49,8 +49,8 @@
     },
     {
       "targetKey": "chat.web_search.default_fetch_urls_provider",
-      "type": "PreferenceTypes.WebSearchProviderId | null",
-      "defaultValue": "fetch",
+      "type": "PreferenceTypes.WebSearchProviderId",
+      "defaultValue": null,
       "status": "classified",
       "description": "Default Web Search provider for URL fetch capability"
     },

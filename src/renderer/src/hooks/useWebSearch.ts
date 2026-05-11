@@ -4,11 +4,11 @@ import { splitApiKeyString } from '@renderer/utils/api'
 import type {
   PreferenceDefaultScopeType,
   WebSearchCapability,
+  WebSearchProvider,
   WebSearchProviderId,
   WebSearchProviderOverride
 } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -77,7 +77,7 @@ export const useWebSearchProviders = () => {
   const [defaultFetchUrlsProviderId, setDefaultFetchUrlsProviderId] = usePreference(
     'chat.web_search.default_fetch_urls_provider'
   )
-  const providers = useMemo<ResolvedWebSearchProvider[]>(() => {
+  const providers = useMemo<WebSearchProvider[]>(() => {
     return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
       const override = providerOverrides[preset.id]
 
@@ -181,10 +181,10 @@ export const useWebSearchProviders = () => {
     setCapabilityApiHost,
     setEngines,
     setBasicAuth,
-    setDefaultSearchKeywordsProvider: (provider: ResolvedWebSearchProvider) => {
+    setDefaultSearchKeywordsProvider: (provider: WebSearchProvider) => {
       return setDefaultSearchKeywordsProviderId(provider.id)
     },
-    setDefaultFetchUrlsProvider: (provider: ResolvedWebSearchProvider) => {
+    setDefaultFetchUrlsProvider: (provider: WebSearchProvider) => {
       return setDefaultFetchUrlsProviderId(provider.id)
     }
   }

@@ -1,4 +1,4 @@
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { act, renderHook } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,7 +14,7 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-const tavilyProvider: ResolvedWebSearchProvider = {
+const tavilyProvider: WebSearchProvider = {
   id: 'tavily',
   name: 'Tavily',
   type: 'api',
@@ -25,7 +25,7 @@ const tavilyProvider: ResolvedWebSearchProvider = {
   basicAuthPassword: ''
 }
 
-const fetchProvider: ResolvedWebSearchProvider = {
+const fetchProvider: WebSearchProvider = {
   id: 'fetch',
   name: 'fetch',
   type: 'api',
@@ -88,7 +88,21 @@ describe('useWebSearchProviderCheck', () => {
     })
 
     expect(searchKeywordsMock).not.toHaveBeenCalled()
-    expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.check_failed')
+    expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.check_failed: save failed')
+  })
+
+  it('includes provider check failure details in the toast', async () => {
+    searchKeywordsMock.mockRejectedValueOnce(new Error('missing API key'))
+    const commitForm = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() =>
+      useWebSearchProviderCheck({ provider: tavilyProvider, capability: 'searchKeywords', commitForm })
+    )
+
+    await act(async () => {
+      await result.current.checkProvider()
+    })
+
+    expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.check_failed: missing API key')
   })
 
   it('disables checks for zero-config fetch provider panels', () => {

@@ -1,14 +1,13 @@
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
-import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { useMemo } from 'react'
 
 import type { WebSearchProviderFeatureSection } from '../utils/webSearchProviderMeta'
 import { getWebSearchFeatureSections } from '../utils/webSearchProviderMeta'
 
 export function useWebSearchProviderLists(): ReturnType<typeof useWebSearchProviders> & {
-  keywordProviders: ResolvedWebSearchProvider[]
-  fetchUrlsProviders: ResolvedWebSearchProvider[]
+  keywordProviders: WebSearchProvider[]
+  fetchUrlsProviders: WebSearchProvider[]
   featureSections: WebSearchProviderFeatureSection[]
   providerIds: string[]
 } {
@@ -16,8 +15,8 @@ export function useWebSearchProviderLists(): ReturnType<typeof useWebSearchProvi
   const { providers } = webSearchProviders
 
   const providersByCapability = useMemo(() => {
-    const keywordProviders: ResolvedWebSearchProvider[] = []
-    const fetchUrlsProviders: ResolvedWebSearchProvider[] = []
+    const keywordProviders: WebSearchProvider[] = []
+    const fetchUrlsProviders: WebSearchProvider[] = []
 
     for (const provider of providers) {
       const features = new Set<WebSearchCapability>(provider.capabilities.map((capability) => capability.feature))

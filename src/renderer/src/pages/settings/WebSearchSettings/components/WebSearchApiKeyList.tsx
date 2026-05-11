@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useWebSearchApiKeyList, type WebSearchApiKeyListItem as ApiKeyListItem } from '../hooks/useWebSearchApiKeyList'
+import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import type { ApiKeyValidity } from '../utils/webSearchApiKeys'
 
 interface WebSearchApiKeyListProps {
@@ -19,8 +20,8 @@ interface WebSearchApiKeyListProps {
 
 interface WebSearchApiKeyItemProps {
   item: ApiKeyListItem
-  onUpdate: (newKey: string) => ApiKeyValidity
-  onRemove: () => void
+  onUpdate: (newKey: string) => Promise<ApiKeyValidity>
+  onRemove: () => Promise<void>
 }
 
 const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onRemove }) => {
@@ -28,6 +29,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
   const [isEditing, setIsEditing] = useState(item.isNew || !item.key.trim())
   const [editValue, setEditValue] = useState(item.key)
   const inputRef = useRef<HTMLInputElement>(null)
+  const persist = useWebSearchPersist()
   const hasUnsavedChanges = editValue.trim() !== item.key.trim()
 
   useEffect(() => {
@@ -41,10 +43,14 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
     setIsEditing(item.isNew || !item.key.trim())
   }, [item.isNew, item.key])
 
-  const handleSave = () => {
-    const result = onUpdate(editValue)
-    if (!result.isValid) {
-      window.toast.warning(result.error)
+  const handleSave = async () => {
+    const result = await persist(() => onUpdate(editValue), 'Failed to save web search API key')
+    if (!result.ok) {
+      return
+    }
+
+    if (!result.value.isValid) {
+      window.toast.warning(result.value.error)
       return
     }
 
@@ -53,7 +59,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
 
   const handleCancelEdit = () => {
     if (item.isNew || !item.key.trim()) {
-      onRemove()
+      void onRemove()
       return
     }
 
@@ -77,7 +83,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
     })
 
     if (confirmed) {
-      onRemove()
+      await persist(onRemove, 'Failed to remove web search API key')
     }
   }
 
@@ -92,7 +98,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
             onChange={(event) => setEditValue(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
-                handleSave()
+                void handleSave()
               }
             }}
             placeholder={t('settings.provider.api.key.new_key.placeholder')}
@@ -100,10 +106,20 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
             spellCheck={false}
           />
           <div className="flex shrink-0 items-center gap-0.5">
-            <Button type="button" variant={hasUnsavedChanges ? 'default' : 'ghost'} size="icon-sm" onClick={handleSave}>
+            <Button
+              type="button"
+              variant={hasUnsavedChanges ? 'default' : 'ghost'}
+              size="icon-sm"
+              aria-label={t('common.save')}
+              onClick={() => void handleSave()}>
               <Check className="size-3.5" />
             </Button>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={handleCancelEdit}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('common.cancel')}
+              onClick={handleCancelEdit}>
               <X className="size-3.5" />
             </Button>
           </div>
@@ -119,13 +135,23 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
             </button>
           </Tooltip>
           <div className="flex shrink-0 items-center gap-0.5">
-            <Button type="button" variant="ghost" size="icon-sm" onClick={handleCopy}>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label={t('common.copy')} onClick={handleCopy}>
               <Copy className="size-3.5" />
             </Button>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={() => setIsEditing(true)}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('common.edit')}
+              onClick={() => setIsEditing(true)}>
               <EditIcon size={14} />
             </Button>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={() => void handleRemove()}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('common.delete')}
+              onClick={() => void handleRemove()}>
               <Minus className="size-3.5" />
             </Button>
           </div>

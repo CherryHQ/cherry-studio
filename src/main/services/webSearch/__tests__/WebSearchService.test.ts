@@ -1,9 +1,6 @@
 import { BaseService } from '@main/core/lifecycle'
-import type {
-  ResolvedWebSearchProvider,
-  WebSearchExecutionConfig,
-  WebSearchResponse
-} from '@shared/data/types/webSearch'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { IpcChannel } from '@shared/IpcChannel'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { ipcMain } from 'electron'
@@ -48,7 +45,7 @@ const runtimeConfig: WebSearchExecutionConfig = {
   }
 }
 
-const providerOverrides: ResolvedWebSearchProvider[] = [
+const providerOverrides: WebSearchProvider[] = [
   {
     id: 'tavily',
     name: 'Tavily',
@@ -85,7 +82,7 @@ const providerOverrides: ResolvedWebSearchProvider[] = [
 ]
 
 function response(
-  providerId: ResolvedWebSearchProvider['id'],
+  providerId: WebSearchProvider['id'],
   capability: WebSearchResponse['capability'],
   input: string,
   results: Array<{ title: string; content: string; url: string; sourceInput?: string }>
@@ -104,8 +101,8 @@ function response(
 
 function setWebSearchPreferences(
   values: Partial<{
-    defaultSearchKeywordsProvider: ResolvedWebSearchProvider['id'] | null
-    defaultFetchUrlsProvider: ResolvedWebSearchProvider['id'] | null
+    defaultSearchKeywordsProvider: WebSearchProvider['id'] | null
+    defaultFetchUrlsProvider: WebSearchProvider['id'] | null
     runtimeConfig: Partial<WebSearchExecutionConfig>
   }> = {}
 ) {
@@ -472,13 +469,13 @@ describe('WebSearchService', () => {
 
   it('logs and throws when a provider does not implement the requested capability', async () => {
     await expect(webSearchService.searchKeywords({ providerId: 'fetch', keywords: ['hello'] })).rejects.toThrow(
-      'Web search provider fetch does not implement capability searchKeywords'
+      'Web search provider fetch does not support capability searchKeywords'
     )
 
     expect(loggerErrorMock).toHaveBeenCalledWith(
       'Web search failed',
       expect.objectContaining({
-        message: 'Web search provider fetch does not implement capability searchKeywords'
+        message: 'Web search provider fetch does not support capability searchKeywords'
       }),
       {
         providerId: 'fetch',

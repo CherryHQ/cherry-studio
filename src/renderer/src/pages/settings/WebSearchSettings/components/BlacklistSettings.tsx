@@ -1,19 +1,22 @@
 import { Alert, Button, Textarea } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
-import { t } from 'i18next'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
+import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { parseWebSearchBlacklistInput } from '../utils/webSearchBlacklist'
 
 const BlacklistSettings: FC = () => {
   const { theme } = useTheme()
-  const [errFormat, setErrFormat] = useState(false)
+  const { t } = useTranslation()
+  const [invalidEntries, setInvalidEntries] = useState<string[]>([])
   const [blacklistInput, setBlacklistInput] = useState('')
   const { excludeDomains, setExcludeDomains } = useWebSearchSettings()
+  const persist = useWebSearchPersist()
 
   useEffect(() => {
     if (excludeDomains) {
@@ -22,17 +25,19 @@ const BlacklistSettings: FC = () => {
   }, [excludeDomains])
 
   async function updateManualBlacklist(blacklist: string) {
-    const { validDomains, hasError } = parseWebSearchBlacklistInput(blacklist)
+    const { validDomains, invalidEntries: parsedInvalidEntries } = parseWebSearchBlacklistInput(blacklist)
 
-    setErrFormat(hasError)
-    if (hasError) return
+    setInvalidEntries(parsedInvalidEntries)
+    if (parsedInvalidEntries.length > 0) return
 
-    await setExcludeDomains(validDomains)
-    window.toast.info({
-      title: t('message.save.success.title'),
-      timeout: 4000,
-      icon: <Info className="size-4" />
-    })
+    const saved = await persist(() => setExcludeDomains(validDomains), 'Failed to save web search blacklist')
+    if (saved.ok) {
+      window.toast.info({
+        title: t('message.save.success.title'),
+        timeout: 4000,
+        icon: <Info className="size-4" />
+      })
+    }
   }
 
   return (
@@ -59,7 +64,15 @@ const BlacklistSettings: FC = () => {
           {t('common.save')}
         </Button>
       </div>
-      {errFormat && <Alert className="mt-2.5" message={t('settings.tool.websearch.blacklist_tooltip')} type="error" />}
+      {invalidEntries.length > 0 && (
+        <Alert
+          className="mt-2.5"
+          message={t('settings.tool.websearch.blacklist_invalid_entries', {
+            entries: invalidEntries.join(', ')
+          })}
+          type="error"
+        />
+      )}
     </SettingGroup>
   )
 }

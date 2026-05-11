@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useMemo, useState } from 'react'
@@ -10,6 +11,8 @@ import {
   replaceWebSearchApiKey,
   validateWebSearchApiKey
 } from '../utils/webSearchApiKeys'
+
+const logger = loggerService.withContext('useWebSearchApiKeyList')
 
 type PendingApiKey = {
   id: string
@@ -30,12 +33,12 @@ export function useWebSearchApiKeyList(providerId: WebSearchProviderId) {
   const keys = useMemo(() => normalizeWebSearchApiKeys(provider?.apiKeys ?? []), [provider?.apiKeys])
 
   const updateKeys = useCallback(
-    (nextKeys: string[]) => {
+    async (nextKeys: string[]) => {
       if (!provider) {
         return
       }
 
-      void setApiKeys(provider.id, normalizeWebSearchApiKeys(nextKeys))
+      await setApiKeys(provider.id, normalizeWebSearchApiKeys(nextKeys))
     },
     [provider, setApiKeys]
   )
@@ -45,7 +48,7 @@ export function useWebSearchApiKeyList(providerId: WebSearchProviderId) {
   }, [])
 
   const addKey = useCallback(
-    (key: string): ApiKeyValidity => {
+    async (key: string): Promise<ApiKeyValidity> => {
       const result = validateWebSearchApiKey(
         key,
         keys,
@@ -57,7 +60,7 @@ export function useWebSearchApiKeyList(providerId: WebSearchProviderId) {
         return result
       }
 
-      updateKeys([...keys, key])
+      await updateKeys([...keys, key])
       setPendingNewKey(null)
       return { isValid: true }
     },
@@ -65,7 +68,7 @@ export function useWebSearchApiKeyList(providerId: WebSearchProviderId) {
   )
 
   const updateKey = useCallback(
-    (index: number, key: string): ApiKeyValidity => {
+    async (index: number, key: string): Promise<ApiKeyValidity> => {
       const otherKeys = keys.filter((_, itemIndex) => itemIndex !== index)
       const result = validateWebSearchApiKey(
         key,
@@ -80,40 +83,44 @@ export function useWebSearchApiKeyList(providerId: WebSearchProviderId) {
 
       const nextKeys = replaceWebSearchApiKey(keys, index, key)
       if (!nextKeys) {
+        logger.error('Invalid web search API key index', { index, length: keys.length })
         return { isValid: false, error: t('error.diagnosis.unknown') }
       }
 
-      updateKeys(nextKeys)
+      await updateKeys(nextKeys)
       return { isValid: true }
     },
     [keys, t, updateKeys]
   )
 
   const removeKey = useCallback(
-    (index: number) => {
+    async (index: number) => {
       const nextKeys = removeWebSearchApiKey(keys, index)
-      if (nextKeys) {
-        updateKeys(nextKeys)
+      if (!nextKeys) {
+        logger.error('Invalid web search API key index', { index, length: keys.length })
+        return
       }
+
+      await updateKeys(nextKeys)
     },
     [keys, updateKeys]
   )
 
   const updateListItem = useCallback(
-    (item: WebSearchApiKeyListItem, key: string): ApiKeyValidity => {
+    (item: WebSearchApiKeyListItem, key: string): Promise<ApiKeyValidity> => {
       return item.isNew ? addKey(key) : updateKey(item.index, key)
     },
     [addKey, updateKey]
   )
 
   const removeListItem = useCallback(
-    (item: WebSearchApiKeyListItem) => {
+    async (item: WebSearchApiKeyListItem) => {
       if (item.isNew) {
         setPendingNewKey(null)
         return
       }
 
-      removeKey(item.index)
+      await removeKey(item.index)
     },
     [removeKey]
   )

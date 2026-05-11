@@ -1,4 +1,4 @@
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
@@ -43,9 +43,9 @@ import { createWebSearchProvider } from '../factory'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
 import { WEB_SEARCH_PROVIDER_REGISTRY } from '../registry'
 
-function createProvider<TProviderId extends ResolvedWebSearchProvider['id']>(
-  overrides: Partial<ResolvedWebSearchProvider> & { id: TProviderId }
-): ResolvedWebSearchProvider & { id: TProviderId } {
+function createProvider<TProviderId extends WebSearchProvider['id']>(
+  overrides: Partial<WebSearchProvider> & { id: TProviderId }
+): WebSearchProvider & { id: TProviderId } {
   const { id, ...restOverrides } = overrides
 
   return {
@@ -58,7 +58,7 @@ function createProvider<TProviderId extends ResolvedWebSearchProvider['id']>(
     basicAuthUsername: '',
     basicAuthPassword: '',
     ...restOverrides
-  } as ResolvedWebSearchProvider & { id: TProviderId }
+  } as WebSearchProvider & { id: TProviderId }
 }
 
 describe('createWebSearchProvider', () => {

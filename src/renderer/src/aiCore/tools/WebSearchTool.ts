@@ -74,7 +74,7 @@ export const webSearchTool = () =>
       'Search the web for current information, news, and real-time data. Use focused search queries and cite returned sources as [1], [2], etc.',
     inputSchema: z.object({
       queries: z.array(z.string()).optional().describe('Focused web search queries.'),
-      additionalContext: z.string().optional().describe('Single focused query when the model provides legacy input.')
+      additionalContext: z.string().optional().describe('Fallback single query when the model omits the queries array.')
     }),
     execute: async ({ queries, additionalContext }) => {
       const keywords = normalizeInputs(
@@ -100,8 +100,13 @@ export const fetchUrlsTool = () =>
       urls: z.array(z.string()).min(1).describe('Absolute URLs to fetch.')
     }),
     execute: async ({ urls }) => {
+      const normalizedUrls = normalizeInputs(urls, MAX_BUILTIN_FETCH_URLS)
+      if (normalizedUrls.length === 0) {
+        throw new Error('Provide at least one URL in `urls` (string array).')
+      }
+
       return window.api.webSearch.fetchUrls({
-        urls: normalizeInputs(urls, MAX_BUILTIN_FETCH_URLS)
+        urls: normalizedUrls
       })
     },
     toModelOutput: ({ output }) => toWebSearchModelOutput(output, 'fetch')

@@ -70,7 +70,7 @@ export const useWebSearchPanelController = (assistantId: string) => {
     }
     const provider = getProviderByModel(model)
 
-    // Gemini 3+ supports combining built-in tools with function calling.
+    // Older Gemini models cannot combine built-in web search with function tool use while MCP is active.
     if (
       provider &&
       isGeminiWebSearchProvider(provider) &&

@@ -2,6 +2,7 @@ import type {
   PreferenceDefaultScopeType,
   PreferenceKeyType,
   WebSearchCapability,
+  WebSearchProvider,
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
 import {
@@ -9,11 +10,7 @@ import {
   WEB_SEARCH_PROVIDER_PRESET_MAP,
   type WebSearchProviderPreset
 } from '@shared/data/presets/web-search-providers'
-import type {
-  ResolvedWebSearchProvider,
-  WebSearchExecutionConfig,
-  WebSearchResolvedConfig
-} from '@shared/data/types/webSearch'
+import type { WebSearchExecutionConfig, WebSearchResolvedConfig } from '@shared/data/types/webSearch'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 
 export interface WebSearchPreferenceReader {
@@ -40,7 +37,7 @@ export async function getProviderOverrides(
   return providerOverrides || {}
 }
 
-function getWebSearchProviderPresetById(providerId: ResolvedWebSearchProvider['id']): WebSearchProviderPreset {
+function getWebSearchProviderPresetById(providerId: WebSearchProvider['id']): WebSearchProviderPreset {
   return {
     id: providerId,
     ...WEB_SEARCH_PROVIDER_PRESET_MAP[providerId]
@@ -49,8 +46,8 @@ function getWebSearchProviderPresetById(providerId: ResolvedWebSearchProvider['i
 
 function mergeWebSearchProviderPreset(
   preset: WebSearchProviderPreset,
-  override?: WebSearchProviderOverrides[ResolvedWebSearchProvider['id']]
-): ResolvedWebSearchProvider {
+  override?: WebSearchProviderOverrides[WebSearchProvider['id']]
+): WebSearchProvider {
   return {
     id: preset.id,
     name: preset.name,
@@ -74,7 +71,7 @@ function mergeWebSearchProviderPreset(
   }
 }
 
-export function resolveProviders(providerOverrides: WebSearchProviderOverrides): ResolvedWebSearchProvider[] {
+export function resolveProviders(providerOverrides: WebSearchProviderOverrides): WebSearchProvider[] {
   return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) =>
     mergeWebSearchProviderPreset(preset, providerOverrides[preset.id])
   )
@@ -111,27 +108,33 @@ export async function getResolvedConfig(preferences: WebSearchPreferenceReader):
   }
 }
 
-export async function getProviderById<TProviderId extends ResolvedWebSearchProvider['id']>(
+export async function getProviderById<TProviderId extends WebSearchProvider['id']>(
   providerId: TProviderId,
   preferences: WebSearchPreferenceReader
-): Promise<ResolvedWebSearchProvider & { id: TProviderId }> {
+): Promise<WebSearchProvider & { id: TProviderId }> {
   const providerOverrides = await getProviderOverrides(preferences)
   const override = providerOverrides[providerId]
   const preset = getWebSearchProviderPresetById(providerId)
 
-  return mergeWebSearchProviderPreset(preset, override) as ResolvedWebSearchProvider & { id: TProviderId }
+  return mergeWebSearchProviderPreset(preset, override) as WebSearchProvider & { id: TProviderId }
 }
 
 export async function getProviderForCapability(
-  requestedProviderId: ResolvedWebSearchProvider['id'] | undefined,
+  requestedProviderId: WebSearchProvider['id'] | undefined,
   capability: WebSearchCapability,
   preferences: WebSearchPreferenceReader
-): Promise<ResolvedWebSearchProvider> {
+): Promise<WebSearchProvider> {
   const providerId = requestedProviderId ?? (await preferences.get(DEFAULT_PROVIDER_KEY_BY_CAPABILITY[capability]))
 
   if (!providerId) {
     throw new Error(`Default web search provider is not configured for capability ${capability}`)
   }
 
-  return getProviderById(providerId, preferences)
+  const provider = await getProviderById(providerId, preferences)
+
+  if (!provider.capabilities.some((providerCapability) => providerCapability.feature === capability)) {
+    throw new Error(`Web search provider ${providerId} does not support capability ${capability}`)
+  }
+
+  return provider
 }

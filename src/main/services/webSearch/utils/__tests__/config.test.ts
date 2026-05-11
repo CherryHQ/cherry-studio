@@ -169,4 +169,24 @@ describe('webSearch config utils', () => {
       })
     ).rejects.toThrow('Default web search provider is not configured for capability searchKeywords')
   })
+
+  it('throws when a configured default provider does not support the requested capability', async () => {
+    await expect(
+      getProviderForCapability(undefined, 'fetchUrls', {
+        async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+          if (key === 'chat.web_search.default_fetch_urls_provider') {
+            return 'tavily' as PreferenceDefaultScopeType[K]
+          }
+
+          return preferenceValues[key] as PreferenceDefaultScopeType[K]
+        }
+      })
+    ).rejects.toThrow('Web search provider tavily does not support capability fetchUrls')
+  })
+
+  it('throws when an explicit provider does not support the requested capability', async () => {
+    await expect(getProviderForCapability('fetch', 'searchKeywords', mockPreferenceReader)).rejects.toThrow(
+      'Web search provider fetch does not support capability searchKeywords'
+    )
+  })
 })

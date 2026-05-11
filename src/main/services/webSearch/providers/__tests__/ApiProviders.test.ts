@@ -1,6 +1,7 @@
 import type * as NodeFs from 'node:fs'
 
-import type { ResolvedWebSearchProvider, WebSearchExecutionConfig } from '@shared/data/types/webSearch'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchExecutionConfig } from '@shared/data/types/webSearch'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
@@ -44,9 +45,7 @@ const runtimeConfig: WebSearchExecutionConfig = {
   }
 }
 
-function createProvider(
-  overrides: Partial<ResolvedWebSearchProvider> & { apiHost?: string }
-): ResolvedWebSearchProvider {
+function createProvider(overrides: Partial<WebSearchProvider> & { apiHost?: string }): WebSearchProvider {
   const { apiHost, capabilities, ...restOverrides } = overrides
   const id = overrides.id ?? 'tavily'
   const resolvedApiHost = apiHost ?? 'https://api.example.com'
@@ -75,13 +74,13 @@ function createProvider(
 }
 
 type ProviderConstructor<TProvider> = new (
-  provider: ResolvedWebSearchProvider,
+  provider: WebSearchProvider,
   apiKeyRotationState: ApiKeyRotationState
 ) => TProvider
 
 function createProviderDriver<TProvider>(
   Provider: ProviderConstructor<TProvider>,
-  provider: ResolvedWebSearchProvider
+  provider: WebSearchProvider
 ): TProvider {
   return new Provider(provider, new ApiKeyRotationState())
 }

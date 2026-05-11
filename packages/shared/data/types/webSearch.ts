@@ -1,9 +1,9 @@
 import type {
   WebSearchCapability,
   WebSearchCompressionMethod,
+  WebSearchProvider,
   WebSearchProviderId,
-  WebSearchProviderOverrides,
-  WebSearchProviderType
+  WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
 
 export const DEFAULT_WEB_SEARCH_CUTOFF_LIMIT = 2000
@@ -56,22 +56,8 @@ export type WebSearchExecutionConfig = {
   compression: WebSearchCompressionConfig
 }
 
-export type ResolvedWebSearchProvider = {
-  id: WebSearchProviderId
-  name: string
-  type: WebSearchProviderType
-  apiKeys: string[]
-  capabilities: Array<{
-    feature: WebSearchCapability
-    apiHost?: string
-  }>
-  engines: string[]
-  basicAuthUsername: string
-  basicAuthPassword: string
-}
-
 export type WebSearchResolvedConfig = {
-  providers: ResolvedWebSearchProvider[]
+  providers: WebSearchProvider[]
   runtime: WebSearchExecutionConfig
   providerOverrides: WebSearchProviderOverrides
 }

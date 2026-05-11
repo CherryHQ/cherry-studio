@@ -1,15 +1,18 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Bocha, Cherryin, Exa, Jina, Querit, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
-import type { WebSearchCapability, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type {
+  WebSearchCapability,
+  WebSearchProvider,
+  WebSearchProviderId
+} from '@shared/data/preference/preferenceTypes'
 
-export type ResolvedWebSearchProviderCapability = ResolvedWebSearchProvider['capabilities'][number]
+export type WebSearchProviderCapability = WebSearchProvider['capabilities'][number]
 
 export type WebSearchProviderMenuEntry = {
   key: string
   capability: WebSearchCapability
-  provider: ResolvedWebSearchProvider
-  providerCapability: ResolvedWebSearchProviderCapability
+  provider: WebSearchProvider
+  providerCapability: WebSearchProviderCapability
 }
 
 export type WebSearchProviderFeatureSection = {
@@ -116,7 +119,7 @@ export function getWebSearchCapabilityTitleKey(capability: WebSearchCapability):
 }
 
 export function createWebSearchMenuEntry(
-  provider: ResolvedWebSearchProvider,
+  provider: WebSearchProvider,
   capability: WebSearchCapability
 ): WebSearchProviderMenuEntry | null {
   const providerCapability = provider.capabilities.find((item) => item.feature === capability)
@@ -134,7 +137,7 @@ export function createWebSearchMenuEntry(
 }
 
 export function getWebSearchFeatureSections(
-  providers: readonly ResolvedWebSearchProvider[]
+  providers: readonly WebSearchProvider[]
 ): WebSearchProviderFeatureSection[] {
   return WEB_SEARCH_CAPABILITY_ORDER.map((capability) => {
     const entries = providers
@@ -152,7 +155,7 @@ export function flattenWebSearchFeatureSections(
 }
 
 export function resolveWebSearchEntryCapability(
-  provider: ResolvedWebSearchProvider,
+  provider: WebSearchProvider,
   requestedCapability?: string
 ): WebSearchCapability {
   if (

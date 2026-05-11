@@ -5,6 +5,7 @@ import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../../..'
+import { useWebSearchPersist } from '../../hooks/useWebSearchPersist'
 import CutoffSettings from './CutoffSettings'
 
 const INPUT_BOX_WIDTH_CUTOFF = '200px'
@@ -13,12 +14,19 @@ const CompressionSettings = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
+  const persist = useWebSearchPersist()
 
   const handleCompressionMethodChange = (value: 'none' | 'cutoff') => {
-    void updateCompressionConfig({
-      method: value,
-      ...(value === 'cutoff' ? { cutoffLimit: compressionConfig?.cutoffLimit || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } : {})
-    })
+    void persist(
+      () =>
+        updateCompressionConfig({
+          method: value,
+          ...(value === 'cutoff'
+            ? { cutoffLimit: compressionConfig?.cutoffLimit || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT }
+            : {})
+        }),
+      'Failed to save web search compression method'
+    )
   }
 
   const compressionMethodOptions = [

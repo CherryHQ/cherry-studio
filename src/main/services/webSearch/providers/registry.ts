@@ -1,4 +1,4 @@
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
 import type { ApiKeyRotationState } from '../utils/provider'
 import { BochaProvider } from './api/BochaProvider'
@@ -13,7 +13,7 @@ import type { WebSearchProviderDriver } from './factory'
 import { ExaMcpProvider } from './mcp/ExaMcpProvider'
 
 type WebSearchProviderConstructor = new (
-  provider: ResolvedWebSearchProvider,
+  provider: WebSearchProvider,
   apiKeyRotationState: ApiKeyRotationState
 ) => WebSearchProviderDriver
 
@@ -27,4 +27,4 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   querit: QueritProvider,
   fetch: FetchProvider,
   jina: JinaProvider
-} as const satisfies Record<ResolvedWebSearchProvider['id'], WebSearchProviderConstructor>
+} as const satisfies Record<WebSearchProvider['id'], WebSearchProviderConstructor>

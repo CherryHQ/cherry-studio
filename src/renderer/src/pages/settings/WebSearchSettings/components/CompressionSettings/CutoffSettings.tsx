@@ -4,14 +4,20 @@ import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
 import { useTranslation } from 'react-i18next'
 
+import { useWebSearchPersist } from '../../hooks/useWebSearchPersist'
+
 const INPUT_BOX_WIDTH = '200px'
 
 const CutoffSettings = () => {
   const { t } = useTranslation()
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
+  const persist = useWebSearchPersist()
 
   const handleCutoffLimitChange = (value: number | null) => {
-    void updateCompressionConfig({ cutoffLimit: value || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT })
+    void persist(
+      () => updateCompressionConfig({ cutoffLimit: value || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT }),
+      'Failed to save web search cutoff limit'
+    )
   }
 
   return (

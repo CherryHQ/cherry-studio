@@ -1,4 +1,4 @@
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -14,7 +14,7 @@ import {
   resolveWebSearchEntryCapability
 } from '../utils/webSearchProviderMeta'
 
-const providers: ResolvedWebSearchProvider[] = [
+const providers: WebSearchProvider[] = [
   {
     id: 'tavily',
     name: 'Tavily',

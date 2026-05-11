@@ -6609,6 +6609,7 @@
         "apikey": "API 密钥",
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
+        "blacklist_invalid_entries": "以下黑名单条目无效：{{entries}}",
         "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
         "check": "检测",
         "check_failed": "验证失败",
@@ -6635,6 +6636,9 @@
         "content_limit": "内容长度限制",
         "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断",
         "default_provider": "默认搜索服务商",
+        "errors": {
+          "save_failed": "保存失败"
+        },
         "fetch_urls_provider": "默认 URL 获取服务商",
         "free": "免费",
         "is_default": "默认搜索",

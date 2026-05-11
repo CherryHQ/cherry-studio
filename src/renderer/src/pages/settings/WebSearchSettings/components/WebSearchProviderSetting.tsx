@@ -1,9 +1,18 @@
 import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
+import type { WebSearchBasicAuthPatch } from '@renderer/hooks/useWebSearch'
+import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
+import type {
+  WebSearchCapability,
+  WebSearchProvider,
+  WebSearchProviderId,
+  WebSearchProviderOverride,
+  WebSearchProviderOverrides
+} from '@shared/data/preference/preferenceTypes'
 import { useNavigate } from '@tanstack/react-router'
 import { ExternalLink, List } from 'lucide-react'
 import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -17,9 +26,8 @@ import {
   SettingTitle,
   SettingTitleExternalLink
 } from '../..'
-import { useWebSearchDefaultProviderAction } from '../hooks/useWebSearchDefaultProviderAction'
+import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { useWebSearchProviderCheck } from '../hooks/useWebSearchProviderCheck'
-import { useWebSearchProviderForm } from '../hooks/useWebSearchProviderForm'
 import {
   getWebSearchProviderApiKeyWebsite,
   getWebSearchProviderDescriptionKey,
@@ -29,48 +37,112 @@ import {
 import { WebSearchApiKeyListPopup } from './WebSearchApiKeyList'
 import WebSearchProviderLogo from './WebSearchProviderLogo'
 
+type SetCapabilityApiHost = (
+  providerId: WebSearchProviderId,
+  capability: WebSearchCapability,
+  apiHost: string
+) => Promise<void>
+
 interface Props {
   entry: WebSearchProviderMenuEntry
+  defaultProvider?: WebSearchProvider
+  providerOverrides: WebSearchProviderOverrides
+  onSetApiKeys: (providerId: WebSearchProviderId, apiKeys: string[]) => Promise<void>
+  onSetBasicAuth: (providerId: WebSearchProviderId, patch: WebSearchBasicAuthPatch) => Promise<void>
+  onSetCapabilityApiHost: SetCapabilityApiHost
+  onSetDefaultProvider: (provider: WebSearchProvider) => Promise<void>
+  onUpdateProvider: (providerId: WebSearchProviderId, patch: WebSearchProviderOverride) => Promise<void>
 }
 
-export const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
-  const {
-    defaultFetchUrlsProvider,
-    defaultSearchKeywordsProvider: defaultProvider,
-    providerOverrides,
-    setApiKeys,
-    setBasicAuth,
-    setCapabilityApiHost,
-    setDefaultFetchUrlsProvider,
-    setDefaultSearchKeywordsProvider,
-    updateProvider
-  } = useWebSearchProviders()
+function apiKeysToInput(apiKeys: readonly string[]): string {
+  return apiKeys.join(', ')
+}
+
+function apiKeysToSignature(apiKeys: readonly string[]): string {
+  return apiKeys.join('\n')
+}
+
+function normalizeApiKeysInput(value: string): string[] {
+  return splitApiKeyString(formatApiKeys(value))
+}
+
+function normalizeApiHostInput(value: string): string {
+  return withoutTrailingSlash(value.trim())
+}
+
+export const WebSearchProviderSetting: FC<Props> = ({
+  defaultProvider,
+  entry,
+  onSetApiKeys,
+  onSetBasicAuth,
+  onSetCapabilityApiHost,
+  onSetDefaultProvider,
+  onUpdateProvider,
+  providerOverrides
+}) => {
   const { capability, provider } = entry
   const { theme } = useTheme()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const providerForm = useWebSearchProviderForm(
-    provider,
-    {
-      providerOverrides,
-      updateProvider,
-      setApiKeys,
-      setBasicAuth,
-      setCapabilityApiHost
-    },
-    capability
-  )
+  const persist = useWebSearchPersist()
+  const savedApiKeysInput = useMemo(() => apiKeysToInput(provider.apiKeys), [provider.apiKeys])
+  const savedApiKeysSignature = useMemo(() => apiKeysToSignature(provider.apiKeys), [provider.apiKeys])
+  const [apiKeysInput, setApiKeysInput] = useState(savedApiKeysInput)
+  const [apiKeysBaseline, setApiKeysBaseline] = useState(savedApiKeysSignature)
+  const apiKeysDraft = useMemo(() => normalizeApiKeysInput(apiKeysInput), [apiKeysInput])
+  const apiKeysDraftSignature = useMemo(() => apiKeysToSignature(apiKeysDraft), [apiKeysDraft])
+  const apiKeysDirty = apiKeysDraftSignature !== apiKeysBaseline
+
+  const savedApiHost = entry.providerCapability.apiHost ?? ''
+  const [apiHostInput, setApiHostInput] = useState(savedApiHost)
+  const [apiHostBaseline, setApiHostBaseline] = useState(savedApiHost)
+  const normalizedApiHostInput = useMemo(() => normalizeApiHostInput(apiHostInput), [apiHostInput])
+  const apiHostDirty = normalizedApiHostInput !== apiHostBaseline
+
+  const savedBasicAuthUsername = provider.basicAuthUsername || ''
+  const savedBasicAuthPassword = provider.basicAuthPassword || ''
+  const [basicAuthUsernameInput, setBasicAuthUsernameInput] = useState(savedBasicAuthUsername)
+  const [basicAuthPasswordInput, setBasicAuthPasswordInput] = useState(savedBasicAuthPassword)
+  const [basicAuthUsernameBaseline, setBasicAuthUsernameBaseline] = useState(savedBasicAuthUsername)
+  const [basicAuthPasswordBaseline, setBasicAuthPasswordBaseline] = useState(savedBasicAuthPassword)
+  const normalizedBasicAuthUsernameInput = basicAuthUsernameInput.trim()
+  const normalizedBasicAuthPasswordInput = normalizedBasicAuthUsernameInput ? basicAuthPasswordInput.trim() : ''
+  const basicAuthUsernameDirty = normalizedBasicAuthUsernameInput !== basicAuthUsernameBaseline
+  const basicAuthPasswordDirty = normalizedBasicAuthPasswordInput !== basicAuthPasswordBaseline
+
+  useEffect(() => {
+    if (!apiKeysDirty) {
+      setApiKeysInput(savedApiKeysInput)
+    }
+    setApiKeysBaseline(savedApiKeysSignature)
+  }, [apiKeysDirty, savedApiKeysInput, savedApiKeysSignature])
+
+  useEffect(() => {
+    if (!apiHostDirty) {
+      setApiHostInput(savedApiHost)
+    }
+    setApiHostBaseline(savedApiHost)
+  }, [apiHostDirty, savedApiHost])
+
+  useEffect(() => {
+    if (!basicAuthUsernameDirty) {
+      setBasicAuthUsernameInput(savedBasicAuthUsername)
+    }
+    setBasicAuthUsernameBaseline(savedBasicAuthUsername)
+  }, [basicAuthUsernameDirty, savedBasicAuthUsername])
+
+  useEffect(() => {
+    if (!basicAuthPasswordDirty) {
+      setBasicAuthPasswordInput(savedBasicAuthPassword)
+    }
+    setBasicAuthPasswordBaseline(savedBasicAuthPassword)
+  }, [basicAuthPasswordDirty, savedBasicAuthPassword])
+
   const providerCheck = useWebSearchProviderCheck({
     provider,
     capability,
-    commitForm: providerForm.commitForm
+    commitForm: async () => undefined
   })
-  const defaultAction = useWebSearchDefaultProviderAction(
-    provider,
-    capability,
-    capability === 'fetchUrls' ? defaultFetchUrlsProvider : defaultProvider,
-    capability === 'fetchUrls' ? setDefaultFetchUrlsProvider : setDefaultSearchKeywordsProvider
-  )
   const apiKeyWebsite = getWebSearchProviderApiKeyWebsite(provider.id)
   const officialWebsite = getWebSearchProviderOfficialWebsite(provider.id)
   const usesLlmProviderApiKey = provider.id === 'zhipu'
@@ -79,8 +151,116 @@ export const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
   const descriptionKey = getWebSearchProviderDescriptionKey(provider.id)
   const showApiKeyCheckButton = showApiKeySettings && !usesLlmProviderApiKey && providerCheck.canCheck
   const showApiHostCheckButton = !showApiKeyCheckButton && providerCheck.canCheck
+  const showApiHostSetting = entry.providerCapability.apiHost !== undefined
+  const isDefault = defaultProvider?.id === provider.id
+
+  const commitApiKeysDraft = useCallback(async () => {
+    if (!apiKeysDirty) {
+      return
+    }
+
+    await onSetApiKeys(provider.id, apiKeysDraft)
+    setApiKeysInput(apiKeysToInput(apiKeysDraft))
+    setApiKeysBaseline(apiKeysDraftSignature)
+  }, [apiKeysDirty, apiKeysDraft, apiKeysDraftSignature, onSetApiKeys, provider.id])
+
+  const commitApiHostDraft = useCallback(async () => {
+    if (!showApiHostSetting || !apiHostDirty) {
+      return
+    }
+
+    await onSetCapabilityApiHost(provider.id, capability, normalizedApiHostInput)
+    setApiHostInput(normalizedApiHostInput)
+    setApiHostBaseline(normalizedApiHostInput)
+  }, [apiHostDirty, capability, normalizedApiHostInput, onSetCapabilityApiHost, provider.id, showApiHostSetting])
+
+  const commitBasicAuthDraft = useCallback(async () => {
+    if (!basicAuthUsernameDirty && !basicAuthPasswordDirty) {
+      return
+    }
+
+    await onSetBasicAuth(provider.id, {
+      username: normalizedBasicAuthUsernameInput,
+      password: normalizedBasicAuthPasswordInput
+    })
+    setBasicAuthUsernameInput(normalizedBasicAuthUsernameInput)
+    setBasicAuthPasswordInput(normalizedBasicAuthPasswordInput)
+    setBasicAuthUsernameBaseline(normalizedBasicAuthUsernameInput)
+    setBasicAuthPasswordBaseline(normalizedBasicAuthPasswordInput)
+  }, [
+    basicAuthPasswordDirty,
+    basicAuthUsernameDirty,
+    normalizedBasicAuthPasswordInput,
+    normalizedBasicAuthUsernameInput,
+    onSetBasicAuth,
+    provider.id
+  ])
+
+  const commitDirtyDrafts = useCallback(async () => {
+    const patch: WebSearchProviderOverride = {}
+
+    if (apiKeysDirty) {
+      patch.apiKeys = apiKeysDraft
+    }
+
+    if (showApiHostSetting && apiHostDirty) {
+      patch.capabilities = {
+        ...providerOverrides[provider.id]?.capabilities,
+        [capability]: {
+          ...providerOverrides[provider.id]?.capabilities?.[capability],
+          apiHost: normalizedApiHostInput
+        }
+      }
+    }
+
+    if (basicAuthUsernameDirty || basicAuthPasswordDirty) {
+      patch.basicAuthUsername = normalizedBasicAuthUsernameInput
+      patch.basicAuthPassword = normalizedBasicAuthPasswordInput
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return
+    }
+
+    await onUpdateProvider(provider.id, patch)
+
+    if (apiKeysDirty) {
+      setApiKeysInput(apiKeysToInput(apiKeysDraft))
+      setApiKeysBaseline(apiKeysDraftSignature)
+    }
+    if (showApiHostSetting && apiHostDirty) {
+      setApiHostInput(normalizedApiHostInput)
+      setApiHostBaseline(normalizedApiHostInput)
+    }
+    if (basicAuthUsernameDirty || basicAuthPasswordDirty) {
+      setBasicAuthUsernameInput(normalizedBasicAuthUsernameInput)
+      setBasicAuthPasswordInput(normalizedBasicAuthPasswordInput)
+      setBasicAuthUsernameBaseline(normalizedBasicAuthUsernameInput)
+      setBasicAuthPasswordBaseline(normalizedBasicAuthPasswordInput)
+    }
+  }, [
+    apiHostDirty,
+    apiKeysDirty,
+    apiKeysDraft,
+    apiKeysDraftSignature,
+    basicAuthPasswordDirty,
+    basicAuthUsernameDirty,
+    capability,
+    normalizedApiHostInput,
+    normalizedBasicAuthPasswordInput,
+    normalizedBasicAuthUsernameInput,
+    onUpdateProvider,
+    provider.id,
+    providerOverrides,
+    showApiHostSetting
+  ])
 
   const openApiKeyList = async () => {
+    const saved = await persist(commitApiKeysDraft, 'Failed to save web search API keys before opening list')
+    if (!saved.ok) {
+      return
+    }
+
     await WebSearchApiKeyListPopup.show({
       providerId: provider.id,
       title: `${provider.name} ${t('settings.provider.api.key.list.title')}`
@@ -89,6 +269,20 @@ export const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
 
   const openLlmProviderSettings = () => {
     void navigate({ to: '/settings/provider', search: { id: provider.id } })
+  }
+
+  const checkProvider = async () => {
+    const saved = await persist(commitDirtyDrafts, 'Failed to save web search provider before check')
+    if (saved.ok) {
+      await providerCheck.checkProvider()
+    }
+  }
+
+  const setBasicAuthUsernameDraft = (value: string) => {
+    setBasicAuthUsernameInput(value)
+    if (!value.trim()) {
+      setBasicAuthPasswordInput('')
+    }
   }
 
   return (
@@ -105,10 +299,17 @@ export const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
                 </SettingTitleExternalLink>
               )}
             </Flex>
-            <Button variant="outline" disabled={!defaultAction.canSetAsDefault} onClick={defaultAction.onSetAsDefault}>
-              {defaultAction.isDefault
-                ? t('settings.tool.websearch.is_default')
-                : t('settings.tool.websearch.set_as_default')}
+            <Button
+              variant="outline"
+              disabled={isDefault}
+              onClick={() =>
+                void persist(async () => {
+                  if (!isDefault) {
+                    await onSetDefaultProvider(provider)
+                  }
+                }, 'Failed to set default web search provider')
+              }>
+              {isDefault ? t('settings.tool.websearch.is_default') : t('settings.tool.websearch.set_as_default')}
             </Button>
           </Flex>
         </SettingTitle>
@@ -139,7 +340,11 @@ export const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
               }}>
               {t('settings.provider.api_key.label')}
               <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
-                <Button variant="outline" size="icon-sm" onClick={openApiKeyList}>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label={t('settings.provider.api.key.list.open')}
+                  onClick={openApiKeyList}>
                   <List size={14} />
                 </Button>
               </Tooltip>
@@ -147,19 +352,19 @@ export const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
             <ButtonGroup className="w-full">
               <Input
                 type="password"
-                value={providerForm.apiKeyInput}
+                value={apiKeysInput}
                 placeholder={t('settings.provider.api_key.label')}
-                onChange={(e) => providerForm.setApiKeyInput(e.target.value)}
-                onBlur={providerForm.commitApiKeys}
+                onChange={(e) => setApiKeysInput(e.target.value)}
+                onBlur={() => void persist(commitApiKeysDraft, 'Failed to save web search API keys')}
                 spellCheck={false}
-                autoFocus={providerForm.apiKeys.length === 0}
+                autoFocus={provider.apiKeys.length === 0}
                 className="min-w-0 flex-1"
               />
               <Button
                 variant="outline"
                 className="h-9 shrink-0 px-3 shadow-none"
                 disabled={providerCheck.checking}
-                onClick={() => void providerCheck.checkProvider()}>
+                onClick={() => void checkProvider()}>
                 {t('settings.tool.websearch.check')}
               </Button>
             </ButtonGroup>
@@ -176,30 +381,30 @@ export const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
           </>
         )}
 
-        {providerForm.apiHostCapabilities.map((providerCapability) => (
-          <div key={providerCapability.feature}>
+        {showApiHostSetting && (
+          <div>
             <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
               {t('settings.provider.api_host')}
             </SettingSubtitle>
             <Flex className="gap-2">
               <Input
-                value={providerForm.apiHosts[providerCapability.feature] ?? ''}
+                value={apiHostInput}
                 placeholder={t('settings.provider.api_host')}
-                onChange={(e) => providerForm.setApiHostInput(providerCapability.feature, e.target.value)}
-                onBlur={() => providerForm.commitApiHost(providerCapability)}
+                onChange={(e) => setApiHostInput(e.target.value)}
+                onBlur={() => void persist(commitApiHostDraft, 'Failed to save web search API host')}
               />
               {showApiHostCheckButton && (
                 <Button
                   variant="outline"
                   className="h-9 shrink-0 px-3 shadow-none"
                   disabled={providerCheck.checking}
-                  onClick={() => void providerCheck.checkProvider()}>
+                  onClick={() => void checkProvider()}>
                   {t('settings.tool.websearch.check')}
                 </Button>
               )}
             </Flex>
           </div>
-        ))}
+        )}
 
         {supportsBasicAuth && (
           <>
@@ -224,13 +429,13 @@ export const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
                 </Label>
                 <Input
                   id="websearch-basic-auth-username"
-                  value={providerForm.basicAuthUsername}
+                  value={basicAuthUsernameInput}
                   placeholder={t('settings.provider.basic_auth.user_name.tip')}
-                  onChange={(e) => providerForm.setBasicAuthUsername(e.target.value)}
-                  onBlur={providerForm.commitBasicAuthUsername}
+                  onChange={(e) => setBasicAuthUsernameDraft(e.target.value)}
+                  onBlur={() => void persist(commitBasicAuthDraft, 'Failed to save web search basic auth username')}
                 />
               </div>
-              {providerForm.basicAuthUsername && (
+              {basicAuthUsernameInput && (
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="websearch-basic-auth-password">
                     {t('settings.provider.basic_auth.password.label')}
@@ -238,10 +443,10 @@ export const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
                   <Input
                     id="websearch-basic-auth-password"
                     type="password"
-                    value={providerForm.basicAuthPassword}
+                    value={basicAuthPasswordInput}
                     placeholder={t('settings.provider.basic_auth.password.tip')}
-                    onChange={(e) => providerForm.setBasicAuthPassword(e.target.value)}
-                    onBlur={providerForm.commitBasicAuthPassword}
+                    onChange={(e) => setBasicAuthPasswordInput(e.target.value)}
+                    onBlur={() => void persist(commitBasicAuthDraft, 'Failed to save web search basic auth password')}
                   />
                 </div>
               )}

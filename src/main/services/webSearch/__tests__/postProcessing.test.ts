@@ -33,4 +33,72 @@ describe('postProcessWebSearchResponse', () => {
 
     expect(result.response.results[0].content).toBe('one two three four five...')
   })
+
+  it('splits cutoff tokens across multiple results', async () => {
+    const result = await postProcessWebSearchResponse(
+      {
+        ...response,
+        results: [
+          {
+            title: 'First',
+            content: 'one two three',
+            url: 'https://allowed.example/one',
+            sourceInput: 'hello'
+          },
+          {
+            title: 'Second',
+            content: 'four five six',
+            url: 'https://allowed.example/two',
+            sourceInput: 'hello'
+          }
+        ]
+      },
+      runtimeConfig
+    )
+
+    expect(result.response.results.map((item) => item.content)).toEqual(['one two...', 'four five...'])
+  })
+
+  it('keeps at least one token per result when cutoff is smaller than result count', async () => {
+    const result = await postProcessWebSearchResponse(
+      {
+        ...response,
+        results: [
+          {
+            title: 'First',
+            content: 'one two',
+            url: 'https://allowed.example/one',
+            sourceInput: 'hello'
+          },
+          {
+            title: 'Second',
+            content: 'three four',
+            url: 'https://allowed.example/two',
+            sourceInput: 'hello'
+          }
+        ]
+      },
+      {
+        ...runtimeConfig,
+        compression: {
+          method: 'cutoff',
+          cutoffLimit: 1
+        }
+      }
+    )
+
+    expect(result.response.results.map((item) => item.content)).toEqual(['one...', 'three...'])
+  })
+
+  it('keeps results unchanged when compression is disabled', async () => {
+    const result = await postProcessWebSearchResponse(response, {
+      ...runtimeConfig,
+      compression: {
+        method: 'none',
+        cutoffLimit: 5
+      }
+    })
+
+    expect(result.response.results[0].content).toBe('one two three four five six seven')
+  })
 })

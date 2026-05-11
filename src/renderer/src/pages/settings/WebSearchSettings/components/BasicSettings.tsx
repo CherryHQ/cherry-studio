@@ -1,12 +1,13 @@
 import { InfoTooltip, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
+import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { useWebSearchProviderLists } from '../hooks/useWebSearchProviderLists'
 import { WebSearchProviderOption } from './WebSearchProviderOption'
 
@@ -24,6 +25,7 @@ const BasicSettings: FC = () => {
   } = useWebSearchProviderLists()
   const { maxResults, compressionConfig, setMaxResults } = useWebSearchSettings()
   const [draftMaxResults, setDraftMaxResults] = useState(maxResults)
+  const persist = useWebSearchPersist()
 
   useEffect(() => {
     setDraftMaxResults(maxResults)
@@ -31,14 +33,14 @@ const BasicSettings: FC = () => {
 
   const updateSelectedWebSearchProvider = (
     providerId: string,
-    updateProvider: (provider: ResolvedWebSearchProvider) => Promise<void>
+    updateProvider: (provider: WebSearchProvider) => Promise<void>
   ) => {
     const provider = providers.find((p) => p.id === providerId)
     if (!provider) {
       return
     }
 
-    void updateProvider(provider)
+    void persist(() => updateProvider(provider), 'Failed to save default web search provider')
   }
 
   return (
@@ -113,7 +115,9 @@ const BasicSettings: FC = () => {
                 { value: 100, label: '100' }
               ]}
               onValueChange={(value) => setDraftMaxResults(value[0])}
-              onValueCommit={(value) => void setMaxResults(value[0])}
+              onValueCommit={(value) =>
+                void persist(() => setMaxResults(value[0]), 'Failed to save web search max results')
+              }
             />
           </div>
         </SettingRow>

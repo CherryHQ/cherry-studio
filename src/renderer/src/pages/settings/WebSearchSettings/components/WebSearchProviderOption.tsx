@@ -1,10 +1,10 @@
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 
 import WebSearchProviderLogo from './WebSearchProviderLogo'
 
 interface WebSearchProviderOptionProps {
-  provider: ResolvedWebSearchProvider
+  provider: WebSearchProvider
 }
 
 export const WebSearchProviderOption: FC<WebSearchProviderOptionProps> = ({ provider }) => {

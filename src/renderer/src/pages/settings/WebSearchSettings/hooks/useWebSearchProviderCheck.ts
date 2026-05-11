@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
-import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,7 +9,7 @@ const WEB_SEARCH_CHECK_KEYWORD = 'Cherry Studio'
 const WEB_SEARCH_CHECK_URL = 'https://example.com'
 
 type UseWebSearchProviderCheckOptions = {
-  provider: ResolvedWebSearchProvider
+  provider: WebSearchProvider
   capability: WebSearchCapability
   commitForm: () => Promise<void>
 }
@@ -45,7 +44,8 @@ export function useWebSearchProviderCheck({ provider, capability, commitForm }: 
       (error) => {
         setChecking(false)
         logger.error('Web search provider check failed', error as Error)
-        window.toast.error(t('settings.tool.websearch.check_failed'))
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        window.toast.error(`${t('settings.tool.websearch.check_failed')}: ${errorMessage}`)
       }
     )
   }, [canCheck, capability, checking, commitForm, provider.id, t])

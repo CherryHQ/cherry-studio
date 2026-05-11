@@ -2,7 +2,7 @@
 title: Web Search v2 runtime and settings changed
 category: changed
 severity: breaking
-introduced_in_pr: TBD
+introduced_in_pr: 14993
 date: 2026-05-08
 ---
 

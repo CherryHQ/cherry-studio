@@ -6609,6 +6609,7 @@
         "apikey": "API key",
         "blacklist": "Blacklist",
         "blacklist_description": "Results from the following websites will not appear in search results",
+        "blacklist_invalid_entries": "Invalid blacklist entries: {{entries}}",
         "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
         "check": "Check",
         "check_failed": "Verification failed",
@@ -6635,6 +6636,9 @@
         "content_limit": "Content length limit",
         "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
         "default_provider": "Default Provider",
+        "errors": {
+          "save_failed": "Save failed"
+        },
         "fetch_urls_provider": "Default URL fetch provider",
         "free": "Free",
         "is_default": "Default",
