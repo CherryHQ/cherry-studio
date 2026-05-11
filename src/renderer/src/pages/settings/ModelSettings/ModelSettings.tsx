@@ -62,7 +62,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const onSelectQuick = useCallback(
     (selected: SharedModel | undefined) => {
       if (!selected) return
-      setQuickModel(fromSharedModel(selected))
+      void setQuickModel(fromSharedModel(selected))
     },
     [setQuickModel]
   )
@@ -70,7 +70,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const onSelectTranslate = useCallback(
     (selected: SharedModel | undefined) => {
       if (!selected) return
-      setTranslateModel(fromSharedModel(selected))
+      void setTranslateModel(fromSharedModel(selected))
     },
     [setTranslateModel]
   )

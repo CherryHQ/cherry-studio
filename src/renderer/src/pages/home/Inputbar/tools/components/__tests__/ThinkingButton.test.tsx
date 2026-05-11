@@ -145,7 +145,6 @@ const DEFAULT_TEST_SETTINGS = {
   enableTopP: false,
   maxTokens: 4096,
   enableMaxTokens: false,
-  contextCount: 10,
   streamOutput: true,
   reasoning_effort: 'none',
   mcpMode: 'disabled' as const,
@@ -671,7 +670,6 @@ describe('ThinkingButton', () => {
           settings: {
             reasoning_effort: 'none',
             temperature: 0.7,
-            contextCount: 10,
             streamOutput: true,
             toolUseMode: 'function' as const,
             enableWebSearch: true

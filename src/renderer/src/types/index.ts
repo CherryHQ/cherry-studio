@@ -49,10 +49,14 @@ export type AssistantSettings = DataApiAssistantSettings
 export type McpMode = DataApiMcpMode
 
 /**
- * Legacy v1 Assistant shape — only used by `src/renderer/src/store/migrate.ts`
- * to walk pre-v2 Redux-persisted state. New code MUST use {@link Assistant}.
- * This type goes away once the Redux assistants slice + persisted-state
- * migrations are deleted.
+ * @deprecated removed in v2
+ */
+export type LegacyAssistantSettings = AssistantSettings & {
+  contextCount?: number
+}
+
+/**
+ * @deprecated removed in v2
  */
 export type LegacyAssistant = {
   id: string
@@ -66,7 +70,7 @@ export type LegacyAssistant = {
   description?: string
   model?: Model
   defaultModel?: Model
-  settings?: Partial<AssistantSettings> & {
+  settings?: Partial<LegacyAssistantSettings> & {
     /** legacy: only present in v1 settings */
     defaultModel?: Model
   }
