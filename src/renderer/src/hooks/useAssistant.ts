@@ -85,8 +85,9 @@ export function useAssistant(id: string) {
     updateAssistant: (patch: UpdateAssistantDto) => {
       if (!id) return Promise.resolve(undefined)
       if (isDefaultAssistant) {
-        if (patch.modelId) {
-          return setDefaultModelId(patch.modelId).then(() => composeDefaultAssistant(patch.modelId))
+        const nextModelId = patch.modelId
+        if (nextModelId) {
+          return setDefaultModelId(nextModelId).then(() => composeDefaultAssistant(nextModelId))
         }
         return Promise.resolve(assistant)
       }
