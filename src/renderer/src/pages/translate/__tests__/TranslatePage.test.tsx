@@ -510,7 +510,7 @@ describe('TranslatePage', () => {
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn'
     })
-    MockUseCacheUtils.setCacheValue('translate.translating', { isTranslating: true, abortKey: null })
+    MockUseCacheUtils.setCacheValue('translate.translating', { isTranslating: true, abortKey: '' })
     MockUseCacheUtils.setCacheValue('translate.input', 'hello')
 
     render(<TranslatePage />)
@@ -519,7 +519,7 @@ describe('TranslatePage', () => {
 
     expect(loggerWarnMock).toHaveBeenCalledWith('Abort requested without active abort key', {
       isTranslating: true,
-      abortKey: null
+      abortKey: ''
     })
     expect(translateCoreMock.abortCompletion).not.toHaveBeenCalled()
   })
