@@ -22,7 +22,7 @@ const WebSearchProviderLogo: FC<WebSearchProviderLogoProps> = ({ providerId, pro
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-[4px] bg-sky-500 font-bold text-white text-xs leading-none',
+        'inline-flex shrink-0 items-center justify-center rounded-sm bg-sky-500 font-bold text-white text-xs leading-none',
         className
       )}
       style={{ width: size, height: size }}>
