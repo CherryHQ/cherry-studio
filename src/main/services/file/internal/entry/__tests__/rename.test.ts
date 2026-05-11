@@ -105,6 +105,70 @@ describe('internal/entry/rename', () => {
     expect(await readFile(collision, 'utf-8')).toBe('B')
   })
 
+  it('treats NFC/NFD-equivalent names as a no-op (no fs.rename, no DB write)', async () => {
+    // macOS HFS+/APFS surface filenames in NFD; renderer input is NFC.
+    // path.join produces a string whose codepoints differ from the stored
+    // (NFC) externalPath even though they refer to the same logical file.
+    // Canonicalization on both sides must collapse this difference.
+    // Explicit escape construction — relying on source-literal `é` is
+    // unreliable because editors/formatters may NFC-normalize on save.
+    const nfcName = 'qu\u00e9' // 'qué' — single codepoint U+00E9
+    const nfdName = 'qu\u0065\u0301' // 'qué' — e + combining acute
+    expect(nfcName).not.toBe(nfdName) // byte-distinct strings
+    expect(nfcName.normalize('NFC')).toBe(nfdName.normalize('NFC'))
+
+    const filePath = path.join(tmp, `${nfcName}.txt`)
+    await writeFile(filePath, 'x')
+    const entry = await ensureExternal(deps, { externalPath: filePath as FilePath })
+
+    const fsPromises = await import('node:fs/promises')
+    const renameSpy = vi.spyOn(fsPromises, 'rename')
+
+    // Re-rename to the NFD form — same logical name, different codepoints.
+    const result = await rename(deps, entry.id, nfdName)
+
+    expect(renameSpy).not.toHaveBeenCalled()
+    expect(result.id).toBe(entry.id)
+    expect(result.externalPath).toBe(entry.externalPath) // still NFC-canonical
+  })
+
+  it('allows a case-only rename when the existing file at target is the same inode', async () => {
+    // On case-insensitive filesystems (macOS APFS / Windows NTFS), `exists`
+    // reports the file under its on-disk case, so `Foo.pdf → foo.pdf`
+    // previously misfired as "target already exists". Verified via mock so
+    // the test works on case-sensitive CI filesystems too.
+    const original = path.join(tmp, 'CaseOnly.txt')
+    await writeFile(original, 'C')
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+
+    // Force the "target exists" path: pretend the lowercased path exists,
+    // and resolves to the same inode as the original.
+    const fsModule = await import('@main/utils/file/fs')
+    vi.spyOn(fsModule, 'exists').mockResolvedValue(true)
+    vi.spyOn(fsModule, 'isSameFile').mockResolvedValue(true)
+
+    const result = await rename(deps, entry.id, 'caseonly')
+    expect(result.name).toBe('caseonly')
+    // Physical file moved to the new case
+    expect(await readFile(path.join(tmp, 'caseonly.txt'), 'utf-8')).toBe('C')
+  })
+
+  it('still throws when target exists and is a different physical file', async () => {
+    // Regression guard: the case-only rename branch must NOT swallow real collisions.
+    const original = path.join(tmp, 'src-collide.txt')
+    const collision = path.join(tmp, 'dst-collide.txt')
+    await writeFile(original, 'S')
+    await writeFile(collision, 'D')
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+
+    await expect(rename(deps, entry.id, 'dst-collide')).rejects.toThrow(/already exists/)
+    // No DB or FS state change
+    const stored = await fileEntryService.getById(entry.id)
+    expect(stored.externalPath).toBe(original)
+    expect(await readFile(original, 'utf-8')).toBe('S')
+    expect(await readFile(collision, 'utf-8')).toBe('D')
+  })
+
   it('reindexes the DanglingCache reverse index on external rename (oldPath → newPath)', async () => {
     const original = path.join(tmp, 'reindex-old.txt')
     await writeFile(original, 'hi')

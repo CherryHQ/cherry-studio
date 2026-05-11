@@ -11,7 +11,7 @@
 import path from 'node:path'
 
 import { canonicalizeExternalPath } from '@data/utils/pathResolver'
-import { exists, move as fsMove } from '@main/utils/file/fs'
+import { exists, isSameFile, move as fsMove } from '@main/utils/file/fs'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 
@@ -27,16 +27,27 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   }
   const dir = path.dirname(entry.externalPath)
   const ext = entry.ext ? `.${entry.ext}` : ''
-  const target = path.join(dir, `${newName}${ext}`)
+  // Canonicalize the target so the no-op check below tolerates NFC/NFD,
+  // trailing-separator, and `.`/`..` noise — `entry.externalPath` is already
+  // canonical (written through `ensureExternalEntry`), so string equality
+  // here is a reliable "same logical path" test.
+  const oldPath = entry.externalPath as FilePath
+  const target = canonicalizeExternalPath(path.join(dir, `${newName}${ext}`))
   if (target === entry.externalPath) {
     return entry
   }
   if (await exists(target as FilePath)) {
-    throw new Error(`rename: target path already exists: ${target}`)
+    // On case-insensitive filesystems (macOS APFS / Windows NTFS) a
+    // `Foo.pdf → foo.pdf` rename hits this branch because `exists` reports
+    // the file under its on-disk case. If both paths resolve to the same
+    // inode it's a legitimate case-only rename — fall through to `fsMove`,
+    // which the OS treats as an in-place case fix.
+    if (!(await isSameFile(target as FilePath, oldPath))) {
+      throw new Error(`rename: target path already exists: ${target}`)
+    }
   }
-  const oldPath = entry.externalPath as FilePath
   await fsMove(oldPath, target as FilePath)
-  const canonical = canonicalizeExternalPath(target)
+  const canonical = target
   // Single atomic DB write — `setExternalPathAndName` is the only sanctioned
   // mutation site for `externalPath`. Doing both column changes in one
   // statement avoids the half-renamed state where the FS file is at the new

@@ -79,6 +79,27 @@ export async function exists(path: FilePath): Promise<boolean> {
   }
 }
 
+/**
+ * Whether two paths resolve to the same physical file. Compares POSIX
+ * `(device, inode)` — does NOT follow symlinks (`stat`, not `realpath`).
+ *
+ * Primary use case: distinguishing a case-only rename on a case-insensitive
+ * filesystem (macOS APFS / Windows NTFS) from a true name collision. On such
+ * filesystems `exists('foo.pdf')` returns true when only `Foo.pdf` is on disk,
+ * which would otherwise falsely block a `Foo.pdf → foo.pdf` rename.
+ *
+ * Returns false if either path does not exist or stat fails for any reason
+ * (caller is expected to have already verified both with `exists()`).
+ */
+export async function isSameFile(a: FilePath, b: FilePath): Promise<boolean> {
+  try {
+    const [sa, sb] = await Promise.all([fsStat(a), fsStat(b)])
+    return sa.dev === sb.dev && sa.ino === sb.ino
+  } catch {
+    return false
+  }
+}
+
 /** Write content to a file path. Atomic — never produces partially-written targets. */
 export async function write(target: FilePath, data: string | Uint8Array): Promise<void> {
   return atomicWriteFile(target, data)
