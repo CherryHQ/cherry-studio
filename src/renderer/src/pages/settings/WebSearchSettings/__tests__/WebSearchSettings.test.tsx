@@ -2,11 +2,16 @@ import '@testing-library/jest-dom/vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import WebSearchSettings from '..'
+
+const searchKeywordsMock = vi.fn()
+const fetchUrlsMock = vi.fn()
+const toastSuccessMock = vi.fn()
+const toastErrorMock = vi.fn()
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
@@ -102,7 +107,24 @@ vi.mock('../components/WebSearchProviderLogo', () => ({
 
 describe('WebSearchSettings', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
+    Object.assign(window, {
+      api: {
+        ...window.api,
+        webSearch: {
+          searchKeywords: searchKeywordsMock,
+          fetchUrls: fetchUrlsMock
+        }
+      },
+      toast: {
+        ...window.toast,
+        success: toastSuccessMock,
+        error: toastErrorMock
+      }
+    })
+    searchKeywordsMock.mockResolvedValue({ results: [] })
+    fetchUrlsMock.mockResolvedValue({ results: [] })
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'tavily')
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', 'fetch')
@@ -132,7 +154,7 @@ describe('WebSearchSettings', () => {
     expect(screen.getByText('settings.tool.websearch.provider_description.tavily')).toBeInTheDocument()
     expect(screen.getAllByText('Tavily').length).toBeGreaterThan(0)
     expect(screen.getAllByText('settings.provider.api_key.label').length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: 'settings.tool.websearch.check' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'settings.tool.websearch.check' })).not.toBeDisabled()
   })
 
   it('does not show API host settings for the built-in URL fetch provider', () => {
@@ -143,5 +165,49 @@ describe('WebSearchSettings', () => {
     expect(screen.getAllByText('fetch').length).toBeGreaterThan(0)
     expect(screen.getByText('settings.tool.websearch.provider_description.fetch')).toBeInTheDocument()
     expect(screen.queryByText('settings.provider.api_host')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.tool.websearch.check' })).not.toBeInTheDocument()
+  })
+
+  it('saves API key drafts before checking keyword providers', async () => {
+    render(<WebSearchSettings />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Tavily/ })[0])
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api_key.label'), {
+      target: { value: 'tavily-key' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.check' }))
+
+    await waitFor(() => {
+      expect(searchKeywordsMock).toHaveBeenCalledWith({ providerId: 'tavily', keywords: ['Cherry Studio'] })
+    })
+    expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.provider_overrides')).toMatchObject({
+      tavily: { apiKeys: ['tavily-key'] }
+    })
+    expect(toastSuccessMock).toHaveBeenCalledWith('settings.tool.websearch.check_success')
+  })
+
+  it('checks the active fetchUrls capability with the fixed URL probe', async () => {
+    render(<WebSearchSettings />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Jina/ })[1])
+    fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.check' }))
+
+    await waitFor(() => {
+      expect(fetchUrlsMock).toHaveBeenCalledWith({ providerId: 'jina', urls: ['https://example.com'] })
+    })
+    expect(searchKeywordsMock).not.toHaveBeenCalled()
+  })
+
+  it('shows a failed check toast when the IPC request rejects', async () => {
+    searchKeywordsMock.mockRejectedValue(new Error('check failed'))
+
+    render(<WebSearchSettings />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Tavily/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.check' }))
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.check_failed')
+    })
   })
 })

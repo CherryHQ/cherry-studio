@@ -51,15 +51,15 @@ describe('useWebSearchProviderForm', () => {
     ])
   })
 
-  it('persists API host changes for the active capability only', () => {
+  it('persists API host changes for the active capability only', async () => {
     const updateProvider = vi.fn().mockResolvedValue(undefined)
     const { result } = renderHook(() => useWebSearchProviderForm(jinaProvider, updateProvider, 'fetchUrls'))
 
     act(() => {
       result.current.setApiHostInput('fetchUrls', 'https://reader.example.com/')
     })
-    act(() => {
-      result.current.commitApiHost(result.current.apiHostCapabilities[0])
+    await act(async () => {
+      await result.current.commitApiHost(result.current.apiHostCapabilities[0])
     })
 
     expect(updateProvider).toHaveBeenCalledWith('jina', {

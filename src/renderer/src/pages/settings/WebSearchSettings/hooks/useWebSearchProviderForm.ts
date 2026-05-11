@@ -1,4 +1,4 @@
-import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
+import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
 import type { WebSearchProviderUpdates } from '@renderer/utils/webSearchProviders'
 import type { WebSearchCapability, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
@@ -41,9 +41,9 @@ export function useWebSearchProviderForm(
     setApiKeys(splitApiKeyString(formatApiKeys(value)))
   }, [])
 
-  const commitApiKeys = useCallback(() => {
+  const commitApiKeys = useCallback(async () => {
     if (apiKeyInput !== provider.apiKeys.join(',')) {
-      void updateProvider(provider.id, { apiKeys })
+      await updateProvider(provider.id, { apiKeys })
     }
   }, [apiKeyInput, apiKeys, provider.apiKeys, provider.id, updateProvider])
 
@@ -52,19 +52,15 @@ export function useWebSearchProviderForm(
   }, [])
 
   const commitApiHost = useCallback(
-    (capability: ResolvedWebSearchProviderCapability) => {
-      let trimmedHost = apiHosts[capability.feature]?.trim() || ''
-      if (trimmedHost.endsWith('/')) {
-        trimmedHost = trimmedHost.slice(0, -1)
-      }
+    async (capability: ResolvedWebSearchProviderCapability) => {
+      const trimmedHost = withoutTrailingSlash(apiHosts[capability.feature]?.trim() || '')
 
       if (trimmedHost !== (capability.apiHost ?? '')) {
-        void updateProvider(provider.id, {
+        return updateProvider(provider.id, {
           capabilities: provider.capabilities.map((item) =>
             item.feature === capability.feature ? { ...item, apiHost: trimmedHost } : item
           )
         })
-        return
       }
 
       setApiHosts((current) => ({ ...current, [capability.feature]: capability.apiHost ?? '' }))
@@ -72,27 +68,83 @@ export function useWebSearchProviderForm(
     [apiHosts, provider.capabilities, provider.id, updateProvider]
   )
 
-  const commitBasicAuthUsername = useCallback(() => {
+  const commitBasicAuthUsername = useCallback(async () => {
     const currentValue = basicAuthUsername || ''
     const savedValue = provider.basicAuthUsername || ''
     if (currentValue !== savedValue) {
-      void updateProvider(provider.id, { basicAuthUsername })
+      await updateProvider(provider.id, { basicAuthUsername })
       return
     }
 
     setBasicAuthUsername(provider.basicAuthUsername || '')
   }, [basicAuthUsername, provider.basicAuthUsername, provider.id, updateProvider])
 
-  const commitBasicAuthPassword = useCallback(() => {
+  const commitBasicAuthPassword = useCallback(async () => {
     const currentValue = basicAuthPassword || ''
     const savedValue = provider.basicAuthPassword || ''
     if (currentValue !== savedValue) {
-      void updateProvider(provider.id, { basicAuthPassword })
+      await updateProvider(provider.id, { basicAuthPassword })
       return
     }
 
     setBasicAuthPassword(provider.basicAuthPassword || '')
   }, [basicAuthPassword, provider.basicAuthPassword, provider.id, updateProvider])
+
+  const commitForm = useCallback(async () => {
+    const updates: WebSearchProviderUpdates = {}
+
+    if (apiKeyInput !== provider.apiKeys.join(',')) {
+      updates.apiKeys = apiKeys
+    }
+
+    const apiHostFeatures = new Set(apiHostCapabilities.map((capability) => capability.feature))
+    const nextCapabilities = provider.capabilities.map((item) => {
+      if (!apiHostFeatures.has(item.feature)) {
+        return item
+      }
+
+      return {
+        ...item,
+        apiHost: withoutTrailingSlash(apiHosts[item.feature]?.trim() || '')
+      }
+    })
+
+    const hasApiHostChanges = nextCapabilities.some(
+      (item, index) => item.apiHost !== provider.capabilities[index]?.apiHost
+    )
+    if (hasApiHostChanges) {
+      updates.capabilities = nextCapabilities
+    }
+
+    const currentBasicAuthUsername = basicAuthUsername || ''
+    const savedBasicAuthUsername = provider.basicAuthUsername || ''
+    if (currentBasicAuthUsername !== savedBasicAuthUsername) {
+      updates.basicAuthUsername = basicAuthUsername
+    }
+
+    const currentBasicAuthPassword = basicAuthPassword || ''
+    const savedBasicAuthPassword = provider.basicAuthPassword || ''
+    if (currentBasicAuthPassword !== savedBasicAuthPassword) {
+      updates.basicAuthPassword = basicAuthPassword
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await updateProvider(provider.id, updates)
+    }
+  }, [
+    apiHostCapabilities,
+    apiHosts,
+    apiKeyInput,
+    apiKeys,
+    basicAuthPassword,
+    basicAuthUsername,
+    provider.apiKeys,
+    provider.basicAuthPassword,
+    provider.basicAuthUsername,
+    provider.capabilities,
+    provider.id,
+    updateProvider
+  ])
 
   return {
     apiKeys,
@@ -108,6 +160,7 @@ export function useWebSearchProviderForm(
     commitApiKeys,
     commitApiHost,
     commitBasicAuthUsername,
-    commitBasicAuthPassword
+    commitBasicAuthPassword,
+    commitForm
   }
 }

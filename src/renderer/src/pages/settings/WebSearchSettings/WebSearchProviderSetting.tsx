@@ -25,6 +25,7 @@ import {
 import { WebSearchApiKeyListPopup } from './components/WebSearchApiKeyList'
 import WebSearchProviderLogo from './components/WebSearchProviderLogo'
 import { useWebSearchDefaultProviderAction } from './hooks/useWebSearchDefaultProviderAction'
+import { useWebSearchProviderCheck } from './hooks/useWebSearchProviderCheck'
 import { useWebSearchProviderForm } from './hooks/useWebSearchProviderForm'
 import { getWebSearchProviderDescriptionKey, type WebSearchProviderMenuEntry } from './utils/webSearchProviderMeta'
 
@@ -45,6 +46,11 @@ const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const providerForm = useWebSearchProviderForm(provider, updateProvider, capability)
+  const providerCheck = useWebSearchProviderCheck({
+    provider,
+    capability,
+    commitForm: providerForm.commitForm
+  })
   const defaultAction = useWebSearchDefaultProviderAction(
     provider,
     capability,
@@ -58,6 +64,8 @@ const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
   const supportsBasicAuth = webSearchProviderSupportsBasicAuth(provider.id)
   const usesLlmProviderApiKey = provider.id === 'zhipu'
   const descriptionKey = getWebSearchProviderDescriptionKey(provider.id)
+  const showApiKeyCheckButton = needsApiKey && !usesLlmProviderApiKey && providerCheck.canCheck
+  const showApiHostCheckButton = !showApiKeyCheckButton && providerCheck.canCheck
 
   const openApiKeyList = async () => {
     await WebSearchApiKeyListPopup.show({
@@ -134,7 +142,11 @@ const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
                 autoFocus={providerForm.apiKeys.length === 0}
                 className="min-w-0 flex-1"
               />
-              <Button variant="outline" className="h-9 shrink-0 px-3 shadow-none" disabled>
+              <Button
+                variant="outline"
+                className="h-9 shrink-0 px-3 shadow-none"
+                disabled={providerCheck.checking}
+                onClick={() => void providerCheck.checkProvider()}>
                 {t('settings.tool.websearch.check')}
               </Button>
             </ButtonGroup>
@@ -163,6 +175,15 @@ const WebSearchProviderSetting: FC<Props> = ({ entry }) => {
                 onChange={(e) => providerForm.setApiHostInput(providerCapability.feature, e.target.value)}
                 onBlur={() => providerForm.commitApiHost(providerCapability)}
               />
+              {showApiHostCheckButton && (
+                <Button
+                  variant="outline"
+                  className="h-9 shrink-0 px-3 shadow-none"
+                  disabled={providerCheck.checking}
+                  onClick={() => void providerCheck.checkProvider()}>
+                  {t('settings.tool.websearch.check')}
+                </Button>
+              )}
             </Flex>
           </div>
         ))}
