@@ -140,5 +140,4 @@ describe('modelListDerivedState', () => {
       function_calling: 0
     })
   })
-
 })
