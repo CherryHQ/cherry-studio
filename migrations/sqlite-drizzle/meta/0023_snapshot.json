@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "73a57fc7-c92c-48b3-a151-04bb07faf9f3",
-  "prevId": "adf49fb7-cac0-487e-8e22-c94ea17d55bd",
+  "id": "2b60d66e-46a9-4f6a-b3e3-cee18fd6f80a",
+  "prevId": "73a57fc7-c92c-48b3-a151-04bb07faf9f3",
   "tables": {
     "agent": {
       "name": "agent",
@@ -36,14 +36,6 @@
           "autoincrement": false,
           "default": "''"
         },
-        "accessible_paths": {
-          "name": "accessible_paths",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
         "instructions": {
           "name": "instructions",
           "type": "text",
@@ -55,7 +47,7 @@
           "name": "model",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "plan_model": {
@@ -96,14 +88,6 @@
           "autoincrement": false,
           "default": "'{}'"
         },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -136,14 +120,37 @@
           "name": "agent_type_idx",
           "columns": ["type"],
           "isUnique": false
-        },
-        "agent_sort_order_idx": {
-          "name": "agent_sort_order_idx",
-          "columns": ["sort_order"],
-          "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "agent_model_user_model_id_fk": {
+          "name": "agent_model_user_model_id_fk",
+          "tableFrom": "agent",
+          "tableTo": "user_model",
+          "columnsFrom": ["model"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_plan_model_user_model_id_fk": {
+          "name": "agent_plan_model_user_model_id_fk",
+          "tableFrom": "agent",
+          "tableTo": "user_model",
+          "columnsFrom": ["plan_model"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_small_model_user_model_id_fk": {
+          "name": "agent_small_model_user_model_id_fk",
+          "tableFrom": "agent",
+          "tableTo": "user_model",
+          "columnsFrom": ["small_model"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -469,18 +476,11 @@
           "notNull": true,
           "autoincrement": false
         },
-        "agent_type": {
-          "name": "agent_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "agent_id": {
           "name": "agent_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "name": {
@@ -506,73 +506,12 @@
           "autoincrement": false,
           "default": "'[]'"
         },
-        "instructions": {
-          "name": "instructions",
+        "order_key": {
+          "name": "order_key",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "model": {
-          "name": "model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "plan_model": {
-          "name": "plan_model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "small_model": {
-          "name": "small_model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "mcps": {
-          "name": "mcps",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "allowed_tools": {
-          "name": "allowed_tools",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "slash_commands": {
-          "name": "slash_commands",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
-        },
-        "configuration": {
-          "name": "configuration",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'{}'"
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -590,19 +529,9 @@
         }
       },
       "indexes": {
-        "agent_session_agent_id_idx": {
-          "name": "agent_session_agent_id_idx",
-          "columns": ["agent_id"],
-          "isUnique": false
-        },
-        "agent_session_model_idx": {
-          "name": "agent_session_model_idx",
-          "columns": ["model"],
-          "isUnique": false
-        },
-        "agent_session_sort_order_idx": {
-          "name": "agent_session_sort_order_idx",
-          "columns": ["sort_order"],
+        "agent_session_order_key_idx": {
+          "name": "agent_session_order_key_idx",
+          "columns": ["order_key"],
           "isUnique": false
         }
       },
@@ -613,7 +542,7 @@
           "tableTo": "agent",
           "columnsFrom": ["agent_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
