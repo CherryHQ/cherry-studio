@@ -227,7 +227,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   private async prepareContinueDispatch(
     subscriber: StreamListener,
     req: MainContinueConversationRequest,
-    assistantId: string,
+    assistantId: string | undefined,
     defaultModelId: UniqueModelId
   ): Promise<PreparedDispatch> {
     const anchor = await messageService.getById(req.parentAnchorId)
@@ -307,7 +307,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
   private buildStreamRequest(
     topicId: string,
-    assistantId: string,
+    assistantId: string | undefined,
     uniqueModelId: UniqueModelId,
     history: CherryUIMessage[],
     messageId: string

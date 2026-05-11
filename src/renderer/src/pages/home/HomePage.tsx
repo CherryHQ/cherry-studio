@@ -10,7 +10,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
@@ -21,12 +20,16 @@ import Chat from './Chat'
 import Navbar from './Navbar'
 import HomeTabs from './Tabs'
 
-/** Synthesise a renderer Topic shape from a freshly-leased temporary id. */
-function buildPendingTemporaryTopic(id: string, assistantId: string): Topic {
+/**
+ * Synthesise a renderer Topic shape from a freshly-leased temporary id.
+ * First-launch temp topics have no associated assistant — `assistantId` is
+ * `undefined`, not a sentinel.
+ */
+function buildPendingTemporaryTopic(id: string): Topic {
   const nowIso = new Date().toISOString()
   return {
     id,
-    assistantId,
+    assistantId: undefined,
     name: '',
     createdAt: nowIso,
     updatedAt: nowIso,
@@ -51,18 +54,19 @@ const HomePage: FC = () => {
   })
 
   // Lease a temporary topic only when this is the app's first HomePage mount
-  // and the caller didn't pre-select a topic via router state. The hook is
-  // a no-op when assistantId is undefined.
-  const { topicId: tempTopicId, persist: persistTemporaryTopic } = useTemporaryTopic(
-    shouldUseTemporary ? DEFAULT_ASSISTANT_ID : undefined
-  )
+  // and the caller didn't pre-select a topic via router state. The temp topic
+  // has no assistant attached — message capabilities / model fall back to the
+  // `chat.default_model_id` preference.
+  const { topicId: tempTopicId, persist: persistTemporaryTopic } = useTemporaryTopic({
+    enabled: shouldUseTemporary
+  })
 
   const { refreshTopics } = useTopicMutations()
 
   const initialTopic = useMemo<Topic | undefined>(() => {
     if (state?.topic) return state.topic
     if (shouldUseTemporary && tempTopicId) {
-      return buildPendingTemporaryTopic(tempTopicId, DEFAULT_ASSISTANT_ID)
+      return buildPendingTemporaryTopic(tempTopicId)
     }
     return undefined
   }, [state?.topic, shouldUseTemporary, tempTopicId])

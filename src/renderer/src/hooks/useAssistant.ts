@@ -5,7 +5,6 @@ import { composeDefaultAssistant } from '@renderer/services/defaultAssistant'
 import type { Assistant, AssistantSettings, Model } from '@renderer/types'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
 
@@ -25,12 +24,12 @@ export function useAssistants() {
 }
 
 /**
- * Runtime-composed default assistant. v2 stores no `id='default'` row in
- * SQLite — the default assistant is always synthesized from a static template
- * plus the live `chat.default_model_id` preference. Returned `assistant` is
- * always defined (no loading state). Resolve the underlying `Model` via
- * {@link useDefaultModel} when needed; this hook intentionally does not
- * return it to keep responsibilities separate.
+ * Returns the runtime-composed default-assistant template. Use this only at
+ * UI sites that need to render the "Default" preset card or seed a new
+ * assistant from the template (e.g. AddAssistantPopup, settings pages). It is
+ * NOT meant for chat call sites — a topic without an assistant should be
+ * rendered by handling `useAssistant(...).assistant === undefined` directly,
+ * not by faking up an Assistant.
  */
 export function useDefaultAssistant(): { assistant: Assistant } {
   const [defaultModelId] = usePreference('chat.default_model_id')
@@ -39,25 +38,28 @@ export function useDefaultAssistant(): { assistant: Assistant } {
   return { assistant }
 }
 
-export function useAssistant(id: string) {
-  const isDefaultAssistant = id === DEFAULT_ASSISTANT_ID
-  const { assistant: defaultAssistant } = useDefaultAssistant()
-  const { assistant: apiAssistant } = useAssistantApiById(isDefaultAssistant ? undefined : id)
+/**
+ * Hook for a single persisted assistant. Returns `assistant: undefined` when
+ * `id` is empty / null — callers should fall back to UI defaults (e.g.
+ * `assistant?.name ?? t('chat.default.name')`) rather than receiving a
+ * synthesised default Assistant. There is no special-case branch for the
+ * "default assistant" — a topic with no assistant carries
+ * `assistantId: undefined`, not a sentinel.
+ */
+export function useAssistant(id: string | null | undefined) {
+  const { assistant } = useAssistantApiById(id ?? undefined)
   const { updateAssistant: patchAssistant } = useAssistantMutations()
   const { defaultModel } = useDefaultModel()
-  const [, setDefaultModelId] = usePreference('chat.default_model_id')
 
-  const assistant = isDefaultAssistant ? defaultAssistant : apiAssistant
   const modelId = (assistant?.modelId ?? defaultModel?.id) as UniqueModelId
   const { model } = useModelById(modelId)
 
   const updateAssistantSettings = useCallback(
     (settings: Partial<AssistantSettings>) => {
       if (!id || !assistant) return
-      if (isDefaultAssistant) return
       void patchAssistant(id, { settings })
     },
-    [assistant, id, isDefaultAssistant, patchAssistant]
+    [assistant, id, patchAssistant]
   )
 
   return {
@@ -65,10 +67,6 @@ export function useAssistant(id: string) {
     model,
     setModel: (next: Model, extraSettings?: Partial<AssistantSettings>) => {
       if (!id || !assistant) return
-      if (isDefaultAssistant) {
-        void setDefaultModelId(createUniqueModelId(next.provider, next.id))
-        return
-      }
       const reasoning = reconcileReasoningEffortForModel(next, assistant.settings.reasoning_effort, id)
       const webSearch = reconcileWebSearchForModel(next, assistant.settings)
       const settingsPatch =
@@ -84,13 +82,6 @@ export function useAssistant(id: string) {
     },
     updateAssistant: (patch: UpdateAssistantDto) => {
       if (!id) return Promise.resolve(undefined)
-      if (isDefaultAssistant) {
-        const nextModelId = patch.modelId
-        if (nextModelId) {
-          return setDefaultModelId(nextModelId).then(() => composeDefaultAssistant(nextModelId))
-        }
-        return Promise.resolve(assistant)
-      }
       return patchAssistant(id, patch)
     },
     updateAssistantSettings

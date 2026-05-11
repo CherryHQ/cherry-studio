@@ -116,7 +116,7 @@ export class TopicNamingService {
 
   async maybeRenameFromConversationSummary(
     topicId: string,
-    assistantId: string,
+    assistantId: string | undefined,
     userMessageId: string,
     finalMessage: UIMessage
   ): Promise<void> {
@@ -261,7 +261,7 @@ export class TopicNamingService {
   }
 
   private async generateSummaryTitle(
-    assistantId: string,
+    assistantId: string | undefined,
     uniqueModelId: UniqueModelId,
     prompt: string
   ): Promise<string | null> {
@@ -290,7 +290,8 @@ export class TopicNamingService {
     return (configuredPrompt || FALLBACK_PROMPT).replaceAll('{{language}}', language)
   }
 
-  private async resolveNamingModelId(assistantId: string): Promise<UniqueModelId> {
+  private async resolveNamingModelId(assistantId: string | undefined): Promise<UniqueModelId> {
+    if (!assistantId) return FALLBACK_MODEL_ID
     const assistant = await assistantDataService.getById(assistantId).catch(() => null)
     return assistant?.modelId || FALLBACK_MODEL_ID
   }

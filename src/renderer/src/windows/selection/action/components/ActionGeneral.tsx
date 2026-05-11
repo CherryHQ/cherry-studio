@@ -41,7 +41,9 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const activeAssistant = chosenAssistant ?? defaultAssistant
 
   // Temporary in-memory topic — never touches SQLite, released on unmount.
-  const { topicId: temporaryTopicId, ready } = useTemporaryTopic(activeAssistant.id)
+  // activeAssistant may be the synthesised default — only pass a real
+  // persisted id (chosenAssistant) to bind the temp topic to.
+  const { topicId: temporaryTopicId, ready } = useTemporaryTopic({ assistantId: chosenAssistant?.id })
 
   const promptContent = useMemo(() => {
     let userContent = ''

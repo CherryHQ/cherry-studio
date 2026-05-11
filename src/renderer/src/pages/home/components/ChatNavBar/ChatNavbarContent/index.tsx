@@ -3,7 +3,8 @@ import type { FC } from 'react'
 import TopicContent from './TopicContent'
 
 interface Props {
-  assistantId: string
+  /** `undefined` when the topic has no associated assistant. */
+  assistantId: string | undefined
   topicId: string
 }
 

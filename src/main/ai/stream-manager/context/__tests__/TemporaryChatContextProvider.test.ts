@@ -1,5 +1,4 @@
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -119,17 +118,17 @@ describe('TemporaryChatContextProvider', () => {
 
     expect(getAssistantByIdMock).not.toHaveBeenCalled()
     expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
-    expect(prepared.models[0].request.assistantId).toBe(DEFAULT_ASSISTANT_ID)
+    expect(prepared.models[0].request.assistantId).toBeUndefined()
   })
 
-  it('uses the default model preference for the default assistant sentinel', async () => {
-    getTopicMock.mockReturnValueOnce({ id: '1', assistantId: DEFAULT_ASSISTANT_ID })
+  it('uses the default model preference when topic.assistantId is undefined', async () => {
+    getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
 
     const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
 
     expect(getAssistantByIdMock).not.toHaveBeenCalled()
     expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
-    expect(prepared.models[0].request.assistantId).toBe(DEFAULT_ASSISTANT_ID)
+    expect(prepared.models[0].request.assistantId).toBeUndefined()
   })
 
   it('appends the user message, then returns a PreparedDispatch with a TemporaryChatBackend listener', async () => {

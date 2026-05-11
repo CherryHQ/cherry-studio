@@ -18,7 +18,8 @@ import { useTranslation } from 'react-i18next'
 import Tools from '../Tools'
 
 type TopicContentProps = {
-  assistantId: string
+  /** `undefined` when the topic has no associated assistant. */
+  assistantId: string | undefined
   topicId: string
 }
 
@@ -58,7 +59,7 @@ const TopicContent = ({ assistantId, topicId }: TopicContentProps) => {
       <HorizontalScrollContainer className="ml-2 flex-initial">
         <div className="flex flex-nowrap items-center gap-2">
           <AssistantSelector
-            value={assistantId}
+            value={assistantId ?? null}
             onChange={handleAssistantChange}
             trigger={
               <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs">

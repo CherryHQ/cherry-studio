@@ -12,7 +12,8 @@ import NavbarIcon from '../../../../components/NavbarIcon'
 import ChatNavbarContent from './ChatNavbarContent'
 
 interface Props {
-  assistantId: string
+  /** `undefined` when the topic has no associated assistant. */
+  assistantId: string | undefined
   topicId: string
 }
 

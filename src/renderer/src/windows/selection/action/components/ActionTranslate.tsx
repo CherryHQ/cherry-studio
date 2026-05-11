@@ -71,7 +71,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [activeAssistant, setActiveAssistant] = useState<Assistant | null>(null)
   // Temporary in-memory topic leased for this translate session.
-  const { topicId: temporaryTopicId, ready: isTopicReady } = useTemporaryTopic(activeAssistant?.id)
+  const { topicId: temporaryTopicId, ready: isTopicReady } = useTemporaryTopic({
+    assistantId: activeAssistant?.id
+  })
 
   // Use useRef for values that shouldn't trigger re-renders
   const targetLangRef = useRef(targetLanguage)

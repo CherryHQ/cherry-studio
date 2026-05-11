@@ -10,7 +10,8 @@ import { styled } from 'styled-components'
 import SettingsButton from './SettingsButton'
 
 interface ToolsProps {
-  assistantId: string
+  /** `undefined` when the topic has no associated assistant. */
+  assistantId: string | undefined
 }
 
 const Tools = ({ assistantId }: ToolsProps) => {

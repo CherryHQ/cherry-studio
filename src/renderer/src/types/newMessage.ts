@@ -184,7 +184,7 @@ export enum AssistantMessageStatus {
 export type Message = {
   id: string
   role: 'user' | 'assistant' | 'system'
-  assistantId: string
+  assistantId: string | undefined
   topicId: string
   createdAt: string
   updatedAt?: string

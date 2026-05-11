@@ -7,7 +7,6 @@ import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 // Monotonic counter so two regenerate clicks within the same millisecond
@@ -38,18 +37,24 @@ export async function resolveModels(
   return [await modelService.getByKey(providerId, modelId)]
 }
 
+/**
+ * Resolve the model to use for this turn. When `assistantId` is provided, the
+ * model comes from that assistant. Otherwise — for topics with no associated
+ * assistant — the model falls back to the `chat.default_model_id` preference,
+ * and the returned `assistantId` is `undefined` (not a sentinel).
+ */
 export async function resolveAssistantModelId(
   assistantId: string | null | undefined
-): Promise<{ assistantId: string; defaultModelId: UniqueModelId }> {
-  if (assistantId && assistantId !== DEFAULT_ASSISTANT_ID) {
+): Promise<{ assistantId: string | undefined; defaultModelId: UniqueModelId }> {
+  if (assistantId) {
     const assistant = await assistantDataService.getById(assistantId)
     if (!assistant.modelId) throw new Error(`Assistant ${assistantId} has no model configured`)
     return { assistantId, defaultModelId: assistant.modelId }
   }
 
   const defaultModelId = application.get('PreferenceService').get('chat.default_model_id') as UniqueModelId | null
-  if (!defaultModelId) throw new Error('Default assistant has no model configured')
-  return { assistantId: DEFAULT_ASSISTANT_ID, defaultModelId }
+  if (!defaultModelId) throw new Error('No default model configured for assistant-less topic')
+  return { assistantId: undefined, defaultModelId }
 }
 
 /**

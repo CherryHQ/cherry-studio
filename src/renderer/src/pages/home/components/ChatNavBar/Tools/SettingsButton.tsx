@@ -10,7 +10,8 @@ import NavbarIcon from '../../../../../components/NavbarIcon'
 import { AssistantSettingsTab } from './SettingsTab'
 
 interface Props {
-  assistantId: string
+  /** `undefined` when the topic has no associated assistant. */
+  assistantId: string | undefined
 }
 
 const SettingsButton: FC<Props> = ({ assistantId }) => {

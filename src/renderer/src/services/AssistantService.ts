@@ -113,7 +113,8 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
   }
 }
 
-export function getAssistantById(id: string) {
+export function getAssistantById(id: string | undefined | null) {
+  if (!id) return undefined
   const assistants = store.getState().assistants.assistants
   return assistants.find((a) => a.id === id)
 }

@@ -77,11 +77,14 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   // Lease a temporary topic for the quick-assistant conversation.
   // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.
+  // currentAssistant may be the synthesised default — only pass a real
+  // persisted id (chosenAssistant) so main treats it as "no assistant" when
+  // the user hasn't picked one.
   const {
     topicId: temporaryTopicId,
     ready: isTopicReady,
     reset: resetTemporaryTopic
-  } = useTemporaryTopic(currentAssistant.id)
+  } = useTemporaryTopic({ enabled: true, assistantId: chosenAssistant?.id })
 
   const referenceText = clipboardText || userInputText
 

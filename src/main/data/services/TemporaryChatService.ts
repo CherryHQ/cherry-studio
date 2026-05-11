@@ -19,7 +19,6 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import type { Message, MessageRole, MessageStatus } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { eq, isNull } from 'drizzle-orm'
@@ -190,7 +189,7 @@ export class TemporaryChatService {
         // pattern used for the other fields converts `null` to `undefined`
         // so Drizzle omits the column entirely, letting the DB default apply.
         const groupIdForScope = topic.groupId ?? null
-        const assistantId = topic.assistantId === DEFAULT_ASSISTANT_ID ? undefined : (topic.assistantId ?? undefined)
+        const assistantId = topic.assistantId ?? undefined
         await insertWithOrderKey(
           tx,
           topicTable,

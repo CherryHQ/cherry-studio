@@ -41,9 +41,10 @@ const logger = loggerService.withContext('Inputbar')
 const INPUTBAR_DRAFT_CACHE_KEY = 'inputbar-draft'
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 
-const getMentionedModelsCacheKey = (assistantId: string) => `inputbar-mentioned-models-${assistantId}`
+const getMentionedModelsCacheKey = (assistantId: string | undefined) =>
+  `inputbar-mentioned-models-${assistantId ?? 'no-assistant'}`
 
-const getValidatedCachedModels = (assistantId: string): Model[] => {
+const getValidatedCachedModels = (assistantId: string | undefined): Model[] => {
   const cached = cacheService.getCasual<Model[]>(getMentionedModelsCacheKey(assistantId))
   if (!Array.isArray(cached)) return []
   return cached.filter((model) => model?.id && model?.name)
@@ -203,7 +204,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     setCouldAddImageFile(canAddImageFile)
   }, [canAddImageFile, setCouldAddImageFile])
 
-  const onUnmount = useEffectEvent((id: string) => {
+  const onUnmount = useEffectEvent((id: string | undefined) => {
     cacheService.setCasual(getMentionedModelsCacheKey(id), mentionedModels, DRAFT_CACHE_TTL)
   })
 

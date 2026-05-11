@@ -14,7 +14,8 @@ import type { CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 
 export interface UiToMessageContext {
-  assistantId: string
+  /** `undefined` when the topic has no associated assistant. */
+  assistantId: string | undefined
   topicId: string
   /**
    * Parent hint when the message itself has no `metadata.parentId` —
