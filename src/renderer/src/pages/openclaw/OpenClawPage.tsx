@@ -4,13 +4,15 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { CopyIcon } from '@renderer/components/Icons'
 import { ModelSelector } from '@renderer/components/ModelSelector'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useSharedCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
-import { useProviders } from '@renderer/hooks/useProvider'
+import { useModelById } from '@renderer/hooks/useModels'
+import { useProviders } from '@renderer/hooks/useProviders'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { Model as SharedModel } from '@shared/data/types/model'
-import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ChevronDown, Download, ExternalLink, Loader2, Play, Square, X } from 'lucide-react'
 import type { FC } from 'react'
@@ -85,42 +87,27 @@ const OpenClawPage: FC = () => {
   const [uninstallSuccess, setUninstallSuccess] = useState(false)
   const [isOpenClawUpdating, setIsOpenClawUpdating] = useState(false)
 
-  const availableProviders = useMemo(
-    () => providers.filter((p) => p.enabled && (p.apiKey || NO_API_KEY_PROVIDERS.has(p.type))),
-    [providers]
-  )
-
-  const selectedModelInfo = useMemo(() => {
-    if (!selectedModelId || !isUniqueModelId(selectedModelId)) return null
-    const { providerId, modelId } = parseUniqueModelId(selectedModelId)
-
-    for (const p of availableProviders) {
-      const model = p.models.find((m) => m.id === modelId && m.provider === providerId)
-      if (model) {
-        return { provider: p, model }
-      }
-    }
-
-    return null
-  }, [selectedModelId, availableProviders])
-
-  const selectedProvider = selectedModelInfo?.provider ?? null
-  const selectedModel = selectedModelInfo?.model ?? null
-
   const selectedUniqueModelId = useMemo<UniqueModelId | undefined>(() => {
     return selectedModelId && isUniqueModelId(selectedModelId) ? selectedModelId : undefined
   }, [selectedModelId])
 
+  /** v2 read-only lookup for the currently-selected model — drives the trigger label.
+   *  The hook short-circuits on falsy ids via `enabled: !!uniqueModelId`, so the
+   *  empty-string fallback is safe; the cast satisfies its template-literal arg type. */
+  const { model: selectedModel } = useModelById((selectedUniqueModelId ?? '') as UniqueModelId)
+
   /**
-   * Model-level filter that mirrors the legacy provider-level filter:
-   * the model's owning provider must be enabled and either have an API key
-   * or be one of the providers that operate without one (local runtimes).
+   * Drop models whose owning provider has no usable credentials. Local
+   * runtimes (ollama / lmstudio / gpustack) bypass the check since they
+   * accept any placeholder. The new ModelSelector already filters out
+   * disabled providers, so we only need the credential check here.
    */
   const modelFilter = useCallback(
     (model: SharedModel) => {
       const provider = providers.find((p) => p.id === model.providerId)
-      if (!provider || !provider.enabled) return false
-      return !!provider.apiKey || NO_API_KEY_PROVIDERS.has(provider.type)
+      if (!provider) return false
+      if (NO_API_KEY_PROVIDERS.has(provider.id)) return true
+      return provider.apiKeys.some((k) => k.isEnabled)
     },
     [providers]
   )
@@ -239,7 +226,7 @@ const OpenClawPage: FC = () => {
   }
 
   const handleStartGateway = async () => {
-    if (!selectedProvider || !selectedModel) {
+    if (!selectedUniqueModelId) {
       setError(t('openclaw.error.select_provider_model'))
       return
     }
@@ -249,7 +236,7 @@ const OpenClawPage: FC = () => {
 
     try {
       // First sync the configuration (auth token will be auto-generated in main process)
-      const syncResult = await window.api.openclaw.syncConfig(selectedProvider, selectedModel)
+      const syncResult = await window.api.openclaw.syncConfig(selectedUniqueModelId)
       if (!syncResult.success) {
         setError(syncResult.message)
         setIsStarting(false)
@@ -520,7 +507,7 @@ const OpenClawPage: FC = () => {
               onSelect={handleModelSelect}
               trigger={
                 <Button variant="outline" className="w-full justify-start">
-                  {selectedModel ? <ModelAvatar model={selectedModel} size={18} /> : null}
+                  {selectedModel ? <ModelAvatar model={fromSharedModel(selectedModel)} size={18} /> : null}
                   <span className="flex-1 truncate text-left">
                     {selectedModel ? selectedModel.name : t('openclaw.model_config.select_model')}
                   </span>
@@ -551,9 +538,7 @@ const OpenClawPage: FC = () => {
           <Button
             onClick={handleStartGateway}
             loading={isStarting || gatewayStatus === 'starting'}
-            disabled={
-              !selectedProvider || !selectedModel || isStarting || gatewayStatus === 'starting' || isOpenClawUpdating
-            }
+            disabled={!selectedUniqueModelId || isStarting || gatewayStatus === 'starting' || isOpenClawUpdating}
             size="lg"
             className="w-full">
             {!isStarting && gatewayStatus !== 'starting' && <Play size={16} />}
