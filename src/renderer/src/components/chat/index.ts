@@ -1,3 +1,4 @@
+export * from './adapters'
 export * from './primitives'
 export { ChatAppShell, type ChatAppShellProps } from './shell/ChatAppShell'
 export { OverlayHost, type OverlayHostProps } from './shell/OverlayHost'
