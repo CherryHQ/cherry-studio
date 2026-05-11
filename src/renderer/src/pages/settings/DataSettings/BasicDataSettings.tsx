@@ -5,11 +5,9 @@ import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
 import type { AppInfo } from '@renderer/types'
-import { formatFileSize } from '@renderer/utils'
 import { cn } from '@renderer/utils/style'
 import { occupiedDirs } from '@shared/config/constant'
 import { FolderInput, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
@@ -23,7 +21,6 @@ const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<string>('')
-  const { size, removeAllFiles } = useKnowledgeFiles()
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
@@ -424,22 +421,6 @@ const BasicDataSettings: React.FC = () => {
     })
   }
 
-  const handleRemoveAllFiles = () => {
-    window.modal.confirm({
-      centered: true,
-      title: t('settings.data.app_knowledge.remove_all') + ` (${formatFileSize(size)}) `,
-      content: t('settings.data.app_knowledge.remove_all_confirm'),
-      onOk: async () => {
-        await removeAllFiles()
-        window.toast.success(t('settings.data.app_knowledge.remove_all_success'))
-      },
-      okText: t('common.delete'),
-      okButtonProps: {
-        danger: true
-      }
-    })
-  }
-
   const onSkipBackupFilesChange = (value: boolean) => {
     void setSkipBackupFile(value)
   }
@@ -530,15 +511,6 @@ const BasicDataSettings: React.FC = () => {
               </Button>
             </RowFlex>
           </PathRow>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.app_knowledge.label')}</SettingRowTitle>
-          <RowFlex className="items-center gap-1.25">
-            <Button onClick={handleRemoveAllFiles} variant="outline">
-              {t('settings.data.app_knowledge.button.delete')}
-            </Button>
-          </RowFlex>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
