@@ -192,15 +192,15 @@ Only **versionCache** and **lifecycle artifacts** are truly bound to the FileMan
 ```
 src/main/services/file/
 ├── index.ts              ← barrel: exports only FileManager + public types
-├── FileManager.ts        ← facade class; lifecycle + IPC + versionCache
+├── FileManager.ts        ← facade class; lifecycle + IPC + versionCache + inline getMetadata
 ├── internal/             ← private implementation (not re-exported by index.ts; external imports forbidden)
 │     ├── deps.ts              — FileManagerDeps type
+│     ├── dispatch.ts          — FileHandle.kind dispatch helper (entry vs path adapter)
 │     ├── entry/
 │     │    ├── create.ts       — createInternal / ensureExternal
 │     │    ├── lifecycle.ts    — trash / restore / permanentDelete + batches
 │     │    ├── rename.ts
-│     │    ├── copy.ts
-│     │    └── metadata.ts     — getMetadata (live fs.stat for both origins)
+│     │    └── copy.ts
 │     ├── content/
 │     │    ├── read.ts         — read / createReadStream (including `readByPath` variants)
 │     │    ├── write.ts        — write / writeIfUnchanged / createWriteStream
@@ -208,20 +208,29 @@ src/main/services/file/
 │     ├── system/
 │     │    ├── shell.ts        — open / showInFolder
 │     │    └── tempCopy.ts     — withTempCopy
-│     └── orphanSweep.ts       — startup orphan scan task
+│     └── orphanSweep.ts       — startup orphan-ref scan + FS-level orphan sweep
 └── versionCache.ts       ← LRU type definition
 ```
+
+`getMetadata` is the one entry-level read that does NOT live under
+`internal/entry/` — it is implemented inline on the FileManager class
+because it is a thin wrapper around `fs.stat` with no entry-flow logic
+of its own. Adding a future entry-flow concern (e.g. presence event
+emission on success) would justify extracting it, but until then the
+inline definition keeps the facade's stat path single-hop.
 
 #### 1.6.3 Dependency Passing Convention
 
 Each `internal/*` pure function explicitly receives `FileManagerDeps`:
 
 ```typescript
-// internal/deps.ts
+// internal/deps.ts (illustrative — see src/main/services/file/internal/deps.ts for the authoritative definition)
 export interface FileManagerDeps {
-  readonly repo: FileEntryService
-  readonly versionCache: VersionCache
+  readonly fileEntryService: FileEntryService
+  readonly fileRefService: FileRefService
   readonly danglingCache: DanglingCache
+  readonly versionCache: VersionCache
+  readonly orphanRegistry: OrphanCheckerRegistry
 }
 
 // internal/entry/create.ts — two APIs, corresponding to two public methods on the FileManager facade
@@ -246,13 +255,15 @@ export async function ensureExternalEntry(
 #### 1.6.4 Thin-Delegation Facade
 
 ```typescript
-// FileManager.ts
+// FileManager.ts (illustrative — see src/main/services/file/FileManager.ts for the authoritative wiring)
 export class FileManager extends BaseService implements IFileManager {
-  private readonly versionCache = new VersionCache(1000)
-  private readonly repo = application.get('FileEntryService')
-
-  private get deps(): FileManagerDeps {
-    return { repo: this.repo, versionCache: this.versionCache, danglingCache }
+  private readonly versionCache = createVersionCacheImpl(2000)
+  private readonly deps: FileManagerDeps = {
+    fileEntryService,
+    fileRefService,
+    danglingCache,
+    versionCache: this.versionCache,
+    orphanRegistry: orphanCheckerRegistry
   }
 
   // public API: thin delegates; naming strictly aligned with semantics (create = new, ensure = upsert)
@@ -1212,10 +1223,14 @@ Timing for changes to `pathToEntryIds` (fully self-governed inside file_module, 
 | Startup `initFromDb()` | `SELECT id, externalPath FROM file_entry WHERE origin='external' AND trashedAt IS NULL` → batch add |
 | `ensureExternalEntry` creates new | addEntry(id, path) |
 | `ensureExternalEntry` reuses (upsert hit) | No change (path already indexed) |
-| `restore(external)` | addEntry(id, path) |
-| `trash(external)` | removeEntry(id, path) (trashed entries don't participate in dangling tracking) |
 | `permanentDelete(external)` | removeEntry(id, path) |
 | `rename(external)` (explicit user action) | removeEntry(id, oldPath) + addEntry(id, newPath) |
+
+External entries cannot be trashed (`fe_external_no_trash` CHECK enforces this
+at the schema level; `trash` / `restore` throw at the entry layer before
+reaching the reverse-index update). Earlier drafts listed `restore(external)`
+and `trash(external)` rows here — they were dead branches and have been
+removed.
 
 ### 11.5 Handler-Side Parallelization
 
@@ -1312,7 +1327,7 @@ These thresholds are heuristic starting points — tune based on real-world tele
 | Decision | Conclusion | Core rationale |
 |---|---|---|
 | **Tree vs flat** | Flat | FileEntry manages "user-submitted independent files"; directory organization is not a file_module responsibility |
-| **Mount abstraction** | Removed | All internal files live flat under `userData/files/`; external is reached directly via `externalPath`; no mount needed |
+| **Mount abstraction** | Removed | All internal files live flat under `{userData}/Data/Files/` (via the `feature.files.data` path key); external is reached directly via `externalPath`; no mount needed |
 | **Origin two-state** | internal/external | Express "Cherry-owned" and "user-owned, Cherry-referenced" respectively; clear semantics |
 | **External read/write permissions** | Explicit user ops may change; Cherry doesn't auto-change | VS Code-style behavior model—change when told to; don't modify behind the scenes |
 | **External operation symmetry** | write/rename/permanentDelete all delegate to the FS primitives and take effect; trash/restore touch DB only | Soft delete preserves reversibility (doesn't touch FS); hard delete is the terminal action (really deletes FS) |

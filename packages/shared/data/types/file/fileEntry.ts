@@ -5,7 +5,7 @@
  * FileEntry is a flat list of Cherry-managed files (no tree structure).
  *
  * Every entry has an `origin`:
- * - `internal`: Cherry owns the content, stored at `{userData}/files/{id}.{ext}`.
+ * - `internal`: Cherry owns the content, stored at `{userData}/Data/Files/{id}.{ext}`.
  *   `name` / `ext` / `size` are authoritative truth (kept in sync by atomic writes).
  * - `external`: Cherry only references a user-provided path (`externalPath`).
  *   `name` / `ext` are pure projections of `externalPath` (basename / extname) —

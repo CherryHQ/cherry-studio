@@ -47,14 +47,15 @@ File Module (src/main/services/file/)
 │     └── Electron dialog (showOpenDialog / showSaveDialog)
 │
 ├── internal/             ← private implementation, not re-exported by index.ts; external imports forbidden
-│     │                     every pure function explicitly receives FileManagerDeps (repo/versionCache/danglingCache)
+│     │                     every pure function explicitly receives FileManagerDeps
+│     │                     (fileEntryService / fileRefService / danglingCache / versionCache / orphanRegistry)
 │     ├── deps.ts               — FileManagerDeps type
+│     ├── dispatch.ts           — dispatchHandle (FileHandle.kind → entry vs path adapter)
 │     ├── entry/
 │     │    ├── create.ts        — createInternal / ensureExternal
 │     │    ├── lifecycle.ts     — trash / restore / permanentDelete + batches
 │     │    ├── rename.ts
-│     │    ├── copy.ts
-│     │    └── metadata.ts      — getMetadata (live fs.stat for both origins)
+│     │    └── copy.ts
 │     ├── content/
 │     │    ├── read.ts          — read / createReadStream (including `*ByPath` variants)
 │     │    ├── write.ts         — write / writeIfUnchanged / createWriteStream
@@ -62,7 +63,11 @@ File Module (src/main/services/file/)
 │     ├── system/
 │     │    ├── shell.ts         — open / showInFolder
 │     │    └── tempCopy.ts      — withTempCopy
-│     └── orphanSweep.ts        — startup orphan scan task
+│     └── orphanSweep.ts        — startup orphan scan + FS sweep
+│
+│     Note: `getMetadata` is implemented inline on the FileManager class (not
+│     extracted to internal/entry/) — the only entry method that talks
+│     directly to `fs.stat` without an internal/* helper.
 │
 ├── versionCache.ts       ← LRU type definition; instance held as private field on FileManager
 │
