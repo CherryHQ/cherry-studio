@@ -191,7 +191,7 @@ export function getAppConfigDir(name: string) {
 }
 
 export function getMcpDir() {
-  return path.join(os.homedir(), HOME_CHERRY_DIR, 'mcp')
+  return path.join(app.getPath('userData'), 'mcp')
 }
 
 /**
