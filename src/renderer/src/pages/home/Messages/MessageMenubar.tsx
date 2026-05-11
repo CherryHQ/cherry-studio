@@ -15,12 +15,12 @@ import {
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/config/registry/messageMenubar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
+import { useLanguages } from '@renderer/hooks/translate'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessage } from '@renderer/hooks/useMessage'
 import { useModelById } from '@renderer/hooks/useModels'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import useTranslate from '@renderer/hooks/useTranslate'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import { TraceIcon } from '@renderer/trace/pages/Component'
@@ -138,6 +138,7 @@ type MessageMenubarButtonContext = {
   supportsWrites: boolean
   t: TFunction
   translateLanguages: TranslateLanguage[]
+  getLanguageLabel: ReturnType<typeof useLanguages>['getLabel']
 }
 
 type MessageMenubarButtonRenderer = (ctx: MessageMenubarButtonContext, disabled: boolean) => ReactNode | null
@@ -162,7 +163,8 @@ const MessageMenubar: FC<Props> = (props) => {
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const translationAbortKey = createTranslationAbortKey(message.id)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
-  const { translateLanguages } = useTranslate()
+  const { languages, getLabel: getLanguageLabel } = useLanguages()
+  const translateLanguages = languages ?? []
   const {
     remove: deleteMessage,
     regenerate: regenerateAssistantMessage,
@@ -547,7 +549,8 @@ const MessageMenubar: FC<Props> = (props) => {
     softHoverBg,
     supportsWrites,
     t,
-    translateLanguages
+    translateLanguages,
+    getLanguageLabel
   }
 
   return (
@@ -702,7 +705,8 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     messageParts,
     softHoverBg,
     supportsWrites,
-    t
+    t,
+    getLanguageLabel
   }) => {
     if (isUserMessage || !supportsWrites) {
       return null
@@ -726,7 +730,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
 
     const items: MenuProps['items'] = [
       ...translateLanguages.map((item) => ({
-        label: item.emoji + ' ' + item.label(),
+        label: getLanguageLabel(item),
         key: item.langCode,
         onClick: () => handleTranslate(item)
       })),

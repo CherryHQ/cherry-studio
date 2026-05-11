@@ -1,5 +1,14 @@
 import { RedoOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  InfoTooltip,
+  RowFlex,
+  Tooltip
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelSelector from '@renderer/components/ModelSelectorLegacy'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
@@ -9,14 +18,14 @@ import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
-import TranslateSettingsPopup from '@renderer/pages/translate/components/TranslateSettingsPopup/TranslateSettingsPopup'
+import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { find } from 'lodash'
 import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDescription, SettingGroup, SettingTitle } from '..'
@@ -42,6 +51,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const { t } = useTranslation()
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
+  const [translateSettingsOpen, setTranslateSettingsOpen] = useState(false)
 
   const modelPredicate = useCallback(
     (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
@@ -148,7 +158,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           />
           {showSettingsButton && (
             <>
-              <Button className="ml-2" onClick={TranslateSettingsPopup.show} size="icon">
+              <Button className="ml-2" onClick={() => setTranslateSettingsOpen(true)} size="icon">
                 <Settings2 size={16} />
               </Button>
               {translateModelPrompt !== TRANSLATE_PROMPT && (
@@ -158,6 +168,14 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                   </Button>
                 </Tooltip>
               )}
+              <Dialog open={translateSettingsOpen} onOpenChange={setTranslateSettingsOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{t('settings.translate.title')}</DialogTitle>
+                  </DialogHeader>
+                  <TranslateSettingsPanelContent />
+                </DialogContent>
+              </Dialog>
             </>
           )}
         </RowFlex>

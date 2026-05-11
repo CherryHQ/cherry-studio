@@ -1,8 +1,8 @@
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -247,7 +247,7 @@ const Messages: React.FC<MessagesProps> = ({
     <MessagesContainer id="messages" className="messages-container" key={assistant?.id ?? topic.assistantId}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         {showPrompt && <Prompt key={assistant?.prompt ?? ''} topic={topic} />}
-        <ContextMenu>
+        <SelectionContextMenu>
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             <ChatVirtualList
               handleRef={chatListRef}
@@ -275,7 +275,7 @@ const Messages: React.FC<MessagesProps> = ({
               </div>
             )}
           </div>
-        </ContextMenu>
+        </SelectionContextMenu>
       </NarrowLayout>
       {messageNavigation === 'anchor' && (
         <MessageAnchorLine

@@ -1,37 +1,35 @@
-import { loggerService } from '@logger'
-import { db } from '@renderer/databases'
-import type {
-  AssistantSettings,
-  CustomTranslateLanguage,
-  ReasoningEffortOption,
-  TranslateHistory,
-  TranslateLanguage,
-  TranslateLanguageCode
-} from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { dataApiService } from '@data/DataApiService'
+import type { AssistantSettings, ReasoningEffortOption } from '@renderer/types'
+import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { t } from 'i18next'
 
 import { getDefaultTranslateAssistant } from './AssistantService'
-
-const logger = loggerService.withContext('TranslateService')
 
 type TranslateOptions = {
   reasoningEffort: ReasoningEffortOption
 }
 
 /**
- * 翻译文本到目标语言
- * @param text - 需要翻译的文本内容
- * @param targetLanguage - 目标语言
- * @param onResponse - 流式输出的回调函数，用于实时获取翻译结果
- * @param _abortKey - 用于控制 abort 的键（TODO: 接入 IPC abort）
- * @returns 返回翻译后的文本
- * @throws {Error} 翻译中止或失败时抛出异常
+ * Translate text into the target language.
+ *
+ * Currently non-streaming: legacy `fetchChatCompletion` (renderer-side streaming
+ * via Provider SDK) was removed during the ai-service migration to Main IPC.
+ * The accumulated-text callback is invoked once on completion so the existing
+ * `onResponse(text, isComplete)` contract still works for callers.
+ *
+ * @param text - The source text to translate
+ * @param targetLanguage - Either a {@link TranslateLangCode} (resolved via DataApi) or a {@link TranslateLanguage} object
+ * @param onResponse - Invoked once with the final translated text and `isComplete=true`
+ * @param _abortKey - Currently unused (legacy streaming-abort path is gone)
+ * @param options - Optional settings (e.g. reasoning effort)
+ * @returns The trimmed translated text
+ * @throws {Error} On invalid target language or empty output
  */
 export const translateText = async (
   text: string,
-  targetLanguage: TranslateLanguage,
+  targetLanguage: TranslateLangCode | TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void,
   _abortKey?: string,
   options?: TranslateOptions
@@ -39,6 +37,14 @@ export const translateText = async (
   const assistantSettings: Partial<AssistantSettings> | undefined = options
     ? { reasoning_effort: options?.reasoningEffort }
     : undefined
+
+  if (typeof targetLanguage === 'string') {
+    if (!isTranslateLangCode(targetLanguage) || targetLanguage === 'unknown') {
+      throw new Error(`Invalid target language: ${targetLanguage}`)
+    }
+    const langDto = await dataApiService.get(`/translate/languages/${targetLanguage}`)
+    targetLanguage = langDto
+  }
   const assistant = await getDefaultTranslateAssistant(targetLanguage, text, assistantSettings)
 
   const model = assistant.model
@@ -46,10 +52,6 @@ export const translateText = async (
     throw new Error(t('translate.error.empty'))
   }
 
-  // TODO: Restore streaming support for translation. Currently using non-streaming
-  // generateText because the legacy streamText IPC was removed. To add streaming back,
-  // either use AiStreamManager with an ephemeral topicId, or add a dedicated lightweight
-  // streaming IPC that doesn't require topic persistence.
   const { text: result } = await window.api.ai.generateText({
     uniqueModelId: createUniqueModelId(model.provider, model.id),
     assistantId: assistant.id,
@@ -65,159 +67,4 @@ export const translateText = async (
   }
 
   return trimmedText
-}
-
-/**
- * 添加自定义翻译语言
- * @param value - 语言名称
- * @param emoji - 语言对应的emoji图标
- * @param langCode - 语言代码
- * @returns {Promise<CustomTranslateLanguage>} 返回新添加的自定义语言对象
- * @throws {Error} 当语言已存在或添加失败时抛出错误
- */
-export const addCustomLanguage = async (
-  value: string,
-  emoji: string,
-  langCode: string
-): Promise<CustomTranslateLanguage> => {
-  const existing = await db.translate_languages.where('langCode').equals(langCode).first()
-  if (existing) {
-    logger.error(`Custom language ${langCode} exists.`)
-    throw new Error(t('settings.translate.custom.error.langCode.exists'))
-  } else {
-    try {
-      const item = {
-        id: uuid(),
-        value,
-        langCode: langCode.toLowerCase(),
-        emoji
-      }
-      await db.translate_languages.add(item)
-      return item
-    } catch (e) {
-      logger.error('Failed to add custom language.', e as Error)
-      throw e
-    }
-  }
-}
-
-/**
- * 删除自定义翻译语言
- * @param id - 要删除的自定义语言ID
- * @throws {Error} 删除自定义语言失败时抛出错误
- */
-export const deleteCustomLanguage = async (id: string) => {
-  try {
-    await db.translate_languages.delete(id)
-  } catch (e) {
-    logger.error('Delete custom language failed.', e as Error)
-    throw e
-  }
-}
-
-/**
- * 更新自定义翻译语言
- * @param old - 原有的自定义语言对象
- * @param value - 新的语言名称
- * @param emoji - 新的语言emoji图标
- * @param langCode - 新的语言代码
- * @throws {Error} 更新自定义语言失败时抛出错误
- */
-export const updateCustomLanguage = async (
-  old: CustomTranslateLanguage,
-  value: string,
-  emoji: string,
-  langCode: string
-) => {
-  try {
-    await db.translate_languages.put({
-      id: old.id,
-      value,
-      langCode: langCode.toLowerCase(),
-      emoji
-    })
-  } catch (e) {
-    logger.error('Update custom language failed.', e as Error)
-    throw e
-  }
-}
-
-/**
- * 获取所有自定义语言
- * @throws {Error} 获取自定义语言失败时抛出错误
- */
-export const getAllCustomLanguages = async () => {
-  try {
-    const languages = await db.translate_languages.toArray()
-    return languages
-  } catch (e) {
-    logger.error('Failed to get all custom languages.', e as Error)
-    throw e
-  }
-}
-
-/**
- * 保存翻译历史记录到数据库
- * @param sourceText - 原文内容
- * @param targetText - 翻译后的内容
- * @param sourceLanguage - 源语言代码
- * @param targetLanguage - 目标语言代码
- * @returns Promise<void>
- */
-export const saveTranslateHistory = async (
-  sourceText: string,
-  targetText: string,
-  sourceLanguage: TranslateLanguageCode,
-  targetLanguage: TranslateLanguageCode
-) => {
-  const history: TranslateHistory = {
-    id: uuid(),
-    sourceText,
-    targetText,
-    sourceLanguage,
-    targetLanguage,
-    createdAt: new Date().toISOString()
-  }
-  await db.translate_history.add(history)
-}
-
-/**
- * 更新翻译历史记录
- * @param id - 历史记录ID
- * @param update - 更新内容
- * @returns Promise<void>
- */
-export const updateTranslateHistory = async (id: string, update: Omit<Partial<TranslateHistory>, 'id'>) => {
-  try {
-    const history: Partial<TranslateHistory> = {
-      ...update,
-      id
-    }
-    await db.translate_history.update(id, history)
-  } catch (e) {
-    logger.error('Failed to update translate history', e as Error)
-    throw e
-  }
-}
-
-/**
- * 删除指定的翻译历史记录
- * @param id - 要删除的翻译历史记录ID
- * @returns Promise<void>
- */
-export const deleteHistory = async (id: string) => {
-  try {
-    void db.translate_history.delete(id)
-  } catch (e) {
-    logger.error('Failed to delete translate history', e as Error)
-    throw e
-  }
-}
-
-/**
- * 清空所有翻译历史记录
- * @returns Promise<void>
- */
-export const clearHistory = async () => {
-  void db.translate_history.clear()
 }

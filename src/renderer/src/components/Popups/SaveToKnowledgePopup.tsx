@@ -14,8 +14,8 @@ import {
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
-import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
+import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { NotesTreeNode } from '@renderer/types/note'
@@ -27,6 +27,7 @@ import {
   processMessageContent,
   processTopicContent
 } from '@renderer/utils/knowledge'
+import type { KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 import { Check } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -106,6 +107,24 @@ interface Props extends ShowParams {
   resolve: (data: SaveResult | null) => void
 }
 
+const getNoteSource = (source: ContentSource, title?: string) => {
+  const trimmedTitle = title?.trim()
+
+  if (trimmedTitle) {
+    return trimmedTitle
+  }
+
+  if (source.type === 'note') {
+    return source.data.name.trim() || source.data.id
+  }
+
+  if (source.type === 'topic') {
+    return source.data.name.trim() || source.data.id
+  }
+
+  return source.data.id
+}
+
 const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -115,8 +134,8 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   const [hasInitialized, setHasInitialized] = useState(false)
   const [contentStats, setContentStats] = useState<ContentStats | null>(null)
   const resolvedRef = useRef(false)
-  const { knowledgeBases: bases } = useKnowledgeBases()
-  const { addNote, addFiles } = useKnowledge(selectedBaseId || '')
+  const { bases } = useKnowledgeBases()
+  const { submit: submitKnowledgeItems } = useAddKnowledgeItems(selectedBaseId || '')
   const { t } = useTranslation()
 
   const isTopicMode = source?.type === 'topic'
@@ -185,14 +204,14 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       bases.map((base) => ({
         label: base.name,
         value: base.id,
-        disabled: !base.embeddingModelId
+        disabled: base.status !== 'completed'
       })),
     [bases]
   )
 
   // 表单状态
   const formState = useMemo(() => {
-    const hasValidBase = selectedBaseId && bases.find((base) => base.id === selectedBaseId)?.embeddingModelId
+    const hasValidBase = selectedBaseId && bases.find((base) => base.id === selectedBaseId)?.status === 'completed'
     const hasContent = isNoteMode || contentTypeOptions.length > 0
 
     const canSubmit = hasValidBase && (isNoteMode || (selectedTypes.length > 0 && hasContent))
@@ -215,7 +234,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   // 默认选择第一个可用知识库
   useEffect(() => {
     if (!selectedBaseId) {
-      const firstAvailableBase = bases.find((base) => base.embeddingModelId)
+      const firstAvailableBase = bases.find((base) => base.status === 'completed')
       if (firstAvailableBase) {
         setSelectedBaseId(firstAvailableBase.id)
       }
@@ -281,9 +300,12 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         throw new Error('Selected knowledge base not found')
       }
 
-      if (!selectedBase.embeddingModelId) {
+      if (selectedBase.status !== 'completed') {
         throw new Error('Knowledge base is not properly configured. Please check the knowledge base settings.')
       }
+
+      const items: KnowledgeRuntimeAddItemInput[] = []
+      const noteSource = getNoteSource(source, title)
 
       if (isNoteMode) {
         const note = source.data
@@ -304,7 +326,13 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         }
 
         logger.debug('Note content loaded', { contentLength: content.length })
-        await addNote(content)
+        items.push({
+          type: 'note',
+          data: {
+            source: noteSource,
+            content
+          }
+        })
         savedCount = 1
       } else {
         // 原有的消息或主题处理逻辑
@@ -314,14 +342,32 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
 
         logger.debug('Processed content:', result)
         if (result.text.trim() && selectedTypes.some((type) => type !== CONTENT_TYPES.FILE)) {
-          await addNote(result.text)
+          items.push({
+            type: 'note',
+            data: {
+              source: noteSource,
+              content: result.text
+            }
+          })
           savedCount++
         }
 
         if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
-          addFiles(result.files)
+          items.push(
+            ...result.files.map((file) => ({
+              type: 'file' as const,
+              data: {
+                source: file.path || file.origin_name || file.name,
+                file
+              }
+            }))
+          )
           savedCount += result.files.length
         }
+      }
+
+      if (items.length > 0) {
+        await submitKnowledgeItems(items)
       }
 
       resolveAfterClose({ success: true, savedCount })
