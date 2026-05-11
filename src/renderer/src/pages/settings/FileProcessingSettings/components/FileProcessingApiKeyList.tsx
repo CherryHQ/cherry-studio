@@ -1,4 +1,5 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
@@ -14,6 +15,8 @@ import {
   useFileProcessingApiKeyList
 } from '../hooks/useFileProcessingApiKeyList'
 import type { ApiKeyValidity } from '../utils/fileProcessingApiKeys'
+
+const logger = loggerService.withContext('FileProcessingApiKeyList')
 
 function maskFileProcessingApiKey(key: string): string {
   if (!key) {
@@ -74,7 +77,8 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
       }
 
       setIsEditing(false)
-    } catch {
+    } catch (error) {
+      logger.error('Failed to save file processing API key', error as Error)
       window.toast.error(t('settings.tool.file_processing.errors.save_failed'))
     }
   }
@@ -93,7 +97,10 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
     navigator.clipboard
       .writeText(item.key)
       .then(() => window.toast.success(t('common.copied')))
-      .catch(() => window.toast.error(t('common.copy_failed')))
+      .catch((error) => {
+        logger.error('Failed to copy file processing API key', error as Error)
+        window.toast.error(t('common.copy_failed'))
+      })
   }
 
   const handleRemove = async () => {
@@ -107,7 +114,8 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
     if (confirmed) {
       try {
         await onRemove()
-      } catch {
+      } catch (error) {
+        logger.error('Failed to remove file processing API key', error as Error)
         window.toast.error(t('settings.tool.file_processing.errors.save_failed'))
       }
     }

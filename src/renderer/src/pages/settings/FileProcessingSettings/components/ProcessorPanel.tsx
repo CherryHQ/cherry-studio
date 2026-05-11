@@ -1,4 +1,5 @@
 import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { useLanguages } from '@renderer/hooks/translate'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
@@ -30,6 +31,8 @@ import { PaddleOCRDeploymentInfo } from './PaddleOCRDeploymentInfo'
 import { PaddleOCRModelSettings } from './PaddleOCRModelSettings'
 import { ProcessorAvatar } from './ProcessorAvatar'
 import { TesseractLanguagePacks } from './TesseractLanguagePacks'
+
+const logger = loggerService.withContext('ProcessorPanel')
 
 type ProcessorPanelProps = {
   entry: FileProcessingMenuEntry
@@ -109,10 +112,11 @@ export function ProcessorPanel({
   const selectedLanguages = processor.options?.langs ?? []
 
   const persist = useCallback(
-    async (action: () => Promise<void>) => {
+    async (action: () => Promise<void>, actionName: string) => {
       try {
         await action()
-      } catch {
+      } catch (error) {
+        logger.error(`Failed to ${actionName}`, error as Error)
         window.toast.error(t('settings.tool.file_processing.errors.save_failed'))
       }
     },
@@ -120,7 +124,7 @@ export function ProcessorPanel({
   )
 
   const handleApiKeysBlur = useCallback(async () => {
-    await persist(() => onSetApiKeys(processor.id, splitApiKeyString(formatApiKeys(apiKeysInput))))
+    await persist(() => onSetApiKeys(processor.id, splitApiKeyString(formatApiKeys(apiKeysInput))), 'save API keys')
   }, [apiKeysInput, onSetApiKeys, persist, processor.id])
 
   const openApiKeyList = useCallback(async () => {
@@ -133,20 +137,20 @@ export function ProcessorPanel({
   }, [apiKeysInput, onSetApiKeys, processor.id, processorName, t])
 
   const handleApiHostBlur = useCallback(async () => {
-    await persist(() => onSetCapabilityField(processor.id, entry.feature, 'apiHost', apiHostInput))
+    await persist(() => onSetCapabilityField(processor.id, entry.feature, 'apiHost', apiHostInput), 'save API host')
   }, [apiHostInput, entry.feature, onSetCapabilityField, persist, processor.id])
 
   const setModelIdInputAndPersist = useCallback(
     async (value: string) => {
       setModelIdInput(value)
-      await persist(() => onSetCapabilityField(processor.id, entry.feature, 'modelId', value))
+      await persist(() => onSetCapabilityField(processor.id, entry.feature, 'modelId', value), 'save model id')
     },
     [entry.feature, onSetCapabilityField, persist, processor.id]
   )
 
   const handleSetDefault = useCallback(async () => {
     if (!isDefault) {
-      await persist(() => onSetDefaultProcessor(entry.feature, processor.id))
+      await persist(() => onSetDefaultProcessor(entry.feature, processor.id), 'set default processor')
     }
   }, [entry.feature, isDefault, onSetDefaultProcessor, persist, processor.id])
 
@@ -159,7 +163,7 @@ export function ProcessorPanel({
       }
 
       const langs = Array.isArray(value) ? value : []
-      await persist(() => onSetLanguageOptions(processorId, langs))
+      await persist(() => onSetLanguageOptions(processorId, langs), 'save language options')
     },
     [onSetLanguageOptions, persist, processor.id]
   )

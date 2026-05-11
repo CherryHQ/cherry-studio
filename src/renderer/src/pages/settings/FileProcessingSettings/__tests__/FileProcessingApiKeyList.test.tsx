@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FileProcessingApiKeyList } from '../components/FileProcessingApiKeyList'
 
 const setApiKeysMock = vi.hoisted(() => vi.fn())
+const loggerErrorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -25,6 +26,14 @@ vi.mock('@renderer/components/TopView', () => ({
 
 vi.mock('@renderer/components/Icons', () => ({
   EditIcon: ({ size }: { size?: number }) => <span data-size={size}>edit</span>
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      error: loggerErrorMock
+    })
+  }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -56,6 +65,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 describe('FileProcessingApiKeyList', () => {
   beforeEach(() => {
+    loggerErrorMock.mockReset()
     setApiKeysMock.mockReset()
     setApiKeysMock.mockResolvedValue(undefined)
     Object.defineProperty(window, 'modal', {
@@ -123,7 +133,8 @@ describe('FileProcessingApiKeyList', () => {
   })
 
   it('keeps editing when API key persistence fails', async () => {
-    setApiKeysMock.mockRejectedValueOnce(new Error('persist failed'))
+    const error = new Error('persist failed')
+    setApiKeysMock.mockRejectedValueOnce(error)
     render(<FileProcessingApiKeyList processorId="mistral" apiKeys={[]} onSetApiKeys={setApiKeysMock} />)
 
     fireEvent.click(screen.getByRole('button', { name: /common.add/ }))
@@ -135,11 +146,13 @@ describe('FileProcessingApiKeyList', () => {
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
     })
+    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to save file processing API key', error)
     expect(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder')).toHaveValue('key-1')
   })
 
   it('reports remove failures without treating the deletion as successful', async () => {
-    setApiKeysMock.mockRejectedValueOnce(new Error('persist failed'))
+    const error = new Error('persist failed')
+    setApiKeysMock.mockRejectedValueOnce(error)
     render(<FileProcessingApiKeyList processorId="mistral" apiKeys={['key-1']} onSetApiKeys={setApiKeysMock} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
@@ -147,6 +160,7 @@ describe('FileProcessingApiKeyList', () => {
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
     })
+    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to remove file processing API key', error)
     expect(screen.getByText('key-1')).toBeInTheDocument()
   })
 

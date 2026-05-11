@@ -408,7 +408,8 @@ describe('FileProcessingSettings', () => {
   })
 
   it('reports API host save failures', async () => {
-    setOverridesMock.mockRejectedValueOnce(new Error('persist failed'))
+    const error = new Error('persist failed')
+    setOverridesMock.mockRejectedValueOnce(error)
     render(<FileProcessingSettings />)
 
     fireEvent.click(
@@ -422,6 +423,7 @@ describe('FileProcessingSettings', () => {
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
     })
+    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to save API host', error)
   })
 
   it('opens the file processing API key list popup from the API key field', async () => {
