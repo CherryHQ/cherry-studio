@@ -211,12 +211,16 @@ export class AgentService extends BaseService {
       }
 
       if (existing) {
-        // Sync localized description/instructions on every startup (language may have changed)
+        // Sync localized name/description/instructions on every startup (language may have changed)
         const resolvedPaths = this.resolveAccessiblePaths([], id)
         const workspace = resolvedPaths[0]
         const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
-        if (agentConfig && (agentConfig.description || agentConfig.instructions || agentConfig.configuration)) {
+        if (
+          agentConfig &&
+          (agentConfig.name || agentConfig.description || agentConfig.instructions || agentConfig.configuration)
+        ) {
           const updateData: UpdateAgentRequest = {}
+          if (agentConfig.name) updateData.name = agentConfig.name
           if (agentConfig.description) updateData.description = agentConfig.description
           if (agentConfig.instructions) updateData.instructions = agentConfig.instructions
           if (agentConfig.configuration) {

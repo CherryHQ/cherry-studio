@@ -36,7 +36,7 @@ function writeFile(filePath: string, content: string): void {
 }
 
 const TEMPLATE_AGENT_JSON = JSON.stringify({
-  name: 'Cherry Assistant',
+  name: { 'en-US': 'Cherry Assistant', 'zh-CN': 'Cherry 小助手' },
   description: { 'en-US': 'desc-en', 'zh-CN': 'desc-zh' },
   instructions: { 'en-US': 'inst-en', 'zh-CN': 'inst-zh' },
   configuration: { permission_mode: 'default', avatar: '🍒' }
@@ -121,6 +121,7 @@ describe('provisionBuiltinAgent', () => {
 
     const result = await provisionBuiltinAgent(workspace, 'assistant')
 
+    expect(result?.name).toBe('Cherry 小助手')
     expect(result?.description).toBe('desc-zh')
     expect(result?.instructions).toBe('inst-zh')
   })

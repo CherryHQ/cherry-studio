@@ -132,7 +132,7 @@ export async function provisionBuiltinAgent(
         return undefined
       }
       return {
-        name: agentConfig.name as string | undefined,
+        name: resolveLocalizedField(agentConfig.name),
         description: resolveLocalizedField(agentConfig.description),
         instructions: resolveLocalizedField(agentConfig.instructions),
         configuration: agentConfig.configuration as Record<string, unknown> | undefined
