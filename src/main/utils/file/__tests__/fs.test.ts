@@ -22,6 +22,7 @@ import {
   read,
   remove as fsRemove,
   removeDir,
+  shouldSilenceFsyncDirError,
   stat,
   write as fsWrite
 } from '../fs'
@@ -78,6 +79,30 @@ describe('exists', () => {
 
   it('returns false for a missing path', async () => {
     expect(await exists(path.join(tmp, 'nope') as FilePath)).toBe(false)
+  })
+})
+
+describe('shouldSilenceFsyncDirError', () => {
+  // Pin the silent-vs-warn boundary that atomicWriteFile / createAtomicWriteStream
+  // rely on for post-rename durability observability. The list shifted in
+  // c9127b7c3 (EPERM/EACCES moved from silent → warn); a future maintainer
+  // re-adding either would silence a real ACL-drift regression on user machines.
+  it('silences EINVAL / EISDIR / ENOTSUP (filesystems that semantically reject dir fsync)', () => {
+    expect(shouldSilenceFsyncDirError('EINVAL')).toBe(true)
+    expect(shouldSilenceFsyncDirError('EISDIR')).toBe(true)
+    expect(shouldSilenceFsyncDirError('ENOTSUP')).toBe(true)
+  })
+
+  it('does NOT silence permission errnos (EPERM / EACCES) — real ACL/sandbox regressions', () => {
+    expect(shouldSilenceFsyncDirError('EPERM')).toBe(false)
+    expect(shouldSilenceFsyncDirError('EACCES')).toBe(false)
+  })
+
+  it('does NOT silence real IO errnos (EIO / ENOSPC / others)', () => {
+    expect(shouldSilenceFsyncDirError('EIO')).toBe(false)
+    expect(shouldSilenceFsyncDirError('ENOSPC')).toBe(false)
+    expect(shouldSilenceFsyncDirError('ENOENT')).toBe(false)
+    expect(shouldSilenceFsyncDirError(undefined)).toBe(false)
   })
 })
 

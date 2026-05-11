@@ -120,6 +120,21 @@ function tmpNameFor(target: string): string {
 }
 
 /**
+ * Whether an errno from a directory-fsync attempt should be silently
+ * swallowed instead of warn-logged. Only codes that mean "this FS semantically
+ * rejects directory fsync" qualify — EINVAL / EISDIR / ENOTSUP all come from
+ * Windows, FUSE, or network mounts that don't expose dir-handle sync. EPERM /
+ * EACCES intentionally do NOT qualify: those usually mean the userData
+ * directory's ACL drifted (sandbox containment shift, SELinux/AppArmor
+ * tightening, manual chown), and silently skipping the dashboard signal would
+ * mask the regression. Exported for direct unit coverage of the classification.
+ * @internal
+ */
+export function shouldSilenceFsyncDirError(code: string | undefined): boolean {
+  return code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP'
+}
+
+/**
  * fsync(2) the directory containing `target` so the rename's directory-entry
  * update reaches stable storage. Best-effort: returns silently when the FS
  * doesn't support directory fsync (Windows, network mounts, some FUSE
@@ -138,14 +153,7 @@ async function fsyncDirectoryOf(target: string): Promise<void> {
     }
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
-    // Filesystems that semantically reject directory fsync — the rename is
-    // durable enough on these systems. EPERM / EACCES are deliberately NOT in
-    // this list: those usually mean the userData directory's ACL drifted
-    // (sandbox containment shift, SELinux/AppArmor tightening, manual chown)
-    // and silently skipping the dashboard signal would mask the regression.
-    if (code === 'EINVAL' || code === 'EISDIR' || code === 'ENOTSUP') {
-      return
-    }
+    if (shouldSilenceFsyncDirError(code)) return
     logger.warn('fsync(dir) failed after atomic rename; durability not confirmed', { target, code, err })
   }
 }
