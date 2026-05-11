@@ -34,6 +34,7 @@
  * override per-call with `mockRejectedValueOnce` / `mockImplementation`.
  */
 
+import type * as NodeFsPromises from 'node:fs/promises'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -50,7 +51,7 @@ const mockLoggerWarn = vi.hoisted(() => vi.fn())
 // (open, readFile, writeFile, fsRm, mkdir, …) falls through to the real
 // implementation so copy / atomicWrite still work as expected on the retry path.
 vi.mock('node:fs/promises', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  const actual = await importOriginal<typeof NodeFsPromises>()
   return {
     ...actual,
     rename: mockRename,
@@ -78,12 +79,12 @@ function makeErrnoErr(code: string, message = code): NodeJS.ErrnoException {
 
 describe('move (EXDEV cross-device fallback)', () => {
   let tmp: string
-  let actualRename: typeof import('node:fs/promises').rename
-  let actualUnlink: typeof import('node:fs/promises').unlink
-  let actualStat: typeof import('node:fs/promises').stat
+  let actualRename: NodeFsPromises['rename']
+  let actualUnlink: NodeFsPromises['unlink']
+  let actualStat: NodeFsPromises['stat']
 
   beforeEach(async () => {
-    const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+    const actual = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
     actualRename = actual.rename
     actualUnlink = actual.unlink
     actualStat = actual.stat
@@ -177,10 +178,10 @@ describe('move (EXDEV cross-device fallback)', () => {
 
 describe('isSameFile (non-ENOENT stat failure observability)', () => {
   let tmp: string
-  let actualStat: typeof import('node:fs/promises').stat
+  let actualStat: NodeFsPromises['stat']
 
   beforeEach(async () => {
-    const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+    const actual = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
     actualStat = actual.stat
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-issamefile-warn-'))
     mockStat.mockReset()
