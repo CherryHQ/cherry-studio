@@ -1,59 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveWebSearchProviders, updateWebSearchProviderOverride } from '../webSearchProviders'
+import { updateWebSearchProviderOverride } from '../webSearchProviders'
 
 describe('webSearchProviders', () => {
-  it('resolves renderer providers from preference overrides', () => {
-    const providers = resolveWebSearchProviders({
-      tavily: {
-        apiKeys: [' key-1 ', 'key-2'],
-        capabilities: {
-          searchKeywords: {
-            apiHost: ' https://custom.tavily.dev '
-          }
-        },
-        engines: ['web'],
-        basicAuthUsername: ' user ',
-        basicAuthPassword: 'pass'
-      }
-    })
-
-    expect(providers.find((provider) => provider.id === 'tavily')).toEqual(
-      expect.objectContaining({
-        id: 'tavily',
-        apiKeys: ['key-1', 'key-2'],
-        capabilities: [{ feature: 'searchKeywords', apiHost: 'https://custom.tavily.dev' }],
-        engines: ['web'],
-        basicAuthUsername: 'user',
-        basicAuthPassword: 'pass'
-      })
-    )
-  })
-
-  it('resolves Searxng with a localhost default host', () => {
-    const providers = resolveWebSearchProviders({})
-
-    expect(providers.find((provider) => provider.id === 'searxng')).toEqual(
-      expect.objectContaining({
-        capabilities: [{ feature: 'searchKeywords', apiHost: 'http://localhost:8080' }]
-      })
-    )
-  })
-
-  it('preserves leading and trailing basic auth password spaces when resolving providers', () => {
-    const providers = resolveWebSearchProviders({
-      searxng: {
-        basicAuthPassword: ' pass with spaces '
-      }
-    })
-
-    expect(providers.find((provider) => provider.id === 'searxng')).toEqual(
-      expect.objectContaining({
-        basicAuthPassword: ' pass with spaces '
-      })
-    )
-  })
-
   it('updates a single provider override without store state', () => {
     const overrides = updateWebSearchProviderOverride(
       {

@@ -1,8 +1,8 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Bocha, Cherryin, Exa, Jina, Querit, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
 import type { WebSearchCapability, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
-import { findWebSearchCapability } from '@shared/data/presets/web-search-providers'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import { findWebSearchCapability } from '@shared/data/utils/webSearchProviderMerger'
 
 export type ResolvedWebSearchProviderCapability = ResolvedWebSearchProvider['capabilities'][number]
 

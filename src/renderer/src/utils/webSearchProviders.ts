@@ -4,48 +4,14 @@ import type {
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchProviderFeatureCapability } from '@shared/data/presets/web-search-providers'
-import {
-  findWebSearchCapability,
-  PRESETS_WEB_SEARCH_PROVIDERS,
-  WEB_SEARCH_PROVIDER_PRESET_MAP
-} from '@shared/data/presets/web-search-providers'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import { findWebSearchCapability, getWebSearchProviderPresetById } from '@shared/data/utils/webSearchProviderMerger'
 
 type WebSearchProviderOverride = NonNullable<WebSearchProviderOverrides[WebSearchProviderId]>
 
 export type WebSearchProviderUpdates = Partial<
   Pick<ResolvedWebSearchProvider, 'apiKeys' | 'capabilities' | 'engines' | 'basicAuthUsername' | 'basicAuthPassword'>
 >
-
-function mergeProviderCapabilities(
-  presetCapabilities: readonly WebSearchProviderFeatureCapability[],
-  override: WebSearchProviderOverrides[WebSearchProviderId]
-): WebSearchProviderFeatureCapability[] {
-  return presetCapabilities.map((capability) => ({
-    ...capability,
-    ...(capability.apiHost !== undefined && override?.capabilities?.[capability.feature]?.apiHost !== undefined
-      ? { apiHost: override.capabilities[capability.feature]?.apiHost?.trim() }
-      : {})
-  }))
-}
-
-export function resolveWebSearchProviders(overrides: WebSearchProviderOverrides): ResolvedWebSearchProvider[] {
-  return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
-    const override = overrides[preset.id]
-    const capabilities = mergeProviderCapabilities(preset.capabilities, override)
-
-    return {
-      id: preset.id,
-      name: preset.name,
-      type: preset.type,
-      apiKeys: override?.apiKeys?.map((apiKey) => apiKey.trim()).filter(Boolean) || [],
-      capabilities,
-      engines: override?.engines || [],
-      basicAuthUsername: override?.basicAuthUsername?.trim() || '',
-      basicAuthPassword: override?.basicAuthPassword ?? ''
-    }
-  })
-}
 
 export function updateWebSearchProviderOverride(
   overrides: WebSearchProviderOverrides,
@@ -102,7 +68,7 @@ function normalizeWebSearchProviderOverride(
   override: WebSearchProviderOverride
 ): WebSearchProviderOverride {
   const normalizedOverride: WebSearchProviderOverride = {}
-  const preset = WEB_SEARCH_PROVIDER_PRESET_MAP[providerId]
+  const preset = getWebSearchProviderPresetById(providerId)
 
   if (override.apiKeys !== undefined) {
     const apiKeys = override.apiKeys.map((key) => key.trim()).filter(Boolean)

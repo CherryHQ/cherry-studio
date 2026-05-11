@@ -4,7 +4,6 @@ import {
   WEB_SEARCH_CAPABILITIES,
   WEB_SEARCH_PROVIDER_IDS,
   WEB_SEARCH_PROVIDER_TYPES,
-  type WebSearchCapability,
   type WebSearchProviderCapabilityOverride,
   type WebSearchProviderCapabilityOverrides,
   type WebSearchProviderId,
@@ -154,10 +153,3 @@ export const PRESETS_WEB_SEARCH_PROVIDERS: readonly WebSearchProviderPreset[] = 
   id,
   ...WEB_SEARCH_PROVIDER_PRESET_MAP[id]
 }))
-
-export function findWebSearchCapability(
-  provider: { capabilities: readonly WebSearchProviderFeatureCapability[] },
-  capability: WebSearchCapability
-): WebSearchProviderFeatureCapability | undefined {
-  return provider.capabilities.find((item) => item.feature === capability)
-}
