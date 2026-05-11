@@ -57,7 +57,7 @@ export interface DanglingStateChangedEvent {
 interface CachedState {
   readonly state: ObservedPresence
   readonly observedAt: number
-  readonly source: 'watcher' | 'ops' | 'stat' | 'forceRecheck'
+  readonly source: 'watcher' | 'ops' | 'stat'
 }
 
 export interface DanglingCache {
@@ -68,13 +68,6 @@ export interface DanglingCache {
    * without touching FS.
    */
   check(entry: FileEntry): Promise<DanglingState>
-
-  /**
-   * Always re-stat regardless of cache freshness. Used by callers with
-   * stricter freshness requirements than a plain query (e.g. the Phase 1b.4
-   * orphan scanner's pre-delete verification step).
-   */
-  forceRecheck(entry: FileEntry): Promise<DanglingState>
 
   /**
    * Ingest an FS-event observation. Auto-wired by `createDirectoryWatcher`
@@ -180,7 +173,7 @@ class DanglingCacheImpl implements DanglingCache {
     if (entry.origin === 'internal') return 'present'
     const cached = this.byEntryId.get(entry.id)
     if (cached && this.now() - cached.observedAt < this.ttlMs) return cached.state
-    return this.doStatAndUpdate(entry, 'stat')
+    return this.doStatAndUpdate(entry)
   }
 
   /**
@@ -190,11 +183,11 @@ class DanglingCacheImpl implements DanglingCache {
    * with a non-observation, and avoids latching a permanent false `'unknown'`
    * on persistent FS errors (EACCES, etc.) within the TTL window.
    */
-  private async doStatAndUpdate(entry: FileEntry, source: CachedState['source']): Promise<DanglingState> {
+  private async doStatAndUpdate(entry: FileEntry): Promise<DanglingState> {
     const path = entry.externalPath as FilePath
     const state = await this.statProbe(path)
     if (state === 'unknown') return 'unknown'
-    this.commit(entry.id, state, source)
+    this.commit(entry.id, state, 'stat')
     return state
   }
 
@@ -208,11 +201,6 @@ class DanglingCacheImpl implements DanglingCache {
     const prev = this.byEntryId.get(id)?.state
     this.byEntryId.set(id, { state: next, observedAt: this.now(), source })
     if (prev !== next) this._emitter.fire({ id, state: next })
-  }
-
-  async forceRecheck(entry: FileEntry): Promise<DanglingState> {
-    if (entry.origin === 'internal') return 'present'
-    return this.doStatAndUpdate(entry, 'forceRecheck')
   }
 
   onFsEvent(path: FilePath, state: ObservedPresence, source: CachedState['source'] = 'watcher'): void {

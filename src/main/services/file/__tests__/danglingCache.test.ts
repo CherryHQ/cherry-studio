@@ -105,20 +105,24 @@ describe('DanglingCache.check', () => {
     expect(seen).toEqual([])
   })
 
-  it('probe "unknown" leaves the prior cached observation intact', async () => {
-    // A transient FS error (EACCES, EMFILE, …) must not overwrite a known-good
-    // observation — otherwise the UI flip-flops on every transient failure.
-    const statProbe = vi.fn<(p: FilePath) => Promise<DanglingState>>().mockResolvedValue('unknown')
-    const cache = createDanglingCacheImpl({ statProbe })
-    cache.addEntry('e-mix' as FileEntryId, '/p.txt' as FilePath)
-    // Seed the cache with a confirmed 'present' via reverse-index event:
-    cache.onFsEvent('/p.txt' as FilePath, 'present', 'ops')
-    // forceRecheck probes (returns unknown) but must NOT clobber the cache.
-    expect(await cache.forceRecheck(externalEntry('e-mix', '/p.txt'))).toBe('unknown')
-    // A subsequent plain check sees the surviving 'present':
+  it('TTL-expired re-stat: probe "unknown" does NOT clobber the prior cached observation', async () => {
+    // A transient FS error (EACCES, EMFILE, …) on TTL-expired re-stat must
+    // not overwrite a known-good observation — otherwise the UI flip-flops
+    // on every transient failure. The caller still sees 'unknown' for this
+    // call (surfaced from the probe), but byEntryId retains the prior state
+    // so a subsequent successful probe / event can reconcile cleanly.
+    const statProbe = vi
+      .fn<(p: FilePath) => Promise<DanglingState>>()
+      .mockResolvedValueOnce('present')
+      .mockResolvedValueOnce('unknown')
+    let t = 1_000_000
+    const cache = createDanglingCacheImpl({ statProbe, now: () => t, ttlMs: 1000 })
+    // Seed: cold-miss stats and commits 'present' at t=1_000_000.
     expect(await cache.check(externalEntry('e-mix', '/p.txt'))).toBe('present')
-    // statProbe ran only for the forceRecheck — the trailing check hit cache.
-    expect(statProbe).toHaveBeenCalledTimes(1)
+    // TTL window elapses → next check re-stats and receives 'unknown'.
+    t += 1500
+    expect(await cache.check(externalEntry('e-mix', '/p.txt'))).toBe('unknown')
+    expect(statProbe).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -208,7 +212,6 @@ describe('DanglingCache.onDanglingStateChanged', () => {
     const seen: DanglingStateChangedEvent[] = []
     cache.onDanglingStateChanged((e) => seen.push(e))
     await cache.check(internalEntry('i-3'))
-    await cache.forceRecheck(internalEntry('i-3'))
     expect(seen).toEqual([])
   })
 })
@@ -266,22 +269,5 @@ describe('DanglingCache.subscribe', () => {
     unsubscribe()
     cache.onFsEvent('/abs/a' as FilePath, 'present') // post-dispose: silent
     expect(seen).toEqual([['e-14' as FileEntryId, 'missing']])
-  })
-})
-
-describe('DanglingCache.forceRecheck', () => {
-  it('always re-stats, even within TTL', async () => {
-    const statProbe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('present')
-    const cache = createDanglingCacheImpl({ statProbe, now: () => 0, ttlMs: 60_000 })
-    await cache.check(externalEntry('e-5', '/c.txt'))
-    await cache.forceRecheck(externalEntry('e-5', '/c.txt'))
-    expect(statProbe).toHaveBeenCalledTimes(2)
-  })
-
-  it('returns "present" for internal entries without probing', async () => {
-    const statProbe = vi.fn<(p: FilePath) => Promise<ObservedPresence>>()
-    const cache = createDanglingCacheImpl({ statProbe })
-    expect(await cache.forceRecheck(internalEntry('i-2'))).toBe('present')
-    expect(statProbe).not.toHaveBeenCalled()
   })
 })

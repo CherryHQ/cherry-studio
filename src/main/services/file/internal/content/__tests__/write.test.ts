@@ -48,7 +48,6 @@ describe('internal/content/write', () => {
       fileRefService,
       danglingCache: {
         check: vi.fn(),
-        forceRecheck: vi.fn(),
         onFsEvent: vi.fn(),
         addEntry: vi.fn(),
         removeEntry: vi.fn(),

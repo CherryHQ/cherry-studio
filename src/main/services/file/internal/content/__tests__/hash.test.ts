@@ -36,7 +36,6 @@ describe('internal/content/hash', () => {
       fileRefService,
       danglingCache: {
         check: vi.fn(),
-        forceRecheck: vi.fn(),
         onFsEvent: vi.fn((p: FilePath, state: 'present' | 'missing') => {
           onFsEventCalls.push({ path: p, state })
         }),
