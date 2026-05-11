@@ -41,9 +41,12 @@ import {
 import path from 'node:path'
 import { Writable } from 'node:stream'
 
+import { loggerService } from '@logger'
 import type { FilePath } from '@shared/file/types'
 import mime from 'mime'
 import xxhashLoader from 'xxhash-wasm'
+
+const logger = loggerService.withContext('utils/file/fs')
 
 const notImplemented = (op: string): never => {
   throw new Error(`@main/utils/file/fs.${op}: not implemented (Phase 1a stub, implementation lands in Phase 1b)`)
@@ -344,6 +347,14 @@ export async function copy(src: FilePath, dest: FilePath): Promise<void> {
 /**
  * Move/rename a file. Tries `rename` first (atomic on the same filesystem);
  * falls back to copy + unlink on `EXDEV` (cross-mount).
+ *
+ * The cross-device fallback resolves to a successful move only if `unlink(src)`
+ * also succeeds — otherwise the caller has two files on disk with identical
+ * content. `unlink` failures other than `ENOENT` (src already gone, fine) are
+ * warn-logged with the path pair so oncall can locate the stranded source
+ * after a partial move. The function still resolves: the move has otherwise
+ * succeeded (dest is fully written), and forcing callers to handle an "almost
+ * moved" exception would conflate "copy failed" with "cleanup failed".
  */
 export async function move(src: FilePath, dest: FilePath): Promise<void> {
   try {
@@ -351,7 +362,19 @@ export async function move(src: FilePath, dest: FilePath): Promise<void> {
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
     await copy(src, dest)
-    await unlink(src).catch(() => undefined)
+    try {
+      await unlink(src)
+    } catch (unlinkErr) {
+      const code = (unlinkErr as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT') {
+        logger.warn('move: cross-device copy succeeded but source unlink failed; src remains on disk', {
+          src,
+          dest,
+          code,
+          err: unlinkErr
+        })
+      }
+    }
   }
 }
 
