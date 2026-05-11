@@ -1,8 +1,8 @@
-import { isFreeModel } from '@renderer/config/models'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
 import {
   isEmbeddingModel,
+  isFreeModel,
   isFunctionCallingModel,
   isReasoningModel,
   isRerankModel,

@@ -7,9 +7,9 @@ import {
   VisionTag,
   WebSearchTag
 } from '@renderer/components/Tags/Model'
-import { isFreeModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import { type Model, MODEL_CAPABILITY, type ModelCapability } from '@shared/data/types/model'
+import { isFreeModel } from '@shared/utils/model'
 import type { FC } from 'react'
 import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
 

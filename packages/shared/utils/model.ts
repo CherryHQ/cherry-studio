@@ -46,6 +46,14 @@ export const isWebSearchModel = (model: Model): boolean => model.capabilities.in
 export const isGenerateImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
 
+export const isFreeModel = (model: Pick<Model, 'id' | 'name' | 'providerId'>): boolean => {
+  if (model.providerId === 'cherryai') {
+    return true
+  }
+
+  return (model.id + model.name).toLowerCase().includes('free')
+}
+
 export const isGenerateVideoModel = (model: Model): boolean =>
   !!model.capabilities.includes(MODEL_CAPABILITY.VIDEO_GENERATION)
 
@@ -571,6 +579,22 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
   if (baseModelName.endsWith('(free)')) baseModelName = baseModelName.replace('(free)', '')
   if (baseModelName.endsWith(':cloud')) baseModelName = baseModelName.replace(':cloud', '')
   return baseModelName
+}
+
+export const groupQwenModels = <T extends Pick<Model, 'id'> & Partial<Pick<Model, 'group'>>>(
+  models: T[]
+): Record<string, T[]> => {
+  return models.reduce<Record<string, T[]>>((groups, model) => {
+    const modelId = getLowerBaseModelName(model.id)
+    const prefixMatch = modelId.match(/^(qwen(?:\d+\.\d+|2(?:\.\d+)?|-\d+b|-(?:max|coder|vl)))/i)
+    const groupKey = prefixMatch ? prefixMatch[1] : model.group || '其他'
+
+    if (!groups[groupKey]) {
+      groups[groupKey] = []
+    }
+    groups[groupKey].push(model)
+    return groups
+  }, {})
 }
 
 // ---------------------------------------------------------------------------

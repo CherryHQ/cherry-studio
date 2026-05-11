@@ -37,7 +37,7 @@ describe('shared model capability helpers', () => {
   })
 
   it('does not infer capabilities from model id or name at runtime', () => {
-    const model = {
+    const model: Model = {
       ...createModel(),
       id: 'google::gemini-3.1-pro-preview',
       apiModelId: 'gemini-3.1-pro-preview',

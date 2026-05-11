@@ -1,11 +1,12 @@
 import { loggerService } from '@logger'
-import { groupQwenModels, isFreeModel } from '@renderer/config/models'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
+  groupQwenModels,
   isEmbeddingModel,
+  isFreeModel,
   isFunctionCallingModel,
   isReasoningModel,
   isRerankModel,
