@@ -133,6 +133,25 @@ A column may be `nullable` only when **NULL carries a domain meaning distinct fr
 
 All other columns should be `NOT NULL` with an appropriate default. If a column "should" always have a value, switch it to `NOT NULL` — do **not** add a `?? someValue` fallback in `rowToEntity` to mask NULL. See [Default Values & Nullability § R3](./best-practice-default-values-and-nullability.md).
 
+#### Common offender: boolean columns without `.notNull()`
+
+```typescript
+// ❌ Wrong — inferred type is `boolean | null`
+isEnabled: integer({ mode: 'boolean' }).default(true)
+
+// ✅ Right
+isEnabled: integer({ mode: 'boolean' }).notNull().default(true)
+```
+
+`mode: 'boolean'` implies two values to a reader, but Drizzle treats
+nullability and default as orthogonal. Without `.notNull()`, every reader
+writes `row.isEnabled ?? true` — exactly the fabricated-fallback pattern
+R3 forbids. `.default(true)` runs at INSERT only; it does not constrain
+existing NULLs.
+
+Pair `.notNull().default(...)` on every boolean unless NULL carries a
+third meaning (almost never — "unknown enabled" usually maps to `false`).
+
 ### Where the default value lives
 
 | Location | Use for | Note |

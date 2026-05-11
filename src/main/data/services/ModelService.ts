@@ -88,7 +88,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
 ]
 
 /** Convert CreateModelDto to a NewUserModel row (shared by preset and custom paths). */
-function dtoToNewUserModel(dto: CreateModelDto): NewUserModel {
+function dtoToNewUserModel(dto: CreateModelDto) {
   return {
     id: createUniqueModelId(dto.providerId, dto.modelId),
     providerId: dto.providerId,
@@ -106,8 +106,10 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModel {
     supportsStreaming: dto.supportsStreaming ?? null,
     reasoning: dto.reasoning ?? null,
     parameters: dto.parameterSupport ?? null,
-    pricing: dto.pricing ?? null
-  }
+    pricing: dto.pricing ?? null,
+    isEnabled: true,
+    isHidden: false
+  } satisfies NewUserModel
 }
 
 /** Convert a merged Model back to a NewUserModel row for DB insert. */
@@ -164,8 +166,8 @@ function rowToRuntimeModel(row: UserModel): Model {
     reasoning: (row.reasoning ?? undefined) as RuntimeReasoning | undefined,
     parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
     pricing: row.pricing ?? undefined,
-    isEnabled: row.isEnabled ?? true,
-    isHidden: row.isHidden ?? false,
+    isEnabled: row.isEnabled,
+    isHidden: row.isHidden,
     sortOrder: row.sortOrder ?? undefined,
     notes: row.notes ?? undefined
   }

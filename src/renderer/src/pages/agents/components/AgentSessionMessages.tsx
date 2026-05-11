@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
@@ -252,7 +252,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
           scrollableTarget="messages"
           inverse
           style={{ overflow: 'visible' }}>
-          <ContextMenu>
+          <SelectionContextMenu>
             <ScrollContainer>
               {groupedMessages.length > 0 ? (
                 groupedMessages.map(([key, groupMessages]) => (
@@ -269,7 +269,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
                 </LoaderContainer>
               )}
             </ScrollContainer>
-          </ContextMenu>
+          </SelectionContextMenu>
         </InfiniteScroll>
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}

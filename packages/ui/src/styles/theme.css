@@ -295,6 +295,7 @@
   --color-info: var(--cs-info);
   --color-background: var(--cs-background);
   --color-background-subtle: var(--cs-background-subtle);
+  --color-menu-item-hover: var(--cs-menu-item-hover);
   --color-foreground: var(--cs-foreground);
   --color-foreground-secondary: var(--cs-foreground-secondary);
   --color-foreground-muted: var(--cs-foreground-muted);

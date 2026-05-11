@@ -20,6 +20,10 @@
   --cs-foreground-secondary: oklch(0 0 0 / 0.6);
   --cs-foreground-muted: oklch(0 0 0 / 0.4);
 
+  /* Menu item hover/focus background — distinct from --cs-background-subtle
+   * because menu rows need a bit more contrast than generic subtle surfaces. */
+  --cs-menu-item-hover: oklch(0 0 0 / 0.04);
+
   /* Card & Popover */
   --cs-card: var(--cs-white);
   --cs-popover: var(--cs-white);
@@ -58,6 +62,9 @@
   --cs-foreground: oklch(1 0 0 / 0.9);
   --cs-foreground-secondary: oklch(1 0 0 / 0.6);
   --cs-foreground-muted: oklch(1 0 0 / 0.4);
+
+  /* Menu item hover/focus background (dark) — see comment in :root. */
+  --cs-menu-item-hover: oklch(1 0 0 / 0.06);
 
   /* Card & Popover */
   --cs-card: var(--cs-neutral-900);

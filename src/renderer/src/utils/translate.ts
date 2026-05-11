@@ -133,12 +133,12 @@ export const createInputScrollHandler = (
  * 创建输出区域滚动处理函数
  */
 export const createOutputScrollHandler = (
-  textAreaRef: RefObject<any>,
+  textAreaRef: RefObject<HTMLTextAreaElement | null>,
   isProgrammaticScrollRef: RefObject<boolean>,
   isScrollSyncEnabled: boolean
 ) => {
   return (e: React.UIEvent<HTMLDivElement>) => {
-    const inputEl = textAreaRef.current?.resizableTextArea?.textArea
+    const inputEl = textAreaRef.current
     if (!isScrollSyncEnabled || !inputEl || isProgrammaticScrollRef.current) return
     handleScrollSync(e.currentTarget, inputEl, isProgrammaticScrollRef)
   }
