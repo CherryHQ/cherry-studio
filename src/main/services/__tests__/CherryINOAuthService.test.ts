@@ -437,6 +437,23 @@ describe('CherryINOAuthService', () => {
     errorSpy.mockRestore()
   })
 
+  it('redacts form-encoded OAuth credentials and nested array values in diagnostics', () => {
+    const redact = (cherryINOAuthService as any).redactDiagnosticValue as (value: unknown) => unknown
+
+    expect(
+      redact('grant_type=refresh_token&refresh_token=refresh-secret&access_token=access-secret&code=auth-code')
+    ).toBe('grant_type=refresh_token&refresh_token=<redacted>&access_token=<redacted>&code=<redacted>')
+    expect(
+      redact({
+        data: ['Bearer live-token', 'client_secret=client-secret'],
+        nested: { refresh_token: 'refresh-secret' }
+      })
+    ).toEqual({
+      data: ['Bearer <redacted>', 'client_secret=<redacted>'],
+      nested: { refresh_token: '<redacted>' }
+    })
+  })
+
   it('clears auth config back to api-key mode on logout', async () => {
     providerServiceMocks.getAuthConfig.mockResolvedValue({
       type: 'oauth',

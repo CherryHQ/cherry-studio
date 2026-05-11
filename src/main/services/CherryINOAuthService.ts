@@ -558,6 +558,7 @@ export class CherryINOAuthService extends BaseService implements Activatable {
     if (typeof value === 'string') {
       return value
         .replace(/Bearer\s+\S+/gi, 'Bearer <redacted>')
+        .replace(/\b(refresh_token|access_token|code|client_secret)=([^&\s]+)/gi, '$1=<redacted>')
         .replace(/[\w-]*token["']?\s*:\s*["'][^"']+["']/gi, (match) =>
           match.replace(/:\s*["'][^"']+["']/, ': "<redacted>"')
         )
