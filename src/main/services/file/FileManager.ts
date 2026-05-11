@@ -354,7 +354,7 @@ export interface IFileManager {
 
   /**
    * Unconditional write.
-   * - internal: atomic write to `{userData}/files/{id}.{ext}`
+   * - internal: atomic write to `{userData}/Data/Files/{id}.{ext}`
    * - external: atomic write to `externalPath`
    */
   write(id: FileEntryId, data: string | Uint8Array): Promise<FileVersion>
@@ -417,7 +417,7 @@ export interface IFileManager {
 
   /**
    * Permanently delete entry. DB row is always removed; FS behavior depends on origin:
-   * - internal: unlinks `{userData}/files/{id}.{ext}`
+   * - internal: unlinks `{userData}/Data/Files/{id}.{ext}`
    * - external: **DB-only** — the user's physical file is left untouched.
    *   Entry-level deletion is deliberately decoupled from physical deletion;
    *   callers that want to also delete the file on disk should invoke the

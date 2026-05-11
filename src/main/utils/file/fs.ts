@@ -9,7 +9,7 @@
  *
  * `@main/utils/file/fs` is open to the entire main process and performs no
  * entry-awareness checks. Callers MUST NOT use this module (directly or via a
- * `FilePathHandle`) to write or mutate paths under `{userData}/files/` —
+ * `FilePathHandle`) to write or mutate paths under `{userData}/Data/Files/` —
  * those back internal-origin `FileEntry` rows whose `size` column is
  * authoritative and kept in sync only by FileManager's atomic write path.
  * Bypassing it silently desyncs `file_entry.size` from disk and leaves

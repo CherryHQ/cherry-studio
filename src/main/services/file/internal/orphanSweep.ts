@@ -314,7 +314,7 @@ type FileSweepOutcome =
 export type FileSweepReport = FileSweepStats & FileSweepOutcome
 
 /**
- * Enumerate `{userData}/files/` and unlink:
+ * Enumerate `{userData}/Data/Files/` and unlink:
  *   - UUID-named files whose id is not in the FileEntry snapshot
  *   - `*.tmp-<UUID>` atomic-write residue (including residue whose leading
  *     UUID still matches a live entry — e.g. crash mid-atomicWriteFile)

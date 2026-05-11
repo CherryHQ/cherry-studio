@@ -27,7 +27,7 @@ export function getExtSuffix(ext: string | null): string {
 /**
  * Resolve the physical filesystem path for a FileEntry.
  *
- * - `origin='internal'` → `{userData}/files/{id}{.ext}` (flat UUID-based storage)
+ * - `origin='internal'` → `{userData}/Data/Files/{id}{.ext}` (flat UUID-based storage)
  * - `origin='external'` → `externalPath` directly (user-provided absolute path)
  *
  * Returns a branded `FilePath` so callers can pass the result straight to

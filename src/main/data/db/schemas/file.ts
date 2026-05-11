@@ -14,7 +14,7 @@ import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from '.
  *
  * Flat list; no tree structure, no mount concept.
  *
- * - origin='internal': Cherry owns the content, stored at `{userData}/files/{id}.{ext}`.
+ * - origin='internal': Cherry owns the content, stored at `{userData}/Data/Files/{id}.{ext}`.
  *   `name` / `ext` / `size` are authoritative (kept in sync by atomic writes).
  * - origin='external': Cherry only references the user-provided path.
  *   `name` / `ext` are pure projections of `externalPath` (basename / extname).
