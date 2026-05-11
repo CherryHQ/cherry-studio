@@ -1,12 +1,37 @@
 /**
  * Errno-injection tests for fs.ts observability paths.
  *
- * Isolated from fs.test.ts because triggering controlled errnos (EXDEV,
- * EACCES on stat, …) requires mocking node:fs/promises primitives, which
- * would break every test in fs.test.ts that depends on real syscalls. This
- * file partial-mocks only the surface needed to inject failures (rename,
- * unlink, stat) and leaves the rest passthrough so the recovery paths
- * (copy, real stat for the other side, …) still work.
+ * ## Why a separate file
+ *
+ * The fs.ts targets we want to drive — `move()` cross-device fallback,
+ * `isSameFile()` non-ENOENT branch — only trigger when their underlying
+ * `node:fs/promises.{rename, unlink, stat}` calls throw specific errnos
+ * (EXDEV, EACCES, …). On the CI runner's actual filesystem those errnos
+ * are impractical to provoke: everything lives on a single mount, so
+ * EXDEV never fires; permission denials need root-flipped chmod chains
+ * that race against the test's own cleanup.
+ *
+ * The natural workaround — `vi.spyOn(fsPromisesNamespace, 'rename')` at
+ * test granularity — does NOT work in vitest 3: `node:fs/promises` is a
+ * native ESM namespace and Node freezes its property descriptors, so the
+ * spy throws `Cannot redefine property: rename`. (This is the same
+ * limitation that forced 69eacc14b to swap rename.test.ts onto a
+ * user-space `move` wrapper.) The only working approach is
+ * `vi.mock('node:fs/promises', factory)` — but vi.mock is hoisted and
+ * file-scoped, so applying it inside fs.test.ts would break every other
+ * test there that relies on real `rename` / `unlink` / `stat`
+ * (atomicWriteFile, createAtomicWriteStream, copy, the directory-fsync
+ * path, …). Isolating the partial mock in this file is the only way to
+ * pin the observability contracts without disturbing siblings.
+ *
+ * ## What's mocked
+ *
+ * Only `rename` / `unlink` / `stat` are spied; every other
+ * `node:fs/promises` export falls through to the real implementation so
+ * the recovery paths (copy, real stat for the unaffected side, …) still
+ * exercise the same code that ships to users. Each spy defaults to a
+ * passthrough `mockImplementation` in `beforeEach`; individual tests
+ * override per-call with `mockRejectedValueOnce` / `mockImplementation`.
  */
 
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
