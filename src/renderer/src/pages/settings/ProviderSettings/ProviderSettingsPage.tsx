@@ -5,7 +5,7 @@ import { useProviders } from '@renderer/hooks/useProviders'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useProviderDeepLinkImport } from './coordination/useProviderDeepLinkImport'
+import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
 import ProviderList from './ProviderList'
 import ProviderSetting from './ProviderSetting'
 import { isProviderSettingsListVisibleProvider } from './utils/provider'

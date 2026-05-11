@@ -22,17 +22,7 @@ interface UseProviderEndpointActionsParams {
   syncProviderModels: SyncProviderModels
 }
 
-/**
- * Intent: persist endpoint-related drafts and trigger the required follow-up model synchronization.
- * Scope: use where Provider Settings renders endpoint inputs and wants blur/reset actions.
- * Does not handle: ownership of draft values, generic provider enablement, or API key logic.
- *
- * @example
- * ```tsx
- * const endpointActions = useProviderEndpointActions({ provider, primaryEndpoint, apiHost, setApiHost, providerApiHost, anthropicApiHost, setAnthropicApiHost, apiVersion, patchProvider, syncProviderModels })
- * <button onClick={() => endpointActions.commitApiHost(trimmedDraft)} /> (drawer saves an explicit draft)
- * ```
- */
+/** Persists endpoint drafts and triggers the follow-up model synchronization. */
 export function useProviderEndpointActions({
   provider,
   primaryEndpoint,

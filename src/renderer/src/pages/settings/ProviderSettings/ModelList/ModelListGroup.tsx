@@ -4,7 +4,7 @@ import { ChevronRight } from 'lucide-react'
 import React, { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { getModelGroupLabel } from './grouping'
 import ModelListItem from './ModelListItem'
 import type { ModelListGroupItem } from './useProviderModelList'

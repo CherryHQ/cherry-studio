@@ -3,6 +3,8 @@ import { useModels } from '@renderer/hooks/useModels'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { type ApiKeyConnectivity, HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import { toV1ModelForCheckApi, toV1ProviderShim } from '@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim'
+import { checkApi as runCheckApi } from '@renderer/services/ApiService'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
@@ -11,27 +13,11 @@ import { isEmpty } from 'lodash'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { providerCheckApiAdapter } from '../../adapters/providerCheckApiAdapter'
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './constants'
 import { useAuthenticationApiKey } from './useAuthenticationApiKey'
 import { useProviderEndpoints } from './useProviderEndpoints'
 
-/**
- * Boundary rule: this is a domain-cohesive connection-check hook.
- * It should internalize provider/models/timer reads, expose only connectivity state and actions,
- * and accept only the true shared values/actions it cannot resolve itself.
- * Callers should pass providerId plus shared values, never provider/models/timer wiring.
- *
- * Intent: run provider connection checks against the current editable credentials and endpoint.
- * Scope: use in Provider Settings where the user can manually verify connectivity before saving more changes.
- * Does not handle: key field ownership, endpoint field ownership, or persistence of any provider fields.
- *
- * @example
- * ```tsx
- * const connection = useProviderConnectionCheck(providerId)
- * <Button onClick={connection.openConnectionCheck}>Check</Button>
- * ```
- */
+/** Runs provider connection checks against the current editable credentials and endpoint. */
 export function useProviderConnectionCheck(providerId: string) {
   const { provider } = useProvider(providerId)
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
@@ -107,13 +93,13 @@ export function useProviderConnectionCheck(providerId: string) {
           status: HealthStatus.NOT_CHECKED
         }))
 
-        await providerCheckApiAdapter({
-          provider,
+        const v1Provider = toV1ProviderShim(provider, {
           models,
-          selectedModel: model,
           apiKey,
           apiHost: resolveApiHostForModel(model)
         })
+
+        await runCheckApi(v1Provider, toV1ModelForCheckApi(model))
 
         window.toast.success({
           timeout: 2000,

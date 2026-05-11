@@ -7,9 +7,9 @@ import { useTranslation } from 'react-i18next'
 
 import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticationApiKey'
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
-import ProviderField from '../shared/primitives/ProviderField'
-import ProviderSection from '../shared/primitives/ProviderSection'
-import { fieldClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import ProviderField from '../primitives/ProviderField'
+import ProviderSection from '../primitives/ProviderSection'
+import { fieldClasses } from '../primitives/ProviderSettingsPrimitives'
 import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
 import ProviderApiKeyListDrawer from './ProviderApiKeyListDrawer'
 

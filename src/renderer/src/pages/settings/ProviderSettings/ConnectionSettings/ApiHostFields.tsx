@@ -3,10 +3,10 @@ import { cn } from '@renderer/utils'
 import { RotateCcw, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import ProviderField from '../primitives/ProviderField'
+import ProviderSection from '../primitives/ProviderSection'
+import { fieldClasses } from '../primitives/ProviderSettingsPrimitives'
 import CherryINSettings from '../ProviderSpecific/CherryINSettings'
-import ProviderField from '../shared/primitives/ProviderField'
-import ProviderSection from '../shared/primitives/ProviderSection'
-import { fieldClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 
 interface AzureApiVersionFieldProps {
   className?: string

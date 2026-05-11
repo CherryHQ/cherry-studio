@@ -97,7 +97,7 @@ vi.mock('@renderer/components/Icons/CopyIcon', () => ({
   default: () => <span>copy-icon</span>
 }))
 
-vi.mock('../../shared/primitives/ProviderSettingsDrawer', () => ({
+vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
   default: ({ open, title, children, footer }: any) =>
     open ? (
       <div data-testid="provider-settings-drawer" className="provider-settings-default-scope">

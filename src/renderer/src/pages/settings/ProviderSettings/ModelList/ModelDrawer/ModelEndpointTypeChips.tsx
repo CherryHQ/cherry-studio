@@ -1,7 +1,7 @@
 import { cn } from '@renderer/utils'
 import { useTranslation } from 'react-i18next'
 
-import { modelListClasses } from '../../shared/primitives/ProviderSettingsPrimitives'
+import { modelListClasses } from '../../primitives/ProviderSettingsPrimitives'
 import { MODEL_ENDPOINT_OPTIONS } from './helpers'
 import type { ModelDrawerEndpointType } from './types'
 
@@ -10,7 +10,6 @@ interface ModelEndpointTypeChipsProps {
   onChange: (next: readonly ModelDrawerEndpointType[]) => void
 }
 
-/** Multi-select endpoint types — same pill/chip interaction pattern as model-list capability chips. */
 export function ModelEndpointTypeChips({ value, onChange }: ModelEndpointTypeChipsProps) {
   const { t } = useTranslation()
   const selected = new Set(value)

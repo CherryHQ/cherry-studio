@@ -2,9 +2,9 @@ import { Button } from '@cherrystudio/ui'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderActions from '../../shared/primitives/ProviderActions'
-import ProviderSettingsDrawer from '../../shared/primitives/ProviderSettingsDrawer'
-import { drawerClasses } from '../../shared/primitives/ProviderSettingsPrimitives'
+import ProviderActions from '../../primitives/ProviderActions'
+import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
+import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'
 import AddModelFormPanel, { type AddModelDrawerFooterBinding } from './AddModelFormPanel'
 import type { AddModelDrawerPrefill } from './types'
 

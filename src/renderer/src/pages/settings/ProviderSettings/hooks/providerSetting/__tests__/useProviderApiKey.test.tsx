@@ -14,7 +14,7 @@ let apiKeysData:
     }
   | undefined
 
-vi.mock('../../../adapters/providerSettingsSideEffects', () => ({
+vi.mock('../../../utils/providerSettingsSideEffects', () => ({
   applyProviderApiKeySideEffects: vi.fn()
 }))
 

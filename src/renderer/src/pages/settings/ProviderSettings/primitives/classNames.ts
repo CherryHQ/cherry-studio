@@ -1,16 +1,14 @@
 import { cn } from '@renderer/utils'
-import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type { ReactNode } from 'react'
 
 /**
  * Provider settings — design alignment (scoped theme + composition)
  *
  * **Shell** — `ProviderSetting.tsx` wraps the detail column in `.provider-settings-default-scope`. Everything
- * that must follow the provider-settings mock must stay in that subtree so tokens and `--color-*` bridge apply.
+ * that must follow the provider-settings surface must stay in that subtree so tokens and `--color-*` bridge apply.
  *
  * **Two layers**
  * - **CSS** — `assets/styles/provider-settings-scoped-theme.css`: atomic vars only (`--font-size-*`, `--space-*`, soft
- *   surfaces, `--color-*` → shadcn/Tailwind). No screen- or feature-prefixed names. When mock px hurts a11y /
+ *   surfaces, `--color-*` → shadcn/Tailwind). No screen- or feature-prefixed names. When fixed pixels hurt a11y /
  *   readability, prefer named steps and note the tradeoff in a CSS comment.
  * - **TS (this file)** — merge atoms into `actionClasses`, `fieldClasses`, `modelListClasses`, `providerDetailColumnClasses`,
  *   `apiKeyListClasses`, …
@@ -34,7 +32,7 @@ export const providerSettingsTypography = {
  * (`.provider-settings-default-scope` — `--border`, `--foreground`, `--cherry-*`).
  * The provider detail shell should include `provider-settings-default-scope` so these inherit correctly.
  */
-/** `ModelServicePage` Connection — `bg-muted/50` strip + `border-section-border` (`provider-settings-scoped-theme.css`). */
+/** Connection — `bg-muted/50` strip + `border-section-border` (`provider-settings-scoped-theme.css`). */
 const providerSettingsInputGroupBase =
   'rounded-lg border border-[color:var(--section-border)] bg-muted/50 px-2.5 py-[5px] shadow-none'
 
@@ -49,7 +47,7 @@ const sectionHeadingBase =
 export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-[weight:var(--font-weight-medium)]')
 
 /**
- * `cherry-studio-ui-design` ModelServicePage — 「连接认证」卡片：描边容器 + 卡内标题（body-md，与 ProviderField 13px 标签同级对比略大一档）。
+ * Authentication card: bordered container + section title.
  */
 export const authConnectionClasses = {
   shell: 'rounded-[length:var(--radius-button)] border border-[color:var(--section-border)] px-3.5 py-3',
@@ -60,7 +58,7 @@ export const authConnectionClasses = {
 
 /**
  * Provider detail column (`ProviderSetting.tsx`) — padding + scrollbar + gap between Authentication + ModelList.
- * Mirrors `ModelServicePage` provider column scroll: `flex-1 overflow-y-auto px-5 py-4` … `gap-4` / `space-y-4`.
+ * Provider detail column scroll: `flex-1 overflow-y-auto px-5 py-4` … `gap-4` / `space-y-4`.
  */
 export const providerDetailColumnClasses = {
   headerPad: 'shrink-0 px-5 pb-2 pt-3',
@@ -117,11 +115,11 @@ export const providerListClasses = {
 } as const
 
 /**
- * `cherry-studio-ui-design` `ModelServicePage` — custom request headers side panel (one card per header).
+ * — custom request headers side panel (one card per header).
  */
 export const customHeaderDrawerClasses = {
   bodyScroll: 'flex flex-col gap-4 py-3',
-  /** JSON mode — matches design mock monospace block for custom headers. */
+  /** JSON mode — matches structured monospace block for custom headers. */
   headersJsonEditor:
     'min-h-[120px] w-full resize-y rounded-xl border border-[color:var(--section-border)] bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35 placeholder:text-muted-foreground/45',
   card: 'space-y-1.5 rounded-xl border border-[color:var(--section-border)] bg-muted/50 p-2.5',
@@ -179,11 +177,11 @@ export const modelListClasses = {
   section: 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-sm)]',
   headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-xs)]',
   titleRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-3',
-  /** Model list header stack — matches `cherry-studio-ui-design` `ModelServicePage` model list block. */
+  /** Model list header stack — matches model list block. */
   headerToolStack: 'flex min-w-0 w-full flex-col gap-2',
   titleWrap: 'flex min-w-0 items-baseline gap-[length:var(--space-inline-md)]',
   titleActions: 'flex max-w-full flex-wrap items-center gap-0.5',
-  /** Ghost icon triggers (design reference: inline provider model list toolbar). */
+  /** Ghost icon triggers (toolbar: inline provider model list toolbar). */
   toolbarDesignIconTrigger:
     'inline-flex size-7 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/40 shadow-none transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
   toolbarDesignIconTriggerOn: 'bg-[var(--color-surface-fg-muted)] text-foreground',
@@ -246,7 +244,7 @@ export const modelListClasses = {
   listScroller:
     'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:bg-border/20 [&::-webkit-scrollbar]:w-[2px]',
   /**
-   * `ModelServicePage` `ModelManagementPanel` — grouped catalog inside manage drawer (flat headers, no collapse).
+   * — grouped catalog inside manage drawer (flat headers, no collapse).
    */
   manageListGroupShell: 'mb-1',
   manageListGroupHeader: 'flex items-center gap-1.5 px-1 py-[3px]',
@@ -264,7 +262,7 @@ export const modelListClasses = {
   manageDrawerCapChipIdle: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
   manageDrawerCountBadge:
     'shrink-0 rounded-full bg-muted/50 px-1.5 py-[1px] text-[length:var(--font-size-body-xs)] text-muted-foreground/60 tabular-nums',
-  /** Trailing close in ModelManagementPanel title row (paired with bulk actions); matches `hover:bg-accent`. */
+  /** Trailing close in manage drawer title row (paired with bulk actions); matches `hover:bg-accent`. */
   manageDrawerCloseInTitle:
     "ml-1 !size-6 !min-h-6 shrink-0 gap-0 rounded-[length:var(--radius-control)] p-0 text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground [&_svg:not([class*='size-'])]:size-[11px]",
   manageDrawerBulkGhost:
@@ -338,7 +336,7 @@ export const modelSyncClasses = {
   ),
   list: 'mt-4 space-y-2',
   row: 'flex items-start gap-3 rounded-xl border border-[color:var(--color-border-fg-hairline)] bg-[var(--color-surface-fg-sunken)] px-3 py-3',
-  /** Pull preview rows — `FetchResultPanel`: circular control, white check on primary fill (`Checkbox` indicator SVG). */
+  /** Pull preview rows — pull preview panel: circular control, white check on primary fill (`Checkbox` indicator SVG). */
   checkbox:
     'mt-0.5 size-4 rounded-full border-[color:color-mix(in_srgb,var(--border)_45%,transparent)] bg-background shadow-none ' +
     'data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:[&_svg]:text-white',
@@ -358,7 +356,7 @@ export const modelSyncClasses = {
   emptyState:
     'rounded-2xl border border-dashed border-[color:var(--color-border-fg-muted)] bg-[var(--color-surface-fg-sunken)] px-4 py-8 text-center text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] text-muted-foreground/75',
   footer: 'flex items-center justify-end gap-2',
-  /** `cherry-studio-ui-design` `ModelServicePage` `FetchResultPanel` — pull result side panel */
+  /** pull preview panel — pull result side panel */
   fetchRoot: 'flex min-h-0 min-w-0 flex-1 flex-col',
   fetchScroll: 'flex-1 space-y-4 overflow-y-auto px-4 py-3',
   fetchEmpty: 'flex flex-col items-center justify-center py-10 text-center',
@@ -386,7 +384,7 @@ export const modelSyncClasses = {
     'truncate text-[length:var(--font-size-body-xs)] font-[weight:var(--font-weight-medium)] leading-tight text-muted-foreground line-through',
   fetchRowId: 'mt-[1px] truncate font-mono text-xs text-muted-foreground/60',
   fetchRowIdStrike: 'mt-[1px] truncate font-mono text-xs text-muted-foreground/40',
-  /** Trailing capability icons — `ModelServicePage` FetchResultPanel strip */
+  /** Trailing capability icons — pull preview panel strip */
   fetchCapabilityStrip: 'flex shrink-0 flex-wrap items-center justify-end gap-[3px]',
   fetchRemovedShell: 'rounded-xl border border-destructive/[0.08] bg-destructive/[0.03] p-2.5',
   fetchRemovedHint: 'mb-2.5 flex items-start gap-1.5',
@@ -395,7 +393,7 @@ export const modelSyncClasses = {
   fetchFooterSummary: 'flex flex-wrap items-center gap-3 text-xs text-muted-foreground/60',
   fetchFooterActions: 'flex items-center gap-2',
   fetchFooterBtn: 'inline-flex !h-auto !min-h-0 flex-1 items-center justify-center px-3 py-[5px] text-xs',
-  /** Primary confirm — design `FetchResultPanel` disabled:opacity-30 */
+  /** Primary confirm — design pull preview panel disabled:opacity-30 */
   fetchFooterPrimary:
     'inline-flex !h-auto !min-h-0 flex-1 items-center justify-center px-3 py-[5px] text-xs disabled:opacity-30',
   fetchOkBtn: 'inline-flex !h-auto !min-h-0 w-full items-center justify-center px-3 py-[5px] text-xs'
@@ -437,7 +435,7 @@ export const oauthCardClasses = {
   shell:
     'w-full min-w-0 overflow-hidden rounded-2xl border border-[color:var(--color-border-default-soft)] bg-background px-4 py-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)] sm:px-5 sm:py-[18px]',
   /**
-   * Logged-out: `cherry-studio-ui-design` `CherryINAccountSection` — gradient card, full-width CTA, footer links.
+   * Logged-out: CherryIN account section — gradient card, full-width CTA, footer links.
    */
   shellLoggedOut:
     'w-full min-w-0 overflow-hidden rounded-2xl border border-[color:var(--color-border-fg-muted)] bg-gradient-to-br from-muted/50 to-muted/30 p-4',
@@ -458,18 +456,18 @@ export const oauthCardClasses = {
   /** CherryIN portal link — matches scoped caption + primary link treatment. */
   externalLink:
     'mt-1 inline-block text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-primary hover:underline',
-  /** Logged-in CherryIN: mock `CherryINAccountSection` — one row, no stat grid. */
+  /** Logged-in CherryIN: mock CherryIN account section — one row, no stat grid. */
   shellLoggedIn:
     'w-full min-w-0 overflow-hidden rounded-2xl border border-[color:var(--color-border-fg-muted)] bg-background p-3.5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]',
   loggedInRow: 'flex w-full min-w-0 flex-wrap items-center justify-between gap-3',
   profileMeta: 'flex min-w-0 flex-1 items-center gap-3',
-  /** Design: 32px round avatar, primary fill, initials (`ModelServicePage` / CherryIN row). */
+  /** Avatar: 32px round avatar, primary fill, initials (/ CherryIN row). */
   avatarSm:
     'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-[weight:var(--font-weight-semibold)] text-white',
   nameBlock: 'min-w-0',
   nameRow: 'flex flex-wrap items-center gap-1.5',
   name: 'truncate text-[15px] leading-[1.2] font-semibold tracking-tight text-foreground',
-  /** Logged-in title line — `text-xs` in design mock. */
+  /** Logged-in title line — `text-xs` in structured. */
   loggedInName:
     'truncate text-[length:var(--font-size-body-xs)] font-[weight:var(--font-weight-medium)] leading-tight text-foreground',
   loggedInEmail: 'mt-0.5 truncate text-[length:var(--font-size-body-xs)] leading-[1.35] text-muted-foreground/40',
@@ -508,7 +506,7 @@ export const fieldClasses = {
     providerSettingsInputGroupFocusOverride
   ].join(' '),
   /**
-   * Matches `ModelServicePage` connection row: body-md, full foreground, muted placeholder; flush in group.
+   * Matches connection row: body-md, full foreground, muted placeholder; flush in group.
    * Repeat `md:` so `InputGroupInput` defaults do not re-assert `md:text-sm` alone on the base layer.
    */
   input:
@@ -524,53 +522,3 @@ export const fieldClasses = {
   apiKeyVisibilityToggle:
     'ml-1.5 shrink-0 text-[var(--cherry-text-muted)] transition-colors hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40'
 } as const
-
-export function ProviderSettingsContainer({
-  className,
-  children
-}: {
-  theme?: ThemeMode
-  className?: string
-  children: ReactNode
-}) {
-  return (
-    <div
-      className={cn(
-        'flex min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-        className
-      )}>
-      {children}
-    </div>
-  )
-}
-
-export function ProviderSettingsSubtitle({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <div
-      className={cn('mt-4 select-none font-semibold text-foreground', providerSettingsTypography.subtitle, className)}>
-      {children}
-    </div>
-  )
-}
-
-export function ProviderHelpText({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('text-foreground opacity-40', providerSettingsTypography.label, className)}>{children}</div>
-}
-
-export function ProviderHelpTextRow({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('flex flex-row items-center py-[5px]', className)}>{children}</div>
-}
-
-export function ProviderHelpLink({ children, className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
-  return (
-    <a
-      className={cn(
-        'mx-[5px] cursor-pointer text-(--color-primary) hover:underline',
-        providerSettingsTypography.label,
-        className
-      )}
-      {...props}>
-      {children}
-    </a>
-  )
-}

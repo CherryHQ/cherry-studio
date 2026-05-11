@@ -1,6 +1,6 @@
 import { useReorder } from '@data/hooks/useReorder'
 import { useProviders } from '@renderer/hooks/useProviders'
-import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/shared/primitives/ProviderSettingsPrimitives'
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
   canManageProvider,
   isAnthropicSupportedProvider,

@@ -6,8 +6,8 @@ import type { Provider } from '@shared/data/types/provider'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderSettingsDrawer from '../shared/primitives/ProviderSettingsDrawer'
-import { drawerClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
+import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 
 const logger = loggerService.withContext('OVMSClient')
 const HUGGINGFACE_SOURCE_VALUE = '__huggingface__'

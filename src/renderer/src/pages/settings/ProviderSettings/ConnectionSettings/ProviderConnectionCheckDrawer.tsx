@@ -5,8 +5,8 @@ import { sortBy } from 'lodash'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderSettingsDrawer from '../shared/primitives/ProviderSettingsDrawer'
-import { drawerClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
+import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 
 interface ProviderConnectionCheckDrawerProps {
   open: boolean

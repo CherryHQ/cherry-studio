@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { drawerClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 
 const logger = loggerService.withContext('AnthropicSettings')
 

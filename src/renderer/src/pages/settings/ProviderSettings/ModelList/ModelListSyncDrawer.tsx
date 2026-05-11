@@ -1,7 +1,7 @@
 import { Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderSettingsDrawer from '../shared/primitives/ProviderSettingsDrawer'
+import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import ModelSyncPreviewPanel from './ModelSyncPreviewPanel'
 import type { ModelSyncPreviewResponse } from './modelSyncPreviewTypes'
 import type { ModelPullApplyPayload } from './useModelListSyncSelections'

@@ -13,8 +13,8 @@ import { RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderField from '../../shared/primitives/ProviderField'
-import { drawerClasses } from '../../shared/primitives/ProviderSettingsPrimitives'
+import ProviderField from '../../primitives/ProviderField'
+import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'
 import { ModelEndpointTypeChips } from './ModelEndpointTypeChips'
 import type { ModelBasicFormState, ModelCapabilityToggle, ModelDrawerEndpointType } from './types'
 

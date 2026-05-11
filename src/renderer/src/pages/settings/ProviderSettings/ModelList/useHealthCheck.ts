@@ -1,7 +1,7 @@
 import { useModels } from '@renderer/hooks/useModels'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProviders'
 import i18n from '@renderer/i18n'
-import { checkModelsHealth } from '@renderer/pages/settings/ProviderSettings/services/HealthCheckService'
+import { checkModelsHealth } from '@renderer/pages/settings/ProviderSettings/ModelList/checkModelsHealth'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { splitApiKeyString } from '@renderer/utils/api'

@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { authConnectionClasses } from '../primitives/ProviderSettingsPrimitives'
 import ProviderSpecificSettings from '../ProviderSpecific/ProviderSpecificSettings'
-import { authConnectionClasses } from '../shared/primitives/ProviderSettingsPrimitives'
 
 interface AuthConnectionSlotsLayoutProps {
   providerId: string

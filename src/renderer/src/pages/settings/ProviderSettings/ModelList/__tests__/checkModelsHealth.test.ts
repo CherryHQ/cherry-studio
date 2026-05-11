@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as HealthCheckUtils from '../../utils/healthCheck'
 import { aggregateApiKeyResults } from '../../utils/healthCheck'
-import { checkModelsHealth } from '../HealthCheckService'
+import { checkModelsHealth } from '../checkModelsHealth'
 
 const checkModelMock = vi.fn()
 

@@ -10,19 +10,7 @@ import { getModelSyncSignature } from './getModelSyncSignature'
 
 const logger = loggerService.withContext('ProviderSettings:AutoModelSync')
 
-/**
- * This is a coordination effect hook, not a domain-cohesive state hook.
- * Boundary rule: it may read across provider, api key, and model domains internally,
- * but callers must not assemble provider, models, api keys, sync handlers, or loading flags for it
- * when the hook can resolve those dependencies itself.
- * Target external API is useProviderAutoModelSync(providerId).
- * Do not treat a wider parameter surface as acceptable precedent, and do not extend this hook into a facade/view-model.
- * It must own exactly one cross-domain side effect and return no wide object.
- *
- * Intent: trigger the one-time automatic model sync when a provider becomes configured enough and has no local models.
- * Scope: use once in the Provider Settings page where page-level synchronization is coordinated.
- * Does not handle: manual refreshes, endpoint commit sync, or any model list UI.
- */
+/** Triggers one automatic model sync when a provider becomes configured and has no local models. */
 export function useProviderAutoModelSync(providerId: string) {
   const { provider } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)

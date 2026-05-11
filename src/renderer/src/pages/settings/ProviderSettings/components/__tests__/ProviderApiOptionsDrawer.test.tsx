@@ -23,7 +23,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('../../shared/primitives/ProviderSettingsDrawer', () => ({
+vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
   default: ({ open, title, footer, children }: any) =>
     open ? (
       <div>

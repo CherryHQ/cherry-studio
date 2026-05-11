@@ -1,7 +1,7 @@
 import { updateWebSearchProvider } from '@renderer/store/websearch'
 import { describe, expect, it, vi } from 'vitest'
 
-import { applyProviderApiKeySideEffects, applyProviderCustomHeaderSideEffects } from '../providerSettingsSideEffects'
+import { applyProviderApiKeySideEffects, applyProviderCustomHeaderSideEffects } from './providerSettingsSideEffects'
 
 describe('providerSettingsSideEffects', () => {
   it('syncs the first zhipu API key into legacy websearch state', () => {

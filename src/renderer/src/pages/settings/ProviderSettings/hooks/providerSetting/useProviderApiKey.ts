@@ -116,11 +116,7 @@ function syncApiKeyValueFromServer(value: ApiKeyValue, serverApiKey: string): Ap
   }
 }
 
-/**
- * Intent: create one API key state owner for one AuthenticationSection instance and wire it to provider settings sync.
- * Scope: use only at the auth-section owner boundary, then pass the state through a narrow local provider.
- * Does not handle: popup orchestration, connection checks, or endpoint ownership.
- */
+/** Owns API key input state for one authentication section and syncs it to provider settings. */
 export function useProviderApiKey(providerId: string) {
   const { provider } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)

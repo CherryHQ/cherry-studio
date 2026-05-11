@@ -2,7 +2,7 @@ import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useProviderDeepLinkImport } from '../coordination/useProviderDeepLinkImport'
+import { useProviderDeepLinkImport } from '../hooks/useProviderDeepLinkImport'
 import ProviderSettingsPage from '../ProviderSettingsPage'
 
 const navigateMock = vi.fn()
@@ -18,7 +18,7 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock
 }))
 
-vi.mock('../coordination/useProviderDeepLinkImport', () => ({
+vi.mock('../hooks/useProviderDeepLinkImport', () => ({
   useProviderDeepLinkImport: vi.fn()
 }))
 

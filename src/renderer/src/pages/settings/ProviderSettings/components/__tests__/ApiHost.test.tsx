@@ -81,7 +81,7 @@ vi.mock('../../hooks/useProviderModelSync', () => ({
   useProviderModelSync: (...args: any[]) => useProviderModelSyncMock(...args)
 }))
 
-vi.mock('../../shared/primitives/ProviderField', () => ({
+vi.mock('../../primitives/ProviderField', () => ({
   default: ({ title, help, children, className }: any) => (
     <div className={className}>
       <div>{title}</div>
@@ -91,7 +91,7 @@ vi.mock('../../shared/primitives/ProviderField', () => ({
   )
 }))
 
-vi.mock('../../shared/primitives/ProviderSection', () => ({
+vi.mock('../../primitives/ProviderSection', () => ({
   default: ({ children }: any) => <section>{children}</section>
 }))
 

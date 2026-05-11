@@ -22,7 +22,7 @@ vi.mock('../../ProviderSpecific/AnthropicSettings', () => ({
   default: () => <div>anthropic-settings</div>
 }))
 
-vi.mock('../../shared/primitives/InlineSelector', () => ({
+vi.mock('../../primitives/InlineSelector', () => ({
   default: ({ value, onChange, options }: any) => (
     <div>
       <div>{`selected:${value}`}</div>
@@ -35,11 +35,11 @@ vi.mock('../../shared/primitives/InlineSelector', () => ({
   )
 }))
 
-vi.mock('../../shared/primitives/ProviderField', () => ({
+vi.mock('../../primitives/ProviderField', () => ({
   default: ({ children }: any) => <div>{children}</div>
 }))
 
-vi.mock('../../shared/primitives/ProviderSection', () => ({
+vi.mock('../../primitives/ProviderSection', () => ({
   default: ({ children }: any) => <div>{children}</div>
 }))
 

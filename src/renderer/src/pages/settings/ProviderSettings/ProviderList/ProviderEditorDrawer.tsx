@@ -8,7 +8,7 @@ import { ImagePlus, RotateCcw } from 'lucide-react'
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderSettingsDrawer from '../shared/primitives/ProviderSettingsDrawer'
+import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 
 type ProviderEditorSubmit = {
   name: string

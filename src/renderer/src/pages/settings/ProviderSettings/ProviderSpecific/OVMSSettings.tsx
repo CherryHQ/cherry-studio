@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
 import { useOvmsSupport } from '../hooks/useOvmsSupport'
-import { ProviderSettingsSubtitle } from '../shared/primitives/ProviderSettingsPrimitives'
+import { ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
 
 const statusIcon = {
   running: CheckCircle2,

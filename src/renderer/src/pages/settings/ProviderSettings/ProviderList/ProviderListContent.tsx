@@ -1,5 +1,5 @@
 import { ReorderableList } from '@cherrystudio/ui'
-import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/shared/primitives/ProviderSettingsPrimitives'
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReactNode } from 'react'

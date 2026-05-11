@@ -1,6 +1,6 @@
 import React, { memo } from 'react'
 
-import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { ModelListHealthProvider } from './modelListHealthContext'
 import { useModelListHealth } from './modelListHealthContext'
 import ProviderModelAdd from './ProviderModelAdd'
@@ -8,8 +8,6 @@ import ProviderModelDownload from './ProviderModelDownload'
 import ProviderModelHealthCheck from './ProviderModelHealthCheck'
 import ProviderModelList from './ProviderModelList'
 import ProviderModelPullReconcile from './ProviderModelPullReconcile'
-
-/** UI tokens: `modelListClasses` + typography helpers from ProviderSettingsPrimitives; parent supplies `.provider-settings-default-scope`. */
 
 interface ModelListProps {
   providerId: string

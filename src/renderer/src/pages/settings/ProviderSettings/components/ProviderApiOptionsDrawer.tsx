@@ -6,9 +6,9 @@ import { Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderActions from '../shared/primitives/ProviderActions'
-import ProviderSettingsDrawer from '../shared/primitives/ProviderSettingsDrawer'
-import { drawerClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import ProviderActions from '../primitives/ProviderActions'
+import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
+import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 import { isAnthropicSupportedProvider, isAzureOpenAIProvider, isOpenAICompatibleProvider } from '../utils/provider'
 
 interface ProviderApiOptionsDrawerProps {

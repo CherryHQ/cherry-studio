@@ -7,10 +7,10 @@ import { Plus, Settings, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { applyProviderCustomHeaderSideEffects } from '../adapters/providerSettingsSideEffects'
-import ProviderActions from '../shared/primitives/ProviderActions'
-import ProviderSettingsDrawer from '../shared/primitives/ProviderSettingsDrawer'
-import { customHeaderDrawerClasses, drawerClasses, fieldClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import ProviderActions from '../primitives/ProviderActions'
+import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
+import { customHeaderDrawerClasses, drawerClasses, fieldClasses } from '../primitives/ProviderSettingsPrimitives'
+import { applyProviderCustomHeaderSideEffects } from '../utils/providerSettingsSideEffects'
 
 interface ProviderCustomHeaderDrawerProps {
   providerId: string

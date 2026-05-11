@@ -8,15 +8,14 @@ import type { FormEvent } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderActions from '../../shared/primitives/ProviderActions'
-import ProviderSection from '../../shared/primitives/ProviderSection'
-import { drawerClasses } from '../../shared/primitives/ProviderSettingsPrimitives'
+import ProviderActions from '../../primitives/ProviderActions'
+import ProviderSection from '../../primitives/ProviderSection'
+import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'
 import { isNewApiProvider } from '../../utils/provider'
 import { ModelBasicFields, ModelContextWindowFields } from './content'
 import { getInitialAddModelFormState, splitModelIds } from './helpers'
 import type { AddModelDrawerPrefill, ModelBasicFormState, ModelDrawerMode } from './types'
 
-/** Wired by `AddModelDrawer` into `ProviderSettingsDrawer` footer (same pattern as `EditModelDrawer`). */
 export interface AddModelDrawerFooterBinding {
   isSubmitting: boolean
   cancel: () => void
@@ -28,16 +27,11 @@ export interface AddModelFormPanelProps {
   prefill: AddModelDrawerPrefill | null
   onSuccess: () => void
   onCancel: () => void
-  /** When set, primary/cancel actions are rendered in the drawer footer slot instead of below the form. */
   onDrawerFooterBinding?: (binding: AddModelDrawerFooterBinding | null) => void
   formId?: string
   'data-testid'?: string
 }
 
-/**
- * Domain container: add-model form + create mutation (no drawer chrome).
- * `AddModelDrawer` passes `onDrawerFooterBinding` so actions render in `ProviderSettingsDrawer` footer (see `EditModelDrawer`).
- */
 export default function AddModelFormPanel({
   providerId,
   prefill,

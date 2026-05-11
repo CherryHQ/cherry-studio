@@ -15,10 +15,10 @@ interface ProviderSettingsDrawerProps {
   children?: ReactNode
   bodyClassName?: string
   contentClassName?: string
-  /** Matches `cherry-studio-ui-design` ModelManagementPanel chrome (border under title, px-4). */
+  /** Applies the manage-drawer title chrome. */
   headerClassName?: string
   footerClassName?: string
-  /** When false, hides the default trailing close so the title row can include its own X (ModelManagementPanel). */
+  /** Allows manage-style title rows to own their close action. */
   showHeaderCloseButton?: boolean
 }
 

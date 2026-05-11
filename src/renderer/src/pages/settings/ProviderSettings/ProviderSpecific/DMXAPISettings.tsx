@@ -7,7 +7,7 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ProviderSettingsSubtitle } from '../shared/primitives/ProviderSettingsPrimitives'
+import { ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
 
 interface DMXAPISettingsProps {
   providerId: string

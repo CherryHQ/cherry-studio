@@ -7,34 +7,13 @@ import { useProviderAutoModelSync } from './hooks/providerSetting/useProviderAut
 import { useProviderLegacyWebSearchSync } from './hooks/providerSetting/useProviderLegacyWebSearchSync'
 import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
 import { ModelList } from './ModelList'
-import { providerDetailColumnClasses, ProviderSettingsContainer } from './shared/primitives/ProviderSettingsPrimitives'
+import { providerDetailColumnClasses, ProviderSettingsContainer } from './primitives/ProviderSettingsPrimitives'
 
 interface ProviderSettingProps {
   providerId: string
   isOnboarding?: boolean
 }
 
-/**
- * Provider Settings refactors target full domain-cohesive internalization, not partial parameter trimming.
- * Keep ProviderSetting as the shared owner only for true page-level truth and page-level coordination:
- * render shell/layout, read shared page truth such as provider/models/theme,
- * and host a few narrow coordination effect hooks when one effect must observe multiple domains together.
- * Repeated domain reads inside hooks are acceptable; page-level dependency assembly is not.
- * Do not precompute section-local derived values here, do not rebuild a page-level facade/view-model hook,
- * and do not thread domain-local queries, mutations, stores, translations, timers, or bridge logic through
- * the page when a domain hook or section can internalize them itself.
- *
- * Provider Settings hooks follow a domain-cohesive hook rule:
- * a domain-cohesive hook owns one narrow provider-settings domain, consumes its own domain-local dependencies
- * internally, and exposes only the minimal UI-facing state/actions that callers actually need.
- * Preferred external shape is useProviderXxx(providerId) or the smallest possible shared-draft/scalar input.
- * Callers should pass only ids or true shared drafts, never domain-local dependencies that the hook can resolve.
- *
- * Coordination hooks are not domain-cohesive state hooks:
- * they may read across domains, but only to own one cross-domain side effect.
- * They should still minimize inputs, internalize their own cross-domain reads where practical,
- * and must not expand into page-level facades, broad orchestration layers, or wide returned objects.
- */
 export default function ProviderSetting({ providerId, isOnboarding = false }: ProviderSettingProps) {
   const { provider } = useProvider(providerId)
   const { theme } = useTheme()

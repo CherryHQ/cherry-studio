@@ -1,6 +1,6 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProviders'
-import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/shared/primitives/ProviderSettingsPrimitives'
+import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { cn } from '@renderer/utils'
 import { Check, ChevronDown } from 'lucide-react'

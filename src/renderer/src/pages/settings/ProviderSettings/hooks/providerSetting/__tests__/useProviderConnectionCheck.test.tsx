@@ -9,7 +9,7 @@ const useModelsMock = vi.fn()
 const useTimerMock = vi.fn()
 const useAuthenticationApiKeyMock = vi.fn()
 const useProviderEndpointsMock = vi.fn()
-const providerCheckApiAdapterMock = vi.fn()
+const checkApiMock = vi.fn()
 const showErrorDetailPopupMock = vi.fn()
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -44,8 +44,13 @@ vi.mock('../useProviderEndpoints', () => ({
   useProviderEndpoints: (...args: any[]) => useProviderEndpointsMock(...args)
 }))
 
-vi.mock('../../../adapters/providerCheckApiAdapter', () => ({
-  providerCheckApiAdapter: (...args: any[]) => providerCheckApiAdapterMock(...args)
+vi.mock('@renderer/services/ApiService', () => ({
+  checkApi: (...args: any[]) => checkApiMock(...args)
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim', () => ({
+  toV1ModelForCheckApi: (model: any) => model,
+  toV1ProviderShim: (_provider: any, options: any) => options
 }))
 
 vi.mock('@renderer/components/ErrorDetailModal', () => ({
@@ -120,11 +125,12 @@ describe('useProviderConnectionCheck', () => {
       })
     })
 
-    expect(providerCheckApiAdapterMock).toHaveBeenCalledWith(
+    expect(checkApiMock).toHaveBeenCalledWith(
       expect.objectContaining({
         apiKey: 'sk-b',
         apiHost: 'https://anthropic.cherryin.cc'
-      })
+      }),
+      result.current.checkableModels[0]
     )
     expect(result.current.connectionCheckOpen).toBe(false)
     expect(setTimeoutTimer).toHaveBeenCalled()

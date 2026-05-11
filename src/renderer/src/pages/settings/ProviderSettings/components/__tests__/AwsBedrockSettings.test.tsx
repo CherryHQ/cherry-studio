@@ -22,7 +22,7 @@ vi.mock('@cherrystudio/ui', () => ({
   RowFlex: ({ children }: any) => <div>{children}</div>
 }))
 
-vi.mock('../../shared/primitives/ProviderSettingsPrimitives', () => ({
+vi.mock('../../primitives/ProviderSettingsPrimitives', () => ({
   ProviderHelpLink: ({ children, ...props }: any) => <a {...props}>{children}</a>,
   ProviderHelpText: ({ children }: any) => <span>{children}</span>,
   ProviderHelpTextRow: ({ children }: any) => <div>{children}</div>,

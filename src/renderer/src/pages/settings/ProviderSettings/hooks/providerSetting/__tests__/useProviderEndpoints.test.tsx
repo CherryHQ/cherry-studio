@@ -87,4 +87,31 @@ describe('useProviderEndpoints', () => {
     expect(first.result.current.apiHost).toBe('https://input.example.com')
     expect(second.result.current.apiHost).toBe('https://api.example.com')
   })
+
+  it('updates the draft when the same provider receives a new server host', () => {
+    const provider = {
+      id: 'openai',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' }
+      },
+      settings: {}
+    } as any
+
+    const { result, rerender } = renderHook(({ value }) => useProviderEndpoints(value), {
+      initialProps: { value: provider }
+    })
+
+    expect(result.current.apiHost).toBe('https://api.example.com')
+
+    rerender({
+      value: {
+        ...provider,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.updated.example.com' }
+        }
+      }
+    })
+
+    expect(result.current.apiHost).toBe('https://api.updated.example.com')
+  })
 })

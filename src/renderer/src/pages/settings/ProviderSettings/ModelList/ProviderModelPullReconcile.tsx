@@ -4,7 +4,7 @@ import { Download } from 'lucide-react'
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import ModelListSyncDrawer from './ModelListSyncDrawer'
 import { useProviderModelPullReconcile } from './useProviderModelPullReconcile'
 

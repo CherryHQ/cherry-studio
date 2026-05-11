@@ -6,8 +6,8 @@ import { Check, Copy, Edit3, Minus, Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderSettingsDrawer from '../shared/primitives/ProviderSettingsDrawer'
-import { apiKeyListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
+import { apiKeyListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
 
 interface ProviderApiKeyListDrawerProps {

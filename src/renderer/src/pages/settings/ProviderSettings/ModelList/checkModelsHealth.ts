@@ -8,7 +8,7 @@ import { HealthStatus } from '../types/healthCheck'
 import { aggregateApiKeyResults } from '../utils/healthCheck'
 import { toV1ModelForCheckApi, toV1ProviderShim } from '../utils/v1ProviderShim'
 
-const logger = loggerService.withContext('ProviderSettings:HealthCheckService')
+const logger = loggerService.withContext('ProviderSettings:checkModelsHealth')
 
 export async function checkModelWithMultipleKeys(
   provider: ModelCheckOptions['provider'],
@@ -89,7 +89,7 @@ export async function checkModelsHealth(
       }
     }
   } catch (error) {
-    logger.error('[ProviderSettings HealthCheckService] Model health check failed:', error as Error)
+    logger.error('[ProviderSettings checkModelsHealth] Model health check failed:', error as Error)
     throw error
   }
 

@@ -3,7 +3,7 @@ import { HeartPulse } from 'lucide-react'
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { modelListClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import HealthCheckDrawer from './HealthCheckDrawer'
 import { useModelListHealth } from './modelListHealthContext'
 

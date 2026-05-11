@@ -3,8 +3,8 @@
  *
  * Not a second Tailwind build: hand-authored CSS variables + `@container` queries only (no `@tailwind` preflight here).
  *
- * Local semantic palette + atomic layout/type tokens for the **provider detail column** only, so we can align
- * to design mocks without changing app-wide `:root` / global Tailwind theme.
+ * Local semantic palette + atomic layout/type tokens for the **provider detail column** only, so we can tune
+ * this surface without changing app-wide `:root` / global Tailwind theme.
  *
  * - **Atoms here** — spacing, radii, font steps, soft borders/surfaces, scroll max-height, chip refs, etc.
  * - **Compose in TS** — `ProviderSettingsPrimitives.tsx` (`actionClasses`, `fieldClasses`, `modelListClasses`, …).
@@ -60,9 +60,9 @@
   --radius-2xl: 1rem;
   --radius-3xl: 1.5rem;
   --radius-round: 9999px;
-  /* `cherry-studio-ui-design` ModelServicePage Connection Config — `rounded-[var(--radius-button)]` */
+  /* Connection Config — `rounded-[var(--radius-button)]` */
   --radius-button: var(--radius-lg);
-  /* `cherry-studio-ui-design` ModelServicePage provider column — `border-section-border` */
+  /* provider column — `border-section-border` */
   --section-border: #f0f0ef;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -111,7 +111,7 @@
   --line-height-body-md: 1.4;
   /* 连接认证 / 模型 等区块标题：与 `ProviderSection` 标题同字阶，行高略紧于正文 1.4 */
   --line-height-section-label: 1.3;
-  /* 0.9375rem (15px): list row primary name; half step above body-md for scan readability vs matching smaller mock px */
+  /* 0.9375rem (15px): list row primary name; half step above body-md for scan readability vs matching smaller fixed pixels */
   --font-size-row-title: 0.9375rem;
   --line-height-row-title: 1.2;
   /* 0.75rem (12px): id badge / secondary identifiers only; smallest tier in this shell */

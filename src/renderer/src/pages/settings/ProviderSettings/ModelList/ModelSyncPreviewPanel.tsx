@@ -6,7 +6,7 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ModelTagsWithLabel, { type ModelTagsWithLabelModel } from '../components/ModelTagsWithLabel'
-import { modelSyncClasses } from '../shared/primitives/ProviderSettingsPrimitives'
+import { modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
 import type { ModelSyncPreviewResponse } from './modelSyncPreviewTypes'
 import type { ModelPullApplyPayload } from './useModelListSyncSelections'
 import { useModelListSyncSelections } from './useModelListSyncSelections'
@@ -28,7 +28,7 @@ function ModelGlyph({ model }: { model: Model }) {
 }
 
 /**
- * Pull preview — layout aligned with `cherry-studio-ui-design` `ModelServicePage` `FetchResultPanel`.
+ * Pull preview — layout aligned with pull preview panel.
  */
 export default function ModelSyncPreviewPanel({ preview, isApplying, onApply, onCancel }: ModelSyncPreviewPanelProps) {
   const { t } = useTranslation()

@@ -5,17 +5,7 @@ import { useMemo } from 'react'
 
 import { buildHostEndpointPreviews } from './buildHostEndpointPreviews'
 
-/**
- * Intent: derive endpoint preview URLs and reset affordances from the current editable host drafts.
- * Scope: use in the Provider Settings connection UI when rendering preview help text and reset controls.
- * Does not handle: field visibility, persistence, or any provider patching.
- *
- * @example
- * ```tsx
- * const preview = useProviderHostPreview({ provider, apiHost, anthropicApiHost })
- * <p>{preview.hostPreview}</p>
- * ```
- */
+/** Derives endpoint preview URLs and reset affordances from the current host drafts. */
 export function useProviderHostPreview(params: {
   provider: Provider | undefined
   apiHost: string

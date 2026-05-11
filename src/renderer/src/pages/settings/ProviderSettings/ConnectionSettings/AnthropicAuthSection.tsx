@@ -2,10 +2,10 @@ import { useProvider, useProviderMutations } from '@renderer/hooks/useProviders'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { useTranslation } from 'react-i18next'
 
+import InlineSelector from '../primitives/InlineSelector'
+import ProviderField from '../primitives/ProviderField'
+import ProviderSection from '../primitives/ProviderSection'
 import AnthropicSettings from '../ProviderSpecific/AnthropicSettings'
-import InlineSelector from '../shared/primitives/InlineSelector'
-import ProviderField from '../shared/primitives/ProviderField'
-import ProviderSection from '../shared/primitives/ProviderSection'
 
 interface AnthropicAuthSectionProps {
   providerId: string
