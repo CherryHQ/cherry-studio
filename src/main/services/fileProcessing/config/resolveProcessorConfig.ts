@@ -1,43 +1,41 @@
 import { application } from '@application'
-import type {
-  FileProcessorFeature,
-  FileProcessorId,
-  FileProcessorOverrides,
-  PreferenceKeyType
-} from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorFeature, FileProcessorId, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
-
-import { mergeProcessorPreset } from './mergeProcessorPreset'
 
 const DEFAULT_PROCESSOR_KEY_BY_FEATURE = {
   document_to_markdown: 'feature.file_processing.default_document_to_markdown',
   image_to_text: 'feature.file_processing.default_image_to_text'
 } as const satisfies Record<FileProcessorFeature, PreferenceKeyType>
 
-function getOverrides(): FileProcessorOverrides {
-  return application.get('PreferenceService').get('feature.file_processing.overrides') ?? {}
-}
+function getFileProcessorById(processorId: FileProcessorId) {
+  const processor = PRESETS_FILE_PROCESSORS.find((item) => item.id === processorId)
 
-function getPresetById(processorId: FileProcessorId) {
-  const preset = PRESETS_FILE_PROCESSORS.find((item) => item.id === processorId)
-
-  if (!preset) {
+  if (!processor) {
     throw new Error(`File processor not found: ${processorId}`)
   }
 
-  return preset
+  return processor
 }
 
-function supportsFeature(processorId: FileProcessorId, feature: FileProcessorFeature): boolean {
-  const preset = PRESETS_FILE_PROCESSORS.find((item) => item.id === processorId)
-  return Boolean(preset?.capabilities.some((capability) => capability.feature === feature))
-}
+export function getFileProcessorConfigById(processorId: FileProcessorId): FileProcessorMerged {
+  const processor = getFileProcessorById(processorId)
+  const override = application.get('PreferenceService').get('feature.file_processing.overrides')?.[processorId]
 
-export function getProcessorConfigById(processorId: FileProcessorId): FileProcessorMerged {
-  const preset = getPresetById(processorId)
-  const overrides = getOverrides()
+  return {
+    id: processor.id,
+    type: processor.type,
+    capabilities: processor.capabilities.map((capability) => {
+      const capabilityOverride = override?.capabilities?.[capability.feature]
 
-  return mergeProcessorPreset(preset, overrides[processorId])
+      return {
+        ...capability,
+        ...(capabilityOverride?.apiHost !== undefined ? { apiHost: capabilityOverride.apiHost } : {}),
+        ...(capabilityOverride?.modelId !== undefined ? { modelId: capabilityOverride.modelId } : {})
+      }
+    }),
+    apiKeys: override?.apiKeys,
+    options: override?.options
+  }
 }
 
 export function resolveProcessorConfigByFeature(
@@ -45,21 +43,25 @@ export function resolveProcessorConfigByFeature(
   processorId?: FileProcessorId
 ): FileProcessorMerged {
   if (processorId) {
-    if (!supportsFeature(processorId, feature)) {
+    const config = getFileProcessorConfigById(processorId)
+
+    if (!config.capabilities.some((capability) => capability.feature === feature)) {
       throw new Error(`File processor ${processorId} does not support ${feature}`)
     }
 
-    return getProcessorConfigById(processorId)
+    return config
   }
 
   const defaultProcessorId = application.get('PreferenceService').get(DEFAULT_PROCESSOR_KEY_BY_FEATURE[feature])
 
   if (defaultProcessorId) {
-    if (!supportsFeature(defaultProcessorId, feature)) {
+    const config = getFileProcessorConfigById(defaultProcessorId)
+
+    if (!config.capabilities.some((capability) => capability.feature === feature)) {
       throw new Error(`File processor ${defaultProcessorId} does not support ${feature}`)
     }
 
-    return getProcessorConfigById(defaultProcessorId)
+    return config
   }
 
   throw new Error(`Default file processor for ${feature} is not configured`)
