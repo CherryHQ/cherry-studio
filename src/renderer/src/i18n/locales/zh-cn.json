@@ -28,6 +28,256 @@
       "submit": "提交",
       "title": "来自 Agent 的问题"
     },
+    "cherryClaw": {
+      "channels": {
+        "add": "添加",
+        "bindAgent": "绑定 Agent",
+        "chatIdsAutoTrackHint": "留空时系统将自动追踪：需要先在对应平台上主动给 Bot 发送一条消息，系统才会记录 Chat ID 用于后续通知。",
+        "comingSoon": "即将推出",
+        "connected": "已连接",
+        "connecting": "连接中",
+        "createError": "",
+        "deleteConfirm": "确定删除频道「{{name}}」？",
+        "deleteError": "",
+        "description": "将您的 Agent 连接到消息平台。",
+        "disconnected": "已断开",
+        "discord": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "输入您的 Discord 机器人 Token",
+          "channelIds": "允许的频道 ID",
+          "channelIdsHint": "格式：channel:id 或 dm:id。留空表示允许所有。",
+          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+          "description": "通过 Discord 机器人使用 WebSocket 网关接收和回复消息。",
+          "title": "Discord",
+          "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的频道 ID。"
+        },
+        "error": "错误",
+        "feishu": {
+          "appId": "应用ID",
+          "appIdPlaceholder": "输入你的飞书应用 ID",
+          "appSecret": "应用密钥",
+          "appSecretPlaceholder": "输入你的飞书应用密钥",
+          "chatIds": "允许的聊天 ID",
+          "chatIdsHint": "逗号分隔的聊天 ID。留空则允许所有聊天。",
+          "chatIdsPlaceholder": "oc_xxxxx，oc_yyyyy",
+          "connected": "已连接",
+          "description": "通过 WebSocket 使用飞书/ Lark 机器人接收并回复消息。",
+          "domain": "域名",
+          "domainFeishu": "飞书（中国）",
+          "domainLark": "飞书（国际版）",
+          "encryptKey": "加密密钥",
+          "encryptKeyPlaceholder": "请输入来自你飞书应用的加密密钥",
+          "loginHint": "未配置凭证。启用频道后将自动开始扫码注册，或手动输入 App ID 和 App Secret。",
+          "qrExpired": "二维码已过期，请重新切换频道开关重试。",
+          "qrHint": "等待扫描二维码...",
+          "qrScanHint": "打开手机飞书，扫描二维码以创建机器人应用。",
+          "qrTitle": "飞书扫码注册",
+          "title": "飞书",
+          "verificationToken": "验证令牌",
+          "verificationTokenPlaceholder": "输入您飞书应用中的验证令牌"
+        },
+        "logs": "日志",
+        "noInstances": "暂无 {{type}} 频道，点击「+ 添加」创建。",
+        "noLogs": "暂无日志",
+        "notifyReceiver": "接收任务通知",
+        "notifyReceiverHint": "将定时任务结果发送到此频道。",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "输入您的 QQ 机器人 App ID",
+          "chatIds": "允许的会话 ID",
+          "chatIdsHint": "格式：c2c:openid, group:groupid, channel:channelid。留空表示允许所有。",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "输入您的 QQ 机器人 Client Secret",
+          "description": "通过 QQ 机器人官方 API 接收和回复消息。",
+          "title": "QQ",
+          "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的会话 ID。"
+        },
+        "security": {
+          "inheritFromAgent": "继承智能体设置",
+          "permissionMode": "频道权限模式",
+          "permissionModeHint": "覆盖此频道消息的智能体权限模式。选择「继承」则使用智能体默认设置。"
+        },
+        "selectAgent": "选择要绑定的 Agent",
+        "slack": {
+          "appToken": "应用级别 Token",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "允许的频道 ID",
+          "channelIdsHint": "Slack 频道 ID。留空表示允许所有。",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "通过 Slack 机器人使用 Socket Mode 接收和回复消息。",
+          "title": "Slack",
+          "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取频道 ID。"
+        },
+        "soulModeRequired": "该智能体尚未开启自主模式，频道功能将无法使用。请在智能体设置中开启自主模式。",
+        "tab": "频道",
+        "telegram": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "输入您的 Telegram 机器人 Token",
+          "chatIds": "允许的会话 ID",
+          "chatIdsHint": "用逗号分隔。留空表示允许所有会话。",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "通过 Telegram 机器人使用长轮询方式接收和回复消息。",
+          "title": "Telegram"
+        },
+        "title": "频道",
+        "updateError": "",
+        "wechat": {
+          "addAccount": "添加微信账号",
+          "chatIds": "允许的用户 ID",
+          "chatIdsHint": "用逗号分隔。留空表示允许所有用户。",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+          "connected": "已登录",
+          "description": "通过微信 iLink Bot API 接收和回复消息。",
+          "disconnected": "未登录",
+          "loginHint": "首次登录需要扫描二维码，启用频道后将自动弹出二维码。",
+          "qrHint": "请使用手机微信扫描二维码完成登录。",
+          "qrTitle": "微信扫码登录",
+          "title": "微信",
+          "whoamiTip": "提示：在微信中发送 /whoami 可获取用户 ID。"
+        }
+      },
+      "heartbeat": {
+        "enabled": "启用心跳",
+        "enabledHelper": "启用后，如果工作区存在 heartbeat.md 文件，调度器会按配置的间隔读取其内容并发送到主会话。",
+        "interval": "间隔（分钟）",
+        "intervalHelper": "心跳运行的频率，单位为分钟。"
+      },
+      "sandbox": {
+        "description": "使用操作系统级沙箱限制 Agent 的文件系统和网络访问，仅限于工作区目录。",
+        "helper": "将文件系统和命令访问限制在工作区路径内。",
+        "label": "沙箱模式"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "标准 cron 表达式（例如 '*/30 * * * *' 表示每 30 分钟）。",
+          "label": "Cron 表达式",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "调度器按计划自动触发 Agent 运行。",
+        "enabled": "启用调度器",
+        "enabledHelper": "启用后，Agent 将根据配置的计划自动运行。",
+        "errors": {
+          "invalidCron": "无效的 cron 表达式",
+          "invalidDelay": "延迟必须是正数",
+          "invalidInterval": "间隔必须是正数"
+        },
+        "interval": {
+          "helper": "Agent 运行的频率，单位为秒。",
+          "label": "间隔（秒）"
+        },
+        "lastRun": "上次运行",
+        "never": "从未",
+        "nextRun": "下次运行",
+        "oneTime": {
+          "helper": "Agent 运行前的一次性延迟，单位为秒。",
+          "label": "延迟（秒）"
+        },
+        "status": {
+          "running": "运行中",
+          "stopped": "已停止",
+          "tickInProgress": "执行中"
+        },
+        "tab": "调度器",
+        "title": "调度器配置",
+        "type": {
+          "cron": "Cron 表达式",
+          "interval": "固定间隔",
+          "label": "调度类型",
+          "one-time": "一次性延迟"
+        }
+      },
+      "soul": {
+        "description": "灵魂定义了 Agent 的个性和基础行为。它从工作区根目录的 soul.md 文件中读取。",
+        "empty": "在工作区根目录未找到 soul.md 文件。创建一个来定义 Agent 的个性。",
+        "enabled": "启用灵魂",
+        "enabledHelper": "启用后，Agent 会从工作区根目录读取 soul.md 并将其添加到系统提示词前面。",
+        "fileLabel": "soul.md",
+        "preview": "灵魂预览",
+        "tab": "灵魂",
+        "title": "灵魂配置"
+      },
+      "tasks": {
+        "add": "添加任务",
+        "cancel": "取消",
+        "channels": {
+          "label": "发送到频道",
+          "noActiveChatIds": "所选频道当前无可用的接收目标（Chat ID），任务结果可能无法送达。请先在对应平台上给 Bot 发送一条消息。",
+          "placeholder": "选择接收结果的频道"
+        },
+        "cronPlaceholder": "例如 0 9 * * *（每天上午 9 点）",
+        "delete": {
+          "confirm": "确定要删除此任务吗？",
+          "label": "删除"
+        },
+        "edit": "编辑",
+        "empty": "暂无定时任务。添加一个开始吧。",
+        "error": {
+          "loadFailed": ""
+        },
+        "intervalPlaceholder": "间隔（分钟）",
+        "intervalUnit": "分钟",
+        "lastRun": "上次运行",
+        "logs": {
+          "duration": "耗时",
+          "empty": "暂无运行历史。",
+          "error": "错误",
+          "justNow": "刚刚",
+          "label": "运行历史",
+          "loadError": "",
+          "result": "结果",
+          "runAt": "运行时间",
+          "running": "运行中...",
+          "search": "搜索运行记录...",
+          "status": "状态",
+          "success": "成功",
+          "viewSession": "查看会话"
+        },
+        "name": {
+          "label": "名称",
+          "placeholder": "例如：每日代码审查"
+        },
+        "nextRun": "下次运行",
+        "oncePlaceholder": "选择日期和时间",
+        "pause": "暂停",
+        "prompt": {
+          "expand": "展开编辑器",
+          "label": "提示词",
+          "placeholder": "此任务运行时 Agent 应该做什么？"
+        },
+        "resume": "恢复",
+        "run": "运行",
+        "runTriggered": "任务已触发",
+        "save": "保存",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "间隔",
+          "label": "调度类型",
+          "once": "一次性"
+        },
+        "scheduleValue": "调度值",
+        "status": {
+          "active": "活跃",
+          "completed": "已完成",
+          "paused": "已暂停"
+        },
+        "tab": "任务",
+        "time": {
+          "hoursAgo": "{{count}}小时前",
+          "minutesAgo": "{{count}}分钟前"
+        },
+        "timeout": {
+          "label": "超时时间",
+          "placeholder": "无限制"
+        },
+        "title": "定时任务"
+      },
+      "warning": {
+        "bypassPermissions": "CherryClaw Agent 默认以全自动模式运行。所有工具执行时不会请求批准。"
+      }
+    },
     "delete": {
       "content": "删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
       "error": {
@@ -76,7 +326,8 @@
       "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "input": {
-      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令"
+      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令",
+      "soul_placeholder": "帮我连接微信"
     },
     "list": {
       "error": {
@@ -203,15 +454,15 @@
           "title": "安装插件"
         },
         "installed": {
-          "empty": "尚未安装任何插件。浏览可用插件以开始使用。",
-          "title": "已安装插件"
+          "empty": "尚未安装任何技能。浏览可用技能以开始使用。",
+          "title": "已安装技能"
         },
         "installing": "安装中...",
         "plugin_upload": {
           "all_failed": "全部 {{failed}} 个组件安装失败",
           "error": "安装失败",
-          "format_hint": "支持插件包格式（.claude-plugin/plugin.json）",
-          "hint": "拖拽插件 ZIP 到此处，或点击选择文件",
+          "format_hint": "支持技能包格式（.claude-plugin/plugin.json）",
+          "hint": "拖拽技能 ZIP 到此处，或点击选择文件",
           "invalid_format": "请上传 ZIP 格式的文件",
           "partial_success": "已安装 {{installed}} 个组件，{{failed}} 个失败",
           "select_folder": "选择文件夹",
@@ -245,6 +496,21 @@
         "uninstalling": "卸载中..."
       },
       "prompt": "提示词设置",
+      "skills": {
+        "addMore": "添加更多技能",
+        "builtin": "内置",
+        "noFilterResults": "没有匹配的技能",
+        "noSkills": "暂无已安装的技能。前往 设置 > 技能 安装技能。",
+        "searchPlaceholder": "搜索技能...",
+        "tab": "技能",
+        "title": "已安装技能"
+      },
+      "soulMode": {
+        "description": "启用后，Agent 将使用工作区灵魂文件构建自定义系统提示词，注入自主任务管理工具，并禁用不适合自主运行的交互式工具。",
+        "disabledBadge": "自主模式已禁用",
+        "disabledTooltip": "该工具在自主模式开启时被自动禁用",
+        "title": "自主模式"
+      },
       "tooling": {
         "mcp": {
           "description": "连接 MCP 服务器即可解锁更多可在上方预先授权的工具。",
@@ -301,6 +567,7 @@
       },
       "toolsMcp": {
         "mcp": {
+          "tab": "MCP",
           "title": "MCP 服务器"
         },
         "tab": "工具",
@@ -311,6 +578,98 @@
     },
     "sidebar_title": "智能体",
     "todo": {
+      "mock": {
+        "actions": {
+          "complete": "完成",
+          "dismiss": "关闭"
+        },
+        "details": {
+          "addRouter": {
+            "summary": "正在使用 react-router-dom v6 配置客户端路由...",
+            "title": "添加 React Router"
+          },
+          "configureProject": {
+            "resources": {
+              "createdMeta": "created",
+              "postcssConfig": "postcss.config.js",
+              "tailwindConfig": "tailwind.config.js",
+              "updatedMeta": "updated",
+              "viteConfig": "vite.config.ts - port 3001"
+            },
+            "title": "配置项目"
+          },
+          "installDependencies": {
+            "resources": {
+              "dependenciesMeta": "dependencies",
+              "devDependenciesMeta": "devDependencies",
+              "reactDeps": "react@18.3.1, react-dom@18.3.1",
+              "tailwindDeps": "tailwindcss@3.4.4, postcss@8.4.38",
+              "typescriptDeps": "typescript@5.4.5, vite@5.3.0"
+            },
+            "summary": "安装了 react, react-dom, tailwindcss, postcss, autoprefixer 和 TypeScript。",
+            "title": "安装依赖"
+          },
+          "reviewReferences": {
+            "collectionTitle": "审阅参考资料",
+            "resources": {
+              "npmCreateVite": "npm create vite - Official Scaffolding",
+              "npmMeta": "npmjs.com",
+              "reactDocs": "React Documentation - Quick Start",
+              "reactMeta": "react.dev",
+              "tailwindDocs": "Tailwind CSS - Installation Guide",
+              "tailwindMeta": "tailwindcss.com",
+              "viteDocs": "Vite - Next Generation Frontend Tooling",
+              "viteMeta": "vitejs.dev"
+            },
+            "title": "审阅参考资料"
+          },
+          "searchWeb": {
+            "resources": {
+              "reactViteQuery": "React Vite TypeScript starter 2025 best practices"
+            },
+            "summary": "收集了 React + Vite 项目脚手架和最佳实践的最新资料。",
+            "title": "搜索网络资料"
+          },
+          "title": "执行过程详情",
+          "writeComponents": {
+            "collectionTitle": "创建的文件",
+            "resources": {
+              "app": "src/App.tsx",
+              "button": "src/components/Button.tsx",
+              "card": "src/components/Card.tsx",
+              "footer": "src/components/Footer.tsx",
+              "header": "src/components/Header.tsx",
+              "layout": "src/components/Layout.tsx",
+              "modifiedMeta": "modified",
+              "newMeta": "new",
+              "updatedMeta": "updated"
+            },
+            "title": "编写组件"
+          },
+          "writePages": {
+            "resources": {
+              "about": "src/pages/About.tsx",
+              "home": "src/pages/Home.tsx",
+              "newMeta": "new"
+            },
+            "title": "编写页面"
+          }
+        },
+        "progress": "{{completed}}/{{total}} 任务已完成",
+        "tasks": {
+          "addLinting": "添加 ESLint + Prettier",
+          "addRouter": "添加 React Router",
+          "buildDeploy": "构建与部署",
+          "configureProject": "配置项目",
+          "finish": "完成",
+          "installDependencies": "安装依赖",
+          "reviewReferences": "审阅参考资料",
+          "searchWeb": "搜索网络资料",
+          "writeComponents": "编写组件",
+          "writePages": "编写页面"
+        },
+        "title": "任务"
+      },
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 个任务"
       },
@@ -475,7 +834,7 @@
       "running": "运行中",
       "stopped": "已停止"
     },
-    "title": "API 服务器"
+    "title": "API 网关"
   },
   "appMenu": {
     "about": "关于",
@@ -579,6 +938,7 @@
         "agent": "导出助手"
       },
       "import": {
+        "action": "导入助手",
         "button": "导入",
         "error": {
           "fetch_failed": "从 URL 获取数据失败",
@@ -689,17 +1049,6 @@
         "off_description": "禁用推理",
         "xhigh": "穷究",
         "xhigh_description": "超高强度推理"
-      },
-      "regular_phrases": {
-        "add": "添加短语",
-        "contentLabel": "内容",
-        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
-        "delete": "删除短语",
-        "deleteConfirm": "确定要删除这个短语吗？",
-        "edit": "编辑短语",
-        "title": "常用短语",
-        "titleLabel": "标题",
-        "titlePlaceholder": "输入标题"
       },
       "title": "助手设置",
       "tool_use_mode": {
@@ -1231,6 +1580,7 @@
       "unpin": "取消固定"
     },
     "translate": "翻译",
+    "user": "用户",
     "web_search": {
       "warning": {
         "openai": "GPT5 模型 minimal 思考强度不支持网络搜索"
@@ -1242,11 +1592,23 @@
     "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "选择要使用的 CLI 工具",
+    "count_one": "{{count}} 个",
+    "count_other": "{{count}} 个",
     "custom_path": "自定义路径",
     "custom_path_error": "设置自定义终端路径失败",
     "custom_path_required": "此终端需要设置自定义路径",
     "custom_path_set": "自定义终端路径设置成功",
     "description": "快速启动多个代码 CLI 工具，提高开发效率",
+    "empty": {
+      "no_match": {
+        "description": "尝试调整搜索关键词",
+        "title": "没有找到匹配的工具"
+      },
+      "no_tool": {
+        "description": "添加 CLI 工具或代码助手开始使用",
+        "title": "暂无代码工具"
+      }
+    },
     "env_vars_help": "输入自定义环境变量（每行一个，格式：KEY=value）",
     "environment_variables": "环境变量",
     "folder_placeholder": "选择工作目录",
@@ -1256,21 +1618,28 @@
       "bun_required": "请先安装 Bun 环境再启动 CLI 工具",
       "error": "启动失败，请重试",
       "label": "启动",
+      "launched": "已启动",
       "success": "启动成功",
       "validation_error": "请完成所有必填项：CLI 工具、模型和工作目录"
     },
     "launching": "启动中...",
     "model": "模型",
+    "model_hint": "为 CLI 工具选择要使用的 AI 模型",
     "model_placeholder": "选择要使用的模型",
     "model_required": "请选择模型",
+    "official_tag": "官方",
+    "official_tools": "官方工具",
+    "search_placeholder": "搜索 CLI 工具…",
     "select_folder": "选择文件夹",
     "set_custom_path": "设置自定义终端路径",
     "supported_providers": "支持的服务商",
     "terminal": "终端",
+    "terminal_hint": "选择命令执行的终端应用",
     "terminal_placeholder": "选择终端应用",
     "title": "代码工具",
     "update_options": "更新选项",
-    "working_directory": "工作目录"
+    "working_directory": "工作目录",
+    "working_directory_hint": "CLI 工具启动时的工作目录"
   },
   "code_block": {
     "collapse": "收起",
@@ -1386,6 +1755,7 @@
     "models": "模型",
     "more": "更多",
     "name": "名称",
+    "next": "下一页",
     "next_match": "下一个匹配",
     "no_results": "无结果",
     "none": "无",
@@ -1401,6 +1771,7 @@
     },
     "powered_by": "由 ",
     "preview": "预览",
+    "previous": "上一页",
     "previous_match": "上一个匹配",
     "prompt": "提示词",
     "provider": "提供商",
@@ -1500,6 +1871,31 @@
     "data": "数据",
     "detail": "错误详情",
     "details": "详细信息",
+    "diagnosis": {
+      "ai_button": "AI 诊断",
+      "ai_done": "已诊断",
+      "ai_loading": "正在诊断",
+      "ai_result": "AI 诊断结果",
+      "auth": "API Key 无效，请检查并重新配置",
+      "content": "消息内容被安全系统拦截，请修改后重试",
+      "context_length": "对话上下文过长，请清理历史消息或开启新对话",
+      "deprecated": "该模型已下线或弃用，请更换其他模型",
+      "go_to_settings": "前往设置",
+      "knowledge": "知识库向量化失败",
+      "mcp": "MCP 服务器连接失败，请检查服务是否已启动",
+      "model": "模型不存在或你没有访问权限",
+      "model_conflict": "诊断模型与出错模型相同，无法进行诊断",
+      "network": "无法连接到服务器，请检查网络或代理设置",
+      "ocr": "OCR 识别引擎未初始化，请检查 OCR 设置",
+      "parse": "AI 返回的格式异常，请重试或更换模型",
+      "payload": "请求内容过大，请减少发送的文件或文本量",
+      "proxy": "代理或 SSL 证书错误，请检查代理和网络设置",
+      "quota": "账户额度已用完，请充值或更换服务商",
+      "server": "服务器异常，建议稍后重试",
+      "stream": "响应传输中断，请检查网络稳定性或重试",
+      "unknown": "发生了一个错误",
+      "view_details": "查看详情"
+    },
     "errors": "错误",
     "finishReason": "结束原因",
     "functionality": "功能",
@@ -1654,7 +2050,8 @@
     "empty_preview": "无内容可展示",
     "generating": "生成中",
     "preview": "预览",
-    "split": "分屏"
+    "split": "分屏",
+    "view_mode": "视图模式"
   },
   "import": {
     "chatgpt": {
@@ -1835,7 +2232,471 @@
   },
   "launchpad": {
     "apps": "应用",
-    "minapps": "小程序"
+    "miniApps": "小程序"
+  },
+  "library": {
+    "action": {
+      "create": "新建",
+      "delete": "删除",
+      "disable": "禁用",
+      "duplicate": "复制",
+      "edit": "编辑",
+      "enable": "启用",
+      "manage_tags": "管理标签",
+      "uninstall": "卸载"
+    },
+    "assistant_catalog": {
+      "add": "添加",
+      "add_failed": "添加助手失败",
+      "browse_label": "助手分类",
+      "empty_description": "这个分类下暂时没有助手预设",
+      "empty_title": "暂无可添加助手",
+      "mine": "我的",
+      "no_match_description": "尝试其他搜索关键词",
+      "no_match_title": "未找到匹配的助手",
+      "preview": "预览",
+      "preview_description": "简介",
+      "preview_prompt": "提示词",
+      "scroll_left": "向左滚动分类",
+      "scroll_right": "向右滚动分类"
+    },
+    "badge": {
+      "update": "更新"
+    },
+    "config": {
+      "agent": {
+        "create_banner": "保存后才能绑定工具和 MCP 服务",
+        "create_title": "新建智能体",
+        "field": {
+          "accessible_paths": {
+            "add": "添加目录",
+            "empty": "未设置（将使用默认工作区）",
+            "hint": "限制 Agent 可访问的目录",
+            "label": "可访问目录"
+          },
+          "allowed_tools": {
+            "add": "添加工具",
+            "empty": "留空则使用权限模式默认值",
+            "label": "允许使用的工具"
+          },
+          "avatar": {
+            "hint": "用于资源库和会话识别"
+          },
+          "description": {
+            "hint": "帮助你快速识别用途",
+            "label": "描述",
+            "placeholder": "这个 Agent 的用途…"
+          },
+          "env_vars": {
+            "help": "每行一个 KEY=VALUE",
+            "label": "环境变量"
+          },
+          "heartbeat_enabled": {
+            "label": "心跳检测"
+          },
+          "heartbeat_interval": {
+            "label": "心跳间隔 (分钟)"
+          },
+          "instructions": {
+            "hint": "定义 Agent 的角色和行为边界",
+            "label": "系统提示词",
+            "placeholder": "告诉 Agent 它是谁、它能做什么…"
+          },
+          "max_turns": {
+            "help": "0 表示使用默认值",
+            "label": "最大对话轮数"
+          },
+          "mcps": {
+            "add": "添加 MCP 服务",
+            "empty": "未绑定",
+            "label": "MCP 服务 (id)"
+          },
+          "model": {
+            "help": "UniqueModelId,后续版本将改为从 /models 选择",
+            "hint": "负责主要推理和执行",
+            "label": "主模型 (必填)"
+          },
+          "name": {
+            "hint": "展示在资源库和会话列表中",
+            "label": "Agent 名称",
+            "placeholder": "给 Agent 起个名字"
+          },
+          "permission_mode": {
+            "help": "切换到 bypassPermissions 等同于启用 Soul 模式",
+            "label": "权限模式",
+            "option": {
+              "acceptEdits": "接受编辑",
+              "bypassPermissions": "绕过权限 (Soul)",
+              "default": "默认",
+              "plan": "Plan 模式"
+            }
+          },
+          "plan_model": {
+            "hint": "负责任务拆解和决策",
+            "label": "Plan 模型 (可选)"
+          },
+          "small_model": {
+            "hint": "负责简单判断和格式化",
+            "label": "Small 模型 (可选)"
+          },
+          "soul_enabled": {
+            "help": "启用后自动授予 bypassPermissions 权限",
+            "label": "Soul 模式"
+          }
+        },
+        "model_config": "模型配置",
+        "section": {
+          "advanced": {
+            "desc": "最大轮次与环境变量",
+            "label": "高级设置",
+            "title": "高级设置"
+          },
+          "basic": {
+            "desc": "名称、头像、模型、目录、运行时",
+            "label": "基础设置",
+            "title": "基础设置"
+          },
+          "permission": {
+            "desc": "控制 Agent 可执行操作的授权范围",
+            "label": "权限模式",
+            "title": "权限模式"
+          },
+          "prompt": {
+            "desc": "系统提示词 / 行为约束",
+            "label": "提示词",
+            "title": "提示词"
+          },
+          "tools": {
+            "add": "添加",
+            "desc": "配置智能体可使用的工具和 MCP Server",
+            "label": "工具",
+            "no_builtin_enabled": "未启用任何内置工具",
+            "no_mcp_bound": "未绑定任何 MCP 服务",
+            "no_skills_enabled": "未启用任何技能",
+            "search_placeholder": "搜索工具或 Server...",
+            "skills_coming_soon": "Skill 绑定即将支持",
+            "skills_require_save": "保存后才能启用技能",
+            "tab": {
+              "mcp": "MCP Server",
+              "skills": "Skills",
+              "tools": "内置工具"
+            },
+            "title": "能力扩展"
+          }
+        }
+      },
+      "basic": {
+        "context_count": "上下文数",
+        "creative": "创意",
+        "custom_params": "自定义参数",
+        "custom_params_add": "添加参数",
+        "custom_params_name": "参数名",
+        "default_value": "模型默认",
+        "desc": "填写头像、名称、简介和系统提示词",
+        "description_label": "简介",
+        "field": {
+          "avatar": {
+            "hint": "用于在资源库和对话中识别助手"
+          },
+          "context_count": {
+            "hint": "保留为上下文的最近消息数量"
+          },
+          "custom_params": {
+            "hint": "随请求发送给模型服务商的额外参数"
+          },
+          "description": {
+            "hint": "帮助快速区分这个助手的用途",
+            "placeholder": "这个助手的用途..."
+          },
+          "max_tokens": {
+            "hint": "启用后限制回复长度"
+          },
+          "max_tool_calls": {
+            "hint": "启用后限制工具调用轮次"
+          },
+          "model": {
+            "hint": "覆盖该助手使用的全局默认模型"
+          },
+          "name": {
+            "hint": "展示在资源库和助手选择器中",
+            "placeholder": "给助手起个名字"
+          },
+          "stream_output": {
+            "hint": "生成时逐步显示回复内容"
+          },
+          "tags": {
+            "hint": "用于筛选和整理助手"
+          },
+          "temperature": {
+            "hint": "启用后控制回复随机性"
+          },
+          "tool_use_mode": {
+            "hint": "控制工具如何暴露给模型"
+          },
+          "top_p": {
+            "hint": "启用后限制采样范围"
+          }
+        },
+        "json_invalid": "JSON 格式错误",
+        "max_tokens": "最大 Token 数",
+        "max_tool_calls": "最大工具调用次数",
+        "model": "默认模型",
+        "model_clear": "清空",
+        "model_not_found": "模型未找到(可能被删除):{{id}}",
+        "model_pick": "+ 选择模型",
+        "pick_avatar": "选择头像",
+        "precise": "精确",
+        "stream_output": "流式输出",
+        "tag_empty": "没有可选的标签",
+        "tag_hint": "如需新增标签,请在资源库顶部栏的「+ 标签」入口创建",
+        "tag_placeholder": "选择标签",
+        "tag_search": "搜索标签",
+        "tags": "标签",
+        "temperature": "模型温度",
+        "title": "基础设置",
+        "tool_use_function": "函数",
+        "tool_use_mode": "工具调用方式",
+        "tool_use_prompt": "Prompt",
+        "top_p": "Top-P",
+        "unlimited": "不限"
+      },
+      "breadcrumb": "资源库",
+      "knowledge": {
+        "add": "添加知识库",
+        "desc": "关联一个或多个知识库,对话时会在知识库中检索相关内容",
+        "doc_count": "{{count}} 文档",
+        "empty_desc": "关联知识库后,助手可以根据文档内容回答问题",
+        "empty_title": "暂未关联知识库",
+        "invalid_suffix": "... (已失效)",
+        "linked": "已关联知识库",
+        "linked_hint": "控制该助手可以检索哪些知识库",
+        "no_more": "没有更多可用的知识库",
+        "remove_aria": "移除",
+        "search": "搜索知识库...",
+        "title": "知识库关联"
+      },
+      "prompt": {
+        "create_title": "新建 Prompt",
+        "dblclick_hint": "双击预览区可切回编辑",
+        "desc": "系统提示词将作为该助手的上下文开头发送给模型",
+        "edit_title": "编辑 Prompt",
+        "field": {
+          "content": {
+            "label": "内容",
+            "too_long": "内容不能超过 {{max}} 个字符"
+          },
+          "name": {
+            "label": "名称",
+            "too_long": "名称不能超过 {{max}} 个字符"
+          }
+        },
+        "generate": "生成提示词",
+        "insert_variable": "插入变量",
+        "label": "系统提示词",
+        "placeholder": "在这里输入系统提示词,支持 {{date}} / {{model_name}} 等变量...",
+        "title": "提示词",
+        "tokens_label": "Tokens: ",
+        "variables_title": "可用的变量",
+        "vars": {
+          "arch": "CPU 架构",
+          "date": "日期",
+          "datetime": "日期和时间",
+          "language": "语言",
+          "model_name": "模型名称",
+          "os": "操作系统",
+          "time": "时间",
+          "username": "用户名"
+        }
+      },
+      "save_failed": "保存失败",
+      "saving": "保存中...",
+      "section": {
+        "basic": {
+          "desc": "头像、名称、简介、系统提示词",
+          "label": "基础设置"
+        },
+        "knowledge": {
+          "desc": "关联知识库、检索策略",
+          "label": "知识库"
+        },
+        "more": {
+          "desc": "模型、标签和参数",
+          "label": "更多设置"
+        },
+        "prompt": {
+          "desc": "系统提示词与变量",
+          "label": "提示词"
+        },
+        "tools": {
+          "desc": "MCP 服务与工具配置",
+          "label": "工具"
+        }
+      },
+      "tools": {
+        "add_mcp": "添加 MCP 服务",
+        "added": "已添加的 MCP 服务",
+        "added_hint": "手动模式只会暴露这里添加的服务",
+        "desc": "配置该助手在对话中可以调用的 MCP 服务",
+        "empty_desc": "添加 MCP 服务后,助手可以调用外部工具",
+        "empty_title": "暂未添加 MCP 服务",
+        "inactive_badge": "未启用",
+        "info_main": "MCP (Model Context Protocol) 允许模型安全地调用外部工具。",
+        "info_sub": "仅启用必要的服务可以提高安全性和响应速度。",
+        "mode": {
+          "auto": {
+            "desc": "由模型按需决定调用哪些已启用的 MCP 工具",
+            "label": "自动"
+          },
+          "disabled": {
+            "desc": "对话中不启用任何 MCP 工具",
+            "label": "禁用"
+          },
+          "manual": {
+            "desc": "只暴露下方被勾选的 MCP 服务",
+            "label": "手动"
+          }
+        },
+        "no_more": "没有更多可用的服务",
+        "search": "搜索可用服务...",
+        "switch_title_active": "关闭以移除",
+        "switch_title_inactive": "该服务在 MCP 设置中未启用,移除后可重新添加",
+        "title": "工具"
+      }
+    },
+    "create_menu": {
+      "create": "新建{{type}}",
+      "import": "导入{{type}}"
+    },
+    "delete": {
+      "agent": {
+        "content": "确定要删除这个 Agent 吗？该操作不可撤销。",
+        "title": "删除 Agent"
+      },
+      "skill": {
+        "content": "确定要卸载这个技能吗？将从全局库移除并清理所有 Agent 工作区下的软链接。",
+        "title": "卸载技能"
+      }
+    },
+    "delete_confirm": {
+      "cancel": "取消",
+      "confirm": "删除",
+      "description": "确定要删除「{{name}}」吗？此操作无法撤销。",
+      "title": "确认删除"
+    },
+    "duplicate_assistant_failed": "复制助手失败",
+    "duplicate_name": "{{name}} (副本)",
+    "empty_state": {
+      "description": "点击「新建」创建你的第一个资源",
+      "empty_description": "创建你的第一个智能体或助手",
+      "empty_title": "还没有任何资源",
+      "no_match_description": "尝试其他搜索关键词",
+      "no_match_title": "未找到匹配的资源",
+      "title": "暂无资源"
+    },
+    "export_assistant_failed": "导出助手失败",
+    "import_dialog": {
+      "clipboard": {
+        "button": "解析并导入",
+        "placeholder": "在此粘贴 JSON 配置内容..."
+      },
+      "error": {
+        "content_too_large": "内容过大(>5 MB)",
+        "file_too_large": "文件过大(>5 MB)",
+        "invalid_url": "无效的 URL",
+        "response_too_large": "响应内容过大(>5 MB)",
+        "timeout": "请求超时,请检查 URL 是否可达",
+        "unsupported_protocol": "仅支持 http 或 https 协议的 URL"
+      },
+      "failure": "导入失败:{{error}}",
+      "file": {
+        "drop_hint": "拖放文件到此处,或点击选择文件",
+        "formats": "支持 .json"
+      },
+      "partial_success": "部分导入成功:成功 {{success}} 个,失败 {{failed}} 个({{first_name}}: {{first_error}})",
+      "subtitle": "支持 JSON 格式的配置文件",
+      "success": "成功导入: {{name}}",
+      "tab": {
+        "clipboard": "剪贴板",
+        "file": "文件上传",
+        "url": "URL 导入"
+      },
+      "url": {
+        "button": "获取并导入",
+        "hint": "从 GitHub Gist、GitHub 仓库或任何公开 URL 导入配置",
+        "supports": "支持 raw 文件链接"
+      }
+    },
+    "import_skill_dialog": {
+      "local": {
+        "drop_hint": "拖放 ZIP 文件或目录到此处,或点击选择 ZIP",
+        "formats": "支持 .zip 文件或包含 SKILL.md 的目录"
+      },
+      "subtitle": "从 ZIP 文件或目录安装技能",
+      "title": "导入技能"
+    },
+    "no_match": "无匹配结果",
+    "pending_backend": {
+      "description": "该资源的写入操作即将上线,当前仅展示占位。",
+      "title": "数据层接入中"
+    },
+    "sidebar": {
+      "all_resources": "所有资源",
+      "all_tags": "全部标签",
+      "no_tags": "暂无标签",
+      "subtitle": "管理你的 AI 资源",
+      "tags": "标签",
+      "title": "资源库"
+    },
+    "skill_detail": {
+      "created_at": "创建时间",
+      "delete_description": "移除此技能及其所有配置,此操作不可恢复",
+      "delete_title": "删除技能",
+      "description": "描述",
+      "file_preview": "文件预览",
+      "installed": "已安装",
+      "no_description": "暂无描述",
+      "source_files": "源文件",
+      "updated_at": "最近更新"
+    },
+    "sort": {
+      "created": "按创建时间",
+      "name": "按名称",
+      "updated": "按更新时间"
+    },
+    "subtitle": "管理你的助手、智能体与技能",
+    "tag_picker": {
+      "no_tags": "暂无标签",
+      "placeholder": "新标签名..."
+    },
+    "tag_sync_failed": "标签同步失败",
+    "time_ago": {
+      "days": "{{count}} 天前",
+      "hours": "{{count}} 小时前",
+      "just_now": "刚刚",
+      "minutes": "{{count}} 分钟前",
+      "months": "{{count}} 个月前"
+    },
+    "title": "资源库",
+    "toolbar": {
+      "add_tag_placeholder": "标签名...",
+      "new_resource": "新建资源",
+      "search_placeholder": "搜索资源名称、描述...",
+      "tag_button": "标签"
+    },
+    "type": {
+      "agent": "智能体",
+      "assistant": "助手",
+      "new_agent": "新智能体",
+      "new_assistant": "新助手",
+      "new_prompt": "新 Prompt",
+      "prompt": "提示词",
+      "skill": "技能"
+    },
+    "uninstall_failed": "卸载失败",
+    "view": {
+      "grid": "网格视图",
+      "list": "列表视图"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -1844,112 +2705,6 @@
       "title": "保持活跃时间"
     },
     "title": "LM Studio"
-  },
-  "memory": {
-    "actions": "操作",
-    "add_failed": "添加记忆失败",
-    "add_first_memory": "添加您的第一条记忆",
-    "add_memory": "添加记忆",
-    "add_new_user": "添加新用户",
-    "add_success": "记忆添加成功",
-    "add_user": "添加用户",
-    "add_user_failed": "添加用户失败",
-    "all_users": "所有用户",
-    "cannot_delete_default_user": "不能删除默认用户",
-    "configure_memory_first": "请先配置记忆设置",
-    "content": "内容",
-    "current_user": "当前用户",
-    "custom": "自定义",
-    "default": "默认",
-    "default_user": "默认用户",
-    "delete_confirm": "确定要删除这条记忆吗？",
-    "delete_confirm_content": "确定要删除 {{count}} 条记忆吗？",
-    "delete_confirm_single": "确定要删除这条记忆吗？",
-    "delete_confirm_title": "删除记忆",
-    "delete_failed": "删除记忆失败",
-    "delete_selected": "删除选中",
-    "delete_success": "记忆删除成功",
-    "delete_user": "删除用户",
-    "delete_user_confirm_content": "确定要删除用户 {{user}} 及其所有记忆吗？",
-    "delete_user_confirm_title": "删除用户",
-    "delete_user_failed": "删除用户失败",
-    "description": "记忆功能允许您存储和管理与助手交互的信息。您可以添加、编辑和删除记忆，也可以对它们进行过滤和搜索。",
-    "edit_memory": "编辑记忆",
-    "embedding_dimensions": "嵌入维度",
-    "embedding_model": "嵌入模型",
-    "enable_global_memory_first": "请先启用全局记忆",
-    "end_date": "结束日期",
-    "global_memory": "全局记忆",
-    "global_memory_description": "需要开启助手设置中的全局记忆才能使用",
-    "global_memory_disabled_desc": "要使用记忆功能，请先在助手设置中启用全局记忆。",
-    "global_memory_disabled_title": "全局记忆已禁用",
-    "global_memory_enabled": "全局记忆已启用",
-    "go_to_memory_page": "前往记忆页面",
-    "initial_memory_content": "欢迎！这是您的第一条记忆。",
-    "llm_model": "LLM 模型",
-    "load_failed": "加载记忆失败",
-    "loading": "正在加载记忆...",
-    "loading_memories": "正在加载记忆...",
-    "memories_description": "显示 {{count}} / {{total}} 条记忆",
-    "memories_reset_success": "{{user}} 的所有记忆已成功重置",
-    "memory": "条记忆",
-    "memory_content": "记忆内容",
-    "memory_placeholder": "输入记忆内容...",
-    "new_user_id": "新用户ID",
-    "new_user_id_placeholder": "输入唯一的用户ID",
-    "no_matching_memories": "未找到匹配的记忆",
-    "no_memories": "暂无记忆",
-    "no_memories_description": "开始添加您的第一条记忆吧",
-    "not_configured_desc": "请在记忆设置中配置嵌入和LLM模型以启用记忆功能。",
-    "not_configured_title": "记忆未配置",
-    "pagination_total": "第 {{start}}-{{end}} 项，共 {{total}} 项",
-    "please_enter_memory": "请输入记忆内容",
-    "please_select_embedding_model": "请选择嵌入模型",
-    "please_select_llm_model": "请选择 LLM 模型",
-    "reset_filters": "重置筛选",
-    "reset_memories": "重置记忆",
-    "reset_memories_confirm_content": "确定要永久删除 {{user}} 的所有记忆吗？此操作无法撤销。",
-    "reset_memories_confirm_title": "重置所有记忆",
-    "reset_memories_failed": "重置记忆失败",
-    "reset_user_memories": "重置用户记忆",
-    "reset_user_memories_confirm_content": "确定要重置 {{user}} 的所有记忆吗？",
-    "reset_user_memories_confirm_title": "重置用户记忆",
-    "reset_user_memories_failed": "重置用户记忆失败",
-    "score": "分数",
-    "search": "搜索",
-    "search_placeholder": "搜索记忆...",
-    "select_embedding_model_placeholder": "选择嵌入模型",
-    "select_llm_model_placeholder": "选择 LLM 模型",
-    "select_user": "选择用户",
-    "settings": "设置",
-    "settings_title": "记忆设置",
-    "start_date": "开始日期",
-    "statistics": "统计",
-    "stored_memories": "已存储记忆",
-    "switch_user": "切换用户",
-    "switch_user_confirm": "将用户上下文切换到 {{user}}？",
-    "time": "时间",
-    "title": "全局记忆",
-    "total_memories": "条记忆",
-    "try_different_filters": "尝试调整搜索条件",
-    "update_failed": "更新记忆失败",
-    "update_success": "记忆更新成功",
-    "user": "用户",
-    "user_created": "用户 {{user}} 创建并切换成功",
-    "user_deleted": "用户 {{user}} 删除成功",
-    "user_id": "用户 ID",
-    "user_id_exists": "该用户ID已存在",
-    "user_id_invalid_chars": "用户ID只能包含字母、数字、连字符和下划线",
-    "user_id_placeholder": "输入用户 ID（可选）",
-    "user_id_required": "用户ID为必填项",
-    "user_id_reserved": "'default-user' 为保留字，请使用其他ID",
-    "user_id_rules": "用户ID必须唯一，只能包含字母、数字、连字符(-)和下划线(_)",
-    "user_id_too_long": "用户ID不能超过50个字符",
-    "user_management": "用户管理",
-    "user_memories_reset": "{{user}} 的所有记忆已重置",
-    "user_switch_failed": "切换用户失败",
-    "user_switched": "用户上下文已切换到 {{user}}",
-    "users": "用户"
   },
   "message": {
     "agents": {
@@ -2291,20 +3046,23 @@
     "websearch": {
       "cutoff": "正在截断搜索内容...",
       "fetch_complete": "{{count}} 个搜索结果",
-      "rag": "正在执行 RAG...",
-      "rag_complete": "保留 {{countBefore}} 个结果中的 {{countAfter}} 个...",
-      "rag_failed": "RAG 失败，返回空结果..."
+      "partial_failure": "{{count}} 个搜索结果，部分搜索失败"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "添加到启动台",
     "add_to_sidebar": "添加到侧边栏",
+    "error": {
+      "load_failed": "应用加载失败",
+      "not_found": "应用未找到"
+    },
+    "hide_failed": "隐藏小程序失败",
+    "pin_failed": "固定小程序失败",
     "popup": {
       "close": "关闭小程序",
       "devtools": "开发者工具",
       "goBack": "后退",
       "goForward": "前进",
-      "minimize": "最小化小程序",
       "openExternal": "在浏览器中打开",
       "open_link_external_off": "当前：使用默认窗口打开链接",
       "open_link_external_on": "当前：在浏览器中打开链接",
@@ -2313,6 +3071,13 @@
     },
     "remove_from_launchpad": "从启动台移除",
     "remove_from_sidebar": "从侧边栏移除",
+    "reorder_failed": "小程序排序更新失败",
+    "shortcut": {
+      "failed": "失败：{{message}}",
+      "html_saved": "HTML 已保存至：{{path}}",
+      "pdf_saved": "PDF 已保存至：{{path}}"
+    },
+    "show_failed": "显示小程序失败",
     "sidebar": {
       "close": {
         "title": "关闭"
@@ -2327,9 +3092,11 @@
         "title": "删除自定义应用"
       }
     },
-    "title": "小程序"
+    "title": "小程序",
+    "unpin_failed": "取消固定小程序失败",
+    "update_partial_failure": "{{failed}}/{{total}} 项更新失败"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "蚂蚁百灵",
     "baichuan": "百小应",
     "baidu-ai-search": "百度AI搜索",
@@ -2348,44 +3115,18 @@
     "stepfun": "阶跃AI",
     "tencent-yuanbao": "腾讯元宝",
     "tiangong-ai": "天工AI",
+    "update_partial_failure_generic": "部分小程序更新失败",
     "wanzhi": "万知",
     "wenxin": "文心一言",
     "wps-copilot": "WPS灵犀",
     "xiaoyi": "小艺",
     "zhihu": "知乎直答"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "提示：如遇到Google登录提示\"不受信任的浏览器\"，请先在小程序列表中的Google小程序中完成账号登录，再在其它小程序使用Google登录"
-    },
-    "clipboard": {
-      "empty": "剪贴板为空"
-    },
-    "feature": {
-      "chat": "回答此问题",
-      "explanation": "解释说明",
-      "summary": "内容总结",
-      "translate": "文本翻译"
-    },
-    "footer": {
-      "backspace_clear": "按 Backspace 清空",
-      "copy_last_message": "按 C 键复制",
-      "esc": "按 ESC {{action}}",
-      "esc_back": "返回",
-      "esc_close": "关闭",
-      "esc_pause": "暂停"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "询问 {{model}} 获取帮助...",
-        "title": "你想对下方文字做什么"
-      }
-    },
-    "tooltip": {
-      "pin": "窗口置顶"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "置顶此模型",
+      "unpin": "取消置顶"
+    },
     "add_parameter": "添加参数",
     "all": "全部",
     "custom_parameters": "自定义参数",
@@ -2403,6 +3144,9 @@
     "function_calling": "函数调用",
     "invalid_model": "无效模型",
     "json_parse_error": "JSON 格式无效",
+    "multi_select": {
+      "label": "多模型并行（与多助手互斥）"
+    },
     "no_matches": "无可用模型",
     "parameter_name": "参数名称",
     "parameter_type": {
@@ -3049,11 +3793,11 @@
       "tools": "工具"
     },
     "install": "安装",
-    "install_plugins_from_browser": "浏览可用插件以开始使用",
+    "install_plugins_from_browser": "浏览可用技能以开始使用",
     "installing": "安装中...",
     "name": "名称",
     "no_description": "无描述",
-    "no_installed_plugins": "尚未安装任何插件",
+    "no_installed_plugins": "尚未安装任何技能",
     "no_results": "未找到插件",
     "no_results_skills": "未找到技能",
     "search_placeholder": "搜索插件...",
@@ -3081,18 +3825,25 @@
     "uninstalling": "卸载中..."
   },
   "preview": {
+    "close": "关闭预览",
     "copy": {
       "image": "复制为图片",
       "src": "复制图片源"
     },
     "dialog": "打开预览窗口",
+    "flip_horizontal": "水平翻转",
+    "flip_vertical": "垂直翻转",
     "label": "预览",
+    "next": "下一张图片",
     "pan": "移动",
     "pan_down": "下移",
     "pan_left": "左移",
     "pan_right": "右移",
     "pan_up": "上移",
+    "previous": "上一张图片",
     "reset": "重置",
+    "rotate_left": "向左旋转",
+    "rotate_right": "向右旋转",
     "source": "查看源代码",
     "zoom_in": "放大",
     "zoom_out": "缩小"
@@ -3170,6 +3921,37 @@
     "zai": "Z.ai",
     "zhinao": "360 智脑",
     "zhipu": "智谱开放平台"
+  },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "提示：如遇到Google登录提示\"不受信任的浏览器\"，请先在小程序列表中的Google小程序中完成账号登录，再在其它小程序使用Google登录"
+    },
+    "clipboard": {
+      "empty": "剪贴板为空"
+    },
+    "feature": {
+      "chat": "回答此问题",
+      "explanation": "解释说明",
+      "summary": "内容总结",
+      "translate": "文本翻译"
+    },
+    "footer": {
+      "backspace_clear": "按 Backspace 清空",
+      "copy_last_message": "按 C 键复制",
+      "esc": "按 ESC {{action}}",
+      "esc_back": "返回",
+      "esc_close": "关闭",
+      "esc_pause": "暂停"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "询问 {{model}} 获取帮助...",
+        "title": "你想对下方文字做什么"
+      }
+    },
+    "tooltip": {
+      "pin": "窗口置顶"
+    }
   },
   "restore": {
     "confirm": {
@@ -3423,6 +4205,9 @@
         "summary": "请总结下面的内容。要求：使用 {{language}} 语言进行回复；请不要包含对本提示词的任何解释，直接给出回复： \n\n"
       },
       "translate": {
+        "error": {
+          "no_selected_text": "未选中要翻译的文本"
+        },
         "smart_translate_tips": "智能翻译：内容将优先翻译为目标语言；内容已是目标语言的，将翻译为备选语言"
       },
       "window": {
@@ -3490,7 +4275,7 @@
         "title": "应用筛选名单",
         "user_tips": {
           "mac": "请输入应用的Bundle ID，每行一个，不区分大小写，可以模糊匹配。例如：com.google.Chrome、com.apple.mail等",
-          "windows": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等"
+          "windows": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、CherryStudio.exe等"
         }
       },
       "linux": {
@@ -3611,6 +4396,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "新建智能体",
+      "empty_text": "暂无智能体",
+      "search_placeholder": "搜索智能体…"
+    },
+    "assistant": {
+      "create_new": "新建助手",
+      "empty_text": "暂无助手",
+      "multi_hint": "（与多模型互斥）",
+      "multi_label": "多助手并行",
+      "search_placeholder": "搜索助手…"
+    },
+    "common": {
+      "edit": "编辑",
+      "pin": "固定",
+      "pinned_title": "已固定",
+      "sort": {
+        "asc": "最早",
+        "desc": "最近"
+      },
+      "sort_label": "排序",
+      "unpin": "取消固定"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3672,6 +4482,82 @@
       "label": "默认助手",
       "model_params": "模型参数",
       "title": "默认助手"
+    },
+    "channels": {
+      "description": "将 Agent 连接到 Telegram、飞书、Discord 等消息平台。",
+      "title": "频道"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "清空",
+        "configDescription": "调整 props 预览组件行为",
+        "configTitle": "配置",
+        "currentProps": "当前 props",
+        "description": "AgentSelector 现在会读取真实 /agents DataApi 数据，用于验证 id/item 选择、pin、排序与搜索行为。",
+        "emptyShellNotice": "当前预览使用 /agents DataApi 返回的真实智能体列表。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "点击 trigger 打开选择器",
+        "previewTitle": "预览",
+        "title": "智能体选择器",
+        "triggerPlaceholder": "选择智能体",
+        "valueProp": "当前 value"
+      },
+      "agentTodoList": {
+        "title": "Agent 任务列表"
+      },
+      "assistantSelector": {
+        "clearSelection": "清空",
+        "configDescription": "调整 props 预览组件行为",
+        "configTitle": "配置",
+        "currentProps": "当前 props",
+        "description": "直接挂载 AssistantSelector 业务组件，验证 multi/single、id/item、pin、排序与搜索行为。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "点击 trigger 打开选择器",
+        "previewTitle": "预览",
+        "title": "助手选择器",
+        "triggerPlaceholder": "选择助手",
+        "triggerSelectedCount": "已选 {{count}} 个助手",
+        "valueProp": "当前 value"
+      },
+      "description": "仅在开发环境显示，用于在应用内直接联调 v2 选择器等新组件。",
+      "label": "组件测试",
+      "modelSelector": {
+        "behaviorConfig": "交互与展示配置",
+        "callbackEmpty": "还没有收到组件回调",
+        "clearSelection": "清空选择",
+        "configDescription": "上方切换 ModelSelector 的关键 props，下方直接查看传入值与回调返回值。",
+        "configTitle": "Props Playground",
+        "controlMultiSelectMode": "受控 multiSelectMode",
+        "currentProps": "当前 props",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "这里直接挂载当前的 ModelSelector 业务组件，方便验证选择、筛选、搜索和置顶能力。",
+        "empty": "当前没有可用模型，暂时无法展示选择器。",
+        "lastModeChangeReturn": "最近一次 onMultiSelectModeChange 返回",
+        "lastSelectReturn": "最近一次 onSelect 返回",
+        "loading": "正在加载模型...",
+        "modelId": "模型 ID",
+        "multiSelectMode": "multiSelectMode",
+        "multiple": "multiple",
+        "normalizedIds": "归一化选中 ID",
+        "outputEmpty": "当前没有可展示的数据",
+        "provider": "服务商",
+        "resetOutputs": "重置输出",
+        "resultsDescription": "这里会显示组件当前接收的 value、内部归一化后的选中状态，以及最新一次回调输出。",
+        "resultsTitle": "返回数据与状态",
+        "selected": "当前选择",
+        "selectedEmpty": "尚未选择模型",
+        "selectionConfig": "选择值配置",
+        "selectionType": "selectionType",
+        "selectionTypeId": "返回模型 ID",
+        "selectionTypeModel": "返回模型对象",
+        "showPinnedModels": "showPinnedModels",
+        "showTagFilter": "showTagFilter",
+        "title": "模型选择组件",
+        "triggerPlaceholder": "选择一个模型",
+        "triggerSelectedCount": "已选 {{count}} 个模型",
+        "valueProp": "当前传入 value"
+      },
+      "title": "开发环境组件测试"
     },
     "data": {
       "app_data": {
@@ -3755,7 +4641,7 @@
         },
         "content": "导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
         "file": {
-          "button": "导出到文件",
+          "button": "导出文件",
           "content": "将数据导出为备份文件，可在手机上通过文件方式导入。",
           "export_failed": "导出失败",
           "export_success": "导出成功",
@@ -4337,7 +5223,7 @@
         "knowledge": {
           "icon": "显示知识图标"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "显示小程序图标"
         },
         "painting": {
@@ -4371,6 +5257,15 @@
       "backup": {
         "button": "备份",
         "title": "数据备份与恢复"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "自定义 CSS",
+          "display_language": "显示与语言",
+          "privacy_advanced": "隐私与高级",
+          "system_startup": "系统与启动"
+        },
+        "title": "通用设置"
       },
       "display": {
         "title": "显示设置"
@@ -4432,6 +5327,12 @@
         "label": "目标语言",
         "russian": "俄文"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "笔记"
+      },
+      "title": "集成"
     },
     "launch": {
       "onboot": "开机自动启动",
@@ -4554,6 +5455,7 @@
         "glama": "Glama MCP 服务器目录",
         "higress": "Higress MCP 服务器",
         "mcpso": "MCP 服务器发现平台",
+        "mcpworld": "百度旗下MCP聚合平台网站",
         "modelscope": "魔搭社区 MCP 服务器",
         "official": "官方 MCP 服务器集合",
         "pulsemcp": "Pulse MCP 服务器",
@@ -4701,6 +5603,13 @@
       "url": "URL",
       "user": "用户"
     },
+    "menuGroups": {
+      "appSettings": "应用设置",
+      "integrations": "模型",
+      "productivity": "效率",
+      "services": "插件",
+      "system": "系统"
+    },
     "messages": {
       "divider": {
         "label": "消息分割线",
@@ -4738,7 +5647,7 @@
       "title": "消息设置",
       "use_serif_font": "使用衬线字体"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
       "cache_description": "设置同时保持活跃状态的小程序最大数量",
       "cache_settings": "缓存设置",
@@ -4788,8 +5697,6 @@
         "title": "小程序区域筛选"
       },
       "reset_tooltip": "重置为默认值",
-      "sidebar_description": "设置侧边栏是否显示活跃的小程序",
-      "sidebar_title": "侧边栏活跃小程序显示设置",
       "title": "小程序设置",
       "visible": "显示的小程序"
     },
@@ -4854,7 +5761,7 @@
         "use_all_keys": "使用密钥"
       },
       "default_assistant_model": "默认助手模型",
-      "default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
+      "default_assistant_model_description": "助手未指定模型时使用",
       "empty": "没有模型",
       "manage": {
         "add_listed": {
@@ -4948,9 +5855,35 @@
         "title": "详细程度"
       }
     },
+    "plugins": {
+      "bunDescription": "用于 MCP 服务和相关工具链的 JavaScript 运行时。",
+      "description": "管理应用运行所需的二进制工具和运行时依赖。",
+      "installing": "安装中...",
+      "notInstalled": "未安装",
+      "title": "环境依赖",
+      "uvDescription": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
+    },
     "privacy": {
       "enable_privacy_mode": "匿名发送错误报告和数据统计",
       "title": "隐私设置"
+    },
+    "prompts": {
+      "add": "添加提示词",
+      "contentLabel": "内容",
+      "contentPlaceholder": "请输入提示词内容，支持使用 ${变量}，按 Tab 可在变量间快速定位。例如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
+      "delete": "删除提示词",
+      "deleteConfirm": "删除提示词后将无法恢复，是否继续？",
+      "edit": "编辑提示词",
+      "errors": {
+        "createFailed": "创建提示词失败",
+        "deleteFailed": "删除提示词失败",
+        "loadFailed": "加载提示词失败",
+        "reorderFailed": "调整提示词顺序失败",
+        "updateFailed": "更新提示词失败"
+      },
+      "title": "提示词管理",
+      "titleLabel": "标题",
+      "titlePlaceholder": "请输入提示词标题"
     },
     "provider": {
       "add": {
@@ -5192,7 +6125,8 @@
         "documentation": "查看官方文档了解更多配置详情：",
         "learn_more": "了解更多",
         "location": "地区",
-        "location_help": "Vertex AI 服务的地区，例如 us-central1",
+        "location_help": "Vertex AI 服务的地区，例如 us-central1。该字段不会从 Service Account JSON 中自动获取，需要手动填写。",
+        "location_placeholder": "选择 Vertex AI 地区",
         "project_id": "项目 ID",
         "project_id_help": "您的 Google Cloud 项目 ID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5202,7 +6136,12 @@
           "client_email_help": "从 Google Cloud Console 下载的 JSON 密钥文件中的 client_email 字段",
           "client_email_placeholder": "请输入 Service Account 客户端邮箱",
           "description": "使用 Service Account 进行身份验证，适用于无法使用 ADC 的环境",
-          "incomplete_config": "请先完整配置 Service Account 信息",
+          "incomplete_config": "请先完整填写所有必需的 Vertex AI 配置项",
+          "json_input": "Service Account JSON",
+          "json_input_help": "粘贴完整 JSON 密钥内容。解析后只保存 project_id、client_email 和 private_key，并清空原始 JSON。",
+          "json_input_placeholder": "粘贴完整的 Service Account JSON 密钥内容",
+          "json_parse_error": "解析 Service Account JSON 失败，请确认格式正确",
+          "json_parse_success": "Service Account JSON 已解析",
           "private_key": "私钥",
           "private_key_help": "从 Google Cloud Console 下载的 JSON 密钥文件中的 private_key 字段",
           "private_key_placeholder": "请输入 Service Account 私钥",
@@ -5239,39 +6178,51 @@
       "select": "选择",
       "title": "快捷菜单"
     },
-    "quickPhrase": {
-      "add": "添加短语",
-      "assistant": "助手短语",
-      "contentLabel": "内容",
-      "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
-      "delete": "删除短语",
-      "deleteConfirm": "删除短语后将无法恢复，是否继续？",
-      "edit": "编辑短语",
-      "global": "全局短语",
-      "locationLabel": "添加位置",
-      "title": "快捷短语",
-      "titleLabel": "标题",
-      "titlePlaceholder": "请输入短语标题"
+    "scheduledTasks": {
+      "description": "管理所有 Agent 的定时任务。任务将按照配置的时间计划自动运行。",
+      "noAgents": "定时任务需要开启灵魂模式或无权限模式的 Agent 才能运行。请先在 Agent 设置中启用。",
+      "noAgentsTip": "提示：你也可以直接在对话中让 Agent 创建定时任务。",
+      "noTasks": "暂无定时任务。点击「+ 添加」为某个 Agent 创建任务。",
+      "selectTask": "选择一个任务以查看详情",
+      "title": "定时任务"
     },
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
+      "all_disable": "全部禁用",
+      "all_enable": "全部启用",
+      "bind_first_to_enable": "请先绑定快捷键，再调整启用状态",
+      "categories": {
+        "assistant": "AI 助手工具",
+        "chat": "消息交互",
+        "general": "全局与窗口",
+        "title": "快捷键分组",
+        "topic": "会话与话题"
+      },
       "clear_shortcut": "清除快捷键",
       "clear_topic": "清空消息",
+      "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "复制上一条消息",
       "edit_last_user_message": "编辑最后一条用户消息",
+      "empty": "当前分组下没有可显示的快捷键",
       "enabled": "启用",
       "exit_fullscreen": "退出全屏",
       "label": "按键",
-      "mini_window": "快捷助手",
       "new_topic": "新建话题",
+      "occupied_by_other_application": "该快捷键已被系统或其他应用占用",
       "press_shortcut": "按下快捷键",
+      "quick_assistant": "快捷助手",
       "rename_topic": "重命名话题",
+      "reset": "重置",
       "reset_defaults": "重置默认快捷键",
       "reset_defaults_confirm": "确定要重置所有快捷键吗？",
+      "reset_defaults_failed": "重置快捷键失败",
       "reset_to_default": "重置为默认",
+      "save_failed": "保存快捷键失败",
+      "save_failed_with_name": "保存快捷键失败：{{name}}",
       "search_message": "搜索消息",
       "search_message_in_chat": "在当前对话中搜索消息",
+      "search_placeholder": "搜索快捷键...",
       "select_model": "选择模型",
       "selection_assistant_select_text": "划词助手：取词",
       "selection_assistant_toggle": "开关划词助手",
@@ -5279,11 +6230,46 @@
       "show_settings": "打开设置",
       "title": "快捷键",
       "toggle_new_context": "清除上下文",
-      "toggle_show_assistants": "切换助手显示",
       "toggle_show_topics": "切换话题显示",
+      "toggle_sidebar": "切换侧边栏",
       "zoom_in": "放大界面",
       "zoom_out": "缩小界面",
       "zoom_reset": "重置缩放"
+    },
+    "skills": {
+      "author": "作者",
+      "batchUninstallSuccess": "已卸载 {{count}} 个技能",
+      "builtin": "内置",
+      "confirmBatchUninstall": "确定要卸载选中的 {{count}} 个技能吗？",
+      "confirmUninstall": "确定要卸载此技能吗？",
+      "directory": "文件夹",
+      "dropHint": "或将 ZIP 文件或文件夹拖放到此处",
+      "emptyDesc": "通过 ZIP、文件夹安装，或在线搜索注册表来扩展 Agent 的能力。",
+      "emptyTip": "提示：你也可以让 Agent 帮你安装技能。",
+      "emptyTitle": "未选择技能",
+      "filterPlaceholder": "筛选技能...",
+      "install": "安装",
+      "installFailed": "技能安装失败：{{name}}",
+      "installFromDirectory": "从文件夹安装",
+      "installFromZip": "从 ZIP 文件安装",
+      "installSuccess": "技能已安装：{{name}}",
+      "installed": "已安装",
+      "invalidFormat": "仅支持 ZIP 文件和文件夹",
+      "localInstall": "本地安装",
+      "multiSelect": "多选",
+      "noFilterResults": "没有匹配的技能",
+      "noInstalled": "暂无已安装的技能",
+      "noResults": "未找到技能",
+      "noSkillFile": "未找到 SKILL.md 文件",
+      "searchPlaceholder": "发现更多技能...",
+      "searchRegistryTitle": "在线搜索技能注册表",
+      "searchTitle": "搜索技能",
+      "selectFile": "选择一个文件查看",
+      "title": "技能",
+      "uninstall": "卸载",
+      "uninstallSuccess": "技能已卸载：{{name}}",
+      "viewSource": "查看源码",
+      "zip": "ZIP"
     },
     "theme": {
       "color_primary": "主题颜色",
@@ -5307,6 +6293,14 @@
         },
         "error": {
           "not_system": "系统 OCR 仅支持 Windows 与 MacOS"
+        },
+        "features": {
+          "paddleocr": "中文识别能力更强，适合票据、扫描件和复杂版式图片的文本提取。",
+          "system": {
+            "macos": "使用 macOS 原生 OCR 引擎，开箱即用，适合截图识别和轻量文本提取。",
+            "windows": "使用 Windows 系统 OCR，引擎集成度高，适合本地基础识别场景。"
+          },
+          "tesseract": "经典本地 OCR 方案，支持自定义语言包，适合离线处理和多语言扩展。"
         },
         "image": {
           "error": {
@@ -5334,6 +6328,13 @@
         "title": "OCR 服务"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "适合把 PDF 转成更规整的 Markdown 或可编辑文本，方便后续检索与整理。",
+          "mineru": "偏向高质量版面恢复，适合学术论文、表格和公式较多的 PDF 文档。",
+          "mistral": "云端文档理解能力较强，适合结构化提取、多页文档和复杂版式解析。",
+          "open_mineru": "开源部署方案，更适合希望自建服务并自行控制处理链路的场景。",
+          "paddleocr": "轻量且易接入，适合中文文档、扫描件和常见票据类内容的文本提取。"
+        },
         "paddleocr": {
           "aistudio_access_token": "星河社区访问令牌",
           "api_url": "API URL",
@@ -5372,23 +6373,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG 失败"
-          },
-          "info": {
-            "dimensions_auto_success": "维度自动获取成功，维度为 {{dimensions}}"
-          },
           "method": {
             "cutoff": "截断",
             "label": "压缩方法",
-            "none": "不压缩",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "文档片段数量",
-              "tooltip": "预期从单个搜索结果中提取的文档片段数量，实际提取的总数量是这个值乘以搜索结果数量。"
-            }
+            "none": "不压缩"
           },
           "title": "搜索结果压缩"
         },
@@ -5514,7 +6502,11 @@
     }
   },
   "tab": {
-    "new": "新标签页"
+    "close": "关闭标签页",
+    "moveToFirst": "移到最左侧",
+    "new": "新标签页",
+    "pin": "固定标签页",
+    "unpin": "取消固定"
   },
   "title": {
     "apps": "小程序",
@@ -5524,7 +6516,6 @@
     "knowledge": "知识库",
     "launchpad": "启动台",
     "mcp-servers": "MCP 服务器",
-    "memories": "记忆",
     "notes": "笔记",
     "openclaw": "OpenClaw",
     "paintings": "绘画",
@@ -5593,8 +6584,12 @@
     "detecting": "检测中...",
     "empty": "翻译内容为空",
     "error": {
+      "auto_copy_failed": "自动复制翻译结果失败",
       "chat_qwen_mt": "Qwen MT 模型不可在对话中使用，请转至翻译页面",
       "detect": {
+        "empty": "检测到的语言为空",
+        "failed": "语言检测失败",
+        "invalid": "检测到的语言不受支持",
         "qwen_mt": "QwenMT模型不能用于语言检测",
         "unknown": "检测到未知语言",
         "update_setting": "设置失败"
@@ -5602,6 +6597,7 @@
       "empty": "翻译结果为空内容",
       "failed": "翻译失败",
       "invalid_source": "无效的源语言",
+      "languages_load_failed": "翻译模块初始化失败，部分功能可能不可用",
       "not_configured": "翻译模型未配置",
       "not_supported": "不支持的语言 {{language}}",
       "unknown": "翻译过程中遇到未知错误"
@@ -5614,6 +6610,7 @@
       "error": {
         "check_type": "检查文件类型时发生错误",
         "multiple": "不允许上传多个文件",
+        "ocr": "识别图片文字失败",
         "too_large": "文件过大",
         "unknown": "读取文件内容失败"
       },
@@ -5625,11 +6622,20 @@
       "delete": "删除翻译历史",
       "empty": "暂无翻译历史",
       "error": {
+        "add": "添加翻译历史失败",
+        "clear": "清空翻译历史失败",
         "delete": "删除失败",
+        "load": "加载翻译历史失败",
         "save": "保存翻译历史失败"
       },
       "search": {
         "placeholder": "搜索翻译历史"
+      },
+      "success": {
+        "add": "已添加到历史",
+        "clear": "已清空",
+        "delete": "删除成功",
+        "update": "已保存"
       },
       "title": "翻译历史"
     },
@@ -5659,6 +6665,9 @@
       "autoCopy": "翻译完成后自动复制",
       "bidirectional": "双向翻译设置",
       "bidirectional_tip": "开启后，仅支持在源语言和目标语言之间进行双向翻译",
+      "error": {
+        "save": "保存翻译设置失败"
+      },
       "model": "模型设置",
       "model_desc": "翻译服务使用的模型",
       "model_placeholder": "选择翻译模型",
@@ -5682,7 +6691,7 @@
   },
   "tray": {
     "quit": "退出",
-    "show_mini_window": "快捷助手",
+    "show_quick_assistant": "快捷助手",
     "show_window": "显示窗口"
   },
   "update": {

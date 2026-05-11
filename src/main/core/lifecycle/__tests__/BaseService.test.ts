@@ -328,6 +328,183 @@ describe('BaseService', () => {
     })
   })
 
+  describe('registerInterval', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('fires the callback at the specified interval', async () => {
+      const callback = vi.fn()
+      class IntervalFiresService extends BaseService {
+        protected override async onInit() {
+          this.registerInterval(callback, 1000)
+        }
+      }
+
+      const service = new IntervalFiresService()
+      await service._doInit()
+
+      expect(callback).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(callback).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(callback).toHaveBeenCalledTimes(3)
+    })
+
+    it('stops firing after _doStop', async () => {
+      const callback = vi.fn()
+      class IntervalStopService extends BaseService {
+        protected override async onInit() {
+          this.registerInterval(callback, 1000)
+        }
+      }
+
+      const service = new IntervalStopService()
+      await service._doInit()
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(callback).toHaveBeenCalledTimes(1)
+
+      await service._doStop()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(callback).toHaveBeenCalledTimes(1)
+    })
+
+    it('returned Disposable cancels the timer (and is idempotent)', async () => {
+      const callback = vi.fn()
+      let disposable: { dispose(): void } | undefined
+
+      class IntervalDisposeService extends BaseService {
+        protected override async onInit() {
+          disposable = this.registerInterval(callback, 1000)
+        }
+      }
+
+      const service = new IntervalDisposeService()
+      await service._doInit()
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(callback).toHaveBeenCalledTimes(1)
+
+      disposable!.dispose()
+      disposable!.dispose()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(callback).toHaveBeenCalledTimes(1)
+
+      await service._doStop()
+    })
+
+    it('isolates synchronous callback exceptions and keeps the loop alive', async () => {
+      let calls = 0
+      const callback = vi.fn(() => {
+        calls += 1
+        if (calls === 1) {
+          throw new Error('boom-sync')
+        }
+      })
+
+      class IntervalSyncErrService extends BaseService {
+        protected override async onInit() {
+          this.registerInterval(callback, 1000)
+        }
+      }
+
+      const service = new IntervalSyncErrService()
+      await service._doInit()
+
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(callback).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(callback).toHaveBeenCalledTimes(2)
+
+      await service._doStop()
+    })
+
+    it('isolates async callback rejections and keeps the loop alive', async () => {
+      let calls = 0
+      const callback = vi.fn(async () => {
+        calls += 1
+        if (calls === 1) {
+          throw new Error('boom-async')
+        }
+      })
+
+      class IntervalAsyncErrService extends BaseService {
+        protected override async onInit() {
+          this.registerInterval(callback, 1000)
+        }
+      }
+
+      const service = new IntervalAsyncErrService()
+      await service._doInit()
+
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(callback).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(callback).toHaveBeenCalledTimes(2)
+
+      await service._doStop()
+    })
+
+    it('unrefs the timer handle by default', async () => {
+      const unref = vi.fn()
+      const setIntervalSpy = vi.spyOn(globalThis, 'setInterval').mockImplementation(
+        () =>
+          ({
+            unref,
+            ref: vi.fn(),
+            hasRef: vi.fn(),
+            refresh: vi.fn(),
+            [Symbol.toPrimitive]: () => 0,
+            [Symbol.dispose]: () => {}
+          }) as unknown as NodeJS.Timeout
+      )
+
+      class IntervalUnrefService extends BaseService {
+        protected override async onInit() {
+          this.registerInterval(vi.fn(), 1000)
+        }
+      }
+
+      const service = new IntervalUnrefService()
+      await service._doInit()
+
+      expect(unref).toHaveBeenCalledTimes(1)
+
+      setIntervalSpy.mockRestore()
+      await service._doStop()
+    })
+
+    it('restart cycle: timer registered in first init does not survive into second init', async () => {
+      let initCount = 0
+      const callback = vi.fn()
+
+      class IntervalRestartService extends BaseService {
+        protected override async onInit() {
+          initCount++
+          this.registerInterval(callback, 1000)
+        }
+      }
+
+      const service = new IntervalRestartService()
+
+      await service._doInit()
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(callback).toHaveBeenCalledTimes(1)
+      await service._doStop()
+
+      await service._doInit()
+      await vi.advanceTimersByTimeAsync(1000)
+      // Exactly +1 (not +2) — proves old timer was cleared on stop
+      expect(callback).toHaveBeenCalledTimes(2)
+      expect(initCount).toBe(2)
+
+      await service._doStop()
+    })
+  })
+
   describe('registerDisposable cleanup', () => {
     it('should dispose registered disposables on stop', async () => {
       const disposeFn = vi.fn()

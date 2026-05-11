@@ -6,7 +6,6 @@ import { Modal } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface ShowParams {
   provider: Provider
@@ -48,22 +47,17 @@ const PopupContainer: FC<Props> = ({ provider: _provider, resolve }) => {
       width={800}
       transitionName="animation-move-down"
       centered>
-      <EditorContainer>
+      <div className="mt-4 h-[400px]">
         <MarkdownEditor
           value={notes}
           onChange={setNotes}
           placeholder={t('settings.provider.notes.placeholder')}
           height="400px"
         />
-      </EditorContainer>
+      </div>
     </Modal>
   )
 }
-
-const EditorContainer = styled.div`
-  margin-top: 16px;
-  height: 400px;
-`
 
 export default class ModelNotesPopup {
   static hide() {

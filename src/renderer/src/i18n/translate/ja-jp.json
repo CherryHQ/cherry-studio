@@ -28,6 +28,256 @@
       "submit": "送信",
       "title": "エージェントからの質問"
     },
+    "cherryClaw": {
+      "channels": {
+        "add": "追加",
+        "bindAgent": "バインドエージェント",
+        "chatIdsAutoTrackHint": "空欄のままにしておくと、システムが自動的に追跡します：まずプラットフォーム上でボットにメッセージを送信する必要があり、その後システムがチャットIDを記録して今後の通知に使用します。",
+        "comingSoon": "近日公開",
+        "connected": "接続済み",
+        "connecting": "接続",
+        "createError": "チャンネルの作成に失敗しました",
+        "deleteConfirm": "チャンネル「{{name}}」を削除しますか？",
+        "deleteError": "チャンネルの削除に失敗しました",
+        "description": "エージェントをメッセージングプラットフォームに接続します。",
+        "disconnected": "切断済み",
+        "discord": {
+          "botToken": "ボットトークン",
+          "botTokenPlaceholder": "Discordボットのトークンを入力してください",
+          "channelIds": "許可されたチャンネルID",
+          "channelIdsHint": "フォーマット: channel:id または dm:id。すべてを許可するには空のままにしてください。",
+          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+          "description": "WebSocketゲートウェイを介してDiscordボットでメッセージを受信し、応答する。",
+          "title": "ディスコード",
+          "whoamiTip": "💡 ヒント：正しい形式でチャンネルIDを取得するには、ボットに /whoami を送信してください。"
+        },
+        "error": "エラー",
+        "feishu": {
+          "appId": "App ID",
+          "appIdPlaceholder": "FeishuアプリのApp IDを入力してください",
+          "appSecret": "App Secret",
+          "appSecretPlaceholder": "FeishuアプリのApp Secretを入力してください",
+          "chatIds": "許可するチャットID",
+          "chatIdsHint": "カンマ区切りのチャットID。空欄にするとすべてのチャットを許可します。",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "connected": "接続済み",
+          "description": "Feishu/Larkボットを使用してWebSocket経由でメッセージを受信・応答します。",
+          "domain": "ドメイン",
+          "domainFeishu": "Feishu（中国）",
+          "domainLark": "Lark（国際版）",
+          "encryptKey": "暗号化キー",
+          "encryptKeyPlaceholder": "Feishuアプリの暗号化キーを入力してください",
+          "loginHint": "資格情報が設定されていません。QRコード登録を開始するにはチャネルを有効にするか、アプリIDとアプリシークレットを手動で入力してください。",
+          "qrExpired": "QRコードの有効期限が切れました。チャンネルを切り替えて再試行してください。",
+          "qrHint": "QRコードのスキャンを待っています...",
+          "qrScanHint": "スマートフォンでFeishuを開き、QRコードをスキャンしてボットアプリを作成してください。",
+          "qrTitle": "Feishu QR登録",
+          "title": "Feishu",
+          "verificationToken": "検証トークン",
+          "verificationTokenPlaceholder": "Feishuアプリの検証トークンを入力してください"
+        },
+        "logs": "ログ",
+        "noInstances": "{{type}}チャンネルが設定されていません。「＋追加」をクリックして作成してください。",
+        "noLogs": "まだログはありません",
+        "notifyReceiver": "タスク通知を受信",
+        "notifyReceiverHint": "スケジュールタスクの結果をこのチャンネルに送信します。",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "QQ Bot の App ID を入力",
+          "chatIds": "許可するチャット ID",
+          "chatIdsHint": "形式: c2c:openid, group:groupid, channel:channelid。空欄ですべて許可。",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "QQ Bot の Client Secret を入力",
+          "description": "QQ Bot 公式 API を通じてメッセージを受信・返信します。",
+          "title": "QQ",
+          "whoamiTip": "💡 ヒント: ボットに /whoami を送信すると、正しい形式のチャット ID を取得できます。"
+        },
+        "security": {
+          "inheritFromAgent": "エージェントから継承",
+          "permissionMode": "チャンネル権限モード",
+          "permissionModeHint": "このチャンネルからのメッセージについて、エージェントの権限モードを上書きします。「継承」を選択すると、エージェントのデフォルト設定が使用されます。"
+        },
+        "selectAgent": "エージェントを選択してバインドしてください",
+        "slack": {
+          "appToken": "アプリレベルトークン",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "ボットトークン",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "許可されたチャンネルID",
+          "channelIdsHint": "SlackチャンネルID。すべてを許可する場合は空のままにしてください。",
+          "channelIdsPlaceholder": "C01234567、D89012345",
+          "description": "Socket Mode を使用して Slack ボット経由でメッセージを受信し、返信する。",
+          "title": "スラック",
+          "whoamiTip": "💡ヒント：チャンネルIDを取得するには、ボットに /whoami を送信してください。"
+        },
+        "soulModeRequired": "このエージェントは自律モードが有効になっていません。チャンネル機能は動作しません。エージェント設定で有効にしてください。",
+        "tab": "チャンネル",
+        "telegram": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "Telegram ボットトークンを入力",
+          "chatIds": "許可するチャット ID",
+          "chatIdsHint": "カンマ区切り。空欄ですべてのチャットを許可。",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Telegram ボットでロングポーリングを使用してメッセージを受信・返信します。",
+          "title": "Telegram"
+        },
+        "title": "チャンネル",
+        "updateError": "チャンネルの更新に失敗しました",
+        "wechat": {
+          "addAccount": "WeChatアカウントを追加",
+          "chatIds": "許可されたユーザーID",
+          "chatIdsHint": "カンマ区切り。空欄にするとすべてのユーザーが許可されます。",
+          "chatIdsPlaceholder": "wxid_abc123、wxid_def456",
+          "connected": "接続済み",
+          "description": "iLink Bot APIを使用してWeChat経由でメッセージを受信・応答する。",
+          "disconnected": "切断されました",
+          "loginHint": "初回ログインにはQRコードのスキャンが必要です。ログインURLはアプリのログを確認してください。",
+          "qrHint": "スマートフォンでWeChatを開き、QRコードをスキャンしてログインしてください。",
+          "qrTitle": "WeChat QRコードログイン",
+          "title": "WeChat",
+          "whoamiTip": "ヒント：WeChatで/whoamiを送信すると、ユーザーのIDが取得できます。"
+        }
+      },
+      "heartbeat": {
+        "enabled": "ハートビートを有効化",
+        "enabledHelper": "有効にすると、ワークスペースに heartbeat.md が存在する場合、スケジューラが設定された間隔でその内容を読み取り、メインセッションに送信します。",
+        "interval": "間隔（分）",
+        "intervalHelper": "ハートビートの実行頻度（分単位）。"
+      },
+      "sandbox": {
+        "description": "OS レベルのサンドボックスを使用して、エージェントのファイルシステムとネットワークアクセスをワークスペースディレクトリに制限します。",
+        "helper": "ファイルシステムとコマンドアクセスをワークスペースパスに制限します。",
+        "label": "サンドボックスモード"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "標準の cron 式（例: '*/30 * * * *' で 30 分ごと）。",
+          "label": "Cron 式",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "スケジューラはスケジュールに従ってエージェントを自動的にトリガーします。",
+        "enabled": "スケジューラを有効化",
+        "enabledHelper": "有効にすると、エージェントは設定されたスケジュールに基づいて自動的に実行されます。",
+        "errors": {
+          "invalidCron": "無効な cron 式",
+          "invalidDelay": "遅延は正の数である必要があります",
+          "invalidInterval": "間隔は正の数である必要があります"
+        },
+        "interval": {
+          "helper": "エージェントの実行頻度（秒単位）。",
+          "label": "間隔（秒）"
+        },
+        "lastRun": "前回の実行",
+        "never": "なし",
+        "nextRun": "次回の実行",
+        "oneTime": {
+          "helper": "エージェント実行前の一回限りの遅延（秒単位）。",
+          "label": "遅延（秒）"
+        },
+        "status": {
+          "running": "実行中",
+          "stopped": "停止中",
+          "tickInProgress": "実行中"
+        },
+        "tab": "スケジューラ",
+        "title": "スケジューラ設定",
+        "type": {
+          "cron": "Cron 式",
+          "interval": "固定間隔",
+          "label": "スケジュールタイプ",
+          "one-time": "一回限りの遅延"
+        }
+      },
+      "soul": {
+        "description": "ソウルはエージェントの個性と基本動作を定義します。ワークスペースルートの soul.md から読み込まれます。",
+        "empty": "ワークスペースルートに soul.md が見つかりません。エージェントの個性を定義するために作成してください。",
+        "enabled": "ソウルを有効化",
+        "enabledHelper": "有効にすると、エージェントはワークスペースルートから soul.md を読み取り、システムプロンプトの先頭に追加します。",
+        "fileLabel": "soul.md",
+        "preview": "ソウルプレビュー",
+        "tab": "ソウル",
+        "title": "ソウル設定"
+      },
+      "tasks": {
+        "add": "タスクを追加",
+        "cancel": "キャンセル",
+        "channels": {
+          "label": "チャンネルに送信",
+          "noActiveChatIds": "選択されたチャンネルには利用可能な受信者（チャットID）が存在しません。タスクの結果が配信されない可能性があります。まず、プラットフォーム上でボットにメッセージを送信してください。",
+          "placeholder": "結果を受け取るチャンネルを選択してください"
+        },
+        "cronPlaceholder": "例: 0 9 * * *（毎日午前 9 時）",
+        "delete": {
+          "confirm": "このタスクを削除してもよろしいですか？",
+          "label": "削除"
+        },
+        "edit": "編集",
+        "empty": "スケジュールタスクがありません。追加して開始しましょう。",
+        "error": {
+          "loadFailed": "タスクの読み込みに失敗しました"
+        },
+        "intervalPlaceholder": "間隔（分）",
+        "intervalUnit": "議事録",
+        "lastRun": "前回の実行",
+        "logs": {
+          "duration": "所要時間",
+          "empty": "実行履歴がありません。",
+          "error": "エラー",
+          "justNow": "さっき",
+          "label": "実行履歴",
+          "loadError": "実行履歴の読み込みに失敗しました",
+          "result": "結果",
+          "runAt": "実行時刻",
+          "running": "走っている…",
+          "search": "検索ログ...",
+          "status": "ステータス",
+          "success": "成功",
+          "viewSession": "セッションを表示"
+        },
+        "name": {
+          "label": "名前",
+          "placeholder": "例: 毎日のコードレビュー"
+        },
+        "nextRun": "次回の実行",
+        "oncePlaceholder": "日時を選択",
+        "pause": "一時停止",
+        "prompt": {
+          "expand": "エディタを展開",
+          "label": "プロンプト",
+          "placeholder": "このタスク実行時にエージェントが行うべきことは？"
+        },
+        "resume": "再開",
+        "run": "実行",
+        "runTriggered": "タスクがトリガーされました",
+        "save": "保存",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "間隔",
+          "label": "スケジュールタイプ",
+          "once": "一回限り"
+        },
+        "scheduleValue": "スケジュール値",
+        "status": {
+          "active": "アクティブ",
+          "completed": "完了",
+          "paused": "一時停止中"
+        },
+        "tab": "タスク",
+        "time": {
+          "hoursAgo": "{{count}}時間前",
+          "minutesAgo": "{{count}}分前"
+        },
+        "timeout": {
+          "label": "タイムアウト",
+          "placeholder": "制限なし"
+        },
+        "title": "スケジュールタスク"
+      },
+      "warning": {
+        "bypassPermissions": "CherryClaw エージェントはデフォルトでフルオートモードで実行されます。すべてのツールは承認なしで実行されます。"
+      }
+    },
     "delete": {
       "content": "このエージェントを削除すると、このエージェントのすべてのセッションが強制的に終了し、削除されます。本当によろしいですか？",
       "error": {
@@ -76,7 +326,8 @@
       "tooltip": "Windowsでエージェントを実行するにはGit Bashが必要です。まだインストールされていない場合は、git-scm.comからインストールしてください。"
     },
     "input": {
-      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"
+      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",
+      "soul_placeholder": "Telegramに接続するのを手伝ってください"
     },
     "list": {
       "error": {
@@ -245,6 +496,21 @@
         "uninstalling": "アンインストール中..."
       },
       "prompt": "プロンプト設定",
+      "skills": {
+        "addMore": "スキルを追加",
+        "builtin": "組み込み",
+        "noFilterResults": "一致するスキルがありません",
+        "noSkills": "スキルがインストールされていません。設定 > スキルからスキルをインストールしてください。",
+        "searchPlaceholder": "検索スキル…",
+        "tab": "スキル",
+        "title": "インストール済みスキル"
+      },
+      "soulMode": {
+        "description": "有効にすると、エージェントはワークスペースのsoulファイルからカスタムシステムプロンプトを使用し、自律的タスク管理ツールを注入し、自律動作には不適切なインタラクティブツールを無効化します。",
+        "disabledBadge": "自律モードにより無効化されました",
+        "disabledTooltip": "このツールは、自律モードがアクティブな場合に自動的に無効になります",
+        "title": "自律モード"
+      },
       "tooling": {
         "mcp": {
           "description": "MCPサーバーを接続して、上で承認できる追加ツールを解放します。",
@@ -301,6 +567,7 @@
       },
       "toolsMcp": {
         "mcp": {
+          "tab": "MCP",
           "title": "MCPサーバー"
         },
         "tab": "ツール",
@@ -579,6 +846,7 @@
         "agent": "アシスタントをエクスポート"
       },
       "import": {
+        "action": "[to be translated]:Import Assistant",
         "button": "インポート",
         "error": {
           "fetch_failed": "URLからのデータ取得に失敗しました",
@@ -689,17 +957,6 @@
         "off_description": "推論を無効にする",
         "xhigh": "超高",
         "xhigh_description": "超高度な推論"
-      },
-      "regular_phrases": {
-        "add": "プロンプトを追加",
-        "contentLabel": "内容",
-        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
-        "delete": "プロンプトを削除",
-        "deleteConfirm": "このプロンプトを削除してもよろしいですか？",
-        "edit": "プロンプトを編集",
-        "title": "定型プロンプト",
-        "titleLabel": "タイトル",
-        "titlePlaceholder": "タイトルを入力"
       },
       "title": "アシスタント設定",
       "tool_use_mode": {
@@ -1231,6 +1488,7 @@
       "unpin": "固定解除"
     },
     "translate": "翻訳",
+    "user": "ユーザー",
     "web_search": {
       "warning": {
         "openai": "GPT5モデルの最小思考強度ではネット検索はサポートされません"
@@ -1242,11 +1500,23 @@
     "bun_required_message": "CLI ツールを実行するには Bun 環境が必要です",
     "cli_tool": "CLI ツール",
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
+    "count_one": "{{count}}個のアイテム",
+    "count_other": "{{count}}個のアイテム",
     "custom_path": "カスタムパス",
     "custom_path_error": "カスタムターミナルパスの設定に失敗しました",
     "custom_path_required": "この端末にはカスタムパスを設定する必要があります",
     "custom_path_set": "カスタムターミナルパスの設定が成功しました",
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
+    "empty": {
+      "no_match": {
+        "description": "検索語を調整してみてください",
+        "title": "一致するツールが見つかりません"
+      },
+      "no_tool": {
+        "description": "CLIツールまたはコードアシスタントを追加して始めましょう",
+        "title": "コードツールはまだありません"
+      }
+    },
     "env_vars_help": "環境変数を設定して、CLI ツールの実行時に使用します。各変数は 1 行ごとに設定してください。",
     "environment_variables": "環境変数",
     "folder_placeholder": "作業ディレクトリを選択してください",
@@ -1256,21 +1526,28 @@
       "bun_required": "CLI ツールを実行するには Bun 環境が必要です。まず Bun をインストールしてください",
       "error": "起動に失敗しました。もう一度試してください",
       "label": "起動",
+      "launched": "開始されました",
       "success": "起動成功",
       "validation_error": "必須項目を入力してください：CLI ツール、モデル、作業ディレクトリ"
     },
     "launching": "起動中...",
     "model": "モデル",
+    "model_hint": "CLIツールが使用するAIモデルを選択してください",
     "model_placeholder": "使用するモデルを選択してください",
     "model_required": "モデルを選択してください",
+    "official_tag": "公式",
+    "official_tools": "公式",
+    "search_placeholder": "CLIツールを検索…",
     "select_folder": "フォルダを選択",
     "set_custom_path": "カスタムターミナルパスを設定",
     "supported_providers": "サポートされているプロバイダー",
     "terminal": "端末",
+    "terminal_hint": "CLIを実行するターミナルアプリケーションを選択してください",
     "terminal_placeholder": "ターミナルアプリを選択",
     "title": "コードツール",
     "update_options": "更新オプション",
-    "working_directory": "作業ディレクトリ"
+    "working_directory": "作業ディレクトリ",
+    "working_directory_hint": "CLIツールが起動する作業ディレクトリ"
   },
   "code_block": {
     "collapse": "折りたたむ",
@@ -1500,6 +1777,31 @@
     "data": "データ",
     "detail": "エラーの詳細",
     "details": "詳細",
+    "diagnosis": {
+      "ai_button": "AI 診断",
+      "ai_done": "診断完了",
+      "ai_loading": "診断中",
+      "ai_result": "AI 診断結果",
+      "auth": "API Key が無効です。確認して再設定してください",
+      "content": "コンテンツがセキュリティシステムによりブロックされました。修正して再試行してください",
+      "context_length": "会話が長すぎます。履歴をクリアするか、新しいチャットを開始してください。",
+      "deprecated": "このモデルは廃止されました。別のモデルに切り替えてください。",
+      "go_to_settings": "設定へ移動",
+      "knowledge": "ナレッジベースのベクトル化に失敗しました",
+      "mcp": "MCP サーバーへの接続に失敗しました。サービスが実行中か確認してください",
+      "model": "モデルが見つからないか、アクセス権がありません",
+      "model_conflict": "診断モデルとエラーモデルが同一のため、診断できません",
+      "network": "サーバーに接続できません。ネットワークまたはプロキシの設定を確認してください",
+      "ocr": "OCR エンジンが初期化されていません。OCR 設定を確認してください",
+      "parse": "AIが無効な応答を返しました。再試行するか、別のモデルに切り替えてください。",
+      "payload": "リクエスト内容が大きすぎます。ファイルまたはテキストのサイズを減らしてください。",
+      "proxy": "プロキシまたはSSL証明書エラー、プロキシとネットワーク設定を確認してください",
+      "quota": "アカウントの利用枠が不足しています。チャージするかプロバイダーを変更してください",
+      "server": "サーバーエラーが発生しました。しばらくしてから再試行してください",
+      "stream": "応答が中断されました。ネットワークの安定性を確認するか、再試行してください。",
+      "unknown": "エラーが発生しました",
+      "view_details": "詳細を表示"
+    },
     "errors": "エラー",
     "finishReason": "終了理由",
     "functionality": "機能",
@@ -1654,7 +1956,8 @@
     "empty_preview": "表示するコンテンツがありません",
     "generating": "生成中",
     "preview": "プレビュー",
-    "split": "分割"
+    "split": "分割",
+    "view_mode": "表示モード"
   },
   "import": {
     "chatgpt": {
@@ -1835,7 +2138,358 @@
   },
   "launchpad": {
     "apps": "アプリ",
-    "minapps": "アプリ"
+    "miniApps": "アプリ"
+  },
+  "library": {
+    "action": {
+      "create": "[to be translated]:New",
+      "delete": "[to be translated]:Delete",
+      "disable": "[to be translated]:Disable",
+      "duplicate": "[to be translated]:Duplicate",
+      "edit": "[to be translated]:Edit",
+      "enable": "[to be translated]:Enable",
+      "manage_tags": "[to be translated]:Manage tags",
+      "uninstall": "[to be translated]:Uninstall"
+    },
+    "badge": {
+      "update": "[to be translated]:Update"
+    },
+    "config": {
+      "agent": {
+        "create_banner": "[to be translated]:Save before binding tools and MCP servers",
+        "create_title": "[to be translated]:New agent",
+        "field": {
+          "accessible_paths": {
+            "add": "[to be translated]:Add directory",
+            "empty": "[to be translated]:Not set (defaults to the workspace root)",
+            "label": "[to be translated]:Accessible directories"
+          },
+          "allowed_tools": {
+            "add": "[to be translated]:Add tool",
+            "empty": "[to be translated]:Leave empty to use the permission mode default",
+            "label": "[to be translated]:Allowed tools"
+          },
+          "description": {
+            "label": "[to be translated]:Description",
+            "placeholder": "[to be translated]:What this agent is for…"
+          },
+          "env_vars": {
+            "help": "[to be translated]:One KEY=VALUE per line",
+            "label": "[to be translated]:Environment variables"
+          },
+          "heartbeat_enabled": {
+            "label": "[to be translated]:Heartbeat check"
+          },
+          "heartbeat_interval": {
+            "label": "[to be translated]:Heartbeat interval (minutes)"
+          },
+          "instructions": {
+            "label": "[to be translated]:System prompt",
+            "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
+          },
+          "max_turns": {
+            "help": "[to be translated]:0 means use the default",
+            "label": "[to be translated]:Max conversation turns"
+          },
+          "mcps": {
+            "add": "[to be translated]:Add MCP server",
+            "empty": "[to be translated]:None bound",
+            "label": "[to be translated]:MCP servers (id)"
+          },
+          "model": {
+            "help": "[to be translated]:UniqueModelId; will switch to a picker backed by /models later",
+            "hint": "[to be translated]:Main reasoning and execution",
+            "label": "[to be translated]:Primary model (required)"
+          },
+          "name": {
+            "label": "[to be translated]:Agent name",
+            "placeholder": "[to be translated]:Give the agent a name"
+          },
+          "permission_mode": {
+            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
+            "label": "[to be translated]:Permission mode",
+            "option": {
+              "acceptEdits": "[to be translated]:Accept edits",
+              "bypassPermissions": "[to be translated]:Bypass permissions (Soul)",
+              "default": "[to be translated]:Default",
+              "plan": "[to be translated]:Plan mode"
+            }
+          },
+          "plan_model": {
+            "hint": "[to be translated]:Task decomposition and planning",
+            "label": "[to be translated]:Plan model (optional)"
+          },
+          "small_model": {
+            "hint": "[to be translated]:Lightweight checks and formatting",
+            "label": "[to be translated]:Small model (optional)"
+          },
+          "soul_enabled": {
+            "help": "[to be translated]:When enabled, automatically grants bypassPermissions",
+            "label": "[to be translated]:Soul mode"
+          }
+        },
+        "model_config": "[to be translated]:Model configuration",
+        "section": {
+          "advanced": {
+            "desc": "[to be translated]:Execution limits and runtime parameters",
+            "label": "[to be translated]:Advanced",
+            "title": "[to be translated]:Advanced"
+          },
+          "basic": {
+            "desc": "[to be translated]:Agent name, description, and primary model",
+            "label": "[to be translated]:Basic",
+            "title": "[to be translated]:Basic"
+          },
+          "permission": {
+            "desc": "[to be translated]:Authorization scope for agent actions",
+            "label": "[to be translated]:Permission mode",
+            "title": "[to be translated]:Permission mode"
+          },
+          "prompt": {
+            "desc": "[to be translated]:System prompt and behavioral constraints",
+            "label": "[to be translated]:Prompt",
+            "title": "[to be translated]:Prompt"
+          },
+          "tools": {
+            "add": "[to be translated]:Add",
+            "desc": "[to be translated]:MCP servers, allowed tools, and runtime settings",
+            "label": "[to be translated]:Tools & runtime",
+            "no_builtin_enabled": "[to be translated]:No built-in tools enabled",
+            "no_mcp_bound": "[to be translated]:No MCP servers bound",
+            "no_skills_enabled": "[to be translated]:No skills enabled",
+            "search_placeholder": "[to be translated]:Search tools or servers...",
+            "skills_coming_soon": "[to be translated]:Skill bindings coming soon",
+            "skills_require_save": "[to be translated]:Save before enabling skills",
+            "tab": {
+              "mcp": "[to be translated]:MCP Server",
+              "skills": "[to be translated]:Skills",
+              "tools": "[to be translated]:Built-in tools"
+            },
+            "title": "[to be translated]:Tools & runtime"
+          }
+        }
+      },
+      "basic": {
+        "context_count": "[to be translated]:Context count",
+        "creative": "[to be translated]:Creative",
+        "custom_params": "[to be translated]:Custom parameters",
+        "custom_params_add": "[to be translated]:Add parameter",
+        "custom_params_name": "[to be translated]:Parameter name",
+        "default_value": "[to be translated]:Model default",
+        "desc": "[to be translated]:Configure the assistant's identity and model parameters",
+        "description_label": "[to be translated]:Description",
+        "json_invalid": "[to be translated]:Invalid JSON format",
+        "max_tokens": "[to be translated]:Max tokens",
+        "max_tool_calls": "[to be translated]:Max tool calls",
+        "model": "[to be translated]:Default model",
+        "model_clear": "[to be translated]:Clear",
+        "model_not_found": "[to be translated]:Model not found (may have been removed): {{id}}",
+        "model_pick": "[to be translated]:+ Pick model",
+        "pick_avatar": "[to be translated]:Pick avatar",
+        "precise": "[to be translated]:Precise",
+        "stream_output": "[to be translated]:Stream output",
+        "tag_empty": "[to be translated]:No tags available",
+        "tag_hint": "[to be translated]:To add a new tag, use the \"+ Tag\" entry in the library top bar",
+        "tag_placeholder": "[to be translated]:Select tags",
+        "tag_search": "[to be translated]:Search tags",
+        "tags": "[to be translated]:Tags",
+        "temperature": "[to be translated]:Temperature",
+        "title": "[to be translated]:Basic settings",
+        "tool_use_function": "[to be translated]:Function",
+        "tool_use_mode": "[to be translated]:Tool call mode",
+        "tool_use_prompt": "[to be translated]:Prompt",
+        "top_p": "[to be translated]:Top-P",
+        "unlimited": "[to be translated]:Unlimited"
+      },
+      "breadcrumb": "[to be translated]:Library",
+      "knowledge": {
+        "add": "[to be translated]:Add knowledge base",
+        "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
+        "doc_count": "[to be translated]:{{count}} docs",
+        "empty_desc": "[to be translated]:Once linked, the assistant can answer based on document content",
+        "empty_title": "[to be translated]:No knowledge bases linked",
+        "invalid_suffix": "[to be translated]:... (unavailable)",
+        "linked": "[to be translated]:Linked knowledge bases",
+        "no_more": "[to be translated]:No more knowledge bases available",
+        "remove_aria": "[to be translated]:Remove",
+        "search": "[to be translated]:Search knowledge bases...",
+        "title": "[to be translated]:Knowledge bases"
+      },
+      "prompt": {
+        "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
+        "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
+        "label": "[to be translated]:System prompt",
+        "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
+        "title": "[to be translated]:Prompt",
+        "tokens_label": "[to be translated]:Tokens: ",
+        "variables_title": "[to be translated]:Available variables",
+        "vars": {
+          "arch": "[to be translated]:CPU architecture",
+          "date": "[to be translated]:Date",
+          "datetime": "[to be translated]:Date and time",
+          "language": "[to be translated]:Language",
+          "model_name": "[to be translated]:Model name",
+          "os": "[to be translated]:Operating system",
+          "time": "[to be translated]:Time",
+          "username": "[to be translated]:Username"
+        }
+      },
+      "save_failed": "[to be translated]:Save failed",
+      "saving": "[to be translated]:Saving...",
+      "section": {
+        "basic": {
+          "desc": "[to be translated]:Name, avatar, model parameters",
+          "label": "[to be translated]:Basic"
+        },
+        "knowledge": {
+          "desc": "[to be translated]:Linked knowledge bases and retrieval",
+          "label": "[to be translated]:Knowledge"
+        },
+        "prompt": {
+          "desc": "[to be translated]:System prompt and variables",
+          "label": "[to be translated]:Prompt"
+        },
+        "tools": {
+          "desc": "[to be translated]:MCP servers and tool configuration",
+          "label": "[to be translated]:Tools"
+        }
+      },
+      "tools": {
+        "add_mcp": "[to be translated]:Add MCP server",
+        "added": "[to be translated]:Added MCP servers",
+        "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
+        "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
+        "empty_title": "[to be translated]:No MCP servers added",
+        "inactive_badge": "[to be translated]:Inactive",
+        "info_main": "[to be translated]:MCP (Model Context Protocol) lets the model safely invoke external tools.",
+        "info_sub": "[to be translated]:Enabling only necessary servers improves safety and response speed.",
+        "mode": {
+          "auto": {
+            "desc": "[to be translated]:The model decides which enabled MCP tools to call",
+            "label": "[to be translated]:Auto"
+          },
+          "disabled": {
+            "desc": "[to be translated]:No MCP tools are available during chat",
+            "label": "[to be translated]:Disabled"
+          },
+          "manual": {
+            "desc": "[to be translated]:Expose only the MCP servers selected below",
+            "label": "[to be translated]:Manual"
+          }
+        },
+        "no_more": "[to be translated]:No more servers available",
+        "search": "[to be translated]:Search available servers...",
+        "switch_title_active": "[to be translated]:Toggle off to remove",
+        "switch_title_inactive": "[to be translated]:This server is disabled in MCP settings; remove it to re-add later",
+        "title": "[to be translated]:Tools"
+      }
+    },
+    "create_menu": {
+      "create": "[to be translated]:New {{type}}",
+      "import": "[to be translated]:Import {{type}}"
+    },
+    "delete": {
+      "agent": {
+        "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
+        "title": "[to be translated]:Delete agent"
+      }
+    },
+    "delete_confirm": {
+      "cancel": "[to be translated]:Cancel",
+      "confirm": "[to be translated]:Delete",
+      "description": "[to be translated]:Delete \"{{name}}\"? This action cannot be undone.",
+      "title": "[to be translated]:Delete"
+    },
+    "duplicate_name": "[to be translated]:{{name}} (copy)",
+    "empty_state": {
+      "description": "[to be translated]:Click \"New\" to create your first resource.",
+      "empty_description": "[to be translated]:Create your first agent or assistant",
+      "empty_title": "[to be translated]:No resources yet",
+      "no_match_description": "[to be translated]:Try a different search keyword",
+      "no_match_title": "[to be translated]:No matching resources",
+      "title": "[to be translated]:No resources"
+    },
+    "import_dialog": {
+      "clipboard": {
+        "button": "[to be translated]:Parse and import",
+        "placeholder": "[to be translated]:Paste JSON configuration here..."
+      },
+      "error": {
+        "content_too_large": "[to be translated]:Content too large (>5 MB)",
+        "file_too_large": "[to be translated]:File too large (>5 MB)",
+        "invalid_url": "[to be translated]:Invalid URL",
+        "response_too_large": "[to be translated]:Response too large (>5 MB)",
+        "timeout": "[to be translated]:Request timed out. Check that the URL is reachable.",
+        "unsupported_protocol": "[to be translated]:Only http or https URLs are supported"
+      },
+      "failure": "[to be translated]:Import failed: {{error}}",
+      "file": {
+        "drop_hint": "[to be translated]:Drag and drop a file here, or click to pick one",
+        "formats": "[to be translated]:Supports .json"
+      },
+      "partial_success": "[to be translated]:Partial success: {{success}} imported, {{failed}} failed ({{first_name}}: {{first_error}})",
+      "subtitle": "[to be translated]:JSON configuration files are supported",
+      "success": "[to be translated]:Imported successfully: {{name}}",
+      "tab": {
+        "clipboard": "[to be translated]:Clipboard",
+        "file": "[to be translated]:File upload",
+        "url": "[to be translated]:Import from URL"
+      },
+      "url": {
+        "button": "[to be translated]:Fetch and import",
+        "hint": "[to be translated]:Import from a GitHub Gist, GitHub repo, or any public URL",
+        "supports": "[to be translated]:Raw file URLs are supported"
+      }
+    },
+    "no_match": "[to be translated]:No matching results",
+    "pending_backend": {
+      "description": "[to be translated]:Write operations for this resource are coming soon. This view is a placeholder.",
+      "title": "[to be translated]:Backend setup in progress"
+    },
+    "sidebar": {
+      "all_resources": "[to be translated]:All resources",
+      "all_tags": "[to be translated]:All tags",
+      "no_tags": "[to be translated]:No tags yet",
+      "subtitle": "[to be translated]:Manage your AI resources",
+      "tags": "[to be translated]:Tags",
+      "title": "[to be translated]:Library"
+    },
+    "sort": {
+      "created": "[to be translated]:Sort by created",
+      "name": "[to be translated]:Sort by name",
+      "updated": "[to be translated]:Sort by updated"
+    },
+    "subtitle": "[to be translated]:Manage your assistants, agents and skills",
+    "tag_picker": {
+      "no_tags": "[to be translated]:No tags yet",
+      "placeholder": "[to be translated]:New tag name..."
+    },
+    "tag_sync_failed": "[to be translated]:Failed to sync tags",
+    "time_ago": {
+      "days": "[to be translated]:{{count}} day(s) ago",
+      "hours": "[to be translated]:{{count}} hour(s) ago",
+      "just_now": "[to be translated]:Just now",
+      "minutes": "[to be translated]:{{count}} minute(s) ago",
+      "months": "[to be translated]:{{count}} month(s) ago"
+    },
+    "title": "[to be translated]:Library",
+    "toolbar": {
+      "add_tag_placeholder": "[to be translated]:Tag name...",
+      "new_resource": "[to be translated]:New resource",
+      "search_placeholder": "[to be translated]:Search resources...",
+      "tag_button": "[to be translated]:Tag"
+    },
+    "type": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "new_agent": "[to be translated]:New agent",
+      "new_assistant": "[to be translated]:New assistant",
+      "skill": "[to be translated]:Skill"
+    },
+    "view": {
+      "grid": "[to be translated]:Grid view",
+      "list": "[to be translated]:List view"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -1844,112 +2498,6 @@
       "title": "保持時間"
     },
     "title": "LM Studio"
-  },
-  "memory": {
-    "actions": "アクション",
-    "add_failed": "メモリーの追加に失敗しました",
-    "add_first_memory": "最初のメモリを追加",
-    "add_memory": "メモリーを追加",
-    "add_new_user": "新しいユーザーを追加",
-    "add_success": "メモリーが正常に追加されました",
-    "add_user": "ユーザーを追加",
-    "add_user_failed": "ユーザーの追加に失敗しました",
-    "all_users": "すべてのユーザー",
-    "cannot_delete_default_user": "デフォルトユーザーは削除できません",
-    "configure_memory_first": "最初にメモリ設定を構成してください",
-    "content": "内容",
-    "current_user": "現在のユーザー",
-    "custom": "カスタム",
-    "default": "デフォルト",
-    "default_user": "デフォルトユーザー",
-    "delete_confirm": "このメモリーを削除してもよろしいですか？",
-    "delete_confirm_content": "{{count}}件のメモリーを削除してもよろしいですか？",
-    "delete_confirm_single": "このメモリを削除してもよろしいですか？",
-    "delete_confirm_title": "メモリーを削除",
-    "delete_failed": "メモリーの削除に失敗しました",
-    "delete_selected": "選択したものを削除",
-    "delete_success": "メモリーが正常に削除されました",
-    "delete_user": "ユーザーを削除",
-    "delete_user_confirm_content": "ユーザー{{user}}とそのすべてのメモリを削除してもよろしいですか？",
-    "delete_user_confirm_title": "ユーザーを削除",
-    "delete_user_failed": "ユーザーの削除に失敗しました",
-    "description": "メモリは、アシスタントとのやりとりに関する情報を保存・管理する機能です。メモリの追加、編集、削除のほか、フィルタリングや検索を行うことができます。",
-    "edit_memory": "メモリーを編集",
-    "embedding_dimensions": "埋め込み次元",
-    "embedding_model": "埋め込みモデル",
-    "enable_global_memory_first": "最初にグローバルメモリを有効にしてください",
-    "end_date": "終了日",
-    "global_memory": "グローバルメモリ",
-    "global_memory_description": "メモリ機能を使用するには、アシスタント設定でグローバルメモリを有効にしてください。",
-    "global_memory_disabled_desc": "メモリ機能を使用するには、まずアシスタント設定でグローバルメモリを有効にしてください。",
-    "global_memory_disabled_title": "グローバルメモリが無効です",
-    "global_memory_enabled": "グローバルメモリが有効化されました",
-    "go_to_memory_page": "メモリページに移動",
-    "initial_memory_content": "ようこそ！これはあなたの最初の記憶です。",
-    "llm_model": "LLMモデル",
-    "load_failed": "メモリーの読み込みに失敗しました",
-    "loading": "思い出を読み込み中...",
-    "loading_memories": "メモリを読み込み中...",
-    "memories_description": "{{total}}件中{{count}}件のメモリーを表示",
-    "memories_reset_success": "{{user}}のすべてのメモリが正常にリセットされました",
-    "memory": "個のメモリ",
-    "memory_content": "メモリー内容",
-    "memory_placeholder": "メモリー内容を入力...",
-    "new_user_id": "新しいユーザーID",
-    "new_user_id_placeholder": "一意のユーザーIDを入力",
-    "no_matching_memories": "一致するメモリが見つかりません",
-    "no_memories": "メモリがありません",
-    "no_memories_description": "最初のメモリを追加してください",
-    "not_configured_desc": "メモリ機能を有効にするには、メモリ設定で埋め込みとLLMモデルを設定してください。",
-    "not_configured_title": "メモリが設定されていません",
-    "pagination_total": "{{total}}件中{{start}}-{{end}}件",
-    "please_enter_memory": "メモリー内容を入力してください",
-    "please_select_embedding_model": "埋め込みモデルを選択してください",
-    "please_select_llm_model": "LLMモデルを選択してください",
-    "reset_filters": "フィルターをリセット",
-    "reset_memories": "メモリをリセット",
-    "reset_memories_confirm_content": "{{user}}のすべてのメモリを完全に削除してもよろしいですか？この操作は元に戻せません。",
-    "reset_memories_confirm_title": "すべてのメモリをリセット",
-    "reset_memories_failed": "メモリのリセットに失敗しました",
-    "reset_user_memories": "ユーザーメモリをリセット",
-    "reset_user_memories_confirm_content": "{{user}}のすべてのメモリをリセットしてもよろしいですか？",
-    "reset_user_memories_confirm_title": "ユーザーメモリをリセット",
-    "reset_user_memories_failed": "ユーザーメモリのリセットに失敗しました",
-    "score": "スコア",
-    "search": "検索",
-    "search_placeholder": "メモリーを検索...",
-    "select_embedding_model_placeholder": "埋め込みモデルを選択",
-    "select_llm_model_placeholder": "LLMモデルを選択",
-    "select_user": "ユーザーを選択",
-    "settings": "設定",
-    "settings_title": "メモリ設定",
-    "start_date": "開始日",
-    "statistics": "統計",
-    "stored_memories": "保存された記憶",
-    "switch_user": "ユーザーを切り替え",
-    "switch_user_confirm": "ユーザーコンテキストを{{user}}に切り替えますか？",
-    "time": "時間",
-    "title": "グローバルメモリ",
-    "total_memories": "個のメモリ",
-    "try_different_filters": "検索条件を調整してください",
-    "update_failed": "メモリーの更新に失敗しました",
-    "update_success": "メモリーが正常に更新されました",
-    "user": "ユーザー",
-    "user_created": "ユーザー{{user}}が作成され、切り替えが成功しました",
-    "user_deleted": "ユーザー{{user}}が正常に削除されました",
-    "user_id": "ユーザーID",
-    "user_id_exists": "このユーザーIDはすでに存在します",
-    "user_id_invalid_chars": "ユーザーIDには文字、数字、ハイフン、アンダースコアのみ使用できます",
-    "user_id_placeholder": "ユーザーIDを入力（オプション）",
-    "user_id_required": "ユーザーIDは必須です",
-    "user_id_reserved": "'default-user'は予約済みです。別のIDを使用してください",
-    "user_id_rules": "ユーザーIDは一意であり、文字、数字、ハイフン(-)、アンダースコア(_)のみ含む必要があります",
-    "user_id_too_long": "ユーザーIDは50文字を超えられません",
-    "user_management": "ユーザー管理",
-    "user_memories_reset": "{{user}}のすべてのメモリがリセットされました",
-    "user_switch_failed": "ユーザーの切り替えに失敗しました",
-    "user_switched": "ユーザーコンテキストが{{user}}に切り替わりました",
-    "users": "ユーザー"
   },
   "message": {
     "agents": {
@@ -2291,20 +2839,23 @@
     "websearch": {
       "cutoff": "検索内容を切り詰めています...",
       "fetch_complete": "{{count}}件の検索結果",
-      "rag": "RAGを実行中...",
-      "rag_complete": "{{countBefore}}個の結果から{{countAfter}}個を保持...",
-      "rag_failed": "RAGが失敗しました。空の結果を返します..."
+      "partial_failure": "{{count}}件の検索結果、一部の検索に失敗しました"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "スタート画面に追加",
     "add_to_sidebar": "サイドバーに追加",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "ミニアプリを閉じる",
       "devtools": "開発者ツール",
       "goBack": "戻る",
       "goForward": "進む",
-      "minimize": "ミニアプリを最小化",
       "openExternal": "ブラウザで開く",
       "open_link_external_off": "現在：デフォルトのウィンドウで開く",
       "open_link_external_on": "現在：ブラウザで開く",
@@ -2313,6 +2864,13 @@
     },
     "remove_from_launchpad": "スタート画面から削除",
     "remove_from_sidebar": "サイドバーから削除",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "閉じる"
@@ -2327,9 +2885,11 @@
         "title": "カスタムアプリを削除"
       }
     },
-    "title": "ミニアプリ"
+    "title": "ミニアプリ",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "百小應",
     "baidu-ai-search": "百度AI検索",
@@ -2348,44 +2908,18 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "騰訊元宝",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "万知",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
     "xiaoyi": "小藝",
     "zhihu": "知乎直答"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "ヒント：Googleログイン時に「信頼できないブラウザ」というメッセージが表示された場合は、先にミニアプリリストのGoogleミニアプリでアカウントログインを完了してから、他のミニアプリでGoogleログインを使用してください"
-    },
-    "clipboard": {
-      "empty": "クリップボードが空です"
-    },
-    "feature": {
-      "chat": "この質問に回答",
-      "explanation": "説明",
-      "summary": "内容要約",
-      "translate": "テキスト翻訳"
-    },
-    "footer": {
-      "backspace_clear": "バックスペースを押してクリアします",
-      "copy_last_message": "C キーを押してコピー",
-      "esc": "ESC キーを押して{{action}}",
-      "esc_back": "戻る",
-      "esc_close": "ウィンドウを閉じる",
-      "esc_pause": "一時停止"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "{{model}} に質問してください...",
-        "title": "下のテキストに対して何をしますか？"
-      }
-    },
-    "tooltip": {
-      "pin": "上部ウィンドウ"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "このモデルをピン留め",
+      "unpin": "モデルのピン留めを解除"
+    },
     "add_parameter": "パラメータを追加",
     "all": "すべて",
     "custom_parameters": "カスタムパラメータ",
@@ -2403,6 +2937,9 @@
     "function_calling": "関数呼び出し",
     "invalid_model": "無効なモデル",
     "json_parse_error": "無効なJSON形式",
+    "multi_select": {
+      "label": "マルチモデル並列（マルチアシスタントとは相互排他）"
+    },
     "no_matches": "利用可能なモデルがありません",
     "parameter_name": "パラメータ名",
     "parameter_type": {
@@ -3171,6 +3708,37 @@
     "zhinao": "360智脳",
     "zhipu": "BigModel"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "ヒント：Googleログイン時に「信頼できないブラウザ」というメッセージが表示された場合は、先にミニアプリリストのGoogleミニアプリでアカウントログインを完了してから、他のミニアプリでGoogleログインを使用してください"
+    },
+    "clipboard": {
+      "empty": "クリップボードが空です"
+    },
+    "feature": {
+      "chat": "この質問に回答",
+      "explanation": "説明",
+      "summary": "内容要約",
+      "translate": "テキスト翻訳"
+    },
+    "footer": {
+      "backspace_clear": "バックスペースを押してクリアします",
+      "copy_last_message": "C キーを押してコピー",
+      "esc": "ESC キーを押して{{action}}",
+      "esc_back": "戻る",
+      "esc_close": "ウィンドウを閉じる",
+      "esc_pause": "一時停止"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "{{model}} に質問してください...",
+        "title": "下のテキストに対して何をしますか？"
+      }
+    },
+    "tooltip": {
+      "pin": "上部ウィンドウ"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "バックアップファイルを選択",
@@ -3490,7 +4058,7 @@
         "title": "アプリケーションフィルターリスト",
         "user_tips": {
           "mac": "アプリケーションのBundle IDを1行ずつ入力してください。大文字小文字は区別しません。例: com.google.Chrome, com.apple.mail, など。",
-          "windows": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。"
+          "windows": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, CherryStudio.exe, など。"
         }
       },
       "linux": {
@@ -3611,6 +4179,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "新しいエージェント",
+      "empty_text": "エージェントはまだいません",
+      "search_placeholder": "検索エージェント…"
+    },
+    "assistant": {
+      "create_new": "新しいアシスタント",
+      "empty_text": "まだアシスタントはいません",
+      "multi_hint": "（マルチモデルとは相互に排他的）",
+      "multi_label": "マルチアシスタント並列",
+      "search_placeholder": "検索アシスタント…"
+    },
+    "common": {
+      "edit": "編集",
+      "pin": "ピン",
+      "pinned_title": "ピン留め",
+      "sort": {
+        "asc": "最古",
+        "desc": "最近"
+      },
+      "sort_label": "並び替え",
+      "unpin": "ピン留めを解除"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3672,6 +4265,79 @@
       "label": "デフォルトアシスタント",
       "model_params": "モデルパラメータ",
       "title": "デフォルトアシスタント"
+    },
+    "channels": {
+      "description": "エージェントをTelegram、Feishu、Discordなどのメッセージングプラットフォームに接続します。",
+      "title": "チャンネル"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "クリア",
+        "configDescription": "プロップを切り替えてコンポーネントの動作をプレビューする",
+        "configTitle": "設定",
+        "currentProps": "現在のプロップ",
+        "description": "AgentSelectorは、ID/アイテムの選択、ピン留め、ソート、検索動作を検証するために、リアルな/agents DataApiデータを読み込むようになりました。",
+        "emptyShellNotice": "このプレビューは、/agents DataApi から返される実際のエージェントリストを使用しています。",
+        "lastOnChange": "最新のonChange",
+        "previewDescription": "トリガーをクリックしてセレクタを開きます",
+        "previewTitle": "プレビュー",
+        "title": "エージェントセレクター",
+        "triggerPlaceholder": "エージェントを選択してください",
+        "valueProp": "現在値"
+      },
+      "assistantSelector": {
+        "clearSelection": "クリア",
+        "configDescription": "プロパティを切り替えてコンポーネントの動作をプレビューする",
+        "configTitle": "設定",
+        "currentProps": "現在のプロップ",
+        "description": "AssistantSelectorのビジネスコンポーネントを直接マウントし、複数/単一、ID/項目、ピン留め、ソート、検索の動作を検証します。",
+        "lastOnChange": "最新のonChange",
+        "previewDescription": "トリガーをクリックしてセレクターを開きます",
+        "previewTitle": "プレビュー",
+        "title": "アシスタントセレクター",
+        "triggerPlaceholder": "アシスタントを選択してください",
+        "triggerSelectedCount": "{{count}}人のアシスタントが選択されました",
+        "valueProp": "現在の値"
+      },
+      "description": "開発環境でのみ表示され、アプリ内で直接新しいモデルセレクタをテストするためのものです。",
+      "label": "コンポーネントラボ",
+      "modelSelector": {
+        "behaviorConfig": "動作と表示設定",
+        "callbackEmpty": "まだコンポーネントコールバックを受信していません",
+        "clearSelection": "選択をクリア",
+        "configDescription": "上記のキー ModelSelector プロパティを切り替え、下記の入力値とコールバックのペイロードを確認してください。",
+        "configTitle": "プロップス プレイグラウンド",
+        "controlMultiSelectMode": "制御された複数選択モード",
+        "currentProps": "現在のプロップ",
+        "defaultMultiSelectMode": "デフォルトマルチセレクトモード",
+        "description": "このページでは、現在の ModelSelector ビジネスコンポーネントを直接マウントして、選択、フィルタリング、検索、ピン留めの動作を確認できます。",
+        "empty": "現在利用可能なモデルがないため、セレクターはまだ表示できません。",
+        "lastModeChangeReturn": "最新の onMultiSelectModeChange 戻り値",
+        "lastSelectReturn": "最新のonSelect戻り値",
+        "loading": "モデルを読み込んでいます...",
+        "modelId": "モデルID",
+        "multiSelectMode": "マルチセレクトモード",
+        "multiple": "複数",
+        "normalizedIds": "正規化された選択されたID",
+        "outputEmpty": "まだ表示するデータがありません",
+        "provider": "プロバイダー",
+        "resetOutputs": "出力をリセット",
+        "resultsDescription": "これは現在の値のプロップ、正規化された選択されたID、およびコンポーネントからの最新のコールバック出力を示しています。",
+        "resultsTitle": "出力と状態",
+        "selected": "現在の選択",
+        "selectedEmpty": "モデルがまだ選択されていません",
+        "selectionConfig": "選択値設定",
+        "selectionType": "選択タイプ",
+        "selectionTypeId": "モデルIDを返す",
+        "selectionTypeModel": "モデルオブジェクトを返す",
+        "showPinnedModels": "固定されたモデルを表示",
+        "showTagFilter": "タグフィルターを表示",
+        "title": "モデルセレクター",
+        "triggerPlaceholder": "モデルを選択してください",
+        "triggerSelectedCount": "{{count}}件のモデルが選択されています",
+        "valueProp": "現在のバリュープロポジション"
+      },
+      "title": "開発コンポーネントラボ"
     },
     "data": {
       "app_data": {
@@ -4337,7 +5003,7 @@
         "knowledge": {
           "icon": "ナレッジのアイコンを表示"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "ミニアプリのアイコンを表示"
         },
         "painting": {
@@ -4371,6 +5037,15 @@
       "backup": {
         "button": "バックアップ",
         "title": "データのバックアップと復元"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "カスタムCSS",
+          "display_language": "表示と言語",
+          "privacy_advanced": "プライバシーと高度な設定",
+          "system_startup": "システム＆スタートアップ"
+        },
+        "title": "共通設定"
       },
       "display": {
         "title": "表示設定"
@@ -4432,6 +5107,12 @@
         "label": "目標言語",
         "russian": "ロシア語"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "ノート"
+      },
+      "title": "連携"
     },
     "launch": {
       "onboot": "起動時に自動で開始",
@@ -4554,6 +5235,7 @@
         "glama": "Glama MCP サーバーディレクトリ",
         "higress": "Higress MCP サーバー",
         "mcpso": "MCP サーバー発見プラットフォーム",
+        "mcpworld": "Baidu傘下のMCPアグリゲーションプラットフォーム",
         "modelscope": "魔搭コミュニティ MCP サーバー",
         "official": "公式 MCP サーバーコレクション",
         "pulsemcp": "Pulse MCP サーバー",
@@ -4701,6 +5383,13 @@
       "url": "URL",
       "user": "ユーザー"
     },
+    "menuGroups": {
+      "appSettings": "アプリ設定",
+      "integrations": "モデル",
+      "productivity": "生産性",
+      "services": "プラグイン",
+      "system": "システム"
+    },
     "messages": {
       "divider": {
         "label": "メッセージ間に区切り線を表示",
@@ -4738,7 +5427,7 @@
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
       "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
       "cache_settings": "キャッシュ設定",
@@ -4788,8 +5477,6 @@
         "title": "ミニアプリ地域絞り込み"
       },
       "reset_tooltip": "デフォルト値にリセット",
-      "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
-      "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
       "title": "ミニアプリ設定",
       "visible": "表示するミニアプリ"
     },
@@ -4854,7 +5541,7 @@
         "use_all_keys": "キー"
       },
       "default_assistant_model": "デフォルトアシスタントモデル",
-      "default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
+      "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "empty": "モデルが見つかりません",
       "manage": {
         "add_listed": {
@@ -4948,9 +5635,35 @@
         "title": "詳細度"
       }
     },
+    "plugins": {
+      "bunDescription": "MCPサービスおよび関連ツールチェーンで使用されるJavaScriptランタイム。",
+      "description": "アプリに必要なバイナリツールとランタイム依存関係を管理します。",
+      "installing": "インストール中...",
+      "notInstalled": "インストールされていません",
+      "title": "環境依存",
+      "uvDescription": "MCPサービスおよび依存関係インストール用のPythonパッケージマネージャー。"
+    },
     "privacy": {
       "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信",
       "title": "プライバシー設定"
+    },
+    "prompts": {
+      "add": "プロンプトを追加",
+      "contentLabel": "内容",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "プロンプトを削除",
+      "deleteConfirm": "プロンプトは完全に削除されます。続行しますか？",
+      "edit": "プロンプトを編集",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "プロンプト管理",
+      "titleLabel": "タイトル",
+      "titlePlaceholder": "プロンプトのタイトルを入力してください"
     },
     "provider": {
       "add": {
@@ -5192,7 +5905,8 @@
         "documentation": "詳細な設定については、公式ドキュメントを参照してください:",
         "learn_more": "詳細を確認",
         "location": "場所",
-        "location_help": "Vertex AIサービスの場所、例：us-central1",
+        "location_help": "Vertex AIサービスの場所、例：us-central1。この項目は Service Account JSON から読み取られないため、手動で入力する必要があります。",
+        "location_placeholder": "Vertex AI の場所を選択",
         "project_id": "プロジェクトID",
         "project_id_help": "Google CloudプロジェクトID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5203,6 +5917,11 @@
           "client_email_placeholder": "サービスアカウントのクライアントメールを入力してください",
           "description": "ADCが利用できない環境での認証に適しています",
           "incomplete_config": "まずサービスアカウントの設定を完了してください",
+          "json_input": "Service Account JSON",
+          "json_input_help": "完全な JSON キー内容を貼り付けてください。解析後は project_id、client_email、private_key のみ保存され、元の JSON はクリアされます。",
+          "json_input_placeholder": "完全な Service Account JSON キー内容を貼り付け",
+          "json_parse_error": "Service Account JSON の解析に失敗しました。形式が正しいことを確認してください。",
+          "json_parse_success": "Service Account JSON を解析しました",
           "private_key": "秘密鍵",
           "private_key_help": "Google Cloud ConsoleからダウンロードしたJSONキーファイルのprivate_keyフィールド",
           "private_key_placeholder": "サービスアカウントの秘密鍵を入力してください",
@@ -5239,39 +5958,51 @@
       "select": "選択",
       "title": "クイックメニュー"
     },
-    "quickPhrase": {
-      "add": "フレーズを追加",
-      "assistant": "アシスタントプロンプト",
-      "contentLabel": "内容",
-      "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
-      "delete": "フレーズを削除",
-      "deleteConfirm": "削除後は復元できません。続行しますか？",
-      "edit": "フレーズを編集",
-      "global": "グローバルクイックフレーズ",
-      "locationLabel": "追加場所",
-      "title": "クイックフレーズ",
-      "titleLabel": "タイトル",
-      "titlePlaceholder": "フレーズのタイトルを入力してください"
+    "scheduledTasks": {
+      "description": "すべてのエージェントにわたるスケジュールされたタスクを管理します。タスクは設定されたスケジュールに従って自動的に実行されます。",
+      "noAgents": "エージェントが見つかりません。スケジュールされたタスクを追加するには、まずエージェントを作成してください。",
+      "noAgentsTip": "ヒント: チャットでエージェントにスケジュールされたタスクを作成してもらうこともできます。",
+      "noTasks": "スケジュールされたタスクはありません。「＋追加」をクリックしてエージェント用のタスクを作成してください。",
+      "selectTask": "タスクを選択して詳細を表示",
+      "title": "スケジュールされたタスク"
     },
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
+      "all_disable": "すべて無効にする",
+      "all_enable": "すべて有効にする",
+      "bind_first_to_enable": "ショートカットを最初に割り当てて、その有効状態を変更してください",
+      "categories": {
+        "assistant": "AIアシスタントツール",
+        "chat": "メッセージインタラクション",
+        "general": "グローバルとウィンドウ",
+        "title": "ショートカットグループ",
+        "topic": "会話と話題"
+      },
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
+      "conflict_with": "すでに「{{name}}」によって使用されています",
       "copy_last_message": "最後のメッセージをコピー",
       "edit_last_user_message": "最後のユーザーメッセージを編集",
+      "empty": "このグループには利用可能なショートカットはありません",
       "enabled": "有効化",
       "exit_fullscreen": "フルスクリーンを終了",
       "label": "キー",
-      "mini_window": "クイックアシスタント",
       "new_topic": "新しいトピック",
+      "occupied_by_other_application": "このショートカットは既にシステムまたは別のアプリケーションで使用されています",
       "press_shortcut": "ショートカットを押す",
+      "quick_assistant": "クイックアシスタント",
       "rename_topic": "トピックの名前を変更",
+      "reset": "リセット",
       "reset_defaults": "デフォルトのショートカットをリセット",
       "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
+      "reset_defaults_failed": "ショートカットをデフォルトにリセットできませんでした",
       "reset_to_default": "デフォルトにリセット",
+      "save_failed": "ショートカットの保存に失敗しました",
+      "save_failed_with_name": "ショートカットの保存に失敗しました: {{name}}",
       "search_message": "メッセージを検索",
       "search_message_in_chat": "現在のチャットでメッセージを検索",
+      "search_placeholder": "検索のショートカット...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "選択アシスタント：テキストを選択",
       "selection_assistant_toggle": "選択アシスタントを切り替え",
@@ -5279,11 +6010,46 @@
       "show_settings": "設定を開く",
       "title": "ショートカット",
       "toggle_new_context": "コンテキストをクリア",
-      "toggle_show_assistants": "アシスタントの表示を切り替え",
       "toggle_show_topics": "トピックの表示を切り替え",
+      "toggle_sidebar": "サイドバーを切り替える",
       "zoom_in": "ズームイン",
       "zoom_out": "ズームアウト",
       "zoom_reset": "ズームをリセット"
+    },
+    "skills": {
+      "author": "著者",
+      "batchUninstallSuccess": "{{count}}個のスキルがアンインストールされました",
+      "builtin": "組み込み",
+      "confirmBatchUninstall": "{{count}}個の選択したスキルをアンインストールしてもよろしいですか？",
+      "confirmUninstall": "このスキルをアンインストールしてもよろしいですか？",
+      "directory": "ディレクトリ",
+      "dropHint": "または、ZIPファイルまたはフォルダをここにドラッグ＆ドロップしてください",
+      "emptyDesc": "ZIP、ディレクトリからスキルをインストールするか、オンラインのレジストリを検索してエージェントの機能を拡張します。",
+      "emptyTip": "ヒント: エージェントにスキルをインストールしてもらうこともできます。",
+      "emptyTitle": "スキルが選択されていません",
+      "filterPlaceholder": "スキルをフィルター...",
+      "install": "インストール",
+      "installFailed": "スキルのインストールに失敗しました: {{name}}",
+      "installFromDirectory": "ディレクトリからインストール",
+      "installFromZip": "ZIPファイルからインストール",
+      "installSuccess": "スキルをインストールしました：{{name}}",
+      "installed": "インストール済みスキル",
+      "invalidFormat": "ZIPファイルとディレクトリのみがサポートされています",
+      "localInstall": "ローカルインストール",
+      "multiSelect": "複数選択",
+      "noFilterResults": "一致するスキルがありません",
+      "noInstalled": "スキルがインストールされていません",
+      "noResults": "スキルが見つかりません",
+      "noSkillFile": "SKILL.mdが見つかりません",
+      "searchPlaceholder": "さらにスキルを見つける...",
+      "searchRegistryTitle": "オンラインでスキルレジストリを検索してください",
+      "searchTitle": "検索スキル",
+      "selectFile": "ファイルを選択して表示",
+      "title": "スキル",
+      "uninstall": "アンインストール",
+      "uninstallSuccess": "スキルがアンインストールされました: {{name}}",
+      "viewSource": "ソースを表示",
+      "zip": "ZIP"
     },
     "theme": {
       "color_primary": "テーマ色",
@@ -5307,6 +6073,14 @@
         },
         "error": {
           "not_system": "システムOCRはWindowsとMacOSのみをサポートしています"
+        },
+        "features": {
+          "paddleocr": "中国語のテキストに対してより強力で、レシート、スキャン、より複雑なレイアウトの画像に適しています。",
+          "system": {
+            "macos": "macOSに内蔵されたOCRエンジンを使用し、セットアップ不要でスクリーンショットや軽量なテキスト抽出に最適です。",
+            "windows": "ネイティブな Windows OCR エンジンを使用し、OS と強く統合され、基本的なローカル認識タスクに対応します。"
+          },
+          "tesseract": "カスタマイズ可能な言語パックを備えたクラシックなローカルOCRオプションで、オフラインおよび多言語ワークフローに最適です。"
         },
         "image": {
           "error": {
@@ -5334,6 +6108,13 @@
         "title": "OCRサービス"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "PDFをよりクリーンなMarkdownや編集可能なテキストに変換し、後続の検索や編集に適した形式にするのに最適です。",
+          "mineru": "より高品位なレイアウト復元に最適化されており、学術PDF、表、数式に特に有用です。",
+          "mistral": "強力なクラウドベースのドキュメント理解機能で、構造化された抽出、複数ページのファイル、複雑なレイアウトに対応します。",
+          "open_mineru": "セルフホスティングや処理パイプラインをより厳密に制御したいチームに適した、オープンな展開オプション。",
+          "paddleocr": "中国語の文書、スキャン、一般的なレシート形式のコンテンツに適した、より軽い統合オプション。"
+        },
         "paddleocr": {
           "aistudio_access_token": "AI Studioコミュニティのアクセストークン",
           "api_url": "API URL",
@@ -5372,23 +6153,10 @@
               "token": "トークン"
             }
           },
-          "error": {
-            "rag_failed": "RAG に失敗しました"
-          },
-          "info": {
-            "dimensions_auto_success": "次元が自動取得されました。次元: {{dimensions}}"
-          },
           "method": {
             "cutoff": "切り捨て",
             "label": "圧縮方法",
-            "none": "圧縮しない",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "文書チャンク数",
-              "tooltip": "単一の検索結果から抽出する文書チャンク数。実際に抽出される文書チャンク数は、この値に検索結果数を乗じたものです。"
-            }
+            "none": "圧縮しない"
           },
           "title": "検索結果の圧縮"
         },
@@ -5514,7 +6282,11 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "close": "タブを閉じる",
+    "moveToFirst": "先頭へ移動",
+    "new": "新しいタブ",
+    "pin": "タブをピン留め",
+    "unpin": "タブを固定解除"
   },
   "title": {
     "apps": "アプリ",
@@ -5524,7 +6296,6 @@
     "knowledge": "ナレッジベース",
     "launchpad": "ランチパッド",
     "mcp-servers": "MCP サーバー",
-    "memories": "メモリ",
     "notes": "ノート",
     "openclaw": "オープンクロー",
     "paintings": "ペインティング",
@@ -5626,6 +6397,7 @@
       "empty": "翻訳履歴がありません",
       "error": {
         "delete": "削除に失敗しました",
+        "load": "翻訳履歴の読み込みに失敗しました。",
         "save": "保存翻訳履歴に失敗しました"
       },
       "search": {
@@ -5682,7 +6454,7 @@
   },
   "tray": {
     "quit": "終了",
-    "show_mini_window": "クイックアシスタント",
+    "show_quick_assistant": "クイックアシスタント",
     "show_window": "ウィンドウを表示"
   },
   "update": {

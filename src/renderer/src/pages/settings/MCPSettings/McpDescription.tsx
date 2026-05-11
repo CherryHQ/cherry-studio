@@ -1,11 +1,11 @@
+import { Spinner } from '@cherrystudio/ui'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { Card } from 'antd'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import DOMPurify from 'dompurify'
 import { npxFinder } from 'npx-scope-finder'
 import type { FC } from 'react'
 import { memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface McpDescriptionProps {
   searchKey: string
@@ -13,6 +13,7 @@ interface McpDescriptionProps {
 
 const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
   const { t } = useTranslation()
+  const { theme } = useTheme()
   const { shikiMarkdownIt } = useCodeStyle()
   const [loading, setLoading] = useState(false)
   const [mcpInfo, setMcpInfo] = useState<string>('')
@@ -36,16 +37,21 @@ const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
   }, [shikiMarkdownIt, searchKey, t])
 
   return (
-    <Section>
-      <Card loading={loading}>
-        <div className="markdown" dangerouslySetInnerHTML={{ __html: mcpInfo }} />
-      </Card>
-    </Section>
+    <div className="w-full min-w-0 pt-2">
+      <div
+        className="rounded-lg border border-border bg-card p-6"
+        style={{
+          backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'var(--card)',
+          borderColor: 'var(--border)'
+        }}>
+        {loading ? (
+          <Spinner text={t('common.loading')} />
+        ) : (
+          <div className="markdown" dangerouslySetInnerHTML={{ __html: mcpInfo }} />
+        )}
+      </div>
+    </div>
   )
 }
-const Section = styled.div`
-  padding-top: 8px;
-  max-width: calc(100vw - var(--sidebar-width) - var(--settings-width) - 75px);
-`
 
 export default memo(MCPDescription)

@@ -12,14 +12,12 @@ import type { LanguageModelV3Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
-export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import type { CSSProperties } from 'react'
-
 export * from './file'
 export * from './note'
+export type { LanguageVarious, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
-import type { TranslateLanguageCode } from '@shared/data/preference/preferenceTypes'
 import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import * as z from 'zod'
 
 import type { StreamTextParams } from './aiCoreTypes'
@@ -39,6 +37,8 @@ export * from './ocr'
 export * from './plugin'
 export * from './provider'
 export * from './serialize'
+export * from './skill'
+export * from './websearch'
 
 export type McpMode = 'disabled' | 'auto' | 'manual'
 
@@ -68,7 +68,6 @@ export type Assistant = {
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
-  enableMemory?: boolean
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
   targetLanguage?: TranslateLanguage
@@ -90,7 +89,7 @@ export type TranslateAssistant = Assistant & {
 }
 
 export const isTranslateAssistant = (assistant: Assistant): assistant is TranslateAssistant => {
-  return (assistant.model && assistant.targetLanguage && typeof assistant.content === 'string') !== undefined
+  return Boolean(assistant.model && assistant.targetLanguage && typeof assistant.content === 'string')
 }
 
 // export type AssistantsSortType = 'tags' | 'list'
@@ -127,6 +126,7 @@ const ThinkModelTypes = [
   'gemini3_flash',
   'gemini3_pro',
   'gemini3_1_pro',
+  'gemma4_hosted',
   'qwen',
   'qwen_thinking',
   'doubao',
@@ -137,9 +137,11 @@ const ThinkModelTypes = [
   'zhipu',
   'perplexity',
   'deepseek_hybrid',
+  'deepseek_v4',
   'kimi_k2_5',
   'claude',
-  'claude46'
+  'claude46',
+  'mistral'
 ] as const
 
 /** If the model's reasoning effort could be controlled, or its reasoning behavior could be turned on/off.
@@ -193,12 +195,6 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort: ReasoningEffortOption
-  /**
-   * Preserve the effective reasoning effort (not 'default') from the last use of a thinking model which supports thinking control,
-   * and restore it when switching back from a non-thinking or fixed reasoning model.
-   * FIXME: It should be managed by external cache service instead of being stored in the assistant
-   */
-  reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
   maxToolCalls?: number
@@ -520,28 +516,6 @@ export interface PaintingsState {
   ppio_edit: PpioPainting[]
 }
 
-export type MinAppType = {
-  id: string
-  name: string
-  /** i18n key for translatable names */
-  nameKey?: string
-  /** Regions where this app is available. If includes 'Global', shown to international users. */
-  supportedRegions?: MinAppRegion[]
-  logo?: string | object
-  url: string
-  // FIXME: It should be `bordered`
-  bodered?: boolean
-  background?: string
-  style?: CSSProperties
-  addTime?: string
-  type?: 'Custom' | 'Default' // Added the 'type' property
-}
-
-/** Region types for miniapps visibility */
-export type MinAppRegion = 'CN' | 'Global'
-
-export type MinAppRegionFilter = 'auto' | MinAppRegion
-
 export enum ThemeMode {
   light = 'light',
   dark = 'dark',
@@ -561,6 +535,7 @@ export enum ThemeMode {
 //   | 'pt-PT'
 //   | 'ro-RO'
 //   | 'ru-RU'
+//   | 'vi-VN'
 
 export type CodeStyleVarious = 'auto' | string
 
@@ -621,37 +596,28 @@ export type GenerateImageParams = {
   quality?: string
 }
 
+/**
+ * 图像编辑参数
+ * 用于基于输入图像和文本提示生成编辑后的图像
+ */
+export type EditImageParams = {
+  /** 模型 ID */
+  model: string
+  /** 编辑提示词 */
+  prompt: string
+  /** 需要编辑的输入图像（可以是 Buffer、Uint8Array 或 base64/URL 字符串） */
+  inputImages: (Buffer | Uint8Array | string)[]
+  /** 可选的 mask 图像用于 inpainting（指定需要编辑的区域） */
+  mask?: Buffer | Uint8Array | string
+  /** 输出图像尺寸 */
+  imageSize?: string
+  /** 中止信号 */
+  signal?: AbortSignal
+}
+
 export type GenerateImageResponse = {
   type: 'url' | 'base64'
   images: string[]
-}
-
-export type { TranslateLanguageCode }
-
-// langCode应当能够唯一确认一种语言
-export type TranslateLanguage = {
-  value: string
-  langCode: TranslateLanguageCode
-  label: () => string
-  emoji: string
-}
-
-export interface TranslateHistory {
-  id: string
-  sourceText: string
-  targetText: string
-  sourceLanguage: TranslateLanguageCode
-  targetLanguage: TranslateLanguageCode
-  createdAt: string
-  /** 收藏状态 */
-  star?: boolean
-}
-
-export type CustomTranslateLanguage = {
-  id: string
-  langCode: TranslateLanguageCode
-  value: string
-  emoji: string
 }
 
 export const AutoDetectionMethods = {
@@ -665,20 +631,6 @@ export type AutoDetectionMethod = keyof typeof AutoDetectionMethods
 export const isAutoDetectionMethod = (method: string): method is AutoDetectionMethod => {
   return Object.hasOwn(AutoDetectionMethods, method)
 }
-
-// by fullex @ data refactor
-// export type SidebarIcon =
-//   | 'assistants'
-//   | 'agents'
-//   | 'store'
-//   | 'paintings'
-//   | 'translate'
-//   | 'minapp'
-//   | 'knowledge'
-//   | 'files'
-//   | 'code_tools'
-//   | 'notes'
-// | 'openclaw'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]
@@ -696,9 +648,8 @@ export const WebSearchProviderIds = {
   'exa-mcp': 'exa-mcp',
   bocha: 'bocha',
   querit: 'querit',
-  'local-google': 'local-google',
-  'local-bing': 'local-bing',
-  'local-baidu': 'local-baidu'
+  fetch: 'fetch',
+  jina: 'jina'
 } as const
 
 export type WebSearchProviderId = keyof typeof WebSearchProviderIds
@@ -769,13 +720,7 @@ export type WebSearchResponse = {
   source: WebSearchSource
 }
 
-export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
-
-export type WebSearchStatus = {
-  phase: WebSearchPhase
-  countBefore?: number
-  countAfter?: number
-}
+export type { WebSearchPhase, WebSearchStatus } from '@shared/data/types/webSearch'
 
 // TODO: 把 mcp 相关类型定义迁移到独立文件中
 export type MCPArgType = 'string' | 'list' | 'number'
@@ -908,6 +853,7 @@ export interface MCPToolResultContent {
 
 export interface MCPCallToolResponse {
   content: MCPToolResultContent[]
+  structuredContent?: unknown
   isError?: boolean
 }
 

@@ -10,14 +10,17 @@ const routeTitleKeys: Record<string, string> = {
   '/': 'title.home',
   '/home': 'title.home',
   '/app/chat': 'common.chat',
+  '/app/agents': 'common.agent_one',
   '/app/assistant': 'title.store',
   '/app/paintings': 'title.paintings',
   '/app/translate': 'title.translate',
-  '/app/minapp': 'title.apps',
+  '/app/mini-app': 'title.apps',
   '/app/knowledge': 'title.knowledge',
+  '/app/library': 'library.title',
   '/app/files': 'title.files',
   '/app/code': 'title.code',
   '/app/notes': 'title.notes',
+  '/app/openclaw': 'title.openclaw',
   '/settings': 'title.settings'
 }
 
@@ -75,4 +78,13 @@ export function getRouteTitleKey(url: string): string | undefined {
   if (exactKey) return exactKey
 
   return routeTitleKeys[getBasePath(sanitizedUrl)]
+}
+
+/**
+ * True when the URL maps exactly to a known top-level route (no extra path
+ * segments). Used to decide whether a tab title should be auto-localized.
+ */
+export function isTopLevelRoute(url: string): boolean {
+  const pathname = new URL(url, BASE_URL).pathname
+  return routeTitleKeys[pathname] !== undefined
 }

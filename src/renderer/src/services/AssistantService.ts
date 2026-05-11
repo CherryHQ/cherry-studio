@@ -9,7 +9,6 @@ import {
 } from '@renderer/config/constant'
 import { getModelSupportedReasoningEffortOptions } from '@renderer/config/models'
 import { isQwenMTModel } from '@renderer/config/models/qwen'
-import { UNKNOWN } from '@renderer/config/translate'
 import { getStoreProviders } from '@renderer/hooks/useStore'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
@@ -21,11 +20,11 @@ import type {
   Model,
   Provider,
   Topic,
-  TranslateAssistant,
-  TranslateLanguage
+  TranslateAssistant
 } from '@renderer/types'
-import { uuid } from '@renderer/utils'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
+import type { TranslateLanguage } from '@shared/data/types/translate'
+import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('AssistantService')
 
@@ -54,7 +53,6 @@ export const DEFAULT_ASSISTANT_SETTINGS = {
   defaultModel: undefined,
   customParameters: [],
   reasoning_effort: 'default',
-  reasoning_effort_cache: undefined,
   qwenThinkMode: undefined,
   // It would gracefully fallback to prompt if not supported by model.
   toolUseMode: 'function',
@@ -109,11 +107,6 @@ export async function getDefaultTranslateAssistant(
   if (!model) {
     logger.error('No translate model')
     throw new Error(i18n.t('translate.error.not_configured'))
-  }
-
-  if (targetLanguage.langCode === UNKNOWN.langCode) {
-    logger.error('Unknown target language', targetLanguage)
-    throw new Error('Unknown target language')
   }
 
   const supportedOptions = getModelSupportedReasoningEffortOptions(model)
@@ -180,8 +173,7 @@ export function getDefaultTopic(assistantId: string): Topic {
 export function mapLegacyTopicToDto(topic: Topic): CreateTopicDto {
   return {
     name: topic.name,
-    assistantId: topic.assistantId,
-    prompt: topic.prompt
+    assistantId: topic.assistantId
   }
 }
 

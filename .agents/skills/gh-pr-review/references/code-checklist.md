@@ -14,6 +14,13 @@ async patterns, rendering performance, and advanced React patterns. The checklis
 items below (B1, B8, A5, A6) are high-level checks — the Vercel rules provide
 specific patterns and code examples for deeper analysis.
 
+## Cherry Studio Deep Reference
+
+For Cherry Studio modules, also apply `cherry-review-guidance.md`. It contains
+project-specific rules for DataApi scope, handler/service boundaries, service
+ownership, cross-table access, renderer data hooks, React Hooks, UI conventions,
+and type contracts. Treat it as project rules loaded in context.
+
 ---
 
 ## A. Correctness & Safety
@@ -43,6 +50,8 @@ Issues that directly affect runtime behavior.
 - Failed calls have reasonable fallback / safe return
 - Promises / async calls properly awaited with error handling (try/catch or .catch)
 - IPC calls validated in main process handlers
+- DataApi handlers delegate errors through services and `DataApiErrorFactory`
+  rather than exposing raw database or IPC failures
 
 ### A4. Injection & Sensitive Data
 - User input sanitized before DOM insertion (innerHTML, dangerouslySetInnerHTML,
@@ -104,6 +113,12 @@ Improvements to code quality, performance, and maintainability.
 - Dependency direction reasonable (main ← shared → renderer, not renderer → main)
 - No circular dependencies
 - IPC channel constants defined in packages/shared/IpcChannel.ts
+- DataApi endpoints are only used for SQLite-backed business data, not pure
+  commands or side effects
+- Handlers stay thin; business rules, validation, transactions, and row/entity
+  mapping live in services
+- Services do not reimplement another domain's business logic or bypass the
+  owning service's invariants
 
 ### B4. Interface Usage
 - Called APIs used according to their design intent and documentation
@@ -130,6 +145,8 @@ Improvements to code quality, performance, and maintainability.
 - List items rendered with stable, unique key (not array index)
 - Side effects correctly placed in useEffect with proper dependency arrays
 - Component state derived correctly (no stale closures, no out-of-sync derived state)
+- Renderer data hooks use stable SWR keys, precise refresh targets, safe
+  optimistic updates, and stable external-store snapshots
 - Redux state shape not modified (v2 refactoring block)
 - Dexie (IndexedDB) schema not modified (v2 refactoring block)
 

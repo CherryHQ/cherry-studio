@@ -1,103 +1,79 @@
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { KnowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { ErrorCode } from '@shared/data/api'
-import type { CreateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mockSelect = vi.fn()
-const mockInsert = vi.fn()
-const mockUpdate = vi.fn()
-const mockDelete = vi.fn()
-
-vi.mock('@main/core/application', () => ({
-  application: {
-    get: vi.fn(() => ({
-      getDb: vi.fn(() => ({
-        select: mockSelect,
-        insert: mockInsert,
-        update: mockUpdate,
-        delete: mockDelete
-      }))
-    }))
-  }
-}))
-
-const { KnowledgeBaseService } = await import('../KnowledgeBaseService')
-
-function createMockRow(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'kb-1',
-    name: 'Knowledge Base',
-    description: 'Knowledge base description',
-    dimensions: 1536,
-    embeddingModelId: 'text-embedding-3-large',
-    rerankModelId: 'rerank-v1',
-    fileProcessorId: 'processor-1',
-    chunkSize: 800,
-    chunkOverlap: 120,
-    threshold: 0.55,
-    documentCount: 5,
-    searchMode: 'hybrid',
-    hybridAlpha: 0.7,
-    createdAt: '2024-01-01T00:00:00.000Z',
-    updatedAt: '2024-01-02T00:00:00.000Z',
-    ...overrides
-  }
-}
+import { type CreateKnowledgeBaseDto, KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
+import { createUniqueModelId } from '@shared/data/types/model'
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 describe('KnowledgeBaseService', () => {
-  let service: InstanceType<typeof KnowledgeBaseService>
+  const dbh = setupTestDatabase()
+  let service: KnowledgeBaseService
 
-  beforeEach(() => {
-    mockSelect.mockReset()
-    mockInsert.mockReset()
-    mockUpdate.mockReset()
-    mockDelete.mockReset()
+  beforeEach(async () => {
     service = new KnowledgeBaseService()
+    await seedUserProvidersAndModelsForKb()
   })
+
+  /** FK target for embedding_model_id → user_model.id */
+  async function seedUserProvidersAndModelsForKb() {
+    await dbh.db.insert(userProviderTable).values([{ providerId: 'openai', name: 'OpenAI' }])
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: createUniqueModelId('openai', 'embed-model'),
+        providerId: 'openai',
+        modelId: 'embed-model',
+        presetModelId: 'embed-model',
+        name: 'embed-model',
+        isEnabled: true,
+        isHidden: false,
+        sortOrder: 0
+      }
+    ])
+  }
+
+  async function seedKnowledgeBase(overrides: Partial<typeof knowledgeBaseTable.$inferInsert> = {}) {
+    const values: typeof knowledgeBaseTable.$inferInsert = {
+      id: 'kb-1',
+      name: 'Knowledge Base',
+      emoji: '📁',
+      dimensions: 1536,
+      embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+      status: 'completed',
+      error: null,
+      rerankModelId: null,
+      fileProcessorId: 'processor-1',
+      chunkSize: 800,
+      chunkOverlap: 120,
+      threshold: 0.55,
+      documentCount: 5,
+      searchMode: 'hybrid',
+      hybridAlpha: 0.7,
+      ...overrides
+    }
+    await dbh.db.insert(knowledgeBaseTable).values(values)
+    return values
+  }
 
   describe('list', () => {
     it('should return paginated knowledge bases', async () => {
-      const rows = [createMockRow({ id: 'kb-2', name: 'Another Base', description: null })]
-      const offset = vi.fn().mockResolvedValue(rows)
-      const limit = vi.fn().mockReturnValue({ offset })
-      const orderBy = vi.fn().mockReturnValue({ limit })
-      const from = vi.fn().mockReturnValue({ orderBy })
-      const countFrom = vi.fn().mockResolvedValue([{ count: 2 }])
-
-      mockSelect.mockReturnValueOnce({
-        from
-      })
-      mockSelect.mockReturnValueOnce({
-        from: countFrom
-      })
+      await seedKnowledgeBase()
+      await seedKnowledgeBase({ id: 'kb-2', name: 'Another Base' })
 
       const result = await service.list({ page: 2, limit: 1 })
 
-      expect(limit).toHaveBeenCalledWith(1)
-      expect(offset).toHaveBeenCalledWith(1)
-      expect(result).toMatchObject({
-        total: 2,
-        page: 2
-      })
+      expect(result.total).toBe(2)
+      expect(result.page).toBe(2)
       expect(result.items).toHaveLength(1)
-      expect(result.items[0]).toMatchObject({
-        id: 'kb-2',
-        name: 'Another Base',
-        embeddingModelId: 'text-embedding-3-large'
-      })
-      expect(result.items[0].description).toBeUndefined()
     })
   })
 
   describe('getById', () => {
     it('should return a knowledge base by id', async () => {
-      const row = createMockRow()
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([row])
-          })
-        })
-      })
+      await seedKnowledgeBase()
 
       const result = await service.getById('kb-1')
 
@@ -109,77 +85,83 @@ describe('KnowledgeBaseService', () => {
     })
 
     it('should throw NotFound when the knowledge base does not exist', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-
       await expect(service.getById('missing')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
     })
+
+    it('should reject invalid persisted chunk configuration at the read boundary', async () => {
+      await seedKnowledgeBase({ chunkSize: 100, chunkOverlap: 100 })
+
+      await expect(service.getById('kb-1')).rejects.toThrow('Chunk overlap must be smaller than chunk size')
+    })
   })
 
   describe('create', () => {
-    it('should create a knowledge base with trimmed identifiers', async () => {
-      const row = createMockRow({ name: 'New Base', embeddingModelId: 'embed-model' })
-      const values = vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([row])
-      })
-      mockInsert.mockReturnValue({ values })
-
+    it('should create a knowledge base with trimmed identifiers and defaults', async () => {
       const dto: CreateKnowledgeBaseDto = {
         name: '  New Base  ',
-        description: 'desc',
         dimensions: 1024,
-        embeddingModelId: '  embed-model  ',
-        rerankModelId: 'rerank-model',
-        fileProcessorId: 'processor-1',
-        chunkSize: 512,
-        chunkOverlap: 64,
-        threshold: 0.5,
-        documentCount: 3,
-        searchMode: 'hybrid',
-        hybridAlpha: 0.6
+        embeddingModelId: `  ${createUniqueModelId('openai', 'embed-model')}  `
       }
 
       const result = await service.create(dto)
 
-      expect(values).toHaveBeenCalledWith({
-        name: 'New Base',
-        description: 'desc',
-        dimensions: 1024,
-        embeddingModelId: 'embed-model',
-        rerankModelId: 'rerank-model',
-        fileProcessorId: 'processor-1',
-        chunkSize: 512,
-        chunkOverlap: 64,
-        threshold: 0.5,
-        documentCount: 3,
-        searchMode: 'hybrid',
-        hybridAlpha: 0.6
-      })
-      expect(result).toMatchObject({
-        id: 'kb-1',
-        name: 'New Base',
-        embeddingModelId: 'embed-model'
-      })
+      expect(result.name).toBe('New Base')
+      expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
+      expect(result.chunkSize).toBe(1024)
+      expect(result.chunkOverlap).toBe(200)
+      expect(result.emoji).toBe('📁')
+      expect(result.searchMode).toBe('hybrid')
+      expect(result.status).toBe('completed')
+      expect(result.error).toBeNull()
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
+      expect(row.name).toBe('New Base')
+      expect(row.groupId).toBeNull()
+      expect(row.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
+      expect(row.rerankModelId).toBeNull()
+      expect(row.fileProcessorId).toBeNull()
+      expect(row.chunkSize).toBe(1024)
+      expect(row.chunkOverlap).toBe(200)
+      expect(row.threshold).toBeNull()
+      expect(row.documentCount).toBeNull()
+      expect(row.emoji).toBe('📁')
+      expect(row.searchMode).toBe('hybrid')
+      expect(row.hybridAlpha).toBeNull()
+      expect(row.status).toBe('completed')
+      expect(row.error).toBeNull()
     })
 
-    it('should reject invalid runtime config before insert', async () => {
+    it('should create a knowledge base with explicit valid chunk config', async () => {
       const dto: CreateKnowledgeBaseDto = {
-        name: 'Invalid Base',
+        name: 'Small Chunks',
         dimensions: 1024,
-        embeddingModelId: 'embed-model',
-        chunkSize: 256,
-        chunkOverlap: 256
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        chunkSize: 100,
+        chunkOverlap: 20
       }
 
-      await expect(service.create(dto)).rejects.toMatchObject({
+      const result = await service.create(dto)
+
+      expect(result.chunkSize).toBe(100)
+      expect(result.chunkOverlap).toBe(20)
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
+      expect(row.chunkSize).toBe(100)
+      expect(row.chunkOverlap).toBe(20)
+    })
+
+    it('should reject create when default chunkOverlap does not fit explicit chunkSize', async () => {
+      await expect(
+        service.create({
+          name: 'Invalid Small Chunks',
+          dimensions: 1024,
+          embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+          chunkSize: 100
+        })
+      ).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
@@ -187,132 +169,178 @@ describe('KnowledgeBaseService', () => {
           }
         }
       })
+    })
+  })
 
-      expect(mockInsert).not.toHaveBeenCalled()
+  describe('status constraints', () => {
+    it('does not define a database default for status', async () => {
+      const result = await dbh.client.execute('PRAGMA table_info(`knowledge_base`)')
+      const statusColumn = result.rows.find((row) => row.name === 'status')
+
+      expect(statusColumn).toBeDefined()
+      expect(statusColumn?.dflt_value).toBeNull()
+    })
+
+    it('allows persisted failed bases with null embedding model ids, null dimensions, and non-empty errors', async () => {
+      await expect(
+        seedKnowledgeBase({
+          dimensions: null,
+          embeddingModelId: null,
+          status: 'failed',
+          error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+        })
+      ).resolves.toBeDefined()
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      expect(row).toMatchObject({
+        dimensions: null,
+        embeddingModelId: null,
+        status: 'failed',
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+      })
+
+      await expect(service.getById('kb-1')).resolves.toMatchObject({
+        dimensions: null,
+        embeddingModelId: null,
+        status: 'failed',
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+      })
+    })
+
+    it('rejects invalid persisted knowledge base status combinations', async () => {
+      await expect(
+        seedKnowledgeBase({
+          embeddingModelId: null,
+          dimensions: null,
+          status: 'completed',
+          error: null
+        })
+      ).rejects.toThrow()
+
+      await expect(
+        seedKnowledgeBase({
+          id: 'kb-failed-null-error',
+          embeddingModelId: null,
+          status: 'failed',
+          error: null
+        })
+      ).rejects.toThrow()
+
+      await expect(
+        seedKnowledgeBase({
+          id: 'kb-failed-empty-error',
+          embeddingModelId: null,
+          status: 'failed',
+          error: '' as typeof knowledgeBaseTable.$inferInsert.error
+        })
+      ).rejects.toThrow()
     })
   })
 
   describe('update', () => {
     it('should return the existing knowledge base when update is empty', async () => {
-      const row = createMockRow()
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([row])
-          })
-        })
-      })
+      await seedKnowledgeBase()
 
       const result = await service.update('kb-1', {})
 
       expect(result.id).toBe('kb-1')
-      expect(mockUpdate).not.toHaveBeenCalled()
+      expect(result.name).toBe('Knowledge Base')
     })
 
     it('should update and return the knowledge base', async () => {
-      const existing = createMockRow()
-      const updated = createMockRow({
-        name: 'Updated Base',
-        description: null,
-        chunkSize: null,
-        chunkOverlap: null,
-        hybridAlpha: 0.9
-      })
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
-      const set = vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([updated])
-        })
-      })
-      mockUpdate.mockReturnValue({ set })
+      await seedKnowledgeBase()
 
       const result = await service.update('kb-1', {
         name: '  Updated Base  ',
-        description: null,
-        chunkSize: null,
-        chunkOverlap: null,
+        emoji: '📚',
+        chunkSize: 1024,
+        chunkOverlap: 128,
         hybridAlpha: 0.9
       })
 
-      expect(set).toHaveBeenCalledWith({
-        name: 'Updated Base',
-        description: null,
-        chunkSize: null,
-        chunkOverlap: null,
-        hybridAlpha: 0.9
-      })
-      expect(result).toMatchObject({
-        id: 'kb-1',
-        name: 'Updated Base',
-        hybridAlpha: 0.9
-      })
-      expect(result.description).toBeUndefined()
+      expect(result.name).toBe('Updated Base')
+      expect(result.chunkSize).toBe(1024)
+      expect(result.chunkOverlap).toBe(128)
+      expect(result.hybridAlpha).toBe(0.9)
+      expect(result.emoji).toBe('📚')
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      expect(row.name).toBe('Updated Base')
+      expect(row.chunkSize).toBe(1024)
+      expect(row.chunkOverlap).toBe(128)
+      expect(row.emoji).toBe('📚')
     })
 
-    it('should clear stale dependent config fields during update', async () => {
-      const existing = createMockRow({
+    it('should clear stale hybrid config when search mode changes during update', async () => {
+      await seedKnowledgeBase({
         chunkSize: 256,
         chunkOverlap: 120,
         searchMode: 'hybrid',
         hybridAlpha: 0.7
       })
-      const updated = createMockRow({
-        chunkSize: 100,
-        chunkOverlap: null,
-        searchMode: 'default',
-        hybridAlpha: null
-      })
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
-      const set = vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([updated])
-        })
-      })
-      mockUpdate.mockReturnValue({ set })
 
       const result = await service.update('kb-1', {
-        chunkSize: 100,
         searchMode: 'default'
       })
 
-      expect(set).toHaveBeenCalledWith({
-        chunkSize: 100,
-        chunkOverlap: null,
-        searchMode: 'default',
-        hybridAlpha: null
-      })
-      expect(result).toMatchObject({
-        chunkSize: 100,
-        searchMode: 'default'
-      })
-      expect(result.chunkOverlap).toBeUndefined()
+      expect(result.searchMode).toBe('default')
+      expect(result.chunkSize).toBe(256)
+      expect(result.chunkOverlap).toBe(120)
       expect(result.hybridAlpha).toBeUndefined()
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      expect(row.searchMode).toBe('default')
+      expect(row.chunkSize).toBe(256)
+      expect(row.chunkOverlap).toBe(120)
+      expect(row.hybridAlpha).toBeNull()
+    })
+
+    it('should reject shrinking chunkSize when the existing chunkOverlap no longer fits', async () => {
+      await seedKnowledgeBase({ chunkSize: 256, chunkOverlap: 120 })
+
+      await expect(
+        service.update('kb-1', {
+          chunkSize: 100
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            chunkOverlap: ['Chunk overlap must be smaller than chunk size']
+          }
+        }
+      })
+    })
+
+    it('should reject explicitly provided chunkOverlap when it no longer fits the current chunkSize', async () => {
+      await seedKnowledgeBase({ chunkSize: 256, chunkOverlap: 120 })
+
+      await expect(
+        service.update('kb-1', {
+          chunkOverlap: 256
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            chunkOverlap: ['Chunk overlap must be smaller than chunk size']
+          }
+        }
+      })
+    })
+
+    it('should not silently clean stale dependent fields during unrelated updates', async () => {
+      await seedKnowledgeBase({ searchMode: 'default', hybridAlpha: 0.7 })
+
+      await expect(
+        service.update('kb-1', {
+          name: 'Renamed Base'
+        })
+      ).rejects.toThrow('Hybrid alpha requires hybrid search mode')
     })
 
     it('should reject explicitly provided hybridAlpha when search mode is not hybrid', async () => {
-      const existing = createMockRow({
-        searchMode: 'hybrid',
-        hybridAlpha: 0.7
-      })
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
+      await seedKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.7 })
 
       await expect(
         service.update('kb-1', {
@@ -327,96 +355,20 @@ describe('KnowledgeBaseService', () => {
           }
         }
       })
-
-      expect(mockUpdate).not.toHaveBeenCalled()
-    })
-
-    it('should not silently clean stale dependent fields during unrelated updates', async () => {
-      const existing = createMockRow({
-        searchMode: 'default',
-        hybridAlpha: 0.7
-      })
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
-
-      await expect(
-        service.update('kb-1', {
-          name: 'Renamed Base'
-        })
-      ).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: {
-          fieldErrors: {
-            hybridAlpha: ['Hybrid alpha requires hybrid search mode']
-          }
-        }
-      })
-
-      expect(mockUpdate).not.toHaveBeenCalled()
-    })
-
-    it('should reject explicitly provided chunkOverlap when it no longer fits chunkSize', async () => {
-      const existing = createMockRow({
-        chunkSize: 256,
-        chunkOverlap: 64
-      })
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([existing])
-          })
-        })
-      })
-
-      await expect(
-        service.update('kb-1', {
-          chunkSize: 100,
-          chunkOverlap: 120
-        })
-      ).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: {
-          fieldErrors: {
-            chunkOverlap: ['Chunk overlap must be smaller than chunk size']
-          }
-        }
-      })
-
-      expect(mockUpdate).not.toHaveBeenCalled()
     })
   })
 
   describe('delete', () => {
     it('should delete an existing knowledge base', async () => {
-      const row = createMockRow()
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([row])
-          })
-        })
-      })
-      const where = vi.fn().mockResolvedValue(undefined)
-      mockDelete.mockReturnValue({ where })
+      await seedKnowledgeBase()
 
       await expect(service.delete('kb-1')).resolves.toBeUndefined()
-      expect(where).toHaveBeenCalled()
+
+      const rows = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      expect(rows).toHaveLength(0)
     })
 
     it('should throw NotFound when deleting a missing knowledge base', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-
       await expect(service.delete('missing')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404

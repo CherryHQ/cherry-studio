@@ -4,6 +4,8 @@
 !.gitignore
 !README*.md
 !public-skills.txt
+!cherry-pr-test/
+!cherry-pr-test/**
 !create-skill/
 !create-skill/**
 !gh-create-issue/
@@ -14,11 +16,5 @@
 !gh-pr-review/**
 !prepare-release/
 !prepare-release/**
-!v2-data-api/
-!v2-data-api/**
-!v2-migrator/
-!v2-migrator/**
-!v2-renderer/
-!v2-renderer/**
 !vercel-react-best-practices/
 !vercel-react-best-practices/**

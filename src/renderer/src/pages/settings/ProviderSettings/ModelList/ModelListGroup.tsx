@@ -6,7 +6,6 @@ import type { ModelWithStatus } from '@renderer/types/healthCheck'
 import { Minus } from 'lucide-react'
 import React, { memo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import ModelListItem from './ModelListItem'
 
@@ -48,20 +47,20 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   }, [])
 
   return (
-    <CustomCollapseWrapper>
+    <div className="group/model-list [&_.ant-collapse-content-box]:p-0!">
       <CustomCollapse
         defaultActiveKey={defaultOpen ? ['1'] : []}
         onChange={handleCollapseChange}
         label={
-          <Flex className="items-center gap-[10px]">
+          <Flex className="items-center gap-2.5">
             <span style={{ fontWeight: 'bold' }}>{groupName}</span>
           </Flex>
         }
         extra={
-          <Tooltip content={t('settings.models.manage.remove_whole_group')} closeDelay={0}>
+          <Tooltip content={t('settings.models.manage.remove_whole_group')}>
             <Button
               variant="ghost"
-              className="toolbar-item"
+              className="translate-z-0 opacity-0 transition-opacity will-change-[opacity] group-hover/model-list:opacity-100"
               onClick={(e) => {
                 e.stopPropagation()
                 onRemoveGroup()
@@ -101,26 +100,8 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
           )}
         </DynamicVirtualList>
       </CustomCollapse>
-    </CustomCollapseWrapper>
+    </div>
   )
 }
-
-const CustomCollapseWrapper = styled.div`
-  .toolbar-item {
-    transform: translateZ(0);
-    will-change: opacity;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-  &:hover .toolbar-item {
-    opacity: 1;
-  }
-
-  /* 移除 collapse 的 padding，转而在 scroller 内部调整 */
-  .ant-collapse-content-box {
-    padding: 0 !important;
-  }
-
-`
 
 export default memo(ModelListGroup)

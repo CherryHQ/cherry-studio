@@ -86,7 +86,6 @@ const AssistantPresetsPage: FC = () => {
         closable: true,
         maskClosable: true,
         centered: true,
-        okButtonProps: { type: 'primary' },
         okText: t('assistants.presets.add.button'),
         onOk: () => createAssistantFromAgent(preset)
       })
@@ -161,10 +160,9 @@ const AssistantPresetsPage: FC = () => {
     setActiveGroup(group)
   }
 
-  const handleAddAgent = () => {
-    void AddAssistantPresetPopup.show().then(() => {
-      handleSearchClear()
-    })
+  const handleAddAgent = async () => {
+    await AddAssistantPresetPopup.show()
+    handleSearchClear()
   }
 
   const handleImportAgent = async () => {

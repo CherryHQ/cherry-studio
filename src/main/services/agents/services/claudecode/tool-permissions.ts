@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto'
 
 import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
+import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 
@@ -99,9 +100,10 @@ const broadcastToRenderer = (
   channel: IpcChannel,
   payload: RendererPermissionRequestPayload | RendererPermissionResultPayload
 ): boolean => {
-  const mainWindow = application.get('WindowService').getMainWindow()
+  const wm = application.get('WindowManager')
+  const mainWindows = wm.getWindowsByType(WindowType.Main)
 
-  if (!mainWindow) {
+  if (mainWindows.length === 0) {
     logger.warn('Unable to send agent tool permission payload – main window unavailable', {
       channel,
       requestId: 'requestId' in payload ? payload.requestId : undefined
@@ -109,7 +111,7 @@ const broadcastToRenderer = (
     return false
   }
 
-  mainWindow.webContents.send(channel, payload)
+  wm.broadcastToType(WindowType.Main, channel, payload)
 
   return true
 }
@@ -239,9 +241,9 @@ export async function promptForToolApproval(
     return { behavior: 'deny', message: 'Tool request was cancelled before prompting the user' }
   }
 
-  const mainWindow = application.get('WindowService').getMainWindow()
+  const mainWindowInfos = application.get('WindowManager').getWindowsByType(WindowType.Main)
 
-  if (!mainWindow) {
+  if (mainWindowInfos.length === 0) {
     logger.warn('Denying tool usage because no renderer window is available to obtain approval', { toolName })
     return { behavior: 'deny', message: 'Unable to request approval – renderer not ready' }
   }

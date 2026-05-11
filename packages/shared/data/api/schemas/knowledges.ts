@@ -1,106 +1,45 @@
 /**
- * Knowledge API DTOs and schema contracts.
+ * Knowledge DataApi schemas.
+ *
+ * Runtime/index operations are exposed through KnowledgeOrchestrationService
+ * IPC contracts in `src/main/services/knowledge/types/ipc`, not through DataApi.
  */
 
+import type { OffsetPaginationResponse } from '@shared/data/api'
 import {
-  DirectoryItemDataSchema,
-  FileItemDataSchema,
-  FileMetadataSchema,
-  ItemStatusSchema,
   type KnowledgeBase,
+  KnowledgeBaseEntitySchema,
   type KnowledgeItem,
-  KnowledgeItemTypeSchema,
-  KnowledgeSearchModeSchema,
-  NoteItemDataSchema,
-  SitemapItemDataSchema,
-  UrlItemDataSchema
+  KnowledgeItemTypeSchema
 } from '@shared/data/types/knowledge'
 import * as z from 'zod'
 
-import type { OffsetPaginationResponse } from '../apiTypes'
+const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
+  name: true,
+  groupId: true,
+  emoji: true,
+  rerankModelId: true,
+  fileProcessorId: true,
+  chunkSize: true,
+  chunkOverlap: true,
+  threshold: true,
+  documentCount: true,
+  searchMode: true,
+  hybridAlpha: true
+} as const
 
-export const CreateKnowledgeBaseSchema = z.object({
-  name: z.string().trim().min(1),
-  description: z.string().optional(),
-  dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().trim().min(1),
-  rerankModelId: z.string().optional(),
-  fileProcessorId: z.string().optional(),
-  chunkSize: z.number().optional(),
-  chunkOverlap: z.number().optional(),
-  threshold: z.number().optional(),
-  documentCount: z.number().optional(),
-  searchMode: KnowledgeSearchModeSchema.optional(),
-  hybridAlpha: z.number().optional()
-})
-export type CreateKnowledgeBaseDto = z.infer<typeof CreateKnowledgeBaseSchema>
-
-export const UpdateKnowledgeBaseSchema = z
-  .object({
-    name: z.string().trim().min(1).optional(),
-    description: z.string().nullable().optional(),
-    rerankModelId: z.string().nullable().optional(),
-    fileProcessorId: z.string().nullable().optional(),
-    chunkSize: z.number().nullable().optional(),
-    chunkOverlap: z.number().nullable().optional(),
-    threshold: z.number().nullable().optional(),
-    documentCount: z.number().nullable().optional(),
-    searchMode: KnowledgeSearchModeSchema.nullable().optional(),
-    hybridAlpha: z.number().nullable().optional()
+// `embeddingModelId` and `dimensions` are intentionally excluded: changing
+// either invalidates existing vectors and must go through a runtime reindex flow.
+export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDGE_BASE_MUTABLE_FIELDS)
+  .partial()
+  .extend({
+    rerankModelId: KnowledgeBaseEntitySchema.shape.rerankModelId,
+    fileProcessorId: KnowledgeBaseEntitySchema.shape.fileProcessorId,
+    threshold: KnowledgeBaseEntitySchema.shape.threshold,
+    documentCount: KnowledgeBaseEntitySchema.shape.documentCount,
+    hybridAlpha: KnowledgeBaseEntitySchema.shape.hybridAlpha
   })
-  .strict()
-export type UpdateKnowledgeBaseDto = z.infer<typeof UpdateKnowledgeBaseSchema>
-
-export {
-  DirectoryItemDataSchema,
-  FileItemDataSchema,
-  FileMetadataSchema,
-  ItemStatusSchema,
-  KnowledgeItemTypeSchema,
-  KnowledgeSearchModeSchema,
-  NoteItemDataSchema,
-  SitemapItemDataSchema,
-  UrlItemDataSchema
-}
-
-export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
-  z
-    .object({
-      groupId: z.string().nullable().optional(),
-      type: z.literal('file'),
-      data: FileItemDataSchema
-    })
-    .strict(),
-  z
-    .object({
-      groupId: z.string().nullable().optional(),
-      type: z.literal('url'),
-      data: UrlItemDataSchema
-    })
-    .strict(),
-  z
-    .object({
-      groupId: z.string().nullable().optional(),
-      type: z.literal('note'),
-      data: NoteItemDataSchema
-    })
-    .strict(),
-  z
-    .object({
-      groupId: z.string().nullable().optional(),
-      type: z.literal('sitemap'),
-      data: SitemapItemDataSchema
-    })
-    .strict(),
-  z
-    .object({
-      groupId: z.string().nullable().optional(),
-      type: z.literal('directory'),
-      data: DirectoryItemDataSchema
-    })
-    .strict()
-])
-export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
+export type UpdateKnowledgeBaseDto = z.input<typeof UpdateKnowledgeBaseSchema>
 
 export const KNOWLEDGE_ITEMS_DEFAULT_PAGE = 1
 export const KNOWLEDGE_ITEMS_DEFAULT_LIMIT = 20
@@ -109,60 +48,34 @@ export const KNOWLEDGE_BASES_DEFAULT_PAGE = 1
 export const KNOWLEDGE_BASES_DEFAULT_LIMIT = 20
 export const KNOWLEDGE_BASES_MAX_LIMIT = 100
 
-export const CreateKnowledgeItemsSchema = z.object({
-  items: z.array(CreateKnowledgeItemSchema).min(1).max(KNOWLEDGE_ITEMS_MAX_LIMIT)
-})
-export type CreateKnowledgeItemsDto = z.infer<typeof CreateKnowledgeItemsSchema>
-
-export const UpdateKnowledgeItemDataSchema = z.union([
-  FileItemDataSchema,
-  UrlItemDataSchema,
-  NoteItemDataSchema,
-  SitemapItemDataSchema,
-  DirectoryItemDataSchema
-])
-
-export const UpdateKnowledgeItemSchema = z
-  .object({
-    data: UpdateKnowledgeItemDataSchema.optional(),
-    status: ItemStatusSchema.optional(),
-    error: z.string().nullable().optional()
-  })
-  .strict()
-export type UpdateKnowledgeItemDto = z.infer<typeof UpdateKnowledgeItemSchema>
-
-export const KnowledgeBaseListQuerySchema = z.object({
+export const ListKnowledgeBasesQuerySchema = z.strictObject({
   page: z.int().positive().default(KNOWLEDGE_BASES_DEFAULT_PAGE),
   limit: z.int().positive().max(KNOWLEDGE_BASES_MAX_LIMIT).default(KNOWLEDGE_BASES_DEFAULT_LIMIT)
 })
 
-export type KnowledgeBaseListQueryParams = z.input<typeof KnowledgeBaseListQuerySchema>
-export type KnowledgeBaseListQuery = z.output<typeof KnowledgeBaseListQuerySchema>
+export type ListKnowledgeBasesQueryParams = z.input<typeof ListKnowledgeBasesQuerySchema>
+export type ListKnowledgeBasesQuery = z.output<typeof ListKnowledgeBasesQuerySchema>
 
 /**
  * Query parameters for GET /knowledge-bases/:id/items
  *
  * Returns flat knowledge items for one knowledge base with optional filters.
  */
-export const KnowledgeItemsQuerySchema = z.object({
+export const ListKnowledgeItemsQuerySchema = z.strictObject({
   page: z.int().positive().default(KNOWLEDGE_ITEMS_DEFAULT_PAGE),
   limit: z.int().positive().max(KNOWLEDGE_ITEMS_MAX_LIMIT).default(KNOWLEDGE_ITEMS_DEFAULT_LIMIT),
   type: KnowledgeItemTypeSchema.optional(),
-  groupId: z.string().optional()
+  groupId: z.string().nullable().optional()
 })
 
-export type KnowledgeItemsQueryParams = z.input<typeof KnowledgeItemsQuerySchema>
-export type KnowledgeItemsQuery = z.output<typeof KnowledgeItemsQuerySchema>
+export type ListKnowledgeItemsQueryParams = z.input<typeof ListKnowledgeItemsQuerySchema>
+export type ListKnowledgeItemsQuery = z.output<typeof ListKnowledgeItemsQuerySchema>
 
-export interface KnowledgeSchemas {
+export type KnowledgeSchemas = {
   '/knowledge-bases': {
     GET: {
-      query?: KnowledgeBaseListQueryParams
+      query?: ListKnowledgeBasesQueryParams
       response: OffsetPaginationResponse<KnowledgeBase>
-    }
-    POST: {
-      body: CreateKnowledgeBaseDto
-      response: KnowledgeBase
     }
   }
 
@@ -176,10 +89,6 @@ export interface KnowledgeSchemas {
       body: UpdateKnowledgeBaseDto
       response: KnowledgeBase
     }
-    DELETE: {
-      params: { id: string }
-      response: void
-    }
   }
 
   '/knowledge-bases/:id/items': {
@@ -188,16 +97,8 @@ export interface KnowledgeSchemas {
      */
     GET: {
       params: { id: string }
-      query?: KnowledgeItemsQueryParams
+      query?: ListKnowledgeItemsQueryParams
       response: OffsetPaginationResponse<KnowledgeItem>
-    }
-    /**
-     * Create flat knowledge items with optional grouping metadata.
-     */
-    POST: {
-      params: { id: string }
-      body: CreateKnowledgeItemsDto
-      response: { items: KnowledgeItem[] }
     }
   }
 
@@ -205,22 +106,6 @@ export interface KnowledgeSchemas {
     GET: {
       params: { id: string }
       response: KnowledgeItem
-    }
-    PATCH: {
-      params: { id: string }
-      body: UpdateKnowledgeItemDto
-      response: KnowledgeItem
-    }
-    /**
-     * Delete one knowledge item by id.
-     *
-     * If the deleted item acts as a group owner, all items with
-     * `groupId = :id` are deleted in the same operation through the
-     * database-level same-base cascade constraint.
-     */
-    DELETE: {
-      params: { id: string }
-      response: void
     }
   }
 }

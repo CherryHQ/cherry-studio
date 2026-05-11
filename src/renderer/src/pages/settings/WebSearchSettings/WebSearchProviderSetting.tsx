@@ -1,22 +1,32 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Button, Flex, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, ButtonGroup, Divider, Flex, InfoTooltip, Input, Label, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
-import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
+import {
+  getWebSearchProviderLogo,
+  WEB_SEARCH_PROVIDER_CONFIG,
+  webSearchProviderRequiresApiKey,
+  webSearchProviderSupportsBasicAuth
+} from '@renderer/config/webSearchProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { webSearchService } from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
-import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Divider, Form, Input } from 'antd'
-import Link from 'antd/es/typography/Link'
+import { formatApiKeys } from '@renderer/utils'
 import { List } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import { SettingDivider, SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
+import {
+  SettingDivider,
+  SettingHelpLink,
+  SettingHelpText,
+  SettingHelpTextRow,
+  SettingSubtitle,
+  SettingTitle,
+  SettingTitleExternalLink
+} from '..'
 
 const logger = loggerService.withContext('WebSearchProviderSetting')
 interface Props {
@@ -41,7 +51,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
   const onUpdateApiKey = () => {
     if (apiKey !== provider.apiKey) {
-      updateProvider({ apiKey })
+      void updateProvider({ apiKey })
     }
   }
 
@@ -51,7 +61,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
       trimmedHost = trimmedHost.slice(0, -1)
     }
     if (trimmedHost !== provider.apiHost) {
-      updateProvider({ apiHost: trimmedHost })
+      void updateProvider({ apiHost: trimmedHost })
     } else {
       setApiHost(provider.apiHost || '')
     }
@@ -61,7 +71,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     const currentValue = basicAuthUsername || ''
     const savedValue = provider.basicAuthUsername || ''
     if (currentValue !== savedValue) {
-      updateProvider({ basicAuthUsername })
+      void updateProvider({ basicAuthUsername })
     } else {
       setBasicAuthUsername(provider.basicAuthUsername || '')
     }
@@ -71,7 +81,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     const currentValue = basicAuthPassword || ''
     const savedValue = provider.basicAuthPassword || ''
     if (currentValue !== savedValue) {
-      updateProvider({ basicAuthPassword })
+      void updateProvider({ basicAuthPassword })
     } else {
       setBasicAuthPassword(provider.basicAuthPassword || '')
     }
@@ -93,6 +103,10 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
       return
     }
 
+    if (needsApiKey && !hasApiKey) {
+      return
+    }
+
     if (apiKey.includes(',')) {
       await openApiKeyList()
       return
@@ -100,7 +114,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
     try {
       setApiChecking(true)
-      const { valid, error } = await webSearchService.checkSearch(provider)
+      const { valid, error } = await webSearchService.checkSearch({ ...provider, apiKey, apiHost })
 
       const errorMessage = error && error?.message ? ' ' + error?.message : ''
       window.toast[valid ? 'success' : 'error']({
@@ -133,26 +147,16 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
   const providerLogo = getWebSearchProviderLogo(providerId)
 
-  const isLocalProvider = provider.id.startsWith('local')
-
-  const openLocalProviderSettings = async () => {
-    if (officialWebsite) {
-      await window.api.searchService.openSearchWindow(provider.id, true)
-      await window.api.searchService.openUrlInSearchWindow(provider.id, officialWebsite)
-    }
-  }
-
-  // Check if this provider is already the default
   const isDefault = defaultProvider?.id === provider.id
-
-  // Check if provider needs API key but doesn't have one configured
-  const needsApiKey = hasObjectKey(provider, 'apiKey')
-  const hasApiKey = provider.apiKey && provider.apiKey.trim() !== ''
-  const canSetAsDefault = !isDefault && (!needsApiKey || hasApiKey)
+  const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
+  const supportsBasicAuth = webSearchProviderSupportsBasicAuth(provider.id)
+  const hasApiKey = apiKey.split(',').some((key) => key.trim() !== '')
+  const canCheckSearch = !apiChecking && (!needsApiKey || hasApiKey)
+  const canSetAsDefault = !isDefault && webSearchService.isWebSearchEnabled(provider.id) === true
 
   const handleSetAsDefault = () => {
     if (canSetAsDefault) {
-      setDefaultProvider(provider)
+      void setDefaultProvider(provider)
     }
   }
 
@@ -164,36 +168,22 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             {providerLogo ? (
               <providerLogo.Avatar size={20} shape="rounded" />
             ) : (
-              <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
+              <div className="h-5 w-5 rounded bg-(--color-background-subtle)" />
             )}
-            <ProviderName> {provider.name}</ProviderName>
+            <span className="font-medium text-sm">{provider.name}</span>
             {officialWebsite && webSearchProviderConfig?.websites && (
-              <Link target="_blank" href={webSearchProviderConfig.websites.official}>
-                <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
-              </Link>
+              <SettingTitleExternalLink href={webSearchProviderConfig.websites.official}>
+                <ExportOutlined style={{ fontSize: '12px' }} />
+              </SettingTitleExternalLink>
             )}
           </Flex>
-          <Button variant="default" disabled={!canSetAsDefault} onClick={handleSetAsDefault}>
+          <Button variant="outline" disabled={!canSetAsDefault} onClick={handleSetAsDefault}>
             {isDefault ? t('settings.tool.websearch.is_default') : t('settings.tool.websearch.set_as_default')}
           </Button>
         </Flex>
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      {isLocalProvider && (
-        <>
-          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
-            {t('settings.tool.websearch.local_provider.settings')}
-          </SettingSubtitle>
-          <Button variant="default" onClick={openLocalProviderSettings}>
-            <ExportOutlined />
-            {t('settings.tool.websearch.local_provider.open_settings', { provider: provider.name })}
-          </Button>
-          <SettingHelpTextRow style={{ marginTop: 10 }}>
-            <SettingHelpText>{t('settings.tool.websearch.local_provider.hint')}</SettingHelpText>
-          </SettingHelpTextRow>
-        </>
-      )}
-      {!isLocalProvider && hasObjectKey(provider, 'apiKey') && (
+      {needsApiKey && (
         <>
           <SettingSubtitle
             style={{
@@ -205,22 +195,27 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             }}>
             {t('settings.provider.api_key.label')}
             <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
-              <Button variant="ghost" size="icon-sm" onClick={openApiKeyList}>
+              <Button variant="outline" size="icon-sm" onClick={openApiKeyList}>
                 <List size={14} />
               </Button>
             </Tooltip>
           </SettingSubtitle>
-          <Flex className="gap-2">
-            <Input.Password
+          <ButtonGroup className="w-full">
+            <Input
+              type="password"
               value={apiKey}
               placeholder={t('settings.provider.api_key.label')}
               onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
               onBlur={onUpdateApiKey}
               spellCheck={false}
-              type="password"
               autoFocus={apiKey === ''}
+              className="min-w-0 flex-1"
             />
-            <Button variant={apiValid ? 'ghost' : 'default'} onClick={checkSearch} disabled={apiChecking}>
+            <Button
+              variant="outline"
+              className="h-9 shrink-0 px-3 shadow-none"
+              onClick={checkSearch}
+              disabled={!canCheckSearch}>
               {apiChecking ? (
                 <LoadingOutlined spin />
               ) : apiValid ? (
@@ -229,7 +224,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
                 t('settings.tool.websearch.check')
               )}
             </Button>
-          </Flex>
+          </ButtonGroup>
           <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
             <RowFlex>
               {apiKeyWebsite && (
@@ -242,7 +237,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           </SettingHelpTextRow>
         </>
       )}
-      {!isLocalProvider && hasObjectKey(provider, 'apiHost') && (
+      {provider.apiHost !== undefined && (
         <>
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}
@@ -257,7 +252,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           </Flex>
         </>
       )}
-      {!isLocalProvider && hasObjectKey(provider, 'basicAuthUsername') && (
+      {supportsBasicAuth && (
         <>
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
           <SettingSubtitle
@@ -273,53 +268,37 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               }}
             />
           </SettingSubtitle>
-          <Flex>
-            <Form
-              layout="vertical"
-              style={{ width: '100%' }}
-              initialValues={{
-                username: basicAuthUsername,
-                password: basicAuthPassword
-              }}
-              onValuesChange={(changedValues) => {
-                // Update local state when form values change
-                if ('username' in changedValues) {
-                  setBasicAuthUsername(changedValues.username || '')
-                }
-                if ('password' in changedValues) {
-                  setBasicAuthPassword(changedValues.password || '')
-                }
-              }}>
-              <Form.Item label={t('settings.provider.basic_auth.user_name.label')} name="username">
+          <div className="flex w-full flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="websearch-basic-auth-username">{t('settings.provider.basic_auth.user_name.label')}</Label>
+              <Input
+                id="websearch-basic-auth-username"
+                value={basicAuthUsername}
+                placeholder={t('settings.provider.basic_auth.user_name.tip')}
+                onChange={(e) => setBasicAuthUsername(e.target.value)}
+                onBlur={onUpdateBasicAuthUsername}
+              />
+            </div>
+            {basicAuthUsername && (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="websearch-basic-auth-password">
+                  {t('settings.provider.basic_auth.password.label')}
+                </Label>
                 <Input
-                  placeholder={t('settings.provider.basic_auth.user_name.tip')}
-                  onBlur={onUpdateBasicAuthUsername}
-                />
-              </Form.Item>
-              <Form.Item
-                label={t('settings.provider.basic_auth.password.label')}
-                name="password"
-                rules={[{ required: !!basicAuthUsername, validateTrigger: ['onBlur', 'onChange'] }]}
-                help=""
-                hidden={!basicAuthUsername}>
-                <Input.Password
+                  id="websearch-basic-auth-password"
+                  type="password"
+                  value={basicAuthPassword}
                   placeholder={t('settings.provider.basic_auth.password.tip')}
+                  onChange={(e) => setBasicAuthPassword(e.target.value)}
                   onBlur={onUpdateBasicAuthPassword}
-                  disabled={!basicAuthUsername}
-                  visibilityToggle={true}
                 />
-              </Form.Item>
-            </Form>
-          </Flex>
+              </div>
+            )}
+          </div>
         </>
       )}
     </>
   )
 }
-
-const ProviderName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-`
 
 export default WebSearchProviderSetting

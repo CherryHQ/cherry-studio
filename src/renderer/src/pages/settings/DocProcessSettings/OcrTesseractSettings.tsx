@@ -1,19 +1,13 @@
-// import { loggerService } from '@logger'
-import { Flex } from '@cherrystudio/ui'
-import { InfoTooltip } from '@cherrystudio/ui'
-import CustomTag from '@renderer/components/Tags/CustomTag'
+import { Combobox, type ComboboxOption, Flex, InfoTooltip } from '@cherrystudio/ui'
 import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
+import { useLanguages } from '@renderer/hooks/translate'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
-import useTranslate from '@renderer/hooks/useTranslate'
 import type { TesseractLangCode } from '@renderer/types'
 import { BuiltinOcrProviderIds, isOcrTesseractProvider } from '@renderer/types'
-import { Select } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingRow, SettingRowTitle } from '..'
-
-// const logger = loggerService.withContext('OcrTesseractSettings')
 
 export const OcrTesseractSettings = () => {
   const { t } = useTranslation()
@@ -24,17 +18,15 @@ export const OcrTesseractSettings = () => {
   }
 
   const [langs, setLangs] = useState<Partial<Record<TesseractLangCode, boolean>>>(provider.config?.langs ?? {})
-  const { translateLanguages } = useTranslate()
+  const { languages, getLabel } = useLanguages()
 
   const options = useMemo(
     () =>
-      translateLanguages
-        .map((lang) => ({
-          value: TESSERACT_LANG_MAP[lang.langCode],
-          label: lang.emoji + ' ' + lang.label()
-        }))
-        .filter((option) => option.value),
-    [translateLanguages]
+      languages?.flatMap((lang) => {
+        const value = TESSERACT_LANG_MAP[lang.langCode]
+        return value ? [{ value, label: getLabel(lang) ?? lang.langCode }] : []
+      }) ?? [],
+    [languages, getLabel]
   )
 
   // TODO: type safe objectKeys
@@ -46,19 +38,43 @@ export const OcrTesseractSettings = () => {
     [langs]
   )
 
-  const onChange = useCallback((values: TesseractLangCode[]) => {
-    setLangs(() => {
-      const newLangs = {}
-      values.forEach((v) => {
-        newLangs[v] = true
-      })
-      return newLangs
-    })
-  }, [])
+  const renderSelectedLanguages = useCallback(
+    (selectedValue: string | string[], availableOptions: ComboboxOption[]) => {
+      const selectedValues = Array.isArray(selectedValue) ? selectedValue : []
+      if (selectedValues.length === 0) return <span className="text-muted-foreground">{t('common.select')}</span>
 
-  const onBlur = useCallback(() => {
-    updateConfig({ langs })
-  }, [langs, updateConfig])
+      const firstValue = selectedValues[0]
+      const firstOption = availableOptions.find((option) => option.value === firstValue)
+
+      return (
+        <div className="flex min-w-0 items-center gap-1">
+          <span className="truncate rounded bg-primary/10 px-2 py-0.5 text-primary text-xs">
+            {firstOption?.label ?? firstValue}
+          </span>
+          {selectedValues.length > 1 && (
+            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+              +{selectedValues.length - 1}
+            </span>
+          )}
+        </div>
+      )
+    },
+    [t]
+  )
+
+  const onChange = useCallback(
+    (selectedValue: string | string[]) => {
+      const values = (Array.isArray(selectedValue) ? selectedValue : []) as TesseractLangCode[]
+      const nextLangs = values.reduce<Partial<Record<TesseractLangCode, boolean>>>((acc, lang) => {
+        acc[lang] = true
+        return acc
+      }, {})
+
+      setLangs(nextLangs)
+      updateConfig({ langs: nextLangs })
+    },
+    [updateConfig]
+  )
 
   return (
     <>
@@ -70,17 +86,16 @@ export const OcrTesseractSettings = () => {
           </Flex>
         </SettingRowTitle>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <Select
-            mode="multiple"
-            style={{ minWidth: 200 }}
+          <Combobox
+            multiple
+            width={220}
             value={value}
             options={options}
-            maxTagCount={1}
             onChange={onChange}
-            onBlur={onBlur}
-            // use tag render to disable default close action
-            // don't modify this, because close action won't trigger onBlur to update state
-            tagRender={(props) => <CustomTag color="var(--color-text)">{props.label}</CustomTag>}
+            renderValue={renderSelectedLanguages}
+            searchable={false}
+            placeholder={t('common.select')}
+            emptyText={t('common.no_results')}
           />
         </div>
       </SettingRow>

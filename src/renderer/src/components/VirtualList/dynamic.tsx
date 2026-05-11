@@ -1,7 +1,7 @@
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type { Range, ScrollToOptions, VirtualItem, VirtualizerOptions } from '@tanstack/react-virtual'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import React, { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import styled from 'styled-components'
 
 const SCROLLBAR_AUTO_HIDE_DELAY = 2000
 
@@ -97,6 +97,11 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
    * Additional CSS class name for the container
    */
   className?: string
+
+  /**
+   * Scroll handler for the internal scroll container
+   */
+  onScroll?: React.UIEventHandler<HTMLDivElement>
 }
 
 function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
@@ -114,6 +119,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     autoHideScrollbar = false,
     header,
     className,
+    onScroll,
     ...restOptions
   } = props
 
@@ -239,15 +245,22 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const { horizontal } = restOptions
 
   return (
-    <ScrollContainer
+    <div
       ref={scrollerRef}
-      className={className ? `dynamic-virtual-list ${className}` : 'dynamic-virtual-list'}
+      className={cn(
+        'dynamic-virtual-list [&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-thumb]:ease-in-out [&::-webkit-scrollbar-thumb]:will-change-[background]',
+        autoHideScrollbar && !showScrollbar
+          ? '[&::-webkit-scrollbar-thumb]:bg-transparent'
+          : '[&::-webkit-scrollbar-thumb]:bg-[var(--color-scrollbar-thumb)]',
+        className
+      )}
       role="region"
       aria-hidden={!showScrollbar}
-      $autoHide={autoHideScrollbar}
-      $show={showScrollbar}
+      onScroll={onScroll}
       style={{
         overflow: 'auto',
+        scrollbarColor:
+          autoHideScrollbar && !showScrollbar ? 'transparent transparent' : 'var(--color-scrollbar-thumb) transparent',
         ...(horizontal ? { width: size ?? '100%' } : { height: size ?? '100%' }),
         ...scrollerStyle
       }}>
@@ -319,21 +332,9 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
           )
         })}
       </div>
-    </ScrollContainer>
+    </div>
   )
 }
-
-const ScrollContainer = styled.div<{ $autoHide: boolean; $show: boolean }>`
-  &::-webkit-scrollbar-thumb {
-    transition: background 0.3s ease-in-out;
-    will-change: background;
-    background: ${(props) => (props.$autoHide && !props.$show ? 'transparent' : 'var(--color-scrollbar-thumb)')};
-
-    &:hover {
-      background: var(--color-scrollbar-thumb-hover);
-    }
-  }
-`
 
 const MemoizedDynamicVirtualList = memo(DynamicVirtualList) as <T>(
   props: DynamicVirtualListProps<T>

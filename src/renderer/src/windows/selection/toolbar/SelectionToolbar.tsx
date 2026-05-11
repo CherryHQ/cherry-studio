@@ -1,4 +1,4 @@
-import '@renderer/assets/styles/selection-toolbar.css'
+import './selection-toolbar.css'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -356,6 +356,8 @@ const LogoWrapper = styled.div<{ $draggable: boolean }>`
 const Logo = styled.img`
   height: var(--selection-toolbar-logo-size);
   width: var(--selection-toolbar-logo-size);
+  border-radius: 50%;
+  object-fit: cover;
   &.animate {
     animation: rotate 1s ease;
   }

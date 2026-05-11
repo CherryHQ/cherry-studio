@@ -1,17 +1,16 @@
+import { Button, ButtonGroup, IndicatorLight, Input, Tooltip } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { cn } from '@renderer/utils/style'
 import { API_SERVER_DEFAULTS } from '@shared/config/constant'
-import { Alert, Button, Input, InputNumber, Tooltip, Typography } from 'antd'
-import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
+import { Copy, ExternalLink, Play, RotateCcw, Server, Square, TriangleAlert } from 'lucide-react'
+import type React from 'react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 import { v4 as uuidv4 } from 'uuid'
 
-import { SettingContainer } from '../..'
-
-const { Text, Title } = Typography
+import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
 
 const ApiServerSettings: FC = () => {
   const { theme } = useTheme()
@@ -28,6 +27,11 @@ const ApiServerSettings: FC = () => {
     setApiServerEnabled,
     setApiServerConfig
   } = useApiServer()
+
+  const serverHost = apiServerConfig.host || API_SERVER_DEFAULTS.HOST
+  const serverPort = apiServerConfig.port || API_SERVER_DEFAULTS.PORT
+  const serverUrl = `http://${serverHost}:${serverPort}`
+  const apiKey = apiServerConfig.apiKey || ''
 
   const handleApiServerToggle = async (enabled: boolean) => {
     try {
@@ -48,8 +52,8 @@ const ApiServerSettings: FC = () => {
   }
 
   const copyApiKey = () => {
-    if (apiServerConfig.apiKey) {
-      void navigator.clipboard.writeText(apiServerConfig.apiKey)
+    if (apiKey) {
+      void navigator.clipboard.writeText(apiKey)
     }
     window.toast.success(t('apiServer.messages.apiKeyCopied'))
   }
@@ -64,7 +68,7 @@ const ApiServerSettings: FC = () => {
   }
 
   const handlePortChange = (value: string) => {
-    const port = parseInt(value) || API_SERVER_DEFAULTS.PORT
+    const port = Number.parseInt(value, 10) || API_SERVER_DEFAULTS.PORT
     if (port >= 1000 && port <= 65535) {
       void setApiServerConfig({ port })
     }
@@ -72,326 +76,215 @@ const ApiServerSettings: FC = () => {
 
   const openApiDocs = () => {
     if (apiServerRunning) {
-      const host = apiServerConfig.host || API_SERVER_DEFAULTS.HOST
-      const port = apiServerConfig.port || API_SERVER_DEFAULTS.PORT
-      window.open(`http://${host}:${port}/api-docs`, '_blank')
+      window.open(`${serverUrl}/api-docs`, '_blank')
     }
   }
 
   return (
     <Container theme={theme}>
-      {/* Header Section */}
-      <HeaderSection>
-        <HeaderContent>
-          <Title level={3} style={{ margin: 0, marginBottom: 8 }}>
-            {t('apiServer.title')}
-          </Title>
-          <Text type="secondary">{t('apiServer.description')}</Text>
-        </HeaderContent>
-        {apiServerRunning && (
-          <Button type="primary" icon={<ExternalLink size={14} />} onClick={openApiDocs}>
-            {t('apiServer.documentation.title')}
-          </Button>
-        )}
-      </HeaderSection>
-
-      {!apiServerRunning && (
-        <Alert type="warning" message={t('agent.warning.enable_server')} style={{ marginBottom: 10 }} showIcon />
-      )}
-
-      {/* Server Control Panel with integrated configuration */}
-      <ServerControlPanel $status={apiServerRunning}>
-        <StatusSection>
-          <StatusIndicator $status={apiServerRunning} />
-          <StatusContent>
-            <StatusText $status={apiServerRunning}>
-              {apiServerRunning ? t('apiServer.status.running') : t('apiServer.status.stopped')}
-            </StatusText>
-            <StatusSubtext>
-              {apiServerRunning
-                ? `http://${apiServerConfig.host || API_SERVER_DEFAULTS.HOST}:${apiServerConfig.port || API_SERVER_DEFAULTS.PORT}`
-                : t('apiServer.fields.port.description')}
-            </StatusSubtext>
-          </StatusContent>
-        </StatusSection>
-
-        <ControlSection>
+      <SettingGroup theme={theme}>
+        <HeaderRow>
+          <div className="min-w-0">
+            <SettingTitle className="justify-start gap-2">
+              <Server size={16} />
+              {t('apiServer.title')}
+            </SettingTitle>
+            <PageDescription>{t('apiServer.description')}</PageDescription>
+          </div>
           {apiServerRunning && (
-            <Tooltip title={t('apiServer.actions.restart.tooltip')}>
-              <RestartButton
-                $loading={apiServerLoading}
-                onClick={apiServerLoading ? undefined : handleApiServerRestart}>
-                <RotateCcw size={14} />
-                <span>{t('apiServer.actions.restart.button')}</span>
-              </RestartButton>
-            </Tooltip>
+            <Button variant="outline" onClick={openApiDocs}>
+              <ExternalLink size={14} />
+              {t('apiServer.documentation.title')}
+            </Button>
           )}
+        </HeaderRow>
 
-          {/* Port input when server is stopped */}
-          {!apiServerRunning && (
-            <StyledInputNumber
-              value={apiServerConfig.port}
-              onChange={(value) => handlePortChange(String(value || API_SERVER_DEFAULTS.PORT))}
-              min={1000}
-              max={65535}
-              disabled={apiServerRunning}
-              placeholder={String(API_SERVER_DEFAULTS.PORT)}
-              size="middle"
+        <SettingDivider />
+        {!apiServerRunning && (
+          <WarningBanner>
+            <TriangleAlert className="size-4 shrink-0 text-warning" />
+            <span>{t('agent.warning.enable_server')}</span>
+          </WarningBanner>
+        )}
+        <StatusCard $running={apiServerRunning}>
+          <StatusSection>
+            <IndicatorLight
+              color={apiServerRunning ? 'green' : '#ef4444'}
+              size={10}
+              animation={apiServerRunning}
+              shadow={apiServerRunning}
             />
-          )}
+            <StatusContent>
+              <StatusText $running={apiServerRunning}>
+                {apiServerRunning ? t('apiServer.status.running') : t('apiServer.status.stopped')}
+              </StatusText>
+              <StatusSubtext>{apiServerRunning ? serverUrl : t('apiServer.fields.port.description')}</StatusSubtext>
+            </StatusContent>
+          </StatusSection>
 
-          <Tooltip title={apiServerRunning ? t('apiServer.actions.stop') : t('apiServer.actions.start')}>
-            {apiServerRunning ? (
-              <StopButton
-                $loading={apiServerLoading}
-                onClick={apiServerLoading ? undefined : () => handleApiServerToggle(false)}>
-                <Square size={20} style={{ color: 'var(--color-status-error)' }} />
-              </StopButton>
-            ) : (
-              <StartButton
-                $loading={apiServerLoading}
-                onClick={apiServerLoading ? undefined : () => handleApiServerToggle(true)}>
-                <Play size={20} style={{ color: 'var(--color-status-success)' }} />
-              </StartButton>
+          <ButtonGroup attached={false}>
+            {apiServerRunning && (
+              <Tooltip title={t('apiServer.actions.restart.tooltip')}>
+                <Button variant="outline" loading={apiServerLoading} onClick={handleApiServerRestart}>
+                  <RotateCcw size={14} />
+                  {t('apiServer.actions.restart.button')}
+                </Button>
+              </Tooltip>
             )}
-          </Tooltip>
-        </ControlSection>
-      </ServerControlPanel>
-
-      {/* API Key Configuration */}
-      <ConfigurationField>
-        <FieldLabel>{t('apiServer.fields.apiKey.label')}</FieldLabel>
-        <FieldDescription>{t('apiServer.fields.apiKey.description')}</FieldDescription>
-
-        <StyledInput
-          value={apiServerConfig.apiKey || ''}
-          readOnly
-          placeholder={t('apiServer.fields.apiKey.placeholder')}
-          size="middle"
-          suffix={
-            <InputButtonContainer>
+            {apiServerRunning ? (
+              <Button variant="outline" loading={apiServerLoading} onClick={() => handleApiServerToggle(false)}>
+                <Square size={14} />
+                {t('apiServer.actions.stop')}
+              </Button>
+            ) : (
+              <Button loading={apiServerLoading} onClick={() => handleApiServerToggle(true)}>
+                <Play size={14} />
+                {t('apiServer.actions.start')}
+              </Button>
+            )}
+          </ButtonGroup>
+        </StatusCard>
+        {!apiServerRunning && (
+          <>
+            <SettingDivider />
+            <SettingRow className="items-start gap-6">
+              <FieldText>
+                <SettingRowTitle>{t('apiServer.fields.port.label')}</SettingRowTitle>
+                <FieldDescription>{t('apiServer.fields.port.description')}</FieldDescription>
+              </FieldText>
+              <Input
+                className="w-24 text-center"
+                type="number"
+                min={1000}
+                max={65535}
+                value={serverPort}
+                onChange={(event) => handlePortChange(event.target.value)}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow className="items-start gap-6">
+              <FieldText>
+                <SettingRowTitle>{t('apiServer.fields.url.label')}</SettingRowTitle>
+                <FieldDescription>{t('apiServer.messages.notEnabled')}</FieldDescription>
+              </FieldText>
+              <Input className="w-[420px] font-mono text-xs" value={serverUrl} readOnly disabled />
+            </SettingRow>
+          </>
+        )}
+        <SettingDivider />
+        <SettingRow className="items-start gap-6">
+          <FieldText>
+            <SettingRowTitle>{t('apiServer.fields.apiKey.label')}</SettingRowTitle>
+            <FieldDescription>{t('apiServer.fields.apiKey.description')}</FieldDescription>
+          </FieldText>
+          <InlineInputGroup>
+            <Input
+              className="font-mono text-xs"
+              value={apiKey}
+              readOnly
+              placeholder={t('apiServer.fields.apiKey.placeholder')}
+            />
+            <ButtonGroup attached={false}>
               {!apiServerRunning && (
-                <RegenerateButton onClick={regenerateApiKey} disabled={apiServerRunning} type="link">
+                <Button variant="outline" onClick={regenerateApiKey}>
                   {t('apiServer.actions.regenerate')}
-                </RegenerateButton>
+                </Button>
               )}
               <Tooltip title={t('apiServer.fields.apiKey.copyTooltip')}>
-                <InputButton icon={<Copy size={14} />} onClick={copyApiKey} disabled={!apiServerConfig.apiKey} />
+                <Button size="icon-sm" variant="outline" onClick={copyApiKey} disabled={!apiKey}>
+                  <Copy size={14} />
+                </Button>
               </Tooltip>
-            </InputButtonContainer>
-          }
-        />
-
-        {/* Authorization header info */}
-        <AuthHeaderSection>
-          <FieldLabel>{t('apiServer.authHeader.title')}</FieldLabel>
-          <StyledInput
-            style={{ height: 38 }}
-            value={`Authorization: Bearer ${apiServerConfig.apiKey || 'your-api-key'}`}
+            </ButtonGroup>
+          </InlineInputGroup>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow className="items-start gap-6">
+          <FieldText>
+            <SettingRowTitle>{t('apiServer.authHeader.title')}</SettingRowTitle>
+            <FieldDescription>{t('apiServer.authHeaderText')}</FieldDescription>
+          </FieldText>
+          <Input
+            className="w-[420px] font-mono text-xs"
+            value={`Authorization: Bearer ${apiKey || 'your-api-key'}`}
             readOnly
-            size="middle"
           />
-        </AuthHeaderSection>
-      </ConfigurationField>
+        </SettingRow>
+      </SettingGroup>
     </Container>
   )
 }
 
-// Styled Components
-const Container = styled(SettingContainer)`
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
-`
+const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof SettingContainer>) => (
+  <SettingContainer className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col', className)} {...props} />
+)
 
-const HeaderSection = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-`
+const HeaderRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex items-center justify-between gap-4', className)} {...props} />
+)
 
-const HeaderContent = styled.div`
-  flex: 1;
-`
+const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-2 max-w-[560px] text-foreground-muted text-xs leading-5', className)} {...props} />
+)
 
-const ServerControlPanel = styled.div<{ $status: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-radius: 8px;
-  background: var(--color-background);
-  border: 1px solid ${(props) => (props.$status ? 'var(--color-status-success)' : 'var(--color-border)')};
-  transition: all 0.3s ease;
-  margin-bottom: 16px;
-`
+const WarningBanner = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'mb-2 flex items-center gap-2 rounded-md border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning',
+      className
+    )}
+    {...props}
+  />
+)
 
-const StatusSection = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-`
+const StatusCard = ({
+  $running,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { $running: boolean }) => (
+  <div
+    className={cn(
+      'flex items-center justify-between gap-4 rounded-lg border p-3',
+      $running ? 'border-success/20 bg-success/5' : 'border-border bg-card',
+      className
+    )}
+    {...props}
+  />
+)
 
-const StatusIndicator = styled.div<{ $status: boolean }>`
-  position: relative;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: ${(props) => (props.$status ? 'var(--color-status-success)' : 'var(--color-status-error)')};
+const StatusSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex items-center gap-2.5', className)} {...props} />
+)
 
-  &::before {
-    content: '';
-    position: absolute;
-    inset: -3px;
-    border-radius: 50%;
-    background: ${(props) => (props.$status ? 'var(--color-status-success)' : 'var(--color-status-error)')};
-    opacity: 0.2;
-    animation: ${(props) => (props.$status ? 'pulse 2s infinite' : 'none')};
-  }
+const StatusContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col gap-0.5', className)} {...props} />
+)
 
-  @keyframes pulse {
-    0%,
-    100% {
-      transform: scale(1);
-      opacity: 0.2;
-    }
-    50% {
-      transform: scale(1.5);
-      opacity: 0.1;
-    }
-  }
-`
+const StatusText = ({
+  $running,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { $running: boolean }) => (
+  <div
+    className={cn('m-0 font-semibold text-sm', $running ? 'text-success' : 'text-foreground', className)}
+    {...props}
+  />
+)
 
-const StatusContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-`
+const StatusSubtext = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('m-0 text-foreground-muted text-xs', className)} {...props} />
+)
 
-const StatusText = styled.div<{ $status: boolean }>`
-  font-weight: 600;
-  font-size: 14px;
-  color: ${(props) => (props.$status ? 'var(--color-status-success)' : 'var(--color-text-1)')};
-  margin: 0;
-`
+const FieldDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-1 text-foreground-muted text-xs leading-5', className)} {...props} />
+)
 
-const StatusSubtext = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
-  margin: 0;
-`
+const FieldText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('min-w-0 flex-1', className)} {...props} />
+)
 
-const ControlSection = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-`
-
-const RestartButton = styled.div<{ $loading: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--color-text-2);
-  cursor: ${(props) => (props.$loading ? 'not-allowed' : 'pointer')};
-  opacity: ${(props) => (props.$loading ? 0.5 : 1)};
-  font-size: 12px;
-  transition: all 0.2s ease;
-
-  &:hover {
-    color: ${(props) => (props.$loading ? 'var(--color-text-2)' : 'var(--color-primary)')};
-  }
-`
-
-const StyledInputNumber = styled(InputNumber)`
-  width: 80px;
-  border-radius: 6px;
-  border: 1.5px solid var(--color-border);
-  margin-right: 5px;
-`
-
-const StartButton = styled.div<{ $loading: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: ${(props) => (props.$loading ? 'not-allowed' : 'pointer')};
-  opacity: ${(props) => (props.$loading ? 0.5 : 1)};
-  transition: all 0.2s ease;
-
-  &:hover {
-    transform: ${(props) => (props.$loading ? 'scale(1)' : 'scale(1.1)')};
-  }
-`
-
-const StopButton = styled.div<{ $loading: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: ${(props) => (props.$loading ? 'not-allowed' : 'pointer')};
-  opacity: ${(props) => (props.$loading ? 0.5 : 1)};
-  transition: all 0.2s ease;
-
-  &:hover {
-    transform: ${(props) => (props.$loading ? 'scale(1)' : 'scale(1.1)')};
-  }
-`
-
-const ConfigurationField = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px;
-  background: var(--color-background);
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-`
-
-const FieldLabel = styled.div`
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text-1);
-  margin: 0;
-`
-
-const FieldDescription = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
-  margin: 0;
-`
-
-const StyledInput = styled(Input)`
-  width: 100%;
-  border-radius: 6px;
-  border: 1.5px solid var(--color-border);
-`
-
-const InputButtonContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
-
-const InputButton = styled(Button)`
-  border: none;
-  padding: 0 4px;
-  background: transparent;
-`
-
-const RegenerateButton = styled(Button)`
-  padding: 0 4px;
-  font-size: 12px;
-  height: auto;
-  line-height: 1;
-  border: none;
-  background: transparent;
-`
-
-const AuthHeaderSection = styled.div`
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
+const InlineInputGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex w-[420px] items-center gap-2', className)} {...props} />
+)
 
 export default ApiServerSettings

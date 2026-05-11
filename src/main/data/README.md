@@ -4,9 +4,9 @@ This directory contains the main process data management implementation.
 
 ## Documentation
 
-- **Overview**: [docs/en/references/data/README.md](../../../docs/en/references/data/README.md)
-- **DataApi in Main**: [data-api-in-main.md](../../../docs/en/references/data/data-api-in-main.md)
-- **Database Patterns**: [database-patterns.md](../../../docs/en/references/data/database-patterns.md)
+- **Overview**: [docs/references/data/README.md](../../../docs/references/data/README.md)
+- **DataApi in Main**: [data-api-in-main.md](../../../docs/references/data/data-api-in-main.md)
+- **Database Patterns**: [database-patterns.md](../../../docs/references/data/database-patterns.md)
 
 ## Directory Structure
 
@@ -16,7 +16,7 @@ src/main/data/
 │   ├── core/                  # ApiServer, MiddlewareEngine, adapters
 │   └── handlers/              # API endpoint implementations
 ├── services/                  # Business logic layer
-├── repositories/              # Data access layer (selective usage)
+│   └── utils/                 # Row → Entity mapping utilities (see utils/README.md)
 ├── db/                        # Database layer
 │   ├── schemas/               # Drizzle table definitions
 │   ├── seeding/               # Database initialization

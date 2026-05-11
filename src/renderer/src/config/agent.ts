@@ -1,16 +1,30 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import type { AgentBase, AgentType } from '@renderer/types'
+import type { AgentBase, AgentConfiguration, AgentType } from '@renderer/types'
 import type { PermissionModeCard } from '@renderer/types/agent'
 
 // base agent config. no default config for now.
 const DEFAULT_AGENT_CONFIG: Omit<AgentBase, 'model'> = {
-  accessible_paths: []
+  accessiblePaths: []
 } as const
 
 // no default config for now.
 export const DEFAULT_CLAUDE_CODE_CONFIG: Omit<AgentBase, 'model'> = {
   ...DEFAULT_AGENT_CONFIG
 } as const
+
+export const DEFAULT_CHERRY_CLAW_CONFIG: Omit<AgentBase, 'model'> & { configuration: AgentConfiguration } = {
+  ...DEFAULT_AGENT_CONFIG,
+  configuration: {
+    permission_mode: 'bypassPermissions',
+    max_turns: 100,
+    env_vars: {},
+    soul_enabled: true,
+    scheduler_enabled: false,
+    scheduler_type: 'interval',
+    heartbeat_enabled: true,
+    heartbeat_interval: 30
+  }
+}
 
 export const getAgentTypeAvatar = (type: AgentType) => {
   switch (type) {

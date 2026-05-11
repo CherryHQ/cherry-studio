@@ -1,8 +1,57 @@
+import { application } from '@application'
+import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, t } from '@main/utils/language'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, session, shell, webContents } from 'electron'
 import { promises as fs } from 'fs'
+
+import { isSafeExternalUrl } from '../utils/externalUrlSafety'
+
+const logger = loggerService.withContext('WebviewService')
+
+/**
+ * init the useragent of the webview session
+ * remove the CherryStudio and Electron from the useragent
+ */
+export function initSessionUserAgent() {
+  const wvSession = session.fromPartition('persist:webview')
+  const originUA = wvSession.getUserAgent()
+  const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
+
+  wvSession.setUserAgent(newUA)
+  wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
+    const language = application.get('PreferenceService').get('app.language')
+    const headers = {
+      ...details.requestHeaders,
+      'User-Agent': details.url.includes('google.com') ? originUA : newUA,
+      'Accept-Language': `${language}, en;q=0.9, *;q=0.5`
+    }
+    cb({ requestHeaders: headers })
+  })
+}
+
+/**
+ * WebviewService handles the behavior of links opened from webview elements
+ * It controls whether links should be opened within the application or in an external browser
+ */
+export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
+  const webview = webContents.fromId(webviewId)
+  if (!webview) return
+
+  webview.setWindowOpenHandler(({ url }) => {
+    if (isExternal) {
+      if (isSafeExternalUrl(url)) {
+        void shell.openExternal(url)
+      } else {
+        logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
+      }
+      return { action: 'deny' }
+    } else {
+      return { action: 'allow' }
+    }
+  })
+}
 
 const attachKeyboardHandler = (contents: Electron.WebContents) => {
   if (contents.getType?.() !== 'webview') {

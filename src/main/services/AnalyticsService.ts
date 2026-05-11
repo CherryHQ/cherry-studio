@@ -1,7 +1,7 @@
+import { application } from '@application'
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { AnalyticsClient } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { APP_NAME } from '@shared/config/constant'
@@ -38,6 +38,11 @@ export class AnalyticsService extends BaseService implements Activatable {
 
   onActivate(): void {
     const clientId = getClientId()
+
+    if (!application.get('PreferenceService').get('app.privacy.data_collection.enabled')) {
+      logger.info('Analytics service disabled by user preference')
+      return
+    }
 
     this.client = new AnalyticsClient({
       clientId,
@@ -82,8 +87,10 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   public async trackAppUpdate(): Promise<void> {
-    // Original code only checks this.client existence, not the preference toggle. Preserving as-is.
-    if (!this.client) return
+    if (!this.client || !application.get('PreferenceService').get('app.privacy.data_collection.enabled')) {
+      return
+    }
+
     await this.client.trackAppUpdate()
   }
 }

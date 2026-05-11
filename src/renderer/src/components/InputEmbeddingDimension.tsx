@@ -1,14 +1,15 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Input, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { RefreshIcon } from '@renderer/components/Icons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Model } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
-import { InputNumber, Space } from 'antd'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AiProviderNew from '../aiCore/index_new'
+import { AiProvider } from '../aiCore'
+import { getRotatedApiKey } from '../services/ApiService'
 
 const logger = loggerService.withContext('DimensionsInput')
 
@@ -34,6 +35,14 @@ const InputEmbeddingDimension = ({
 
   const disabled = useMemo(() => _disabled || !model || !provider, [_disabled, model, provider])
 
+  const handleDimensionChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const { value: nextValue, valueAsNumber } = event.currentTarget
+      onChange?.(nextValue === '' || Number.isNaN(valueAsNumber) ? null : valueAsNumber)
+    },
+    [onChange]
+  )
+
   const handleFetchDimension = useCallback(async () => {
     if (!model) {
       logger.warn('Failed to get embedding dimensions: no model')
@@ -49,7 +58,11 @@ const InputEmbeddingDimension = ({
 
     setLoading(true)
     try {
-      const aiProvider = new AiProviderNew(provider)
+      const providerWithRotatedKey = {
+        ...provider,
+        apiKey: getRotatedApiKey(provider)
+      }
+      const aiProvider = new AiProvider(providerWithRotatedKey)
       const dimension = await aiProvider.getEmbeddingDimensions(model)
       // for controlled input
       if (ref?.current) {
@@ -65,14 +78,15 @@ const InputEmbeddingDimension = ({
   }, [model, provider, t, onChange, ref])
 
   return (
-    <Space.Compact style={{ width: '100%', ...style }}>
-      <InputNumber
+    <div className="flex w-full" style={style}>
+      <Input
         ref={ref}
+        type="number"
         min={1}
-        style={{ flex: 1 }}
+        className="min-w-0 flex-1 rounded-r-none"
         placeholder={t('knowledge.dimensions_size_placeholder')}
-        value={value}
-        onChange={onChange}
+        value={value ?? ''}
+        onChange={handleDimensionChange}
         disabled={disabled}
       />
       <Tooltip content={t('knowledge.dimensions_auto_set')}>
@@ -81,11 +95,12 @@ const InputEmbeddingDimension = ({
           aria-label={t('common.get_embedding_dimension')}
           disabled={disabled || loading}
           onClick={handleFetchDimension}
+          className={cn('-ml-px rounded-l-none', loading && 'opacity-80')}
           size="icon-sm">
           <RefreshIcon size={16} className={loading ? 'animation-rotate' : ''} />
         </Button>
       </Tooltip>
-    </Space.Compact>
+    </div>
   )
 }
 

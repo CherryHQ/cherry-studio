@@ -1,8 +1,7 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import AiProvider from '@renderer/aiCore'
-import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
+import { Button, Checkbox, EmptyState, Input, Label, SelectDropdown, Textarea } from '@cherrystudio/ui'
+import { AiProvider } from '@renderer/aiCore'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import ModelSelector from '@renderer/components/ModelSelector'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
@@ -13,16 +12,15 @@ import { getAssistantSettings, getProviderByModel } from '@renderer/services/Ass
 import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppSelector } from '@renderer/store'
-import type { EndpointType, Model } from '@renderer/types'
+import type { EndpointType, Model, Provider } from '@renderer/types'
+import { getFancyProviderName } from '@renderer/utils/naming'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeCLI, terminalApps } from '@shared/config/constant'
 import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
-import { Alert, Checkbox, Input, Select, Space } from 'antd'
-import { Download, FolderOpen, Terminal, X } from 'lucide-react'
+import { Check, Code2, Download, FolderOpen, Search, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import {
   CLI_TOOL_PROVIDER_MAP,
@@ -31,8 +29,31 @@ import {
   OPENAI_CODEX_SUPPORTED_PROVIDERS,
   parseEnvironmentVariables
 } from '.'
+import { CodeToolDrawer } from './components/CodeToolDrawer'
+import { FieldLabel } from './components/FieldLabel'
+import { ToolGrid } from './components/ToolGrid'
+import type { CodeToolMeta } from './components/types'
 
 const logger = loggerService.withContext('CodeCliPage')
+
+type CliToolOption = (typeof CLI_TOOLS)[number]
+
+const toMeta = (tool: CliToolOption): CodeToolMeta => ({
+  id: tool.value,
+  label: tool.label,
+  icon: tool.icon
+})
+
+interface ModelItem {
+  id: string
+  model: Model
+  provider: Provider
+}
+
+interface TerminalItem {
+  id: string
+  name: string
+}
 
 const CodeCliPage: FC = () => {
   const { t } = useTranslation()
@@ -56,7 +77,6 @@ const CodeCliPage: FC = () => {
   } = useCodeCli()
   const { setTimeoutTimer } = useTimer()
 
-  // Get default assistant settings for budget tokens calculation
   const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
   const { maxTokens, reasoning_effort } = useMemo(() => {
     if (!defaultAssistant) {
@@ -66,11 +86,14 @@ const CodeCliPage: FC = () => {
   }, [defaultAssistant])
 
   const [isLaunching, setIsLaunching] = useState(false)
+  const [launchSuccess, setLaunchSuccess] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
   const [autoUpdateToLatest, setAutoUpdateToLatest] = useState(false)
   const [availableTerminals, setAvailableTerminals] = useState<TerminalConfig[]>([])
-  const [isLoadingTerminals, setIsLoadingTerminals] = useState(false)
   const [terminalCustomPaths, setTerminalCustomPaths] = useState<Record<string, string>>({})
+
+  const [searchTerm, setSearchTerm] = useState('')
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   const modelPredicate = useCallback(
     (m: Model) => {
@@ -86,11 +109,9 @@ const CodeCliPage: FC = () => {
         if (m.supported_endpoint_types) {
           return m.supported_endpoint_types.includes('anthropic')
         }
-        // Special handling for silicon provider: only specific models support Anthropic API
         if (m.provider === 'silicon') {
           return isSiliconAnthropicCompatibleModel(m.id)
         }
-        // Check if model belongs to an anthropic type provider or has anthropicApiHost
         const modelProvider = providers.find((p) => p.id === m.provider)
         if (modelProvider?.type === 'anthropic' || modelProvider?.anthropicApiHost) {
           return true
@@ -111,7 +132,6 @@ const CodeCliPage: FC = () => {
             m.supported_endpoint_types?.includes(type as EndpointType)
           )
         }
-        // Check if model belongs to an openai-response type provider (including custom providers)
         const openaiProvider = providers.find((p) => p.id === m.provider)
         if (openaiProvider?.type === 'openai-response') {
           return true
@@ -138,7 +158,6 @@ const CodeCliPage: FC = () => {
             m.supported_endpoint_types?.includes(type as EndpointType)
           )
         }
-        // Check if model belongs to openai, openai-response, or anthropic type provider
         const provider = providers.find((p) => p.id === m.provider)
         return !!['openai', 'openai-response', 'anthropic'].includes(provider?.type ?? '')
       }
@@ -153,8 +172,24 @@ const CodeCliPage: FC = () => {
     return filterFn ? filterFn(providers) : []
   }, [providers, selectedCliTool])
 
-  // Resolve a stored model ID string back to a full Model object
-  // TODO: remove after provider & model Merged
+  const modelItems = useMemo<ModelItem[]>(() => {
+    const items: ModelItem[] = []
+    for (const provider of availableProviders) {
+      for (const m of provider.models || []) {
+        if (!modelPredicate(m)) continue
+        items.push({ id: getModelUniqId(m), model: m, provider })
+      }
+    }
+    return items
+  }, [availableProviders, modelPredicate])
+
+  const terminalItems = useMemo<TerminalItem[]>(
+    () => availableTerminals.map((terminal) => ({ id: terminal.id, name: terminal.name })),
+    [availableTerminals]
+  )
+
+  const directoryItems = useMemo(() => directories.map((dir) => ({ id: dir })), [directories])
+
   const resolveModel = useCallback(
     (modelIdStr: string): Model | null => {
       for (const provider of providers || []) {
@@ -172,66 +207,54 @@ const CodeCliPage: FC = () => {
       setModel(null).catch((err) => logger.error('Failed to clear model:', err as Error))
       return
     }
-
-    // Store the model unique ID string directly (v2: preference stores ID, not full Model)
     setModel(value).catch((err) => logger.error('Failed to set model:', err as Error))
   }
 
-  // 处理删除目录
-  const handleRemoveDirectory = (directory: string, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleRemoveDirectory = (directory: string) => {
     removeDir(directory).catch((err) => logger.error('Failed to remove directory:', err as Error))
   }
 
-  // 检查 bun 是否安装
   const checkBunInstallation = useCallback(async () => {
     try {
       const bunExists = await window.api.isBinaryExist('bun')
       setIsBunInstalled(bunExists)
     } catch (error) {
       logger.error('Failed to check bun installation status:', error as Error)
-      // IPC failure — leave previous value unchanged
     }
   }, [setIsBunInstalled])
 
-  // 获取可用终端
   const loadAvailableTerminals = useCallback(async () => {
-    if (!isMac && !isWin) return // 仅 macOS 和 Windows 支持
+    if (!isMac && !isWin) return
 
     try {
-      setIsLoadingTerminals(true)
       const terminals = await window.api.codeCli.getAvailableTerminals()
       setAvailableTerminals(terminals)
-      logger.info(
-        `Found ${terminals.length} available terminals:`,
-        terminals.map((t) => t.name)
-      )
+      logger.info('Available terminals loaded', {
+        count: terminals.length,
+        names: terminals.map((ti) => ti.name)
+      })
     } catch (error) {
       logger.error('Failed to load available terminals:', error as Error)
       setAvailableTerminals([])
-    } finally {
-      setIsLoadingTerminals(false)
     }
   }, [])
 
-  // 安装 bun
   const handleInstallBun = async () => {
     try {
       setIsInstallingBun(true)
       await window.api.installBunBinary()
       setIsBunInstalled(true)
       window.toast.success(t('settings.mcp.installSuccess'))
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Failed to install bun:', error as Error)
-      window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
+      const message = error instanceof Error ? error.message : String(error)
+      window.toast.error(`${t('settings.mcp.installError')}: ${message}`)
     } finally {
       setIsInstallingBun(false)
-      // 重新检查安装状态
       setTimeoutTimer('handleInstallBun', checkBunInstallation, 1000)
     }
   }
 
-  // 验证启动条件
   const validateLaunch = (): { isValid: boolean; message?: string } => {
     if (!canLaunch || !isBunInstalled) {
       return {
@@ -247,7 +270,6 @@ const CodeCliPage: FC = () => {
     return { isValid: true }
   }
 
-  // 准备启动环境
   const prepareLaunchEnvironment = async (): Promise<{
     env: Record<string, string>
   } | null> => {
@@ -258,7 +280,6 @@ const CodeCliPage: FC = () => {
 
     if (!selectedModel) return null
 
-    // Resolve full Model object from stored ID string
     const resolvedModel = resolveModel(selectedModel)
     if (!resolvedModel) return null
 
@@ -267,7 +288,6 @@ const CodeCliPage: FC = () => {
     const baseUrl = aiProvider.getBaseURL()
     const apiKey = aiProvider.getApiKey()
 
-    // 生成工具特定的环境变量
     const { env: toolEnv } = generateToolEnvironment({
       tool: selectedCliTool,
       model: resolvedModel,
@@ -277,13 +297,11 @@ const CodeCliPage: FC = () => {
       context: { maxTokens, reasoningEffort: reasoning_effort }
     })
 
-    // 合并用户自定义的环境变量
     const userEnv = parseEnvironmentVariables(environmentVariables)
 
     return { env: { ...toolEnv, ...userEnv } }
   }
 
-  // 执行启动操作
   const executeLaunch = async (env: Record<string, string>) => {
     const resolvedModel = selectedModel ? resolveModel(selectedModel) : null
     if (selectedCliTool !== codeCLI.githubCopilotCli && !resolvedModel) {
@@ -298,11 +316,21 @@ const CodeCliPage: FC = () => {
       terminal: selectedTerminal
     }
 
-    void window.api.codeCli.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
-    window.toast.success(t('code.launch.success'))
+    try {
+      const result = await window.api.codeCli.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
+      if (result && result.success) {
+        setLaunchSuccess(true)
+        setTimeoutTimer('launchSuccess', () => setLaunchSuccess(false), 2500)
+        window.toast.success(t('code.launch.success'))
+      } else {
+        window.toast.error(result?.message || t('code.launch.error'))
+      }
+    } catch (error) {
+      logger.error('codeTools.run failed:', error as Error)
+      window.toast.error(t('code.launch.error'))
+    }
   }
 
-  // 设置终端自定义路径
   const handleSetCustomPath = async (terminalId: string) => {
     try {
       const result = await window.api.file.select({
@@ -318,7 +346,6 @@ const CodeCliPage: FC = () => {
         await window.api.codeCli.setCustomTerminalPath(terminalId, path)
         setTerminalCustomPaths((prev) => ({ ...prev, [terminalId]: path }))
         window.toast.success(t('code.custom_path_set'))
-        // Reload terminals to reflect changes
         void loadAvailableTerminals()
       }
     } catch (error) {
@@ -327,7 +354,6 @@ const CodeCliPage: FC = () => {
     }
   }
 
-  // 处理启动
   const handleLaunch = async () => {
     const validation = validateLaunch()
 
@@ -337,6 +363,7 @@ const CodeCliPage: FC = () => {
     }
 
     setIsLaunching(true)
+    setLaunchSuccess(false)
 
     try {
       const result = await prepareLaunchEnvironment()
@@ -354,273 +381,272 @@ const CodeCliPage: FC = () => {
     }
   }
 
-  // 页面加载时检查 bun 安装状态
   useEffect(() => {
     void checkBunInstallation()
   }, [checkBunInstallation])
 
-  // 页面加载时获取可用终端
   useEffect(() => {
     void loadAvailableTerminals()
   }, [loadAvailableTerminals])
 
-  return (
-    <Container>
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('code.title')}</NavbarCenter>
-      </Navbar>
-      <ContentContainer id="content-container">
-        <MainContent>
-          <Title>{t('code.title')}</Title>
-          <Description>{t('code.description')}</Description>
+  const handleSelectTool = async (tool: codeCLI) => {
+    if (tool !== selectedCliTool) {
+      try {
+        await setCliTool(tool)
+      } catch (err) {
+        logger.error('Failed to set CLI tool:', err as Error)
+        window.toast.error(t('common.error'))
+        return
+      }
+    }
+    setDrawerOpen(true)
+  }
 
-          {/* Bun 安装状态提示 */}
-          {!isBunInstalled && (
-            <BunInstallAlert>
-              <Alert
-                type="warning"
-                banner
-                style={{ borderRadius: 'var(--list-item-border-radius)' }}
-                message={
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}>
-                    <span>{t('code.bun_required_message')}</span>
-                    <Button size="sm" onClick={handleInstallBun} disabled={isInstallingBun}>
-                      <Download size={14} />
-                      {isInstallingBun ? t('code.installing_bun') : t('code.install_bun')}
-                    </Button>
-                  </div>
-                }
+  const filteredTools = useMemo(() => {
+    if (!searchTerm) return CLI_TOOLS
+    const q = searchTerm.toLowerCase()
+    return CLI_TOOLS.filter((ti) => ti.label.toLowerCase().includes(q))
+  }, [searchTerm])
+
+  const activeTool = useMemo<CliToolOption | undefined>(
+    () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
+    [selectedCliTool]
+  )
+  const activeMeta = activeTool ? toMeta(activeTool) : null
+
+  const summaryTerminalLabel = useMemo(
+    () => availableTerminals.find((ti) => ti.id === selectedTerminal)?.name ?? selectedTerminal,
+    [availableTerminals, selectedTerminal]
+  )
+  const summaryModelLabel = useMemo(() => {
+    if (!selectedModel) return undefined
+    const resolved = resolveModel(selectedModel)
+    const full = resolved?.name ?? resolved?.id ?? selectedModel
+    // Match design: show last segment of model id (e.g. "claude-sonnet-4")
+    const parts = full.split('/')
+    return parts[parts.length - 1]
+  }, [selectedModel, resolveModel])
+
+  const needsWindowsCustomPath =
+    isWin &&
+    !!selectedTerminal &&
+    selectedTerminal !== terminalApps.cmd &&
+    selectedTerminal !== terminalApps.powershell &&
+    selectedTerminal !== terminalApps.windowsTerminal
+
+  const activeToolValue = drawerOpen ? selectedCliTool : undefined
+
+  return (
+    <div className="flex flex-1 flex-col text-foreground">
+      <Navbar>
+        <NavbarCenter className="border-r-0">{t('code.title')}</NavbarCenter>
+      </Navbar>
+
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {!isBunInstalled && (
+          <div className="mx-6 mt-3 flex items-center justify-between gap-3 rounded-3xs border border-warning/30 bg-warning/10 px-3 py-2 text-foreground text-xs">
+            <span>{t('code.bun_required_message')}</span>
+            <Button size="sm" onClick={handleInstallBun} disabled={isInstallingBun}>
+              <Download size={14} />
+              {isInstallingBun ? t('code.installing_bun') : t('code.install_bun')}
+            </Button>
+          </div>
+        )}
+
+        <div className="flex h-11 shrink-0 items-center px-4">
+          <div className="flex items-center gap-1.5 text-xs">
+            <Code2 size={13} className="text-muted-foreground" strokeWidth={1.6} />
+            <span className="text-foreground">{t('code.title')}</span>
+            <span className="ml-1 text-[10px] text-muted-foreground/40">
+              {t('code.count', { count: filteredTools.length })}
+            </span>
+          </div>
+        </div>
+
+        <div className="px-6 py-2">
+          <div className="relative mx-auto max-w-md">
+            <Search size={13} className="-translate-y-1/2 absolute top-1/2 left-3 z-10 text-muted-foreground/40" />
+            <Input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={t('code.search_placeholder')}
+              className="h-auto rounded-3xs border-border/50 bg-muted/20 py-1.5 pr-7 pl-8 text-xs shadow-none placeholder:text-muted-foreground/30 focus-visible:border-primary/30 focus-visible:ring-0"
+            />
+            {searchTerm && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setSearchTerm('')}
+                aria-label={t('common.clear')}
+                className="-translate-y-1/2 absolute top-1/2 right-1 text-muted-foreground shadow-none hover:text-foreground">
+                <X size={12} />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 [&::-webkit-scrollbar]:hidden">
+          <div className="mx-auto max-w-3xl space-y-5">
+            {filteredTools.length === 0 ? (
+              <EmptyState
+                preset={searchTerm ? 'no-result' : 'no-code-tool'}
+                title={searchTerm ? t('code.empty.no_match.title') : t('code.empty.no_tool.title')}
+                description={searchTerm ? t('code.empty.no_match.description') : t('code.empty.no_tool.description')}
               />
-            </BunInstallAlert>
+            ) : (
+              <ToolGrid
+                title={t('code.official_tools')}
+                tools={filteredTools}
+                activeValue={activeToolValue}
+                onSelect={handleSelectTool}
+                toMeta={toMeta}
+              />
+            )}
+          </div>
+        </div>
+
+        <CodeToolDrawer
+          open={drawerOpen}
+          tool={activeMeta}
+          summary={{ model: summaryModelLabel, terminal: summaryTerminalLabel || undefined }}
+          canLaunch={canLaunch && !!isBunInstalled}
+          launching={isLaunching}
+          launchSuccess={launchSuccess}
+          infoTag={t('code.official_tag')}
+          onClose={() => setDrawerOpen(false)}
+          onLaunch={handleLaunch}>
+          {selectedCliTool !== codeCLI.githubCopilotCli && (
+            <div>
+              <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
+              <SelectDropdown
+                items={modelItems}
+                virtualize
+                itemHeight={32}
+                selectedId={selectedModel}
+                onSelect={handleModelChange}
+                placeholder={t('code.model_placeholder')}
+                renderSelected={(item) => (
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <ModelAvatar model={item.model} size={12} />
+                    <span className="truncate text-foreground">{item.model.name || item.model.id}</span>
+                  </div>
+                )}
+                renderItem={(item, isSelected) => (
+                  <div className="flex items-center gap-2">
+                    <ModelAvatar model={item.model} size={12} />
+                    <span className="flex-1 truncate">{item.model.name || item.model.id}</span>
+                    <span className="shrink-0 text-[9px] text-muted-foreground/30">
+                      {getFancyProviderName(item.provider)}
+                    </span>
+                    {isSelected && <Check size={11} className="ml-0.5 shrink-0 text-primary" />}
+                  </div>
+                )}
+              />
+            </div>
           )}
 
-          <SettingsPanel>
-            <SettingsItem>
-              <div className="settings-label">{t('code.cli_tool')}</div>
-              <Select
-                style={{ width: '100%' }}
-                placeholder={t('code.cli_tool_placeholder')}
-                value={selectedCliTool}
-                onChange={setCliTool}
-                options={CLI_TOOLS}
-              />
-            </SettingsItem>
-
-            {selectedCliTool !== codeCLI.githubCopilotCli && (
-              <SettingsItem>
-                <div className="settings-label">
-                  {t('code.model')}
-                  {selectedCliTool === 'claude-code' && <AnthropicProviderListPopover />}
-                </div>
-                <ModelSelector
-                  providers={availableProviders}
-                  predicate={modelPredicate}
-                  style={{ width: '100%' }}
-                  placeholder={t('code.model_placeholder')}
-                  value={selectedModel || undefined}
-                  onChange={handleModelChange}
-                  allowClear
-                />
-              </SettingsItem>
-            )}
-
-            <SettingsItem>
-              <div className="settings-label">{t('code.working_directory')}</div>
-              <Space.Compact style={{ width: '100%', display: 'flex' }}>
-                <Select
-                  style={{ flex: 1, width: 480 }}
+          <div>
+            <FieldLabel hint={t('code.working_directory_hint')}>{t('code.working_directory')}</FieldLabel>
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <SelectDropdown
+                  items={directoryItems}
+                  selectedId={currentDirectory || null}
+                  onSelect={(id) => void setCurrentDir(id)}
+                  onRemove={handleRemoveDirectory}
+                  removeLabel={t('common.delete')}
+                  emptyText={t('common.none')}
                   placeholder={t('code.folder_placeholder')}
-                  value={currentDirectory || undefined}
-                  onChange={setCurrentDir}
-                  allowClear
-                  showSearch
-                  filterOption={(input, option) => {
-                    const label = typeof option?.label === 'string' ? option.label : String(option?.value || '')
-                    return label.toLowerCase().includes(input.toLowerCase())
-                  }}
-                  options={directories.map((dir) => ({ value: dir, label: dir }))}
-                  optionRender={(option) => (
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}>
-                      <span
-                        style={{
-                          flex: 1,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          minWidth: 0
-                        }}>
-                        {option.value}
-                      </span>
-                      <X
-                        size={14}
-                        style={{
-                          marginLeft: 8,
-                          cursor: 'pointer',
-                          color: '#999'
-                        }}
-                        onClick={(e) => handleRemoveDirectory(option.value as string, e)}
+                  renderTriggerLeading={<FolderOpen size={11} className="shrink-0 text-muted-foreground/40" />}
+                  renderSelected={(item) => <span className="truncate font-mono text-foreground">{item.id}</span>}
+                  renderItem={(item, isSelected) => (
+                    <>
+                      <FolderOpen
+                        size={11}
+                        className={isSelected ? 'shrink-0 text-primary' : 'shrink-0 text-muted-foreground/40'}
                       />
-                    </div>
+                      <span className="flex-1 truncate font-mono">{item.id}</span>
+                      {isSelected && <Check size={11} className="shrink-0 text-primary" />}
+                    </>
                   )}
                 />
-                <Button onClick={selectFolder} style={{ width: 120 }}>
-                  {t('code.select_folder')}
-                </Button>
-              </Space.Compact>
-            </SettingsItem>
-
-            <SettingsItem>
-              <div className="settings-label">{t('code.environment_variables')}</div>
-              <Input.TextArea
-                placeholder={`KEY1=value1\nKEY2=value2`}
-                value={environmentVariables}
-                onChange={(e) => setEnvVars(e.target.value)}
-                rows={2}
-                style={{ fontFamily: 'monospace' }}
-              />
-              <div
-                style={{
-                  fontSize: 12,
-                  color: 'var(--color-text-3)',
-                  marginTop: 4
-                }}>
-                {t('code.env_vars_help')}
               </div>
-            </SettingsItem>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void selectFolder()}
+                className="shrink-0 rounded-3xs border-border/40 bg-transparent px-3 py-1.5 text-[10px] text-muted-foreground/60 shadow-none hover:bg-accent/40 hover:text-foreground">
+                {t('code.select_folder')}
+              </Button>
+            </div>
+          </div>
 
-            {/* 终端选择 (macOS 和 Windows) */}
-            {(isMac || isWin) && availableTerminals.length > 0 && (
-              <SettingsItem>
-                <div className="settings-label">{t('code.terminal')}</div>
-                <Space.Compact style={{ width: '100%', display: 'flex' }}>
-                  <Select
-                    style={{ flex: 1 }}
-                    placeholder={t('code.terminal_placeholder')}
-                    value={selectedTerminal}
-                    onChange={setTerminal}
-                    loading={isLoadingTerminals}
-                    options={availableTerminals.map((terminal) => ({
-                      value: terminal.id,
-                      label: terminal.name
-                    }))}
-                  />
-                  {/* Show custom path button for Windows terminals except cmd/powershell */}
-                  {isWin &&
-                    selectedTerminal &&
-                    selectedTerminal !== terminalApps.cmd &&
-                    selectedTerminal !== terminalApps.powershell &&
-                    selectedTerminal !== terminalApps.windowsTerminal && (
-                      <Tooltip content={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
-                        <Button size="icon" onClick={() => handleSetCustomPath(selectedTerminal)}>
-                          <FolderOpen size={16} />
-                        </Button>
-                      </Tooltip>
-                    )}
-                </Space.Compact>
-                {isWin &&
-                  selectedTerminal &&
-                  selectedTerminal !== terminalApps.cmd &&
-                  selectedTerminal !== terminalApps.powershell &&
-                  selectedTerminal !== terminalApps.windowsTerminal && (
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: 'var(--color-text-3)',
-                        marginTop: 4
-                      }}>
-                      {terminalCustomPaths[selectedTerminal]
-                        ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
-                        : t('code.custom_path_required')}
-                    </div>
-                  )}
-              </SettingsItem>
-            )}
+          {(isMac || isWin) && terminalItems.length > 0 && (
+            <div>
+              <FieldLabel hint={t('code.terminal_hint')}>{t('code.terminal')}</FieldLabel>
+              <SelectDropdown
+                items={terminalItems}
+                selectedId={selectedTerminal}
+                onSelect={setTerminal}
+                placeholder={t('code.terminal_placeholder')}
+                renderSelected={(item) => <span className="truncate text-foreground">{item.name}</span>}
+                renderItem={(item, isSelected) => (
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1">{item.name}</span>
+                    {isSelected && <Check size={11} className="shrink-0 text-primary" />}
+                  </div>
+                )}
+              />
+              {needsWindowsCustomPath && (
+                <div className="mt-1 flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleSetCustomPath(selectedTerminal)}
+                    className="text-muted-foreground shadow-none hover:text-foreground">
+                    <FolderOpen size={10} />
+                    {t('code.set_custom_path')}
+                  </Button>
+                  <span className="truncate text-[10px] text-muted-foreground/50">
+                    {terminalCustomPaths[selectedTerminal]
+                      ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
+                      : t('code.custom_path_required')}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
-            <SettingsItem>
-              <div className="settings-label">{t('code.update_options')}</div>
-              <Checkbox checked={autoUpdateToLatest} onChange={(e) => setAutoUpdateToLatest(e.target.checked)}>
-                {t('code.auto_update_to_latest')}
-              </Checkbox>
-            </SettingsItem>
-          </SettingsPanel>
+          <div>
+            <FieldLabel hint={t('code.env_vars_help')}>{t('code.environment_variables')}</FieldLabel>
+            <Textarea.Input
+              value={environmentVariables}
+              onValueChange={setEnvVars}
+              rows={2}
+              placeholder={'KEY1=value1\nKEY2=value2'}
+              className="min-h-0 resize-none rounded-3xs border-border/30 px-2.5 py-1.5 font-mono text-[11px] shadow-none placeholder:text-muted-foreground/20 focus-visible:border-border/50 focus-visible:ring-0 md:text-[11px] [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75"
+            />
+          </div>
 
-          <Button
-            size="lg"
-            onClick={handleLaunch}
-            disabled={!canLaunch || !isBunInstalled || isLaunching}
-            className="w-full">
-            <Terminal size={16} />
-            {isLaunching ? t('code.launching') : t('code.launch.label')}
-          </Button>
-        </MainContent>
-      </ContentContainer>
-    </Container>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="code-cli-auto-update"
+              size="sm"
+              checked={autoUpdateToLatest}
+              onCheckedChange={(v) => setAutoUpdateToLatest(v === true)}
+              className="size-3.5 rounded-4xs shadow-none"
+            />
+            <Label
+              htmlFor="code-cli-auto-update"
+              className="cursor-pointer text-[10px] text-muted-foreground/40 hover:text-foreground/50">
+              {t('code.auto_update_to_latest')}
+            </Label>
+          </div>
+        </CodeToolDrawer>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px 0;
-`
-
-const MainContent = styled.div`
-  width: 600px;
-  margin: auto;
-  min-height: fit-content;
-`
-
-const Title = styled.h1`
-  font-size: 24px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: var(--color-text-1);
-`
-
-const Description = styled.p`
-  font-size: 14px;
-  color: var(--color-text-2);
-  margin-bottom: 32px;
-  line-height: 1.5;
-`
-
-const SettingsPanel = styled.div`
-  margin-bottom: 32px;
-`
-
-const SettingsItem = styled.div`
-  margin-bottom: 24px;
-
-  .settings-label {
-    font-size: 14px;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--color-text-1);
-    font-weight: 500;
-  }
-`
-
-const BunInstallAlert = styled.div`
-  margin-bottom: 24px;
-`
 
 export default CodeCliPage

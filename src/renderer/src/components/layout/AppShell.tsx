@@ -1,110 +1,69 @@
 import '@renderer/databases'
 
-import { Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import { Plus, X } from 'lucide-react'
-import { Activity } from 'react'
-import { v4 as uuid } from 'uuid'
 
 import { useTabs } from '../../hooks/useTabs'
 import Sidebar from '../app/Sidebar'
+import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
+import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
 
-// Mock Webview component (TODO: Replace with actual MinApp/Webview)
-const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean }) => (
-  <Activity mode={isActive ? 'visible' : 'hidden'}>
-    <div className="flex h-full w-full flex-col items-center justify-center bg-background">
-      <div className="mb-2 font-bold text-lg">Webview App</div>
-      <code className="rounded bg-muted p-2">{url}</code>
-    </div>
-  </Activity>
-)
-
 export const AppShell = () => {
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab } = useTabs()
+  const isMacTransparentWindow = useMacTransparentWindow()
+  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, pinTab, unpinTab } = useTabs()
 
-  // Sync internal navigation back to tab state with default title (url may include search/hash)
+  // Sync internal navigation back to tab state. Clear the per-entity icon
+  // override too — it was supplied for a specific URL (e.g. a mini-app's
+  // logo on /app/mini-app/<id>) and no longer applies once the user
+  // navigates elsewhere inside the same tab.
   const handleUrlChange = (tabId: string, url: string) => {
-    updateTab(tabId, { url, title: getDefaultRouteTitle(url) })
-  }
-
-  // 新增 Tab（默认打开首页）
-  const handleAddTab = () => {
-    addTab({
-      id: uuid(),
-      type: 'route',
-      url: '/',
-      title: getDefaultRouteTitle('/')
-    })
+    updateTab(tabId, { url, title: getDefaultRouteTitle(url), icon: undefined })
   }
 
   return (
-    <div className="flex h-screen w-screen flex-row overflow-hidden bg-background text-foreground">
-      {/* Zone 1: Sidebar */}
-      <Sidebar />
+    <div
+      className={cn(
+        'flex h-screen w-screen flex-col overflow-hidden text-foreground',
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
+      )}>
+      {/* Zone 1: Tab Bar (spans full width) */}
+      <AppShellTabBar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        setActiveTab={setActiveTab}
+        closeTab={closeTab}
+        addTab={addTab}
+        reorderTabs={reorderTabs}
+        pinTab={pinTab}
+        unpinTab={unpinTab}
+      />
 
-      <div className="flex h-full w-full flex-1 flex-col overflow-hidden">
-        {/* Zone 2: Tab Bar */}
-        <Tabs value={activeTabId} onValueChange={setActiveTab} variant="line" className="w-full">
-          <header className="flex h-10 w-full items-center border-b bg-muted/5">
-            <TabsList className="flex h-full min-w-0 flex-1 justify-start gap-0 overflow-hidden">
-              {tabs.map((tab) => (
-                <TabsTrigger
+      {/* Zone 2: Main Area (Sidebar + Content) */}
+      <div className="flex h-full w-full flex-1 flex-row overflow-hidden">
+        {/* Zone 2a: Sidebar */}
+        <Sidebar />
+
+        {/* Zone 2b: Content Area - Multi MemoryRouter Architecture */}
+        <div className="flex min-w-0 flex-1 flex-col pr-2 pb-2">
+          <main className="relative flex-1 overflow-hidden rounded-[16px] bg-background">
+            {/* Route Tabs: Only render non-dormant tabs */}
+            {tabs
+              .filter((t) => t.type === 'route' && !t.isDormant)
+              .map((tab) => (
+                <TabRouter
                   key={tab.id}
-                  value={tab.id}
-                  className={cn(
-                    'group relative flex h-full min-w-0 max-w-[200px] flex-1 items-center justify-between gap-2 rounded-none border-r px-3 text-sm',
-                    tab.id === activeTabId ? 'bg-background' : 'bg-transparent'
-                  )}>
-                  {/* TODO: pin功能,形式还未确定 */}
-                  <span className={cn('truncate text-xs', tab.isDormant && 'opacity-60')}>{tab.title}</span>
-                  {tabs.length > 1 && (
-                    <div
-                      role="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        closeTab(tab.id)
-                      }}
-                      className="ml-1 cursor-pointer rounded-sm p-0.5 opacity-0 hover:bg-muted-foreground/20 hover:opacity-100 group-hover:opacity-50">
-                      <X className="size-3" />
-                    </div>
-                  )}
-                </TabsTrigger>
+                  tab={tab}
+                  isActive={tab.id === activeTabId}
+                  onUrlChange={(url) => handleUrlChange(tab.id, url)}
+                />
               ))}
-              {/* 新增 Tab 按钮 - 跟随最后一个 Tab */}
-              <button
-                type="button"
-                onClick={handleAddTab}
-                className="flex h-full shrink-0 items-center justify-center px-3 hover:bg-muted/50"
-                title="New Tab">
-                <Plus className="size-4" />
-              </button>
-            </TabsList>
-          </header>
-        </Tabs>
 
-        {/* Zone 3: Content Area - Multi MemoryRouter Architecture */}
-        <main className="relative flex-1 overflow-hidden bg-background">
-          {/* Route Tabs: Only render non-dormant tabs */}
-          {tabs
-            .filter((t) => t.type === 'route' && !t.isDormant)
-            .map((tab) => (
-              <TabRouter
-                key={tab.id}
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                onUrlChange={(url) => handleUrlChange(tab.id, url)}
-              />
-            ))}
-
-          {/* Webview Tabs: Only render non-dormant tabs */}
-          {tabs
-            .filter((t) => t.type === 'webview' && !t.isDormant)
-            .map((tab) => (
-              <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
-            ))}
-        </main>
+            {/* MiniApp keep-alive WebView pool — global, shared across modes */}
+            <MiniAppTabsPool />
+          </main>
+        </div>
       </div>
     </div>
   )

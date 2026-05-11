@@ -8,9 +8,7 @@ import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import { knowledgeQueue } from '@renderer/queue/KnowledgeQueue'
-import { memoryService } from '@renderer/services/MemoryService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectMemoryConfig } from '@renderer/store/memory'
+import { useAppDispatch } from '@renderer/store'
 import {
   type ToolPermissionRequestPayload,
   type ToolPermissionResultPayload,
@@ -27,7 +25,8 @@ import { useTranslation } from 'react-i18next'
 
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
-import { useMinapps } from './useMinapps'
+import { useMiniApps } from './useMiniApps'
+import useNavBackgroundColor from './useNavBackgroundColor'
 import { useNavbarPosition } from './useNavbar'
 const logger = loggerService.withContext('useAppInit')
 
@@ -41,19 +40,17 @@ export function useAppInit() {
   const [enableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
   const { isLeftNavbar } = useNavbarPosition()
-  const { minappShow } = useMinapps()
+  const { miniAppShow } = useMiniApps()
   const { updateAppUpdateState } = useAppUpdateState()
   const { setDefaultModel, setQuickModel, setTranslateModel } = useDefaultModel()
   const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
-  const memoryConfig = useAppSelector(selectMemoryConfig)
+  const navBackgroundColor = useNavBackgroundColor()
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
     // eslint-disable-next-line no-restricted-syntax
     console.timeEnd('init')
-
-    // MemoryService is initialized at module level via export const
   }, [])
 
   useEffect(() => {
@@ -115,13 +112,13 @@ export function useAppInit() {
   useEffect(() => {
     const isMacTransparentWindow = windowStyle === 'transparent' && isMac
 
-    if (minappShow && isLeftNavbar) {
-      window.root.style.background = isMacTransparentWindow ? 'var(--color-background)' : 'var(--navbar-background)'
+    if (miniAppShow && isLeftNavbar) {
+      window.root.style.background = isMacTransparentWindow ? 'var(--color-background)' : navBackgroundColor
       return
     }
 
-    window.root.style.background = isMacTransparentWindow ? 'var(--navbar-background-mac)' : 'var(--navbar-background)'
-  }, [windowStyle, minappShow, theme, isLeftNavbar])
+    window.root.style.background = navBackgroundColor
+  }, [windowStyle, miniAppShow, theme, isLeftNavbar, navBackgroundColor])
 
   useEffect(() => {
     if (isLocalAi) {
@@ -130,7 +127,6 @@ export function useAppInit() {
       setQuickModel(model)
       setTranslateModel(model)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -253,11 +249,6 @@ export function useAppInit() {
   useEffect(() => {
     // TODO: init data collection
   }, [enableDataCollection])
-
-  // Update memory service configuration when it changes
-  useEffect(() => {
-    memoryService.updateConfig().catch((error) => logger.error('Failed to update memory config:', error))
-  }, [memoryConfig])
 
   useEffect(() => {
     void checkDataLimit()

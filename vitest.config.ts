@@ -20,7 +20,11 @@ export default defineConfig({
           name: 'main',
           environment: 'node',
           setupFiles: ['tests/main.setup.ts'],
-          include: ['src/main/**/*.{test,spec}.{ts,tsx}', 'src/main/**/__tests__/**/*.{test,spec}.{ts,tsx}'],
+          include: [
+            'src/main/**/*.{test,spec}.{ts,tsx}',
+            'src/main/**/__tests__/**/*.{test,spec}.{ts,tsx}',
+            'tests/helpers/**/__tests__/**/*.{test,spec}.{ts,tsx}'
+          ],
           benchmark: {
             include: ['src/main/**/*.bench.{ts,tsx}', 'src/main/**/__tests__/**/*.bench.{ts,tsx}']
           }
@@ -75,7 +79,9 @@ export default defineConfig({
         extends: true,
         resolve: {
           alias: {
-            '@shared': resolve('packages/shared')
+            '@shared': resolve('packages/shared'),
+            '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
+            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
           }
         },
         test: {
@@ -90,9 +96,26 @@ export default defineConfig({
           }
         }
       },
+      // vectorstores 包单元测试配置
+      {
+        extends: true,
+        test: {
+          name: 'vectorstores',
+          environment: 'node',
+          include: [
+            'packages/vectorstores/**/*.{test,spec}.{ts,tsx}',
+            'packages/vectorstores/**/__tests__/**/*.{test,spec}.{ts,tsx}'
+          ]
+        }
+      },
       // packages/ui 单元测试配置
       {
         extends: true,
+        resolve: {
+          alias: {
+            '@cherrystudio/ui': resolve(__dirname, 'packages/ui/src')
+          }
+        },
         test: {
           name: 'ui',
           environment: 'node',

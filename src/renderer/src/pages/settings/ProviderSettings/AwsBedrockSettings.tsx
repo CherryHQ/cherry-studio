@@ -1,7 +1,6 @@
-import { RowFlex } from '@cherrystudio/ui'
+import { Alert, Input, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useAwsBedrockSettings } from '@renderer/hooks/useAwsBedrock'
-import { Alert, Input, Radio } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,14 +33,20 @@ const AwsBedrockSettings: FC = () => {
   return (
     <>
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.aws-bedrock.title')}</SettingSubtitle>
-      <Alert type="info" style={{ marginTop: 5 }} message={t('settings.provider.aws-bedrock.description')} showIcon />
+      <Alert type="info" className="mt-1.25" message={t('settings.provider.aws-bedrock.description')} showIcon />
 
       {/* Authentication Type Selector */}
       <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.aws-bedrock.auth_type')}</SettingSubtitle>
-      <Radio.Group value={authType} onChange={(e) => setAuthType(e.target.value)} style={{ marginTop: 5 }}>
-        <Radio value="iam">{t('settings.provider.aws-bedrock.auth_type_iam')}</Radio>
-        <Radio value="apiKey">{t('settings.provider.aws-bedrock.auth_type_api_key')}</Radio>
-      </Radio.Group>
+      <RadioGroup value={authType} onValueChange={setAuthType} className="mt-1.25 flex gap-4">
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <RadioGroupItem size="sm" value="iam" />
+          <span>{t('settings.provider.aws-bedrock.auth_type_iam')}</span>
+        </label>
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <RadioGroupItem size="sm" value="apiKey" />
+          <span>{t('settings.provider.aws-bedrock.auth_type_api_key')}</span>
+        </label>
+      </RadioGroup>
       <SettingHelpTextRow>
         <SettingHelpText>{t('settings.provider.aws-bedrock.auth_type_help')}</SettingHelpText>
       </SettingHelpTextRow>
@@ -66,7 +71,8 @@ const AwsBedrockSettings: FC = () => {
           <SettingSubtitle style={{ marginTop: 15 }}>
             {t('settings.provider.aws-bedrock.secret_access_key')}
           </SettingSubtitle>
-          <Input.Password
+          <Input
+            type="password"
             value={localSecretAccessKey}
             placeholder={t('settings.provider.aws-bedrock.secret_access_key')}
             onChange={(e) => setLocalSecretAccessKey(e.target.value)}
@@ -90,7 +96,8 @@ const AwsBedrockSettings: FC = () => {
       {authType === 'apiKey' && (
         <>
           <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.aws-bedrock.api_key')}</SettingSubtitle>
-          <Input.Password
+          <Input
+            type="password"
             value={localApiKey}
             placeholder={t('settings.provider.aws-bedrock.api_key')}
             onChange={(e) => setLocalApiKey(e.target.value)}

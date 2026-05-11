@@ -102,7 +102,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 gap: 12
               }}>
               {tmpViewMode === 'preview' && (
-                <Tooltip placement="top" content={t('notes.spell_check_tooltip')} closeDelay={0}>
+                <Tooltip placement="top" content={t('notes.spell_check_tooltip')}>
                   <ActionIconButton
                     active={enableSpellCheck}
                     onClick={() => {

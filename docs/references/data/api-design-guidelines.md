@@ -1,0 +1,603 @@
+# API Design Guidelines
+
+Guidelines for designing RESTful APIs in the Cherry Studio Data API system.
+
+## Path Naming
+
+| Rule | Example | Notes |
+|------|---------|-------|
+| Use plural nouns for collections | `/topics`, `/messages` | Resources are collections |
+| Use kebab-case for multi-word paths | `/user-settings` | Not camelCase or snake_case |
+| Express hierarchy via nesting | `/topics/:topicId/messages` | Parent-child relationships |
+| Avoid verbs for CRUD operations | `/topics` not `/getTopics` | HTTP methods express action |
+
+## HTTP Method Semantics
+
+| Method | Purpose | Idempotent | Typical Response |
+|--------|---------|------------|------------------|
+| GET | Retrieve resource(s) | Yes | 200 + data |
+| POST | Create resource | No | 201 + created entity |
+| PUT | Replace entire resource | Yes | 200 + updated entity |
+| PATCH | Partial update | Yes | 200 + updated entity |
+| DELETE | Remove resource | Yes | 204 / void |
+
+## Standard Endpoint Patterns
+
+```typescript
+// Collection operations
+'/topics': {
+  GET: { ... }   // List with pagination/filtering
+  POST: { ... }  // Create new resource
+}
+
+// Individual resource operations
+'/topics/:id': {
+  GET: { ... }    // Get single resource
+  PUT: { ... }    // Replace resource
+  PATCH: { ... }  // Partial update
+  DELETE: { ... } // Remove resource
+}
+
+// Nested resources (use for parent-child relationships)
+'/topics/:topicId/messages': {
+  GET: { ... }   // List messages under topic
+  POST: { ... }  // Create message in topic
+}
+```
+
+## Greedy Path Parameters
+
+Use a greedy param when a single path-param value may itself contain `/`.
+This avoids URL-encoding (which the project does not use) and keeps composite
+identifiers readable in the path.
+
+**Syntax:** `:<name>*` (trailing `*` on a `:`-prefixed segment).
+
+**Position:** valid as the **last** segment, or **in the middle** of a pattern
+anchored by static / plain-param trailing segments. A pattern may contain at
+most one greedy param — a second greedy is rejected defensively to keep route
+matching unambiguous.
+
+**Semantics:**
+
+- Matches **one or more** consecutive path segments and exposes the raw joined
+  string (segments rejoined with `/`) as `params.<name>`.
+- Does **not** match zero segments — the capture is required.
+- The captured value is **not decoded**; any `/`, `::`, `%`, etc. inside it is
+  preserved verbatim, consistent with the rest of the router.
+- There is no `*`-as-any-segment or `**` wildcard — only `:name*`.
+
+**Examples:**
+
+```typescript
+// Tail greedy — composite ID at end of path
+'/models/:uniqueModelId*'
+  '/models/openai::gpt-4'                          → { uniqueModelId: 'openai::gpt-4' }
+  '/models/qwen::qwen/qwen3-vl'                    → { uniqueModelId: 'qwen::qwen/qwen3-vl' }
+  '/models/fireworks::accounts/fireworks/models/x' → { uniqueModelId: 'fireworks::accounts/fireworks/models/x' }
+  '/models'                                        → no match (greedy requires ≥1 segment)
+
+// Middle greedy — free-form ID wrapped by static anchors
+'/models/:uid*/order'
+  '/models/a/b/c/order'                            → { uid: 'a/b/c' }
+  '/models/qwen::qwen/order'                       → { uid: 'qwen::qwen' }
+  '/models/order'                                  → no match (greedy requires ≥1 segment)
+  '/models/a/b/c'                                  → no match (trailing anchor mismatch)
+
+// Mixed leading plain + middle greedy + trailing anchor
+'/providers/:providerId/models/:uid*/actions'
+  '/providers/openai/models/qwen/qwen3-vl/actions' → { providerId: 'openai', uid: 'qwen/qwen3-vl' }
+```
+
+**When to reach for this:**
+
+- Composite identifiers whose component can include `/`
+  (e.g. OpenRouter/Fireworks-style model IDs).
+- Third-party IDs where you cannot control the character set.
+- Attaching sub-actions (`/…/order`, `/…/actions`) to resources whose ID
+  contains `/`.
+
+**When NOT to use it:**
+
+- For nanoid/UUID-style IDs that never contain `/` — prefer the plain `:id`
+  form so the route stays strictly 1-to-1 with its shape.
+
+## PATCH vs Dedicated Endpoints
+
+### Decision Criteria
+
+Use this decision tree to determine the appropriate approach:
+
+```
+Operation characteristics:
+├── Simple field update with no side effects?
+│   └── Yes → Use PATCH
+├── High-frequency operation with clear business meaning?
+│   └── Yes → Use dedicated endpoint (noun-based sub-resource)
+├── Operation triggers complex side effects or validation?
+│   └── Yes → Use dedicated endpoint
+├── Operation creates new resources?
+│   └── Yes → Use POST to dedicated endpoint
+└── Default → Use PATCH
+```
+
+### Guidelines
+
+| Scenario | Approach | Example |
+|----------|----------|---------|
+| Simple field update | PATCH | `PATCH /messages/:id { data: {...} }` |
+| High-frequency + business meaning | Dedicated sub-resource | `PUT /topics/:id/active-node { nodeId }` |
+| Complex validation/side effects | Dedicated endpoint | `POST /messages/:id/move { newParentId }` |
+| Creates new resources | POST dedicated | `POST /messages/:id/duplicate` |
+
+### Naming for Dedicated Endpoints
+
+- **Prefer noun-based paths** over verb-based when possible
+- Treat the operation target as a sub-resource: `/topics/:id/active-node` not `/topics/:id/switch-branch`
+- Use POST for actions that create resources or have non-idempotent side effects
+- Use PUT for setting/replacing a sub-resource value
+
+### Examples
+
+```typescript
+// ✅ Good: Noun-based sub-resource for high-frequency operation
+PUT /topics/:id/active-node
+{ nodeId: string }
+
+// ✅ Good: Simple field update via PATCH
+PATCH /messages/:id
+{ data: MessageData }
+
+// ✅ Good: POST for resource creation
+POST /messages/:id/duplicate
+{ includeDescendants?: boolean }
+
+// ❌ Avoid: Verb in path when noun works
+POST /topics/:id/switch-branch  // Use PUT /topics/:id/active-node instead
+
+// ❌ Avoid: Dedicated endpoint for simple updates
+POST /messages/:id/update-content  // Use PATCH /messages/:id instead
+```
+
+## Non-CRUD Operations
+
+Use verb-based paths for operations that don't fit CRUD semantics:
+
+> For sortable resources (drag-and-drop ordering), do not invent ad-hoc endpoints — follow the canonical `PATCH /{resource}/:id/order` pattern documented in the [Ordering Guide](./data-ordering-guide.md).
+
+
+```typescript
+// Search
+'/topics/search': {
+  GET: { query: { q: string } }
+}
+
+// Statistics / Aggregations
+'/topics/stats': {
+  GET: { response: { total: number, ... } }
+}
+
+// Resource actions (state changes, triggers)
+'/topics/:id/archive': {
+  POST: { response: { archived: boolean } }
+}
+
+'/topics/:id/duplicate': {
+  POST: { response: Topic }
+}
+```
+
+## Query Parameters
+
+| Purpose | Pattern | Example |
+|---------|---------|---------|
+| Pagination | `page` + `limit` | `?page=1&limit=20` |
+| Sorting | `orderBy` + `order` | `?orderBy=createdAt&order=desc` |
+| Filtering | direct field names | `?status=active&type=chat` |
+| Search | `q` or `search` | `?q=keyword` |
+
+## Response Status Codes
+
+Use standard HTTP status codes consistently:
+
+| Status | Usage | Example |
+|--------|-------|---------|
+| 200 OK | Successful GET/PUT/PATCH | Return updated resource |
+| 201 Created | Successful POST | Return created resource |
+| 202 Accepted | Async task accepted | Return task reference |
+| 204 No Content | Successful DELETE | No body |
+| 400 Bad Request | Invalid request format | Malformed JSON |
+| 400 Invalid Operation | Business rule violation | Delete root without cascade, cycle creation |
+| 401 Unauthorized | Authentication required | Missing/invalid token |
+| 403 Permission Denied | Insufficient permissions | Access denied to resource |
+| 404 Not Found | Resource not found | Invalid ID |
+| 409 Conflict | Concurrent modification or data inconsistency | Version conflict, data corruption |
+| 422 Unprocessable | Validation failed | Invalid field values |
+| 423 Locked | Resource temporarily locked | File being exported |
+| 429 Too Many Requests | Rate limit exceeded | Throttling |
+| 500 Internal Error | Server error | Unexpected failure |
+| 503 Service Unavailable | Service temporarily down | Maintenance mode |
+| 504 Timeout | Request timed out | Long-running operation |
+
+### Success Status Constants
+
+Use the `SuccessStatus` constants to avoid magic numbers:
+
+```typescript
+import { SuccessStatus } from '@shared/data/api/apiTypes'
+
+SuccessStatus.OK          // 200 - Request succeeded
+SuccessStatus.CREATED     // 201 - Resource created
+SuccessStatus.ACCEPTED    // 202 - Async task accepted
+SuccessStatus.NO_CONTENT  // 204 - Success with no body
+```
+
+### Handler Status Code Behavior
+
+**Automatic Inference (Default)**
+
+The API server automatically infers status codes based on HTTP method:
+
+| Method | Default Status | Condition |
+|--------|----------------|-----------|
+| POST | 201 Created | Always |
+| DELETE | 204 No Content | When handler returns `undefined` |
+| DELETE | 200 OK | When handler returns data |
+| GET/PUT/PATCH | 200 OK | Always |
+
+```typescript
+// Status codes are inferred automatically - no extra code needed
+'/topics': {
+  POST: async ({ body }) => {
+    return await topicService.create(body)  // Returns 201
+  }
+},
+
+'/topics/:id': {
+  GET: async ({ params }) => {
+    return await topicService.getById(params.id)  // Returns 200
+  },
+
+  DELETE: async ({ params }) => {
+    await topicService.delete(params.id)
+    return undefined  // Returns 204
+  }
+}
+```
+
+**Custom Status Codes**
+
+Override the default by returning `{ data, status }`:
+
+```typescript
+import { SuccessStatus } from '@shared/data/api/apiTypes'
+
+'/async-tasks': {
+  POST: async ({ body }) => {
+    const task = await taskService.createAsync(body)
+    return { data: task, status: SuccessStatus.ACCEPTED }  // Returns 202
+  }
+},
+
+'/topics/:id': {
+  DELETE: async ({ params }) => {
+    const deleted = await topicService.delete(params.id)
+    return { data: deleted, status: SuccessStatus.OK }  // Returns 200 with data
+  }
+}
+```
+
+**Type Safety**
+
+Custom status codes are type-safe - only valid `SuccessStatusCode` values are allowed:
+
+```typescript
+// ✅ Valid
+return { data: result, status: SuccessStatus.CREATED }
+return { data: result, status: SuccessStatus.ACCEPTED }
+
+// ❌ Compile error - 999 is not a valid SuccessStatusCode
+return { data: result, status: 999 }
+```
+
+## Error Response Format
+
+All error responses follow the `SerializedDataApiError` structure (transmitted via IPC):
+
+```typescript
+interface SerializedDataApiError {
+  code: ErrorCode | string  // ErrorCode enum value (e.g., 'NOT_FOUND')
+  message: string           // Human-readable error message
+  status: number            // HTTP status code
+  details?: Record<string, unknown>  // Additional context (e.g., field errors)
+  requestContext?: {        // Request context for debugging
+    requestId: string
+    path: string
+    method: HttpMethod
+    timestamp?: number
+  }
+  // Note: stack trace is NOT transmitted via IPC - rely on Main process logs
+}
+```
+
+**Examples:**
+
+```typescript
+// 404 Not Found
+{
+  code: 'NOT_FOUND',
+  message: "Topic with id 'abc123' not found",
+  status: 404,
+  details: { resource: 'Topic', id: 'abc123' },
+  requestContext: { requestId: 'req_123', path: '/topics/abc123', method: 'GET' }
+}
+
+// 422 Validation Error
+{
+  code: 'VALIDATION_ERROR',
+  message: 'Request validation failed',
+  status: 422,
+  details: {
+    fieldErrors: {
+      name: ['Name is required', 'Name must be at least 3 characters'],
+      email: ['Invalid email format']
+    }
+  }
+}
+
+// 504 Timeout
+{
+  code: 'TIMEOUT',
+  message: 'Request timeout: fetch topics (3000ms)',
+  status: 504,
+  details: { operation: 'fetch topics', timeoutMs: 3000 }
+}
+
+// 400 Invalid Operation
+{
+  code: 'INVALID_OPERATION',
+  message: 'Invalid operation: delete root message - cascade=true required',
+  status: 400,
+  details: { operation: 'delete root message', reason: 'cascade=true required' }
+}
+```
+
+Use `DataApiErrorFactory` utilities to create consistent errors:
+
+```typescript
+import { DataApiErrorFactory, DataApiError } from '@shared/data/api'
+
+// Using factory methods (recommended)
+throw DataApiErrorFactory.notFound('Topic', id)
+throw DataApiErrorFactory.validation({ name: ['Required'] })
+throw DataApiErrorFactory.database(error, 'insert topic')
+throw DataApiErrorFactory.timeout('fetch topics', 3000)
+throw DataApiErrorFactory.dataInconsistent('Topic', 'parent reference broken')
+throw DataApiErrorFactory.invalidOperation('delete root message', 'cascade=true required')
+
+// Check if error is retryable
+if (error instanceof DataApiError && error.isRetryable) {
+  await retry(operation)
+}
+```
+
+### SQLite Constraint Translation
+
+When a Service writes to the database, SQLite constraint violations (UNIQUE,
+FOREIGN KEY, CHECK, NOT NULL) come out as `DrizzleQueryError` with the real
+error buried in the `.cause` chain. Translate them to `DataApiError` with
+`withSqliteErrors` from `src/main/data/db/sqliteErrors.ts`:
+
+```typescript
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+
+const [row] = await withSqliteErrors(
+  () => this.db.insert(tagTable).values(dto).returning(),
+  defaultHandlersFor('Tag', dto.name)
+)
+```
+
+`defaultHandlersFor` covers the common CRUD case (UNIQUE → 409, FK → 404,
+CHECK / NOT NULL → 422). Spread and override any specific kind when needed.
+Any unrecognized error is rethrown unchanged — see the file's JSDoc for the
+full API contract and the "do not replace pre-validation" discipline note.
+
+## Naming Conventions Summary
+
+| Element | Case | Example |
+|---------|------|---------|
+| Paths | kebab-case, plural | `/user-settings`, `/topics` |
+| Path params | camelCase | `:topicId`, `:messageId` |
+| Query params | camelCase | `orderBy`, `pageSize` |
+| Body fields | camelCase | `createdAt`, `userName` |
+| Error codes | SCREAMING_SNAKE | `NOT_FOUND`, `VALIDATION_ERROR` |
+
+## DataApi Scope & Boundaries
+
+DataApi is exclusively for **persistent business data** backed by SQLite. Operations that do not meet this criteria must use traditional IPC handlers.
+
+### Eligibility Criteria
+
+All three conditions must be met before adding a DataApi endpoint:
+
+1. The operation **reads or writes persistent business data** in a SQLite table
+2. The data is **user-created, irreplaceable** (loss would be severe)
+3. A **database table schema** exists (or will be created) for this data
+
+If any condition is not met, use an IPC handler in `src/main/ipc.ts` or a lifecycle service instead.
+
+### Anti-patterns: What Does NOT Belong in DataApi
+
+| Anti-pattern | Why It's Wrong | Correct Approach |
+|---|---|---|
+| `POST /windows/open` | No database operation, pure side effect | IPC: `IpcChannel.Window_Open` |
+| `POST /services/restart` | Process control is not a data operation | IPC: `IpcChannel.Service_Restart` |
+| `GET /system/info` | Stateless system query, no persistence | IPC: `IpcChannel.App_Info` |
+| `POST /notifications/send` | Triggers external side effect | IPC: `IpcChannel.Notification_Send` |
+| `POST /backup/start` | Complex workflow orchestration, not CRUD | IPC: `IpcChannel.Backup_Backup` |
+| `POST /auth/login` | OAuth flow, external service integration | IPC: dedicated auth handler |
+| `GET /mcp/tools` | Runtime service query, not persisted data | IPC: `IpcChannel.Mcp_ListTools` |
+
+### Why Misuse is Harmful
+
+Routing non-data operations through DataApi causes concrete problems:
+
+- **Automatic retry is dangerous for side effects**: DataApi retries failed requests with exponential backoff. Retrying a "send notification" or "restart service" operation means it executes multiple times.
+- **SWR caching is meaningless for commands**: `useQuery` caches and deduplicates responses. Caching the result of "open window" or "start backup" has no value and can mask failures.
+- **Layered architecture becomes hollow**: Handler → Service → SQLite is designed for data flow. Without a database layer, the Service layer becomes a pass-through wrapper with no purpose.
+- **Test patterns don't match**: DataApi tests mock database operations (Drizzle queries, transactions). Side-effectful operations need entirely different test strategies (mocking external services, verifying calls).
+
+## Zod Schema & DTO Conventions
+
+Four rules govern every schema file under `packages/shared/data/api/schemas/`. Follow them verbatim.
+
+### A. Use `type` for `XxxSchemas` route tables
+
+```typescript
+// ✅ Adopt
+export type TagSchemas = {
+  '/tags': { GET: {...}; POST: {...} }
+}
+
+// ✅ With composition
+export type GroupSchemas = { '/groups': {...} } & OrderEndpoints<'/groups'>
+
+// ❌ Deprecated
+export interface TagSchemas { ... }
+```
+
+**Rationale:** route tables never extend or declaration-merge; `type` supports intersection composition and eliminates `interface`/`type` mixing.
+
+### B. Drop `Dto` from Zod schema names; keep `Dto` on TS type names
+
+```typescript
+// ✅ Adopt
+export const CreateTagSchema = TagSchema.pick({ name: true, color: true })
+export type CreateTagDto = z.infer<typeof CreateTagSchema>
+
+// ❌ Deprecated
+export const CreateTagDtoSchema = ...
+```
+
+**Rationale:** `CreateXxx` already signals "DTO"; `DtoSchema` is NestJS class-based convention, not Zod community practice (tRPC / Colin Hacks / Standard Schema all use `XxxSchema`). Keep `Dto` on type names to distinguish DTOs from entity types (`Tag` vs `CreateTagDto`).
+
+**Exceptions:** value objects (`TagEntityRefSchema`) and reorder body DTOs (`ReorderGroupsSchema`) already match this rule — don't add `Dto`.
+
+### C. Derive DTOs via `.pick()` whitelist with field atoms and `z.strictObject`
+
+```typescript
+// 1. Field atoms — share between entity, DTO, query
+export const TagNameSchema = z.string().trim().min(1).max(64)
+export const TagColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/)
+
+// 2. Entity with z.strictObject (rejects unknown fields)
+export const TagSchema = z.strictObject({
+  id: z.uuidv4(),
+  name: TagNameSchema,
+  color: TagColorSchema.nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
+})
+export type Tag = z.infer<typeof TagSchema>
+
+// 3. Create DTO — whitelist pick
+export const CreateTagSchema = TagSchema.pick({ name: true, color: true })
+export type CreateTagDto = z.infer<typeof CreateTagSchema>
+
+// 4. Update DTO — chain from Create
+export const UpdateTagSchema = CreateTagSchema.partial()
+export type UpdateTagDto = z.infer<typeof UpdateTagSchema>
+```
+
+**Rules:**
+
+- **Never `.omit(AutoFields)`** — adding an entity field would auto-expose it (overposting risk). Always whitelist via `.pick({...})`.
+- **Always `z.strictObject`** on entity schemas — second line of defense against overposting.
+- **Update derivation depends on Create's defaults**:
+  - `UpdateSchema = CreateSchema.partial()` is safe **only when Create has no `.default()`**.
+  - When Create carries `.default()`, derive Update from the entity directly: `UpdateSchema = EntitySchema.pick(...).partial()` — Zod v4 retains defaults through `.partial()`, and they leak into PATCH bodies otherwise (Zod issues #4799, #5642).
+  - **Preferred**: keep Zod schemas free of `.default()` and own defaults at the DB or service layer. See [Default Values & Nullability](./best-practice-default-values-and-nullability.md).
+- **Zod v4 gotcha:** `.pick()`/`.omit()` strip `.refine()`/`.check()` validators (working as designed, Zod discussion #4706). If entity has cross-field checks, re-attach them after pick via `.refine()` or `.safeExtend()`.
+
+**When to write a DTO by hand instead of picking:**
+
+1. Entity has ≤ 3 fields and no auto-managed columns — pick is noise.
+2. Entity is a discriminated union — `.pick`/`.omit` don't support unions.
+3. DTO type differs from entity type (e.g., entity stores `Date`, DTO takes ISO string) — reuse field atoms instead.
+4. DTO-from-DTO derivation (`UpdateModelSchema = CreateModelSchema.omit({...})`) is fine — Zod officially endorses this and overposting risk doesn't apply (source is already a DTO, not the entity).
+
+**When to extract a `XXX_MUTABLE_FIELDS` constant for `.pick(...)`:**
+
+Extract when **both** conditions hold:
+
+1. Create and Update DTOs share the same pick set (i.e. `UpdateSchema = CreateSchema.partial()`).
+2. The pick set has ≥ 5 fields (inline spans multiple lines and hurts readability).
+
+Otherwise inline `.pick({...})`:
+
+- Few fields (≤ 4) — inline is a one-liner, a named constant only adds indirection (see `tags.ts`).
+- Create and Update have **different** pick sets — a single `MUTABLE_FIELDS` constant would mislead readers into thinking the sets are shared; pick inline in each DTO instead (see `topics.ts`).
+
+### D. Write every DataApi schema in Zod; no `drizzle-zod`, no pure TS `interface` DTO
+
+All entity schemas and DTOs in `packages/shared/data/api/schemas/` MUST be hand-written Zod schemas.
+
+- **No `interface XxxDto`** — violates Electron trust-boundary validation (renderer → main IPC requires runtime validation per Electron security checklist #17).
+- **No `drizzle-zod`** — the library is being deprecated in drizzle v1, and its generated schemas have TS type bugs on `.pick()`/`.omit()` that conflict with Rule C.
+
+**Rationale:** DataApi crosses an IPC trust boundary; TS `interface` provides zero runtime defense against schema drift, mass assignment, or a compromised renderer. Zod parse cost (~25µs) is negligible compared to IPC round-trip latency. Schema-first is the industry standard (tRPC, Next.js 13+, Standard Schema Alliance).
+
+**Response types stay as TS `interface`.** Rule D covers **entities and DTOs** — not response shapes. Responses flow `main → renderer`, the **opposite** direction of the IPC trust boundary: main constructs them from trusted state, renderer consumes them after type-checked IPC plumbing. Runtime validation on that edge is cost without security benefit. Examples that correctly stay as `interface`: `DeleteMessageResponse`, `ActiveNodeResponse`, `PersistTemporaryChatResponse`, `TreeResponse`, `BranchMessagesResponse`, `TreeNode`, `SiblingsGroup`, `BranchMessage`.
+
+**Exception:** when a type is **both** a response payload and an entity (e.g., `Topic` is returned from `GET /topics/:id` and also represents a row in the DB), Zod-ify it as an entity per Rule C — the entity role wins.
+
+### E. Default values do not live in Zod schemas
+
+Avoid `.default()` on entity, Create, and Update schemas. Defaults belong at the DB layer (stable values), via Drizzle `$defaultFn` (dynamic per-row values like UUIDs / timestamps), or in the owning service (tunable product values that may evolve). Putting defaults in Zod schemas creates three problems:
+
+| Problem | Why |
+|---|---|
+| Caller asymmetry | `.default()` runs at `.parse()`. Handler-driven inserts get them; seeders / internal callers don't, producing inconsistent rows. |
+| Type duality | `.default()` makes `z.input` and `z.output` diverge — bodies see optional fields, services see required ones. Pairs of `…Body` / `…Dto` types proliferate to hide the gap. |
+| PATCH leakage | Zod v4 retains defaults through `.partial()`, so any `UpdateSchema` derived from a `CreateSchema` with defaults materializes them on omitted PATCH fields, overwriting row state (Rule C). |
+
+If a default truly must live in Zod (e.g., a query-string baseline like `page = 1` on `ListXxxQuerySchema`), confine it to the **specific schema** it applies to — never on the entity, Create, or Update schemas.
+
+For the cross-layer placement decision tree, see [Default Values & Nullability](./best-practice-default-values-and-nullability.md).
+
+## Template Path vs Hook Binding
+
+The data hooks (`useQuery`, `useMutation`, `useInfiniteQuery`, `usePaginatedQuery`) accept two equivalent ways to supply path parameters. They produce byte-for-byte identical SWR cache keys, but suit different call-site shapes.
+
+| Form | Use when |
+|---|---|
+| Concrete path — `useQuery(providerPath(id))` | The id is stable in the caller's scope (props, hook arg, closed over in a single component) |
+| Template path — `useQuery('/providers/:providerId', { params: { providerId: id } })` | One hook instance operates on multiple ids over its lifetime (sidebar actions, command palette, URL handlers) |
+
+Pick based on **where the id comes from**, not personal preference:
+
+- `<ProviderSettings providerId={id}>` — id is stable → concrete path (`providerPath(id)`). Template form would add typing noise (`params` on every trigger) without benefit.
+- `useProviderActions()` hook exposing `deleteProviderById(id)` — id varies per call → template path. The alternative would be dropping back to imperative `dataApiService.delete(...)` and hand-rolling `invalidate(...)`, which loses `isLoading` / declarative refresh / optimistic rollback.
+
+Don't mix both forms for the same resource inside one module — although cache keys are identical, readers have to hold two mental models. Pick one and stay consistent.
+
+**Concurrent trigger caveat**: a single template `useMutation` instance shares `isMutating`/`error` across all `params`. For true concurrent writes on different ids (e.g., deleting multiple rows in parallel), mount one hook per row bound to a concrete path. See [DataApi in Renderer → Concurrent trigger caveat](./data-api-in-renderer.md#caveat-concurrent-trigger-on-template-usemutation).
+
+## Matcher Semantics: Cache vs DataApi
+
+Cherry Studio has two cache layers with different key shapes and different invalidation matchers. They look similar but **are not interchangeable**:
+
+| Layer | Key shape | Match syntax | Example |
+|---|---|---|---|
+| **Cache** (`useCache`, `useSharedCache`) | Schema-defined: fixed key or template with `${placeholder}` segments (see [cache-schema-guide.md](./cache-schema-guide.md)) | Concrete key → exact match; template key in `subscribeSharedChange` → regex compiled from template, fires per concrete instance | `subscribeSharedChange('web_search.provider.last_used_key.${providerId}', cb)` |
+| **DataApi** (`useQuery`, `useMutation` refresh, `useInvalidateCache`) | `[path, query?]` tuple with REST-style paths | Exact string match on `key[0]` with optional `/*` prefix | `refresh: ['/providers', '/providers/*']` |
+
+Why the two differ:
+
+- **Cache keys are schema-constrained and dot-separated**: `web_search.provider.last_used_key.google`. Template subscription uses a regex derived from the template (each `${}` → `[\w\-]+`) so a single subscription covers every concrete instance, including ones registered at runtime.
+- **DataApi keys mirror REST resource paths**: `['/providers/abc', { limit: 10 }]`. The structure is rigid (it maps to server routes), so a simple exact-or-prefix matcher is enough and more predictable than regex.
+
+**Implication for reviewers**:
+
+- Don't copy a `${}` template from a cache key into `refresh` options. `refresh: ['/providers/${providerId}/*']` is a bug — the `${}` is left as a literal string, not interpolated. Use template literal backticks (`` `/providers/${providerId}/*` ``) or compute the key in the function-form refresh.
+- Cache same-value writes short-circuit via `lodash.isEqual` (no broadcast, no subscriber fire). DataApi `refresh` has no such short-circuit — each call triggers a refetch.

@@ -1,11 +1,10 @@
 import { usePreference } from '@data/hooks/usePreference'
 import NavbarIcon from '@renderer/components/NavbarIcon'
-import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { Tooltip } from 'antd'
-import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
+import { PanelLeftClose, PanelRightClose } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -33,13 +32,7 @@ const Tools = () => {
           </NarrowIcon>
         </Tooltip>
       )}
-      {isTopNavbar && (
-        <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
-          <NavbarIcon onClick={() => SearchPopup.show()}>
-            <Search size={18} />
-          </NavbarIcon>
-        </Tooltip>
-      )}
+      {/* TODO: Add search button back when global search supports agent messages */}
       {isTopNavbar && topicPosition === 'right' && !showTopics && (
         <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
           <NavbarIcon onClick={toggleShowTopics}>

@@ -1,12 +1,9 @@
 import { FILE_TYPE } from '@shared/data/types/file'
+import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
 
-import {
-  inferKnowledgeItemStatus,
-  toCompositeModelId,
-  transformKnowledgeBase,
-  transformKnowledgeItem
-} from '../KnowledgeMappings'
+import { legacyModelToUniqueId } from '../../transformers/ModelTransformers'
+import { inferKnowledgeItemStatus, transformKnowledgeBase, transformKnowledgeItem } from '../KnowledgeMappings'
 
 const fileMetadata = {
   id: 'file-1',
@@ -21,11 +18,9 @@ const fileMetadata = {
 }
 
 describe('KnowledgeMappings', () => {
-  it('toCompositeModelId builds provider::modelId and preserves precomposed ids', () => {
-    expect(toCompositeModelId({ id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' })).toBe('silicon::BAAI/bge-m3')
-    expect(toCompositeModelId({ id: 'silicon::BAAI/bge-m3', name: 'bge', provider: 'silicon' })).toBe(
-      'silicon::BAAI/bge-m3'
-    )
+  it('legacyModelToUniqueId builds provider::modelId and preserves precomposed ids', () => {
+    expect(legacyModelToUniqueId({ id: 'BAAI/bge-m3', provider: 'silicon' })).toBe('silicon::BAAI/bge-m3')
+    expect(legacyModelToUniqueId({ id: 'silicon::BAAI/bge-m3', provider: 'silicon' })).toBe('silicon::BAAI/bge-m3')
   })
 
   it('inferKnowledgeItemStatus only trusts uniqueId', () => {
@@ -34,7 +29,7 @@ describe('KnowledgeMappings', () => {
     expect(inferKnowledgeItemStatus({} as any)).toBe('idle')
   })
 
-  it('transformKnowledgeBase returns embedding_model_missing when model is unavailable', () => {
+  it('transformKnowledgeBase marks knowledge bases without an embedding model as failed', () => {
     expect(
       transformKnowledgeBase(
         {
@@ -44,8 +39,52 @@ describe('KnowledgeMappings', () => {
         1024
       )
     ).toStrictEqual({
-      ok: false,
-      reason: 'embedding_model_missing'
+      ok: true,
+      value: expect.objectContaining({
+        id: 'kb-1',
+        embeddingModelId: null,
+        status: 'failed',
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+      })
+    })
+  })
+
+  it('transformKnowledgeBase fills default chunk config when legacy values are missing', () => {
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-default-config',
+          name: 'KB default config',
+          model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' }
+        },
+        1024
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        chunkSize: 1024,
+        chunkOverlap: 200
+      })
+    })
+  })
+
+  it('transformKnowledgeBase keeps default overlap below a preserved small chunk size', () => {
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-small-chunk',
+          name: 'KB small chunk',
+          model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' },
+          chunkSize: 128
+        },
+        1024
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        chunkSize: 128,
+        chunkOverlap: 127
+      })
     })
   })
 
@@ -67,6 +106,7 @@ describe('KnowledgeMappings', () => {
       value: expect.objectContaining({
         id: 'kb-soft-limit-config',
         name: 'KB soft limit config',
+        embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 80,
         chunkOverlap: 40,
         documentCount: 100
@@ -74,7 +114,7 @@ describe('KnowledgeMappings', () => {
     })
   })
 
-  it('transformKnowledgeBase clears invalid tuning config instead of skipping the base', () => {
+  it('transformKnowledgeBase normalizes invalid tuning config instead of skipping the base', () => {
     expect(
       transformKnowledgeBase(
         {
@@ -93,11 +133,50 @@ describe('KnowledgeMappings', () => {
       value: expect.objectContaining({
         id: 'kb-invalid-config',
         name: 'KB invalid config',
+        embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 200,
-        chunkOverlap: undefined,
+        chunkOverlap: 199,
         threshold: undefined,
         documentCount: undefined,
-        searchMode: 'default'
+        searchMode: 'hybrid'
+      })
+    })
+  })
+
+  it('transformKnowledgeBase writes split rerank model columns', () => {
+    const result = transformKnowledgeBase(
+      {
+        id: 'kb-rerank',
+        name: 'KB with rerank',
+        model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' },
+        rerankModel: { id: 'BAAI/bge-reranker', name: 'reranker', provider: 'silicon' }
+      },
+      1024
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        embeddingModelId: 'silicon::BAAI/bge-m3',
+        rerankModelId: 'silicon::BAAI/bge-reranker'
+      })
+    })
+  })
+
+  it('transformKnowledgeBase sets rerank columns to null when no rerank model', () => {
+    const result = transformKnowledgeBase(
+      {
+        id: 'kb-no-rerank',
+        name: 'KB no rerank',
+        model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' }
+      },
+      1024
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        rerankModelId: null
       })
     })
   })
@@ -134,13 +213,15 @@ describe('KnowledgeMappings', () => {
         groupId: null,
         type: 'note',
         data: {
+          source: 'https://dexie.example.com',
           content: 'dexie-content',
           sourceUrl: 'https://dexie.example.com'
         },
         status: 'idle',
+        phase: null,
         error: null,
-        createdAt: undefined,
-        updatedAt: undefined
+        createdAt: expect.any(Number),
+        updatedAt: expect.any(Number)
       }
     })
   })
@@ -168,13 +249,62 @@ describe('KnowledgeMappings', () => {
         groupId: null,
         type: 'file',
         data: {
+          source: '/tmp/report.pdf',
           file: fileMetadata
         },
         status: 'completed',
+        phase: null,
         error: null,
-        createdAt: undefined,
-        updatedAt: undefined
+        createdAt: expect.any(Number),
+        updatedAt: expect.any(Number)
       }
+    })
+  })
+
+  it('transformKnowledgeItem clears blank legacy processing errors for idle and completed items', () => {
+    const idleResult = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'idle-note',
+        type: 'note',
+        content: 'idle note',
+        processingError: ''
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+    const completedResult = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'completed-file',
+        type: 'file',
+        content: 'file-1',
+        uniqueId: 'loader-1',
+        processingError: '   '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map([['file-1', fileMetadata]])
+      }
+    )
+
+    expect(idleResult).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'idle',
+        phase: null,
+        error: null
+      })
+    })
+    expect(completedResult).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'completed',
+        phase: null,
+        error: null
+      })
     })
   })
 
@@ -220,13 +350,14 @@ describe('KnowledgeMappings', () => {
         groupId: null,
         type: 'directory',
         data: {
-          path: '/tmp/docs',
-          recursive: true
+          source: '/tmp/docs',
+          path: '/tmp/docs'
         },
         status: 'idle',
+        phase: null,
         error: null,
-        createdAt: undefined,
-        updatedAt: undefined
+        createdAt: expect.any(Number),
+        updatedAt: expect.any(Number)
       }
     })
   })

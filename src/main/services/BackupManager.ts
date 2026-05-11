@@ -14,9 +14,12 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
+import type { Stats } from 'node:fs'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
-import { application } from '@main/core/application'
+import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { WebDavConfig } from '@types'
 import type { S3Config } from '@types'
@@ -27,12 +30,27 @@ import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
-import { getDataPath } from '../utils'
-import { resolveAndValidatePath } from '../utils/file'
+import { isPathInside, resolveAndValidatePath } from '../utils/file'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 
 const logger = loggerService.withContext('BackupManager')
+
+interface CopyDirOptions {
+  dereferenceSymlinks: boolean
+  sourceRootRealPath?: string
+}
+
+interface EffectiveEntryStats {
+  isSymlink: boolean
+  stats: Stats
+}
+
+interface ProgressData {
+  stage: string
+  progress: number
+  total: number
+}
 
 class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
@@ -66,15 +84,30 @@ class BackupManager {
   static async handleStartupRestore(): Promise<void> {
     const userDataPath = app.getPath('userData')
 
+    // BackupManager is v1 legacy and intentionally does NOT consume the v2
+    // path registry — every path it touches is hand-rolled from
+    // app.getPath('userData'). Two reasons:
+    //
+    //   1. handleStartupRestore (this method) runs from src/main/index.ts
+    //      BEFORE application.bootstrap() — it has to move restore markers
+    //      off disk before any service grabs file handles. Calling
+    //      application.getPath() pre-bootstrap throws.
+    //   2. The whole class is scheduled for v2 refactor (see the file
+    //      header). Until that lands, mixing v1 instantiation with v2 path
+    //      lookups just creates timing footguns. Stay self-contained.
+    //
+    // Application.ts:132-137 explicitly carves out this exception for
+    // "legacy backup restore" pipelines.
+
     // Define restore paths
     const indexedDBRestore = path.join(userDataPath, 'IndexedDB.restore')
     const localStorageRestore = path.join(userDataPath, 'Local Storage.restore')
-    const dataRestore = getDataPath() + '.restore'
+    const dataRestore = path.join(userDataPath, 'Data') + '.restore'
 
     // Define target paths
     const indexedDBDest = path.join(userDataPath, 'IndexedDB')
     const localStorageDest = path.join(userDataPath, 'Local Storage')
-    const dataDest = getDataPath()
+    const dataDest = path.join(userDataPath, 'Data')
 
     try {
       // Check if any restore markers exist
@@ -192,14 +225,14 @@ class BackupManager {
         const tempDataDir = path.join(this.tempDir, 'Data')
 
         if (await fs.pathExists(sourcePath)) {
-          const totalSize = await this.getDirSize(sourcePath)
-          let copiedSize = 0
+          const totalSize = await this.getDirSize(sourcePath, { dereferenceSymlinks: true })
 
-          await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
-            copiedSize += size
-            const progress = Math.min(80, 52 + Math.floor((copiedSize / totalSize) * 28))
-            onProgress({ stage: 'copying_files', progress, total: 100 })
-          })
+          await this.copyDirWithProgress(
+            sourcePath,
+            tempDataDir,
+            this.createCopyProgressHandler(totalSize, 52, 80, 'copying_files', onProgress),
+            { dereferenceSymlinks: true }
+          )
         }
       } else {
         logger.debug('[backupDirect] Skip the backup of the file')
@@ -287,15 +320,15 @@ class BackupManager {
         const tempDataDir = path.join(this.tempDir, 'Data')
 
         // Get total size of source directory
-        const totalSize = await this.getDirSize(sourcePath)
-        let copiedSize = 0
+        const totalSize = await this.getDirSize(sourcePath, { dereferenceSymlinks: true })
 
         // Use streaming copy
-        await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
-          copiedSize += size
-          const progress = Math.min(50, Math.floor((copiedSize / totalSize) * 50))
-          onProgress({ stage: 'copying_files', progress, total: 100 })
-        })
+        await this.copyDirWithProgress(
+          sourcePath,
+          tempDataDir,
+          this.createCopyProgressHandler(totalSize, 0, 50, 'copying_files', onProgress),
+          { dereferenceSymlinks: true }
+        )
 
         onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
       } else {
@@ -607,16 +640,16 @@ class BackupManager {
       if (dataExists && dataFiles.length > 0) {
         logger.debug('[restoreDirect] Restoring Data directory...')
 
-        const totalSize = await this.getDirSize(dataSource)
-        let copiedSize = 0
+        const totalSize = await this.getDirSize(dataSource, { dereferenceSymlinks: false })
 
         await fs.remove(dataDest)
 
-        await this.copyDirWithProgress(dataSource, dataDest, (size) => {
-          copiedSize += size
-          const progress = Math.min(95, 65 + Math.floor((copiedSize / totalSize) * 30))
-          onProgress({ stage: 'restoring_data', progress, total: 100 })
-        })
+        await this.copyDirWithProgress(
+          dataSource,
+          dataDest,
+          this.createCopyProgressHandler(totalSize, 65, 95, 'restoring_data', onProgress),
+          { dereferenceSymlinks: false }
+        )
       } else {
         logger.debug('[restoreDirect] No Data directory to restore')
       }
@@ -666,17 +699,17 @@ class BackupManager {
 
       if (dataExists && dataFiles.length > 0) {
         // Get total size of source directory
-        const dataTotalSize = await this.getDirSize(dataSourcePath)
-        let copiedSize = 0
+        const dataTotalSize = await this.getDirSize(dataSourcePath, { dereferenceSymlinks: false })
 
         await fs.remove(dataDestPath)
 
         // Use streaming copy
-        await this.copyDirWithProgress(dataSourcePath, dataDestPath, (size) => {
-          copiedSize += size
-          const progress = Math.min(85, 35 + Math.floor((copiedSize / dataTotalSize) * 50))
-          onProgress({ stage: 'copying_files', progress, total: 100 })
-        })
+        await this.copyDirWithProgress(
+          dataSourcePath,
+          dataDestPath,
+          this.createCopyProgressHandler(dataTotalSize, 35, 85, 'copying_files', onProgress),
+          { dereferenceSymlinks: false }
+        )
       } else {
         logger.debug('[restoreLegacy] skipBackupFile is true, skip restoring Data directory')
       }
@@ -798,13 +831,36 @@ class BackupManager {
    * copying_files stage is never logged as it generates too many logs.
    */
   private onProgress = (channel: IpcChannel, shouldLog: boolean) => {
-    return (processData: { stage: string; progress: number; total: number }) => {
-      const mainWindow = application.get('WindowService').getMainWindow()
-      mainWindow?.webContents.send(channel, processData)
+    return (processData: ProgressData) => {
+      application.get('WindowManager').broadcastToType(WindowType.Main, channel, processData)
       // Never log copying_files as it generates too many log entries
       if (shouldLog && processData.stage !== 'copying_files') {
         logger.info('Backup progress', processData)
       }
+    }
+  }
+
+  private createCopyProgressHandler(
+    totalSize: number,
+    startProgress: number,
+    endProgress: number,
+    stage: string,
+    onProgress: (processData: ProgressData) => void
+  ) {
+    let copiedSize = 0
+    let lastReported = startProgress
+
+    return (size: number) => {
+      copiedSize += size
+      const progress =
+        totalSize > 0
+          ? Math.min(endProgress, startProgress + Math.floor((copiedSize / totalSize) * (endProgress - startProgress)))
+          : endProgress
+      if (progress === lastReported && copiedSize < totalSize) {
+        return
+      }
+      lastReported = progress
+      onProgress({ stage, progress, total: 100 })
     }
   }
 
@@ -813,19 +869,52 @@ class BackupManager {
    * @param dirPath - Directory path to calculate size
    * @returns Total size in bytes
    */
-  private async getDirSize(dirPath: string): Promise<number> {
-    let size = 0
-    const items = await fs.readdir(dirPath, { withFileTypes: true })
-
-    for (const item of items) {
-      const fullPath = path.join(dirPath, item.name)
-      if (item.isDirectory()) {
-        size += await this.getDirSize(fullPath)
-      } else {
-        const stats = await fs.stat(fullPath)
-        size += stats.size
-      }
+  private async getDirSize(
+    dirPath: string,
+    options: CopyDirOptions,
+    activeDirectoryRealPaths = new Set<string>()
+  ): Promise<number> {
+    const copyOptions = {
+      ...options,
+      sourceRootRealPath: options.sourceRootRealPath ?? (await fs.realpath(dirPath))
     }
+    const directoryRealPath = await this.enterDirectory(dirPath, activeDirectoryRealPaths)
+
+    if (!directoryRealPath) {
+      return 0
+    }
+
+    let size = 0
+
+    try {
+      const items = await fs.readdir(dirPath, { withFileTypes: true })
+
+      for (const item of items) {
+        const fullPath = path.join(dirPath, item.name)
+        const entry = await this.getEffectiveEntryStats(fullPath, copyOptions)
+
+        if (!entry) {
+          continue
+        }
+
+        if (entry.stats.isDirectory()) {
+          if (entry.isSymlink) {
+            try {
+              size += await this.getDirSize(fullPath, copyOptions, activeDirectoryRealPaths)
+            } catch (error) {
+              this.logSkippedSymlink(fullPath, error)
+            }
+          } else {
+            size += await this.getDirSize(fullPath, copyOptions, activeDirectoryRealPaths)
+          }
+        } else if (entry.stats.isFile()) {
+          size += entry.stats.size
+        }
+      }
+    } finally {
+      activeDirectoryRealPaths.delete(directoryRealPath)
+    }
+
     return size
   }
 
@@ -833,11 +922,15 @@ class BackupManager {
    * Create a empty restore data path, it will be reset after app relaunch
    */
   public async resetData() {
+    // Hand-rolled {userData}/Data — BackupManager bypasses the v2 path
+    // registry entirely. See handleStartupRestore above for the rationale.
+    const dataPath = path.join(app.getPath('userData'), 'Data')
+
     if (!isWin) {
-      return await fs.remove(getDataPath()).catch(() => {})
+      return await fs.remove(dataPath).catch(() => {})
     }
 
-    const dataRestorePath = getDataPath() + '.restore'
+    const dataRestorePath = dataPath + '.restore'
     await fs.remove(dataRestorePath).catch(() => {})
     await fs.ensureDir(dataRestorePath)
   }
@@ -926,56 +1019,119 @@ class BackupManager {
   private async copyDirWithProgress(
     source: string,
     destination: string,
-    onProgress: (size: number) => void
+    onProgress: (size: number) => void,
+    options: CopyDirOptions
   ): Promise<void> {
-    // First count total files
-    let totalFiles = 0
-    let processedFiles = 0
-    let lastProgressReported = 0
-
-    // Calculate total file count
-    const countFiles = async (dir: string): Promise<number> => {
-      let count = 0
-      const items = await fs.readdir(dir, { withFileTypes: true })
-      for (const item of items) {
-        if (item.isDirectory()) {
-          count += await countFiles(path.join(dir, item.name))
-        } else {
-          count++
-        }
-      }
-      return count
+    const copyOptions = {
+      ...options,
+      sourceRootRealPath: options.sourceRootRealPath ?? (await fs.realpath(source))
     }
+    const activeDirectoryRealPaths = new Set<string>()
 
-    totalFiles = await countFiles(source)
-
-    // Copy files and update progress
     const copyDir = async (src: string, dest: string): Promise<void> => {
-      const items = await fs.readdir(src, { withFileTypes: true })
+      const directoryRealPath = await this.enterDirectory(src, activeDirectoryRealPaths)
 
-      for (const item of items) {
-        const sourcePath = path.join(src, item.name)
-        const destPath = path.join(dest, item.name)
+      if (!directoryRealPath) {
+        return
+      }
 
-        if (item.isDirectory()) {
-          await fs.ensureDir(destPath)
-          await copyDir(sourcePath, destPath)
-        } else {
-          const stats = await fs.stat(sourcePath)
-          await fs.copy(sourcePath, destPath)
-          processedFiles++
+      try {
+        await fs.ensureDir(dest)
 
-          // Only report progress when change exceeds 5%
-          const currentProgress = Math.floor((processedFiles / totalFiles) * 100)
-          if (currentProgress - lastProgressReported >= 5 || processedFiles === totalFiles) {
-            lastProgressReported = currentProgress
-            onProgress(stats.size)
+        const items = await fs.readdir(src, { withFileTypes: true })
+
+        for (const item of items) {
+          const sourcePath = path.join(src, item.name)
+          const destPath = path.join(dest, item.name)
+          const entry = await this.getEffectiveEntryStats(sourcePath, copyOptions)
+
+          if (!entry) {
+            continue
+          }
+
+          if (entry.stats.isDirectory()) {
+            try {
+              await copyDir(sourcePath, destPath)
+            } catch (error) {
+              if (!entry.isSymlink) {
+                throw error
+              }
+              await fs.remove(destPath).catch(() => {})
+              this.logSkippedSymlink(sourcePath, error)
+            }
+          } else if (entry.stats.isFile()) {
+            if (entry.isSymlink) {
+              await fs.copy(sourcePath, destPath, { dereference: true })
+            } else {
+              await fs.copy(sourcePath, destPath)
+            }
+            onProgress(entry.stats.size)
+          } else if (entry.isSymlink) {
+            logger.warn('[BackupManager] Skipping symlink to unsupported target', { path: sourcePath })
           }
         }
+      } finally {
+        activeDirectoryRealPaths.delete(directoryRealPath)
       }
     }
 
     await copyDir(source, destination)
+  }
+
+  private async enterDirectory(dirPath: string, activeDirectoryRealPaths: Set<string>): Promise<string | null> {
+    const realPath = await fs.realpath(dirPath)
+
+    if (activeDirectoryRealPaths.has(realPath)) {
+      logger.warn('[BackupManager] Skipping circular symlink directory', { path: dirPath, realPath })
+      return null
+    }
+
+    activeDirectoryRealPaths.add(realPath)
+    return realPath
+  }
+
+  private async getEffectiveEntryStats(
+    sourcePath: string,
+    options: CopyDirOptions
+  ): Promise<EffectiveEntryStats | null> {
+    const stats = await fs.lstat(sourcePath)
+
+    if (!stats.isSymbolicLink()) {
+      return { isSymlink: false, stats }
+    }
+
+    const targetStats = await this.getSymlinkTargetStats(sourcePath, options)
+    return targetStats ? { isSymlink: true, stats: targetStats } : null
+  }
+
+  private async getSymlinkTargetStats(sourcePath: string, options: CopyDirOptions): Promise<Stats | null> {
+    if (!options.dereferenceSymlinks) {
+      logger.warn('[BackupManager] Skipping symlink (dereferenceSymlinks=false)', { path: sourcePath })
+      return null
+    }
+
+    try {
+      const [targetStats, targetRealPath] = await Promise.all([fs.stat(sourcePath), fs.realpath(sourcePath)])
+      const context = {
+        path: sourcePath,
+        sourceRootRealPath: options.sourceRootRealPath,
+        targetRealPath
+      }
+
+      if (options.sourceRootRealPath && !isPathInside(targetRealPath, options.sourceRootRealPath)) {
+        logger.warn('[BackupManager] Dereferencing symlink outside source root during backup copy', context)
+      } else {
+        logger.info('[BackupManager] Dereferencing symlink during backup copy', context)
+      }
+      return targetStats
+    } catch (error) {
+      this.logSkippedSymlink(sourcePath, error)
+      return null
+    }
+  }
+
+  private logSkippedSymlink(sourcePath: string, error: unknown) {
+    logger.warn('[BackupManager] Skipping broken or unreadable symlink', { path: sourcePath, error })
   }
 
   /**

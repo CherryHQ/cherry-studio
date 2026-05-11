@@ -14,9 +14,12 @@ This document records the current V2 knowledge target schema, migration constrai
 - Persisted columns:
   - `id`
   - `name`
-  - `description`
+  - `groupId`
+  - `emoji`
   - `dimensions`
   - `embeddingModelId`
+  - `status`
+  - `error`
   - `rerankModelId`
   - `fileProcessorId`
   - `chunkSize`
@@ -37,6 +40,7 @@ This document records the current V2 knowledge target schema, migration constrai
   - `type`
   - `data`
   - `status`
+  - `phase`
   - `error`
   - `createdAt`
   - `updatedAt`
@@ -71,21 +75,12 @@ This document records the current V2 knowledge target schema, migration constrai
 - Current runtime read flows use:
   - `GET /knowledge-bases/:id/items` for flat item listing
   - optional query filters: `type`, `groupId`
-- Current runtime create flow uses:
-  - `POST /knowledge-bases/:id/items`
-  - request bodies may carry `groupId`
-  - `groupId` may only point to an already existing owner item in the same knowledge base
-  - creating a new owner item and its grouped members is therefore a two-step flow in the current contract:
-    - create the owner item first
-    - create grouped members afterwards with `groupId = ownerItem.id`
-- Current runtime update flow uses:
-  - `PATCH /knowledge-items/:id`
-  - mutable fields may include `data`, `status`, `error`
-  - `groupId` is create-only in the current DataApi contract and is not updated through `PATCH /knowledge-items/:id`
-- Current delete flow is item-level only:
-  - `DELETE /knowledge-items/:id`
-  - when the deleted item is a logical group owner, the database cascade also removes items with `groupId = :id`
-  - there is still no separate first-class group resource or `DELETE /knowledge-groups/:id` endpoint
+- Current runtime write workflows use `KnowledgeOrchestrationService` IPC, not DataApi endpoints:
+  - add items: normalize caller-friendly inputs, create SQLite rows, and enqueue prepare/index tasks
+  - delete items: interrupt runtime work, delete vectors, then delete SQLite roots
+  - reindex items: interrupt runtime work, delete old vectors, rebuild expanded children when needed, then enqueue indexing
+  - search and chunk mutation: execute against the per-base vector store through runtime IPC
+- DataApi remains limited to SQLite-backed reads and knowledge base metadata PATCH.
 - Migration from official v1 data does not preserve or infer grouping metadata:
   - official v1 exports are flat
   - migrated items are inserted with `groupId = null`
@@ -132,11 +127,64 @@ This document records the current V2 knowledge target schema, migration constrai
   - otherwise -> `idle`
 - Temporary legacy states such as in-progress or failed processing are not preserved as V2 status during migration.
 
+## Runtime Status Boundary
+
+- `knowledge_item.status`, `knowledge_item.phase`, and `knowledge_item.error` remain part of the official V2 business schema.
+- The runtime queue implementation is not part of the schema contract:
+  - no separate task table
+  - no persisted queue record
+  - no persisted task run id
+- Runtime currently uses an in-memory `p-queue` based pipeline in `KnowledgeRuntimeService`.
+- The schema-level `status` set is:
+  - `idle`
+  - `processing`
+  - `completed`
+  - `failed`
+- The schema-level `phase` set is:
+  - `null`
+  - `preparing`
+  - `reading`
+  - `embedding`
+- Current runtime writes:
+  - `processing, phase = preparing` while a `directory` / `sitemap` root or nested directory is being expanded
+  - `processing, phase = reading` while a leaf item is reading source documents
+  - `processing, phase = embedding` while a leaf item is embedding / writing vectors
+  - `completed, phase = null` after successful leaf indexing, or when a container has no active children
+  - `failed, phase = null` on runtime failure, interrupt cleanup failure, or shutdown interruption
+- `fileProcessorId` is persisted in base config, but it does not participate in runtime execution yet.
+- In other words:
+  - queue structure is implementation detail
+  - `status` is aggregate business state
+  - `phase` is runtime progress
+  - container status is reconciled from its own phase and child item statuses
+  - these concerns must not be conflated
+
+## Current Runtime Consumption Notes
+
+- Runtime entrypoint:
+  - `src/main/services/knowledge/runtime/KnowledgeRuntimeService.ts`
+- Reader dispatch code still exists for stored `knowledge_item.type` values:
+  - `file` -> file reader by extension
+  - `url` -> fetch markdown through Jina Reader
+  - `note` -> inline note content
+  - `sitemap` -> sitemap reader code path is present, but current runtime does not index `sitemap` items directly
+  - `directory` -> currently treated as a container placeholder and returns no documents
+- This means `directory` and `sitemap` remain valid persisted `knowledge_item.type` values, but they are prepared before leaf indexing rather than indexed directly.
+- Runtime add flow accepts new item payloads:
+  - leaf payloads create `knowledge_item` rows and enqueue `index-leaf`
+  - `directory` / `sitemap` payloads create root rows and enqueue `prepare-root`
+- `prepare-root` expands the owner inside the runtime queue, creates child rows, and enqueues concrete leaf children as `index-leaf`.
+- Callers must not create user-supplied nested `directory` / `sitemap` items under another item. Nested directory rows may still be created internally by directory expansion to preserve filesystem hierarchy.
+- Runtime embedding model resolution currently expects `knowledge_base.embeddingModelId` in `providerId::modelId` format and only supports `ollama` as the active provider.
+
 ## Implementation Status
 
 - `video` and `memory` items are skipped during migration.
 - The target schema uses optional `groupId`, but migration from official v1 data still writes it as `null`.
-- The current DataApi contract is flat item CRUD plus filtered listing; it does not expose tree navigation.
+- The current DataApi contract exposes flat item read/listing only; write operations go through runtime orchestration.
 - Group ownership is represented implicitly by `groupId = ownerItem.id`; there is no standalone group table in the current phase.
 - `dimensions` resolution failure skips the entire base and all nested items, with warnings recorded in migration output.
 - Knowledge item status migration uses `uniqueId` instead of `processingStatus`.
+- The current runtime service is `KnowledgeRuntimeService`, not the old `KnowledgeService` name used in earlier notes.
+- Current runtime queue behavior is a single in-memory `PQueue({ concurrency: 5 })` shared across knowledge bases; there is no per-base serial queue yet.
+- Current runtime queue entries are `prepare-root` and `index-leaf`; preparation and leaf indexing share interrupt / wait / shutdown cleanup semantics.

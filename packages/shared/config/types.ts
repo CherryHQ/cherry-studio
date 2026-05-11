@@ -1,6 +1,16 @@
 import type { ProcessingStatus } from '@types'
 
 // =============================================================================
+// Code Tools Types
+// =============================================================================
+
+export interface CodeToolsRunResult {
+  success: boolean
+  message: string
+  command: string
+}
+
+// =============================================================================
 // OpenClaw IPC Types
 // =============================================================================
 
@@ -35,6 +45,22 @@ export type MCPServerLogEntry = {
   message: string
   data?: any
   source?: string
+}
+
+// Channel log & status types
+export type ChannelLogLevel = 'debug' | 'info' | 'warn' | 'error'
+
+export type ChannelLogEntry = {
+  timestamp: number
+  level: ChannelLogLevel
+  message: string
+  channelId: string
+}
+
+export type ChannelStatusEvent = {
+  channelId: string
+  connected: boolean
+  error?: string
 }
 
 export type WebviewKeyEvent = {

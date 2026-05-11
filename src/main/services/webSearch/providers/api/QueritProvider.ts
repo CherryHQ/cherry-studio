@@ -3,7 +3,6 @@ import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { resolveProviderApiKey } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { ApiKeyRequestSearchContext } from '../base/context'
 
@@ -43,7 +42,11 @@ const QueritSearchResponseSchema = z.object({
 type QueritSearchContext = ApiKeyRequestSearchContext<z.infer<typeof QueritSearchParamsSchema>>
 
 export class QueritProvider extends BaseWebSearchProvider {
-  async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+  async searchKeywords(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchResponse> {
     const context = this.prepareSearchContext(query, config, httpOptions)
     const searchPayload = await this.executeSearch(context)
 
@@ -69,10 +72,10 @@ export class QueritProvider extends BaseWebSearchProvider {
     }
 
     return {
-      apiKey: resolveProviderApiKey(this.provider),
+      apiKey: this.resolveApiKey(),
       query,
       maxResults: config.maxResults,
-      requestUrl: this.resolveApiUrl('/v1/search'),
+      requestUrl: this.resolveApiUrl('searchKeywords', '/v1/search'),
       requestBody,
       signal: httpOptions?.signal ?? undefined
     }
@@ -101,7 +104,7 @@ export class QueritProvider extends BaseWebSearchProvider {
   }
 
   private buildFinalResponse(
-    _context: QueritSearchContext,
+    context: QueritSearchContext,
     searchPayload: z.infer<typeof QueritSearchResponseSchema>
   ): WebSearchResponse {
     if (searchPayload.error_code !== 200) {
@@ -109,11 +112,15 @@ export class QueritProvider extends BaseWebSearchProvider {
     }
 
     return {
-      query: searchPayload.query_context.query,
+      query: context.query,
+      providerId: this.provider.id,
+      capability: 'searchKeywords',
+      inputs: [context.query],
       results: (searchPayload.results?.result || []).map((result) => ({
         title: result.title,
         content: result.snippet || '',
-        url: result.url
+        url: result.url,
+        sourceInput: context.query
       }))
     }
   }

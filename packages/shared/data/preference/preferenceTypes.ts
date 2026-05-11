@@ -1,4 +1,5 @@
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import * as z from 'zod'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
 
@@ -22,10 +23,8 @@ export type PreferenceUpdateOptions = {
 }
 
 export type PreferenceShortcutType = {
-  key: string[]
-  editable: boolean
+  binding: string[]
   enabled: boolean
-  system: boolean
 }
 
 export enum SelectionTriggerMode {
@@ -71,6 +70,7 @@ export type LanguageVarious =
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
+  | 'vi-VN'
 
 export type WindowStyle = 'transparent' | 'opaque'
 
@@ -84,7 +84,7 @@ export type SidebarIcon =
   | 'store'
   | 'paintings'
   | 'translate'
-  | 'minapp'
+  | 'mini_app'
   | 'knowledge'
   | 'files'
   | 'code_tools'
@@ -119,17 +119,48 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 
 export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
 
-// 为了支持自定义语言，设置为string别名
-/** zh-cn, en-us, etc. */
-export type TranslateLanguageCode = string
-export type TranslateSourceLanguage = TranslateLanguageCode | 'auto'
-export type TranslateBidirectionalPair = [TranslateLanguageCode, TranslateLanguageCode]
+/**
+ * Strict language code pattern — only real codes such as "en-us" / "zh-cn" / "ja".
+ *
+ * Prefer this in persistence paths (API DTOs, DB entities). {@link TranslateLangCodeSchema}
+ * below widens it with the `'unknown'` UI sentinel, which must not leak into the DB:
+ * there is no matching row in the `translate_language` table, and the history FK
+ * would silently break.
+ *
+ * Pattern: 2–3 lowercase letters, optionally followed by `-` and 2–4 lowercase letters.
+ */
+export const PersistedLangCodeSchema = z
+  .string()
+  .regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+  .brand<'PersistedLangCode'>()
+export type PersistedLangCode = z.infer<typeof PersistedLangCodeSchema>
+export const parsePersistedLangCode = (value: string): PersistedLangCode => PersistedLangCodeSchema.parse(value)
+
+const TranslateLangCodePatternSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+
+/**
+ * Permissive language code — persisted-code shape plus the `'unknown'` UI sentinel.
+ *
+ * Use in preference/UI state and detection paths where "unknown" is meaningful.
+ * Persistence paths should parse with {@link PersistedLangCodeSchema} instead.
+ */
+export const TranslateLangCodeSchema = z.union([z.literal('unknown'), TranslateLangCodePatternSchema])
+export type TranslateLangCode = z.infer<typeof TranslateLangCodeSchema>
+export const parseTranslateLangCode = (value: string): TranslateLangCode => TranslateLangCodeSchema.parse(value)
+export const isTranslateLangCode = (value: unknown): value is TranslateLangCode =>
+  TranslateLangCodeSchema.safeParse(value).success
+export type TranslateSourceLanguage = TranslateLangCode | 'auto'
+export type TranslateBidirectionalPair = [TranslateLangCode, TranslateLangCode]
+export const parseTranslateBidirectionalPair = (value: readonly [string, string]): TranslateBidirectionalPair => [
+  parseTranslateLangCode(value[0]),
+  parseTranslateLangCode(value[1])
+]
 
 // ============================================================================
 // WebSearch Types
 // ============================================================================
 
-export const WEB_SEARCH_PROVIDER_TYPES = ['api', 'local', 'mcp'] as const
+export const WEB_SEARCH_PROVIDER_TYPES = ['api', 'mcp'] as const
 
 export type WebSearchProviderType = (typeof WEB_SEARCH_PROVIDER_TYPES)[number]
 
@@ -141,22 +172,40 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'exa-mcp',
   'bocha',
   'querit',
-  'local-google',
-  'local-bing',
-  'local-baidu'
+  'fetch',
+  'jina'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
 
+export const WEB_SEARCH_CAPABILITIES = ['searchKeywords', 'fetchUrls'] as const
+
+export type WebSearchCapability = (typeof WEB_SEARCH_CAPABILITIES)[number]
+
+export type WebSearchProviderCapabilityOverride = {
+  apiHost?: string
+}
+
+export type WebSearchProviderCapabilityOverrides = Partial<
+  Record<WebSearchCapability, WebSearchProviderCapabilityOverride>
+>
+
 export type WebSearchProviderOverride = {
   apiKeys?: string[]
-  apiHost?: string
+  capabilities?: WebSearchProviderCapabilityOverrides
   engines?: string[]
   basicAuthUsername?: string
   basicAuthPassword?: string
 }
 
 export type WebSearchProviderOverrides = Partial<Record<WebSearchProviderId, WebSearchProviderOverride>>
+
+export type WebSearchSubscribeSource = {
+  key: number
+  url: string
+  name: string
+  blacklist?: string[]
+}
 
 /**
  * Full WebSearch Provider configuration
@@ -171,12 +220,14 @@ export interface WebSearchProvider {
   type: WebSearchProviderType
   /** API keys (from user overrides) */
   apiKeys: string[]
-  /** API host (user override or preset default) */
-  apiHost: string
+  /** Capability API settings (user override merged into preset capabilities) */
+  capabilities: Array<{
+    feature: WebSearchCapability
+    /** Can be empty for self-hosted or hostless providers; resolve and validate via resolveProviderApiHost. */
+    apiHost?: string
+  }>
   /** Search engines (from user overrides) */
   engines: string[]
-  /** Whether to use browser for search (from preset) */
-  usingBrowser: boolean
   /** Basic auth username (from user overrides) */
   basicAuthUsername: string
   /** Basic auth password (from user overrides) */
@@ -222,7 +273,7 @@ export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>
  * Compression method type
  * Stored in chat.web_search.compression.method
  */
-export type WebSearchCompressionMethod = 'none' | 'cutoff' | 'rag'
+export type WebSearchCompressionMethod = 'none' | 'cutoff'
 
 /**
  * Cutoff unit type
@@ -238,7 +289,7 @@ export const FILE_PROCESSOR_TYPES = ['api', 'builtin'] as const
 
 export type FileProcessorType = (typeof FILE_PROCESSOR_TYPES)[number]
 
-export const FILE_PROCESSOR_FEATURES = ['text_extraction', 'markdown_conversion'] as const
+export const FILE_PROCESSOR_FEATURES = ['image_to_text', 'document_to_markdown'] as const
 
 export type FileProcessorFeature = (typeof FILE_PROCESSOR_FEATURES)[number]
 
@@ -271,3 +322,8 @@ export type FileProcessorOverride = {
 }
 
 export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcessorOverride>>
+
+/** Region types for miniApps visibility */
+export type MiniAppRegion = 'CN' | 'Global'
+
+export type MiniAppRegionFilter = 'auto' | MiniAppRegion

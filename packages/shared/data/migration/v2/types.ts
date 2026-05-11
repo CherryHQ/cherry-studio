@@ -4,6 +4,7 @@
 
 // Migration stages for UI flow
 export type MigrationStage =
+  | 'version_incompatible'
   | 'introduction'
   | 'backup_required'
   | 'backup_progress'
@@ -45,6 +46,8 @@ export interface MigrationProgress {
 export interface PrepareResult {
   success: boolean
   itemCount: number
+  /** Fatal reason when `success === false`. Non-fatal diagnostics belong in `warnings`. */
+  error?: string
   warnings?: string[]
 }
 
@@ -73,6 +76,8 @@ export interface ValidateResult {
     skippedCount: number
     mismatchReason?: string
   }
+  /** Migrator-specific diagnostics for threshold-based failure decisions */
+  diagnostics?: Record<string, number>
 }
 
 // Individual migrator result
@@ -134,6 +139,9 @@ export const MigrationIpcChannels = {
 
   // File transfer (Renderer -> Main)
   WriteExportFile: 'migration:write-export-file',
+
+  // Skip migration (version incompatible — user chose to use defaults)
+  SkipMigration: 'migration:skip-migration',
 
   // Progress broadcast (Main -> Renderer)
   Progress: 'migration:progress',

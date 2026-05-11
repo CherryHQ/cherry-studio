@@ -1,81 +1,98 @@
-# Cherry Studio Documentation / 文档
+# Cherry Studio Documentation
 
-This directory contains the project documentation in multiple languages.
-
-本目录包含多语言项目文档。
-
----
-
-## Languages / 语言
-
-- **[中文文档](./zh/README.md)** - Chinese Documentation
-- **English Documentation** - See sections below
-
----
-
-## English Documentation
-
-### Guides
+## Guides
 
 | Document | Description |
 |----------|-------------|
-| [Development Setup](./en/guides/development.md) | Development environment setup |
-| [Branching Strategy](./en/guides/branching-strategy.md) | Git branching workflow |
-| [i18n Guide](./en/guides/i18n.md) | Internationalization guide |
-| [Logging Guide](./en/guides/logging.md) | How to use the logger service |
-| [Test Plan](./en/guides/test-plan.md) | Test plan and release channels |
+| [Development Setup](./guides/development.md) | Development environment setup |
+| [Contributing](./guides/contributing.md) | How to contribute code |
+| [Branching Strategy](./guides/branching-strategy.md) | Git branching workflow |
+| [Test Plan](./guides/test-plan.md) | Test plan and release channels |
+| [i18n Guide](./guides/i18n.md) | Internationalization guide |
+| [Logging Guide](./guides/logging.md) | How to use the logger service |
+| [Middleware](./guides/middleware.md) | How to write AI Provider middleware |
 
-### References
+## References
+
+### Architecture
 
 | Document | Description |
 |----------|-------------|
-| [App Upgrade Config](./en/references/app-upgrade.md) | Application upgrade configuration |
-| [CodeBlockView Component](./en/references/components/code-block-view.md) | Code block view component |
-| [Image Preview Components](./en/references/components/image-preview.md) | Image preview components |
+| [Architecture Overview](./references/architecture-overview.md) | System-wide architecture, process model, data flow |
 
----
+### AI Core
 
-## 中文文档
+| Document | Description |
+|----------|-------------|
+| [AI Core Architecture](./references/ai-core-architecture.md) | Complete data flow and architecture from user input to LLM response |
 
-### 指南 (Guides)
+### Data System
 
-| 文档 | 说明 |
-|------|------|
-| [开发环境设置](./zh/guides/development.md) | 开发环境配置 |
-| [贡献指南](./zh/guides/contributing.md) | 如何贡献代码 |
-| [分支策略](./zh/guides/branching-strategy.md) | Git 分支工作流 |
-| [测试计划](./zh/guides/test-plan.md) | 测试计划和发布通道 |
-| [国际化指南](./zh/guides/i18n.md) | 国际化开发指南 |
-| [日志使用指南](./zh/guides/logging.md) | 如何使用日志服务 |
-| [中间件开发](./zh/guides/middleware.md) | 如何编写中间件 |
-| [记忆功能](./zh/guides/memory.md) | 记忆功能使用指南 |
-| [赞助信息](./zh/guides/sponsor.md) | 赞助相关信息 |
+| Document | Description |
+|----------|-------------|
+| [Data System Overview](./references/data/README.md) | System selection, architecture, and patterns |
+| [Boot Config Overview](./references/data/boot-config-overview.md) | Early boot configuration system |
+| [Boot Config Schema Guide](./references/data/boot-config-schema-guide.md) | Adding new boot config keys |
+| [Cache Overview](./references/data/cache-overview.md) | Three-tier caching architecture and design invariants |
+| [Cache Usage](./references/data/cache-usage.md) | useCache hooks, direct API, Main-process subscriptions |
+| [Cache Schema Guide](./references/data/cache-schema-guide.md) | Adding new cache keys (fixed and template) |
+| [Preference Overview](./references/data/preference-overview.md) | User settings management |
+| [Preference Usage](./references/data/preference-usage.md) | usePreference hook examples |
+| [Preference Schema Guide](./references/data/preference-schema-guide.md) | Adding new preference keys |
+| [DataApi Overview](./references/data/data-api-overview.md) | Business data API architecture |
+| [DataApi in Renderer](./references/data/data-api-in-renderer.md) | useQuery/useMutation patterns |
+| [DataApi in Main](./references/data/data-api-in-main.md) | Handlers, Services, Repositories |
+| [API Design Guidelines](./references/data/api-design-guidelines.md) | RESTful design rules |
+| [API Types](./references/data/api-types.md) | API type system, schemas, error handling |
+| [Database Patterns](./references/data/database-patterns.md) | DB naming, schema patterns |
+| [Layered Preset Pattern](./references/data/best-practice-layered-preset-pattern.md) | Presets with user overrides |
+| [V2 Migration Guide](./references/data/v2-migration-guide.md) | Migration system |
 
-### 参考 (References)
+### Lifecycle System
 
-| 文档 | 说明 |
-|------|------|
-| [消息系统](./zh/references/message-system.md) | 消息系统架构和 API |
-| [数据库结构](./zh/references/database.md) | 数据库表结构 |
-| [服务](./zh/references/services.md) | 服务层文档 (KnowledgeService) |
-| [代码执行](./zh/references/code-execution.md) | 代码执行功能 |
-| [应用升级配置](./zh/references/app-upgrade.md) | 应用升级配置 |
-| [CodeBlockView 组件](./zh/references/components/code-block-view.md) | 代码块视图组件 |
-| [图像预览组件](./zh/references/components/image-preview.md) | 图像预览组件 |
+| Document | Description |
+|----------|-------------|
+| [Lifecycle Overview](./references/lifecycle/README.md) | Architecture, decision guides, usage |
+| [Application Overview](./references/lifecycle/application-overview.md) | Application bootstrap and shutdown |
+| [Lifecycle Internals](./references/lifecycle/lifecycle-overview.md) | Phases, hooks, states |
+| [Lifecycle Usage](./references/lifecycle/lifecycle-usage.md) | Full usage guide with examples |
+| [Lifecycle Decision Guide](./references/lifecycle/lifecycle-decision-guide.md) | Lifecycle vs singleton decision |
+| [Lifecycle Migration Guide](./references/lifecycle/lifecycle-migration-guide.md) | Migrating old services |
 
----
+### Messaging
 
-## Missing Translations / 缺少翻译
+| Document | Description |
+|----------|-------------|
+| [Message System](./references/messaging/message-system.md) | Message lifecycle, state management, operations |
 
-The following documents are only available in Chinese and need English translations:
+### Knowledge
 
-以下文档仅有中文版本，需要英文翻译：
+| Document | Description |
+|----------|-------------|
+| [KnowledgeService](./references/knowledge/knowledge-service.md) | Concurrency control and workload management |
 
-- `guides/contributing.md`
-- `guides/memory.md`
-- `guides/middleware.md`
-- `guides/sponsor.md`
-- `references/message-system.md`
-- `references/database.md`
-- `references/services.md`
-- `references/code-execution.md`
+### CherryClaw (Autonomous Agent)
+
+| Document | Description |
+|----------|-------------|
+| [CherryClaw Overview](./references/cherryclaw/overview.md) | Architecture, memory system, API |
+| [Channel System](./references/cherryclaw/channels.md) | IM integration (Telegram, etc.) |
+| [Claw MCP Server](./references/cherryclaw/mcp-claw.md) | Built-in MCP tools (cron, notify, skills, memory) |
+| [Scheduler](./references/cherryclaw/scheduler.md) | Task-based polling scheduler |
+
+### Components
+
+| Document | Description |
+|----------|-------------|
+| [CodeBlockView](./references/components/code-block-view.md) | Code block view component |
+| [Image Preview](./references/components/image-preview.md) | Image preview components |
+| [Code Execution](./references/components/code-execution.md) | Python code execution via Pyodide |
+
+### Other
+
+| Document | Description |
+|----------|-------------|
+| [App Upgrade Config](./references/app-upgrade.md) | Application upgrade configuration |
+| [Feishu Notify](./references/feishu-notify.md) | Feishu notification integration |
+| [Fuzzy Search](./references/fuzzy-search.md) | Fuzzy search implementation |
+| [LAN Transfer Protocol](./references/lan-transfer-protocol.md) | LAN file transfer protocol spec |

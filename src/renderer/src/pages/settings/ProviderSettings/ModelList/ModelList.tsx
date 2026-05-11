@@ -1,6 +1,6 @@
-import { Button, ColFlex, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, ButtonGroup, ColFlex, Flex, RowFlex, Spinner, Tooltip } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
+import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -15,7 +15,6 @@ import type { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
 import { getDuplicateModelNames } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
-import { Space, Spin } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { Plus, RefreshCw } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
@@ -114,25 +113,34 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const hasNoModels = useMemo(() => models.length === 0, [models.length])
 
   const actionButtons = (
-    <Space.Compact>
-      <Button onClick={onManageModel} size="icon" disabled={isHealthChecking}>
+    <ButtonGroup>
+      <Button onClick={onManageModel} size="sm" variant="outline" disabled={isHealthChecking}>
         <RefreshCw size={16} />
         {t('settings.models.manage.fetch_list')}
       </Button>
       {provider.id !== 'ovms' ? (
-        <Tooltip title={t('button.add')}>
-          <Button onClick={onAddModel} size="icon" disabled={isHealthChecking}>
-            <Plus size={16} />
-          </Button>
-        </Tooltip>
+        <Button
+          onClick={onAddModel}
+          size="sm"
+          variant="outline"
+          className="aspect-square px-0"
+          disabled={isHealthChecking}
+          title={t('button.add')}
+          aria-label={t('button.add')}>
+          <Plus size={16} />
+        </Button>
       ) : (
-        <Tooltip title={t('button.download')}>
-          <Button onClick={onDownloadModel} size="icon">
-            <Plus size={16} />
-          </Button>
-        </Tooltip>
+        <Button
+          onClick={onDownloadModel}
+          size="sm"
+          variant="outline"
+          className="aspect-square px-0"
+          title={t('button.download')}
+          aria-label={t('button.download')}>
+          <Plus size={16} />
+        </Button>
       )}
-    </Space.Compact>
+    </ButtonGroup>
   )
 
   return (
@@ -147,8 +155,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             {!hasNoModels && (
               <>
                 <Tooltip title={t('settings.models.check.button_caption')}>
-                  <Button size="icon" onClick={runHealthCheck}>
-                    <StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} color="var(--color-icon)" />
+                  <Button size="icon" variant="ghost" onClick={runHealthCheck}>
+                    <StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />
                   </Button>
                 </Tooltip>
                 <CollapsibleSearchBar
@@ -163,8 +171,13 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         </RowFlex>
       </SettingSubtitle>
       {hasNoModels && <div style={{ marginBottom: 12 }}>{actionButtons}</div>}
-      <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
-        {displayedModelGroups && !isEmpty(displayedModelGroups) && (
+      {isLoading ? (
+        <Flex className="justify-center py-5">
+          <Spinner text={t('common.loading')} />
+        </Flex>
+      ) : (
+        displayedModelGroups &&
+        !isEmpty(displayedModelGroups) && (
           <ColFlex className="gap-3">
             {Object.keys(displayedModelGroups).map((group, i) => (
               <ModelListGroup
@@ -180,8 +193,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
               />
             ))}
           </ColFlex>
-        )}
-      </Spin>
+        )
+      )}
       <Flex className="items-center justify-between">
         {docsWebsite || modelsWebsite ? (
           <SettingHelpTextRow>
@@ -201,7 +214,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
           </SettingHelpTextRow>
         ) : (
-          <div className="h-[5px]" />
+          <div className="h-1.25" />
         )}
       </Flex>
     </>

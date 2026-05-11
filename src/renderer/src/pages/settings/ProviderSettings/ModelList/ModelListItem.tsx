@@ -1,18 +1,16 @@
 import { Avatar, AvatarFallback, Button, RowFlex, Tooltip } from '@cherrystudio/ui'
-import { ErrorDetailModal } from '@renderer/components/ErrorDetailModal'
+import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import { getModelLogo } from '@renderer/config/models'
 import type { Model } from '@renderer/types'
-import type { SerializedError } from '@renderer/types/error'
 import type { ModelWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Bolt, Minus } from 'lucide-react'
-import React, { memo, useCallback, useMemo, useState } from 'react'
+import React, { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
@@ -35,8 +33,6 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
 }) => {
   const { t } = useTranslation()
   const isChecking = modelStatus?.checking === true
-  const [showErrorModal, setShowErrorModal] = useState(false)
-  const [selectedError, setSelectedError] = useState<SerializedError | undefined>()
 
   const healthResults = useMemo(
     () =>
@@ -55,16 +51,10 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
     if (!hasFailedResult) return undefined
     return (result: HealthResult) => {
       if (result.error) {
-        setSelectedError(result.error)
-        setShowErrorModal(true)
+        showErrorDetailPopup({ error: result.error })
       }
     }
   }, [hasFailedResult])
-
-  const handleCloseErrorModal = useCallback(() => {
-    setShowErrorModal(false)
-    setSelectedError(undefined)
-  }, [])
 
   const handleEdit = useCallback(() => {
     onEdit(model)
@@ -76,7 +66,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
 
   return (
     <>
-      <ListItem ref={ref}>
+      <div ref={ref} className="flex flex-row items-center gap-2.5 text-foreground text-sm leading-none">
         <RowFlex className="flex-1 items-center gap-2.5">
           {(() => {
             const Icon = getModelLogo(model)
@@ -107,34 +97,21 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
             onErrorClick={handleErrorClick}
           />
           <RowFlex className="items-center">
-            <Tooltip content={t('models.edit')} closeDelay={0}>
+            <Tooltip content={t('models.edit')}>
               <Button variant="ghost" onClick={handleEdit} disabled={disabled} size="icon">
                 <Bolt size={14} />
               </Button>
             </Tooltip>
-            <Tooltip content={t('settings.models.manage.remove_model')} closeDelay={0}>
+            <Tooltip content={t('settings.models.manage.remove_model')}>
               <Button variant="ghost" onClick={handleRemove} disabled={disabled} size="icon">
                 <Minus size={14} />
               </Button>
             </Tooltip>
           </RowFlex>
         </RowFlex>
-      </ListItem>
-      {hasFailedResult && (
-        <ErrorDetailModal open={showErrorModal} onClose={handleCloseErrorModal} error={selectedError} />
-      )}
+      </div>
     </>
   )
 }
-
-const ListItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  color: var(--color-text);
-  font-size: 14px;
-  line-height: 1;
-`
 
 export default memo(ModelListItem)

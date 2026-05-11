@@ -1,13 +1,22 @@
+import {
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { getBackupProgressLabel } from '@renderer/i18n/label'
 import { backup, backupToLanTransfer } from '@renderer/services/BackupService'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Modal, Progress } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
+import { useTopViewClose } from './useTopViewClose'
 
 const logger = loggerService.withContext('BackupPopup')
 
@@ -29,6 +38,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
   const [progressData, setProgressData] = useState<ProgressData>()
   const { t } = useTranslation()
   const [skipBackupFile] = usePreference('data.backup.general.skip_backup_file')
+  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(IpcChannel.BackupProgress, (_, data: ProgressData) => {
@@ -48,15 +58,11 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
     } else {
       await backup(skipBackupFile)
     }
-    setOpen(false)
+    close({})
   }
 
   const onCancel = () => {
-    setOpen(false)
-  }
-
-  const onClose = () => {
-    resolve({})
+    close({})
   }
 
   const getProgressText = () => {
@@ -80,26 +86,34 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
   const content = isLanTransferMode ? t('settings.data.export_to_phone.file.content') : t('backup.content')
 
   return (
-    <Modal
-      title={title}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      okButtonProps={{ disabled: isDisabled }}
-      cancelButtonProps={{ disabled: isDisabled }}
-      okText={okText}
-      maskClosable={false}
-      transitionName="animation-move-down"
-      centered>
-      {!progressData && <div>{content}</div>}
-      {progressData && (
-        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <Progress percent={Math.floor(progressData.progress)} strokeColor="var(--color-primary)" />
-          <div style={{ marginTop: 16 }}>{getProgressText()}</div>
-        </div>
-      )}
-    </Modal>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
+      <DialogContent className="sm:max-w-[520px]" onPointerDownOutside={(event) => event.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        {!progressData && <div>{content}</div>}
+        {progressData && (
+          <div className="flex flex-col items-center gap-4 py-5 text-center">
+            <CircularProgress
+              value={Math.floor(progressData.progress)}
+              size={72}
+              strokeWidth={6}
+              showLabel
+              renderLabel={(progress) => `${progress}%`}
+            />
+            <div>{getProgressText()}</div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" disabled={isDisabled} onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button disabled={isDisabled} onClick={onOk}>
+            {okText}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -112,16 +126,7 @@ export default class BackupPopup {
   }
   static show(backupType: 'direct' | 'lan-transfer' = 'direct') {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          backupType={backupType}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer backupType={backupType} resolve={resolve} />, TopViewKey)
     })
   }
 }

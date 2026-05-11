@@ -1,6 +1,6 @@
 /**
  * Status Colors - Light Mode & Dark Mode
- * 状态颜色 - Error, Success, Warning
+ * 状态颜色 - Error, Success, Warning, Info
  */
 
 :root {
@@ -26,6 +26,13 @@
   --cs-warning-bg: var(--cs-amber-50); /* oklch(0.99 0.021 95) */
   --cs-warning-bg-hover: var(--cs-amber-100); /* oklch(0.96 0.058 96) */
   --cs-warning-active: var(--cs-amber-600); /* oklch(0.67 0.157 58) */
+
+  /* Status Colors - Info */
+  --cs-info-base: var(--cs-blue-500); /* oklch(0.62 0.188 260) */
+  --cs-info-text-hover: var(--cs-blue-700); /* oklch(0.49 0.19 261) */
+  --cs-info-bg: var(--cs-blue-50); /* oklch(0.97 0.014 255) */
+  --cs-info-bg-hover: var(--cs-blue-100); /* oklch(0.93 0.032 256) */
+  --cs-info-active: var(--cs-blue-600); /* oklch(0.55 0.215 263) */
 }
 
 /* Dark Mode */
@@ -52,4 +59,11 @@
   --cs-warning-bg: var(--cs-amber-900); /* oklch(0.41 0.105 46) */
   --cs-warning-bg-hover: var(--cs-amber-800); /* oklch(0.47 0.125 46) */
   --cs-warning-active: var(--cs-amber-600); /* oklch(0.67 0.157 58) */
+
+  /* Status Colors - Info (Dark Mode) */
+  --cs-info-base: var(--cs-blue-400); /* oklch(0.7 0.165 254) */
+  --cs-info-text-hover: var(--cs-blue-200); /* oklch(0.88 0.06 254) */
+  --cs-info-bg: var(--cs-blue-900); /* oklch(0.39 0.13 265) */
+  --cs-info-bg-hover: var(--cs-blue-800); /* oklch(0.44 0.17 260) */
+  --cs-info-active: var(--cs-blue-300); /* oklch(0.79 0.11 254) */
 }

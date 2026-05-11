@@ -1,433 +1,709 @@
-# WebSearch Service Architecture (Current Branch vs `v2`)
+# WebSearch Main Service Architecture
 
 ## 1. 文档目的
 
-这份文档不再描述“理想中的最终形态”，而是基于 `v2` 分支与当前分支的代码对比，说明 WebSearch 架构现在**实际发生了什么变化**。
+本文档定义下一版 Main-side WebSearch service 的目标架构。
 
-重点是两件事：
+这次重构的核心不是把现有 `searchUrls` / `searchKeywords` 简单改名，而是修正领域模型：
 
-1. `v2` 基线下，WebSearch 仍然主要跑在 Renderer。
-2. 当前分支新增了一套 Main-side WebSearch backend，但还没有完成所有入口切换。
+1. provider 是配置与凭据的归属。
+2. capability 是 provider 能执行的动作。
+3. 对调用方暴露意图明确的工具入口。
 
-换句话说，这次改动的本质不是“WebSearch 已经完全迁到 Main”，而是“Main 侧能力已经起出第一版骨架，Renderer 侧旧链路暂时仍在”。
+当前实现用 provider id 把搜索能力分成 `KeywordSearchProviderId` 和 `UrlSearchProviderId`，这会把“provider 是谁”和“它能做什么”混在一起。Jina 是最典型的问题：同一个 Jina 服务同时提供 URL 内容抓取和关键词搜索，但旧模型只能把它放进其中一类。
 
----
-
-## 2. `v2` 基线是什么
-
-以 `v2` 分支为基线，WebSearch 的主执行链路仍然在 Renderer：
-
-1. `src/renderer/src/services/WebSearchService.ts` 持有请求状态、provider 调用、压缩、临时知识库、引用筛选等完整流程。
-2. `src/renderer/src/providers/WebSearchProvider/*` 持有各 provider 的具体实现。
-3. aiCore、搜索编排、设置页 provider 检查等调用方，仍然直接依赖 Renderer 侧 WebSearch service。
-4. 搜索状态也仍然由 Renderer 负责写入，而不是由 Main 侧统一管理。
-
-`v2` 分支下**不存在**以下能力：
-
-1. `packages/shared/data/types/webSearch.ts`
-2. `src/main/services/webSearch/*`
-3. Main-side provider factory / provider drivers
-4. Main-side 独立请求 contract / request schema 校验
-5. Main-side blacklist 过滤
-6. Main-side post processing
-
-因此，`v2` 的真实基线不是“Main backend 已存在，只差接入口”，而是“搜索核心本身还留在 Renderer”。
+本次目标是把 Main-side WebSearch 调整成 `Provider + Capability` 架构。
 
 ---
 
-## 3. 当前分支新增了什么
+## 2. 术语
 
-当前分支围绕 Main 侧新增了一整套 WebSearch backend 基础设施。
+### Provider
 
-### 3.1 Shared Contract
+Provider 表示一个外部或本地 WebSearch 服务的配置主体。
 
-新增文件：
+Provider 负责承载：
 
-`packages/shared/data/types/webSearch.ts`
+1. 稳定 id
+2. 展示名称
+3. provider 类型，例如 `api` / `mcp`
+4. API key
+5. capability endpoint
+6. provider-specific 配置，例如 engines / basic auth
 
-这层现在定义了 Main-side 执行契约：
+Provider 不等同于一个执行动作。一个 provider 可以支持多个 capability。
 
-1. `WebSearchRequest`
-2. `WebSearchResult`
-3. `WebSearchResponse`
-4. `WebSearchStatus`
-5. `WebSearchCompressionConfig`
-6. `WebSearchExecutionConfig`
-7. `ResolvedWebSearchProvider`
-8. `WebSearchResolvedConfig`
+### Capability
 
-当前 contract 的边界很明确：
+Capability 表示 provider 能执行的动作。
 
-1. 现在保留了一份轻量 shared request type：`providerId` / `questions` / `requestId`
-2. 同时覆盖结果、状态、运行时配置和 provider resolved config
-3. 只表达 Main-side 执行层当前已经稳定下来的字段
-4. 不包含 UI 文案、toast、Renderer span 细节
-5. 不包含原始 `links` / `summarize` / XML 之类上游编排协议
+当前只定义两个 capability：
 
-### 3.2 Shared Cache 调整
+1. `searchKeywords`
+2. `fetchUrls`
 
-这次分支顺手把搜索状态模型往 shared cache 收敛了一步。
+Capability 决定输入类型、provider driver 方法、endpoint 选择和测试方式。
 
-相关改动：
+### `searchKeywords`
 
-1. `packages/shared/data/cache/cacheSchemas.ts`
-2. `packages/shared/data/cache/cacheValueTypes.ts`
+`searchKeywords` 表示使用关键词或自然语言 query 执行 Web 搜索。
 
-变化点：
+输入是一个或多个 keyword query。
 
-1. `chat.web_search.active_searches` 从 `UseCacheSchema` 挪到了 `SharedCacheSchema`
-2. `CacheActiveSearches` 改为直接依赖 shared 的 `WebSearchStatus`
-3. `CitationBlock` 也改成通过 `useSharedCache('chat.web_search.active_searches')` 观察状态
+输出是统一的 `WebSearchResponse`：
 
-这意味着搜索状态不再只是 Renderer 内部实现细节，而开始成为跨边界共享的数据。
+1. `query`
+2. `results[]`
+3. 每个 result 包含 `title` / `content` / `url`
 
-但这里也要明确当前分支的边界：
+示例 provider：
 
-1. 这次改动的重点是先把搜索状态模型收敛到 shared cache，让 Main-side backend 具备可写入、Renderer 具备可观察的基础。
-2. Renderer 层本身暂时不继续做更深入的改造，仍允许保留当前分支里的旧读写方式。
-3. Renderer 侧后续如何进一步收敛到新的入口和单一写入策略，会在后续切流阶段再统一修改，而不是在这次分支里完成。
+1. Zhipu
+2. Tavily
+3. Searxng
+4. Exa
+5. Exa MCP
+6. Bocha
+7. Querit
+8. Jina
 
-审查约束：
+### `fetchUrls`
 
-1. 当前分支围绕 `chat.web_search.active_searches` 的目标，是先完成 shared cache 形态收敛与 Main-side 可写入基础，而不是在本次分支里完成 Renderer 旧写入链路清理。
-2. 在后续切流完成前，Main 与 Renderer 对 `chat.web_search.active_searches` 的并存写入，属于当前阶段明确接受的过渡态，不应单独作为本次分支的 review blocker。
-3. 针对该 key 的审查，应聚焦于是否违反本文档已经声明的边界，或是否引入了超出该边界的新行为回归；不应把“尚未完成单一写入策略收口”本身视为本次分支缺陷。
-4. 当前分支中，`CitationBlock` 通过 `useSharedCache('chat.web_search.active_searches')` 接入 shared cache 观察能力，也属于过渡实现的一部分；Renderer 侧围绕该观察接入产生的初始化与同步时序问题，留待后续切流阶段统一收敛，不单独作为本次分支的 review blocker。
+`fetchUrls` 表示抓取输入 URL 的正文内容。
 
-### 3.3 Main-side WebSearch Service
+输入是一个或多个 URL。
 
-新增目录：
+它不是搜索，不应做相关搜索、摘要扩展或 SERP 查询。它只把指定 URL 转成可供模型消费的内容。
 
-`src/main/services/webSearch/`
+示例 provider：
 
-这一层是当前分支最核心的增量。
+1. Fetch
+2. Jina
 
-#### `WebSearchService.ts`
+旧名称 `searchUrls` 不再作为目标架构概念使用，因为它把 URL 内容抓取误称为搜索。
 
-职责：
+### Request
 
-1. 根据 `providerId` 解析 provider
-2. 读取 runtime config
-3. 对 `questions` 执行 fanout
-4. 合并成功的搜索结果
-5. 应用黑名单过滤
-6. 应用 post processing
-7. 写入并清理搜索状态
-8. 输出统一的 `WebSearchResponse`
+Request 表示一次 Main-side WebSearch 执行。
 
-当前行为特征：
-
-1. 对多问题搜索使用 `Promise.allSettled`
-2. 允许部分 query 失败，只要至少有一个 query 成功就继续产出结果
-3. 所有 query 都失败时才抛错
-4. 在 `finally` 中清理 `chat.web_search.active_searches`
-
-#### `utils/config.ts`
-
-职责：
-
-1. 从 `PreferenceService` 读取 `chat.web_search.*`
-2. 合并 preset 与用户 override
-3. 输出 resolved provider 和 runtime config
-
-这里已经把 Main 执行层需要的配置读取逻辑从 Renderer 里抽出来了。
-
-#### 关于 `searchWithTime`
-
-这里需要特别说明一个容易误判的边界：
-
-1. `searchWithTime` 属于 Renderer 旧 WebSearch 栈里的遗留行为，当前已经不再是后续架构的目标能力。
-2. Main-side runtime config 没有继续把这项字段带进来，这是有意收口，不是这次迁移漏掉了能力。
-3. Renderer 侧目前仍残留“给 query 注入日期”或 provider-specific freshness / timeRange 的旧实现，但这些会在后续切流和旧链路清理时一起收敛。
-4. 因此，当前分支里 Main-side backend 未保留 `searchWithTime`，应视为对废弃行为的提前对齐，而不是功能回归。
-
-#### 关于 local provider 的语言注入
-
-这里还有一个容易和 `searchWithTime` 混在一起误判的点：
-
-1. Renderer 旧链路里的 `local-google` / `local-bing` 曾经会基于 `app.language` 给 query 注入 `lang:<xx>` 之类的语言 bias。
-2. Main-side local provider 没有继续复制这项行为，这是当前分支的有意变化，不是迁移遗漏。
-3. 当前分支的判断是：检索语言与最终回答语言不需要强绑定，Agent 可以对跨语言搜索结果继续用用户语言总结。
-4. 因此 Main-side local provider 当前更偏向“扩大召回范围”，而不是默认按 UI 语言限制搜索语料。
-5. 换句话说，当前分支不再把 `app.language` 作为隐式 query rewrite 策略；如果未来需要恢复语言偏置，也应作为显式检索策略再单独设计，而不是沿用旧 Renderer 的隐式注入。
-
-#### `providers/factory.ts`
-
-职责：
-
-1. 将 provider id 映射到具体 driver
-2. 把 provider 选择逻辑收敛到 Main
-
-当前支持的 provider 分类：
-
-1. `api`: `zhipu` / `tavily` / `searxng` / `exa` / `bocha` / `querit`
-2. `mcp`: `exa-mcp`
-3. `local`: `local-google` / `local-bing` / `local-baidu`
-
-#### Provider Drivers
-
-新增目录：
-
-1. `src/main/services/webSearch/providers/api/`
-2. `src/main/services/webSearch/providers/mcp/`
-3. `src/main/services/webSearch/providers/locals/`
-
-职责：
-
-1. 封装各 provider 的网络协议
-2. 把返回结果归一化成统一的 `WebSearchResponse`
-3. 把 provider 级差异隔离在 Main 侧
-
-当前已实现的关键差异处理：
-
-1. `searxng` 仍然保持“先搜索，再抓取结果 URL 正文”的旧行为
-2. `local-*` provider 仍然保持“只返回搜索结果摘要，不抓正文”
-3. `exa-mcp` 通过 MCP 风格的 HTTP / SSE 文本响应解析结果
-
-#### `postProcessing.ts`
-
-职责：
-
-1. 处理 `none`
-2. 处理 `cutoff`
-3. 为未来的 Main-side `rag` 保留入口
-
-当前真实状态：
-
-1. `none` 已实现
-2. `cutoff` 已实现
-3. `rag` 只是占位，当前仍直接返回原结果
-
-#### `runtime/status.ts`
-
-职责：
-
-1. 将 `chat.web_search.active_searches` 写入 shared cache
-2. 让 Renderer 可以观察 Main-side 搜索阶段变化
-
-当前已落地的 phase 包括：
-
-1. `fetch_complete`
-2. `partial_failure`
-3. `cutoff`
-
-补充边界：
-
-1. `partial_failure` 已经会由 Main-side service 写入 shared cache，表达“多 query 中部分失败但整体仍可返回结果”。
-2. 当前 Renderer 还没有为 `partial_failure` 单独提供状态文案分支，因此 UI 上暂时会回退到默认 searching 文案。
-3. `rag` 相关 phase 仍停留在状态模型层，没有完整 Main-side 执行逻辑。
-
-审查约束：
-
-1. `partial_failure` 已进入当前分支的 shared status model，但 Renderer 尚未补齐对应的独立 UI 文案，这属于本文档已声明并接受的阶段性差异，不单独作为本次分支的 review blocker。
-2. 只要该行为仍符合这里描述的 fallback 语义，就不应把“状态模型已扩展、UI 文案尚未完全对齐”本身视为本次分支缺陷；后续若要补齐，应在切流与 Renderer 收口阶段统一处理。
-
-#### 请求边界（暂未固化）
-
-当前状态：
-
-1. Main-side service 现在直接接收调用方传入的参数对象
-2. `providerId` / `questions` / `requestId` 这一层保留了一份 shared request type，便于后续 Main / Renderer 共用
-3. 但独立的 request schema 校验暂未接入公共入口
-4. 也还没有把这层请求边界正式固化成稳定的公共 entry contract
-
-这部分会在后续真正补 Main-side entry adapter / 调用链切换时再一起收敛：保留 shared type，延后 schema 校验与入口冻结。
-
-### 3.4 测试覆盖
-
-当前分支给 Main-side WebSearch 新增了比较完整的单测：
-
-1. `src/main/services/webSearch/WebSearchService.test.ts`
-2. `src/main/services/webSearch/providers/__tests__/ApiProviders.test.ts`
-3. `src/main/services/webSearch/providers/locals/__tests__/LocalProviders.test.ts`
-4. `src/main/services/webSearch/runtime/__tests__/status.test.ts`
-5. `src/main/services/webSearch/utils/__tests__/*`
-
-当前测试重点覆盖了：
-
-1. `cutoff` post-processing
-2. blacklist 过滤
-3. partial success 行为
-4. local provider 支持
-5. 各 API provider 的协议解析
+一次 request 必须只走一个工具入口。需要同时搜索关键词和抓取 URL 时，上游调用方应分别调用 `searchKeywords` 和 `fetchUrls`。
 
 ---
 
-## 4. 当前分支改完以后，架构实际变成了什么
+## 3. 架构决策
 
-最准确的描述不是“Main 已经替代 Renderer”，而是：
+### 3.1 使用 Provider + Capability
 
-1. Renderer 旧 WebSearch 栈还在
-2. Main 新 WebSearch 栈已经新增出来
-3. 两边暂时并存
-
-### 4.1 当前真实拓扑
+目标模型：
 
 ```text
-+------------------------------------------------------------------------------------+
-|                                  Existing Callers                                  |
-|------------------------------------------------------------------------------------|
-| aiCore / Search Orchestration / Settings Check / Chat Flow                         |
-+-----------------------------------------------+------------------------------------+
-                                                |
-                                                v
-+------------------------------------------------------------------------------------+
-|                       Existing Renderer WebSearch Stack (still active)              |
-|------------------------------------------------------------------------------------|
-| src/renderer/src/services/WebSearchService.ts                                      |
-| src/renderer/src/providers/WebSearchProvider/*                                     |
-| Renderer-side compression / temporary KB / references selection                    |
-+-----------------------------------------------+------------------------------------+
-                                                |
-                                                | status now writes shared cache
-                                                v
-+------------------------------------------------------------------------------------+
-|                             Shared Cache / Shared Types                              |
-|------------------------------------------------------------------------------------|
-| chat.web_search.active_searches                                                     |
-| packages/shared/data/types/webSearch.ts                                             |
-+-----------------------------------------------+------------------------------------+
-                                                ^
-                                                |
-+------------------------------------------------------------------------------------+
-|                        New Main-side WebSearch Backend (new in branch)              |
-|------------------------------------------------------------------------------------|
-| WebSearchService                                                                    |
-| Config Resolver                                                                     |
-| Provider Factory                                                                    |
-| API / MCP / Local Drivers                                                           |
-| Blacklist Filter                                                                    |
-| Post Processing (none / cutoff)                                                     |
-+-----------------------------------------------+------------------------------------+
-                                                |
-                                                v
-+------------------------------------------------------------------------------------+
-|                              Incomplete Entry Layer                                  |
-|------------------------------------------------------------------------------------|
-| Main-side backend exists                                                             |
-| but there is currently no public IPC / preload entry wired for it                    |
-+------------------------------------------------------------------------------------+
+Provider
+  -> capabilities[]
+      -> searchKeywords
+      -> fetchUrls
 ```
 
-### 4.2 这次分支没有做的事
+不再用两组 provider id 数组表达能力：
 
-以下内容仍然没有完成：
+1. 不再用 `KEYWORD_SEARCH_PROVIDER_IDS` 决定谁能搜索关键词。
+2. 不再用 `URL_SEARCH_PROVIDER_IDS` 决定谁能抓取 URL。
 
-1. 对外 IPC / preload 入口尚未补齐
-2. Renderer 主调用链切换到 Main-side `WebSearchService`
-3. 设置页 provider 检查复用 Main-side driver
-4. aiCore / search orchestration 改为调用 Main-side backend
-5. shared request contract 与 Main-side 请求校验收敛
-6. Main-side `rag` 压缩落地
-7. 旧 Renderer provider 实现清理
-8. tracing / span 迁移到 Main-side WebSearch 边缘
-9. Renderer 层与 `chat.web_search.active_searches` 相关的进一步收敛和改写策略统一，留待后续切流阶段处理
+这些数组的问题是：一个 provider 只能被归到某个输入类别下，无法自然表达 Jina 这种多能力 provider。
 
-所以当前分支的定位应当是：
+### 3.2 Main service 暴露两个工具入口
 
-`引入 Main-side backend`，而不是 `完成 WebSearch 迁移`
+Main-side service 的目标公共入口是两个意图明确的方法：
+
+```typescript
+searchKeywords({
+  providerId?,
+  keywords
+})
+
+fetchUrls({
+  providerId?,
+  urls
+})
+```
+
+原因：
+
+1. `searchKeywords` 和 `fetchUrls` 对 AI SDK tools 是两个不同工具。
+2. tool description 可以让模型完成意图选择。
+3. service request 不需要再携带 `capability` 字段。
+4. WebSearchService 不接收、不生成、不返回 `requestId`；工具调用身份、lifecycle、abort 和 UI 状态由 tool block / tool runtime 承担。
+5. service 内部仍可以复用一个私有执行管线，避免重复 fanout / merge / blacklist / post process 逻辑。
+
+调用方职责：
+
+1. 当用户意图是“查询北京天气”时，调用 `searchKeywords({ keywords: ['北京天气'] })`。
+2. 当用户意图是“获取 xxx.com 的内容”时，调用 `fetchUrls({ urls: ['https://xxx.com'] })`。
+3. 如果一次用户请求需要两类能力，调用方分别调用两个工具并自行编排结果。
+4. `providerId` 是可选覆盖；不传时由 service 按 capability 读取默认 provider preference。
+
+### 3.3 Driver 方法使用领域动作命名
+
+Provider driver 不再统一暴露一个含糊的 `search(query)` 方法。
+
+目标方法：
+
+1. `searchKeywords(input, config, httpOptions?)`
+2. `fetchUrls(input, config, httpOptions?)`
+
+Driver 只实现自己支持的 capability。service 在调用前必须根据 provider capability registry 校验支持关系。
+
+### 3.4 Jina 是一个 provider
+
+Jina 在目标架构里是一个 provider，而不是两个 provider。
+
+目标 provider id：
+
+```text
+jina
+```
+
+Jina 支持两个 capability：
+
+1. `searchKeywords`
+2. `fetchUrls`
+
+Jina 的两个能力共享同一组 API key，但使用不同 endpoint。
+
+Jina 官方 Reader 文档也把这两个能力分开描述：
+
+1. `https://r.jina.ai` 用于读取 URL 并获取内容。
+2. `https://s.jina.ai` 用于搜索网络并获取 SERP。
+
+参考：
+
+1. <https://jina.ai/reader/>
+2. <https://github.com/jina-ai/reader>
+
+### 3.5 不为 v2 旧数据做兼容
+
+本次重构不兼容 v2 开发过程中的中间数据。
+
+因此可以做破坏性调整：
+
+1. `jina-reader` 可以改为 `jina`。
+2. 旧 `searchUrls` request type 可以移除或替换。
+3. 旧 provider id 分类类型可以移除。
+4. v2 开发过程中的旧 preference 中间形态不需要迁移或别名兼容。
+
+这不改变 v1 到 v2 的正式迁移职责；已发布 v1 数据仍应通过 `src/main/data/migration/v2/` 下的 migrator 进入目标结构。
+
+如果后续需要保护 v2 开发分支上的中间配置，应作为新的兼容性任务单独设计，而不是污染这次 Main service 架构。
 
 ---
 
-## 5. 当前已落地的执行流
+## 4. Shared Contract
 
-如果只看新增的 Main-side backend，当前执行流如下：
+WebSearch preset 应参考 File Processing preset 的 layered preset pattern：
+
+1. preset 是只读模板，放在 `packages/shared/data/presets/`。
+2. 用户配置只存 override delta。
+3. runtime config 由 preset 与 override merge 得到。
+4. capability 是 preset 内的一等元素，capability 自己携带可覆盖的 API 配置。
+
+File Processing 已经采用这个形状：
+
+```typescript
+capabilities: [
+  {
+    feature: 'document_to_markdown',
+    inputs: ['document'],
+    output: 'markdown',
+    apiHost: 'https://mineru.net',
+    modelId: 'pipeline'
+  }
+]
+```
+
+WebSearch 应复用这个设计语言，而不是重新发明一套 `defaultApiHost` / `capabilityApiHosts` 命名。
+
+但 WebSearch 不需要照搬 File Processing 的 `inputs` / `output` 字段。File Processing 需要它们，是因为同一个 processor feature 要声明支持的文件输入类别和产物类型；WebSearch 的 capability 名已经决定输入语义，且输出统一是 `WebSearchResponse`。
+
+### 4.1 Capability 类型
+
+Shared contract 应定义稳定 capability：
+
+```typescript
+type WebSearchCapability = 'searchKeywords' | 'fetchUrls'
+```
+
+### 4.2 Request 类型
+
+目标 request contract：
+
+```typescript
+type WebSearchSearchKeywordsRequest = {
+  providerId?: WebSearchProviderId
+  keywords: string[]
+}
+
+type WebSearchFetchUrlsRequest = {
+  providerId?: WebSearchProviderId
+  urls: string[]
+}
+```
+
+输入约束：
+
+1. `keywords` 必须至少包含一个非空 keyword query。
+2. `urls` 必须至少包含一个合法 URL。
+3. `searchKeywords` request 不接受 URL 抓取语义。
+4. `fetchUrls` request 不接受 keyword 搜索语义。
+5. `providerId` 是调用方可选覆盖，不应要求 AI 模型每次指定 provider。
+
+### 4.3 Default Provider Preference
+
+WebSearch 默认 provider 参考 File Processing 的 feature default 模式：每个 capability 一个 default preference。
+
+目标 preference keys：
+
+```typescript
+'chat.web_search.default_search_keywords_provider': WebSearchProviderId | null
+'chat.web_search.default_fetch_urls_provider': WebSearchProviderId | null
+```
+
+规则：
+
+1. `searchKeywords` 未传 `providerId` 时读取 `chat.web_search.default_search_keywords_provider`。
+2. `fetchUrls` 未传 `providerId` 时读取 `chat.web_search.default_fetch_urls_provider`。
+3. default value 为 `null` 时，service 抛配置错误，不自动选择首个可用 provider。
+4. request 显式传入 `providerId` 时，使用该 provider 作为覆盖。
+5. 显式 provider 或 default provider 不支持对应 capability 时，service 抛明确错误，不自动 fallback。
+6. 旧 `chat.web_search.default_provider` 不进入目标架构；本次不做旧 preference 兼容迁移。
+
+### 4.4 Response 类型
+
+继续使用统一 response：
+
+```typescript
+type WebSearchResult = {
+  title: string
+  content: string
+  url: string
+  sourceInput: string
+}
+
+type WebSearchResponse = {
+  query?: string
+  providerId: WebSearchProviderId
+  capability: WebSearchCapability
+  inputs: string[]
+  results: WebSearchResult[]
+}
+```
+
+`query` 的含义按 capability 解释：
+
+1. `searchKeywords`：调用方传入的 keyword query 合并展示。
+2. `fetchUrls`：调用方传入的 URL 合并展示。
+
+`results` 始终是模型可消费内容，不暴露 provider 原始返回结构。
+
+Trace metadata：
+
+1. `providerId` 是本次 tool call 实际使用的 provider，包括 default provider 解析后的结果。
+2. `capability` 是本次 tool call 的能力：`searchKeywords` 或 `fetchUrls`。
+3. `inputs` 是本次 tool call 的规范化输入数组。
+4. `sourceInput` 记录单条 result 来自哪个 keyword 或 URL，用于后续按 tool call / query 分组和去重。
+5. 不在当前 contract 中加入 `warnings`、`failedInputs`。
+
+`requestId` 不属于新的 WebSearch 领域 contract：
+
+1. 单次 tool 调用的身份由 tool runtime / message block 的 tool call id 承载。
+2. 多次 WebSearch tool 调用的聚合边界是 assistant turn，而不是 WebSearch 内部 request。
+3. Abort、running、done、error 状态由 tool block lifecycle 表达。
+4. WebSearchService 只负责执行 capability 并返回内容结果，不负责维护 UI 进度状态。
+
+因此实现迁移时应删除 WebSearch request / response / status 中的 `requestId`，而不是保留空字段或透传字段。
+
+`query` 必须保留 request input 的语义，而不是 provider 处理后的 query：
+
+1. 可以做最小本地规范化，例如 trim 空白和 URL 校验。
+2. 不应使用 Exa `autopromptString`、Bocha `originalQuery`、Tavily 返回的 `query` 等 provider response 字段覆盖它。
+3. 不应记录旧 `searchWithTime` 这类注入后的 query。
+4. 对 `fetchUrls`，`query` 保留输入 URL；最终跳转 URL 或 provider 返回 URL 应放在 result 的 `url` 字段。
+
+如果后续确实需要展示 provider 改写后的 query，应新增 provider metadata 字段单独承载，不能改变 `query` 的含义。
+
+### 4.5 Provider Definition
+
+Provider definition 应表达 capability 与 endpoint 的关系。
+
+目标结构参考 File Processing preset：
+
+```typescript
+type WebSearchProviderFeatureCapability =
+  | {
+      feature: 'searchKeywords'
+      apiHost?: string
+    }
+  | {
+      feature: 'fetchUrls'
+      apiHost?: string
+    }
+
+type WebSearchProviderPresetConfig = {
+  name: string
+  type: WebSearchProviderType
+  capabilities: readonly WebSearchProviderFeatureCapability[]
+}
+
+type WebSearchProviderPreset = {
+  id: WebSearchProviderId
+} & WebSearchProviderPresetConfig
+```
+
+命名规则：
+
+1. 使用 `feature` 作为 discriminant，保持与 File Processing 的 capability schema 一致。
+2. `apiHost` 是 capability 默认 endpoint，不再使用 provider 级 `defaultApiHost`。
+3. 不增加 `inputs` / `output` 字段；`searchKeywords` 固定接收 keyword query，`fetchUrls` 固定接收 URL，输出统一为 `WebSearchResponse`。
+
+对于只有一个 endpoint 的 provider，也把 endpoint 放在唯一 capability 上。
+
+对于 Jina 这种多 endpoint provider，必须按 capability 配置 endpoint：
+
+```text
+jina.capabilities[feature=searchKeywords].apiHost -> https://s.jina.ai
+jina.capabilities[feature=fetchUrls].apiHost      -> https://r.jina.ai
+```
+
+Preset map 的目标形状：
+
+```typescript
+export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
+  jina: {
+    name: 'Jina',
+    type: 'api',
+    capabilities: [
+      {
+        feature: 'searchKeywords',
+        apiHost: 'https://s.jina.ai'
+      },
+      {
+        feature: 'fetchUrls',
+        apiHost: 'https://r.jina.ai'
+      }
+    ]
+  }
+} as const satisfies Record<WebSearchProviderId, WebSearchProviderPresetConfig>
+```
+
+### 4.6 Provider Override
+
+Provider override 需要支持 capability-specific endpoint。
+
+目标语义：
+
+1. API keys 仍属于 provider。
+2. API host 属于 capability override。
+3. engines / basic auth 仍按 provider 归属，除非后续某个 provider 明确需要 capability 级配置。
+4. override 只存用户修改过的字段，不复制 preset 默认值。
+
+示例语义：
+
+```typescript
+type WebSearchProviderCapabilityOverride = {
+  apiHost?: string
+}
+
+type WebSearchProviderOverride = {
+  apiKeys?: string[]
+  capabilities?: Partial<Record<WebSearchCapability, WebSearchProviderCapabilityOverride>>
+  engines?: string[]
+  basicAuthUsername?: string
+  basicAuthPassword?: string
+}
+```
+
+`apiHost` 单字段不再足以表达目标架构。实现时应一次性替换为 capability-aware shape。
+
+Merged provider config 应和 File Processing 一样保留 capability array，而不是把 capability override 暴露为 Record：
+
+```typescript
+type ResolvedWebSearchProvider = WebSearchProviderPreset & {
+  apiKeys?: string[]
+  capabilities: WebSearchProviderFeatureCapability[]
+  engines?: string[]
+  basicAuthUsername?: string
+  basicAuthPassword?: string
+}
+```
+
+merge 规则：
+
+1. 先按 provider id 读取 preset。
+2. 再读取 provider override。
+3. provider-level 字段直接 merge。
+4. capability override 按 `feature` merge 回 preset 的 `capabilities[]`。
+5. 未出现在 preset capabilities 里的 override capability 应忽略或在 schema 层禁止。
+
+---
+
+## 5. Main-side 执行流
+
+目标公共执行流：
 
 ```text
 Caller
-  -> Future Entry Adapter / In-Process Caller
-  -> getProviderById(providerId)
-  -> getRuntimeConfig()
-  -> createWebSearchProvider(provider)
-  -> Promise.allSettled(
-       questions.map((question) => providerDriver.search(question, runtimeConfig))
-     )
-  -> merge successful results
-  -> filterWebSearchResponseWithBlacklist()
-  -> postProcessWebSearchResponse()
-  -> setWebSearchStatus()
-  -> clearWebSearchStatus()
+  -> WebSearchService.searchKeywords(request)
+     or WebSearchService.fetchUrls(request)
+  -> resolve providerId from request override or capability default preference
+  -> resolve provider config
+  -> validate provider supports the method capability
+  -> create provider driver
+  -> fanout request keywords/urls with matching driver method
+  -> Promise.allSettled()
+  -> reject immediately on AbortError
+  -> log partial failures
+  -> require at least one successful keyword or URL
+  -> merge successful responses and keep request keywords/urls as response.query
+  -> apply blacklist
+  -> post process
   -> WebSearchResponse
 ```
 
-补充说明：
+### 5.1 Fanout
 
-1. `fetch_complete` 只会在多 query 且成功结果多于 1 个时写入
-2. `partial_failure` 会在多 query 且至少一个成功、至少一个失败时写入
-3. `cutoff` 由 `postProcessing.ts` 产出状态
-4. blacklist 发生在结果 merge 之后、post process 之前
-5. `clearWebSearchStatus()` 在 `finally` 中执行，因此无论成功或失败都会清理状态
+`keywords` / `urls` 使用 fanout 执行。
+
+每个 keyword 或 URL 独立调用 provider capability 方法：
+
+1. `searchKeywords` 调用 driver 的 `searchKeywords(input, ...)`。
+2. `fetchUrls` 调用 driver 的 `fetchUrls(input, ...)`。
+
+多个 keyword 或 URL 的结果按完成后的 successful results 合并。
+
+实现可以有一个私有 helper 承载共同流程，例如：
+
+```typescript
+private runCapability({
+  providerId,
+  feature,
+  inputs
+})
+```
+
+这个 helper 是实现细节，不作为 AI SDK tools 或对外 service contract。
+
+### 5.2 部分失败
+
+继续保留当前 Main-side 语义：
+
+1. 如果有 AbortError，整次 request 立即按 abort 失败。
+2. 如果至少一个 keyword 或 URL 成功，整次 request 可以返回成功结果。
+3. 如果所有 keyword 或 URL 都失败，整次 request 失败。
+4. 部分失败不再通过 shared cache 写 UI 状态；service 记录日志并返回成功结果。
+5. 部分失败不写入 `warnings` / `failedInputs`；当前 response contract 只返回成功结果。
+
+### 5.3 UI 展示与状态
+
+WebSearch tool 化后仍然需要展示搜索结果。
+
+目标 UI 数据来源：
+
+1. 每次 `searchKeywords` / `fetchUrls` tool call 都产生一个 `WebSearchResponse`。
+2. Tool execution UI 复用现有 MCP / tool block UI，展示 running / done / error。
+3. 右侧“搜索结果”面板按 assistant turn 聚合该轮所有 web search/fetch tool outputs。
+4. inline citation / sources 从同一份聚合结果派生。
+5. `searchKeywords` 和 `fetchUrls` 都输出 `{ title, content, url }[]`，UI 不需要知道 provider 原始协议。
+
+推荐聚合规则：
+
+1. 聚合范围是当前 assistant message / assistant turn，而不是单个 tool call。
+2. 默认按 tool call 或 query 分组，组内按 provider 返回顺序展示。
+3. 相同 URL 去重，保留第一次出现的编号和内容。
+4. `searchKeywords` 与 `fetchUrls` 可以在同一个面板展示，但应保留来源标签或分组标题。
+5. 部分失败只影响对应 tool call；成功结果仍进入聚合结果。
+
+这类结果展示不依赖 `chat.web_search.active_searches`。`active_searches` 只适合表达运行中的短暂进度，不适合保存或聚合搜索结果。
+
+#### `chat.web_search.active_searches`
+
+新 Main-side WebSearch 架构不再需要 `chat.web_search.active_searches`。
+
+当前代码里的 `chat.web_search.active_searches` 是旧 UI 进度通道：
+
+1. Renderer `CitationBlock` 读取它来显示 processing spinner 文案。
+2. 旧 Renderer WebSearch service 写入它来显示 `fetch_complete` / `partial_failure` / `cutoff`。
+3. 当前 Main-side prototype 也写入它，是为了让 Main 执行时能复用同一套 UI spinner。
+
+Tool 化后，这个 shared cache 不再是结果展示边界：
+
+1. AI SDK tool call 本身已经有运行中、完成、失败的生命周期。
+2. `fetch_complete` 可以由 tool result 的 sources count 和 tool block 完成状态表达。
+3. `partial_failure` 是 service 内部 fanout 的降级语义，不一定需要 UI 单独展示。
+4. `cutoff` 是后处理细节，不应要求一个跨窗口 cache key 才能工作。
+
+目标架构中：
+
+1. 搜索结果面板从该 assistant turn 的 tool blocks 聚合 `WebSearchResponse.results`。
+2. WebSearchService 不写 `chat.web_search.active_searches`。
+3. WebSearchService 不依赖 `WebSearchStatus` / `WebSearchPhase`。
+4. UI 运行中状态由 AI SDK tool invocation state 或 message/tool block state 表达。
+5. 如果 UI 仍需要跨组件的细粒度进度，再新增明确的 tool progress event、callback 或 tool block progress 字段；不要把 shared cache 作为 service contract。
+
+旧 Renderer WebSearch service 如果仍写入并依赖 `chat.web_search.active_searches`，可以留到旧链路清理时删除。它不属于新 Main-side WebSearch 架构。
+
+### 5.4 Blacklist 与 Post Processing
+
+处理顺序固定为：
+
+```text
+merge successful responses
+  -> blacklist filter
+  -> post processing
+```
+
+理由：
+
+1. blacklist 应作用于所有 provider 归一化后的 URL。
+2. cutoff 应作用于最终进入模型上下文的内容。
 
 ---
 
-## 6. 当前实现边界
+## 6. Provider Capability Matrix
 
-### 6.1 上游负责什么
+目标 capability matrix：
 
-上游调用方仍然负责：
+| Provider | ID | searchKeywords | fetchUrls | Notes |
+| --- | --- | --- | --- | --- |
+| Zhipu | `zhipu` | Yes | No | API keyword search |
+| Tavily | `tavily` | Yes | No | API keyword search |
+| Searxng | `searxng` | Yes | No | 搜索后内部抓取搜索结果 URL 正文，但对外仍是 `searchKeywords` |
+| Exa | `exa` | Yes | No | API keyword search |
+| Exa MCP | `exa-mcp` | Yes | No | MCP-style keyword search |
+| Bocha | `bocha` | Yes | No | API keyword search |
+| Querit | `querit` | Yes | No | API keyword search |
+| Fetch | `fetch` | No | Yes | 本地 URL 内容抓取 |
+| Jina | `jina` | Yes | Yes | `s.jina.ai` 搜索，`r.jina.ai` 抓取 URL |
 
-1. 把用户意图整理成 `questions`
-2. 决定是否需要发起 WebSearch
-3. 决定使用哪个 provider
-4. 在当前分支里，很多调用方仍然直接走 Renderer 旧实现
-
-### 6.2 Main-side WebSearch 负责什么
-
-当前 Main-side WebSearch 已经负责：
-
-1. provider 配置解析
-2. provider driver 构造
-3. provider 搜索执行
-4. 结果归并
-5. 黑名单过滤
-6. `none` / `cutoff` 后处理
-7. 搜索状态写入 shared cache
-
-### 6.3 还不属于 Main-side contract 的内容
-
-这些内容当前仍然不进入 Main-side contract：
-
-1. 原始 `links`
-2. `summarize`
-3. XML 结构
-4. Renderer toast / UI 文案
-5. Renderer span / tracing 细节
-6. 临时知识库驱动的 RAG 压缩执行链
+注意：Searxng 内部会抓取搜索结果页面内容，但它的外部 capability 仍是 `searchKeywords`。Capability 描述的是调用方输入语义，不是 provider 内部实现步骤。
 
 ---
 
-## 7. 与 `v2` 的关系
+## 7. Settings 与 Check 行为
 
-从 `v2` 到当前分支，WebSearch 架构的核心变化可以概括为三句话：
+Settings 仍按 provider 展示配置，但需要展示 provider 支持的 capability。
 
-1. `v2` 的搜索核心还在 Renderer。
-2. 当前分支已经补出一套 Main-side backend。
-3. 但当前分支还没有完成调用方切换，所以系统仍处于“双栈并存”阶段。
+目标展示语义：
 
-因此，现在最合适的定位不是：
+1. 一个 provider 一个配置区。
+2. API key 属于 provider。
+3. endpoint 按 capability 展示。
+4. Jina 显示 `searchKeywords` 和 `fetchUrls` 两个 endpoint。
 
-`WebSearch 已迁移到 Main`
+Provider check 应按 capability 执行。
 
-而是：
+检查输入：
 
-`WebSearch 的 Main-side backend 已落地第一版，后续还需要把 Renderer / aiCore / Settings 入口逐步切过去`
+1. `searchKeywords` 使用稳定 test query，例如 `test query`。
+2. `fetchUrls` 使用稳定 URL，例如 `https://example.com`。
+
+检查结果：
+
+1. 所有 capability 都通过，provider check 才算通过。
+2. 某个 capability 失败时，错误信息应带 capability，避免用户不知道是哪条 endpoint 或能力失败。
 
 ---
 
-## 8. 后续迁移应以什么为目标
+## 8. 当前不做的事
 
-如果沿着这次分支继续推进，后续目标应该是：
+本次 Main-side 架构重构不包含：
 
-1. Renderer 聊天链路改为通过统一入口调用 Main-side WebSearch
-2. 设置页 provider 检查改为复用 Main-side provider driver
-3. aiCore 迁移后直接成为 Main-side in-process caller
-4. Renderer 旧 `providers/WebSearchProvider/*` 逐步下线
-5. Main-side `rag` 压缩再决定是否补齐
+1. Renderer / aiCore 执行链路切到 Main-side service。
+2. Renderer 旧 `WebSearchService` 和旧 provider driver 清理。
+3. IPC / preload 公共入口设计。
+4. tracing / span 迁移。
+5. Main-side `rag` post processing 实现。
+6. 旧 preference 数据兼容迁移。
+7. `searchWithTime` 恢复。
+8. 把右侧搜索结果面板绑定到 `chat.web_search.active_searches`。
 
-完成这些步骤之后，文档才可以把 WebSearch 描述为：
+`searchWithTime` 仍视为旧 Renderer WebSearch 栈里的遗留行为，不进入新的 Main-side runtime contract。
 
-`Main 的共享搜索后端`
+---
 
-而不是当前这个阶段性的：
+## 9. 测试要求
 
-`Main backend 已起出，但系统尚未完成切流`
+实现本架构时必须更新或新增以下测试。
+
+### 9.1 Provider Registry / Factory
+
+覆盖：
+
+1. 每个 provider 的 capability matrix。
+2. 不支持 capability 时抛明确错误。
+3. Jina 同时支持 `searchKeywords` 和 `fetchUrls`。
+
+### 9.2 Provider Drivers
+
+覆盖：
+
+1. Jina `fetchUrls` 使用 `https://r.jina.ai` endpoint。
+2. Jina `searchKeywords` 使用 `https://s.jina.ai` endpoint。
+3. Fetch 只支持 `fetchUrls`。
+4. Keyword-only provider 不支持 `fetchUrls`。
+5. URL 输入非法时，`fetchUrls` 在发请求前失败。
+
+### 9.3 WebSearchService
+
+覆盖：
+
+1. `searchKeywords()` fanout 与结果合并。
+2. `fetchUrls()` fanout 与结果合并。
+3. 未传 `providerId` 时读取对应 capability default provider。
+4. default provider 为 `null` 时抛配置错误。
+5. 显式或默认 provider 不支持 capability 时抛明确错误。
+6. response 包含 `providerId` / `capability` / `inputs` 和 result 级 `sourceInput`。
+7. 部分失败时仍返回成功结果并记录失败日志。
+8. 全部失败时抛错。
+9. AbortError 直接向上抛。
+10. 单个 tool call 返回的 `WebSearchResponse.results` 可被 assistant turn 级搜索结果面板聚合。
+11. blacklist 发生在 post processing 前。
+
+### 9.4 Settings Check
+
+覆盖：
+
+1. 多 capability provider 会逐 capability 检查。
+2. capability check 失败时错误带 capability。
+3. Jina 两个 endpoint 分别可配置。
+
+---
+
+## 10. 迁移后的目标状态
+
+完成本架构后，Main-side WebSearch 应具备以下形态：
+
+```text
+Shared Provider Preset
+  -> provider capabilities
+  -> capability endpoint defaults
+
+Preference Override
+  -> provider credentials
+  -> capability endpoint overrides
+
+Main WebSearchService
+  -> searchKeywords(providerId?, keywords)
+  -> fetchUrls(providerId?, urls)
+  -> provider capability validation
+  -> provider driver capability method
+  -> result normalization
+  -> blacklist
+  -> post processing
+```
+
+这时 WebSearch 的核心边界会变成：
+
+1. Provider 表达“用哪个服务和配置”。
+2. Capability 表达“执行哪类动作”。
+3. Service tools 表达“调用方或 AI 模型可以选择的意图入口”。
+4. Request 表达“这次工具调用的一组同类输入”。
+
+这个模型可以自然支持 Jina 这类多能力 provider，也避免继续把 URL 内容抓取伪装成搜索。

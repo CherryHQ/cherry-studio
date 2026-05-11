@@ -7,6 +7,7 @@ vi.mock('@renderer/i18n', () => ({
       const translations: Record<string, string> = {
         'title.home': '首页',
         'common.chat': '聊天',
+        'common.agent_one': '智能体',
         'title.store': '助手库',
         'title.paintings': '绘画',
         'title.translate': '翻译',
@@ -15,6 +16,7 @@ vi.mock('@renderer/i18n', () => ({
         'title.files': '文件',
         'title.code': 'Code',
         'title.notes': '笔记',
+        'title.openclaw': 'OpenClaw',
         'title.settings': '设置'
       }
       return translations[key] || key
@@ -35,14 +37,16 @@ describe('routeTitle', () => {
         ['/', '首页'],
         ['/home', '首页'],
         ['/app/chat', '聊天'],
+        ['/app/agents', '智能体'],
         ['/app/assistant', '助手库'],
         ['/app/paintings', '绘画'],
         ['/app/translate', '翻译'],
-        ['/app/minapp', '小程序'],
+        ['/app/mini-app', '小程序'],
         ['/app/knowledge', '知识库'],
         ['/app/files', '文件'],
         ['/app/code', 'Code'],
         ['/app/notes', '笔记'],
+        ['/app/openclaw', 'OpenClaw'],
         ['/settings', '设置']
       ])('should return correct title for %s', (url, expectedTitle) => {
         expect(getDefaultRouteTitle(url)).toBe(expectedTitle)
@@ -52,6 +56,7 @@ describe('routeTitle', () => {
     describe('nested route matches', () => {
       it('should match base path for nested routes', () => {
         expect(getDefaultRouteTitle('/app/chat/topic-123')).toBe('聊天')
+        expect(getDefaultRouteTitle('/app/agents/session-123')).toBe('智能体')
         expect(getDefaultRouteTitle('/settings/provider')).toBe('设置')
         expect(getDefaultRouteTitle('/settings/mcp/servers')).toBe('设置')
         expect(getDefaultRouteTitle('/app/paintings/zhipu')).toBe('绘画')
@@ -109,7 +114,9 @@ describe('routeTitle', () => {
       it.each([
         ['/', 'title.home'],
         ['/app/chat', 'common.chat'],
+        ['/app/agents', 'common.agent_one'],
         ['/app/assistant', 'title.store'],
+        ['/app/openclaw', 'title.openclaw'],
         ['/settings', 'title.settings']
       ])('should return i18n key for %s', (url, expectedKey) => {
         expect(getRouteTitleKey(url)).toBe(expectedKey)
@@ -119,6 +126,7 @@ describe('routeTitle', () => {
     describe('base path matches', () => {
       it('should return base path key for nested routes', () => {
         expect(getRouteTitleKey('/app/chat/topic-123')).toBe('common.chat')
+        expect(getRouteTitleKey('/app/agents/session-123')).toBe('common.agent_one')
         expect(getRouteTitleKey('/settings/provider')).toBe('title.settings')
       })
     })

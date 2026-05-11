@@ -1,16 +1,19 @@
 import { cacheService } from '@data/CacheService'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { getAnthropicReasoningParams } from '@renderer/aiCore/utils/reasoning'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
+import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { selectNewTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { getModel } from '@renderer/hooks/useModel'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { isSoulModeEnabled } from '@renderer/pages/agents/AgentSettings/shared'
 import { InputbarCore } from '@renderer/pages/home/Inputbar/components/InputbarCore'
 import {
   InputbarToolsProvider,
@@ -73,7 +76,7 @@ const AgentSessionInputbar = ({ agentId, sessionId }: Props) => {
     const actualModel = actualModelId ? getModel(actualModelId, providerId) : undefined
 
     return {
-      id: session.agent_id ?? agentId,
+      id: session.agentId ?? agentId,
       name: session.name ?? 'Agent Session',
       prompt: session.instructions ?? '',
       topics: [],
@@ -91,9 +94,9 @@ const AgentSessionInputbar = ({ agentId, sessionId }: Props) => {
     return {
       agentId,
       sessionId,
-      slashCommands: session.slash_commands,
+      slashCommands: session.slashCommands,
       tools: session.tools,
-      accessiblePaths: session.accessible_paths ?? []
+      accessiblePaths: session.accessiblePaths ?? []
     }
   }, [session, agentId, sessionId])
 
@@ -147,6 +150,7 @@ interface InnerProps {
 }
 
 const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, sessionId, sessionData, actionsRef }) => {
+  const { agent: agentBase } = useAgent(agentId)
   const scope = TopicType.Session
   const config = getInputbarConfig(scope)
 
@@ -169,7 +173,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     customHeight,
     setCustomHeight
   } = useTextareaResize({ maxHeight: 500, minHeight: 30 })
-  const { sendMessageShortcut, apiServer } = useSettings()
+  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const { apiServerConfig, apiServerRunning } = useApiServer()
 
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -331,7 +336,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     }
   }, [config.enableQuickPanel, toolsRegistry])
 
-  const sendDisabled = (inputEmpty && files.length === 0) || !apiServer.enabled
+  const sendDisabled = (inputEmpty && files.length === 0) || !apiServerConfig.enabled || !apiServerRunning
 
   const streamingAskIds = useMemo(() => {
     if (!topicMessages) {
@@ -487,13 +492,14 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     ),
     [config.showTools, scope, assistant, toolsSession]
   )
-  const placeholderText = useMemo(
-    () =>
-      t('agent.input.placeholder', {
-        key: getSendMessageShortcutLabel(sendMessageShortcut)
-      }),
-    [sendMessageShortcut, t]
-  )
+  const placeholderText = useMemo(() => {
+    if (isSoulModeEnabled(agentBase?.configuration)) {
+      return t('agent.input.soul_placeholder')
+    }
+    return t('agent.input.placeholder', {
+      key: getSendMessageShortcutLabel(sendMessageShortcut)
+    })
+  }, [agentBase?.configuration, sendMessageShortcut, t])
 
   return (
     <InputbarCore

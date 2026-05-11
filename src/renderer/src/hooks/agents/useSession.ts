@@ -1,41 +1,28 @@
-import { useAppDispatch } from '@renderer/store'
-import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { useEffect, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
+import type { GetAgentSessionResponse } from '@renderer/types'
+import { useMemo } from 'react'
 
-import { useAgentClient } from './useAgentClient'
 import { useUpdateSession } from './useUpdateSession'
+import { parseAgentConfiguration } from './utils'
 
 export const useSession = (agentId: string | null, sessionId: string | null) => {
-  const { t } = useTranslation()
-  const client = useAgentClient()
-  const key = agentId && sessionId ? client.getSessionPaths(agentId).withId(sessionId) : null
-  const dispatch = useAppDispatch()
-  const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : null), [sessionId])
+  const { data, error, isLoading, mutate } = useQuery('/agents/:agentId/sessions/:sessionId', {
+    params: { agentId: agentId!, sessionId: sessionId! },
+    enabled: !!(agentId && sessionId),
+    swrOptions: { keepPreviousData: false }
+  })
   const { updateSession } = useUpdateSession(agentId)
 
-  const fetcher = async () => {
-    if (!agentId) throw new Error(t('agent.get.error.null_id'))
-    if (!sessionId) throw new Error(t('agent.session.get.error.null_id'))
-    const data = await client.getSession(agentId, sessionId)
-    return data
-  }
-  const { data, error, isLoading, mutate } = useSWR(key, fetcher)
-
-  // Use loadTopicMessagesThunk to load messages (with caching mechanism)
-  // This ensures messages are preserved when switching between sessions/tabs
-  useEffect(() => {
-    if (sessionTopicId) {
-      // loadTopicMessagesThunk will check if messages already exist in Redux
-      // and skip loading if they do (unless forceReload is true)
-      void dispatch(loadTopicMessagesThunk(sessionTopicId))
+  const session = useMemo((): GetAgentSessionResponse | undefined => {
+    if (!data) return undefined
+    return {
+      ...(data as unknown as GetAgentSessionResponse),
+      configuration: parseAgentConfiguration(data.configuration, { entityId: data.id, entityType: 'session' })
     }
-  }, [dispatch, sessionId, sessionTopicId])
+  }, [data])
 
   return {
-    session: data,
+    session,
     error,
     isLoading,
     updateSession,

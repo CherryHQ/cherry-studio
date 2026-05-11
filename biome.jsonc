@@ -23,7 +23,15 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!**/.claude/**", "!**/.vscode/**", "!**/.conductor/**", "!v2-refactor-temp/**"],
+    "includes": [
+      "**",
+      "!**/.claude/**",
+      "!**/.vscode/**",
+      "!**/.conductor/**",
+      "!v2-refactor-temp/**",
+      "!resources/**",
+      "!**/dist/**"
+    ],
     "maxSize": 2097152
   },
   "formatter": {

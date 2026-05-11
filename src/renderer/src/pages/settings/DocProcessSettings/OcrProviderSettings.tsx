@@ -1,13 +1,11 @@
 // import { loggerService } from '@logger'
-import { Flex } from '@cherrystudio/ui'
+import { Divider, Flex } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import type { OcrProvider } from '@renderer/types'
 import { isBuiltinOcrProvider, isOcrSystemProvider } from '@renderer/types'
-import { Divider } from 'antd'
-import styled from 'styled-components'
 
 import { SettingGroup, SettingTitle } from '..'
 import { OcrOVSettings } from './OcrOVSettings'
@@ -19,9 +17,10 @@ import { OcrTesseractSettings } from './OcrTesseractSettings'
 
 type Props = {
   provider: OcrProvider
+  embedded?: boolean
 }
 
-const OcrProviderSettings = ({ provider }: Props) => {
+const OcrProviderSettings = ({ provider, embedded = false }: Props) => {
   const { theme: themeMode } = useTheme()
   const { OcrProviderLogo, getOcrProviderName } = useOcrProviders()
 
@@ -48,12 +47,20 @@ const OcrProviderSettings = ({ provider }: Props) => {
     }
   }
 
+  if (embedded) {
+    return (
+      <ErrorBoundary>
+        <ProviderSettings />
+      </ErrorBoundary>
+    )
+  }
+
   return (
     <SettingGroup theme={themeMode}>
       <SettingTitle>
         <Flex className="items-center gap-2">
           <OcrProviderLogo provider={provider} />
-          <ProviderName> {getOcrProviderName(provider)}</ProviderName>
+          <span className="font-medium text-sm">{getOcrProviderName(provider)}</span>
         </Flex>
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
@@ -63,10 +70,5 @@ const OcrProviderSettings = ({ provider }: Props) => {
     </SettingGroup>
   )
 }
-
-const ProviderName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-`
 
 export default OcrProviderSettings

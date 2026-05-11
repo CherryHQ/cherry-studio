@@ -1,18 +1,22 @@
 import type { AiPlugin } from '@cherrystudio/ai-core'
-import { createPromptToolUsePlugin, webSearchPlugin } from '@cherrystudio/ai-core/built-in/plugins'
+import { createPromptToolUsePlugin, providerToolPlugin } from '@cherrystudio/ai-core/built-in/plugins'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { isGemini3Model, isQwen35Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
+import {
+  isDeepSeekModel,
+  isGemini3Model,
+  isQwen35to39Model,
+  isSupportedThinkingTokenQwenModel
+} from '@renderer/config/models'
 import type { Assistant, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 
 import type { AiSdkMiddlewareConfig } from '../types/middlewareConfig'
-import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { getReasoningTagName } from '../utils/reasoning'
 import { createAnthropicCachePlugin } from './anthropicCachePlugin'
+import { createDeepseekDsmlParserPlugin } from './deepseekDsmlParserPlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
-import { createOpenrouterGenerateImagePlugin } from './openrouterGenerateImagePlugin'
 import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
 import { createPdfCompatibilityPlugin } from './pdfCompatibilityPlugin'
 import { createQwenThinkingPlugin } from './qwenThinkingPlugin'
@@ -27,7 +31,7 @@ const logger = loggerService.withContext('PluginBuilder')
 /**
  * 构建插件的上下文参数
  *
- * provider 和 model 是必选的 — 由 ModernAiProvider 内部注入，
+ * provider 和 model 是必选的 — 由 AiProvider 内部注入，
  * 不再依赖调用方手动传入，从根本上避免遗漏。
  */
 export interface BuildPluginsContext {
@@ -86,6 +90,11 @@ export async function buildPlugins({ provider, model, config }: BuildPluginsCont
     plugins.push(createOpenrouterReasoningPlugin())
   }
 
+  // 0.3.1 DeepSeek DSML tool-call parser — converts leaked DSML tags into proper tool calls
+  if (isDeepSeekModel(model)) {
+    plugins.push(createDeepseekDsmlParserPlugin())
+  }
+
   // 0.4 OVMS no-think for MCP tools
   if (provider.id === 'ovms' && config.mcpTools && config.mcpTools.length > 0) {
     plugins.push(createNoThinkPlugin())
@@ -95,26 +104,24 @@ export async function buildPlugins({ provider, model, config }: BuildPluginsCont
   if (
     !isOllamaProvider(provider) &&
     isSupportedThinkingTokenQwenModel(model) &&
-    !isQwen35Model(model) &&
+    !isQwen35to39Model(model) &&
     !isSupportEnableThinkingProvider(provider)
   ) {
     const enableThinking = config.assistant?.settings?.reasoning_effort !== undefined
     plugins.push(createQwenThinkingPlugin(enableThinking))
   }
 
-  // 0.6 OpenRouter Gemini image generation
-  if (isOpenRouterGeminiGenerateImageModel(model, provider)) {
-    plugins.push(createOpenrouterGenerateImagePlugin())
-  }
-
-  // 0.7 Skip Gemini3 thought signature for OpenAI-compatible API
+  // 0.6 Skip Gemini3 thought signature for OpenAI-compatible API
   if (isGemini3Model(model)) {
     plugins.push(createSkipGeminiThoughtSignaturePlugin())
   }
 
-  // 1. 模型内置搜索
+  // 1. Provider 工具注入 — providerToolPlugin 自动按 provider 分发工具
   if (config.enableWebSearch && config.webSearchPluginConfig) {
-    plugins.push(webSearchPlugin(config.webSearchPluginConfig))
+    plugins.push(providerToolPlugin('webSearch', config.webSearchPluginConfig))
+  }
+  if (config.enableUrlContext) {
+    plugins.push(providerToolPlugin('urlContext', config.urlContextConfig))
   }
   // 2. 支持工具调用时添加搜索插件
   if (config.isSupportedToolUse || config.isPromptToolUse) {
@@ -135,10 +142,6 @@ export async function buildPlugins({ provider, model, config }: BuildPluginsCont
       })
     )
   }
-
-  // if (config.enableUrlContext && config.) {
-  //   plugins.push(googleToolsPlugin({ urlContext: true }))
-  // }
 
   logger.debug(
     'Final plugin list:',

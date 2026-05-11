@@ -5,19 +5,29 @@
  * TypeScript will error if any endpoint from ApiSchemas is missing.
  *
  * Handler files are organized by domain:
- * - test.ts - Test API handlers
  * - topics.ts - Topic API handlers
  * - messages.ts - Message API handlers
+ * - models.ts - Model API handlers
+ * - providers.ts - Provider API handlers
  * - translate.ts - Translate API handlers
  */
 
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
 
-import { fileProcessingHandlers } from './fileProcessing'
+import { agentChannelHandlers } from './agentChannels'
+import { agentHandlers } from './agents'
+import { assistantHandlers } from './assistants'
+import { groupHandlers } from './groups'
 import { knowledgeHandlers } from './knowledges'
 import { mcpServerHandlers } from './mcpServers'
 import { messageHandlers } from './messages'
-import { testHandlers } from './test'
+import { miniAppHandlers } from './miniApps'
+import { modelHandlers } from './models'
+import { pinHandlers } from './pins'
+import { promptHandlers } from './prompts'
+import { providerHandlers } from './providers'
+import { tagHandlers } from './tags'
+import { temporaryChatHandlers } from './temporaryChats'
 import { topicHandlers } from './topics'
 import { translateHandlers } from './translate'
 
@@ -29,11 +39,20 @@ import { translateHandlers } from './translate'
  * TypeScript ensures exhaustive coverage - missing handlers cause compile errors.
  */
 export const apiHandlers: ApiImplementation = {
-  ...fileProcessingHandlers,
-  ...testHandlers,
+  ...agentHandlers,
+  ...assistantHandlers,
+  ...agentChannelHandlers,
   ...topicHandlers,
   ...messageHandlers,
+  ...temporaryChatHandlers,
+  ...modelHandlers,
+  ...providerHandlers,
   ...knowledgeHandlers,
   ...translateHandlers,
-  ...mcpServerHandlers
+  ...mcpServerHandlers,
+  ...miniAppHandlers,
+  ...tagHandlers,
+  ...groupHandlers,
+  ...pinHandlers,
+  ...promptHandlers
 }

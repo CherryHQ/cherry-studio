@@ -1,6 +1,7 @@
-import type { MinAppType, Topic } from '@types'
+import type { Topic } from '@types'
 import type { UpdateInfo } from 'builder-util-runtime'
 
+import type { MiniApp } from '../types/miniApp'
 import type { WebSearchStatus } from '../types/webSearch'
 
 export type CacheAppUpdateState = {
@@ -19,7 +20,7 @@ export type CacheActiveSearches = Record<string, WebSearchStatus>
 
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
-export type CacheMinAppType = MinAppType
+export type CacheMiniAppType = MiniApp
 export type CacheTopic = Topic
 
 /**
@@ -66,3 +67,5 @@ export type TranslatingState =
       isTranslating: false
       abortKey: null
     }
+
+export type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'

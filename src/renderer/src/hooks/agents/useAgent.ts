@@ -1,34 +1,35 @@
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
+import type { GetAgentResponse } from '@renderer/types'
+import { useMemo } from 'react'
 
-import { useApiServer } from '../useApiServer'
-import { useAgentClient } from './useAgentClient'
+import { parseAgentConfiguration } from './utils'
 
 export const useAgent = (id: string | null) => {
-  const { t } = useTranslation()
-  const client = useAgentClient()
-  const key = id ? client.agentPaths.withId(id) : null
-  const { apiServerConfig, apiServerRunning } = useApiServer()
-
-  // Disable SWR fetching when server is not running by setting key to null
-  const swrKey = apiServerRunning && id ? key : null
-
-  const fetcher = useCallback(async () => {
-    if (!id) {
-      throw new Error(t('agent.get.error.null_id'))
+  const { data, error, isLoading, refetch } = useQuery('/agents/:agentId', {
+    params: { agentId: id! },
+    enabled: !!id,
+    swrOptions: {
+      // Agent config may be modified externally (e.g. claw MCP tool in main process),
+      // so always revalidate on mount and reduce dedup window to get fresh data.
+      revalidateOnMount: true,
+      dedupingInterval: 2000,
+      keepPreviousData: false
     }
-    if (!apiServerConfig.enabled) {
-      throw new Error(t('apiServer.messages.notEnabled'))
-    }
-    const result = await client.getAgent(id)
-    return result
-  }, [apiServerConfig.enabled, client, id, t])
-  const { data, error, isLoading } = useSWR(swrKey, fetcher)
+  })
 
-  return {
-    agent: data,
-    error,
-    isLoading
-  }
+  // Parse `configuration` through AgentConfigurationSchema to validate shape and
+  // filter unknown fields while preserving forward-compatible extras via .loose().
+  // Fields like permission_mode / max_turns / env_vars may be undefined — callers
+  // supply fallbacks (e.g. defaultConfiguration) at the consumption point.
+  // Cast to GetAgentResponse for structural compatibility with settings components
+  // (tools field will be undefined — callers use `?? []` fallbacks).
+  const agent = useMemo((): GetAgentResponse | undefined => {
+    if (!data) return undefined
+    return {
+      ...(data as unknown as GetAgentResponse),
+      configuration: parseAgentConfiguration(data.configuration, { entityId: data.id, entityType: 'agent' })
+    }
+  }, [data])
+
+  return { agent, error, isLoading, revalidate: refetch }
 }

@@ -28,6 +28,256 @@
       "submit": "提交",
       "title": "來自Agent的提問"
     },
+    "cherryClaw": {
+      "channels": {
+        "add": "新增",
+        "bindAgent": "綁定代理",
+        "chatIdsAutoTrackHint": "若留空，系統將自動追蹤：您需先在平台上向機器人發送一則訊息，系統才會記錄聊天 ID，以供後續通知使用。",
+        "comingSoon": "即將推出",
+        "connected": "已連線",
+        "connecting": "連接",
+        "createError": "",
+        "deleteConfirm": "確定刪除頻道「{{name}}」？",
+        "deleteError": "",
+        "description": "將您的 Agent 連接到訊息平台。",
+        "disconnected": "已中斷連線",
+        "discord": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "輸入您的 Discord 機器人 Token",
+          "channelIds": "允許的頻道 ID",
+          "channelIdsHint": "格式：channel:id 或 dm:id。留空表示允許所有。",
+          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+          "description": "透過 Discord 機器人使用 WebSocket 閘道接收和回覆訊息。",
+          "title": "Discord",
+          "whoamiTip": "💡 提示：發送 /whoami 給機器人即可取得正確格式的頻道 ID。"
+        },
+        "error": "錯誤",
+        "feishu": {
+          "appId": "應用程式 ID",
+          "appIdPlaceholder": "輸入您的飛書應用程式 ID",
+          "appSecret": "應用程式密鑰",
+          "appSecretPlaceholder": "輸入你的飛書應用程式密鑰",
+          "chatIds": "允許的聊天 ID",
+          "chatIdsHint": "逗號分隔的聊天 ID。留空以允許所有聊天。",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "connected": "已連線",
+          "description": "透過 WebSocket 使用飛書/Lark 機器人接收並回覆訊息。",
+          "domain": "網域",
+          "domainFeishu": "飛書（中國）",
+          "domainLark": "Lark（國際版）",
+          "encryptKey": "加密金鑰",
+          "encryptKeyPlaceholder": "從您的飛書應用程式輸入加密金鑰",
+          "loginHint": "未設定憑證。啟用頻道以開始 QR 碼註冊，或手動輸入應用程式 ID 與應用程式密鑰。",
+          "qrExpired": "QR碼已過期，請切換頻道後重試。",
+          "qrHint": "等待掃描 QR 碼...",
+          "qrScanHint": "在手機上開啟飛書，掃描 QR Code 以建立機器人應用程式。",
+          "qrTitle": "飛書 QR 報名",
+          "title": "飛書",
+          "verificationToken": "驗證權杖",
+          "verificationTokenPlaceholder": "從您的 Feishu 應用程式輸入驗證碼"
+        },
+        "logs": "紀錄",
+        "noInstances": "尚無 {{type}} 頻道，點擊「+ 新增」建立。",
+        "noLogs": "尚無日誌",
+        "notifyReceiver": "接收任務通知",
+        "notifyReceiverHint": "將排程任務結果傳送到此頻道。",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "輸入您的 QQ 機器人 App ID",
+          "chatIds": "允許的對話 ID",
+          "chatIdsHint": "格式：c2c:openid, group:groupid, channel:channelid。留空表示允許所有。",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "輸入您的 QQ 機器人 Client Secret",
+          "description": "透過 QQ 機器人官方 API 接收和回覆訊息。",
+          "title": "QQ",
+          "whoamiTip": "💡 提示：發送 /whoami 給機器人即可獲取正確格式的對話 ID。"
+        },
+        "security": {
+          "inheritFromAgent": "繼承智能體設定",
+          "permissionMode": "頻道權限模式",
+          "permissionModeHint": "覆寫此頻道訊息的智能體權限模式。選擇「繼承」則使用智能體預設設定。"
+        },
+        "selectAgent": "選擇要綁定的代理",
+        "slack": {
+          "appToken": "應用層級 Token",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "允許的頻道 ID",
+          "channelIdsHint": "Slack 頻道 ID。留空表示允許所有。",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "透過 Slack 機器人使用 Socket Mode 接收和回覆訊息。",
+          "title": "Slack",
+          "whoamiTip": "💡 提示：發送 /whoami 給機器人即可取得頻道 ID。"
+        },
+        "soulModeRequired": "此代理未啟用自主模式，頻道功能將無法運作。請在代理設定中啟用。",
+        "tab": "頻道",
+        "telegram": {
+          "botToken": "Bot Token",
+          "botTokenPlaceholder": "輸入您的 Telegram 機器人 Token",
+          "chatIds": "允許的對話 ID",
+          "chatIdsHint": "用逗號分隔。留空表示允許所有對話。",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "透過 Telegram 機器人使用長輪詢方式接收和回覆訊息。",
+          "title": "Telegram"
+        },
+        "title": "頻道",
+        "updateError": "",
+        "wechat": {
+          "addAccount": "新增微信帳號",
+          "chatIds": "允許的使用者 ID",
+          "chatIdsHint": "以逗號分隔。留空以允許所有使用者。",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+          "connected": "已連線",
+          "description": "透過 iLink Bot API 在微信上接收並回覆訊息。",
+          "disconnected": "已斷線",
+          "loginHint": "首次登入需要掃描 QR 碼。請查看應用程式記錄以取得登入網址。",
+          "qrHint": "打開手機上的微信，掃描 QR 碼登入。",
+          "qrTitle": "微信 QR 碼登入",
+          "title": "微信",
+          "whoamiTip": "提示：在微信中發送 /whoami 可取得使用者的 ID。"
+        }
+      },
+      "heartbeat": {
+        "enabled": "啟用心跳",
+        "enabledHelper": "啟用後，如果工作區存在 heartbeat.md 檔案，排程器會按設定的間隔讀取其內容並傳送到主對話。",
+        "interval": "間隔（分鐘）",
+        "intervalHelper": "心跳執行的頻率，單位為分鐘。"
+      },
+      "sandbox": {
+        "description": "使用作業系統級沙箱限制 Agent 的檔案系統和網路存取，僅限於工作區目錄。",
+        "helper": "將檔案系統和命令存取限制在工作區路徑內。",
+        "label": "沙箱模式"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "標準 cron 表達式（例如 '*/30 * * * *' 表示每 30 分鐘）。",
+          "label": "Cron 表達式",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "排程器按計劃自動觸發 Agent 執行。",
+        "enabled": "啟用排程器",
+        "enabledHelper": "啟用後，Agent 將根據設定的計劃自動執行。",
+        "errors": {
+          "invalidCron": "無效的 cron 表達式",
+          "invalidDelay": "延遲必須是正數",
+          "invalidInterval": "間隔必須是正數"
+        },
+        "interval": {
+          "helper": "Agent 執行的頻率，單位為秒。",
+          "label": "間隔（秒）"
+        },
+        "lastRun": "上次執行",
+        "never": "從未",
+        "nextRun": "下次執行",
+        "oneTime": {
+          "helper": "Agent 執行前的一次性延遲，單位為秒。",
+          "label": "延遲（秒）"
+        },
+        "status": {
+          "running": "執行中",
+          "stopped": "已停止",
+          "tickInProgress": "執行中"
+        },
+        "tab": "排程器",
+        "title": "排程器設定",
+        "type": {
+          "cron": "Cron 表達式",
+          "interval": "固定間隔",
+          "label": "排程類型",
+          "one-time": "一次性延遲"
+        }
+      },
+      "soul": {
+        "description": "靈魂定義了 Agent 的個性和基礎行為。它從工作區根目錄的 soul.md 檔案中讀取。",
+        "empty": "在工作區根目錄未找到 soul.md 檔案。建立一個來定義 Agent 的個性。",
+        "enabled": "啟用靈魂",
+        "enabledHelper": "啟用後，Agent 會從工作區根目錄讀取 soul.md 並將其添加到系統提示詞前面。",
+        "fileLabel": "soul.md",
+        "preview": "靈魂預覽",
+        "tab": "靈魂",
+        "title": "靈魂設定"
+      },
+      "tasks": {
+        "add": "新增任務",
+        "cancel": "取消",
+        "channels": {
+          "label": "傳送至頻道",
+          "noActiveChatIds": "所選頻道沒有可用的收件人（聊天 ID）。任務結果可能無法送達。請先在平台上向機器人發送一則訊息。",
+          "placeholder": "選擇接收結果的頻道"
+        },
+        "cronPlaceholder": "例如 0 9 * * *（每天上午 9 點）",
+        "delete": {
+          "confirm": "確定要刪除此任務嗎？",
+          "label": "刪除"
+        },
+        "edit": "編輯",
+        "empty": "暫無排程任務。新增一個開始吧。",
+        "error": {
+          "loadFailed": ""
+        },
+        "intervalPlaceholder": "間隔（分鐘）",
+        "intervalUnit": "分鐘",
+        "lastRun": "上次執行",
+        "logs": {
+          "duration": "耗時",
+          "empty": "暫無執行歷史。",
+          "error": "錯誤",
+          "justNow": "剛剛",
+          "label": "執行歷史",
+          "loadError": "",
+          "result": "結果",
+          "runAt": "執行時間",
+          "running": "執行中...",
+          "search": "搜尋執行記錄...",
+          "status": "狀態",
+          "success": "成功",
+          "viewSession": "查看會話"
+        },
+        "name": {
+          "label": "名稱",
+          "placeholder": "例如：每日程式碼審查"
+        },
+        "nextRun": "下次執行",
+        "oncePlaceholder": "選擇日期和時間",
+        "pause": "暫停",
+        "prompt": {
+          "expand": "展開編輯器",
+          "label": "提示詞",
+          "placeholder": "此任務執行時 Agent 應該做什麼？"
+        },
+        "resume": "恢復",
+        "run": "執行",
+        "runTriggered": "任務已觸發",
+        "save": "儲存",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "間隔",
+          "label": "排程類型",
+          "once": "一次性"
+        },
+        "scheduleValue": "排程值",
+        "status": {
+          "active": "活躍",
+          "completed": "已完成",
+          "paused": "已暫停"
+        },
+        "tab": "任務",
+        "time": {
+          "hoursAgo": "{{count}}小時前",
+          "minutesAgo": "{{count}}分鐘前"
+        },
+        "timeout": {
+          "label": "逾時時間",
+          "placeholder": "無限制"
+        },
+        "title": "排程任務"
+      },
+      "warning": {
+        "bypassPermissions": "CherryClaw Agent 預設以全自動模式執行。所有工具執行時不會請求批准。"
+      }
+    },
     "delete": {
       "content": "刪除該 Agent 會強制停止並刪除該 Agent 的所有工作階段。確定要刪除嗎？",
       "error": {
@@ -76,7 +326,8 @@
       "tooltip": "在 Windows 上執行 Agent 需要 Git Bash。如未安裝，請從 git-scm.com 下載安裝。"
     },
     "input": {
-      "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令"
+      "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令",
+      "soul_placeholder": "幫我連接微信"
     },
     "list": {
       "error": {
@@ -203,15 +454,15 @@
           "title": "安裝外掛程式"
         },
         "installed": {
-          "empty": "尚未安裝任何外掛。瀏覽可用外掛以開始使用。",
-          "title": "已安裝外掛程式"
+          "empty": "尚未安裝任何技能。瀏覽可用技能以開始使用。",
+          "title": "已安裝技能"
         },
         "installing": "安裝中...",
         "plugin_upload": {
           "all_failed": "全部 {{failed}} 個元件安裝失敗",
           "error": "安裝失敗",
-          "format_hint": "支援外掛包格式（.claude-plugin/plugin.json）",
-          "hint": "拖曳外掛 ZIP 至此處，或點擊選擇檔案",
+          "format_hint": "支援技能包格式（.claude-plugin/plugin.json）",
+          "hint": "拖曳技能 ZIP 至此處，或點擊選擇檔案",
           "invalid_format": "請上傳 ZIP 格式的檔案",
           "partial_success": "已安裝 {{installed}} 個元件，{{failed}} 個失敗",
           "select_folder": "選擇資料夾",
@@ -245,6 +496,21 @@
         "uninstalling": "解除安裝中..."
       },
       "prompt": "提示設定",
+      "skills": {
+        "addMore": "添加更多技能",
+        "builtin": "內建",
+        "noFilterResults": "沒有符合的技能",
+        "noSkills": "未安裝任何技能。請前往「設定」>「技能」安裝技能。",
+        "searchPlaceholder": "搜尋技巧...",
+        "tab": "技能",
+        "title": "已安裝技能"
+      },
+      "soulMode": {
+        "description": "啟用後，代理程式會使用來自工作區靈魂檔案的自訂系統提示，注入自主任務管理工具，並停用不適合自主操作的互動式工具。",
+        "disabledBadge": "被自主模式停用",
+        "disabledTooltip": "當自主模式啟用時，此工具會自動停用",
+        "title": "自主模式"
+      },
       "tooling": {
         "mcp": {
           "description": "連線 MCP 伺服器即可解鎖更多可在上方預先授權的工具。",
@@ -301,6 +567,7 @@
       },
       "toolsMcp": {
         "mcp": {
+          "tab": "MCP",
           "title": "MCP 伺服器"
         },
         "tab": "工具",
@@ -311,6 +578,98 @@
     },
     "sidebar_title": "Agents",
     "todo": {
+      "mock": {
+        "actions": {
+          "complete": "完成",
+          "dismiss": "關閉"
+        },
+        "details": {
+          "addRouter": {
+            "summary": "正在使用 react-router-dom v6 設定客戶端路由...",
+            "title": "新增 React Router"
+          },
+          "configureProject": {
+            "resources": {
+              "createdMeta": "created",
+              "postcssConfig": "postcss.config.js",
+              "tailwindConfig": "tailwind.config.js",
+              "updatedMeta": "updated",
+              "viteConfig": "vite.config.ts - port 3001"
+            },
+            "title": "設定專案"
+          },
+          "installDependencies": {
+            "resources": {
+              "dependenciesMeta": "dependencies",
+              "devDependenciesMeta": "devDependencies",
+              "reactDeps": "react@18.3.1, react-dom@18.3.1",
+              "tailwindDeps": "tailwindcss@3.4.4, postcss@8.4.38",
+              "typescriptDeps": "typescript@5.4.5, vite@5.3.0"
+            },
+            "summary": "安裝了 react, react-dom, tailwindcss, postcss, autoprefixer 和 TypeScript。",
+            "title": "安裝依賴"
+          },
+          "reviewReferences": {
+            "collectionTitle": "審閱參考資料",
+            "resources": {
+              "npmCreateVite": "npm create vite - Official Scaffolding",
+              "npmMeta": "npmjs.com",
+              "reactDocs": "React Documentation - Quick Start",
+              "reactMeta": "react.dev",
+              "tailwindDocs": "Tailwind CSS - Installation Guide",
+              "tailwindMeta": "tailwindcss.com",
+              "viteDocs": "Vite - Next Generation Frontend Tooling",
+              "viteMeta": "vitejs.dev"
+            },
+            "title": "審閱參考資料"
+          },
+          "searchWeb": {
+            "resources": {
+              "reactViteQuery": "React Vite TypeScript starter 2025 best practices"
+            },
+            "summary": "收集了 React + Vite 專案腳手架和最佳實務的最新資料。",
+            "title": "搜尋網路資料"
+          },
+          "title": "執行過程詳情",
+          "writeComponents": {
+            "collectionTitle": "建立的檔案",
+            "resources": {
+              "app": "src/App.tsx",
+              "button": "src/components/Button.tsx",
+              "card": "src/components/Card.tsx",
+              "footer": "src/components/Footer.tsx",
+              "header": "src/components/Header.tsx",
+              "layout": "src/components/Layout.tsx",
+              "modifiedMeta": "modified",
+              "newMeta": "new",
+              "updatedMeta": "updated"
+            },
+            "title": "編寫元件"
+          },
+          "writePages": {
+            "resources": {
+              "about": "src/pages/About.tsx",
+              "home": "src/pages/Home.tsx",
+              "newMeta": "new"
+            },
+            "title": "編寫頁面"
+          }
+        },
+        "progress": "{{completed}}/{{total}} 任務已完成",
+        "tasks": {
+          "addLinting": "新增 ESLint + Prettier",
+          "addRouter": "新增 React Router",
+          "buildDeploy": "建置與部署",
+          "configureProject": "設定專案",
+          "finish": "完成",
+          "installDependencies": "安裝依賴",
+          "reviewReferences": "審閱參考資料",
+          "searchWeb": "搜尋網路資料",
+          "writeComponents": "編寫元件",
+          "writePages": "編寫頁面"
+        },
+        "title": "任務"
+      },
       "panel": {
         "title": "已完成 {{completed}}/{{total}} 個任務"
       },
@@ -475,7 +834,7 @@
       "running": "執行中",
       "stopped": "已停止"
     },
-    "title": "API 伺服器"
+    "title": "API 閘道"
   },
   "appMenu": {
     "about": "關於",
@@ -579,6 +938,7 @@
         "agent": "匯出助手"
       },
       "import": {
+        "action": "匯入助手",
         "button": "匯入",
         "error": {
           "fetch_failed": "從 URL 取得資料失敗",
@@ -689,17 +1049,6 @@
         "off_description": "禁用推理",
         "xhigh": "極力思考",
         "xhigh_description": "超高階推理"
-      },
-      "regular_phrases": {
-        "add": "新增短語",
-        "contentLabel": "內容",
-        "contentPlaceholder": "請輸入短語內容，支援使用變數，然後按 Tab 鍵可以快速定位到變數進行修改。例如：\n幫我規劃從 ${from} 到 ${to} 的行程，然後傳送到 ${email}",
-        "delete": "刪除短語",
-        "deleteConfirm": "確定要刪除這個短語嗎？",
-        "edit": "編輯短語",
-        "title": "常用短語",
-        "titleLabel": "標題",
-        "titlePlaceholder": "輸入標題"
       },
       "title": "助手設定",
       "tool_use_mode": {
@@ -1231,6 +1580,7 @@
       "unpin": "取消固定"
     },
     "translate": "翻譯",
+    "user": "使用者",
     "web_search": {
       "warning": {
         "openai": "GPT-5 模型的最小推理力度不支援網路搜尋。"
@@ -1242,11 +1592,23 @@
     "bun_required_message": "運作 CLI 工具需要安裝 Bun 環境",
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
+    "count_one": "{{count}} 個",
+    "count_other": "{{count}} 個",
     "custom_path": "自訂路徑",
     "custom_path_error": "設定自訂終端機路徑失敗",
     "custom_path_required": "此終端機需要設定自訂路徑",
     "custom_path_set": "自訂終端機路徑設定成功",
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
+    "empty": {
+      "no_match": {
+        "description": "嘗試調整搜尋關鍵字",
+        "title": "未找到符合的工具"
+      },
+      "no_tool": {
+        "description": "新增 CLI 工具或程式碼助理以開始使用",
+        "title": "尚無程式碼工具"
+      }
+    },
     "env_vars_help": "輸入自訂環境變數（每行一個，格式：KEY=value）",
     "environment_variables": "環境變數",
     "folder_placeholder": "選擇工作目錄",
@@ -1256,21 +1618,28 @@
       "bun_required": "請先安裝 Bun 環境再啟動 CLI 工具",
       "error": "啟動失敗，請重試",
       "label": "啟動",
+      "launched": "已啟動",
       "success": "啟動成功",
       "validation_error": "請完成所有必填欄位：CLI 工具、模型和工作目錄"
     },
     "launching": "啟動中...",
     "model": "模型",
+    "model_hint": "為 CLI 工具選擇要使用的 AI 模型",
     "model_placeholder": "選擇要使用的模型",
     "model_required": "請選擇模型",
+    "official_tag": "官方",
+    "official_tools": "官方工具",
+    "search_placeholder": "搜尋 CLI 工具…",
     "select_folder": "選擇資料夾",
     "set_custom_path": "設定自訂終端機路徑",
     "supported_providers": "支援的供應商",
     "terminal": "終端機",
+    "terminal_hint": "選擇執行命令的終端機應用程式",
     "terminal_placeholder": "選擇終端機應用程式",
     "title": "程式碼工具",
     "update_options": "更新選項",
-    "working_directory": "工作目錄"
+    "working_directory": "工作目錄",
+    "working_directory_hint": "CLI 工具啟動時的工作目錄"
   },
   "code_block": {
     "collapse": "收合",
@@ -1386,6 +1755,7 @@
     "models": "模型",
     "more": "更多",
     "name": "名稱",
+    "next": "下一頁",
     "next_match": "下一場比賽",
     "no_results": "沒有結果",
     "none": "無",
@@ -1401,6 +1771,7 @@
     },
     "powered_by": "技術提供",
     "preview": "預覽",
+    "previous": "上一頁",
     "previous_match": "上一場比賽",
     "prompt": "提示詞",
     "provider": "供應商",
@@ -1500,6 +1871,31 @@
     "data": "資料",
     "detail": "錯誤詳細資訊",
     "details": "詳細資訊",
+    "diagnosis": {
+      "ai_button": "AI 診斷",
+      "ai_done": "已診斷",
+      "ai_loading": "正在診斷",
+      "ai_result": "AI 診斷結果",
+      "auth": "API Key 無效，請檢查並重新配置",
+      "content": "訊息內容被安全系統攔截，請修改後重試",
+      "context_length": "對話內容過長，請清除歷史記錄或開啟新對話",
+      "deprecated": "此模型已停用，請切換至其他模型",
+      "go_to_settings": "前往設定",
+      "knowledge": "知識庫向量化失敗",
+      "mcp": "MCP 伺服器連線失敗，請檢查服務是否已啟動",
+      "model": "模型不存在或你沒有存取權限",
+      "model_conflict": "診斷模型與出錯模型相同，無法進行診斷",
+      "network": "無法連線到伺服器，請檢查網路或代理設定",
+      "ocr": "OCR 識別引擎未初始化，請檢查 OCR 設定",
+      "parse": "AI 回傳了無效的回應，請重試或切換模型",
+      "payload": "請求內容過大，請減少檔案或文字大小",
+      "proxy": "代理或 SSL 憑證錯誤，請檢查代理和網路設定",
+      "quota": "帳戶額度已用完，請儲值或更換服務商",
+      "server": "伺服器異常，建議稍後重試",
+      "stream": "回應中斷，請檢查網路穩定性或重試",
+      "unknown": "發生了一個錯誤",
+      "view_details": "查看詳情"
+    },
     "errors": "錯誤",
     "finishReason": "結束原因",
     "functionality": "功能",
@@ -1654,7 +2050,8 @@
     "empty_preview": "沒有內容可顯示",
     "generating": "產生中",
     "preview": "預覽",
-    "split": "分割畫面"
+    "split": "分割畫面",
+    "view_mode": "檢視模式"
   },
   "import": {
     "chatgpt": {
@@ -1835,7 +2232,471 @@
   },
   "launchpad": {
     "apps": "應用",
-    "minapps": "小程式"
+    "miniApps": "小程式"
+  },
+  "library": {
+    "action": {
+      "create": "新增",
+      "delete": "刪除",
+      "disable": "停用",
+      "duplicate": "複製",
+      "edit": "編輯",
+      "enable": "啟用",
+      "manage_tags": "管理標籤",
+      "uninstall": "解除安裝"
+    },
+    "assistant_catalog": {
+      "add": "新增",
+      "add_failed": "新增助手失敗",
+      "browse_label": "助手分類",
+      "empty_description": "此分類下暫時沒有助手預設",
+      "empty_title": "暫無可新增助手",
+      "mine": "我的",
+      "no_match_description": "請嘗試其他搜尋關鍵字",
+      "no_match_title": "找不到相符的助手",
+      "preview": "預覽",
+      "preview_description": "簡介",
+      "preview_prompt": "提示詞",
+      "scroll_left": "向左捲動分類",
+      "scroll_right": "向右捲動分類"
+    },
+    "badge": {
+      "update": "[to be translated]:Update"
+    },
+    "config": {
+      "agent": {
+        "create_banner": "儲存後才能綁定工具和 MCP 服務",
+        "create_title": "新增智能體",
+        "field": {
+          "accessible_paths": {
+            "add": "[to be translated]:Add directory",
+            "empty": "[to be translated]:Not set (defaults to the workspace root)",
+            "hint": "[to be translated]:Limits directories the agent can access",
+            "label": "[to be translated]:Accessible directories"
+          },
+          "allowed_tools": {
+            "add": "[to be translated]:Add tool",
+            "empty": "[to be translated]:Leave empty to use the permission mode default",
+            "label": "[to be translated]:Allowed tools"
+          },
+          "avatar": {
+            "hint": "[to be translated]:Used to identify it in the library and sessions"
+          },
+          "description": {
+            "hint": "[to be translated]:Helps identify what this agent is for",
+            "label": "[to be translated]:Description",
+            "placeholder": "[to be translated]:What this agent is for…"
+          },
+          "env_vars": {
+            "help": "[to be translated]:One KEY=VALUE per line",
+            "label": "[to be translated]:Environment variables"
+          },
+          "heartbeat_enabled": {
+            "label": "[to be translated]:Heartbeat check"
+          },
+          "heartbeat_interval": {
+            "label": "[to be translated]:Heartbeat interval (minutes)"
+          },
+          "instructions": {
+            "hint": "[to be translated]:Defines the agent's role and behavior boundaries",
+            "label": "[to be translated]:System prompt",
+            "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
+          },
+          "max_turns": {
+            "help": "[to be translated]:0 means use the default",
+            "label": "[to be translated]:Max conversation turns"
+          },
+          "mcps": {
+            "add": "[to be translated]:Add MCP server",
+            "empty": "[to be translated]:None bound",
+            "label": "[to be translated]:MCP servers (id)"
+          },
+          "model": {
+            "help": "[to be translated]:UniqueModelId; will switch to a picker backed by /models later",
+            "hint": "[to be translated]:Main reasoning and execution",
+            "label": "[to be translated]:Primary model (required)"
+          },
+          "name": {
+            "hint": "[to be translated]:Shown in the library and session lists",
+            "label": "[to be translated]:Agent name",
+            "placeholder": "[to be translated]:Give the agent a name"
+          },
+          "permission_mode": {
+            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
+            "label": "[to be translated]:Permission mode",
+            "option": {
+              "acceptEdits": "[to be translated]:Accept edits",
+              "bypassPermissions": "[to be translated]:Bypass permissions (Soul)",
+              "default": "[to be translated]:Default",
+              "plan": "[to be translated]:Plan mode"
+            }
+          },
+          "plan_model": {
+            "hint": "[to be translated]:Task decomposition and planning",
+            "label": "[to be translated]:Plan model (optional)"
+          },
+          "small_model": {
+            "hint": "[to be translated]:Lightweight checks and formatting",
+            "label": "[to be translated]:Small model (optional)"
+          },
+          "soul_enabled": {
+            "help": "[to be translated]:When enabled, automatically grants bypassPermissions",
+            "label": "[to be translated]:Soul mode"
+          }
+        },
+        "model_config": "[to be translated]:Model configuration",
+        "section": {
+          "advanced": {
+            "desc": "[to be translated]:Execution limits and runtime parameters",
+            "label": "[to be translated]:Advanced",
+            "title": "[to be translated]:Advanced"
+          },
+          "basic": {
+            "desc": "[to be translated]:Agent name, description, and primary model",
+            "label": "[to be translated]:Basic",
+            "title": "[to be translated]:Basic"
+          },
+          "permission": {
+            "desc": "控制 Agent 可執行操作的授權範圍",
+            "label": "權限模式",
+            "title": "權限模式"
+          },
+          "prompt": {
+            "desc": "[to be translated]:System prompt and behavioral constraints",
+            "label": "[to be translated]:Prompt",
+            "title": "[to be translated]:Prompt"
+          },
+          "tools": {
+            "add": "新增",
+            "desc": "[to be translated]:MCP servers, allowed tools, and runtime settings",
+            "label": "[to be translated]:Tools & runtime",
+            "no_builtin_enabled": "未啟用任何內建工具",
+            "no_mcp_bound": "未綁定任何 MCP 服務",
+            "no_skills_enabled": "未啟用任何技能",
+            "search_placeholder": "搜尋工具或 Server...",
+            "skills_coming_soon": "Skill 綁定即將支援",
+            "skills_require_save": "儲存後才能啟用技能",
+            "tab": {
+              "mcp": "MCP Server",
+              "skills": "Skills",
+              "tools": "內建工具"
+            },
+            "title": "[to be translated]:Tools & runtime"
+          }
+        }
+      },
+      "basic": {
+        "context_count": "[to be translated]:Context count",
+        "creative": "[to be translated]:Creative",
+        "custom_params": "[to be translated]:Custom parameters",
+        "custom_params_add": "[to be translated]:Add parameter",
+        "custom_params_name": "[to be translated]:Parameter name",
+        "default_value": "[to be translated]:Model default",
+        "desc": "填寫頭像、名稱、簡介和系統提示詞",
+        "description_label": "[to be translated]:Description",
+        "field": {
+          "avatar": {
+            "hint": "[to be translated]:Used to identify the assistant in the library and chats"
+          },
+          "context_count": {
+            "hint": "[to be translated]:Number of recent messages kept as context"
+          },
+          "custom_params": {
+            "hint": "[to be translated]:Extra provider parameters sent with requests"
+          },
+          "description": {
+            "hint": "[to be translated]:Helps distinguish what this assistant is for",
+            "placeholder": "[to be translated]:What this assistant is for..."
+          },
+          "max_tokens": {
+            "hint": "[to be translated]:Caps response length when enabled"
+          },
+          "max_tool_calls": {
+            "hint": "[to be translated]:Limits tool-call loops when enabled"
+          },
+          "model": {
+            "hint": "[to be translated]:Overrides the global default model for this assistant"
+          },
+          "name": {
+            "hint": "[to be translated]:Shown in the library and assistant selectors",
+            "placeholder": "[to be translated]:Give the assistant a name"
+          },
+          "stream_output": {
+            "hint": "[to be translated]:Shows responses as they are generated"
+          },
+          "tags": {
+            "hint": "[to be translated]:Used for filtering and organizing assistants"
+          },
+          "temperature": {
+            "hint": "[to be translated]:Controls randomness when enabled"
+          },
+          "tool_use_mode": {
+            "hint": "[to be translated]:Controls how tools are exposed to the model"
+          },
+          "top_p": {
+            "hint": "[to be translated]:Limits token sampling range when enabled"
+          }
+        },
+        "json_invalid": "[to be translated]:Invalid JSON format",
+        "max_tokens": "[to be translated]:Max tokens",
+        "max_tool_calls": "[to be translated]:Max tool calls",
+        "model": "[to be translated]:Default model",
+        "model_clear": "[to be translated]:Clear",
+        "model_not_found": "[to be translated]:Model not found (may have been removed): {{id}}",
+        "model_pick": "[to be translated]:+ Pick model",
+        "pick_avatar": "[to be translated]:Pick avatar",
+        "precise": "[to be translated]:Precise",
+        "stream_output": "[to be translated]:Stream output",
+        "tag_empty": "[to be translated]:No tags available",
+        "tag_hint": "[to be translated]:To add a new tag, use the \"+ Tag\" entry in the library top bar",
+        "tag_placeholder": "[to be translated]:Select tags",
+        "tag_search": "[to be translated]:Search tags",
+        "tags": "[to be translated]:Tags",
+        "temperature": "[to be translated]:Temperature",
+        "title": "基礎設定",
+        "tool_use_function": "[to be translated]:Function",
+        "tool_use_mode": "[to be translated]:Tool call mode",
+        "tool_use_prompt": "[to be translated]:Prompt",
+        "top_p": "[to be translated]:Top-P",
+        "unlimited": "[to be translated]:Unlimited"
+      },
+      "breadcrumb": "[to be translated]:Library",
+      "knowledge": {
+        "add": "[to be translated]:Add knowledge base",
+        "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
+        "doc_count": "[to be translated]:{{count}} docs",
+        "empty_desc": "[to be translated]:Once linked, the assistant can answer based on document content",
+        "empty_title": "[to be translated]:No knowledge bases linked",
+        "invalid_suffix": "[to be translated]:... (unavailable)",
+        "linked": "[to be translated]:Linked knowledge bases",
+        "linked_hint": "[to be translated]:Controls which knowledge bases this assistant can retrieve from",
+        "no_more": "[to be translated]:No more knowledge bases available",
+        "remove_aria": "[to be translated]:Remove",
+        "search": "[to be translated]:Search knowledge bases...",
+        "title": "[to be translated]:Knowledge bases"
+      },
+      "prompt": {
+        "create_title": "[to be translated]:New Prompt",
+        "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
+        "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
+        "edit_title": "[to be translated]:Edit Prompt",
+        "field": {
+          "content": {
+            "label": "[to be translated]:Content",
+            "too_long": "[to be translated]:Content must be {{max}} characters or fewer"
+          },
+          "name": {
+            "label": "[to be translated]:Name",
+            "too_long": "[to be translated]:Name must be {{max}} characters or fewer"
+          }
+        },
+        "generate": "[to be translated]:Generate prompt",
+        "insert_variable": "[to be translated]:Insert variable",
+        "label": "[to be translated]:System prompt",
+        "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
+        "title": "[to be translated]:Prompt",
+        "tokens_label": "[to be translated]:Tokens: ",
+        "variables_title": "[to be translated]:Available variables",
+        "vars": {
+          "arch": "[to be translated]:CPU architecture",
+          "date": "[to be translated]:Date",
+          "datetime": "[to be translated]:Date and time",
+          "language": "[to be translated]:Language",
+          "model_name": "[to be translated]:Model name",
+          "os": "[to be translated]:Operating system",
+          "time": "[to be translated]:Time",
+          "username": "[to be translated]:Username"
+        }
+      },
+      "save_failed": "[to be translated]:Save failed",
+      "saving": "[to be translated]:Saving...",
+      "section": {
+        "basic": {
+          "desc": "頭像、名稱、簡介、系統提示詞",
+          "label": "基礎設定"
+        },
+        "knowledge": {
+          "desc": "[to be translated]:Linked knowledge bases and retrieval",
+          "label": "[to be translated]:Knowledge"
+        },
+        "more": {
+          "desc": "模型、標籤和參數",
+          "label": "更多設定"
+        },
+        "prompt": {
+          "desc": "[to be translated]:System prompt and variables",
+          "label": "[to be translated]:Prompt"
+        },
+        "tools": {
+          "desc": "[to be translated]:MCP servers and tool configuration",
+          "label": "[to be translated]:Tools"
+        }
+      },
+      "tools": {
+        "add_mcp": "[to be translated]:Add MCP server",
+        "added": "[to be translated]:Added MCP servers",
+        "added_hint": "[to be translated]:Manual mode exposes only the servers in this list",
+        "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
+        "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
+        "empty_title": "[to be translated]:No MCP servers added",
+        "inactive_badge": "[to be translated]:Inactive",
+        "info_main": "[to be translated]:MCP (Model Context Protocol) lets the model safely invoke external tools.",
+        "info_sub": "[to be translated]:Enabling only necessary servers improves safety and response speed.",
+        "mode": {
+          "auto": {
+            "desc": "[to be translated]:The model decides which enabled MCP tools to call",
+            "label": "[to be translated]:Auto"
+          },
+          "disabled": {
+            "desc": "[to be translated]:No MCP tools are available during chat",
+            "label": "[to be translated]:Disabled"
+          },
+          "manual": {
+            "desc": "[to be translated]:Expose only the MCP servers selected below",
+            "label": "[to be translated]:Manual"
+          }
+        },
+        "no_more": "[to be translated]:No more servers available",
+        "search": "[to be translated]:Search available servers...",
+        "switch_title_active": "[to be translated]:Toggle off to remove",
+        "switch_title_inactive": "[to be translated]:This server is disabled in MCP settings; remove it to re-add later",
+        "title": "[to be translated]:Tools"
+      }
+    },
+    "create_menu": {
+      "create": "[to be translated]:New {{type}}",
+      "import": "[to be translated]:Import {{type}}"
+    },
+    "delete": {
+      "agent": {
+        "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
+        "title": "[to be translated]:Delete agent"
+      },
+      "skill": {
+        "content": "[to be translated]:Are you sure you want to uninstall this skill? It will be removed from the global library and all agent workspace symlinks will be cleaned up.",
+        "title": "[to be translated]:Uninstall skill"
+      }
+    },
+    "delete_confirm": {
+      "cancel": "取消",
+      "confirm": "刪除",
+      "description": "確定要刪除「{{name}}」嗎？此操作無法復原。",
+      "title": "確認刪除"
+    },
+    "duplicate_assistant_failed": "[to be translated]:Failed to duplicate assistant",
+    "duplicate_name": "[to be translated]:{{name}} (copy)",
+    "empty_state": {
+      "description": "點選「新增」建立你的第一個資源",
+      "empty_description": "[to be translated]:Create your first agent or assistant",
+      "empty_title": "[to be translated]:No resources yet",
+      "no_match_description": "[to be translated]:Try a different search keyword",
+      "no_match_title": "[to be translated]:No matching resources",
+      "title": "尚無資源"
+    },
+    "export_assistant_failed": "[to be translated]:Failed to export assistant",
+    "import_dialog": {
+      "clipboard": {
+        "button": "[to be translated]:Parse and import",
+        "placeholder": "[to be translated]:Paste JSON configuration here..."
+      },
+      "error": {
+        "content_too_large": "[to be translated]:Content too large (>5 MB)",
+        "file_too_large": "[to be translated]:File too large (>5 MB)",
+        "invalid_url": "[to be translated]:Invalid URL",
+        "response_too_large": "[to be translated]:Response too large (>5 MB)",
+        "timeout": "[to be translated]:Request timed out. Check that the URL is reachable.",
+        "unsupported_protocol": "[to be translated]:Only http or https URLs are supported"
+      },
+      "failure": "[to be translated]:Import failed: {{error}}",
+      "file": {
+        "drop_hint": "[to be translated]:Drag and drop a file here, or click to pick one",
+        "formats": "[to be translated]:Supports .json"
+      },
+      "partial_success": "[to be translated]:Partial success: {{success}} imported, {{failed}} failed ({{first_name}}: {{first_error}})",
+      "subtitle": "[to be translated]:JSON configuration files are supported",
+      "success": "[to be translated]:Imported successfully: {{name}}",
+      "tab": {
+        "clipboard": "[to be translated]:Clipboard",
+        "file": "[to be translated]:File upload",
+        "url": "[to be translated]:Import from URL"
+      },
+      "url": {
+        "button": "[to be translated]:Fetch and import",
+        "hint": "[to be translated]:Import from a GitHub Gist, GitHub repo, or any public URL",
+        "supports": "[to be translated]:Raw file URLs are supported"
+      }
+    },
+    "import_skill_dialog": {
+      "local": {
+        "drop_hint": "[to be translated]:Drop a ZIP or directory here, or click to choose a ZIP",
+        "formats": "[to be translated]:Supports .zip files and directories containing SKILL.md"
+      },
+      "subtitle": "[to be translated]:Install a skill from a ZIP file or directory",
+      "title": "[to be translated]:Import skill"
+    },
+    "no_match": "無相符結果",
+    "pending_backend": {
+      "description": "此資源的寫入操作即將上線,目前僅顯示佔位。",
+      "title": "資料層接入中"
+    },
+    "sidebar": {
+      "all_resources": "[to be translated]:All resources",
+      "all_tags": "全部標籤",
+      "no_tags": "尚無標籤",
+      "subtitle": "[to be translated]:Manage your AI resources",
+      "tags": "標籤",
+      "title": "[to be translated]:Library"
+    },
+    "skill_detail": {
+      "created_at": "建立時間",
+      "delete_description": "移除此技能及其所有配置,此操作無法復原",
+      "delete_title": "刪除技能",
+      "description": "描述",
+      "file_preview": "檔案預覽",
+      "installed": "已安裝",
+      "no_description": "暫無描述",
+      "source_files": "來源檔案",
+      "updated_at": "最近更新"
+    },
+    "sort": {
+      "created": "依建立時間",
+      "name": "依名稱",
+      "updated": "依更新時間"
+    },
+    "subtitle": "管理你的助手、智能體與技能",
+    "tag_picker": {
+      "no_tags": "[to be translated]:No tags yet",
+      "placeholder": "[to be translated]:New tag name..."
+    },
+    "tag_sync_failed": "[to be translated]:Failed to sync tags",
+    "time_ago": {
+      "days": "[to be translated]:{{count}} day(s) ago",
+      "hours": "[to be translated]:{{count}} hour(s) ago",
+      "just_now": "[to be translated]:Just now",
+      "minutes": "[to be translated]:{{count}} minute(s) ago",
+      "months": "[to be translated]:{{count}} month(s) ago"
+    },
+    "title": "資源庫",
+    "toolbar": {
+      "add_tag_placeholder": "[to be translated]:Tag name...",
+      "new_resource": "[to be translated]:New resource",
+      "search_placeholder": "搜尋資源...",
+      "tag_button": "[to be translated]:Tag"
+    },
+    "type": {
+      "agent": "智能體",
+      "assistant": "助手",
+      "new_agent": "[to be translated]:New agent",
+      "new_assistant": "[to be translated]:New assistant",
+      "new_prompt": "[to be translated]:New Prompt",
+      "prompt": "[to be translated]:Prompt",
+      "skill": "技能"
+    },
+    "uninstall_failed": "[to be translated]:Failed to uninstall",
+    "view": {
+      "grid": "網格檢視",
+      "list": "列表檢視"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -1844,112 +2705,6 @@
       "title": "保持活躍時間"
     },
     "title": "LM Studio"
-  },
-  "memory": {
-    "actions": "操作",
-    "add_failed": "新增記憶失敗",
-    "add_first_memory": "新增您的第一個記憶",
-    "add_memory": "新增記憶",
-    "add_new_user": "新增新使用者",
-    "add_success": "記憶新增成功",
-    "add_user": "新增使用者",
-    "add_user_failed": "新增使用者失敗",
-    "all_users": "所有使用者",
-    "cannot_delete_default_user": "不能刪除預設使用者",
-    "configure_memory_first": "請先設定記憶設定",
-    "content": "內容",
-    "current_user": "目前使用者",
-    "custom": "自訂",
-    "default": "預設",
-    "default_user": "預設使用者",
-    "delete_confirm": "確定要刪除這條記憶嗎？",
-    "delete_confirm_content": "確定要刪除 {{count}} 條記憶嗎？",
-    "delete_confirm_single": "確定要刪除這個記憶嗎？",
-    "delete_confirm_title": "刪除記憶",
-    "delete_failed": "刪除記憶失敗",
-    "delete_selected": "刪除選取",
-    "delete_success": "記憶刪除成功",
-    "delete_user": "刪除使用者",
-    "delete_user_confirm_content": "確定要刪除使用者 {{user}} 及其所有記憶嗎？",
-    "delete_user_confirm_title": "刪除使用者",
-    "delete_user_failed": "刪除使用者失敗",
-    "description": "記憶功能讓您儲存和管理與助手互動的資訊。您可以新增、編輯和刪除記憶，也可以對它們進行篩選和搜尋。",
-    "edit_memory": "編輯記憶",
-    "embedding_dimensions": "嵌入維度",
-    "embedding_model": "嵌入模型",
-    "enable_global_memory_first": "請先啟用全域記憶",
-    "end_date": "結束日期",
-    "global_memory": "全域記憶",
-    "global_memory_description": "需要開啟助手設定中的全域記憶才能使用",
-    "global_memory_disabled_desc": "要使用記憶功能，請先在助手設定中啟用全域記憶。",
-    "global_memory_disabled_title": "全域記憶已停用",
-    "global_memory_enabled": "全域記憶已啟用",
-    "go_to_memory_page": "前往記憶頁面",
-    "initial_memory_content": "歡迎！這是你的第一個記憶。",
-    "llm_model": "LLM 模型",
-    "load_failed": "載入記憶失敗",
-    "loading": "載入記憶中...",
-    "loading_memories": "正在載入記憶...",
-    "memories_description": "顯示 {{count}} / {{total}} 條記憶",
-    "memories_reset_success": "{{user}} 的所有記憶已成功重設",
-    "memory": "個記憶",
-    "memory_content": "記憶內容",
-    "memory_placeholder": "輸入記憶內容...",
-    "new_user_id": "新使用者 ID",
-    "new_user_id_placeholder": "輸入唯一的使用者 ID",
-    "no_matching_memories": "未找到符合的記憶",
-    "no_memories": "暫無記憶",
-    "no_memories_description": "開始新增您的第一個記憶吧",
-    "not_configured_desc": "請在記憶設定中設定嵌入和 LLM 模型以啟用記憶功能。",
-    "not_configured_title": "記憶未設定",
-    "pagination_total": "第 {{start}}-{{end}} 項，共 {{total}} 項",
-    "please_enter_memory": "請輸入記憶內容",
-    "please_select_embedding_model": "請選擇一個嵌入模型",
-    "please_select_llm_model": "請選擇一個 LLM 模型",
-    "reset_filters": "重設篩選",
-    "reset_memories": "重設記憶",
-    "reset_memories_confirm_content": "確定要永久刪除 {{user}} 的所有記憶嗎？此操作無法復原。",
-    "reset_memories_confirm_title": "重設所有記憶",
-    "reset_memories_failed": "重設記憶失敗",
-    "reset_user_memories": "重設使用者記憶",
-    "reset_user_memories_confirm_content": "確定要重設 {{user}} 的所有記憶嗎？",
-    "reset_user_memories_confirm_title": "重設使用者記憶",
-    "reset_user_memories_failed": "重設使用者記憶失敗",
-    "score": "分數",
-    "search": "搜尋",
-    "search_placeholder": "搜尋記憶...",
-    "select_embedding_model_placeholder": "選擇嵌入模型",
-    "select_llm_model_placeholder": "選擇 LLM 模型",
-    "select_user": "選擇使用者",
-    "settings": "設定",
-    "settings_title": "記憶體設定",
-    "start_date": "開始日期",
-    "statistics": "統計",
-    "stored_memories": "儲存的記憶",
-    "switch_user": "切換使用者",
-    "switch_user_confirm": "將使用者內容切換至 {{user}}？",
-    "time": "時間",
-    "title": "全域記憶",
-    "total_memories": "個記憶",
-    "try_different_filters": "嘗試調整搜尋條件",
-    "update_failed": "更新記憶失敗",
-    "update_success": "記憶更新成功",
-    "user": "使用者",
-    "user_created": "使用者 {{user}} 建立並切換成功",
-    "user_deleted": "使用者 {{user}} 刪除成功",
-    "user_id": "使用者 ID",
-    "user_id_exists": "此使用者 ID 已存在",
-    "user_id_invalid_chars": "使用者 ID 只能包含英文字母、數字、連字號與底線",
-    "user_id_placeholder": "輸入使用者 ID（可選）",
-    "user_id_required": "使用者 ID 為必填欄位",
-    "user_id_reserved": "'default-user' 為保留字，請使用其他 ID",
-    "user_id_rules": "使用者 ID 必須唯一，只能包含英文字母、數字、連字號（-）與底線（_）",
-    "user_id_too_long": "使用者 ID 不能超過 50 個字元",
-    "user_management": "使用者管理",
-    "user_memories_reset": "{{user}} 的所有記憶已重設",
-    "user_switch_failed": "切換使用者失敗",
-    "user_switched": "使用者內容已切換至 {{user}}",
-    "users": "使用者"
   },
   "message": {
     "agents": {
@@ -2291,20 +3046,23 @@
     "websearch": {
       "cutoff": "正在截斷搜尋內容...",
       "fetch_complete": "{{count}} 個搜尋結果",
-      "rag": "正在執行 RAG...",
-      "rag_complete": "保留 {{countBefore}} 個結果中的 {{countAfter}} 個...",
-      "rag_failed": "RAG 失敗，回傳空結果..."
+      "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "新增到啟動台",
     "add_to_sidebar": "新增到側邊欄",
+    "error": {
+      "load_failed": "應用載入失敗",
+      "not_found": "應用未找到"
+    },
+    "hide_failed": "隱藏小程式失敗",
+    "pin_failed": "固定小程式失敗",
     "popup": {
       "close": "關閉小工具",
       "devtools": "開發者工具",
       "goBack": "上一頁",
       "goForward": "下一頁",
-      "minimize": "最小化小工具",
       "openExternal": "在瀏覽器中開啟",
       "open_link_external_off": "目前：使用預設視窗開啟連結",
       "open_link_external_on": "目前：在瀏覽器中開啟連結",
@@ -2313,6 +3071,13 @@
     },
     "remove_from_launchpad": "從啟動台移除",
     "remove_from_sidebar": "從側邊欄移除",
+    "reorder_failed": "小程式排序更新失敗",
+    "shortcut": {
+      "failed": "失敗：{{message}}",
+      "html_saved": "HTML 已儲存至：{{path}}",
+      "pdf_saved": "PDF 已儲存至：{{path}}"
+    },
+    "show_failed": "顯示小程式失敗",
     "sidebar": {
       "close": {
         "title": "關閉"
@@ -2327,9 +3092,11 @@
         "title": "刪除自訂小工具"
       }
     },
-    "title": "小工具"
+    "title": "小工具",
+    "unpin_failed": "取消固定小程式失敗",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "百小應",
     "baidu-ai-search": "百度 AI 搜尋",
@@ -2348,44 +3115,18 @@
     "stepfun": "階躍 AI",
     "tencent-yuanbao": "騰訊元寶",
     "tiangong-ai": "天工 AI",
+    "update_partial_failure_generic": "部分小程式更新失敗",
     "wanzhi": "萬知",
     "wenxin": "文心一言",
     "wps-copilot": "WPS 靈犀",
     "xiaoyi": "小藝",
     "zhihu": "知乎直答"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "提示：若 Google 登入時顯示「不受信任的瀏覽器」，請先在小程式清單中的 Google 小程式完成帳號登入，再到其他小程式使用 Google 登入。"
-    },
-    "clipboard": {
-      "empty": "剪貼簿為空"
-    },
-    "feature": {
-      "chat": "回答此問題",
-      "explanation": "解釋說明",
-      "summary": "內容總結",
-      "translate": "文字翻譯"
-    },
-    "footer": {
-      "backspace_clear": "按 Backspace 清空",
-      "copy_last_message": "按 C 鍵複製",
-      "esc": "按 ESC {{action}}",
-      "esc_back": "回傳",
-      "esc_close": "關閉視窗",
-      "esc_pause": "暫停"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "詢問 {{model}} 取得幫助...",
-        "title": "你想對下方文字做什麼"
-      }
-    },
-    "tooltip": {
-      "pin": "視窗置頂"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "置頂此模型",
+      "unpin": "取消置頂"
+    },
     "add_parameter": "新增參數",
     "all": "全部",
     "custom_parameters": "自訂參數",
@@ -2403,6 +3144,9 @@
     "function_calling": "函式呼叫",
     "invalid_model": "無效模型",
     "json_parse_error": "無效的 JSON 格式",
+    "multi_select": {
+      "label": "多模型並行（與多助理互斥）"
+    },
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
     "parameter_type": {
@@ -3049,11 +3793,11 @@
       "tools": "工具"
     },
     "install": "安裝",
-    "install_plugins_from_browser": "瀏覽可用外掛以開始使用",
+    "install_plugins_from_browser": "瀏覽可用技能以開始使用",
     "installing": "安裝中...",
     "name": "名稱",
     "no_description": "無描述",
-    "no_installed_plugins": "尚未安裝任何外掛",
+    "no_installed_plugins": "尚未安裝任何技能",
     "no_results": "未找到外掛",
     "no_results_skills": "未找到技能",
     "search_placeholder": "搜尋外掛...",
@@ -3081,18 +3825,25 @@
     "uninstalling": "解除安裝中..."
   },
   "preview": {
+    "close": "關閉預覽",
     "copy": {
       "image": "複製為圖片",
       "src": "複製圖片來源"
     },
     "dialog": "開啟預覽視窗",
+    "flip_horizontal": "水平翻轉",
+    "flip_vertical": "垂直翻轉",
     "label": "預覽",
+    "next": "下一張圖片",
     "pan": "移動",
     "pan_down": "下移",
     "pan_left": "左移",
     "pan_right": "右移",
     "pan_up": "上移",
+    "previous": "上一張圖片",
     "reset": "重設",
+    "rotate_left": "向左旋轉",
+    "rotate_right": "向右旋轉",
     "source": "檢視原始碼",
     "zoom_in": "放大",
     "zoom_out": "縮小"
@@ -3170,6 +3921,37 @@
     "zai": "Z.ai",
     "zhinao": "360 智腦",
     "zhipu": "智譜開放平台"
+  },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "提示：若 Google 登入時顯示「不受信任的瀏覽器」，請先在小程式清單中的 Google 小程式完成帳號登入，再到其他小程式使用 Google 登入。"
+    },
+    "clipboard": {
+      "empty": "剪貼簿為空"
+    },
+    "feature": {
+      "chat": "回答此問題",
+      "explanation": "解釋說明",
+      "summary": "內容總結",
+      "translate": "文字翻譯"
+    },
+    "footer": {
+      "backspace_clear": "按 Backspace 清空",
+      "copy_last_message": "按 C 鍵複製",
+      "esc": "按 ESC {{action}}",
+      "esc_back": "回傳",
+      "esc_close": "關閉視窗",
+      "esc_pause": "暫停"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "詢問 {{model}} 取得幫助...",
+        "title": "你想對下方文字做什麼"
+      }
+    },
+    "tooltip": {
+      "pin": "視窗置頂"
+    }
   },
   "restore": {
     "confirm": {
@@ -3423,6 +4205,9 @@
         "summary": "請直接以{{language}}回覆，無須任何說明。"
       },
       "translate": {
+        "error": {
+          "no_selected_text": "未選取要翻譯的文字"
+        },
         "smart_translate_tips": "智慧翻譯：內容將優先翻譯為目標語言；內容已是目標語言時，將翻譯為備用語言"
       },
       "window": {
@@ -3490,7 +4275,7 @@
         "title": "應用篩選名單",
         "user_tips": {
           "mac": "請輸入應用程式的 Bundle ID（每行一個、不區分大小寫，可模糊比對）。例如：com.google.Chrome、com.apple.mail 等",
-          "windows": "請輸入應用程式的執行檔名稱（每行一個、不區分大小寫，可模糊比對）。例如：chrome.exe、weixin.exe、Cherry Studio.exe 等"
+          "windows": "請輸入應用程式的執行檔名稱（每行一個、不區分大小寫，可模糊比對）。例如：chrome.exe、weixin.exe、CherryStudio.exe 等"
         }
       },
       "linux": {
@@ -3611,6 +4396,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "新建智能體",
+      "empty_text": "暫無智能體",
+      "search_placeholder": "搜尋智能體…"
+    },
+    "assistant": {
+      "create_new": "新建助手",
+      "empty_text": "暫無助手",
+      "multi_hint": "（與多模型互斥）",
+      "multi_label": "多助手並行",
+      "search_placeholder": "搜尋助手…"
+    },
+    "common": {
+      "edit": "編輯",
+      "pin": "固定",
+      "pinned_title": "已固定",
+      "sort": {
+        "asc": "最早",
+        "desc": "最近"
+      },
+      "sort_label": "排序",
+      "unpin": "取消固定"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3672,6 +4482,82 @@
       "label": "預設助手",
       "model_params": "模型參數",
       "title": "預設助手"
+    },
+    "channels": {
+      "description": "將代理連接到 Telegram、飛書、Discord 等訊息平台。",
+      "title": "頻道"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "清空",
+        "configDescription": "切換 props 預覽元件行為",
+        "configTitle": "設定",
+        "currentProps": "目前 props",
+        "description": "AgentSelector 現在會讀取真實 /agents DataApi 資料，用於驗證 id/item 選擇、pin、排序與搜尋行為。",
+        "emptyShellNotice": "目前預覽使用 /agents DataApi 回傳的真實智能體列表。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "點擊 trigger 開啟選擇器",
+        "previewTitle": "預覽",
+        "title": "智能體選擇器",
+        "triggerPlaceholder": "選擇智能體",
+        "valueProp": "目前 value"
+      },
+      "agentTodoList": {
+        "title": "Agent 任務列表"
+      },
+      "assistantSelector": {
+        "clearSelection": "清空",
+        "configDescription": "切換 props 預覽元件行為",
+        "configTitle": "設定",
+        "currentProps": "目前 props",
+        "description": "直接掛載 AssistantSelector 業務元件，驗證 multi/single、id/item、pin、排序與搜尋行為。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "點擊 trigger 開啟選擇器",
+        "previewTitle": "預覽",
+        "title": "助手選擇器",
+        "triggerPlaceholder": "選擇助手",
+        "triggerSelectedCount": "已選 {{count}} 個助手",
+        "valueProp": "目前 value"
+      },
+      "description": "僅在開發環境顯示，用於直接在應用內聯調 v2 選擇器等新元件。",
+      "label": "元件測試",
+      "modelSelector": {
+        "behaviorConfig": "互動與顯示設定",
+        "callbackEmpty": "尚未收到元件回呼",
+        "clearSelection": "清空選擇",
+        "configDescription": "在上方切換 ModelSelector 的關鍵 props，並在下方直接查看傳入值與回呼返回值。",
+        "configTitle": "Props Playground",
+        "controlMultiSelectMode": "受控 multiSelectMode",
+        "currentProps": "目前 props",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "這裡直接掛載目前的 ModelSelector 業務元件，方便驗證選擇、篩選、搜尋與置頂能力。",
+        "empty": "目前沒有可用模型，暫時無法顯示選擇器。",
+        "lastModeChangeReturn": "最近一次 onMultiSelectModeChange 返回",
+        "lastSelectReturn": "最近一次 onSelect 返回",
+        "loading": "正在載入模型...",
+        "modelId": "模型 ID",
+        "multiSelectMode": "multiSelectMode",
+        "multiple": "multiple",
+        "normalizedIds": "正規化選中 ID",
+        "outputEmpty": "目前沒有可顯示的資料",
+        "provider": "服務商",
+        "resetOutputs": "重設輸出",
+        "resultsDescription": "這裡會顯示元件目前接收的 value、正規化後的選中狀態，以及最新一次回呼輸出。",
+        "resultsTitle": "返回資料與狀態",
+        "selected": "目前選擇",
+        "selectedEmpty": "尚未選擇模型",
+        "selectionConfig": "選擇值設定",
+        "selectionType": "selectionType",
+        "selectionTypeId": "返回模型 ID",
+        "selectionTypeModel": "返回模型物件",
+        "showPinnedModels": "showPinnedModels",
+        "showTagFilter": "showTagFilter",
+        "title": "模型選擇元件",
+        "triggerPlaceholder": "選擇一個模型",
+        "triggerSelectedCount": "已選 {{count}} 個模型",
+        "valueProp": "目前傳入 value"
+      },
+      "title": "開發環境元件測試"
     },
     "data": {
       "app_data": {
@@ -4337,7 +5223,7 @@
         "knowledge": {
           "icon": "顯示知識圖示"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "顯示小工具圖示"
         },
         "painting": {
@@ -4371,6 +5257,15 @@
       "backup": {
         "button": "備份",
         "title": "資料備份與復原"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "自訂 CSS",
+          "display_language": "顯示與語言",
+          "privacy_advanced": "隱私與進階",
+          "system_startup": "系統與啟動"
+        },
+        "title": "通用設定"
       },
       "display": {
         "title": "顯示設定"
@@ -4432,6 +5327,12 @@
         "label": "目標語言",
         "russian": "俄文"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "筆記"
+      },
+      "title": "集成"
     },
     "launch": {
       "onboot": "開機自動啟動",
@@ -4554,6 +5455,7 @@
         "glama": "Glama MCP 伺服器目錄",
         "higress": "Higress MCP 伺服器",
         "mcpso": "MCP 伺服器發現平台",
+        "mcpworld": "百度旗下MCP聚合平台網站",
         "modelscope": "魔搭社群 MCP 伺服器",
         "official": "官方 MCP 伺服器集合",
         "pulsemcp": "Pulse MCP 伺服器",
@@ -4701,6 +5603,13 @@
       "url": "URL",
       "user": "使用者"
     },
+    "menuGroups": {
+      "appSettings": "應用設定",
+      "integrations": "模型",
+      "productivity": "效率",
+      "services": "插件",
+      "system": "系統"
+    },
     "messages": {
       "divider": {
         "label": "訊息間顯示分隔線",
@@ -4738,7 +5647,7 @@
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
       "cache_description": "設定同時保持活躍狀態的小程式最大數量",
       "cache_settings": "快取設定",
@@ -4788,8 +5697,6 @@
         "title": "小程式區域篩選"
       },
       "reset_tooltip": "重設為預設值",
-      "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
-      "sidebar_title": "側邊欄活躍小程式顯示設定",
       "title": "小程式設定",
       "visible": "顯示的小程式"
     },
@@ -4854,7 +5761,7 @@
         "use_all_keys": "使用金鑰"
       },
       "default_assistant_model": "預設助手模型",
-      "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
+      "default_assistant_model_description": "助手未指定模型時使用",
       "empty": "找不到模型",
       "manage": {
         "add_listed": {
@@ -4948,9 +5855,35 @@
         "title": "詳細程度"
       }
     },
+    "plugins": {
+      "bunDescription": "用於 MCP 服務和相關工具鏈的 JavaScript 執行階段。",
+      "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
+      "installing": "安裝中...",
+      "notInstalled": "未安裝",
+      "title": "環境依賴",
+      "uvDescription": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
+    },
     "privacy": {
       "enable_privacy_mode": "匿名傳送錯誤報告和資料統計",
       "title": "隱私設定"
+    },
+    "prompts": {
+      "add": "新增提示詞",
+      "contentLabel": "內容",
+      "contentPlaceholder": "請輸入提示詞內容，支援使用 ${變數}，按 Tab 可在變數間快速定位。例如：\n幫我規劃從 ${from} 到 ${to} 的路線，然後傳送到 ${email}",
+      "delete": "刪除提示詞",
+      "deleteConfirm": "刪除提示詞後將無法復原，是否繼續？",
+      "edit": "編輯提示詞",
+      "errors": {
+        "createFailed": "建立提示詞失敗",
+        "deleteFailed": "刪除提示詞失敗",
+        "loadFailed": "載入提示詞失敗",
+        "reorderFailed": "調整提示詞順序失敗",
+        "updateFailed": "更新提示詞失敗"
+      },
+      "title": "提示詞管理",
+      "titleLabel": "標題",
+      "titlePlaceholder": "請輸入提示詞標題"
     },
     "provider": {
       "add": {
@@ -5192,7 +6125,8 @@
         "documentation": "檢視官方文件以取得更多設定詳細資訊：",
         "learn_more": "瞭解更多",
         "location": "地區",
-        "location_help": "Vertex AI 服務地區，例如：us-central1",
+        "location_help": "Vertex AI 服務地區，例如：us-central1。此欄位不會從 Service Account JSON 自動帶入，需手動填寫。",
+        "location_placeholder": "選擇 Vertex AI 地區",
         "project_id": "專案 ID",
         "project_id_help": "您的 Google Cloud 專案 ID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5202,7 +6136,12 @@
           "client_email_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 client_email 欄位",
           "client_email_placeholder": "輸入服務帳戶 client email",
           "description": "使用服務帳戶進行身份驗證，適用於 ADC 無法使用的環境",
-          "incomplete_config": "請先完成服務帳戶設定",
+          "incomplete_config": "請先完整填寫所有必需的 Vertex AI 設定",
+          "json_input": "Service Account JSON",
+          "json_input_help": "貼上完整 JSON 金鑰內容。解析後只會儲存 project_id、client_email 和 private_key，並清空原始 JSON。",
+          "json_input_placeholder": "貼上完整的 Service Account JSON 金鑰內容",
+          "json_parse_error": "解析 Service Account JSON 失敗，請確認格式正確",
+          "json_parse_success": "Service Account JSON 已解析",
           "private_key": "私密金鑰",
           "private_key_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 private_key 欄位",
           "private_key_placeholder": "輸入服務帳戶私密金鑰",
@@ -5239,39 +6178,51 @@
       "select": "選擇",
       "title": "快捷選單"
     },
-    "quickPhrase": {
-      "add": "新增短語",
-      "assistant": "助手提示詞",
-      "contentLabel": "內容",
-      "contentPlaceholder": "請輸入短語內容，支援使用變數，然後按 Tab 鍵可以快速定位到變數進行修改。例如：\n幫我規劃從 ${from} 到 ${to} 的行程，然後傳送到 ${email}",
-      "delete": "刪除短語",
-      "deleteConfirm": "刪除後無法復原，是否繼續？",
-      "edit": "編輯短語",
-      "global": "全域快速短語",
-      "locationLabel": "新增位置",
-      "title": "快捷短語",
-      "titleLabel": "標題",
-      "titlePlaceholder": "請輸入短語標題"
+    "scheduledTasks": {
+      "description": "管理所有代理的排程任務。任務將依設定好的排程自動執行。",
+      "noAgents": "排程任務需要開啟靈魂模式或無權限模式的代理才能執行。請先在代理設定中啟用。",
+      "noAgentsTip": "提示：你也可以直接在對話中讓代理建立排程任務。",
+      "noTasks": "沒有排程任務。點擊「+ 新增」為代理程式建立一個。",
+      "selectTask": "選擇一個任務來查看詳細資訊",
+      "title": "排程工作"
     },
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
+      "all_disable": "全部停用",
+      "all_enable": "全部啟用",
+      "bind_first_to_enable": "請先綁定快捷鍵，再調整啟用狀態",
+      "categories": {
+        "assistant": "AI 助手工具",
+        "chat": "訊息互動",
+        "general": "全域與視窗",
+        "title": "快捷鍵分組",
+        "topic": "會話與話題"
+      },
       "clear_shortcut": "清除快捷鍵",
       "clear_topic": "清除所有訊息",
+      "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "複製上一則訊息",
       "edit_last_user_message": "編輯最後一則使用者訊息",
+      "empty": "目前分組下沒有可顯示的快捷鍵",
       "enabled": "啟用",
       "exit_fullscreen": "離開全螢幕",
       "label": "按鍵",
-      "mini_window": "快捷助手",
       "new_topic": "新增話題",
+      "occupied_by_other_application": "此快捷鍵已被系統或其他應用程式占用",
       "press_shortcut": "按下快捷鍵",
+      "quick_assistant": "快捷助手",
       "rename_topic": "重新命名話題",
+      "reset": "重設",
       "reset_defaults": "重設預設快捷鍵",
       "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
+      "reset_defaults_failed": "重設快捷鍵失敗",
       "reset_to_default": "重設為預設",
+      "save_failed": "儲存快捷鍵失敗",
+      "save_failed_with_name": "儲存快捷鍵失敗：{{name}}",
       "search_message": "搜尋訊息",
       "search_message_in_chat": "在目前對話中搜尋訊息",
+      "search_placeholder": "搜尋捷徑...",
       "select_model": "選擇模型",
       "selection_assistant_select_text": "劃詞助手：取詞",
       "selection_assistant_toggle": "開關劃詞助手",
@@ -5279,11 +6230,46 @@
       "show_settings": "開啟設定",
       "title": "快捷鍵",
       "toggle_new_context": "清除上下文",
-      "toggle_show_assistants": "切換助手顯示",
       "toggle_show_topics": "切換話題顯示",
+      "toggle_sidebar": "切換側邊欄",
       "zoom_in": "放大介面",
       "zoom_out": "縮小介面",
       "zoom_reset": "重設縮放"
+    },
+    "skills": {
+      "author": "作者",
+      "batchUninstallSuccess": "{{count}} 個技能已解除安裝",
+      "builtin": "內建",
+      "confirmBatchUninstall": "您確定要解除安裝所選的 {{count}} 項技能嗎？",
+      "confirmUninstall": "確定要解除安裝此技能嗎？",
+      "directory": "資料夾",
+      "dropHint": "或將 ZIP 檔案或資料夾拖放到此處",
+      "emptyDesc": "透過 ZIP、資料夾安裝，或在線搜尋登錄檔來擴展 Agent 的能力。",
+      "emptyTip": "提示：你也可以讓 Agent 幫你安裝技能。",
+      "emptyTitle": "未選擇技能",
+      "filterPlaceholder": "篩選技能...",
+      "install": "安裝",
+      "installFailed": "技能安裝失敗：{{name}}",
+      "installFromDirectory": "從資料夾安裝",
+      "installFromZip": "從 ZIP 檔案安裝",
+      "installSuccess": "技能已安裝：{{name}}",
+      "installed": "已安裝",
+      "invalidFormat": "僅支援 ZIP 檔案和資料夾",
+      "localInstall": "本機安裝",
+      "multiSelect": "多選",
+      "noFilterResults": "沒有匹配的技能",
+      "noInstalled": "暫無已安裝的技能",
+      "noResults": "未找到技能",
+      "noSkillFile": "未找到 SKILL.md 檔案",
+      "searchPlaceholder": "發現更多技能...",
+      "searchRegistryTitle": "在線搜尋技能登錄檔",
+      "searchTitle": "搜尋技能",
+      "selectFile": "選擇一個檔案查看",
+      "title": "技能",
+      "uninstall": "解除安裝",
+      "uninstallSuccess": "技能已解除安裝：{{name}}",
+      "viewSource": "查看原始碼",
+      "zip": "ZIP"
     },
     "theme": {
       "color_primary": "主題顏色",
@@ -5307,6 +6293,14 @@
         },
         "error": {
           "not_system": "系統 OCR 僅支援 Windows 與 MacOS"
+        },
+        "features": {
+          "paddleocr": "更適合中文文字，並更適用於收據、掃描檔案以及版面較複雜的圖片。",
+          "system": {
+            "macos": "使用內建 macOS OCR 引擎，無需設定，適合截圖與輕量文字擷取。",
+            "windows": "使用原生 Windows OCR 引擎，具備強大的作業系統整合能力，適用於基本的本機辨識工作。"
+          },
+          "tesseract": "一款經典的本地 OCR 選項，具備可自訂的語言套件，非常適合離線與多語言工作流程。"
         },
         "image": {
           "error": {
@@ -5334,6 +6328,13 @@
         "title": "OCR 服務"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "非常適合將 PDF 轉換為更乾淨的 Markdown 或可編輯文字，以便後續檢索與編輯。",
+          "mineru": "針對更高保真度的版面復原進行最佳化，特別適用於學術 PDF、表格與公式。",
+          "mistral": "強大的雲端文件理解能力，適用於結構化擷取、多頁檔案及複雜版面。",
+          "open_mineru": "一個開放的部署選項，適合希望自行託管或對處理流程有更高控制權的團隊。",
+          "paddleocr": "更輕量的整合選擇，非常適合中文文件、掃描檔及常見收據格式的內容。"
+        },
         "paddleocr": {
           "aistudio_access_token": "星河社區訪問令牌",
           "api_url": "API 網址",
@@ -5372,23 +6373,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG 失敗"
-          },
-          "info": {
-            "dimensions_auto_success": "維度自動取得成功，維度為 {{dimensions}}"
-          },
           "method": {
             "cutoff": "截斷",
             "label": "壓縮方法",
-            "none": "不壓縮",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "文件片段數量",
-              "tooltip": "預期從單個搜尋結果中提取的文件片段數量，實際提取的總數量是這個值乘以搜尋結果數量。"
-            }
+            "none": "不壓縮"
           },
           "title": "搜尋結果壓縮"
         },
@@ -5514,7 +6502,11 @@
     }
   },
   "tab": {
-    "new": "新標籤頁"
+    "close": "關閉分頁",
+    "moveToFirst": "移至第一個",
+    "new": "新標籤頁",
+    "pin": "釘選分頁",
+    "unpin": "取消固定分頁"
   },
   "title": {
     "apps": "小程式",
@@ -5524,7 +6516,6 @@
     "knowledge": "知識庫",
     "launchpad": "啟動台",
     "mcp-servers": "MCP 伺服器",
-    "memories": "記憶",
     "notes": "筆記",
     "openclaw": "OpenClaw",
     "paintings": "繪畫",
@@ -5593,8 +6584,12 @@
     "detecting": "偵測中...",
     "empty": "翻譯內容為空",
     "error": {
+      "auto_copy_failed": "自動複製翻譯結果失敗",
       "chat_qwen_mt": "Qwen MT 模型無法在對話中使用，請前往翻譯頁面",
       "detect": {
+        "empty": "偵測到的語言為空",
+        "failed": "語言偵測失敗",
+        "invalid": "偵測到的語言不受支援",
         "qwen_mt": "QwenMT 模型不能用於語言偵測",
         "unknown": "偵測到未知語言",
         "update_setting": "設定失敗"
@@ -5602,6 +6597,7 @@
       "empty": "翻譯結果為空",
       "failed": "翻譯失敗",
       "invalid_source": "無效的來源語言",
+      "languages_load_failed": "無法載入翻譯語言。部分功能可能無法使用。",
       "not_configured": "翻譯模型未設定",
       "not_supported": "不支援的語言 {{language}}",
       "unknown": "翻譯過程中遇到未知錯誤"
@@ -5614,6 +6610,7 @@
       "error": {
         "check_type": "檢查檔案類型時發生錯誤",
         "multiple": "不允許上傳多個檔案",
+        "ocr": "辨識圖片文字失敗",
         "too_large": "檔案過大",
         "unknown": "讀取檔案內容失敗"
       },
@@ -5625,11 +6622,20 @@
       "delete": "刪除翻譯歷史",
       "empty": "翻譯歷史為空",
       "error": {
+        "add": "新增翻譯紀錄失敗",
+        "clear": "清除翻譯紀錄失敗",
         "delete": "刪除失敗",
+        "load": "無法載入翻譯紀錄",
         "save": "儲存翻譯歷史失敗"
       },
       "search": {
         "placeholder": "搜尋翻譯歷史"
+      },
+      "success": {
+        "add": "已儲存至紀錄",
+        "clear": "歷史紀錄已清除",
+        "delete": "已刪除",
+        "update": "已儲存"
       },
       "title": "翻譯歷史"
     },
@@ -5659,6 +6665,9 @@
       "autoCopy": "翻譯完成後自動複製",
       "bidirectional": "雙向翻譯設定",
       "bidirectional_tip": "開啟後，僅支援在來源語言和目標語言之間進行雙向翻譯",
+      "error": {
+        "save": "儲存翻譯設定失敗"
+      },
       "model": "模型設定",
       "model_desc": "翻譯服務使用的模型",
       "model_placeholder": "選擇翻譯模型",
@@ -5682,7 +6691,7 @@
   },
   "tray": {
     "quit": "結束",
-    "show_mini_window": "快捷助手",
+    "show_quick_assistant": "快捷助手",
     "show_window": "顯示視窗"
   },
   "update": {

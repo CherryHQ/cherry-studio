@@ -2,9 +2,10 @@ import fs from 'node:fs'
 import { arch } from 'node:os'
 import path from 'node:path'
 
+import { application } from '@application'
+import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
-import { application } from '@main/core/application'
 import { generateSignature } from '@main/integration/cherryai'
 import { anthropicService } from '@main/services/AnthropicService'
 import { getIpCountry } from '@main/utils/ipService'
@@ -19,42 +20,31 @@ import {
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
-import type { AgentPersistedMessage, FileMetadata, Notification, PluginError, Provider } from '@types'
+import type { AgentPersistedMessage, FileMetadata, Notification, Provider } from '@types'
 import checkDiskSpace from 'check-disk-space'
-import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
-import { agentMessageRepository } from './services/agents/database'
-import { pluginService } from './services/agents/plugins/PluginService'
+import { skillService } from './services/agents/skills/SkillService'
 import { appService } from './services/AppService'
 import BackupManager from './services/BackupManager'
 import { cherryINOAuthService } from './services/CherryINOAuthService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
-import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import { knowledgeService } from './services/KnowledgeService'
-import { memoryService } from './services/memory/MemoryService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { vertexAIService } from './services/VertexAIService'
-import { calculateDirectorySize, getResourcePath } from './utils'
+import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import {
-  getCacheDir,
-  getConfigDir,
-  getFilesDir,
-  getNotesDir,
-  hasWritePermission,
-  isPathInside,
-  untildify
-} from './utils/file'
-import { updateAppDataConfig } from './utils/init'
+import { isSafeExternalUrl } from './utils/externalUrlSafety'
+import { hasWritePermission, isPathInside, untildify } from './utils/file'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
@@ -63,28 +53,14 @@ const logger = loggerService.withContext('IPC')
 const backupManager = new BackupManager()
 const exportService = new ExportService()
 const obsidianVaultService = new ObsidianVaultService()
-// vertexAIService and memoryService are now imported as named exports
-const dxtService = new DxtService()
-// pluginService is now imported as a named export
 
-function normalizeError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error))
-}
-
-function extractPluginError(error: unknown): PluginError | null {
-  if (error && typeof error === 'object' && 'type' in error && typeof (error as { type: unknown }).type === 'string') {
-    return error as PluginError
-  }
-  return null
-}
-
-export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
+export async function registerIpc() {
   const notificationService = new NotificationService()
 
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
   // const powerMonitorService = application.get('PowerMonitorService')
   // powerMonitorService.registerShutdownHandler(() => {
-  //   const mw = application.get('WindowService').getMainWindow()
+  //   const mw = application.get('MainWindowService').getMainWindow()
   //   if (mw && !mw.isDestroyed()) {
   //     mw.webContents.send(IpcChannel.App_SaveData)
   //   }
@@ -93,26 +69,27 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
     isPackaged: app.isPackaged,
-    appPath: app.getAppPath(),
-    filesPath: getFilesDir(),
-    notesPath: getNotesDir(),
-    configPath: getConfigDir(),
-    appDataPath: app.getPath('userData'),
-    resourcesPath: getResourcePath(),
+    appPath: application.getPath('app.root'),
+    filesPath: application.getPath('feature.files.data'),
+    notesPath: application.getPath('feature.notes.data'),
+    configPath: application.getPath('cherry.config'),
+    appDataPath: application.getPath('app.userdata'),
+    resourcesPath: application.getPath('app.root.resources'),
     logsPath: logger.getLogsDir(),
     arch: arch(),
     isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env,
-    installPath: path.dirname(app.getPath('exe'))
+    installPath: application.getPath('app.install')
   }))
 
-  ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
+  // MainWindow_Reload handler moved into MainWindowService.registerIpcHandlers.
   // Application_Quit is registered by Application.registerApplicationIpc()
-  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
-
-  // language
-  // ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
-  //   configManager.setLanguage(language)
-  // })
+  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => {
+    if (!isSafeExternalUrl(url)) {
+      logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
+      return
+    }
+    return shell.openExternal(url)
+  })
 
   // spell check
   ipcMain.handle(IpcChannel.App_SetEnableSpellCheck, (_, isEnable: boolean) => {
@@ -140,30 +117,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     await appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
 
-  // // launch to tray
-  // ipcMain.handle(IpcChannel.App_SetLaunchToTray, (_, isActive: boolean) => {
-  //   configManager.setLaunchToTray(isActive)
-  // })
-
-  // // tray
-  // ipcMain.handle(IpcChannel.App_SetTray, (_, isActive: boolean) => {
-  //   configManager.setTray(isActive)
-  // })
-
-  // // to tray on close
-  // ipcMain.handle(IpcChannel.App_SetTrayOnClose, (_, isActive: boolean) => {
-  //   configManager.setTrayOnClose(isActive)
-  // })
-
-  // // auto update
-  // ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
-  //   appUpdater.setAutoUpdate(isActive)
-  //   configManager.setAutoUpdate(isActive)
-  // })
-
   ipcMain.handle(IpcChannel.AgentMessage_PersistExchange, async (_event, payload) => {
     try {
-      return await agentMessageRepository.persistExchange(payload)
+      return await sessionMessageService.persistExchange(payload)
     } catch (error) {
       logger.error('Failed to persist agent session messages', error as Error)
       throw error
@@ -174,7 +130,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     IpcChannel.AgentMessage_GetHistory,
     async (_event, { sessionId }: { sessionId: string }): Promise<AgentPersistedMessage[]> => {
       try {
-        return await agentMessageRepository.getSessionHistory(sessionId)
+        return await sessionMessageService.getSessionHistory(sessionId)
       } catch (error) {
         logger.error('Failed to get agent session history', error as Error)
         throw error
@@ -193,14 +149,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       return systemPreferences.isTrustedAccessibilityClient(true)
     })
   }
-
-  ipcMain.handle(IpcChannel.App_SetFullScreen, (_, value: boolean): void => {
-    mainWindow.setFullScreen(value)
-  })
-
-  ipcMain.handle(IpcChannel.App_IsFullScreen, (): boolean => {
-    return mainWindow.isFullScreen()
-  })
 
   // Get System Fonts
   ipcMain.handle(IpcChannel.App_GetSystemFonts, async () => {
@@ -260,7 +208,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // get cache size
   ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
-    const cachePath = getCacheDir()
+    const cachePath = application.getPath('app.session.cache')
     logger.info(`Calculating cache size for path: ${cachePath}`)
 
     try {
@@ -302,9 +250,20 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   // Set app data path
+  //
+  // TODO(v2): This handler is incompatible with the frozen path registry
+  // established by Application.bootstrap(). Calling app.setPath('userData')
+  // here mutates Electron's path while application.getPath('app.userdata')
+  // keeps returning the boot-time value until the renderer triggers a
+  // relaunch (which it currently always does — see BasicDataSettings.tsx
+  // L186/203/322). When the v1 path-change flow is migrated to
+  // BootConfigService, redesign this handler so the app data path can only
+  // be changed via boot-config + restart, eliminating the divergence window.
   ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
-    updateAppDataConfig(filePath)
-    app.setPath('userData', filePath)
+    // updateAppDataConfig(filePath)
+    // app.setPath('userData', filePath)
+    // TODO: will refactor in v2
+    return filePath
   })
 
   ipcMain.handle(IpcChannel.App_GetDataPathFromArgs, () => {
@@ -358,9 +317,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Notification_Send, async (_, notification: Notification) => {
     await notificationService.sendNotification(notification)
   })
-  ipcMain.handle(IpcChannel.Notification_OnClick, (_, notification: Notification) => {
-    mainWindow.webContents.send('notification-click', notification)
-  })
+  // Notification_OnClick handler moved into MainWindowService (uses wm.broadcastToType).
 
   // zip
   ipcMain.handle(IpcChannel.Zip_Compress, (_, text: string) => compress(text))
@@ -547,20 +504,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, knowledgeService.rerank.bind(knowledgeService))
 
   // memory
-  ipcMain.handle(IpcChannel.Memory_Add, (_, messages, config) => memoryService.add(messages, config))
-  ipcMain.handle(IpcChannel.Memory_Search, (_, query, config) => memoryService.search(query, config))
-  ipcMain.handle(IpcChannel.Memory_List, (_, config) => memoryService.list(config))
-  ipcMain.handle(IpcChannel.Memory_Delete, (_, id) => memoryService.delete(id))
-  ipcMain.handle(IpcChannel.Memory_Update, (_, id, memory, metadata) => memoryService.update(id, memory, metadata))
-  ipcMain.handle(IpcChannel.Memory_Get, (_, memoryId) => memoryService.get(memoryId))
-  ipcMain.handle(IpcChannel.Memory_SetConfig, (_, config) => memoryService.setConfig(config))
-  ipcMain.handle(IpcChannel.Memory_DeleteUser, (_, userId) => memoryService.deleteUser(userId))
-  ipcMain.handle(IpcChannel.Memory_DeleteAllMemoriesForUser, (_, userId) =>
-    memoryService.deleteAllMemoriesForUser(userId)
-  )
-  ipcMain.handle(IpcChannel.Memory_GetUsersList, () => memoryService.getUsersList())
-  ipcMain.handle(IpcChannel.Memory_MigrateMemoryDb, () => memoryService.migrateMemoryDb())
-
   // VertexAI
   ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
     return vertexAIService.getAuthHeaders(params)
@@ -582,22 +525,15 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     decrypt(encryptedData, iv, secretKey)
   )
 
-  // DXT upload handler
-  ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
-    try {
-      // Create a temporary file with the uploaded content
-      const tempPath = await fileManager.createTempFile(event, fileName)
-      await fileManager.writeFile(event, tempPath, Buffer.from(fileBuffer))
+  // Channel logs & status
+  ipcMain.handle(IpcChannel.Channel_GetLogs, async (_event, channelId: string) => {
+    const { channelManager } = await import('@main/services/agents/services/channels/ChannelManager')
+    return channelManager.getChannelLogs(channelId)
+  })
 
-      // Process DXT file using the temporary path
-      return await dxtService.uploadDxt(event, tempPath)
-    } catch (error) {
-      logger.error('DXT upload error:', error as Error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to upload DXT file'
-      }
-    }
+  ipcMain.handle(IpcChannel.Channel_GetStatuses, async () => {
+    const { channelManager } = await import('@main/services/agents/services/channels/ChannelManager')
+    return channelManager.getAllStatuses()
   })
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
@@ -678,103 +614,121 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
 
-  // Claude Code Plugins
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Install, async (_, options) => {
+  // Global Skills
+  ipcMain.handle(IpcChannel.Skill_List, async (_, agentId?: string) => {
     try {
-      const data = await pluginService.install(options)
+      const data = await skillService.list(agentId ? { agentId } : {})
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to install plugin', { options, error })
+      logger.error('Failed to list skills', { error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Uninstall, async (_, options) => {
+  ipcMain.handle(IpcChannel.Skill_Install, async (_, options) => {
     try {
-      await pluginService.uninstall(options)
+      const data = await skillService.install(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to install skill', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.Skill_Uninstall, async (_, skillId: string) => {
+    try {
+      await skillService.uninstall(skillId)
       return { success: true, data: undefined }
     } catch (error) {
-      logger.error('Failed to uninstall plugin', { options, error })
+      logger.error('Failed to uninstall skill', { skillId, error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_UninstallPackage, async (_, options) => {
+  ipcMain.handle(IpcChannel.Skill_Toggle, async (_, options) => {
     try {
-      const data = await pluginService.uninstallPluginPackage(options)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to uninstall plugin package', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListInstalled, async (_, agentId: string) => {
-    try {
-      const data = await pluginService.listInstalled(agentId)
-      return { success: true, data }
-    } catch (error) {
-      const pluginError = extractPluginError(error)
-      if (pluginError) {
-        logger.error('Failed to list installed plugins', {
-          agentId,
-          error: pluginError
-        })
-        return { success: false, error: pluginError }
+      if (
+        !options ||
+        typeof options.skillId !== 'string' ||
+        !options.skillId ||
+        typeof options.agentId !== 'string' ||
+        !options.agentId ||
+        typeof options.isEnabled !== 'boolean'
+      ) {
+        return { success: false, error: 'Invalid toggle options' }
       }
+      const data = await skillService.toggle(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to toggle skill', { options, error })
+      return { success: false, error }
+    }
+  })
 
-      const err = normalizeError(error)
-      logger.error('Failed to list installed plugins', {
-        agentId,
-        error: err
-      })
-      return {
-        success: false,
-        error: {
-          type: 'TRANSACTION_FAILED',
-          operation: 'list-installed',
-          reason: err.message
-        }
+  ipcMain.handle(IpcChannel.Skill_InstallFromZip, async (_, options) => {
+    try {
+      const data = await skillService.installFromZip(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to install skill from ZIP', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.Skill_InstallFromDirectory, async (_, options) => {
+    try {
+      const data = await skillService.installFromDirectory(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to install skill from directory', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.Skill_ReadFile, async (_, skillId: string, filename: string) => {
+    try {
+      const data = await skillService.readFile(skillId, filename)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to read skill file', { skillId, filename, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.Skill_ListFiles, async (_, skillId: string) => {
+    try {
+      const data = await skillService.listFiles(skillId)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to list skill files', { skillId, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.Skill_ListLocal, async (_, workdir: string) => {
+    try {
+      if (!workdir || typeof workdir !== 'string') {
+        return { success: false, error: 'Invalid workdir' }
       }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_WriteContent, async (_, options) => {
-    try {
-      await pluginService.writeContent(options.agentId, options.filename, options.type, options.content)
-      return { success: true, data: undefined }
-    } catch (error) {
-      logger.error('Failed to write plugin content', { options, error })
-      return { success: false, error }
-    }
-  })
-
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromZip, async (_, options) => {
-    try {
-      const data = await pluginService.installFromZip(options)
+      const data = await skillService.listLocal(workdir)
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to install plugin from ZIP', { options, error })
+      logger.error('Failed to list local plugins', { workdir, error })
       return { success: false, error }
     }
   })
 
-  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InstallFromDirectory, async (_, options) => {
+  // MainWindow_CrashRenderProcess handler moved into MainWindowService (dev-only).
+
+  // WeChat
+  ipcMain.handle(IpcChannel.WeChat_HasCredentials, async (_, channelId: string) => {
+    const tokenPath = application.getPath('feature.agents.channels', `weixin_bot_${channelId}.json`)
     try {
-      const data = await pluginService.installFromDirectory(options)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to install plugin from directory', { options, error })
-      return { success: false, error }
+      const raw = await fs.promises.readFile(tokenPath, 'utf8')
+      const parsed = JSON.parse(raw)
+      return { exists: true, userId: parsed.userId as string | undefined }
+    } catch {
+      return { exists: false }
     }
   })
-
-  ipcMain.handle(IpcChannel.APP_CrashRenderProcess, () => {
-    mainWindow.webContents.forcefullyCrashRenderer()
-  })
-
-  // Preference handlers
-  // PreferenceService IPC handlers are now registered via lifecycle onReady()
-
-  // OpenClaw IPC handlers are registered by OpenClawService lifecycle (onInit)
 }

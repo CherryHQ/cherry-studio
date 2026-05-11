@@ -1,244 +1,298 @@
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import type { DbType } from '@data/db/types'
-import { createClient } from '@libsql/client'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { KnowledgeItemService } from '@data/services/KnowledgeItemService'
 import { ErrorCode } from '@shared/data/api'
-import type { CreateKnowledgeItemsDto, UpdateKnowledgeItemDto } from '@shared/data/api/schemas/knowledges'
-import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/libsql'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { getKnowledgeBaseByIdMock } = vi.hoisted(() => ({
-  getKnowledgeBaseByIdMock: vi.fn()
-}))
-
-const mockSelect = vi.fn()
-const mockInsert = vi.fn()
-const mockUpdate = vi.fn()
-const mockDelete = vi.fn()
-const mockDb = {
-  select: mockSelect,
-  insert: mockInsert,
-  update: mockUpdate,
-  delete: mockDelete
-}
-
-let realDb: DbType | null = null
-let closeClient: (() => void) | undefined
-
-vi.mock('@main/core/application', () => ({
-  application: {
-    get: vi.fn(() => ({
-      getDb: vi.fn(() => realDb ?? mockDb)
-    }))
-  }
-}))
-
-vi.mock('../KnowledgeBaseService', () => ({
-  knowledgeBaseService: {
-    getById: getKnowledgeBaseByIdMock
-  }
-}))
-
-const { KnowledgeItemService } = await import('../KnowledgeItemService')
-
-function createMockRow(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'item-1',
-    baseId: 'kb-1',
-    groupId: null,
-    type: 'note',
-    data: { content: 'hello world' },
-    status: 'idle',
-    error: null,
-    createdAt: '2024-01-01T00:00:00.000Z',
-    updatedAt: '2024-01-02T00:00:00.000Z',
-    ...overrides
-  }
-}
+import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
+import { createUniqueModelId } from '@shared/data/types/model'
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 describe('KnowledgeItemService', () => {
-  let service: InstanceType<typeof KnowledgeItemService>
+  const dbh = setupTestDatabase()
+  let service: KnowledgeItemService
 
-  beforeEach(() => {
-    mockSelect.mockReset()
-    mockInsert.mockReset()
-    mockUpdate.mockReset()
-    mockDelete.mockReset()
-    getKnowledgeBaseByIdMock.mockReset()
-    getKnowledgeBaseByIdMock.mockResolvedValue({ id: 'kb-1' })
-    realDb = null
+  beforeEach(async () => {
     service = new KnowledgeItemService()
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'openai',
+      name: 'OpenAI'
+    })
+    await dbh.db.insert(userModelTable).values({
+      id: createUniqueModelId('openai', 'text-embedding-3-large'),
+      providerId: 'openai',
+      modelId: 'text-embedding-3-large',
+      presetModelId: 'text-embedding-3-large',
+      name: 'text-embedding-3-large',
+      isEnabled: true,
+      isHidden: false,
+      sortOrder: 0
+    })
+    await dbh.db.insert(knowledgeBaseTable).values({
+      id: 'kb-1',
+      name: 'KB',
+      emoji: '📁',
+      dimensions: 1024,
+      embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
+      status: 'completed',
+      error: null,
+      chunkSize: 1024,
+      chunkOverlap: 200,
+      searchMode: 'hybrid'
+    })
   })
 
-  afterEach(() => {
-    closeClient?.()
-    closeClient = undefined
-    realDb = null
-  })
+  async function seedItem(overrides: Partial<typeof knowledgeItemTable.$inferInsert> = {}) {
+    const values: typeof knowledgeItemTable.$inferInsert = {
+      baseId: 'kb-1',
+      groupId: null,
+      type: 'note',
+      data: { source: 'seed-note', content: 'hello world' },
+      status: 'idle',
+      phase: null,
+      error: null,
+      ...overrides
+    }
+    const [inserted] = await dbh.db.insert(knowledgeItemTable).values(values).returning()
+    return inserted
+  }
+
+  function createFileItemData(id: string) {
+    return {
+      source: `/docs/${id}.md`,
+      file: {
+        id: `${id}-meta`,
+        name: `${id}.md`,
+        origin_name: `${id}.md`,
+        path: `/docs/${id}.md`,
+        created_at: '2026-04-08T00:00:00.000Z',
+        size: 10,
+        ext: '.md',
+        type: 'text' as const,
+        count: 1
+      }
+    }
+  }
 
   describe('list', () => {
-    function setupListMocks(rows: Record<string, unknown>[], count: number) {
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockReturnValue({
-              limit: vi.fn().mockReturnValue({
-                offset: vi.fn().mockResolvedValue(rows)
-              })
-            })
-          })
-        })
-      })
-      mockSelect.mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ count }])
-        })
-      })
-    }
-
-    it('should return paginated knowledge items for a knowledge base', async () => {
-      setupListMocks([createMockRow({ data: JSON.stringify({ content: 'hello world' }) })], 1)
+    it('returns paginated items for a knowledge base', async () => {
+      await seedItem()
 
       const result = await service.list('kb-1', { page: 1, limit: 20 })
 
-      expect(getKnowledgeBaseByIdMock).toHaveBeenCalledWith('kb-1')
-      expect(result).toMatchObject({
-        total: 1,
-        page: 1
-      })
+      expect(result.total).toBe(1)
+      expect(result.page).toBe(1)
       expect(result.items[0]).toMatchObject({
-        id: 'item-1',
         baseId: 'kb-1',
         type: 'note',
-        data: {
-          content: 'hello world'
-        }
+        data: { content: 'hello world' }
       })
     })
 
-    it('should support type/group filters', async () => {
-      setupListMocks(
-        [
-          createMockRow({
-            id: 'item-2',
-            type: 'directory',
-            groupId: 'group-1'
-          })
-        ],
-        1
-      )
+    it('filters items by type and group', async () => {
+      await seedItem({ id: 'dir-a', type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: 'dir-b', type: 'directory', data: { source: '/b', path: '/b' } })
+      await seedItem({ id: 'note-1', type: 'note', groupId: 'dir-a', data: { source: 'note-1', content: 'n1' } })
 
-      const result = await service.list('kb-1', {
-        page: 2,
-        limit: 10,
-        type: 'directory',
-        groupId: 'group-1'
+      const directories = await service.list('kb-1', { page: 1, limit: 20, type: 'directory' })
+      const grouped = await service.list('kb-1', { page: 1, limit: 20, groupId: 'dir-a' })
+
+      expect(directories.items.map((item) => item.id).sort()).toEqual(['dir-a', 'dir-b'])
+      expect(grouped.items.map((item) => item.id)).toEqual(['note-1'])
+    })
+
+    it('filters root items when groupId is null', async () => {
+      await seedItem({ id: 'dir-a', type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: 'note-root', type: 'note', data: { source: 'root', content: 'root' } })
+      await seedItem({ id: 'note-child', type: 'note', groupId: 'dir-a', data: { source: 'child', content: 'child' } })
+
+      const result = await service.list('kb-1', { page: 1, limit: 20, groupId: null })
+
+      expect(result.total).toBe(2)
+      expect(result.items.map((item) => item.id).sort()).toEqual(['dir-a', 'note-root'])
+    })
+  })
+
+  describe('getItemsByBaseId', () => {
+    it('returns items in creation order for a knowledge base', async () => {
+      await seedItem({
+        id: 'item-2',
+        data: { source: 'item-2', content: 'item 2' },
+        createdAt: 20,
+        updatedAt: 20
+      })
+      await seedItem({
+        id: 'item-1',
+        data: { source: 'item-1', content: 'item 1' },
+        createdAt: 10,
+        updatedAt: 10
       })
 
-      expect(result.page).toBe(2)
-      expect(result.items[0]).toMatchObject({
-        id: 'item-2',
-        groupId: 'group-1',
-        type: 'directory'
+      const result = await service.getItemsByBaseId('kb-1')
+
+      expect(result.map((item) => item.id)).toEqual(['item-1', 'item-2'])
+      expect(result[0]).toMatchObject({
+        id: 'item-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'note',
+        data: { source: 'item-1', content: 'item 1' },
+        status: 'idle',
+        phase: null,
+        error: null
+      })
+    })
+
+    it('filters root items when groupId is null', async () => {
+      await seedItem({
+        id: 'root-2',
+        data: { source: 'root-2', content: 'root 2' },
+        createdAt: 20,
+        updatedAt: 20
+      })
+      await seedItem({
+        id: 'root-1',
+        data: { source: 'root-1', content: 'root 1' },
+        createdAt: 10,
+        updatedAt: 10
+      })
+      await seedItem({
+        id: 'child-1',
+        groupId: 'root-1',
+        data: { source: 'child-1', content: 'child 1' },
+        createdAt: 15,
+        updatedAt: 15
+      })
+
+      const result = await service.getItemsByBaseId('kb-1', { groupId: null })
+
+      expect(result.map((item) => item.id)).toEqual(['root-1', 'root-2'])
+    })
+
+    it('filters items by group id', async () => {
+      await seedItem({ id: 'dir-a', type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: 'note-a', groupId: 'dir-a', data: { source: 'a', content: 'a' } })
+      await seedItem({ id: 'note-root', data: { source: 'root', content: 'root' } })
+
+      const result = await service.getItemsByBaseId('kb-1', { groupId: 'dir-a' })
+
+      expect(result.map((item) => item.id)).toEqual(['note-a'])
+    })
+
+    it('throws NotFound when listing items for a missing base', async () => {
+      await expect(service.getItemsByBaseId('missing')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        status: 404
       })
     })
   })
 
-  describe('createMany', () => {
-    it('should create and return knowledge items', async () => {
-      const values = vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([
-          createMockRow({
-            id: 'item-1',
-            type: 'directory',
-            data: { path: '/tmp/files', recursive: true }
-          }),
-          createMockRow({
-            id: 'item-2',
-            type: 'note',
-            data: { content: 'child note' }
-          })
-        ])
-      })
-      mockInsert.mockReturnValue({ values })
-
-      const dto: CreateKnowledgeItemsDto = {
-        items: [
-          {
-            type: 'directory',
-            data: { path: '/tmp/files', recursive: true }
-          },
-          {
-            type: 'note',
-            data: { content: 'child note' }
-          }
-        ]
+  describe('create', () => {
+    it('creates one knowledge item as idle', async () => {
+      const item: CreateKnowledgeItemDto = {
+        type: 'directory',
+        data: { source: '/tmp/files', path: '/tmp/files' }
       }
 
-      const result = await service.createMany('kb-1', dto)
+      const result = await service.create('kb-1', item)
 
-      expect(values).toHaveBeenCalledWith([
-        {
-          baseId: 'kb-1',
-          groupId: null,
-          type: 'directory',
-          data: { path: '/tmp/files', recursive: true },
-          status: 'idle',
-          error: null
-        },
-        {
-          baseId: 'kb-1',
-          groupId: null,
-          type: 'note',
-          data: { content: 'child note' },
-          status: 'idle',
-          error: null
-        }
-      ])
-      expect(result.items).toHaveLength(2)
-      expect(result.items[0]).toMatchObject({
-        id: 'item-1'
+      expect(result).toMatchObject({
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        status: 'idle',
+        phase: null,
+        error: null,
+        data: item.data
       })
     })
 
-    it('should reject invalid item data with validation error before insert', async () => {
+    it('accepts a group owner in the same base', async () => {
+      await seedItem({ id: 'dir-a', type: 'directory', data: { source: '/a', path: '/a' } })
+
+      const result = await service.create('kb-1', {
+        groupId: 'dir-a',
+        type: 'note',
+        data: { source: 'new grouped note', content: 'new grouped note' }
+      })
+
+      expect(result).toMatchObject({
+        baseId: 'kb-1',
+        groupId: 'dir-a',
+        type: 'note'
+      })
+    })
+
+    it('accepts sitemap group owners', async () => {
+      await seedItem({
+        id: 'sitemap-a',
+        type: 'sitemap',
+        data: { source: 'https://example.com/sitemap.xml', url: 'https://example.com/sitemap.xml' }
+      })
+
+      const result = await service.create('kb-1', {
+        groupId: 'sitemap-a',
+        type: 'url',
+        data: { source: 'https://example.com/page', url: 'https://example.com/page' }
+      })
+
+      expect(result).toMatchObject({
+        baseId: 'kb-1',
+        groupId: 'sitemap-a',
+        type: 'url'
+      })
+    })
+
+    it('rejects leaf items as group owners', async () => {
+      await seedItem({ id: 'note-owner', type: 'note', data: { source: 'owner', content: 'owner' } })
+
       await expect(
-        service.createMany('kb-1', {
-          items: [
-            {
-              type: 'note',
-              data: {} as any
-            }
-          ]
+        service.create('kb-1', {
+          groupId: 'note-owner',
+          type: 'note',
+          data: { source: 'child note', content: 'child note' }
         })
       ).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
-            'items.0.data': ["Data payload does not match knowledge item type 'note'"]
+            groupId: ['Knowledge item group owner must be a directory or sitemap: note-owner']
           }
         }
       })
-
-      expect(mockInsert).not.toHaveBeenCalled()
     })
 
-    it('should reject nonexistent groupId with validation error before insert', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([])
+    it('rejects blank group owner ids before hitting foreign key constraints', async () => {
+      await expect(
+        service.create('kb-1', {
+          groupId: '   ',
+          type: 'note',
+          data: { source: 'child note', content: 'child note' }
         })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            groupId: ['Knowledge item group owner id is required when groupId is provided']
+          }
+        }
+      })
+    })
+
+    it('translates missing base and missing group owner constraints', async () => {
+      await expect(
+        service.create('missing-base', { type: 'note', data: { source: 'note', content: 'note' } })
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        status: 404
       })
 
       await expect(
-        service.createMany('kb-1', {
-          items: [
-            {
-              groupId: 'missing-owner',
-              type: 'note',
-              data: { content: 'child note' }
-            }
-          ]
+        service.create('kb-1', {
+          groupId: 'missing-owner',
+          type: 'note',
+          data: { source: 'child note', content: 'child note' }
         })
       ).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
@@ -248,523 +302,511 @@ describe('KnowledgeItemService', () => {
           }
         }
       })
-
-      expect(mockInsert).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('query semantics (db-backed)', () => {
-    beforeEach(async () => {
-      const client = createClient({ url: 'file::memory:' })
-      closeClient = () => client.close()
-      realDb = drizzle({
-        client,
-        casing: 'snake_case'
-      })
-      const db = realDb
-
-      await db.run(sql`PRAGMA foreign_keys = ON`)
-      await db.run(
-        sql.raw(`
-        CREATE TABLE knowledge_base (
-          id TEXT PRIMARY KEY NOT NULL,
-          name TEXT NOT NULL,
-          description TEXT,
-          dimensions INTEGER NOT NULL,
-          embedding_model_id TEXT NOT NULL,
-          rerank_model_id TEXT,
-          file_processor_id TEXT,
-          chunk_size INTEGER,
-          chunk_overlap INTEGER,
-          threshold REAL,
-          document_count INTEGER,
-          search_mode TEXT,
-          hybrid_alpha REAL,
-          created_at INTEGER,
-          updated_at INTEGER,
-          CONSTRAINT knowledge_base_search_mode_check CHECK (search_mode IN ('default', 'bm25', 'hybrid') OR search_mode IS NULL)
-        )
-      `)
-      )
-      await db.run(
-        sql.raw(`
-        CREATE TABLE knowledge_item (
-          id TEXT PRIMARY KEY NOT NULL,
-          base_id TEXT NOT NULL,
-          group_id TEXT,
-          type TEXT NOT NULL,
-          data TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'idle',
-          error TEXT,
-          created_at INTEGER,
-          updated_at INTEGER,
-          CONSTRAINT knowledge_item_type_check CHECK (type IN ('file', 'url', 'note', 'sitemap', 'directory')),
-          CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')),
-          FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
-          FOREIGN KEY (base_id, group_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
-          CONSTRAINT knowledge_item_baseId_id_unique UNIQUE (base_id, id)
-        )
-      `)
-      )
-
-      await db.insert(knowledgeBaseTable).values({
-        id: 'kb-1',
-        name: 'KB',
-        dimensions: 1024,
-        embeddingModelId: 'openai::text-embedding-3-large'
-      })
-
-      await db.insert(knowledgeItemTable).values([
-        {
-          id: 'dir-a',
-          baseId: 'kb-1',
-          groupId: null,
-          type: 'directory',
-          data: { path: '/a', recursive: true },
-          status: 'idle',
-          error: null,
-          createdAt: 100
-        },
-        {
-          id: 'dir-b',
-          baseId: 'kb-1',
-          groupId: null,
-          type: 'directory',
-          data: { path: '/b', recursive: true },
-          status: 'idle',
-          error: null,
-          createdAt: 90
-        },
-        {
-          id: 'note-group-a',
-          baseId: 'kb-1',
-          groupId: 'dir-a',
-          type: 'note',
-          data: { content: 'group note' },
-          status: 'idle',
-          error: null,
-          createdAt: 80
-        },
-        {
-          id: 'file-group-none',
-          baseId: 'kb-1',
-          groupId: null,
-          type: 'file',
-          data: {
-            file: {
-              id: 'file-1',
-              name: 'file.txt',
-              origin_name: 'file.txt',
-              path: '/file.txt',
-              size: 10,
-              ext: '.txt',
-              type: 'text',
-              created_at: '2024-01-01T00:00:00.000Z',
-              count: 1
-            }
-          },
-          status: 'idle',
-          error: null,
-          createdAt: 70
-        },
-        {
-          id: 'note-plain',
-          baseId: 'kb-1',
-          groupId: null,
-          type: 'note',
-          data: { content: 'plain note' },
-          status: 'idle',
-          error: null,
-          createdAt: 60
-        }
-      ])
     })
 
-    it('list returns only items of the requested type', async () => {
-      const result = await service.list('kb-1', {
-        page: 1,
-        limit: 20,
-        type: 'directory'
-      })
-
-      expect(result.items.map((item) => item.id)).toEqual(['dir-a', 'dir-b'])
-    })
-
-    it('list returns only items of the requested group', async () => {
-      const result = await service.list('kb-1', {
-        page: 1,
-        limit: 20,
-        groupId: 'dir-a'
-      })
-
-      expect(result.items.map((item) => item.id)).toEqual(['note-group-a'])
-    })
-
-    it('db check constraints reject invalid knowledge enums', async () => {
-      const db = realDb!
-
+    it('rejects invalid persisted status phase error combinations', async () => {
       await expect(
-        db.run(
-          sql.raw(`
-            INSERT INTO knowledge_base (
-              id, name, dimensions, embedding_model_id, search_mode
-            ) VALUES (
-              'kb-invalid-enum', 'KB invalid enum', 1024, 'openai::text-embedding-3-large', 'vector'
-            )
-          `)
-        )
+        dbh.db.insert(knowledgeItemTable).values({
+          baseId: 'kb-1',
+          groupId: null,
+          type: 'note',
+          data: { source: 'invalid-note', content: 'invalid note' },
+          status: 'completed',
+          phase: 'reading',
+          error: null
+        })
       ).rejects.toThrow()
 
       await expect(
-        db.run(
-          sql.raw(`
-            INSERT INTO knowledge_item (
-              id, base_id, group_id, type, data, status
-            ) VALUES (
-              'item-invalid-enum', 'kb-1', NULL, 'memory', '{}', 'done'
-            )
-          `)
-        )
-      ).rejects.toThrow()
-    })
-
-    it('db rejects cross-base group ownership references', async () => {
-      const db = realDb!
-
-      await db.insert(knowledgeBaseTable).values({
-        id: 'kb-2',
-        name: 'KB 2',
-        dimensions: 1024,
-        embeddingModelId: 'openai::text-embedding-3-large'
-      })
-
-      await expect(
-        db.insert(knowledgeItemTable).values({
-          id: 'cross-base-child',
-          baseId: 'kb-2',
-          groupId: 'dir-a',
+        dbh.db.insert(knowledgeItemTable).values({
+          baseId: 'kb-1',
+          groupId: null,
           type: 'note',
-          data: { content: 'invalid cross-base group' },
-          status: 'idle',
-          error: null,
-          createdAt: 50
+          data: { source: 'invalid-failed-note', content: 'invalid failed note' },
+          status: 'failed',
+          phase: null,
+          error: ''
         })
       ).rejects.toThrow()
     })
 
-    it('createMany accepts groupId when the owner already exists in the same base', async () => {
-      const result = await service.createMany('kb-1', {
-        items: [
-          {
-            groupId: 'dir-a',
-            type: 'note',
-            data: { content: 'new grouped note' }
-          }
-        ]
-      })
+    it('rejects persisted processing phases that do not match the item type', async () => {
+      await expect(
+        dbh.db.insert(knowledgeItemTable).values({
+          baseId: 'kb-1',
+          groupId: null,
+          type: 'note',
+          data: { source: 'invalid-note-phase', content: 'invalid note phase' },
+          status: 'processing',
+          phase: 'preparing',
+          error: null
+        })
+      ).rejects.toThrow()
 
-      expect(result.items).toHaveLength(1)
-      expect(result.items[0]).toMatchObject({
-        baseId: 'kb-1',
-        groupId: 'dir-a',
-        type: 'note',
-        data: { content: 'new grouped note' }
-      })
+      await expect(
+        dbh.db.insert(knowledgeItemTable).values({
+          baseId: 'kb-1',
+          groupId: null,
+          type: 'directory',
+          data: { source: '/docs', path: '/docs' },
+          status: 'processing',
+          phase: 'reading',
+          error: null
+        })
+      ).rejects.toThrow()
     })
   })
 
   describe('getById', () => {
-    it('should return a knowledge item by id', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([createMockRow({ data: JSON.stringify({ content: 'stored note' }) })])
-          })
-        })
-      })
+    it('returns a knowledge item by id', async () => {
+      const seeded = await seedItem({ data: { source: 'stored note', content: 'stored note' } })
 
-      const result = await service.getById('item-1')
+      const result = await service.getById(seeded.id)
 
       expect(result).toMatchObject({
-        id: 'item-1',
-        data: {
-          content: 'stored note'
-        }
+        id: seeded.id,
+        data: { content: 'stored note' }
       })
     })
 
-    it('should throw NotFound when the knowledge item does not exist', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
-      })
-
+    it('throws NotFound when the knowledge item does not exist', async () => {
       await expect(service.getById('missing')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
     })
+  })
 
-    it('should surface malformed stored item data as DATA_INCONSISTENT', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([createMockRow({ id: 'broken-item', data: '{bad json' })])
-          })
-        })
+  describe('getLeafDescendantItems', () => {
+    it('returns only leaf knowledge items in the requested subtrees', async () => {
+      await seedItem({ id: 'dir-root', type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({
+        id: 'dir-child',
+        groupId: 'dir-root',
+        type: 'directory',
+        data: { source: '/root/child', path: '/root/child' }
       })
+      await seedItem({
+        id: 'file-child',
+        groupId: 'dir-root',
+        type: 'file',
+        data: createFileItemData('file-child')
+      })
+      await seedItem({
+        id: 'note-grandchild',
+        groupId: 'dir-child',
+        type: 'note',
+        data: { source: 'grandchild', content: 'grandchild' }
+      })
+      await seedItem({
+        id: 'sitemap-root',
+        type: 'sitemap',
+        data: { source: 'https://example.com', url: 'https://example.com' }
+      })
+      await seedItem({
+        id: 'url-child',
+        groupId: 'sitemap-root',
+        type: 'url',
+        data: { source: 'https://example.com/page', url: 'https://example.com/page' }
+      })
+      await seedItem({ id: 'note-root', type: 'note', data: { source: 'root note', content: 'root note' } })
 
-      await expect(service.getById('broken-item')).rejects.toMatchObject({
-        code: ErrorCode.DATA_INCONSISTENT,
-        status: 409,
-        message: expect.stringContaining("Corrupted data in knowledge item 'broken-item'")
+      const result = await service.getLeafDescendantItems('kb-1', ['dir-root', 'sitemap-root', 'note-root', 'missing'])
+      const itemsById = new Map(result.map((item) => [item.id, item]))
+
+      expect(result.map((item) => item.id).sort()).toEqual(['file-child', 'note-grandchild', 'note-root', 'url-child'])
+      expect(itemsById.get('file-child')).toMatchObject({
+        id: 'file-child',
+        baseId: 'kb-1',
+        groupId: 'dir-root',
+        type: 'file',
+        data: createFileItemData('file-child')
       })
+      expect(itemsById.get('note-grandchild')).toMatchObject({
+        id: 'note-grandchild',
+        baseId: 'kb-1',
+        groupId: 'dir-child',
+        type: 'note',
+        data: { content: 'grandchild' }
+      })
+      expect(itemsById.get('url-child')).toMatchObject({
+        id: 'url-child',
+        baseId: 'kb-1',
+        groupId: 'sitemap-root',
+        type: 'url',
+        data: { url: 'https://example.com/page' }
+      })
+      expect(itemsById.has('dir-root')).toBe(false)
+      expect(itemsById.has('dir-child')).toBe(false)
+      expect(itemsById.has('sitemap-root')).toBe(false)
     })
 
-    it('should surface null stored item data as DATA_INCONSISTENT', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([createMockRow({ id: 'null-item', data: null })])
-          })
-        })
-      })
-
-      await expect(service.getById('null-item')).rejects.toMatchObject({
-        code: ErrorCode.DATA_INCONSISTENT,
-        status: 409,
-        message: expect.stringContaining("Knowledge item 'null-item' has missing or null data")
-      })
+    it('returns an empty list when no roots are provided', async () => {
+      await expect(service.getLeafDescendantItems('kb-1', [])).resolves.toEqual([])
     })
   })
 
-  describe('update', () => {
-    it('should return the existing item when update is empty', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([createMockRow()])
-          })
-        })
+  describe('getDescendantItems', () => {
+    it('returns every descendant in the requested subtrees without roots', async () => {
+      await seedItem({ id: 'dir-root', type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({
+        id: 'dir-child',
+        groupId: 'dir-root',
+        type: 'directory',
+        data: { source: '/root/child', path: '/root/child' }
+      })
+      await seedItem({
+        id: 'file-child',
+        groupId: 'dir-child',
+        type: 'file',
+        data: createFileItemData('file-child')
+      })
+      await seedItem({
+        id: 'note-root',
+        type: 'note',
+        data: { source: 'root note', content: 'root note' }
       })
 
-      const result = await service.update('item-1', {})
+      const result = await service.getDescendantItems('kb-1', ['dir-root', 'dir-child', 'note-root', 'missing'])
 
-      expect(result.id).toBe('item-1')
-      expect(mockUpdate).not.toHaveBeenCalled()
+      expect(result.map((item) => item.id).sort()).toEqual(['file-child'])
     })
 
-    it('should reject data that does not match the existing item type', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([createMockRow({ type: 'note', data: { content: 'stored note' } })])
-          })
-        })
+    it('returns an empty list when no roots are provided', async () => {
+      await expect(service.getDescendantItems('kb-1', [])).resolves.toEqual([])
+    })
+  })
+
+  describe('updateStatus', () => {
+    async function getItemRow(id: string) {
+      const [row] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+      return row
+    }
+
+    it('updates processing status and clears stale error fields', async () => {
+      const seeded = await seedItem()
+
+      const result = await service.updateStatus(seeded.id, 'processing', {
+        phase: 'reading'
       })
 
-      await expect(
-        service.update('item-1', {
-          data: { path: '/tmp/files', recursive: true }
-        })
-      ).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: {
-          fieldErrors: {
-            data: ["Data payload does not match the existing knowledge item type 'note'"]
-          }
-        }
+      expect(result).toMatchObject({
+        id: seeded.id,
+        status: 'processing',
+        phase: 'reading',
+        error: null
       })
-
-      expect(mockUpdate).not.toHaveBeenCalled()
+      await expect(getItemRow(seeded.id)).resolves.toMatchObject({
+        status: 'processing',
+        phase: 'reading',
+        error: null
+      })
     })
 
-    it('should update and return the knowledge item', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([createMockRow()])
-          })
-        })
+    it('clears stale phase and error when only status is supplied', async () => {
+      const seeded = await seedItem({
+        status: 'failed',
+        phase: null,
+        error: 'previous failure'
       })
-      const set = vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([
-            createMockRow({
-              status: 'completed',
-              error: null,
-              data: { content: 'updated note' }
-            })
-          ])
-        })
-      })
-      mockUpdate.mockReturnValue({ set })
 
-      const dto: UpdateKnowledgeItemDto = {
+      const result = await service.updateStatus(seeded.id, 'processing')
+
+      expect(result).toMatchObject({
+        id: seeded.id,
+        status: 'processing',
+        phase: null,
+        error: null
+      })
+      await expect(getItemRow(seeded.id)).resolves.toMatchObject({
+        status: 'processing',
+        phase: null,
+        error: null
+      })
+    })
+
+    it('reconciles parent containers after a child reaches a terminal state', async () => {
+      await seedItem({
+        id: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: 'note-child',
+        groupId: 'dir-root',
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing',
+        phase: 'reading'
+      })
+
+      await service.updateStatus('note-child', 'completed')
+
+      await expect(getItemRow('note-child')).resolves.toMatchObject({
         status: 'completed',
-        error: null,
-        data: { content: 'updated note' }
-      }
-
-      const result = await service.update('item-1', dto)
-
-      expect(set).toHaveBeenCalledWith({
-        data: { content: 'updated note' },
+        phase: null,
+        error: null
+      })
+      await expect(getItemRow('dir-root')).resolves.toMatchObject({
         status: 'completed',
         error: null
       })
+    })
+
+    it('throws NotFound when updating status for a missing item', async () => {
+      await expect(service.updateStatus('missing', 'failed', { error: 'missing' })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        status: 404
+      })
+    })
+
+    it('normalizes failed status to a terminal phase with a non-empty error', async () => {
+      const seeded = await seedItem({
+        status: 'processing',
+        phase: 'reading',
+        error: null
+      })
+
+      const result = await service.updateStatus(seeded.id, 'failed', { error: '  read failed  ' })
+
       expect(result).toMatchObject({
-        id: 'item-1',
-        status: 'completed',
-        data: {
-          content: 'updated note'
-        }
+        status: 'failed',
+        phase: null,
+        error: 'read failed'
+      })
+      await expect(getItemRow(seeded.id)).resolves.toMatchObject({
+        status: 'failed',
+        phase: null,
+        error: 'read failed'
+      })
+    })
+
+    it('rejects failed status without a non-empty error', async () => {
+      const seeded = await seedItem()
+
+      await expect(service.updateStatus(seeded.id, 'failed', { error: '   ' })).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        status: 422
       })
     })
   })
 
   describe('delete', () => {
-    it('should delete the requested knowledge item group by id', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([createMockRow()])
-          })
-        })
-      })
-      const where = vi.fn().mockResolvedValue(undefined)
-      mockDelete.mockReturnValue({ where })
+    it('deletes the requested item by id', async () => {
+      const seeded = await seedItem()
 
-      await expect(service.delete('item-1')).resolves.toBeUndefined()
-      expect(mockSelect).toHaveBeenCalledTimes(1)
-      expect(where).toHaveBeenCalledTimes(1)
+      await expect(service.delete(seeded.id)).resolves.toBeUndefined()
+
+      const rows = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, seeded.id))
+      expect(rows).toHaveLength(0)
     })
 
-    it('should delete the owner item and all group members in db-backed mode', async () => {
-      const client = createClient({ url: 'file::memory:' })
-      closeClient = () => client.close()
-      realDb = drizzle({
-        client,
-        casing: 'snake_case'
+    it('deletes the owner item and all group members through DB cascade', async () => {
+      await seedItem({
+        id: 'dir-owner',
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' }
       })
-      const db = realDb
-
-      await db.run(sql`PRAGMA foreign_keys = ON`)
-      await db.run(
-        sql.raw(`
-        CREATE TABLE knowledge_base (
-          id TEXT PRIMARY KEY NOT NULL,
-          name TEXT NOT NULL,
-          description TEXT,
-          dimensions INTEGER NOT NULL,
-          embedding_model_id TEXT NOT NULL,
-          rerank_model_id TEXT,
-          file_processor_id TEXT,
-          chunk_size INTEGER,
-          chunk_overlap INTEGER,
-          threshold REAL,
-          document_count INTEGER,
-          search_mode TEXT,
-          hybrid_alpha REAL,
-          created_at INTEGER,
-          updated_at INTEGER,
-          CONSTRAINT knowledge_base_search_mode_check CHECK (search_mode IN ('default', 'bm25', 'hybrid') OR search_mode IS NULL)
-        )
-      `)
-      )
-      await db.run(
-        sql.raw(`
-        CREATE TABLE knowledge_item (
-          id TEXT PRIMARY KEY NOT NULL,
-          base_id TEXT NOT NULL,
-          group_id TEXT,
-          type TEXT NOT NULL,
-          data TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'idle',
-          error TEXT,
-          created_at INTEGER,
-          updated_at INTEGER,
-          CONSTRAINT knowledge_item_type_check CHECK (type IN ('file', 'url', 'note', 'sitemap', 'directory')),
-          CONSTRAINT knowledge_item_status_check CHECK (status IN ('idle', 'pending', 'ocr', 'read', 'embed', 'completed', 'failed')),
-          FOREIGN KEY (base_id) REFERENCES knowledge_base(id) ON DELETE CASCADE,
-          FOREIGN KEY (base_id, group_id) REFERENCES knowledge_item(base_id, id) ON DELETE CASCADE,
-          CONSTRAINT knowledge_item_baseId_id_unique UNIQUE (base_id, id)
-        )
-      `)
-      )
-
-      await db.insert(knowledgeBaseTable).values({
-        id: 'kb-delete',
-        name: 'KB delete',
-        dimensions: 1024,
-        embeddingModelId: 'openai::text-embedding-3-large'
+      await seedItem({
+        id: 'child-a',
+        groupId: 'dir-owner',
+        type: 'note',
+        data: { source: 'a', content: 'a' }
       })
-
-      await db.insert(knowledgeItemTable).values([
-        {
-          id: 'dir-owner',
-          baseId: 'kb-delete',
-          groupId: null,
-          type: 'directory',
-          data: { path: '/docs', recursive: true },
-          status: 'idle',
-          error: null,
-          createdAt: 100
-        },
-        {
-          id: 'child-a',
-          baseId: 'kb-delete',
-          groupId: 'dir-owner',
-          type: 'note',
-          data: { content: 'a' },
-          status: 'idle',
-          error: null,
-          createdAt: 90
-        },
-        {
-          id: 'child-b',
-          baseId: 'kb-delete',
-          groupId: 'dir-owner',
-          type: 'url',
-          data: { url: 'https://example.com', name: 'example' },
-          status: 'idle',
-          error: null,
-          createdAt: 80
-        },
-        {
-          id: 'other-item',
-          baseId: 'kb-delete',
-          groupId: null,
-          type: 'note',
-          data: { content: 'keep me' },
-          status: 'idle',
-          error: null,
-          createdAt: 70
-        }
-      ])
+      await seedItem({
+        id: 'child-b',
+        groupId: 'dir-owner',
+        type: 'url',
+        data: { source: 'https://example.com', url: 'https://example.com' }
+      })
+      await seedItem({
+        id: 'other',
+        type: 'note',
+        data: { source: 'keep me', content: 'keep me' }
+      })
 
       await service.delete('dir-owner')
 
-      const remaining = await db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
-      expect(remaining.map((item) => item.id)).toEqual(['other-item'])
+      const remaining = await dbh.db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
+      expect(remaining.map((r) => r.id)).toEqual(['other'])
     })
 
-    it('should throw NotFound when deleting a missing knowledge item', async () => {
-      mockSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([])
-          })
-        })
+    it('deletes descendants while keeping the requested root items', async () => {
+      await seedItem({
+        id: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' }
+      })
+      await seedItem({
+        id: 'dir-child',
+        groupId: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs/child', path: '/docs/child' }
+      })
+      await seedItem({
+        id: 'file-grandchild',
+        groupId: 'dir-child',
+        type: 'file',
+        data: createFileItemData('file-grandchild')
+      })
+      await seedItem({
+        id: 'other',
+        type: 'note',
+        data: { source: 'keep me', content: 'keep me' }
       })
 
+      await service.deleteLeafDescendantItems('kb-1', ['dir-root'])
+
+      const remaining = await dbh.db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
+      expect(remaining.map((r) => r.id)).toEqual(['dir-root', 'other'])
+    })
+
+    it('throws NotFound when deleting a missing knowledge item', async () => {
       await expect(service.delete('missing')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
+    })
+  })
+
+  describe('reconcileContainers', () => {
+    async function getItemRow(id: string) {
+      const [row] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+      return row
+    }
+
+    it('marks a processing container completed when it has no remaining children', async () => {
+      await seedItem({
+        id: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+
+      await service.reconcileContainers('kb-1', ['dir-root'])
+
+      await expect(getItemRow('dir-root')).resolves.toMatchObject({
+        id: 'dir-root',
+        status: 'completed',
+        error: null
+      })
+    })
+
+    it('marks nested containers completed after leaf descendants are deleted', async () => {
+      await seedItem({
+        id: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: 'dir-child',
+        groupId: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs/child', path: '/docs/child' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: 'note-child',
+        groupId: 'dir-child',
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing'
+      })
+      await service.delete('note-child')
+
+      await service.reconcileContainers('kb-1', ['dir-root'])
+
+      await expect(getItemRow('dir-child')).resolves.toMatchObject({ status: 'completed', error: null })
+      await expect(getItemRow('dir-root')).resolves.toMatchObject({ status: 'completed', error: null })
+    })
+
+    it('leaves a container processing while any immediate child is active', async () => {
+      await seedItem({
+        id: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: 'note-child',
+        groupId: 'dir-root',
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing'
+      })
+
+      await service.reconcileContainers('kb-1', ['dir-root'])
+
+      await expect(getItemRow('dir-root')).resolves.toMatchObject({ status: 'processing', error: null })
+    })
+
+    it('marks a container failed when all immediate children are terminal and one failed', async () => {
+      await seedItem({
+        id: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: 'note-child',
+        groupId: 'dir-root',
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'failed',
+        error: 'read failed'
+      })
+
+      await service.reconcileContainers('kb-1', ['dir-root'])
+
+      await expect(getItemRow('dir-root')).resolves.toMatchObject({
+        status: 'failed',
+        error: 'One or more child items failed'
+      })
+    })
+
+    it('does nothing when the root no longer exists', async () => {
+      await expect(service.reconcileContainers('kb-1', ['missing-root'])).resolves.toBeUndefined()
+    })
+
+    it('reconciles containers bottom-up after active leaves are deleted', async () => {
+      await seedItem({
+        id: 'dir-a',
+        type: 'directory',
+        data: { source: '/docs/a', path: '/docs/a' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: 'file-a',
+        groupId: 'dir-a',
+        type: 'file',
+        data: createFileItemData('file-a'),
+        status: 'processing'
+      })
+      await seedItem({
+        id: 'dir-b',
+        groupId: 'dir-a',
+        type: 'directory',
+        data: { source: '/docs/a/b', path: '/docs/a/b' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: 'file-b',
+        groupId: 'dir-b',
+        type: 'file',
+        data: createFileItemData('file-b'),
+        status: 'processing'
+      })
+
+      await service.delete('file-b')
+
+      await expect(getItemRow('dir-b')).resolves.toMatchObject({ status: 'completed', error: null })
+      await expect(getItemRow('dir-a')).resolves.toMatchObject({ status: 'processing', error: null })
+
+      await service.delete('file-a')
+
+      await expect(getItemRow('dir-a')).resolves.toMatchObject({ status: 'completed', error: null })
     })
   })
 })

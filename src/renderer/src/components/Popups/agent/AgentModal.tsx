@@ -1,7 +1,9 @@
 import { HelpTooltip } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import AnthropicProviderListPopover from '@renderer/components/AnthropicProviderListPopover'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
 import { permissionModeCards } from '@renderer/config/agent'
 import { isWin } from '@renderer/config/constant'
@@ -21,7 +23,8 @@ import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
 import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
 import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
 import type { GitBashPathInfo } from '@shared/config/constant'
-import { Button, Input, Modal, Select } from 'antd'
+import { Button, Input, Modal, Select, Tooltip } from 'antd'
+import { Info } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,8 +42,8 @@ const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
   description: existing?.description,
   instructions: existing?.instructions,
   model: existing?.model ?? '',
-  accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : [],
-  allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : [],
+  accessiblePaths: existing?.accessiblePaths ? [...existing.accessiblePaths] : [],
+  allowedTools: existing?.allowedTools ? [...existing.allowedTools] : [],
   mcps: existing?.mcps ? [...existing.mcps] : [],
   configuration: AgentConfigurationSchema.parse(existing?.configuration ?? {})
 })
@@ -125,6 +128,22 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     }
   }, [checkGitBash])
 
+  const soulEnabled = form.configuration?.soul_enabled === true
+
+  const onSoulModeChange = useCallback((checked: boolean) => {
+    setForm((prev) => {
+      const prevConfig = AgentConfigurationSchema.parse(prev.configuration ?? {})
+      return {
+        ...prev,
+        configuration: {
+          ...prevConfig,
+          soul_enabled: checked,
+          permission_mode: checked ? 'bypassPermissions' : prevConfig.permission_mode
+        }
+      }
+    })
+  }, [])
+
   const onPermissionModeChange = useCallback((value: PermissionMode) => {
     setForm((prev) => {
       const parsedConfiguration = AgentConfigurationSchema.parse(prev.configuration ?? {})
@@ -138,12 +157,19 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         return prev
       }
 
+      const nextConfig = {
+        ...parsedConfiguration,
+        permission_mode: value
+      }
+
+      // Disable soul mode when switching away from bypassPermissions
+      if (value !== 'bypassPermissions' && parsedConfiguration.soul_enabled === true) {
+        nextConfig.soul_enabled = false
+      }
+
       return {
         ...prev,
-        configuration: {
-          ...parsedConfiguration,
-          permission_mode: value
-        }
+        configuration: nextConfig
       }
     })
   }, [])
@@ -197,13 +223,13 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         return
       }
       setForm((prev) => {
-        if (prev.accessible_paths.includes(selected)) {
+        if (prev.accessiblePaths.includes(selected)) {
           window.toast.warning(t('agent.session.accessible_paths.duplicate'))
           return prev
         }
         return {
           ...prev,
-          accessible_paths: [...prev.accessible_paths, selected]
+          accessiblePaths: [...prev.accessiblePaths, selected]
         }
       })
     } catch (error) {
@@ -215,7 +241,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   const removeAccessiblePath = useCallback((path: string) => {
     setForm((prev) => ({
       ...prev,
-      accessible_paths: prev.accessible_paths.filter((item) => item !== path)
+      accessiblePaths: prev.accessiblePaths.filter((item) => item !== path)
     }))
   }, [])
 
@@ -226,15 +252,15 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
       type: form.type,
       name: form.name,
       model: form.model,
-      accessible_paths: form.accessible_paths.length > 0 ? form.accessible_paths : ['/'],
-      allowed_tools: form.allowed_tools ?? [],
+      accessiblePaths: form.accessiblePaths.length > 0 ? form.accessiblePaths : ['/'],
+      allowedTools: form.allowedTools ?? [],
       description: form.description,
       instructions: form.instructions,
       configuration: form.configuration,
-      created_at: agent?.created_at ?? new Date().toISOString(),
-      updated_at: agent?.updated_at ?? new Date().toISOString()
+      createdAt: agent?.createdAt ?? new Date().toISOString(),
+      updatedAt: agent?.updatedAt ?? new Date().toISOString()
     }),
-    [form, agent?.id, agent?.created_at, agent?.updated_at]
+    [form, agent?.id, agent?.createdAt, agent?.updatedAt]
   )
 
   const handleModelSelect = useCallback(async (model: ApiModel) => {
@@ -288,8 +314,8 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
           description: form.description,
           instructions: form.instructions,
           model: form.model,
-          accessible_paths: [...form.accessible_paths],
-          allowed_tools: [...form.allowed_tools],
+          accessiblePaths: [...form.accessiblePaths],
+          allowedTools: [...form.allowedTools],
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies UpdateAgentForm
 
@@ -307,8 +333,8 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
           description: form.description,
           instructions: form.instructions,
           model: form.model,
-          accessible_paths: [...form.accessible_paths],
-          allowed_tools: [...form.allowed_tools],
+          accessiblePaths: [...form.accessiblePaths],
+          allowedTools: [...form.allowedTools],
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies AddAgentForm
         const result = await addAgent(newAgent)
@@ -325,11 +351,11 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     [
       form.type,
       form.model,
-      form.accessible_paths,
+      form.accessiblePaths,
       form.name,
       form.description,
       form.instructions,
-      form.allowed_tools,
+      form.allowedTools,
       form.configuration,
       agent,
       t,
@@ -430,28 +456,42 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
             )}
 
             <FormItem>
-              <Label>
-                {t('agent.settings.tooling.permissionMode.title', 'Permission mode')} <RequiredMark>*</RequiredMark>
-              </Label>
-              <Select
-                value={selectedPermissionMode}
-                onChange={onPermissionModeChange}
-                style={{ width: '100%' }}
-                placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
-                optionLabelProp="label">
-                {permissionModeCards.map((item) => (
-                  <Select.Option key={item.mode} value={item.mode} label={t(item.titleKey, item.titleFallback)}>
-                    <PermissionOptionWrapper>
-                      <div className="title">{t(item.titleKey, item.titleFallback)}</div>
-                      <div className="description">{t(item.descriptionKey, item.descriptionFallback)}</div>
-                    </PermissionOptionWrapper>
-                  </Select.Option>
-                ))}
-              </Select>
-              <HelpText>
-                {t('agent.settings.tooling.permissionMode.helper', 'Choose how the agent handles tool approvals.')}
-              </HelpText>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Label>{t('agent.settings.soulMode.title')}</Label>
+                  <Tooltip title={t('agent.settings.soulMode.description')} placement="right">
+                    <Info size={16} className="text-foreground-400" />
+                  </Tooltip>
+                </div>
+                <Switch checked={soulEnabled} size="sm" onCheckedChange={onSoulModeChange} />
+              </div>
             </FormItem>
+
+            {!soulEnabled && (
+              <FormItem>
+                <Label>
+                  {t('agent.settings.tooling.permissionMode.title', 'Permission mode')} <RequiredMark>*</RequiredMark>
+                </Label>
+                <Select
+                  value={selectedPermissionMode}
+                  onChange={onPermissionModeChange}
+                  style={{ width: '100%' }}
+                  placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
+                  optionLabelProp="label">
+                  {permissionModeCards.map((item) => (
+                    <Select.Option key={item.mode} value={item.mode} label={t(item.titleKey, item.titleFallback)}>
+                      <PermissionOptionWrapper>
+                        <div className="title">{t(item.titleKey, item.titleFallback)}</div>
+                        <div className="description">{t(item.descriptionKey, item.descriptionFallback)}</div>
+                      </PermissionOptionWrapper>
+                    </Select.Option>
+                  ))}
+                </Select>
+                <HelpText>
+                  {t('agent.settings.tooling.permissionMode.helper', 'Choose how the agent handles tool approvals.')}
+                </HelpText>
+              </FormItem>
+            )}
 
             <FormItem>
               <LabelWithButton>
@@ -460,9 +500,9 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                   {t('agent.session.accessible_paths.add')}
                 </Button>
               </LabelWithButton>
-              {form.accessible_paths.length > 0 ? (
+              {form.accessiblePaths.length > 0 ? (
                 <PathList>
-                  {form.accessible_paths.map((path) => (
+                  {form.accessiblePaths.map((path) => (
                     <PathItem key={path}>
                       <PathText title={path}>{path}</PathText>
                       <Button size="small" danger onClick={() => removeAccessiblePath(path)}>
@@ -551,22 +591,12 @@ const StyledForm = styled.form`
   gap: 16px;
 `
 
-const FormContent = styled.div`
+const FormContent = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   gap: 16px;
   max-height: 60vh;
-  overflow-y: auto;
   padding-right: 8px;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: var(--color-border);
-    border-radius: 3px;
-  }
 `
 
 const FormRow = styled.div`

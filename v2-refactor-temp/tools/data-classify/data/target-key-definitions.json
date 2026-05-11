@@ -2,7 +2,7 @@
   "metadata": {
     "version": "1.0.0",
     "description": "Target key definitions that override or extend classification.json. Keys defined here with status 'classified' will be added or override classification.json. Keys with status 'pending' will be disabled.",
-    "lastUpdated": "2026-03-06"
+    "lastUpdated": "2026-03-24"
   },
   "definitions": [
     {
@@ -41,11 +41,32 @@
       "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
     },
     {
-      "targetKey": "chat.web_search.compression.cutoff_limit",
-      "type": "number",
+      "targetKey": "chat.web_search.default_search_keywords_provider",
+      "type": "PreferenceTypes.WebSearchProviderId",
       "defaultValue": null,
       "status": "classified",
-      "description": "Web search compression cutoff limit (from complex migration)"
+      "description": "Default Web Search provider for keyword search capability"
+    },
+    {
+      "targetKey": "chat.web_search.default_fetch_urls_provider",
+      "type": "PreferenceTypes.WebSearchProviderId",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Default Web Search provider for URL fetch capability"
+    },
+    {
+      "targetKey": "chat.web_search.subscribe_sources",
+      "type": "PreferenceTypes.WebSearchSubscribeSource[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Web search blacklist subscription sources"
+    },
+    {
+      "targetKey": "chat.web_search.compression.cutoff_limit",
+      "type": "number",
+      "defaultValue": 2000,
+      "status": "classified",
+      "description": "Web search compression cutoff limit (from complex migration; defaults when legacy value is empty)"
     },
     {
       "targetKey": "chat.web_search.compression.cutoff_unit",
@@ -60,34 +81,6 @@
       "defaultValue": "none",
       "status": "classified",
       "description": "Web search compression method (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.rag_document_count",
-      "type": "number",
-      "defaultValue": 5,
-      "status": "classified",
-      "description": "Web search RAG document count (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.rag_embedding_dimensions",
-      "type": "number",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Web search RAG embedding dimensions (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.rag_embedding_model_id",
-      "type": "string",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Web search RAG embedding model reference id (provider::modelId, from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.rag_rerank_model_id",
-      "type": "string",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Web search RAG rerank model reference id (provider::modelId, from complex migration)"
     },
     {
       "targetKey": "feature.code_cli.overrides",
@@ -111,11 +104,116 @@
       "description": "Web search max results (from complex migration)"
     },
     {
+      "targetKey": "chat.web_search.search_with_time",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Prepend today's date to the query as a textual hint (no provider-side time filtering)"
+    },
+    {
       "targetKey": "chat.web_search.provider_overrides",
       "type": "PreferenceTypes.WebSearchProviderOverrides",
       "defaultValue": {},
       "status": "classified",
       "description": "Web search provider overrides (from complex migration)"
+    },
+    {
+      "targetKey": "ui.sidebar.icons.visible",
+      "type": "PreferenceTypes.SidebarIcon[]",
+      "defaultValue": ["assistants", "store", "paintings", "translate", "mini_app", "knowledge", "files", "code_tools", "notes"],
+      "status": "classified",
+      "description": "Visible sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"
+    },
+    {
+      "targetKey": "ui.sidebar.icons.invisible",
+      "type": "PreferenceTypes.SidebarIcon[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Hidden sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"
+    },{
+
+      "targetKey": "chat.default_model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Default chat model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "topic.naming.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Topic naming model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "feature.quick_assistant.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Quick assistant model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "feature.translate.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Translate model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "feature.openclaw.gateway_port",
+      "type": "number",
+      "defaultValue": 18790,
+      "status": "classified",
+      "description": "OpenClaw gateway port"
+    },
+    {
+      "targetKey": "feature.openclaw.selected_model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "OpenClaw selected model UniqueModelId (provider::modelId, from complex mapping openclaw_preferences)"
+    },
+    {
+      "targetKey": "feature.translate.action.preferred_lang",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "zh-cn",
+      "status": "classified",
+      "description": "ActionTranslate preferred language"
+    },
+    {
+      "targetKey": "feature.translate.action.alter_lang",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "en-us",
+      "status": "classified",
+      "description": "ActionTranslate alternate language"
+    },
+    {
+      "targetKey": "feature.translate.mini_window.target_lang",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "zh-cn",
+      "status": "classified",
+      "description": "TranslateWindow target language"
+    },
+    {
+      "targetKey": "feature.translate.page.bidirectional_pair",
+      "type": "PreferenceTypes.TranslateBidirectionalPair",
+      "defaultValue": ["zh-cn", "en-us"],
+      "status": "classified",
+      "description": "Translate page bidirectional language pair (from complex migration)"
+    },
+    {
+      "targetKey": "feature.translate.page.source_language",
+      "type": "PreferenceTypes.TranslateSourceLanguage",
+      "defaultValue": "auto",
+      "status": "classified",
+      "description": "Translate page source language (from complex migration)"
+    },
+    {
+      "targetKey": "feature.translate.page.target_language",
+      "type": "PreferenceTypes.TranslateLangCode",
+      "defaultValue": "zh-cn",
+      "status": "classified",
+      "description": "Translate page target language (from complex migration)"
     }
   ]
 }

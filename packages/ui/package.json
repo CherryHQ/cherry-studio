@@ -7,13 +7,14 @@
   "types": "dist/index.d.ts",
   "react-native": "dist/index.js",
   "scripts": {
-    "build": "tsdown",
+    "build": "pnpm theme:build && tsdown && mkdir -p dist/styles && cp -R src/styles/. dist/styles/",
     "dev": "tsc -w",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts,.tsx --fix",
     "type-check": "tsc --noEmit -p tsconfig.json --composite false",
+    "theme:build": "tsx scripts/build-theme-css.ts",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "icons:generate": "tsx scripts/generate-icons.ts --type=icons",
@@ -51,11 +52,17 @@
   },
   "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "peerDependencies": {
-    "@heroui/react": "^2.8.4",
+    "@hookform/resolvers": "^5.0.0",
     "framer-motion": "^11.0.0 || ^12.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-hook-form": "^7.55.0",
     "tailwindcss": "^4.1.13"
+  },
+  "peerDependenciesMeta": {
+    "@hookform/resolvers": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -78,15 +85,20 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/react-use-callback-ref": "^1.1.1",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
+    "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "date-fns": "^4.1.0",
     "lucide-react": "^0.545.0",
+    "radix-ui": "^1.4.3",
+    "react-day-picker": "^9.14.0",
     "react-dropzone": "^14.3.8",
-    "tailwind-merge": "^2.5.5"
+    "react-resizable-panels": "^4.11.0",
+    "tailwind-merge": "^2.5.5",
+    "vaul": "^1.1.2"
   },
   "devDependencies": {
-    "@heroui/react": "^2.8.4",
     "@neplex/vectorizer": "^0.0.5",
     "@storybook/addon-docs": "^10.0.5",
     "@storybook/addon-themes": "^10.0.5",
@@ -98,18 +110,15 @@
     "@svgr/plugin-svgo": "^8.1.0",
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",
-    "@types/styled-components": "^5.1.34",
     "@uiw/codemirror-extensions-langs": "^4.25.1",
     "@uiw/codemirror-themes-all": "^4.25.1",
     "@uiw/react-codemirror": "^4.25.1",
-    "antd": "^5.22.5",
     "eslint-plugin-storybook": "10.0.5",
     "framer-motion": "^12.23.12",
     "linguist-languages": "^9.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "storybook": "^10.0.5",
-    "styled-components": "^6.1.15",
     "svgo": "^3.3.2",
     "ts-morph": "^27.0.2",
     "tsdown": "^0.15.5",
@@ -155,15 +164,15 @@
       "default": "./dist/utils/index.js"
     },
     "./icons": {
-      "types": "./dist/components/icons/index.d.ts",
-      "react-native": "./dist/components/icons/index.js",
-      "import": "./dist/components/icons/index.mjs",
-      "require": "./dist/components/icons/index.js",
-      "default": "./dist/components/icons/index.js"
+      "types": "./dist/icons/index.d.ts",
+      "react-native": "./dist/icons/index.js",
+      "import": "./dist/icons/index.mjs",
+      "require": "./dist/icons/index.js",
+      "default": "./dist/icons/index.js"
     },
-    "./styles": "./src/styles/index.css",
-    "./styles/tokens.css": "./src/styles/tokens.css",
-    "./styles/theme.css": "./src/styles/theme.css",
-    "./styles/index.css": "./src/styles/index.css"
+    "./styles": "./dist/styles/tokens.css",
+    "./styles/tokens.css": "./dist/styles/tokens.css",
+    "./styles/theme.css": "./dist/styles/theme.css",
+    "./styles/index.css": "./dist/styles/tokens.css"
   }
 }

@@ -1,16 +1,21 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { Server as MCServer } from '@modelcontextprotocol/sdk/server/index.js'
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 
 import { CdpBrowserController } from './controller'
 import { toolDefinitions, toolHandlers } from './tools'
 
 export class BrowserServer {
-  public server: Server
+  public mcpServer: McpServer
   private controller = new CdpBrowserController()
 
+  /** Low-level Server instance (used by factory / InMemoryTransport) */
+  public get server(): Server {
+    return this.mcpServer.server
+  }
+
   constructor() {
-    const server = new MCServer(
+    this.mcpServer = new McpServer(
       {
         name: '@cherry/browser',
         version: '0.1.0'
@@ -23,13 +28,13 @@ export class BrowserServer {
       }
     )
 
-    server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
         tools: toolDefinitions
       }
     })
 
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params
       const handler = toolHandlers[name]
       if (!handler) {
@@ -39,12 +44,10 @@ export class BrowserServer {
     })
 
     // Clean up browser controller when the MCP server connection closes
-    // (triggered by MCPService.onStop() → client.close())
-    server.onclose = () => {
+    // (triggered by McpService.onStop() → client.close())
+    this.server.onclose = () => {
       void this.controller.reset()
     }
-
-    this.server = server
   }
 }
 

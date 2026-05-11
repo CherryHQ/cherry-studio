@@ -28,6 +28,256 @@
       "submit": "Отправить",
       "title": "Вопросы от агента"
     },
+    "cherryClaw": {
+      "channels": {
+        "add": "Добавить",
+        "bindAgent": "Связать агента",
+        "chatIdsAutoTrackHint": "Если оставить пустым, система автоматически отследит: сначала нужно отправить сообщение боту на платформе, затем система запишет Chat ID для будущих уведомлений.",
+        "comingSoon": "Скоро",
+        "connected": "Подключено",
+        "connecting": "Подключение",
+        "createError": "Не удалось создать канал",
+        "deleteConfirm": "Удалить канал \"{{name}}\"?",
+        "deleteError": "Не удалось удалить канал",
+        "description": "Подключите вашего агента к платформам обмена сообщениями.",
+        "disconnected": "Отключено",
+        "discord": {
+          "botToken": "Токен бота",
+          "botTokenPlaceholder": "Введите токен вашего бота Discord",
+          "channelIds": "Разрешённые идентификаторы каналов",
+          "channelIdsHint": "Формат: channel:id или dm:id. Оставьте пустым, чтобы разрешить все.",
+          "channelIdsPlaceholder": "канал:123456789, лс:987654321",
+          "description": "Получайте и отвечайте на сообщения через Discord-бота с использованием WebSocket-шлюза.",
+          "title": "Дискорд",
+          "whoamiTip": "💡 Совет: Отправьте боту команду /whoami, чтобы получить ваш ID канала в правильном формате."
+        },
+        "error": "Ошибка",
+        "feishu": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Введите App ID вашего приложения Feishu",
+          "appSecret": "App Secret",
+          "appSecretPlaceholder": "Введите App Secret вашего приложения Feishu",
+          "chatIds": "Разрешённые ID чатов",
+          "chatIdsHint": "ID чатов через запятую. Оставьте пустым, чтобы разрешить все чаты.",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "connected": "Подключено",
+          "description": "Получение и ответ на сообщения через бота Feishu/Lark с использованием WebSocket.",
+          "domain": "Домен",
+          "domainFeishu": "Feishu (Китай)",
+          "domainLark": "Lark (Международный)",
+          "encryptKey": "Ключ шифрования",
+          "encryptKeyPlaceholder": "Введите ключ шифрования вашего приложения Feishu",
+          "loginHint": "Учетные данные не настроены. Включите канал, чтобы начать регистрацию по QR-коду, или введите App ID и App Secret вручную.",
+          "qrExpired": "QR-код истёк. Повторите попытку, переключив канал.",
+          "qrHint": "Ожидание сканирования QR-кода...",
+          "qrScanHint": "Откройте Feishu на телефоне и отсканируйте QR-код, чтобы создать бота-приложение.",
+          "qrTitle": "Регистрация через QR-код Feishu",
+          "title": "Feishu",
+          "verificationToken": "Токен верификации",
+          "verificationTokenPlaceholder": "Введите токен верификации вашего приложения Feishu"
+        },
+        "logs": "Журналы",
+        "noInstances": "Каналы {{type}} не настроены. Нажмите «+ Добавить», чтобы создать канал.",
+        "noLogs": "Журналы пока отсутствуют",
+        "notifyReceiver": "Получать уведомления о задачах",
+        "notifyReceiverHint": "Отправлять результаты запланированных задач в этот канал.",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Введите App ID вашего QQ бота",
+          "chatIds": "Разрешённые ID чатов",
+          "chatIdsHint": "Формат: c2c:openid, group:groupid, channel:channelid. Оставьте пустым для разрешения всех.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Введите Client Secret вашего QQ бота",
+          "description": "Получать и отвечать на сообщения через официальный API QQ Bot.",
+          "title": "QQ",
+          "whoamiTip": "💡 Совет: Отправьте /whoami боту, чтобы получить ваш ID чата в правильном формате."
+        },
+        "security": {
+          "inheritFromAgent": "Унаследовать от агента",
+          "permissionMode": "Режим прав доступа канала",
+          "permissionModeHint": "Переопределить режим разрешений агента для сообщений из этого канала. «Наследовать» использует настройки агента по умолчанию."
+        },
+        "selectAgent": "Выберите агента для привязки",
+        "slack": {
+          "appToken": "Токен уровня приложения",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Токен бота",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "Разрешённые идентификаторы каналов",
+          "channelIdsHint": "ID каналов Slack. Оставьте пустым, чтобы разрешить все.",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "Получайте и отвечайте на сообщения через бота в Slack с использованием Socket Mode.",
+          "title": "Слак",
+          "whoamiTip": "💡 Совет: Отправьте боту команду /whoami, чтобы получить ID канала."
+        },
+        "soulModeRequired": "У этого агента не включён автономный режим. Функции канала не будут работать. Пожалуйста, включите его в настройках агента.",
+        "tab": "Каналы",
+        "telegram": {
+          "botToken": "Токен бота",
+          "botTokenPlaceholder": "Введите токен вашего Telegram бота",
+          "chatIds": "Разрешённые ID чатов",
+          "chatIdsHint": "Через запятую. Оставьте пустым для разрешения всех чатов.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Получать и отвечать на сообщения через Telegram бота с использованием long polling.",
+          "title": "Telegram"
+        },
+        "title": "Каналы",
+        "updateError": "Не удалось обновить канал",
+        "wechat": {
+          "addAccount": "Добавить аккаунт WeChat",
+          "chatIds": "Разрешённые идентификаторы пользователей",
+          "chatIdsHint": "Разделённые запятыми. Оставьте пустым, чтобы разрешить всех пользователей.",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+          "connected": "Подключено",
+          "description": "Получайте и отвечайте на сообщения через WeChat с помощью iLink Bot API.",
+          "disconnected": "Отключено",
+          "loginHint": "Первый вход требует сканирования QR-кода. Проверьте журналы приложения для получения URL-адреса входа.",
+          "qrHint": "Откройте WeChat на телефоне, отсканируйте QR-код для входа.",
+          "qrTitle": "Вход по QR-коду WeChat",
+          "title": "WeChat",
+          "whoamiTip": "Совет: Отправьте /whoami в WeChat, чтобы получить ID пользователя."
+        }
+      },
+      "heartbeat": {
+        "enabled": "Включить Heartbeat",
+        "enabledHelper": "При включении, если heartbeat.md существует в рабочей области, планировщик читает его содержимое и отправляет в основную сессию с настроенным интервалом.",
+        "interval": "Интервал (минуты)",
+        "intervalHelper": "Как часто выполняется heartbeat, в минутах."
+      },
+      "sandbox": {
+        "description": "Ограничивает доступ агента к файловой системе и сети только директорией рабочей области с использованием песочницы на уровне ОС.",
+        "helper": "Ограничить доступ к файловой системе и командам путём рабочей области.",
+        "label": "Режим песочницы"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "Стандартное cron-выражение (например, '*/30 * * * *' для каждых 30 минут).",
+          "label": "Cron-выражение",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "Планировщик автоматически запускает агента по расписанию.",
+        "enabled": "Включить планировщик",
+        "enabledHelper": "При включении агент будет автоматически запускаться согласно настроенному расписанию.",
+        "errors": {
+          "invalidCron": "Неверное cron-выражение",
+          "invalidDelay": "Задержка должна быть положительным числом",
+          "invalidInterval": "Интервал должен быть положительным числом"
+        },
+        "interval": {
+          "helper": "Как часто агент должен запускаться, в секундах.",
+          "label": "Интервал (секунды)"
+        },
+        "lastRun": "Последний запуск",
+        "never": "Никогда",
+        "nextRun": "Следующий запуск",
+        "oneTime": {
+          "helper": "Однократная задержка в секундах перед запуском агента.",
+          "label": "Задержка (секунды)"
+        },
+        "status": {
+          "running": "Выполняется",
+          "stopped": "Остановлен",
+          "tickInProgress": "Tick выполняется"
+        },
+        "tab": "Планировщик",
+        "title": "Настройка планировщика",
+        "type": {
+          "cron": "Cron-выражение",
+          "interval": "Фиксированный интервал",
+          "label": "Тип расписания",
+          "one-time": "Однократная задержка"
+        }
+      },
+      "soul": {
+        "description": "Душа определяет личность и базовое поведение агента. Она читается из soul.md в корне рабочей области.",
+        "empty": "Файл soul.md не найден в корне рабочей области. Создайте его, чтобы определить личность агента.",
+        "enabled": "Включить душу",
+        "enabledHelper": "При включении агент читает soul.md из корня рабочей области и добавляет его в начало системного промпта.",
+        "fileLabel": "soul.md",
+        "preview": "Предпросмотр души",
+        "tab": "Душа",
+        "title": "Настройка души"
+      },
+      "tasks": {
+        "add": "Добавить задачу",
+        "cancel": "Отмена",
+        "channels": {
+          "label": "Отправить в каналы",
+          "noActiveChatIds": "Выбранные каналы не имеют доступных получателей (Chat ID). Результаты задачи могут быть не доставлены. Пожалуйста, сначала отправьте сообщение боту на платформе.",
+          "placeholder": "Выберите каналы для получения результатов"
+        },
+        "cronPlaceholder": "напр. 0 9 * * * (каждый день в 9 утра)",
+        "delete": {
+          "confirm": "Вы уверены, что хотите удалить эту задачу?",
+          "label": "Удалить"
+        },
+        "edit": "Редактировать",
+        "empty": "Нет запланированных задач. Добавьте одну, чтобы начать.",
+        "error": {
+          "loadFailed": "Не удалось загрузить задачи"
+        },
+        "intervalPlaceholder": "Интервал в минутах",
+        "intervalUnit": "минуты",
+        "lastRun": "Последний запуск",
+        "logs": {
+          "duration": "Длительность",
+          "empty": "История запусков пуста.",
+          "error": "Ошибка",
+          "justNow": "только что",
+          "label": "История запусков",
+          "loadError": "Не удалось загрузить историю запусков",
+          "result": "Результат",
+          "runAt": "Запущено в",
+          "running": "Бежит...",
+          "search": "Искать журналы...",
+          "status": "Статус",
+          "success": "Успех",
+          "viewSession": "Просмотр сеанса"
+        },
+        "name": {
+          "label": "Название",
+          "placeholder": "напр. Ежедневный обзор кода"
+        },
+        "nextRun": "Следующий запуск",
+        "oncePlaceholder": "Выберите дату и время",
+        "pause": "Пауза",
+        "prompt": {
+          "expand": "Развернуть редактор",
+          "label": "Промпт",
+          "placeholder": "Что должен делать агент при выполнении этой задачи?"
+        },
+        "resume": "Возобновить",
+        "run": "Запустить",
+        "runTriggered": "Задача запущена",
+        "save": "Сохранить",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "Интервал",
+          "label": "Тип расписания",
+          "once": "Однократно"
+        },
+        "scheduleValue": "Значение расписания",
+        "status": {
+          "active": "Активна",
+          "completed": "Завершена",
+          "paused": "Приостановлена"
+        },
+        "tab": "Задачи",
+        "time": {
+          "hoursAgo": "{{count}} ч назад",
+          "minutesAgo": "{{count}} мин. назад"
+        },
+        "timeout": {
+          "label": "Тайм-аут",
+          "placeholder": "Без ограничений"
+        },
+        "title": "Запланированные задачи"
+      },
+      "warning": {
+        "bypassPermissions": "Агенты CherryClaw по умолчанию работают в полностью автоматическом режиме. Все инструменты выполняются без запроса одобрения."
+      }
+    },
     "delete": {
       "content": "Удаление этого агента приведёт к принудительному завершению и удалению всех сессий, связанных с ним. Вы уверены?",
       "error": {
@@ -76,7 +326,8 @@
       "tooltip": "Для запуска агентов в Windows требуется Git Bash. Установите его с сайта git-scm.com, если он отсутствует."
     },
     "input": {
-      "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду"
+      "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду",
+      "soul_placeholder": "Помогите мне подключиться к Telegram"
     },
     "list": {
       "error": {
@@ -245,6 +496,21 @@
         "uninstalling": "Удаление..."
       },
       "prompt": "Настройки подсказки",
+      "skills": {
+        "addMore": "Добавить навыки",
+        "builtin": "Встроенный",
+        "noFilterResults": "Нет подходящих навыков",
+        "noSkills": "Навыки не установлены. Установите навыки в разделе Настройки > Навыки.",
+        "searchPlaceholder": "навыки поиска...",
+        "tab": "Навыки",
+        "title": "Установленные навыки"
+      },
+      "soulMode": {
+        "description": "При включении агент использует пользовательский системный промпт из файлов soul рабочей области, внедряет инструменты автономного управления задачами и отключает интерактивные инструменты, не подходящие для автономной работы.",
+        "disabledBadge": "Отключено автономным режимом",
+        "disabledTooltip": "Этот инструмент автоматически отключается при активном автономном режиме",
+        "title": "Автономный режим"
+      },
       "tooling": {
         "mcp": {
           "description": "Подключите серверы MCP, чтобы разблокировать дополнительные инструменты, которые вы можете одобрить выше.",
@@ -301,6 +567,7 @@
       },
       "toolsMcp": {
         "mcp": {
+          "tab": "MCP",
           "title": "Серверы MCP"
         },
         "tab": "Инструменты",
@@ -579,6 +846,7 @@
         "agent": "Экспортировать помощника"
       },
       "import": {
+        "action": "[to be translated]:Import Assistant",
         "button": "Импортировать",
         "error": {
           "fetch_failed": "Ошибка получения данных с URL",
@@ -689,17 +957,6 @@
         "off_description": "Отключить рассуждение",
         "xhigh": "Сверхвысокое",
         "xhigh_description": "Высочайший уровень рассуждений"
-      },
-      "regular_phrases": {
-        "add": "Добавить подсказку",
-        "contentLabel": "Содержание",
-        "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}.",
-        "delete": "Удалить подсказку",
-        "deleteConfirm": "Вы уверены, что хотите удалить эту подсказку?",
-        "edit": "Редактировать подсказку",
-        "title": "Регулярные подсказки",
-        "titleLabel": "Заголовок",
-        "titlePlaceholder": "Введите заголовок"
       },
       "title": "Настройки ассистента",
       "tool_use_mode": {
@@ -1231,6 +1488,7 @@
       "unpin": "Открепленные темы"
     },
     "translate": "Перевести",
+    "user": "Пользователь",
     "web_search": {
       "warning": {
         "openai": "Модель GPT5 с минимальной интенсивностью мышления не поддерживает поиск в интернете"
@@ -1242,11 +1500,23 @@
     "bun_required_message": "Запуск CLI-инструментов требует установки среды Bun",
     "cli_tool": "Инструмент",
     "cli_tool_placeholder": "Выберите CLI-инструмент для использования",
+    "count_one": "{{count}} элемент",
+    "count_other": "{{count}} предметов",
     "custom_path": "Пользовательский путь",
     "custom_path_error": "Не удалось задать пользовательский путь терминала",
     "custom_path_required": "Этот терминал требует установки пользовательского пути",
     "custom_path_set": "Пользовательский путь терминала успешно установлен",
     "description": "Быстро запускает несколько CLI-инструментов для кода, повышая эффективность разработки",
+    "empty": {
+      "no_match": {
+        "description": "Попробуйте изменить поисковые запросы",
+        "title": "Подходящие инструменты не найдены"
+      },
+      "no_tool": {
+        "description": "Добавьте инструмент CLI или помощник по коду, чтобы начать работу",
+        "title": "Инструментов для кода пока нет"
+      }
+    },
     "env_vars_help": "Установите переменные окружения для использования при запуске CLI-инструментов. Каждая переменная должна быть на отдельной строке в формате KEY=value",
     "environment_variables": "Переменные окружения",
     "folder_placeholder": "Выберите рабочую директорию",
@@ -1256,21 +1526,28 @@
       "bun_required": "Пожалуйста, установите среду Bun перед запуском CLI-инструментов",
       "error": "Не удалось запустить. Пожалуйста, попробуйте снова",
       "label": "Запуск",
+      "launched": "Запущено",
       "success": "Запуск успешно завершен",
       "validation_error": "Пожалуйста, заполните все обязательные поля: CLI-инструмент, модель и рабочая директория"
     },
     "launching": "Запуск...",
     "model": "Модель",
+    "model_hint": "Выберите, какую модель ИИ должен использовать инструмент CLI",
     "model_placeholder": "Выберите модель для использования",
     "model_required": "Пожалуйста, выберите модель",
+    "official_tag": "Официальный",
+    "official_tools": "Официальный",
+    "search_placeholder": "Поиск инструментов CLI…",
     "select_folder": "Выберите папку",
     "set_custom_path": "Настройка пользовательского пути терминала",
     "supported_providers": "Поддерживаемые поставщики",
     "terminal": "терминал",
+    "terminal_hint": "Выберите, в каком терминале запускать интерфейс командной строки",
     "terminal_placeholder": "Выбор приложения терминала",
     "title": "Инструменты кода",
     "update_options": "Параметры обновления",
-    "working_directory": "Рабочая директория"
+    "working_directory": "Рабочая директория",
+    "working_directory_hint": "Рабочий каталог, в котором запускается инструмент CLI"
   },
   "code_block": {
     "collapse": "Свернуть",
@@ -1500,6 +1777,31 @@
     "data": "данные",
     "detail": "Детали ошибки",
     "details": "Подробности",
+    "diagnosis": {
+      "ai_button": "ИИ-диагностика",
+      "ai_done": "Диагностировано",
+      "ai_loading": "Диагностика",
+      "ai_result": "Результат ИИ-диагностики",
+      "auth": "API-ключ недействителен, проверьте и перенастройте",
+      "content": "Содержимое заблокировано системой безопасности, измените и повторите",
+      "context_length": "Слишком длинный разговор, пожалуйста, очистите историю или начните новый чат",
+      "deprecated": "Эта модель была снята с производства, пожалуйста, переключитесь на другую модель",
+      "go_to_settings": "Перейти к настройкам",
+      "knowledge": "Ошибка векторизации базы знаний",
+      "mcp": "Ошибка подключения к серверу MCP, проверьте работу сервиса",
+      "model": "Модель не найдена или нет доступа",
+      "model_conflict": "Модель диагностики совпадает с моделью, вызвавшей ошибку",
+      "network": "Не удаётся подключиться к серверу, проверьте настройки сети или прокси",
+      "ocr": "Движок OCR не инициализирован, проверьте настройки OCR",
+      "parse": "ИИ вернул недопустимый ответ, повторите попытку или смените модель",
+      "payload": "Слишком большой объем запроса, уменьшите размер файла или текста.",
+      "proxy": "Ошибка прокси или SSL-сертификата, проверьте настройки прокси и сети",
+      "quota": "Квота аккаунта исчерпана, пополните баланс или смените провайдера",
+      "server": "Ошибка сервера, повторите позже",
+      "stream": "Ответ прерван, проверьте стабильность сети или повторите попытку",
+      "unknown": "Произошла ошибка",
+      "view_details": "Подробнее"
+    },
     "errors": "ошибка",
     "finishReason": "Причина завершения",
     "functionality": "функция",
@@ -1654,7 +1956,8 @@
     "empty_preview": "Нет содержания для отображения",
     "generating": "Генерация",
     "preview": "Предпросмотр",
-    "split": "Разделить"
+    "split": "Разделить",
+    "view_mode": "Режим просмотра"
   },
   "import": {
     "chatgpt": {
@@ -1835,7 +2138,358 @@
   },
   "launchpad": {
     "apps": "Приложения",
-    "minapps": "Приложения"
+    "miniApps": "Приложения"
+  },
+  "library": {
+    "action": {
+      "create": "[to be translated]:New",
+      "delete": "[to be translated]:Delete",
+      "disable": "[to be translated]:Disable",
+      "duplicate": "[to be translated]:Duplicate",
+      "edit": "[to be translated]:Edit",
+      "enable": "[to be translated]:Enable",
+      "manage_tags": "[to be translated]:Manage tags",
+      "uninstall": "[to be translated]:Uninstall"
+    },
+    "badge": {
+      "update": "[to be translated]:Update"
+    },
+    "config": {
+      "agent": {
+        "create_banner": "[to be translated]:Save before binding tools and MCP servers",
+        "create_title": "[to be translated]:New agent",
+        "field": {
+          "accessible_paths": {
+            "add": "[to be translated]:Add directory",
+            "empty": "[to be translated]:Not set (defaults to the workspace root)",
+            "label": "[to be translated]:Accessible directories"
+          },
+          "allowed_tools": {
+            "add": "[to be translated]:Add tool",
+            "empty": "[to be translated]:Leave empty to use the permission mode default",
+            "label": "[to be translated]:Allowed tools"
+          },
+          "description": {
+            "label": "[to be translated]:Description",
+            "placeholder": "[to be translated]:What this agent is for…"
+          },
+          "env_vars": {
+            "help": "[to be translated]:One KEY=VALUE per line",
+            "label": "[to be translated]:Environment variables"
+          },
+          "heartbeat_enabled": {
+            "label": "[to be translated]:Heartbeat check"
+          },
+          "heartbeat_interval": {
+            "label": "[to be translated]:Heartbeat interval (minutes)"
+          },
+          "instructions": {
+            "label": "[to be translated]:System prompt",
+            "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
+          },
+          "max_turns": {
+            "help": "[to be translated]:0 means use the default",
+            "label": "[to be translated]:Max conversation turns"
+          },
+          "mcps": {
+            "add": "[to be translated]:Add MCP server",
+            "empty": "[to be translated]:None bound",
+            "label": "[to be translated]:MCP servers (id)"
+          },
+          "model": {
+            "help": "[to be translated]:UniqueModelId; will switch to a picker backed by /models later",
+            "hint": "[to be translated]:Main reasoning and execution",
+            "label": "[to be translated]:Primary model (required)"
+          },
+          "name": {
+            "label": "[to be translated]:Agent name",
+            "placeholder": "[to be translated]:Give the agent a name"
+          },
+          "permission_mode": {
+            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
+            "label": "[to be translated]:Permission mode",
+            "option": {
+              "acceptEdits": "[to be translated]:Accept edits",
+              "bypassPermissions": "[to be translated]:Bypass permissions (Soul)",
+              "default": "[to be translated]:Default",
+              "plan": "[to be translated]:Plan mode"
+            }
+          },
+          "plan_model": {
+            "hint": "[to be translated]:Task decomposition and planning",
+            "label": "[to be translated]:Plan model (optional)"
+          },
+          "small_model": {
+            "hint": "[to be translated]:Lightweight checks and formatting",
+            "label": "[to be translated]:Small model (optional)"
+          },
+          "soul_enabled": {
+            "help": "[to be translated]:When enabled, automatically grants bypassPermissions",
+            "label": "[to be translated]:Soul mode"
+          }
+        },
+        "model_config": "[to be translated]:Model configuration",
+        "section": {
+          "advanced": {
+            "desc": "[to be translated]:Execution limits and runtime parameters",
+            "label": "[to be translated]:Advanced",
+            "title": "[to be translated]:Advanced"
+          },
+          "basic": {
+            "desc": "[to be translated]:Agent name, description, and primary model",
+            "label": "[to be translated]:Basic",
+            "title": "[to be translated]:Basic"
+          },
+          "permission": {
+            "desc": "[to be translated]:Authorization scope for agent actions",
+            "label": "[to be translated]:Permission mode",
+            "title": "[to be translated]:Permission mode"
+          },
+          "prompt": {
+            "desc": "[to be translated]:System prompt and behavioral constraints",
+            "label": "[to be translated]:Prompt",
+            "title": "[to be translated]:Prompt"
+          },
+          "tools": {
+            "add": "[to be translated]:Add",
+            "desc": "[to be translated]:MCP servers, allowed tools, and runtime settings",
+            "label": "[to be translated]:Tools & runtime",
+            "no_builtin_enabled": "[to be translated]:No built-in tools enabled",
+            "no_mcp_bound": "[to be translated]:No MCP servers bound",
+            "no_skills_enabled": "[to be translated]:No skills enabled",
+            "search_placeholder": "[to be translated]:Search tools or servers...",
+            "skills_coming_soon": "[to be translated]:Skill bindings coming soon",
+            "skills_require_save": "[to be translated]:Save before enabling skills",
+            "tab": {
+              "mcp": "[to be translated]:MCP Server",
+              "skills": "[to be translated]:Skills",
+              "tools": "[to be translated]:Built-in tools"
+            },
+            "title": "[to be translated]:Tools & runtime"
+          }
+        }
+      },
+      "basic": {
+        "context_count": "[to be translated]:Context count",
+        "creative": "[to be translated]:Creative",
+        "custom_params": "[to be translated]:Custom parameters",
+        "custom_params_add": "[to be translated]:Add parameter",
+        "custom_params_name": "[to be translated]:Parameter name",
+        "default_value": "[to be translated]:Model default",
+        "desc": "[to be translated]:Configure the assistant's identity and model parameters",
+        "description_label": "[to be translated]:Description",
+        "json_invalid": "[to be translated]:Invalid JSON format",
+        "max_tokens": "[to be translated]:Max tokens",
+        "max_tool_calls": "[to be translated]:Max tool calls",
+        "model": "[to be translated]:Default model",
+        "model_clear": "[to be translated]:Clear",
+        "model_not_found": "[to be translated]:Model not found (may have been removed): {{id}}",
+        "model_pick": "[to be translated]:+ Pick model",
+        "pick_avatar": "[to be translated]:Pick avatar",
+        "precise": "[to be translated]:Precise",
+        "stream_output": "[to be translated]:Stream output",
+        "tag_empty": "[to be translated]:No tags available",
+        "tag_hint": "[to be translated]:To add a new tag, use the \"+ Tag\" entry in the library top bar",
+        "tag_placeholder": "[to be translated]:Select tags",
+        "tag_search": "[to be translated]:Search tags",
+        "tags": "[to be translated]:Tags",
+        "temperature": "[to be translated]:Temperature",
+        "title": "[to be translated]:Basic settings",
+        "tool_use_function": "[to be translated]:Function",
+        "tool_use_mode": "[to be translated]:Tool call mode",
+        "tool_use_prompt": "[to be translated]:Prompt",
+        "top_p": "[to be translated]:Top-P",
+        "unlimited": "[to be translated]:Unlimited"
+      },
+      "breadcrumb": "[to be translated]:Library",
+      "knowledge": {
+        "add": "[to be translated]:Add knowledge base",
+        "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
+        "doc_count": "[to be translated]:{{count}} docs",
+        "empty_desc": "[to be translated]:Once linked, the assistant can answer based on document content",
+        "empty_title": "[to be translated]:No knowledge bases linked",
+        "invalid_suffix": "[to be translated]:... (unavailable)",
+        "linked": "[to be translated]:Linked knowledge bases",
+        "no_more": "[to be translated]:No more knowledge bases available",
+        "remove_aria": "[to be translated]:Remove",
+        "search": "[to be translated]:Search knowledge bases...",
+        "title": "[to be translated]:Knowledge bases"
+      },
+      "prompt": {
+        "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
+        "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
+        "label": "[to be translated]:System prompt",
+        "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
+        "title": "[to be translated]:Prompt",
+        "tokens_label": "[to be translated]:Tokens: ",
+        "variables_title": "[to be translated]:Available variables",
+        "vars": {
+          "arch": "[to be translated]:CPU architecture",
+          "date": "[to be translated]:Date",
+          "datetime": "[to be translated]:Date and time",
+          "language": "[to be translated]:Language",
+          "model_name": "[to be translated]:Model name",
+          "os": "[to be translated]:Operating system",
+          "time": "[to be translated]:Time",
+          "username": "[to be translated]:Username"
+        }
+      },
+      "save_failed": "[to be translated]:Save failed",
+      "saving": "[to be translated]:Saving...",
+      "section": {
+        "basic": {
+          "desc": "[to be translated]:Name, avatar, model parameters",
+          "label": "[to be translated]:Basic"
+        },
+        "knowledge": {
+          "desc": "[to be translated]:Linked knowledge bases and retrieval",
+          "label": "[to be translated]:Knowledge"
+        },
+        "prompt": {
+          "desc": "[to be translated]:System prompt and variables",
+          "label": "[to be translated]:Prompt"
+        },
+        "tools": {
+          "desc": "[to be translated]:MCP servers and tool configuration",
+          "label": "[to be translated]:Tools"
+        }
+      },
+      "tools": {
+        "add_mcp": "[to be translated]:Add MCP server",
+        "added": "[to be translated]:Added MCP servers",
+        "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
+        "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
+        "empty_title": "[to be translated]:No MCP servers added",
+        "inactive_badge": "[to be translated]:Inactive",
+        "info_main": "[to be translated]:MCP (Model Context Protocol) lets the model safely invoke external tools.",
+        "info_sub": "[to be translated]:Enabling only necessary servers improves safety and response speed.",
+        "mode": {
+          "auto": {
+            "desc": "[to be translated]:The model decides which enabled MCP tools to call",
+            "label": "[to be translated]:Auto"
+          },
+          "disabled": {
+            "desc": "[to be translated]:No MCP tools are available during chat",
+            "label": "[to be translated]:Disabled"
+          },
+          "manual": {
+            "desc": "[to be translated]:Expose only the MCP servers selected below",
+            "label": "[to be translated]:Manual"
+          }
+        },
+        "no_more": "[to be translated]:No more servers available",
+        "search": "[to be translated]:Search available servers...",
+        "switch_title_active": "[to be translated]:Toggle off to remove",
+        "switch_title_inactive": "[to be translated]:This server is disabled in MCP settings; remove it to re-add later",
+        "title": "[to be translated]:Tools"
+      }
+    },
+    "create_menu": {
+      "create": "[to be translated]:New {{type}}",
+      "import": "[to be translated]:Import {{type}}"
+    },
+    "delete": {
+      "agent": {
+        "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
+        "title": "[to be translated]:Delete agent"
+      }
+    },
+    "delete_confirm": {
+      "cancel": "[to be translated]:Cancel",
+      "confirm": "[to be translated]:Delete",
+      "description": "[to be translated]:Delete \"{{name}}\"? This action cannot be undone.",
+      "title": "[to be translated]:Delete"
+    },
+    "duplicate_name": "[to be translated]:{{name}} (copy)",
+    "empty_state": {
+      "description": "[to be translated]:Click \"New\" to create your first resource.",
+      "empty_description": "[to be translated]:Create your first agent or assistant",
+      "empty_title": "[to be translated]:No resources yet",
+      "no_match_description": "[to be translated]:Try a different search keyword",
+      "no_match_title": "[to be translated]:No matching resources",
+      "title": "[to be translated]:No resources"
+    },
+    "import_dialog": {
+      "clipboard": {
+        "button": "[to be translated]:Parse and import",
+        "placeholder": "[to be translated]:Paste JSON configuration here..."
+      },
+      "error": {
+        "content_too_large": "[to be translated]:Content too large (>5 MB)",
+        "file_too_large": "[to be translated]:File too large (>5 MB)",
+        "invalid_url": "[to be translated]:Invalid URL",
+        "response_too_large": "[to be translated]:Response too large (>5 MB)",
+        "timeout": "[to be translated]:Request timed out. Check that the URL is reachable.",
+        "unsupported_protocol": "[to be translated]:Only http or https URLs are supported"
+      },
+      "failure": "[to be translated]:Import failed: {{error}}",
+      "file": {
+        "drop_hint": "[to be translated]:Drag and drop a file here, or click to pick one",
+        "formats": "[to be translated]:Supports .json"
+      },
+      "partial_success": "[to be translated]:Partial success: {{success}} imported, {{failed}} failed ({{first_name}}: {{first_error}})",
+      "subtitle": "[to be translated]:JSON configuration files are supported",
+      "success": "[to be translated]:Imported successfully: {{name}}",
+      "tab": {
+        "clipboard": "[to be translated]:Clipboard",
+        "file": "[to be translated]:File upload",
+        "url": "[to be translated]:Import from URL"
+      },
+      "url": {
+        "button": "[to be translated]:Fetch and import",
+        "hint": "[to be translated]:Import from a GitHub Gist, GitHub repo, or any public URL",
+        "supports": "[to be translated]:Raw file URLs are supported"
+      }
+    },
+    "no_match": "[to be translated]:No matching results",
+    "pending_backend": {
+      "description": "[to be translated]:Write operations for this resource are coming soon. This view is a placeholder.",
+      "title": "[to be translated]:Backend setup in progress"
+    },
+    "sidebar": {
+      "all_resources": "[to be translated]:All resources",
+      "all_tags": "[to be translated]:All tags",
+      "no_tags": "[to be translated]:No tags yet",
+      "subtitle": "[to be translated]:Manage your AI resources",
+      "tags": "[to be translated]:Tags",
+      "title": "[to be translated]:Library"
+    },
+    "sort": {
+      "created": "[to be translated]:Sort by created",
+      "name": "[to be translated]:Sort by name",
+      "updated": "[to be translated]:Sort by updated"
+    },
+    "subtitle": "[to be translated]:Manage your assistants, agents and skills",
+    "tag_picker": {
+      "no_tags": "[to be translated]:No tags yet",
+      "placeholder": "[to be translated]:New tag name..."
+    },
+    "tag_sync_failed": "[to be translated]:Failed to sync tags",
+    "time_ago": {
+      "days": "[to be translated]:{{count}} day(s) ago",
+      "hours": "[to be translated]:{{count}} hour(s) ago",
+      "just_now": "[to be translated]:Just now",
+      "minutes": "[to be translated]:{{count}} minute(s) ago",
+      "months": "[to be translated]:{{count}} month(s) ago"
+    },
+    "title": "[to be translated]:Library",
+    "toolbar": {
+      "add_tag_placeholder": "[to be translated]:Tag name...",
+      "new_resource": "[to be translated]:New resource",
+      "search_placeholder": "[to be translated]:Search resources...",
+      "tag_button": "[to be translated]:Tag"
+    },
+    "type": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "new_agent": "[to be translated]:New agent",
+      "new_assistant": "[to be translated]:New assistant",
+      "skill": "[to be translated]:Skill"
+    },
+    "view": {
+      "grid": "[to be translated]:Grid view",
+      "list": "[to be translated]:List view"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -1844,112 +2498,6 @@
       "title": "Время жизни модели"
     },
     "title": "LM Studio"
-  },
-  "memory": {
-    "actions": "Действия",
-    "add_failed": "Не удалось добавить память",
-    "add_first_memory": "Добавить первое воспоминание",
-    "add_memory": "Добавить память",
-    "add_new_user": "Добавить нового пользователя",
-    "add_success": "Память успешно добавлена",
-    "add_user": "Добавить пользователя",
-    "add_user_failed": "Не удалось добавить пользователя",
-    "all_users": "Все пользователи",
-    "cannot_delete_default_user": "Нельзя удалить пользователя по умолчанию",
-    "configure_memory_first": "Сначала настройте параметры памяти",
-    "content": "Содержимое",
-    "current_user": "Текущий пользователь",
-    "custom": "Пользовательский",
-    "default": "По умолчанию",
-    "default_user": "Пользователь по умолчанию",
-    "delete_confirm": "Вы уверены, что хотите удалить эту запись памяти?",
-    "delete_confirm_content": "Вы уверены, что хотите удалить {{count}} записей памяти?",
-    "delete_confirm_single": "Вы уверены, что хотите удалить это воспоминание?",
-    "delete_confirm_title": "Удалить память",
-    "delete_failed": "Не удалось удалить память",
-    "delete_selected": "Удалить выбранные",
-    "delete_success": "Память успешно удалена",
-    "delete_user": "Удалить пользователя",
-    "delete_user_confirm_content": "Вы уверены, что хотите удалить пользователя {{user}} и все его воспоминания?",
-    "delete_user_confirm_title": "Удалить пользователя",
-    "delete_user_failed": "Не удалось удалить пользователя",
-    "description": "Память позволяет хранить и управлять информацией о ваших взаимодействиях с ассистентом. Вы можете добавлять, редактировать и удалять воспоминания, а также фильтровать и искать их.",
-    "edit_memory": "Редактировать память",
-    "embedding_dimensions": "Размерность вложения",
-    "embedding_model": "Модель встраивания",
-    "enable_global_memory_first": "Сначала включите глобальную память",
-    "end_date": "Дата окончания",
-    "global_memory": "Глобальная память",
-    "global_memory_description": "Для использования функций памяти необходимо включить глобальную память в настройках ассистента.",
-    "global_memory_disabled_desc": "Чтобы использовать функции памяти, сначала включите глобальную память в настройках ассистента.",
-    "global_memory_disabled_title": "Глобальная память отключена",
-    "global_memory_enabled": "Глобальная память включена",
-    "go_to_memory_page": "Перейти на страницу памяти",
-    "initial_memory_content": "Добро пожаловать! Это ваше первое воспоминание.",
-    "llm_model": "Модель LLM",
-    "load_failed": "Не удалось загрузить память",
-    "loading": "Загрузка воспоминаний...",
-    "loading_memories": "Загрузка воспоминаний...",
-    "memories_description": "Показано {{count}} из {{total}} записей памяти",
-    "memories_reset_success": "Все воспоминания пользователя {{user}} успешно сброшены",
-    "memory": "воспоминаний",
-    "memory_content": "Содержимое памяти",
-    "memory_placeholder": "Введите содержимое памяти...",
-    "new_user_id": "Новый ID пользователя",
-    "new_user_id_placeholder": "Введите уникальный ID пользователя",
-    "no_matching_memories": "Подходящие воспоминания не найдены",
-    "no_memories": "Нет воспоминаний",
-    "no_memories_description": "Начните с добавления вашего первого воспоминания",
-    "not_configured_desc": "Пожалуйста, настройте модели встраивания и LLM в настройках памяти, чтобы включить функциональность памяти.",
-    "not_configured_title": "Память не настроена",
-    "pagination_total": "{{start}}-{{end}} из {{total}} элементов",
-    "please_enter_memory": "Пожалуйста, введите содержимое памяти",
-    "please_select_embedding_model": "Пожалуйста, выберите модель для внедрения",
-    "please_select_llm_model": "Пожалуйста, выберите модель LLM",
-    "reset_filters": "Сбросить фильтры",
-    "reset_memories": "Сбросить воспоминания",
-    "reset_memories_confirm_content": "Вы уверены, что хотите навсегда удалить все воспоминания пользователя {{user}}? Это действие нельзя отменить.",
-    "reset_memories_confirm_title": "Сбросить все воспоминания",
-    "reset_memories_failed": "Не удалось сбросить воспоминания",
-    "reset_user_memories": "Сбросить воспоминания пользователя",
-    "reset_user_memories_confirm_content": "Вы уверены, что хотите сбросить все воспоминания пользователя {{user}}?",
-    "reset_user_memories_confirm_title": "Сбросить воспоминания пользователя",
-    "reset_user_memories_failed": "Не удалось сбросить воспоминания пользователя",
-    "score": "Оценка",
-    "search": "Поиск",
-    "search_placeholder": "Поиск памяти...",
-    "select_embedding_model_placeholder": "Выберите модель внедрения",
-    "select_llm_model_placeholder": "Выбор модели LLM",
-    "select_user": "Выбрать пользователя",
-    "settings": "Настройки",
-    "settings_title": "Настройки памяти",
-    "start_date": "Дата начала",
-    "statistics": "Статистика",
-    "stored_memories": "Запасённые воспоминания",
-    "switch_user": "Переключить пользователя",
-    "switch_user_confirm": "Переключить контекст пользователя на {{user}}?",
-    "time": "Время",
-    "title": "Глобальная память",
-    "total_memories": "всего воспоминаний",
-    "try_different_filters": "Попробуйте изменить критерии поиска",
-    "update_failed": "Не удалось обновить память",
-    "update_success": "Память успешно обновлена",
-    "user": "Пользователь",
-    "user_created": "Пользователь {{user}} создан и переключен успешно",
-    "user_deleted": "Пользователь {{user}} успешно удален",
-    "user_id": "ID пользователя",
-    "user_id_exists": "Этот ID пользователя уже существует",
-    "user_id_invalid_chars": "ID пользователя может содержать только буквы, цифры, дефисы и подчёркивания",
-    "user_id_placeholder": "Введите ID пользователя (необязательно)",
-    "user_id_required": "ID пользователя обязателен",
-    "user_id_reserved": "'default-user' зарезервирован, используйте другой ID",
-    "user_id_rules": "ID пользователя должен быть уникальным и содержать только буквы, цифры, дефисы (-) и подчёркивания (_)",
-    "user_id_too_long": "ID пользователя не может превышать 50 символов",
-    "user_management": "Управление пользователями",
-    "user_memories_reset": "Все воспоминания пользователя {{user}} сброшены",
-    "user_switch_failed": "Не удалось переключить пользователя",
-    "user_switched": "Контекст пользователя переключен на {{user}}",
-    "users": "пользователи"
   },
   "message": {
     "agents": {
@@ -2291,20 +2839,23 @@
     "websearch": {
       "cutoff": "Обрезка содержимого поиска...",
       "fetch_complete": "{{count}} результатов поиска",
-      "rag": "Выполнение RAG...",
-      "rag_complete": "Сохранено {{countAfter}} из {{countBefore}} результатов...",
-      "rag_failed": "RAG не удалось, возвращается пустой результат..."
+      "partial_failure": "{{count}} результатов поиска, некоторые поиски завершились ошибкой"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Добавить в стартовый экран",
     "add_to_sidebar": "Добавить в боковую панель",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Закрыть встроенное приложение",
       "devtools": "Инструменты разработчика",
       "goBack": "Назад",
       "goForward": "Вперед",
-      "minimize": "Свернуть встроенное приложение",
       "openExternal": "Открыть в браузере",
       "open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию",
       "open_link_external_on": "Текущий: Открыть ссылки в браузере",
@@ -2313,6 +2864,13 @@
     },
     "remove_from_launchpad": "Удалить из стартового экрана",
     "remove_from_sidebar": "Удалить из боковой панели",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Закрыть"
@@ -2327,9 +2885,11 @@
         "title": "Удалить пользовательское приложение"
       }
     },
-    "title": "Встроенные приложения"
+    "title": "Встроенные приложения",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Байчжан",
     "baidu-ai-search": "Baidu AI Search",
@@ -2348,44 +2908,18 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Tencent Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Совет: Если при входе в Google вы видите сообщение 'ненадежный браузер', сначала войдите в аккаунт через мини-приложение Google в списке мини-приложений, а затем используйте вход через Google в других мини-приложениях"
-    },
-    "clipboard": {
-      "empty": "Буфер обмена пуст"
-    },
-    "feature": {
-      "chat": "Ответить на этот вопрос",
-      "explanation": "Объяснение",
-      "summary": "Содержание",
-      "translate": "Текст перевод"
-    },
-    "footer": {
-      "backspace_clear": "Нажмите Backspace, чтобы очистить",
-      "copy_last_message": "Нажмите C для копирования",
-      "esc": "Нажмите ESC {{action}}",
-      "esc_back": "возвращения",
-      "esc_close": "закрытия окна",
-      "esc_pause": "пауза"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Задайте вопрос {{model}}...",
-        "title": "Что вы хотите сделать с этим текстом?"
-      }
-    },
-    "tooltip": {
-      "pin": "Верхнее окно"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "Закрепить эту модель",
+      "unpin": "Открепить модель"
+    },
     "add_parameter": "Добавить параметр",
     "all": "Все",
     "custom_parameters": "Пользовательские параметры",
@@ -2403,6 +2937,9 @@
     "function_calling": "Вызов функции",
     "invalid_model": "Недействительная модель",
     "json_parse_error": "Неверный формат JSON",
+    "multi_select": {
+      "label": "Многомодельный параллелизм (взаимоисключающий с мульти-ассистентом)"
+    },
     "no_matches": "Нет доступных моделей",
     "parameter_name": "Имя параметра",
     "parameter_type": {
@@ -3171,6 +3708,37 @@
     "zhinao": "360AI",
     "zhipu": "BigModel"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Совет: Если при входе в Google вы видите сообщение 'ненадежный браузер', сначала войдите в аккаунт через мини-приложение Google в списке мини-приложений, а затем используйте вход через Google в других мини-приложениях"
+    },
+    "clipboard": {
+      "empty": "Буфер обмена пуст"
+    },
+    "feature": {
+      "chat": "Ответить на этот вопрос",
+      "explanation": "Объяснение",
+      "summary": "Содержание",
+      "translate": "Текст перевод"
+    },
+    "footer": {
+      "backspace_clear": "Нажмите Backspace, чтобы очистить",
+      "copy_last_message": "Нажмите C для копирования",
+      "esc": "Нажмите ESC {{action}}",
+      "esc_back": "возвращения",
+      "esc_close": "закрытия окна",
+      "esc_pause": "пауза"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Задайте вопрос {{model}}...",
+        "title": "Что вы хотите сделать с этим текстом?"
+      }
+    },
+    "tooltip": {
+      "pin": "Верхнее окно"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "Выбрать файл резервной копии",
@@ -3611,6 +4179,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "Новый агент",
+      "empty_text": "Агентов пока нет",
+      "search_placeholder": "Поиск агентов…"
+    },
+    "assistant": {
+      "create_new": "Новый ассистент",
+      "empty_text": "Пока нет ассистентов",
+      "multi_hint": "(взаимоисключающий с многомодельным)",
+      "multi_label": "Многопомощниковый параллелизм",
+      "search_placeholder": "Поиск ассистентов…"
+    },
+    "common": {
+      "edit": "Редактировать",
+      "pin": "Пин",
+      "pinned_title": "Закреплено",
+      "sort": {
+        "asc": "Старейший",
+        "desc": "Недавний"
+      },
+      "sort_label": "Сортировать",
+      "unpin": "Открепить"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3672,6 +4265,79 @@
       "label": "Ассистент по умолчанию",
       "model_params": "Параметры модели",
       "title": "Ассистент по умолчанию"
+    },
+    "channels": {
+      "description": "Подключайте агентов к платформам обмена сообщениями, таким как Telegram, Feishu, Discord и другим.",
+      "title": "Каналы"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "Прозрачный",
+        "configDescription": "Переключите props, чтобы предварительно просмотреть поведение компонента",
+        "configTitle": "Конфиг",
+        "currentProps": "Текущие реквизиты",
+        "description": "AgentSelector теперь считывает реальные данные DataApi из /agents, чтобы проверять выбор id/элемента, закрепление, сортировку и поведение поиска.",
+        "emptyShellNotice": "Этот предварительный просмотр использует реальный список агентов, возвращаемый DataApi /agents.",
+        "lastOnChange": "Последнее onChange",
+        "previewDescription": "Нажмите на триггер, чтобы открыть селектор",
+        "previewTitle": "Предварительный просмотр",
+        "title": "Селектор агентов",
+        "triggerPlaceholder": "Выберите агента",
+        "valueProp": "Текущее значение"
+      },
+      "assistantSelector": {
+        "clearSelection": "Прозрачный",
+        "configDescription": "Переключайте свойства, чтобы просмотреть поведение компонента",
+        "configTitle": "Конфиг",
+        "currentProps": "Текущие реквизиты",
+        "description": "Монтирует бизнес-компонент AssistantSelector напрямую для проверки поведения множественного/одиночного выбора, идентификатора/элемента, закрепления, сортировки и поиска.",
+        "lastOnChange": "Последнее onChange",
+        "previewDescription": "Нажмите на триггер, чтобы открыть селектор",
+        "previewTitle": "Предварительный просмотр",
+        "title": "Селектор ассистента",
+        "triggerPlaceholder": "Выберите ассистента",
+        "triggerSelectedCount": "{{count}} ассистентов выбрано",
+        "valueProp": "Текущее значение"
+      },
+      "description": "Видно только в режиме разработки для тестирования нового селектора моделей прямо в приложении.",
+      "label": "Компонентная лаборатория",
+      "modelSelector": {
+        "behaviorConfig": "Конфигурация поведения и отображения",
+        "callbackEmpty": "Компонентный обратный вызов еще не получен",
+        "clearSelection": "Очистить выбор",
+        "configDescription": "Переключите ключевые свойства ModelSelector выше и изучите значение поля ввода и полезные нагрузки обратного вызова ниже.",
+        "configTitle": "Площадка реквизита",
+        "controlMultiSelectMode": "Контролируемый multiSelectMode",
+        "currentProps": "Текущие реквизиты",
+        "defaultMultiSelectMode": "режимМножественногоВыбораПоУмолчанию",
+        "description": "Эта страница напрямую монтирует текущий бизнес-компонент ModelSelector, чтобы мы могли проверить поведение выбора, фильтрации, поиска и закрепления.",
+        "empty": "В настоящее время модели недоступны, поэтому селектор пока не может быть отображён.",
+        "lastModeChangeReturn": "Последний onMultiSelectModeChange Return",
+        "lastSelectReturn": "Последний onSelect Return",
+        "loading": "Загрузка моделей...",
+        "modelId": "Идентификатор модели",
+        "multiSelectMode": "множественныйРежимВыбора",
+        "multiple": "множественный",
+        "normalizedIds": "Нормализованные выбранные идентификаторы",
+        "outputEmpty": "Нет данных для отображения",
+        "provider": "Поставщик",
+        "resetOutputs": "Сбросить выходы",
+        "resultsDescription": "Это показывает текущее значение prop, нормализованные выбранные идентификаторы и последний вывод обратного вызова из компонента.",
+        "resultsTitle": "Выходные данные и состояние",
+        "selected": "Текущий выбор",
+        "selectedEmpty": "Модель ещё не выбрана",
+        "selectionConfig": "Конфигурация значения выбора",
+        "selectionType": "типВыбора",
+        "selectionTypeId": "Вернуть идентификаторы моделей",
+        "selectionTypeModel": "Вернуть объекты модели",
+        "showPinnedModels": "показать закреплённые модели",
+        "showTagFilter": "показатьФильтрТегов",
+        "title": "Селектор моделей",
+        "triggerPlaceholder": "Выберите модель",
+        "triggerSelectedCount": "{{count}} моделей выбрано",
+        "valueProp": "Текущее ценностное предложение"
+      },
+      "title": "Лаборатория компонентов разработки"
     },
     "data": {
       "app_data": {
@@ -4337,7 +5003,7 @@
         "knowledge": {
           "icon": "Показывать иконку знаний"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "Показывать иконку мини-приложения"
         },
         "painting": {
@@ -4371,6 +5037,15 @@
       "backup": {
         "button": "Резервное копирование",
         "title": "Резервное копирование и восстановление данных"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "Пользовательский CSS",
+          "display_language": "Отображение и язык",
+          "privacy_advanced": "Конфиденциальность и расширенные",
+          "system_startup": "Система и запуск"
+        },
+        "title": "Общие настройки"
       },
       "display": {
         "title": "Настройки отображения"
@@ -4432,6 +5107,12 @@
         "label": "Целевой язык",
         "russian": "Русский"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "Заметки"
+      },
+      "title": "Интеграции"
     },
     "launch": {
       "onboot": "Автозапуск при включении",
@@ -4554,6 +5235,7 @@
         "glama": "Каталог серверов Glama MCP",
         "higress": "Сервер Higress MCP",
         "mcpso": "Платформа поиска серверов MCP",
+        "mcpworld": "Агрегационная платформа MCP от Baidu",
         "modelscope": "Сервер MCP сообщества ModelScope",
         "official": "Официальная коллекция серверов MCP",
         "pulsemcp": "Сервер Pulse MCP",
@@ -4701,6 +5383,13 @@
       "url": "URL",
       "user": "Пользователь"
     },
+    "menuGroups": {
+      "appSettings": "Настройки приложения",
+      "integrations": "Модели",
+      "productivity": "Производительность",
+      "services": "Плагины",
+      "system": "Система"
+    },
     "messages": {
       "divider": {
         "label": "Показывать разделитель между сообщениями",
@@ -4738,7 +5427,7 @@
       "title": "Настройки сообщений",
       "use_serif_font": "Использовать serif шрифт"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения",
       "cache_description": "Установить максимальное количество активных мини-приложений в памяти",
       "cache_settings": "Настройки кэша",
@@ -4788,8 +5477,6 @@
         "title": "Фильтрация по регионам в мини-программе"
       },
       "reset_tooltip": "Сбросить до значения по умолчанию",
-      "sidebar_description": "Настройка отображения активных мини-приложений в боковой панели",
-      "sidebar_title": "Отображение активных мини-приложений в боковой панели",
       "title": "Настройки мини-приложений",
       "visible": "Отображаемые мини-приложения"
     },
@@ -4854,7 +5541,7 @@
         "use_all_keys": "Использовать все ключи"
       },
       "default_assistant_model": "Модель ассистента по умолчанию",
-      "default_assistant_model_description": "Модель, используемая при создании нового ассистента, если ассистент не имеет настроенной модели, будет использоваться эта модель",
+      "default_assistant_model_description": "Используется, если у ассистента нет модели.",
       "empty": "Модели не найдены",
       "manage": {
         "add_listed": {
@@ -4948,9 +5635,35 @@
         "title": "подробность"
       }
     },
+    "plugins": {
+      "bunDescription": "Среда выполнения JavaScript, используемая службами MCP и связанными с ними инструментальными цепочками.",
+      "description": "Управляйте бинарными инструментами и зависимостями среды выполнения, необходимыми приложению.",
+      "installing": "Установка...",
+      "notInstalled": "Не установлено",
+      "title": "Зависимости окружения",
+      "uvDescription": "Менеджер пакетов Python для сервисов MCP и установки зависимостей."
+    },
     "privacy": {
       "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике",
       "title": "Настройки конфиденциальности"
+    },
+    "prompts": {
+      "add": "Добавить промпт",
+      "contentLabel": "Содержание",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Удалить промпт",
+      "deleteConfirm": "Промпт будет удален без возможности восстановления. Продолжить?",
+      "edit": "Редактировать промпт",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Управление промптами",
+      "titleLabel": "Заголовок",
+      "titlePlaceholder": "Введите заголовок промпта"
     },
     "provider": {
       "add": {
@@ -5192,7 +5905,8 @@
         "documentation": "Смотрите официальную документацию для получения более подробной информации о конфигурации:",
         "learn_more": "Узнать больше",
         "location": "Местоположение",
-        "location_help": "Местоположение службы Vertex AI, например, us-central1",
+        "location_help": "Местоположение службы Vertex AI, например, us-central1. Это поле не считывается из JSON Service Account и должно быть заполнено вручную.",
+        "location_placeholder": "Выберите местоположение Vertex AI",
         "project_id": "ID проекта",
         "project_id_help": "Ваш ID проекта Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5203,6 +5917,11 @@
           "client_email_placeholder": "Введите email клиента Service Account",
           "description": "Используйте Service Account для аутентификации, подходит для сред, где ADC недоступен",
           "incomplete_config": "Пожалуйста, сначала завершите конфигурацию Service Account",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Вставьте полное содержимое JSON-ключа. После разбора сохраняются только project_id, client_email и private_key, а исходный JSON очищается.",
+          "json_input_placeholder": "Вставьте полное содержимое JSON-ключа Service Account",
+          "json_parse_error": "Не удалось разобрать Service Account JSON. Пожалуйста, проверьте правильность формата.",
+          "json_parse_success": "Service Account JSON разобран",
           "private_key": "Приватный ключ",
           "private_key_help": "Поле private_key из файла ключа JSON, загруженного из Google Cloud Console",
           "private_key_placeholder": "Введите приватный ключ Service Account",
@@ -5239,39 +5958,51 @@
       "select": "Выбрать",
       "title": "Быстрое меню"
     },
-    "quickPhrase": {
-      "add": "Добавить фразу",
-      "assistant": "Подсказки ассистента",
-      "contentLabel": "Содержание",
-      "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}.",
-      "delete": "Удалить фразу",
-      "deleteConfirm": "После удаления фраза не может быть восстановлена, продолжить?",
-      "edit": "Редактировать фразу",
-      "global": "Глобальные быстрые фразы",
-      "locationLabel": "Место добавления",
-      "title": "Быстрые фразы",
-      "titleLabel": "Заголовок",
-      "titlePlaceholder": "Введите заголовок фразы"
+    "scheduledTasks": {
+      "description": "Управляйте запланированными задачами на всех агентах. Задачи выполняются автоматически по заданному расписанию.",
+      "noAgents": "Агенты не найдены. Сначала создайте агента, чтобы добавить запланированные задачи.",
+      "noAgentsTip": "Совет: вы также можете попросить своего агента создать запланированные задачи через чат.",
+      "noTasks": "Нет запланированных задач. Нажмите «Добавить», чтобы создать задачу для агента.",
+      "selectTask": "Выберите задачу для просмотра подробностей",
+      "title": "Запланированные задачи"
     },
     "shortcuts": {
       "action": "Действие",
       "actions": "操作",
+      "all_disable": "Отключить все",
+      "all_enable": "Включить все",
+      "bind_first_to_enable": "Сначала назначьте сочетание клавиш, чтобы изменить его состояние включения.",
+      "categories": {
+        "assistant": "Инструменты ИИ-ассистента",
+        "chat": "Взаимодействие с сообщениями",
+        "general": "Глобальное и Окно",
+        "title": "Группы ярлыков",
+        "topic": "Разговор и темы"
+      },
       "clear_shortcut": "Очистить сочетание клавиш",
       "clear_topic": "Очистить все сообщения",
+      "conflict_with": "Уже используется \"{{name}}\"",
       "copy_last_message": "Копировать последнее сообщение",
       "edit_last_user_message": "Редактировать последнее сообщение пользователя",
+      "empty": "В этой группе нет доступных ярлыков",
       "enabled": "Включить",
       "exit_fullscreen": "Выйти из полноэкранного режима",
       "label": "Клавиша",
-      "mini_window": "Быстрый помощник",
       "new_topic": "Новый топик",
+      "occupied_by_other_application": "Это сочетание клавиш уже используется системой или другим приложением",
       "press_shortcut": "Нажмите сочетание клавиш",
+      "quick_assistant": "Быстрый помощник",
       "rename_topic": "Переименовать топик",
+      "reset": "Сброс",
       "reset_defaults": "Сбросить настройки по умолчанию",
       "reset_defaults_confirm": "Вы уверены, что хотите сбросить все горячие клавиши?",
+      "reset_defaults_failed": "Не удалось сбросить сочетания клавиш к значениям по умолчанию",
       "reset_to_default": "Сбросить настройки по умолчанию",
+      "save_failed": "Не удалось сохранить ярлык",
+      "save_failed_with_name": "Не удалось сохранить ярлык: {{name}}",
       "search_message": "Поиск сообщения",
       "search_message_in_chat": "Поиск сообщения в текущем диалоге",
+      "search_placeholder": "Поисковые ярлыки...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Помощник выделения: выделить текст",
       "selection_assistant_toggle": "Переключить помощник выделения",
@@ -5279,11 +6010,46 @@
       "show_settings": "Открыть настройки",
       "title": "Горячие клавиши",
       "toggle_new_context": "Очистить контекст",
-      "toggle_show_assistants": "Переключить отображение ассистентов",
       "toggle_show_topics": "Переключить отображение топиков",
+      "toggle_sidebar": "Свернуть боковую панель",
       "zoom_in": "Увеличить",
       "zoom_out": "Уменьшить",
       "zoom_reset": "Сбросить масштаб"
+    },
+    "skills": {
+      "author": "Автор",
+      "batchUninstallSuccess": "{{count}} навыков удалено",
+      "builtin": "Встроенный",
+      "confirmBatchUninstall": "Вы уверены, что хотите удалить выбранные навыки ({{count}})?",
+      "confirmUninstall": "Вы уверены, что хотите удалить этот навык?",
+      "directory": "Каталог",
+      "dropHint": "Или перетащите сюда ZIP-файл или папку",
+      "emptyDesc": "Устанавливайте навыки из ZIP-файла, каталога или ищите в онлайн-реестрах, чтобы расширить возможности агента.",
+      "emptyTip": "Совет: вы также можете попросить агента установить навыки за вас.",
+      "emptyTitle": "Навык не выбран",
+      "filterPlaceholder": "Фильтровать навыки...",
+      "install": "Установить",
+      "installFailed": "Не удалось установить навык: {{name}}",
+      "installFromDirectory": "Установить из каталога",
+      "installFromZip": "Установить из ZIP-файла",
+      "installSuccess": "Навык установлен: {{name}}",
+      "installed": "Установленные навыки",
+      "invalidFormat": "Поддерживаются только ZIP-файлы и каталоги",
+      "localInstall": "Локальная установка",
+      "multiSelect": "Множественный выбор",
+      "noFilterResults": "Нет соответствующих навыков",
+      "noInstalled": "Навыков не установлено",
+      "noResults": "Навыки не найдены",
+      "noSkillFile": "Файл SKILL.md не найден",
+      "searchPlaceholder": "Откройте больше навыков...",
+      "searchRegistryTitle": "Ищите реестры навыков онлайн",
+      "searchTitle": "Навыки поиска",
+      "selectFile": "Выберите файл для просмотра",
+      "title": "Навыки",
+      "uninstall": "Удалить",
+      "uninstallSuccess": "Навык удалён: {{name}}",
+      "viewSource": "Посмотреть исходный код",
+      "zip": "ЗИП"
     },
     "theme": {
       "color_primary": "Цвет темы",
@@ -5307,6 +6073,14 @@
         },
         "error": {
           "not_system": "Системный OCR поддерживается только в Windows и MacOS"
+        },
+        "features": {
+          "paddleocr": "Более подходящий для китайского текста и лучше адаптированный для чеков, сканов и изображений со сложным макетом.",
+          "system": {
+            "macos": "Использует встроенный механизм OCR macOS без необходимости настройки, идеально подходит для скриншотов и лёгкого извлечения текста.",
+            "windows": "Использует встроенный механизм OCR Windows с глубокой интеграцией в ОС для выполнения базовых локальных задач распознавания."
+          },
+          "tesseract": "Классический локальный вариант OCR с настраиваемыми языковыми пакетами, хорошо подходящий для автономной и многоязычной работы."
         },
         "image": {
           "error": {
@@ -5334,6 +6108,13 @@
         "title": "OCR-сервис"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "Идеально подходит для преобразования PDF в более чистый Markdown или редактируемый текст для последующего извлечения и редактирования.",
+          "mineru": "Оптимизировано для более точного восстановления макета, особенно полезно для академических PDF-документов, таблиц и формул.",
+          "mistral": "Мощное облачное понимание документов, подходящее для структурированного извлечения, многостраничных файлов и сложных макетов.",
+          "open_mineru": "Открытая опция развертывания, подходящая для команд, предпочитающих самостоятельное размещение или более строгий контроль над конвейером обработки.",
+          "paddleocr": "Более лёгкий вариант интеграции, хорошо подходящий для китайских документов, сканов и обычных чеков."
+        },
         "paddleocr": {
           "aistudio_access_token": "Токен доступа к сообществу AI Studio",
           "api_url": "URL API",
@@ -5372,23 +6153,10 @@
               "token": "Токены"
             }
           },
-          "error": {
-            "rag_failed": "RAG не удалось"
-          },
-          "info": {
-            "dimensions_auto_success": "Размерности успешно получены, размерности: {{dimensions}}"
-          },
           "method": {
             "cutoff": "Обрезка",
             "label": "Метод сжатия",
-            "none": "Не сжимать",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Количество фрагментов документов",
-              "tooltip": "Ожидаемое количество фрагментов документов, которые будут извлечены из каждого результата поиска. Фактическое количество извлеченных фрагментов документов равно этому значению, умноженному на количество результатов поиска."
-            }
+            "none": "Не сжимать"
           },
           "title": "Сжатие результатов поиска"
         },
@@ -5514,7 +6282,11 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "close": "Закрыть вкладку",
+    "moveToFirst": "Перейти к первому",
+    "new": "Новая вкладка",
+    "pin": "Закрепить вкладку",
+    "unpin": "Открепить вкладку"
   },
   "title": {
     "apps": "Приложения",
@@ -5524,7 +6296,6 @@
     "knowledge": "База знаний",
     "launchpad": "Запуск",
     "mcp-servers": "MCP серверы",
-    "memories": "Память",
     "notes": "заметки",
     "openclaw": "OpenClaw",
     "paintings": "Рисунки",
@@ -5626,6 +6397,7 @@
       "empty": "История переводов отсутствует",
       "error": {
         "delete": "Удаление не удалось",
+        "load": "Не удалось загрузить историю переводов",
         "save": "Не удалось сохранить историю переводов"
       },
       "search": {
@@ -5682,7 +6454,7 @@
   },
   "tray": {
     "quit": "Выйти",
-    "show_mini_window": "Быстрый помощник",
+    "show_quick_assistant": "Быстрый помощник",
     "show_window": "Показать окно"
   },
   "update": {

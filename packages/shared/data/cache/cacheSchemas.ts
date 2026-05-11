@@ -1,3 +1,5 @@
+import type { MiniAppRegion } from '@shared/data/types/miniApp'
+
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -121,11 +123,15 @@ export type UseCacheSchema = {
   'chat.generating': boolean
   'chat.web_search.searching': boolean
 
-  // Minapp management
-  'minapp.opened_keep_alive': CacheValueTypes.CacheMinAppType[]
-  'minapp.current_id': string
-  'minapp.show': boolean
-  'minapp.opened_oneoff': CacheValueTypes.CacheMinAppType | null
+  // Knowledge recall test query history (session-only)
+  'knowledge.recall.search_queries': Record<string, string[]>
+
+  // MiniApp management
+  'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
+  'mini_app.current_id': string
+  'mini_app.show': boolean
+  'mini_app.opened_oneoff': CacheValueTypes.CacheMiniAppType | null
+  'mini_app.detected_region': MiniAppRegion | null
 
   // Topic management
   'topic.active': CacheValueTypes.CacheTopic | null
@@ -146,6 +152,9 @@ export type UseCacheSchema = {
   'translate.detecting': boolean
   /** Whether translating input text */
   'translate.translating': CacheValueTypes.TranslatingState
+
+  // Assistant reasoning effort cache (per-assistant, not persisted to DB)
+  'assistant.reasoning_effort_cache.${assistantId}': string | undefined
 
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': number
@@ -187,12 +196,14 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.selected_message_ids': [],
   'chat.generating': false,
   'chat.web_search.searching': false,
+  'knowledge.recall.search_queries': {},
 
-  // Minapp management
-  'minapp.opened_keep_alive': [],
-  'minapp.current_id': '',
-  'minapp.show': false,
-  'minapp.opened_oneoff': null,
+  // MiniApp management
+  'mini_app.opened_keep_alive': [],
+  'mini_app.current_id': '',
+  'mini_app.show': false,
+  'mini_app.opened_oneoff': null,
+  'mini_app.detected_region': null,
 
   // Topic management
   'topic.active': null,
@@ -213,6 +224,9 @@ export const DefaultUseCache: UseCacheSchema = {
     abortKey: null
   },
 
+  // Assistant reasoning effort cache
+  'assistant.reasoning_effort_cache.${assistantId}': undefined,
+
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': 0,
   'entity.cache.${type}_${id}': { loaded: false, data: null },
@@ -230,10 +244,17 @@ export const DefaultUseCache: UseCacheSchema = {
  */
 export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
+  'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
+  // API key rotation state (cross-window, tracks last used key per provider)
+  'web_search.provider.last_used_key.${providerId}': string
+  'ocr.provider.last_used_key.${providerId}': string
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
-  'chat.web_search.active_searches': {}
+  'chat.web_search.active_searches': {},
+  'feature.openclaw.gateway_status': 'stopped',
+  'web_search.provider.last_used_key.${providerId}': '',
+  'ocr.provider.last_used_key.${providerId}': ''
 }
 
 /**
@@ -241,15 +262,23 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
-  'ui.tab.state': CacheValueTypes.TabsState
+  'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
+  'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
+  'ui.sidebar.width': number
   'feature.mcp.is_uv_installed': boolean
   'feature.mcp.is_bun_installed': boolean
+  // Multi-model list for @mention parallel answering, keyed by assistantId
+  // This is UI-level state, not core assistant config (default model is assistant.modelId)
+  'ui.assistant.multi_model_ids': Record<string, string[]>
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'ui.tab.state': { tabs: [], activeTabId: '' },
+  'ui.tab.pinned_tabs': [],
+  'ui.sidebar.docked_tabs': [],
+  'ui.sidebar.width': 65,
   'feature.mcp.is_uv_installed': false,
-  'feature.mcp.is_bun_installed': false
+  'feature.mcp.is_bun_installed': false,
+  'ui.assistant.multi_model_ids': {}
 }
 
 // ============================================================================
@@ -262,9 +291,25 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
 export type RendererPersistCacheKey = keyof RendererPersistCacheSchema
 
 /**
- * Key type for shared cache (fixed keys only)
+ * Key type for shared cache (supports both fixed and template keys).
+ *
+ * Mirrors UseCacheKey: expands each schema key through ProcessKey so that
+ * template keys like 'web_search.provider.last_used_key.${providerId}' match
+ * any concrete instance (e.g. 'web_search.provider.last_used_key.google').
  */
-export type SharedCacheKey = keyof SharedCacheSchema
+export type SharedCacheKey = {
+  [K in keyof SharedCacheSchema]: ProcessKey<K & string>
+}[keyof SharedCacheSchema]
+
+/**
+ * Infers the value type for a given shared cache key from SharedCacheSchema.
+ *
+ * Mirrors InferUseCacheValue: resolves template instances back to the schema
+ * entry that defines them, so concrete keys still get precise value types.
+ */
+export type InferSharedCacheValue<K extends string> = {
+  [S in keyof SharedCacheSchema]: K extends ProcessKey<S & string> ? SharedCacheSchema[S] : never
+}[keyof SharedCacheSchema]
 
 /**
  * Key type for memory cache (supports both fixed and template keys).

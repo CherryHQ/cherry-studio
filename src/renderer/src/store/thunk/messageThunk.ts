@@ -15,10 +15,12 @@
  * --------------------------------------------------------------------------
  */
 import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
-import { AgentApiClient } from '@renderer/api/agent'
 import db from '@renderer/databases'
+import { getModel } from '@renderer/hooks/useModel'
 import { fetchMessagesSummary, transformMessagesAndFetch } from '@renderer/services/ApiService'
 import { dbService } from '@renderer/services/db/DbService'
 import FileManager from '@renderer/services/FileManager'
@@ -30,15 +32,15 @@ import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
 import { type ApiServerConfig, type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
-import type {
-  AgentEffort,
-  AgentSessionEntity,
-  AgentThinkingConfig,
-  GetAgentSessionResponse
-} from '@renderer/types/agent'
+import type { AgentEffort, AgentSessionEntity, AgentThinkingConfig } from '@renderer/types/agent'
 import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import {
+  AssistantMessageStatus,
+  MessageBlockStatus,
+  MessageBlockType,
+  UserMessageStatus
+} from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
 import {
@@ -146,23 +148,37 @@ const buildAgentBaseURL = (apiServer: ApiServerConfig) => {
   return `${baseHost}${portSegment}`
 }
 
-export const renameAgentSessionIfNeeded = async (
-  agentSession: AgentSessionContext,
-  topicId: string,
-  getState: () => RootState
-): Promise<void> => {
+const getAgentApiServerConfig = async (): Promise<ApiServerConfig | null> => {
+  const { host, port, apiKey } = await preferenceService.getMultiple({
+    host: 'feature.csaas.host',
+    port: 'feature.csaas.port',
+    apiKey: 'feature.csaas.api_key'
+  })
+
+  if (!apiKey) {
+    return null
+  }
+
+  return {
+    enabled: true,
+    host,
+    port,
+    apiKey
+  }
+}
+
+const createAgentApiHeaders = (apiKey: string) => ({
+  Authorization: `Bearer ${apiKey}`,
+  'X-Api-Key': apiKey
+})
+
+export const renameAgentSessionIfNeeded = async (agentSession: AgentSessionContext, topicId: string): Promise<void> => {
   const lockId = `${agentSession.agentId}:${agentSession.sessionId}`
   if (agentSessionRenameLocks.has(lockId)) {
     return
   }
 
   try {
-    const state = getState()
-    const apiServer = state.settings.apiServer
-    if (!apiServer?.apiKey) {
-      return
-    }
-
     const { messages } = await dbFacade.fetchMessages(topicId, true)
     if (!messages.length) {
       return
@@ -174,19 +190,13 @@ export const renameAgentSessionIfNeeded = async (
       return
     }
 
-    const baseURL = buildAgentBaseURL(apiServer)
-    const client = new AgentApiClient({
-      baseURL,
-      headers: {
-        Authorization: `Bearer ${apiServer.apiKey}`
-      }
-    })
-
     agentSessionRenameLocks.add(lockId)
 
-    let session: GetAgentSessionResponse
+    let session: AgentSessionEntity
     try {
-      session = await client.getSession(agentSession.agentId, agentSession.sessionId)
+      session = (await dataApiService.get(
+        `/agents/${agentSession.agentId}/sessions/${agentSession.sessionId}` as never
+      )) as AgentSessionEntity
     } catch (error) {
       logger.warn('Failed to fetch agent session for rename', error as Error)
       return
@@ -197,38 +207,23 @@ export const renameAgentSessionIfNeeded = async (
       return
     }
 
-    let updatedSession: GetAgentSessionResponse
+    let updatedSession: AgentSessionEntity
     try {
-      updatedSession = await client.updateSession(agentSession.agentId, {
-        id: agentSession.sessionId,
-        name: summaryText
-      })
+      updatedSession = (await dataApiService.patch(
+        `/agents/${agentSession.agentId}/sessions/${agentSession.sessionId}` as never,
+        { body: { name: summaryText } as never }
+      )) as AgentSessionEntity
     } catch (error) {
       logger.warn('Failed to update agent session name', error as Error)
       return
     }
 
-    const paths = client.getSessionPaths(agentSession.agentId)
-
     try {
-      await mutate(paths.withId(agentSession.sessionId), updatedSession, {
+      await mutate([`/agents/${agentSession.agentId}/sessions/${agentSession.sessionId}`], updatedSession, {
         revalidate: false
       })
-
-      await mutate<AgentSessionEntity[]>(
-        paths.base,
-        (prev) =>
-          prev?.map((sessionItem) =>
-            sessionItem.id === updatedSession.id
-              ? ({
-                  ...sessionItem,
-                  name: updatedSession.name
-                } as AgentSessionEntity)
-              : sessionItem
-          ) ?? prev,
-        {
-          revalidate: false
-        }
+      mutate((key) => Array.isArray(key) && key[0] === `/agents/${agentSession.agentId}/sessions`).catch((err) =>
+        logger.warn('Failed to revalidate agent session list cache', err as Error)
       )
     } catch (error) {
       logger.warn('Failed to update agent session cache after rename', error as Error)
@@ -381,12 +376,12 @@ const withAbortStreamPart = (
 }
 
 const createAgentMessageStream = async (
-  apiServer: ApiServerConfig,
   agentSession: AgentSessionContext,
   content: string,
   signal: AbortSignal
 ): Promise<ReadableStream<TextStreamPart<Record<string, any>>>> => {
-  if (!apiServer.enabled) {
+  const apiServer = await getAgentApiServerConfig()
+  if (!apiServer) {
     throw new Error('Agent API server is disabled')
   }
 
@@ -396,7 +391,7 @@ const createAgentMessageStream = async (
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiServer.apiKey}`,
+      ...createAgentApiHeaders(apiServer.apiKey),
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
       'Cache-Control': 'no-cache'
@@ -674,12 +669,7 @@ const fetchAndProcessAgentResponseImpl = async (
     const abortController = new AbortController()
     addAbortController(userMessageId, () => abortController.abort())
 
-    const stream = await createAgentMessageStream(
-      state.settings.apiServer,
-      agentSession,
-      userContent,
-      abortController.signal
-    )
+    const stream = await createAgentMessageStream(agentSession, userContent, abortController.signal)
 
     // Store the previous session ID to detect /clear command
     let latestAgentSessionId = agentSession.agentSessionId || ''
@@ -737,22 +727,13 @@ const fetchAndProcessAgentResponseImpl = async (
 
         // Refresh session data to get updated slash_commands from backend
         // This happens after the SDK init message updates the session in the database
-        const apiServer = stateAfterUpdate.settings.apiServer
-        if (apiServer?.apiKey) {
-          const baseURL = buildAgentBaseURL(apiServer)
-          const client = new AgentApiClient({
-            baseURL,
-            headers: {
-              Authorization: `Bearer ${apiServer.apiKey}`
-            }
-          })
-          const paths = client.getSessionPaths(agentSession.agentId)
-          await mutate(paths.withId(agentSession.sessionId))
-          logger.info('Refreshed session data after sessionId update', {
-            agentId: agentSession.agentId,
-            sessionId: agentSession.sessionId
-          })
-        }
+        mutate([`/agents/${agentSession.agentId}/sessions/${agentSession.sessionId}`]).catch((err) =>
+          logger.warn('Failed to revalidate agent session cache', err as Error)
+        )
+        logger.info('Refreshed session data after sessionId update', {
+          agentId: agentSession.agentId,
+          sessionId: agentSession.sessionId
+        })
       } catch (error) {
         logger.error('Failed to persist agent session ID during stream', error as Error)
       }
@@ -778,7 +759,7 @@ const fetchAndProcessAgentResponseImpl = async (
       await persistAgentSessionId(latestAgentSessionId)
     }
 
-    await renameAgentSessionIfNeeded(agentSession, topicId, getState)
+    await renameAgentSessionIfNeeded(agentSession, topicId)
   } catch (error: any) {
     logger.error('Error in fetchAndProcessAgentResponseImpl:', error)
     try {
@@ -947,20 +928,12 @@ const fetchAndProcessAssistantResponseImpl = async (
     // Fetch agent allowed_tools for MCP auto-approval
     let allowedTools: string[] | undefined
     const activeAgentId = cacheService.get('agent.active_id') as string | null
-    const apiServer = getState().settings.apiServer
-    if (activeAgentId && apiServer?.apiKey) {
+    if (activeAgentId) {
       try {
-        const baseURL = buildAgentBaseURL(apiServer)
-        const agentClient = new AgentApiClient({
-          baseURL,
-          headers: {
-            Authorization: `Bearer ${apiServer.apiKey}`
-          }
-        })
-        const agentData = await agentClient.getAgent(activeAgentId)
-        allowedTools = agentData?.allowed_tools
-      } catch {
-        // Agent fetch failed — proceed without allowedTools
+        const agentData = await dataApiService.get(`/agents/${activeAgentId}` as never)
+        allowedTools = (agentData as any)?.allowedTools
+      } catch (fetchError) {
+        logger.warn('Failed to fetch agent allowed_tools, proceeding without MCP auto-approval', fetchError as Error)
       }
     }
 
@@ -2158,5 +2131,160 @@ export const updateBlocks = async (blocks: MessageBlock[]): Promise<void> => {
   } catch (error) {
     logger.error('Failed to update blocks:', { count: blocks.length, error })
     throw error
+  }
+}
+
+// ---------------------------------------------------------------------------
+// IM Channel stream rendering
+// ---------------------------------------------------------------------------
+// Reuses the same BlockManager + AiSdkToChunkAdapter pipeline used for SSE
+// streaming. IPC chunks are wrapped into a ReadableStream and fed into the
+// existing stream processing infrastructure.
+//
+// Persistence is handled by the same saveUpdatesToDB / saveUpdatedBlockToDB
+// functions used for normal agent messages (writes to SQLite via
+// AgentMessageDataSource). When the renderer is watching, the backend skips
+// its own persistHeadlessExchange to avoid duplicate writes.
+// ---------------------------------------------------------------------------
+
+export type ChannelStreamController = {
+  pushChunk: (chunk: TextStreamPart<Record<string, any>>) => void
+  complete: () => void
+  error: (err: Error) => void
+  assistantMessageId: string
+}
+
+/**
+ * Dispatches an IM channel user message to Redux and persists to DB.
+ * Call this BEFORE setupChannelStream so the user message appears first.
+ */
+export const addChannelUserMessage = (
+  dispatch: AppDispatch,
+  topicId: string,
+  agentId: string,
+  text: string,
+  images?: Array<{ data: string; media_type: string }>
+) => {
+  const now = new Date().toISOString()
+  const userMsgId = uuid()
+  const blockId = uuid()
+
+  const allBlocks: MessageBlock[] = [
+    {
+      id: blockId,
+      messageId: userMsgId,
+      type: MessageBlockType.MAIN_TEXT,
+      content: text,
+      status: MessageBlockStatus.SUCCESS,
+      createdAt: now
+    }
+  ]
+
+  if (images && images.length > 0) {
+    for (const img of images) {
+      allBlocks.push({
+        id: uuid(),
+        messageId: userMsgId,
+        type: MessageBlockType.IMAGE,
+        url: `data:${img.media_type};base64,${img.data}`,
+        status: MessageBlockStatus.SUCCESS,
+        createdAt: now
+      } as MessageBlock)
+    }
+  }
+
+  const userMessage: Message = {
+    id: userMsgId,
+    role: 'user',
+    assistantId: agentId,
+    topicId,
+    createdAt: now,
+    status: UserMessageStatus.SUCCESS,
+    blocks: allBlocks.map((b) => b.id)
+  }
+
+  for (const block of allBlocks) {
+    dispatch(upsertOneBlock(block))
+  }
+  dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
+
+  dbService.appendMessage(topicId, userMessage, allBlocks).catch((err) => {
+    logger.error('Failed to persist channel user message', err as Error)
+  })
+}
+
+/**
+ * Sets up the streaming pipeline for rendering IM channel responses in real-time.
+ * Creates the assistant message immediately — call addChannelUserMessage first
+ * to ensure correct message ordering.
+ */
+export const setupChannelStream = (
+  dispatch: AppDispatch,
+  topicId: string,
+  agentId: string,
+  modelId?: string
+): ChannelStreamController => {
+  const model: Model | undefined =
+    (modelId ? getModel(modelId) : undefined) ??
+    (modelId ? { id: modelId, provider: '', name: '', group: '' } : undefined)
+  const assistantMessage = createAssistantMessage(agentId, topicId, {
+    ...(model ? { modelId: model.id, model } : {})
+  })
+  dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+  dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
+  dbService.appendMessage(topicId, assistantMessage, []).catch((err) => {
+    logger.error('Failed to persist initial channel assistant message', err as Error)
+  })
+
+  let streamController: ReadableStreamDefaultController<TextStreamPart<Record<string, any>>> | null = null
+  const stream = new ReadableStream<TextStreamPart<Record<string, any>>>({
+    start(controller) {
+      streamController = controller
+    }
+  })
+
+  const assistant: Assistant = { id: agentId, name: '', prompt: '', topics: [], type: 'claude-code', model }
+
+  const blockManager = new BlockManager({
+    assistantMsgId: assistantMessage.id,
+    topicId,
+    throttledBlockUpdate,
+    cancelThrottledBlockUpdate
+  })
+
+  const callbacks = createCallbacks({
+    blockManager,
+    topicId,
+    assistantMsgId: assistantMessage.id,
+    assistant
+  })
+
+  const streamProcessorCallbacks = createStreamProcessor(callbacks)
+  streamProcessorCallbacks({ type: ChunkType.LLM_RESPONSE_CREATED })
+
+  const adapter = new AiSdkToChunkAdapter(streamProcessorCallbacks, [], false, false)
+  adapter
+    .processStream({
+      fullStream: stream,
+      text: Promise.resolve('')
+    })
+    .catch((err) => {
+      logger.error('Channel stream processing failed', err as Error)
+    })
+    .finally(() => {
+      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+    })
+
+  return {
+    assistantMessageId: assistantMessage.id,
+    pushChunk(chunk: TextStreamPart<Record<string, any>>) {
+      streamController?.enqueue(chunk)
+    },
+    complete() {
+      streamController?.close()
+    },
+    error(err: Error) {
+      streamController?.error(err)
+    }
   }
 }

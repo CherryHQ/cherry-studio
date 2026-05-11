@@ -9,7 +9,7 @@
  */
 
 import { mcpServerService } from '@data/services/McpServerService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { MCPServerSchemas } from '@shared/data/api/schemas/mcpServers'
 import {
   CreateMCPServerSchema,
@@ -18,19 +18,7 @@ import {
   UpdateMCPServerSchema
 } from '@shared/data/api/schemas/mcpServers'
 
-/**
- * Handler type for a specific MCP server endpoint
- */
-type MCPServerHandler<Path extends keyof MCPServerSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * MCP Server API handlers implementation
- */
-export const mcpServerHandlers: {
-  [Path in keyof MCPServerSchemas]: {
-    [Method in keyof MCPServerSchemas[Path]]: MCPServerHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const mcpServerHandlers: HandlersFor<MCPServerSchemas> = {
   '/mcp-servers': {
     GET: async ({ query }) => {
       const parsed = ListMCPServersQuerySchema.parse(query ?? {})

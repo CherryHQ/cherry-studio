@@ -1,7 +1,37 @@
-import { Flex, Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Flex,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  InfoTooltip,
+  Input,
+  RadioGroup,
+  RadioGroupItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Textarea
+} from '@cherrystudio/ui'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { DeleteIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -10,44 +40,54 @@ import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import type { MCPPrompt, MCPResource, MCPTool } from '@renderer/types'
 import { parseKeyValueString } from '@renderer/utils/env'
-import { formatMcpError } from '@renderer/utils/error'
+import { formatErrorMessage, formatMcpError } from '@renderer/utils/error'
+import { cn } from '@renderer/utils/style'
 import type { MCPServerLogEntry } from '@shared/config/types'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import type { TabsProps } from 'antd'
-import { Badge, Form, Input, Modal, Radio, Select, Tabs, Tag, Typography } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
-import { ChevronDown, SaveIcon } from 'lucide-react'
+import { ArrowLeft, ChevronDown, SaveIcon, X } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import * as z from 'zod'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
+import { SettingContainer, SettingDivider, SettingTitle } from '..'
 import MCPPromptsSection from './McpPrompt'
 import MCPResourcesSection from './McpResource'
 import MCPToolsSection from './McpTool'
 
 const logger = loggerService.withContext('McpSettings')
 
-interface MCPFormValues {
-  name: string
-  description?: string
-  serverType: MCPServer['type']
-  baseUrl?: string
-  command?: string
-  registryUrl?: string
-  args?: string
-  env?: string
-  isActive: boolean
-  headers?: string
-  longRunning?: boolean
-  timeout?: number
+const buildMcpSchema = (t: (key: string) => string) =>
+  z
+    .object({
+      name: z.string().min(1, t('common.name')),
+      description: z.string().optional(),
+      serverType: z.enum(['stdio', 'sse', 'streamableHttp', 'inMemory']),
+      baseUrl: z.string().optional(),
+      command: z.string().optional(),
+      registryUrl: z.string().optional(),
+      args: z.string().optional(),
+      env: z.string().optional(),
+      isActive: z.boolean().optional(),
+      headers: z.string().optional(),
+      longRunning: z.boolean().optional(),
+      timeout: z.coerce.number().optional(),
+      provider: z.string().optional(),
+      providerUrl: z.string().optional(),
+      logoUrl: z.string().optional(),
+      tags: z.array(z.string()).optional()
+    })
+    .superRefine((value, ctx) => {
+      if ((value.serverType === 'sse' || value.serverType === 'streamableHttp') && !value.baseUrl?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['baseUrl'], message: t('settings.mcp.url') })
+      }
+      if (value.serverType === 'stdio' && !value.command?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['command'], message: t('settings.mcp.command') })
+      }
+    })
 
-  provider?: string
-  providerUrl?: string
-  logoUrl?: string
-  tags?: string[]
-}
+type MCPFormValues = z.infer<ReturnType<typeof buildMcpSchema>>
 
 interface Registry {
   name: string
@@ -67,6 +107,11 @@ const PipRegistry: Registry[] = [
 ]
 
 type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
+type McpTabItem = {
+  key: TabKey
+  label: React.ReactNode
+  children: React.ReactNode
+}
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -78,11 +123,32 @@ const McpSettings: React.FC = () => {
 
   const { ensureServerTrusted } = useMCPServerTrust(updateServerBody)
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
-  const [form] = Form.useForm<MCPFormValues>()
+  const form = useForm<MCPFormValues>({
+    resolver: zodResolver(buildMcpSchema(t)) as any,
+    defaultValues: {
+      name: '',
+      description: '',
+      serverType: 'stdio',
+      baseUrl: '',
+      command: '',
+      registryUrl: '',
+      args: '',
+      env: '',
+      isActive: false,
+      headers: '',
+      longRunning: false,
+      timeout: undefined,
+      provider: '',
+      providerUrl: '',
+      logoUrl: '',
+      tags: []
+    }
+  })
   const [loading, setLoading] = useState(false)
   const [isFormChanged, setIsFormChanged] = useState(false)
   const [loadingServer, setLoadingServer] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>('settings')
+  const [toolSearchText, setToolSearchText] = useState('')
 
   const [tools, setTools] = useState<MCPTool[]>([])
   const [prompts, setPrompts] = useState<MCPPrompt[]>([])
@@ -98,7 +164,6 @@ const McpSettings: React.FC = () => {
   const [logs, setLogs] = useState<(MCPServerLogEntry & { serverId?: string })[]>([])
 
   const { theme } = useTheme()
-  const { Text } = Typography
 
   const navigate = useNavigate()
 
@@ -148,10 +213,9 @@ const McpSettings: React.FC = () => {
       }
     }
 
-    // Initialize basic fields
-    form.setFieldsValue({
+    form.reset({
       name: server.name,
-      description: server.description,
+      description: server.description ?? '',
       serverType: serverType,
       baseUrl: server.baseUrl || '',
       command: server.command || '',
@@ -169,12 +233,7 @@ const McpSettings: React.FC = () => {
         ? Object.entries(server.headers)
             .map(([key, value]) => `${key}=${value}`)
             .join('\n')
-        : ''
-    })
-
-    // Initialize advanced fields separately to ensure they're captured
-    // even if the Collapse panel is closed
-    form.setFieldsValue({
+        : '',
       provider: server.provider || '',
       providerUrl: server.providerUrl || '',
       logoUrl: server.logoUrl || '',
@@ -183,13 +242,12 @@ const McpSettings: React.FC = () => {
   }, [server, form])
 
   // Watch for serverType changes
+  const watchedServerType = form.watch('serverType')
   useEffect(() => {
-    const currentServerType = form.getFieldValue('serverType')
-    if (currentServerType) {
-      setServerType(currentServerType)
+    if (watchedServerType) {
+      setServerType(watchedServerType)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.getFieldValue('serverType')])
+  }, [watchedServerType])
 
   const fetchTools = async () => {
     if (server?.isActive) {
@@ -198,7 +256,8 @@ const McpSettings: React.FC = () => {
         const localTools = await window.api.mcp.listTools(server)
         setTools(localTools)
       } catch (error) {
-        setLoadingServer(server.id)
+        logger.error('Failed to list MCP tools', error as Error)
+        setTools([])
       } finally {
         setLoadingServer(null)
       }
@@ -212,6 +271,7 @@ const McpSettings: React.FC = () => {
         const localPrompts = await window.api.mcp.listPrompts(server)
         setPrompts(localPrompts)
       } catch (error) {
+        logger.error('Failed to list MCP prompts', error as Error)
         setPrompts([])
       } finally {
         setLoadingServer(null)
@@ -226,6 +286,7 @@ const McpSettings: React.FC = () => {
         const localResources = await window.api.mcp.listResources(server)
         setResources(localResources)
       } catch (error) {
+        logger.error('Failed to list MCP resources', error as Error)
         setResources([])
       } finally {
         setLoadingServer(null)
@@ -239,6 +300,7 @@ const McpSettings: React.FC = () => {
         const version = await window.api.mcp.getServerVersion(server)
         setServerVersion(version)
       } catch (error) {
+        logger.error('Failed to get MCP server version', error as Error)
         setServerVersion(null)
       }
     }
@@ -295,7 +357,12 @@ const McpSettings: React.FC = () => {
     if (!server) return
     setLoading(true)
     try {
-      const values = await form.validateFields()
+      const isValid = await form.trigger()
+      if (!isValid) {
+        setLoading(false)
+        return
+      }
+      const values = form.getValues()
 
       // set basic fields
       const mcpServer: MCPServer = {
@@ -304,7 +371,7 @@ const McpSettings: React.FC = () => {
         name: values.name,
         type: values.serverType || server.type,
         description: values.description,
-        isActive: values.isActive,
+        isActive: values.isActive ?? server.isActive,
         registryUrl: values.registryUrl,
         searchKey: server.searchKey,
         timeout: values.timeout || server.timeout,
@@ -340,7 +407,12 @@ const McpSettings: React.FC = () => {
           window.toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          await updateMCPServer({ body: { ...mcpServer, isActive: false } }).catch(() => {})
+          try {
+            await updateMCPServer({ body: { ...mcpServer, isActive: false } })
+          } catch (rollbackError) {
+            logger.error('Failed to rollback MCP server active state after restart failure:', rollbackError as Error)
+            window.toast.error(`${t('settings.mcp.updateError')}: ${formatErrorMessage(rollbackError)}`)
+          }
           window.modal.error({
             title: t('settings.mcp.updateError'),
             content: error.message,
@@ -374,7 +446,7 @@ const McpSettings: React.FC = () => {
   }
 
   const onSelectRegistry = (url: string) => {
-    const command = form.getFieldValue('command') || ''
+    const command = form.getValues('command') || ''
 
     // If custom registry is selected
     if (url === 'custom') {
@@ -388,12 +460,9 @@ const McpSettings: React.FC = () => {
 
     // Add new registry env variables
     if (command.includes('uv') || command.includes('uvx')) {
-      // envs['PIP_INDEX_URL'] = url
-      // envs['UV_DEFAULT_INDEX'] = url
-      form.setFieldsValue({ registryUrl: url })
+      form.setValue('registryUrl', url)
     } else if (command.includes('npx') || command.includes('bun') || command.includes('bunx')) {
-      // envs['NPM_CONFIG_REGISTRY'] = url
-      form.setFieldsValue({ registryUrl: url })
+      form.setValue('registryUrl', url)
     }
 
     // Mark form as changed
@@ -402,7 +471,7 @@ const McpSettings: React.FC = () => {
 
   const onCustomRegistryChange = (url: string) => {
     setCustomRegistryUrl(url)
-    form.setFieldsValue({ registryUrl: url })
+    form.setValue('registryUrl', url)
     setIsFormChanged(true)
   }
 
@@ -413,6 +482,7 @@ const McpSettings: React.FC = () => {
           title: t('settings.mcp.deleteServer'),
           content: t('settings.mcp.deleteServerConfirm'),
           centered: true,
+          okButtonProps: { danger: true },
           onOk: async () => {
             await window.api.mcp.removeServer(serverToDelete)
             await deleteMCPServer({})
@@ -435,7 +505,11 @@ const McpSettings: React.FC = () => {
       return
     }
 
-    await form.validateFields()
+    const isValid = await form.trigger()
+    if (!isValid) {
+      return
+    }
+
     let serverForUpdate = server
     if (active) {
       const trustedServer = await ensureServerTrusted(server)
@@ -472,7 +546,9 @@ const McpSettings: React.FC = () => {
         content: formatMcpError(error as McpError),
         centered: true
       })
-      void updateMCPServer({ body: { isActive: oldActiveState } })
+      void updateMCPServer({ body: { isActive: oldActiveState } }).catch((rollbackError) => {
+        logger.error('Failed to rollback MCP server active state after toggle failure:', rollbackError as Error)
+      })
     } finally {
       setLoadingServer(null)
     }
@@ -526,202 +602,397 @@ const McpSettings: React.FC = () => {
     return null
   }
 
-  const tabs: TabsProps['items'] = [
+  const tabs: McpTabItem[] = [
     {
       key: 'settings',
       label: t('settings.mcp.tabs.general'),
       children: (
-        <Form
-          form={form}
-          layout="vertical"
-          onValuesChange={() => setIsFormChanged(true)}
-          style={{
-            overflowY: 'auto',
-            width: 'calc(100% + 10px)',
-            paddingRight: '10px'
-          }}>
-          <Form.Item name="name" label={t('settings.mcp.name')} rules={[{ required: true, message: '' }]}>
-            <Input placeholder={t('common.name')} disabled={server.type === 'inMemory'} />
-          </Form.Item>
-          <Form.Item name="description" label={t('settings.mcp.description')}>
-            <TextArea rows={2} placeholder={t('common.description')} />
-          </Form.Item>
-          {server.type !== 'inMemory' && (
-            <Form.Item
-              name="serverType"
-              label={t('settings.mcp.type')}
-              rules={[{ required: true }]}
-              initialValue="stdio">
-              <Select
-                onChange={(value) => setServerType(value)}
-                options={[
-                  { label: t('settings.mcp.stdio'), value: 'stdio' },
-                  { label: t('settings.mcp.sse'), value: 'sse' },
-                  { label: t('settings.mcp.streamableHttp'), value: 'streamableHttp' }
-                ]}
-              />
-            </Form.Item>
-          )}
-          {serverType === 'sse' && (
-            <>
-              <Form.Item
-                name="baseUrl"
-                label={t('settings.mcp.url')}
-                rules={[{ required: serverType === 'sse', message: '' }]}
-                tooltip={t('settings.mcp.baseUrlTooltip')}>
-                <Input placeholder="http://localhost:3000/sse" />
-              </Form.Item>
-              <Form.Item name="headers" label={t('settings.mcp.headers')} tooltip={t('settings.mcp.headersTooltip')}>
-                <TextArea
-                  rows={3}
-                  placeholder={`Content-Type=application/json\nAuthorization=Bearer token`}
-                  style={{ fontFamily: 'monospace' }}
+        <Form {...form}>
+          <form
+            onChange={() => setIsFormChanged(true)}
+            className="flex w-full min-w-0 flex-col gap-5 pb-6"
+            id="mcp-settings-form">
+            <McpFormSection>
+              <McpFormGrid>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem className="min-w-0">
+                      <FormLabel>{t('settings.mcp.name')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder={t('common.name')} disabled={server.type === 'inMemory'} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </Form.Item>
-            </>
-          )}
-          {serverType === 'streamableHttp' && (
-            <>
-              <Form.Item
-                name="baseUrl"
-                label={t('settings.mcp.url')}
-                rules={[{ required: serverType === 'streamableHttp', message: '' }]}
-                tooltip={t('settings.mcp.baseUrlTooltip')}>
-                <Input placeholder="http://localhost:3000/mcp" />
-              </Form.Item>
-              <Form.Item name="headers" label={t('settings.mcp.headers')} tooltip={t('settings.mcp.headersTooltip')}>
-                <TextArea
-                  rows={3}
-                  placeholder={`Content-Type=application/json\nAuthorization=Bearer token`}
-                  style={{ fontFamily: 'monospace' }}
+                {server.type !== 'inMemory' && (
+                  <FormField
+                    control={form.control}
+                    name="serverType"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel>{t('settings.mcp.type')}</FormLabel>
+                        <FormControl>
+                          <Select
+                            value={field.value}
+                            onValueChange={(value) => {
+                              field.onChange(value)
+                              setServerType(value as MCPServer['type'])
+                            }}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="stdio">{t('settings.mcp.stdio')}</SelectItem>
+                              <SelectItem value="sse">{t('settings.mcp.sse')}</SelectItem>
+                              <SelectItem value="streamableHttp">{t('settings.mcp.streamableHttp')}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem className="min-w-0 xl:col-span-2">
+                      <FormLabel>{t('settings.mcp.description')}</FormLabel>
+                      <FormControl>
+                        <Textarea.Input
+                          rows={2}
+                          placeholder={t('common.description')}
+                          className="min-h-[64px] px-3 py-2 text-sm leading-5"
+                          {...field}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
                 />
-              </Form.Item>
-            </>
-          )}
-          {serverType === 'stdio' && (
-            <>
-              <Form.Item
-                name="command"
-                label={t('settings.mcp.command')}
-                rules={[{ required: serverType === 'stdio', message: '' }]}>
-                <Input placeholder="uvx or npx" onChange={(e) => handleCommandChange(e.target.value)} />
-              </Form.Item>
+              </McpFormGrid>
+            </McpFormSection>
 
-              {isShowRegistry && registry && (
-                <Form.Item
-                  name="registryUrl"
-                  label={t('settings.mcp.registry')}
-                  tooltip={t('settings.mcp.registryTooltip')}>
-                  <Radio.Group
-                    value={selectedRegistryType === 'custom' ? 'custom' : form.getFieldValue('registryUrl') || ''}>
-                    <Radio
-                      key="no-proxy"
-                      value=""
-                      onChange={(e) => {
-                        onSelectRegistry(e.target.value)
-                      }}>
-                      {t('settings.mcp.registryDefault')}
-                    </Radio>
-                    {registry.map((reg) => (
-                      <Radio
-                        key={reg.url}
-                        value={reg.url}
-                        onChange={(e) => {
-                          onSelectRegistry(e.target.value)
-                        }}>
-                        {reg.name}
-                      </Radio>
-                    ))}
-                  </Radio.Group>
-                  {selectedRegistryType === 'custom' && (
-                    <Input
-                      placeholder={t(
-                        'settings.mcp.customRegistryPlaceholder',
-                        '请输入私有仓库地址，如: https://npm.company.com'
+            <McpFormSection>
+              {(serverType === 'sse' || serverType === 'streamableHttp') && (
+                <McpFormGrid>
+                  <FormField
+                    control={form.control}
+                    name="baseUrl"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel className="flex items-center gap-1">
+                          {t('settings.mcp.url')}
+                          <InfoTooltip content={t('settings.mcp.baseUrlTooltip')} />
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={
+                              serverType === 'sse' ? 'http://localhost:3000/sse' : 'http://localhost:3000/mcp'
+                            }
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="headers"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel className="flex items-center gap-1">
+                          {t('settings.mcp.headers')}
+                          <InfoTooltip content={t('settings.mcp.headersTooltip')} />
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea.Input
+                            rows={3}
+                            placeholder={`Content-Type=application/json\nAuthorization=Bearer token`}
+                            className="max-h-[160px] min-h-[84px] px-3 py-2 font-mono text-sm leading-5"
+                            {...field}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </McpFormGrid>
+              )}
+              {serverType === 'stdio' && (
+                <McpFormGrid>
+                  <FormField
+                    control={form.control}
+                    name="command"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel>{t('settings.mcp.command')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="uvx or npx"
+                            {...field}
+                            onChange={(e) => {
+                              field.onChange(e)
+                              handleCommandChange(e.target.value)
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {isShowRegistry && registry && (
+                    <FormField
+                      control={form.control}
+                      name="registryUrl"
+                      render={({ field }) => (
+                        <FormItem className="min-w-0">
+                          <FormLabel className="flex items-center gap-1">
+                            {t('settings.mcp.registry')}
+                            <InfoTooltip content={t('settings.mcp.registryTooltip')} />
+                          </FormLabel>
+                          <FormControl>
+                            <RadioGroup
+                              value={selectedRegistryType === 'custom' ? 'custom' : field.value || ''}
+                              onValueChange={onSelectRegistry}
+                              className="flex flex-row flex-wrap gap-x-4 gap-y-2">
+                              <label className="flex items-center gap-2 text-sm">
+                                <RadioGroupItem value="" />
+                                {t('settings.mcp.registryDefault')}
+                              </label>
+                              {registry.map((reg) => (
+                                <label key={reg.url} className="flex items-center gap-2 text-sm">
+                                  <RadioGroupItem value={reg.url} />
+                                  {reg.name}
+                                </label>
+                              ))}
+                            </RadioGroup>
+                          </FormControl>
+                          {selectedRegistryType === 'custom' && (
+                            <Input
+                              className="mt-2"
+                              placeholder={t(
+                                'settings.mcp.customRegistryPlaceholder',
+                                'Enter private registry URL, for example: https://npm.company.com'
+                              )}
+                              value={customRegistryUrl}
+                              onChange={(e) => onCustomRegistryChange(e.target.value)}
+                            />
+                          )}
+                        </FormItem>
                       )}
-                      value={customRegistryUrl}
-                      onChange={(e) => onCustomRegistryChange(e.target.value)}
-                      style={{ marginTop: 8 }}
                     />
                   )}
-                </Form.Item>
+                  <FormField
+                    control={form.control}
+                    name="args"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel className="flex items-center gap-1">
+                          {t('settings.mcp.args')}
+                          <InfoTooltip content={t('settings.mcp.argsTooltip')} />
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea.Input
+                            rows={3}
+                            placeholder={`arg1\narg2`}
+                            className="max-h-[160px] min-h-[84px] px-3 py-2 font-mono text-sm leading-5"
+                            {...field}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="env"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel className="flex items-center gap-1">
+                          {t('settings.mcp.env')}
+                          <InfoTooltip content={t('settings.mcp.envTooltip')} />
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea.Input
+                            rows={3}
+                            placeholder={`KEY1=value1\nKEY2=value2`}
+                            className="max-h-[160px] min-h-[84px] px-3 py-2 font-mono text-sm leading-5"
+                            {...field}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </McpFormGrid>
               )}
+              {serverType === 'inMemory' && (
+                <McpFormGrid>
+                  <FormField
+                    control={form.control}
+                    name="args"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel className="flex items-center gap-1">
+                          {t('settings.mcp.args')}
+                          <InfoTooltip content={t('settings.mcp.argsTooltip')} />
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea.Input
+                            rows={3}
+                            placeholder={`arg1\narg2`}
+                            className="max-h-[160px] min-h-[84px] px-3 py-2 font-mono text-sm leading-5"
+                            {...field}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="env"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel className="flex items-center gap-1">
+                          {t('settings.mcp.env')}
+                          <InfoTooltip content={t('settings.mcp.envTooltip')} />
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea.Input
+                            rows={3}
+                            placeholder={`KEY1=value1\nKEY2=value2`}
+                            className="max-h-[160px] min-h-[84px] px-3 py-2 font-mono text-sm leading-5"
+                            {...field}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </McpFormGrid>
+              )}
+            </McpFormSection>
 
-              <Form.Item name="args" label={t('settings.mcp.args')} tooltip={t('settings.mcp.argsTooltip')}>
-                <TextArea rows={3} placeholder={`arg1\narg2`} style={{ fontFamily: 'monospace' }} />
-              </Form.Item>
-
-              <Form.Item name="env" label={t('settings.mcp.env')} tooltip={t('settings.mcp.envTooltip')}>
-                <TextArea rows={3} placeholder={`KEY1=value1\nKEY2=value2`} style={{ fontFamily: 'monospace' }} />
-              </Form.Item>
-            </>
-          )}
-          {serverType === 'inMemory' && (
-            <>
-              <Form.Item name="args" label={t('settings.mcp.args')} tooltip={t('settings.mcp.argsTooltip')}>
-                <TextArea rows={3} placeholder={`arg1\narg2`} style={{ fontFamily: 'monospace' }} />
-              </Form.Item>
-
-              <Form.Item name="env" label={t('settings.mcp.env')} tooltip={t('settings.mcp.envTooltip')}>
-                <TextArea rows={3} placeholder={`KEY1=value1\nKEY2=value2`} style={{ fontFamily: 'monospace' }} />
-              </Form.Item>
-            </>
-          )}
-          <Form.Item
-            name="longRunning"
-            label={t('settings.mcp.longRunning', 'Long Running')}
-            tooltip={t('settings.mcp.longRunningTooltip')}
-            layout="horizontal"
-            valuePropName="checked">
-            <Switch className="ml-2.5" />
-          </Form.Item>
-          <Form.Item
-            name="timeout"
-            label={t('settings.mcp.timeout', 'Timeout')}
-            tooltip={t(
-              'settings.mcp.timeoutTooltip',
-              'Timeout in seconds for requests to this server, default is 60 seconds'
-            )}>
-            <Input type="number" min={1} placeholder="60" addonAfter="s" />
-          </Form.Item>
-
-          <AdvancedSettingsButton onClick={() => setShowAdvanced(!showAdvanced)}>
-            <ChevronDown
-              size={18}
-              style={{
-                transform: showAdvanced ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.3s',
-                marginRight: 8,
-                stroke: 'var(--color-primary)'
-              }}
-            />
-            {t('common.advanced_settings')}
-          </AdvancedSettingsButton>
-
-          {showAdvanced && (
-            <>
-              <Form.Item name="provider" label={t('settings.mcp.provider', 'Provider')}>
-                <Input placeholder={t('settings.mcp.providerPlaceholder', 'Provider name')} />
-              </Form.Item>
-
-              <Form.Item name="providerUrl" label={t('settings.mcp.providerUrl', 'Provider URL')}>
-                <Input placeholder="https://provider-website.com" />
-              </Form.Item>
-
-              <Form.Item name="logoUrl" label={t('settings.mcp.logoUrl', 'Logo URL')}>
-                <Input placeholder="https://example.com/logo.png" />
-              </Form.Item>
-
-              <Form.Item name="tags" label={t('settings.mcp.tags', 'Tags')}>
-                <Select
-                  mode="tags"
-                  style={{ width: '100%' }}
-                  placeholder={t('settings.mcp.tagsPlaceholder', 'Enter tags')}
-                  tokenSeparators={[',']}
+            <McpFormSection>
+              <McpFormGrid>
+                <FormField
+                  control={form.control}
+                  name="longRunning"
+                  render={({ field }) => (
+                    <FormItem className={mcpInlineSettingItemClassName}>
+                      <FormLabel className="flex items-center gap-1">
+                        {t('settings.mcp.longRunning', 'Long Running')}
+                        <InfoTooltip content={t('settings.mcp.longRunningTooltip')} />
+                      </FormLabel>
+                      <FormControl>
+                        <Switch size="sm" checked={!!field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
                 />
-              </Form.Item>
-            </>
-          )}
+                <FormField
+                  control={form.control}
+                  name="timeout"
+                  render={({ field }) => (
+                    <FormItem className={mcpInlineSettingItemClassName}>
+                      <FormLabel className="flex items-center gap-1">
+                        {t('settings.mcp.timeout', 'Timeout')}
+                        <InfoTooltip
+                          content={t(
+                            'settings.mcp.timeoutTooltip',
+                            'Timeout in seconds for requests to this server, default is 60 seconds'
+                          )}
+                        />
+                      </FormLabel>
+                      <FormControl>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={1}
+                            placeholder="60"
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                            className="h-8 w-24 py-0"
+                          />
+                          <span className="text-foreground-muted text-xs">s</span>
+                        </div>
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </McpFormGrid>
+            </McpFormSection>
+
+            <AdvancedSettingsButton onClick={() => setShowAdvanced(!showAdvanced)}>
+              <ChevronDown
+                size={16}
+                className={cn('transition-transform duration-200', showAdvanced && 'rotate-180')}
+              />
+              {t('common.advanced_settings')}
+            </AdvancedSettingsButton>
+
+            {showAdvanced && (
+              <McpFormSection>
+                <McpFormGrid>
+                  <FormField
+                    control={form.control}
+                    name="provider"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel>{t('settings.mcp.provider', 'Provider')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder={t('settings.mcp.providerPlaceholder', 'Provider name')} {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="providerUrl"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel>{t('settings.mcp.providerUrl', 'Provider URL')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://provider-website.com" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="logoUrl"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel>{t('settings.mcp.logoUrl', 'Logo URL')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://example.com/logo.png" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="tags"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0 xl:col-span-2">
+                        <FormLabel>{t('settings.mcp.tags', 'Tags')}</FormLabel>
+                        <FormControl>
+                          <TagsInput
+                            value={field.value ?? []}
+                            onChange={(next) => {
+                              field.onChange(next)
+                              setIsFormChanged(true)
+                            }}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </McpFormGrid>
+              </McpFormSection>
+            )}
+          </form>
         </Form>
       )
     }
@@ -736,19 +1007,21 @@ const McpSettings: React.FC = () => {
   }
 
   if (server.isActive) {
+    tabs.push({
+      key: 'tools',
+      label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
+      children: (
+        <MCPToolsSection
+          tools={tools}
+          server={server}
+          searchText={toolSearchText}
+          onToggleTool={handleToggleTool}
+          onToggleAutoApprove={handleToggleAutoApprove}
+        />
+      )
+    })
+
     tabs.push(
-      {
-        key: 'tools',
-        label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
-        children: (
-          <MCPToolsSection
-            tools={tools}
-            server={server}
-            onToggleTool={handleToggleTool}
-            onToggleAutoApprove={handleToggleAutoApprove}
-          />
-        )
-      },
       {
         key: 'prompts',
         label: t('settings.mcp.tabs.prompts') + (prompts.length > 0 ? ` (${prompts.length})` : ''),
@@ -762,178 +1035,290 @@ const McpSettings: React.FC = () => {
     )
   }
 
+  const activeTabValue = tabs.some((tab) => tab.key === activeTab) ? activeTab : 'settings'
+
   return (
     <Container>
-      <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
-        <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
-          <SettingTitle>
-            <Flex className="mr-10 items-center justify-between gap-5">
-              <Flex className="items-center gap-2">
-                <ServerName className="text-nowrap">{server?.name}</ServerName>
-                {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+      <SettingContainer
+        theme={theme}
+        className="min-w-0 overflow-hidden p-0"
+        style={{ width: '100%', backgroundColor: 'transparent' }}>
+        <Tabs
+          value={activeTabValue}
+          onValueChange={(value) => setActiveTab(value as TabKey)}
+          variant="line"
+          className="flex min-h-0 flex-1 flex-col bg-transparent">
+          <div className="shrink-0 px-4 pt-4">
+            <SettingTitle className="min-w-0 flex-wrap gap-2">
+              <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 rounded-full"
+                  aria-label={t('common.back')}
+                  title={t('common.back')}
+                  onClick={() => void navigate({ to: '/settings/mcp/servers' })}>
+                  <ArrowLeft size={16} />
+                </Button>
+                <Flex className="min-w-0 flex-1 items-center gap-2">
+                  <ServerName className="truncate">{server?.name}</ServerName>
+                  {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+                  <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setLogModalOpen(true)}>
+                    {t('settings.mcp.logs', 'View Logs')}
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    className="shrink-0"
+                    aria-label={t('common.delete')}
+                    title={t('common.delete')}
+                    onClick={() => onDeleteMcpServer(server)}>
+                    <DeleteIcon size={14} className="lucide-custom text-destructive" />
+                  </Button>
+                </Flex>
               </Flex>
-              <Button size="sm" variant="ghost" onClick={() => setLogModalOpen(true)}>
-                {t('settings.mcp.logs', 'View Logs')}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => onDeleteMcpServer(server)}>
-                <DeleteIcon size={14} className="lucide-custom text-destructive" />
-              </Button>
-            </Flex>
-            <Flex className="items-center gap-4">
-              <Switch
-                checked={server.isActive}
-                key={server.id}
-                loading={loadingServer === server.id}
-                onCheckedChange={onToggleActive}
-              />
-              <Button
-                size="sm"
-                variant="default"
-                onClick={onSave}
-                disabled={loading || !isFormChanged || activeTab !== 'settings'}
-                className="rounded-full">
-                <SaveIcon size={14} />
-                {t('common.save')}
-              </Button>
-            </Flex>
-          </SettingTitle>
-          <SettingDivider />
-          <Tabs
-            defaultActiveKey="settings"
-            items={tabs}
-            onChange={(key) => setActiveTab(key as TabKey)}
-            style={{ marginTop: 8, backgroundColor: 'transparent' }}
-          />
-        </SettingGroup>
+              <Flex className="shrink-0 items-center gap-3">
+                <Switch
+                  checked={server.isActive}
+                  key={server.id}
+                  loading={loadingServer === server.id}
+                  onCheckedChange={onToggleActive}
+                />
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={onSave}
+                  disabled={loading || !isFormChanged || activeTabValue !== 'settings'}
+                  className="rounded-full">
+                  <SaveIcon size={14} />
+                  {t('common.save')}
+                </Button>
+              </Flex>
+            </SettingTitle>
+            <SettingDivider className="mb-0" />
+            <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
+              <TabsList className="min-w-0 max-w-full overflow-x-auto">
+                {tabs.map((tab) => (
+                  <TabsTrigger key={tab.key} value={tab.key}>
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {activeTabValue === 'tools' && tools.length > 0 && (
+                <div className="shrink-0 pt-1">
+                  <CollapsibleSearchBar
+                    onSearch={setToolSearchText}
+                    placeholder={t('common.search')}
+                    tooltip={t('common.search')}
+                    maxWidth={220}
+                    style={{ borderRadius: 20 }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          <Scrollbar className="min-h-0 flex-1 px-4 pt-2 pb-4">
+            {tabs.map((tab) => (
+              <TabsContent key={tab.key} value={tab.key} className="mt-0 min-h-0">
+                {tab.children}
+              </TabsContent>
+            ))}
+          </Scrollbar>
+        </Tabs>
       </SettingContainer>
 
-      <Modal
-        title={t('settings.mcp.logs', 'Server Logs')}
+      <Dialog
         open={logModalOpen}
-        onCancel={() => setLogModalOpen(false)}
-        footer={null}
-        width={720}
-        centered
-        transitionName="animation-move-down"
-        bodyStyle={{ maxHeight: '70vh', minHeight: '40vh', overflowY: 'auto' }}
-        afterOpenChange={(open) => {
-          if (open) {
-            void fetchServerLogs()
-          }
+        onOpenChange={(next) => {
+          setLogModalOpen(next)
+          if (next) void fetchServerLogs()
         }}>
-        <LogList>
-          {logs.length === 0 && <Text type="secondary">{t('settings.mcp.noLogs', 'No logs yet')}</Text>}
-          {logs.map((log, idx) => (
-            <LogItem key={`${log.timestamp}-${idx}`}>
-              <LogHeader>
-                <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
-                <Tag color={mapLogLevelColor(log.level)}>{log.level}</Tag>
-                <LogMessage>{log.message}</LogMessage>
-              </LogHeader>
-              {log.data && (
-                <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
-              )}
-            </LogItem>
-          ))}
-        </LogList>
-      </Modal>
+        <DialogContent className="max-h-[70vh] sm:max-w-[720px]">
+          <DialogHeader>
+            <DialogTitle>{t('settings.mcp.logs', 'Server Logs')}</DialogTitle>
+          </DialogHeader>
+          <LogList>
+            {logs.length === 0 && (
+              <span className="text-foreground-muted text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
+            )}
+            {logs.map((log, idx) => (
+              <LogItem key={`${log.timestamp}-${idx}`}>
+                <LogHeader>
+                  <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
+                  <Badge variant="outline" className={mapLogLevelClass(log.level)}>
+                    {log.level}
+                  </Badge>
+                  <LogMessage>{log.message}</LogMessage>
+                </LogHeader>
+                {log.data && (
+                  <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
+                )}
+              </LogItem>
+            ))}
+          </LogList>
+        </DialogContent>
+      </Dialog>
     </Container>
   )
 }
 
-const Container = styled(Scrollbar)`
-  height: calc(100vh - var(--navbar-height));
-`
+const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex h-full min-w-0 flex-col overflow-hidden', className)} {...props} />
+)
 
-const ServerName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-`
+const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('block min-w-0 font-medium text-sm', className)} {...props} />
+)
 
-const AdvancedSettingsButton = styled.div`
-  cursor: pointer;
-  margin-bottom: 16px;
-  margin-top: -10px;
-  color: var(--color-primary);
-  display: flex;
-  align-items: center;
-`
+const McpFormSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('border-border/60 border-t pt-5 first:border-t-0 first:pt-0', className)} {...props} />
+)
 
-const LogList = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-bottom: 15px;
-  padding-top: 5px;
-`
+const McpFormGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('grid grid-cols-1 items-start gap-x-4 gap-y-4 xl:grid-cols-2', className)} {...props} />
+)
 
-const LogItem = styled.div`
-  background: var(--color-background-mute, #1f1f1f);
-  color: var(--color-text-1, #e6e6e6);
-  border-radius: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
-`
+const mcpInlineSettingItemClassName =
+  'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border/70 px-3'
 
-const LogHeader = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-`
+const AdvancedSettingsButton = ({
+  className,
+  type = 'button',
+  variant = 'ghost',
+  size = 'sm',
+  ...props
+}: React.ComponentPropsWithoutRef<typeof Button>) => (
+  <Button
+    type={type}
+    variant={variant}
+    size={size}
+    className={cn('h-8 w-fit gap-1.5 px-2 text-primary hover:text-primary', className)}
+    {...props}
+  />
+)
 
-const Timestamp = styled.span`
-  color: var(--color-text-3, #9aa2b1);
-  font-size: 12px;
-  flex-shrink: 0;
-`
+const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
+  <Scrollbar className={cn('flex flex-col gap-3 pt-1.25 pb-3.75', className)} {...props} />
+)
 
-const LogMessage = styled.span`
-  font-size: 13px;
-  line-height: 1.5;
-  word-break: break-word;
-`
+const LogItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('rounded-lg border border-border bg-card px-3 py-2.5 text-foreground', className)} {...props} />
+)
 
-const PreBlock = styled.pre`
-  margin: 6px 0 0;
-  padding: 8px;
-  background: var(--color-bg-3, #111418);
-  color: var(--color-text-1, #e6e6e6);
-  border-radius: 6px;
-  font-size: 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
-`
+const LogHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-wrap items-baseline gap-2', className)} {...props} />
+)
 
-function mapLogLevelColor(level: MCPServerLogEntry['level']) {
+const Timestamp = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('shrink-0 text-foreground-muted text-xs', className)} {...props} />
+)
+
+const LogMessage = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('break-words text-[13px] leading-normal', className)} {...props} />
+)
+
+const PreBlock = ({ className, ...props }: React.ComponentPropsWithoutRef<'pre'>) => (
+  <pre
+    className={cn(
+      'mt-1.5 whitespace-pre-wrap break-words rounded-md border border-border bg-background px-2 py-2 text-foreground text-xs',
+      className
+    )}
+    {...props}
+  />
+)
+
+function mapLogLevelClass(level: MCPServerLogEntry['level']) {
   switch (level) {
     case 'error':
     case 'stderr':
-      return 'red'
+      return 'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400'
     case 'warn':
-      return 'orange'
+      return 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
     case 'info':
     case 'stdout':
-      return 'blue'
+      return 'border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400'
     default:
-      return 'default'
+      return 'border-border/60 bg-muted text-muted-foreground'
   }
 }
 
-const VersionBadge = styled(Badge)`
-  .ant-badge-count {
-    background-color: var(--color-primary);
-    color: white;
-    font-size: 11px;
-    font-weight: 500;
-    padding: 0 6px;
-    height: 18px;
-    line-height: 18px;
-    border-radius: 9px;
-    min-width: 18px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+const VersionBadge = ({ count, className, ...props }: { count: string } & React.ComponentProps<'span'>) => (
+  <span
+    className={cn(
+      'inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[9px] bg-primary px-1.5 font-medium text-[11px] text-white leading-[18px] shadow-sm',
+      className
+    )}
+    {...props}>
+    {count}
+  </span>
+)
+
+interface TagsInputProps {
+  value: string[]
+  onChange: (next: string[]) => void
+}
+
+const TagsInput = ({ value, onChange }: TagsInputProps) => {
+  const { t } = useTranslation()
+  const [draft, setDraft] = useState('')
+
+  const commit = (raw: string) => {
+    const parts = raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && !value.includes(s))
+    if (parts.length > 0) {
+      onChange([...value, ...parts])
+    }
+    setDraft('')
   }
-`
+
+  const removeAt = (index: number) => {
+    onChange(value.filter((_, i) => i !== index))
+  }
+
+  return (
+    <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+      {value.map((tag, index) => (
+        <span
+          key={`${tag}-${index}`}
+          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-foreground text-xs">
+          {tag}
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => removeAt(index)}>
+            <X size={12} className="lucide-custom" />
+          </button>
+        </span>
+      ))}
+      <input
+        className="min-w-[120px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        value={draft}
+        placeholder={t('settings.mcp.tagsPlaceholder', 'Enter tags')}
+        onChange={(e) => {
+          const next = e.target.value
+          if (next.endsWith(',')) {
+            commit(next)
+          } else {
+            setDraft(next)
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && draft.trim()) {
+            e.preventDefault()
+            commit(draft)
+          } else if (e.key === 'Backspace' && draft === '' && value.length > 0) {
+            removeAt(value.length - 1)
+          }
+        }}
+        onBlur={() => {
+          if (draft.trim()) commit(draft)
+        }}
+      />
+    </div>
+  )
+}
 
 export default McpSettings

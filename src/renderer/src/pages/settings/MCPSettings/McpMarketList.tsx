@@ -1,12 +1,19 @@
 import { Composio, Glama, Higress, Mcp, Mcpso, Modelscope, Pulse, Smithery, Zhipu } from '@cherrystudio/ui/icons'
+import { cn } from '@renderer/utils/style'
 import { ExternalLink } from 'lucide-react'
+import type React from 'react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingTitle } from '..'
 
 const mcpMarkets = [
+  {
+    name: 'MCP World',
+    url: 'https://www.mcpworld.com',
+    logo: 'https://mcpworld.bdstatic.com/store/v2/865ad5d/mcp-server-store/ec04344/favicon.ico',
+    descriptionKey: 'settings.mcp.more.mcpworld'
+  },
   {
     name: 'BigModel MCP Market',
     url: 'https://bigmodel.cn/marketplace/index/mcp',
@@ -78,18 +85,22 @@ const McpMarketList: FC = () => {
       <MarketGrid>
         {mcpMarkets.map((resource) => (
           <MarketCard key={resource.name} onClick={() => window.open(resource.url, '_blank', 'noopener,noreferrer')}>
-            <MarketHeader>
+            <MarketIconWrap>
               {typeof resource.logo !== 'string' ? (
-                <resource.logo.Avatar size={24} shape="rounded" className="mr-2" />
+                <resource.logo.Avatar size={18} shape="rounded" />
               ) : (
                 <MarketLogo src={resource.logo} alt={`${resource.name} logo`} />
               )}
-              <MarketName>{resource.name}</MarketName>
-              <ExternalLinkIcon>
-                <ExternalLink size={14} />
-              </ExternalLinkIcon>
-            </MarketHeader>
-            <MarketDescription>{t(resource.descriptionKey)}</MarketDescription>
+            </MarketIconWrap>
+            <MarketContent>
+              <MarketHeader>
+                <MarketName>{resource.name}</MarketName>
+                <ExternalLinkIcon>
+                  <ExternalLink size={13} />
+                </ExternalLinkIcon>
+              </MarketHeader>
+              <MarketDescription>{t(resource.descriptionKey)}</MarketDescription>
+            </MarketContent>
           </MarketCard>
         ))}
       </MarketGrid>
@@ -97,67 +108,52 @@ const McpMarketList: FC = () => {
   )
 }
 
-const MarketGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
-`
+const MarketGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-5 flex flex-col gap-2', className)} {...props} />
+)
 
-const MarketCard = styled.div`
-  display: flex;
-  flex-direction: column;
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--list-item-border-radius);
-  padding: 12px 16px;
-  transition: all 0.2s ease;
-  background-color: var(--color-background);
-  cursor: pointer;
-  height: 80px;
+const MarketCard = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'flex min-h-15 cursor-pointer items-center gap-3 rounded-lg border border-border/60 bg-transparent px-3 py-2.5 transition-colors hover:bg-accent',
+      className
+    )}
+    {...props}
+  />
+)
 
-  &:hover {
-    border-color: var(--color-primary);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-`
+const MarketIconWrap = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex h-5 w-5 shrink-0 items-center justify-center', className)} {...props} />
+)
 
-const MarketHeader = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-`
+const MarketContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('min-w-0 flex-1', className)} {...props} />
+)
 
-const MarketLogo = styled.img`
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  object-fit: cover;
-  margin-right: 8px;
-`
+const MarketHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex items-center gap-2', className)} {...props} />
+)
 
-const MarketName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`
+const MarketLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (
+  <img className={cn('h-[18px] w-[18px] rounded object-cover', className)} {...props} />
+)
 
-const ExternalLinkIcon = styled.div`
-  color: var(--color-text-3);
-  display: flex;
-  align-items: center;
-`
+const MarketName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('flex-1 truncate font-medium text-sm', className)} {...props} />
+)
 
-const MarketDescription = styled.div`
-  font-size: 12px;
-  color: var(--color-text-2);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  line-height: 1.4;
-`
+const ExternalLinkIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex shrink-0 items-center text-foreground-muted', className)} {...props} />
+)
+
+const MarketDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'mt-0.5 line-clamp-1 overflow-hidden text-[13px] text-foreground-secondary leading-[1.35]',
+      className
+    )}
+    {...props}
+  />
+)
 
 export default McpMarketList

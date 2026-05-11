@@ -1,26 +1,16 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`TagFilterSection > rendering > should match snapshot 1`] = `
-.c0 {
-  padding: 8px;
-  padding-left: 18px;
-}
-
-.c1 {
-  color: var(--color-text-3);
-  font-size: 12px;
-}
-
 <div>
   <div
-    class="c0"
+    class="py-2 pr-2 pl-[18px]"
   >
     <div
       class="flex-wrap gap-1"
       data-testid="flex"
     >
       <span
-        class="c1"
+        class="text-foreground-muted text-xs"
       >
         models.filter.by_tag
       </span>

@@ -28,6 +28,256 @@
       "submit": "Einreichen",
       "title": "Fragen vom Agenten"
     },
+    "cherryClaw": {
+      "channels": {
+        "add": "Hinzufügen",
+        "bindAgent": "Bind-Agent",
+        "chatIdsAutoTrackHint": "Wenn es leer bleibt, verfolgt das System automatisch: Sie müssen dem Bot auf der Plattform zuerst eine Nachricht senden, dann zeichnet das System die Chat-ID für zukünftige Benachrichtigungen auf.",
+        "comingSoon": "Demnächst verfügbar",
+        "connected": "Verbunden",
+        "connecting": "Verbinden",
+        "createError": "Fehler beim Erstellen des Kanals",
+        "deleteConfirm": "Kanal „{{name}}“ löschen?",
+        "deleteError": "Fehler beim Löschen des Kanals",
+        "description": "Verbinden Sie Ihren Agenten mit Messaging-Plattformen.",
+        "disconnected": "Getrennt",
+        "discord": {
+          "botToken": "Bot-Token",
+          "botTokenPlaceholder": "Gib dein Discord-Bot-Token ein",
+          "channelIds": "Erlaubte Kanal-IDs",
+          "channelIdsHint": "Format: channel:id oder dm:id. Leer lassen, um alle zuzulassen.",
+          "channelIdsPlaceholder": "channel:123456789, dm:987654321",
+          "description": "Nachrichten über einen Discord-Bot über WebSocket-Gateway empfangen und darauf reagieren.",
+          "title": "Discord",
+          "whoamiTip": "💡 Tipp: Sende /whoami an den Bot, um deine Kanal-ID im richtigen Format zu erhalten."
+        },
+        "error": "Fehler",
+        "feishu": {
+          "appId": "App-ID",
+          "appIdPlaceholder": "Geben Sie Ihre Feishu-App-ID ein",
+          "appSecret": "App-Geheimnis",
+          "appSecretPlaceholder": "Geben Sie Ihr Feishu-App-Geheimnis ein",
+          "chatIds": "Erlaubte Chat-IDs",
+          "chatIdsHint": "Kommagetrennte Chat-IDs. Leer lassen, um alle Chats zuzulassen.",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "connected": "Verbunden",
+          "description": "Nachrichten über einen Feishu/Lark-Bot per WebSocket empfangen und beantworten.",
+          "domain": "Domain",
+          "domainFeishu": "Feishu (China)",
+          "domainLark": "Lark (International)",
+          "encryptKey": "Verschlüsselungsschlüssel",
+          "encryptKeyPlaceholder": "Geben Sie den Verschlüsselungsschlüssel Ihrer Feishu-App ein",
+          "loginHint": "Keine Anmeldeinformationen konfiguriert. Aktivieren Sie den Kanal, um die QR-Code-Registrierung zu starten, oder geben Sie App-ID und App-Secret manuell ein.",
+          "qrExpired": "QR-Code abgelaufen. Bitte versuchen Sie es erneut, indem Sie den Kanal wechseln.",
+          "qrHint": "Warten auf QR-Code-Scan...",
+          "qrScanHint": "Öffne Feishu auf deinem Handy und scanne den QR-Code, um eine Bot-App zu erstellen.",
+          "qrTitle": "Feishu-QR-Registrierung",
+          "title": "Feishu",
+          "verificationToken": "Verifizierungstoken",
+          "verificationTokenPlaceholder": "Geben Sie das Verifizierungstoken Ihrer Feishu-App ein"
+        },
+        "logs": "Protokolle",
+        "noInstances": "Keine {{type}}-Kanäle konfiguriert. Klicken Sie auf „+ Hinzufügen“, um einen zu erstellen.",
+        "noLogs": "Noch keine Protokolle",
+        "notifyReceiver": "Aufgabenbenachrichtigungen empfangen",
+        "notifyReceiverHint": "Scheduler-Aufgabenergebnisse an diesen Kanal senden.",
+        "qq": {
+          "appId": "App-ID",
+          "appIdPlaceholder": "Geben Sie Ihre QQ Bot App-ID ein",
+          "chatIds": "Erlaubte Chat-IDs",
+          "chatIdsHint": "Format: c2c:openid, group:groupid, channel:channelid. Leer lassen für alle.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Geben Sie Ihr QQ Bot Client Secret ein",
+          "description": "Nachrichten über die offizielle QQ Bot API empfangen und beantworten.",
+          "title": "QQ",
+          "whoamiTip": "💡 Tipp: Senden Sie /whoami an den Bot, um Ihre Chat-ID im richtigen Format zu erhalten."
+        },
+        "security": {
+          "inheritFromAgent": "Von Agent erben",
+          "permissionMode": "Kanalberechtigungsmodus",
+          "permissionModeHint": "Überschreibe den Berechtigungsmodus des Agenten für Nachrichten aus diesem Kanal. „Vererben“ verwendet die Standardeinstellung des Agenten."
+        },
+        "selectAgent": "Wählen Sie einen Agenten zum Binden aus",
+        "slack": {
+          "appToken": "App-Level-Token",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Bot-Token",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "Erlaubte Kanal-IDs",
+          "channelIdsHint": "Slack-Kanal-IDs. Leer lassen, um alle zu erlauben.",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "Nachrichten über einen Slack-Bot im Socket-Mode empfangen und darauf reagieren.",
+          "title": "Slack",
+          "whoamiTip": "💡 Tipp: Sende /whoami an den Bot, um die Kanal-ID zu erhalten."
+        },
+        "soulModeRequired": "Dieser Agent hat den autonomen Modus nicht aktiviert. Kanal-Funktionen werden nicht funktionieren. Bitte aktivieren Sie ihn in den Agenten-Einstellungen.",
+        "tab": "Kanäle",
+        "telegram": {
+          "botToken": "Bot-Token",
+          "botTokenPlaceholder": "Geben Sie Ihr Telegram-Bot-Token ein",
+          "chatIds": "Erlaubte Chat-IDs",
+          "chatIdsHint": "Kommagetrennt. Leer lassen für alle Chats.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Nachrichten über einen Telegram-Bot mit Long Polling empfangen und beantworten.",
+          "title": "Telegram"
+        },
+        "title": "Kanäle",
+        "updateError": "Fehler beim Aktualisieren des Kanals",
+        "wechat": {
+          "addAccount": "WeChat-Konto hinzufügen",
+          "chatIds": "Erlaubte Benutzer-IDs",
+          "chatIdsHint": "Durch Komma getrennt. Leer lassen, um alle Benutzer zuzulassen.",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+          "connected": "Verbunden",
+          "description": "Nachrichten über WeChat mit der iLink Bot API empfangen und beantworten.",
+          "disconnected": "Getrennt",
+          "loginHint": "Die erste Anmeldung erfordert das Scannen eines QR-Codes. Überprüfe die App-Logs für die Anmelde-URL.",
+          "qrHint": "Öffnen Sie WeChat auf Ihrem Telefon, scannen Sie den QR-Code, um sich anzumelden.",
+          "qrTitle": "WeChat-QR-Login",
+          "title": "WeChat",
+          "whoamiTip": "Tipp: Sende /whoami in WeChat, um die ID eines Benutzers zu erhalten."
+        }
+      },
+      "heartbeat": {
+        "enabled": "Heartbeat aktivieren",
+        "enabledHelper": "Wenn aktiviert und heartbeat.md im Workspace existiert, liest der Scheduler dessen Inhalt und sendet ihn im konfigurierten Intervall an die Hauptsitzung.",
+        "interval": "Intervall (Minuten)",
+        "intervalHelper": "Wie oft der Heartbeat ausgeführt wird, in Minuten."
+      },
+      "sandbox": {
+        "description": "Beschränkt den Dateisystem- und Netzwerkzugriff des Agenten auf das Workspace-Verzeichnis mittels OS-Level-Sandboxing.",
+        "helper": "Dateisystem- und Befehlszugriff auf den Workspace-Pfad beschränken.",
+        "label": "Sandbox-Modus"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "Standard-Cron-Ausdruck (z.B. '*/30 * * * *' für alle 30 Minuten).",
+          "label": "Cron-Ausdruck",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "Der Scheduler löst den Agenten automatisch nach Zeitplan aus.",
+        "enabled": "Scheduler aktivieren",
+        "enabledHelper": "Wenn aktiviert, wird der Agent automatisch basierend auf dem konfigurierten Zeitplan ausgeführt.",
+        "errors": {
+          "invalidCron": "Ungültiger Cron-Ausdruck",
+          "invalidDelay": "Verzögerung muss eine positive Zahl sein",
+          "invalidInterval": "Intervall muss eine positive Zahl sein"
+        },
+        "interval": {
+          "helper": "Wie oft der Agent ausgeführt werden soll, in Sekunden.",
+          "label": "Intervall (Sekunden)"
+        },
+        "lastRun": "Letzte Ausführung",
+        "never": "Nie",
+        "nextRun": "Nächste Ausführung",
+        "oneTime": {
+          "helper": "Einmalige Verzögerung in Sekunden vor der Agentenausführung.",
+          "label": "Verzögerung (Sekunden)"
+        },
+        "status": {
+          "running": "Läuft",
+          "stopped": "Gestoppt",
+          "tickInProgress": "Tick läuft"
+        },
+        "tab": "Scheduler",
+        "title": "Scheduler-Konfiguration",
+        "type": {
+          "cron": "Cron-Ausdruck",
+          "interval": "Festes Intervall",
+          "label": "Zeitplantyp",
+          "one-time": "Einmalige Verzögerung"
+        }
+      },
+      "soul": {
+        "description": "Die Soul definiert die Persönlichkeit und das Grundverhalten des Agenten. Sie wird aus soul.md im Workspace-Stammverzeichnis gelesen.",
+        "empty": "Keine soul.md im Workspace-Stammverzeichnis gefunden. Erstellen Sie eine, um die Persönlichkeit des Agenten zu definieren.",
+        "enabled": "Soul aktivieren",
+        "enabledHelper": "Wenn aktiviert, liest der Agent soul.md aus dem Workspace-Stammverzeichnis und stellt es dem System-Prompt voran.",
+        "fileLabel": "soul.md",
+        "preview": "Soul-Vorschau",
+        "tab": "Soul",
+        "title": "Soul-Konfiguration"
+      },
+      "tasks": {
+        "add": "Aufgabe hinzufügen",
+        "cancel": "Abbrechen",
+        "channels": {
+          "label": "An Kanäle senden",
+          "noActiveChatIds": "Die ausgewählten Kanäle verfügen über keine verfügbaren Empfänger (Chat-ID). Aufgabenergebnisse werden möglicherweise nicht zugestellt. Bitte senden Sie dem Bot zunächst eine Nachricht auf der Plattform.",
+          "placeholder": "Wähle Kanäle, um Ergebnisse zu erhalten"
+        },
+        "cronPlaceholder": "z.B. 0 9 * * * (täglich um 9 Uhr)",
+        "delete": {
+          "confirm": "Sind Sie sicher, dass Sie diese Aufgabe löschen möchten?",
+          "label": "Löschen"
+        },
+        "edit": "Bearbeiten",
+        "empty": "Keine geplanten Aufgaben. Fügen Sie eine hinzu, um zu beginnen.",
+        "error": {
+          "loadFailed": "Aufgaben konnten nicht geladen werden"
+        },
+        "intervalPlaceholder": "Intervall in Minuten",
+        "intervalUnit": "Minuten",
+        "lastRun": "Letzte Ausführung",
+        "logs": {
+          "duration": "Dauer",
+          "empty": "Noch keine Ausführungshistorie.",
+          "error": "Fehler",
+          "justNow": "soeben",
+          "label": "Ausführungshistorie",
+          "loadError": "Fehler beim Laden des Laufverlaufs",
+          "result": "Ergebnis",
+          "runAt": "Ausgeführt am",
+          "running": "Läuft...",
+          "search": "Suchprotokolle...",
+          "status": "Status",
+          "success": "Erfolg",
+          "viewSession": "Sitzung anzeigen"
+        },
+        "name": {
+          "label": "Name",
+          "placeholder": "z.B. Tägliche Code-Überprüfung"
+        },
+        "nextRun": "Nächste Ausführung",
+        "oncePlaceholder": "Datum und Uhrzeit auswählen",
+        "pause": "Pausieren",
+        "prompt": {
+          "expand": "Editor erweitern",
+          "label": "Prompt",
+          "placeholder": "Was soll der Agent tun, wenn diese Aufgabe ausgeführt wird?"
+        },
+        "resume": "Fortsetzen",
+        "run": "Ausführen",
+        "runTriggered": "Aufgabe ausgelöst",
+        "save": "Speichern",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "Intervall",
+          "label": "Zeitplantyp",
+          "once": "Einmalig"
+        },
+        "scheduleValue": "Zeitplanwert",
+        "status": {
+          "active": "Aktiv",
+          "completed": "Abgeschlossen",
+          "paused": "Pausiert"
+        },
+        "tab": "Aufgaben",
+        "time": {
+          "hoursAgo": "vor {{count}} Stunden",
+          "minutesAgo": "vor {{count}} m"
+        },
+        "timeout": {
+          "label": "Zeitlimit überschritten",
+          "placeholder": "Kein Limit"
+        },
+        "title": "Geplante Aufgaben"
+      },
+      "warning": {
+        "bypassPermissions": "CherryClaw-Agenten laufen standardmäßig im Vollautomatikmodus. Alle Tools werden ohne Genehmigungsanfrage ausgeführt."
+      }
+    },
     "delete": {
       "content": "Das Löschen dieses Agents wird alle Sitzungen unter diesem Agent zwangsweise beenden und löschen. Sind Sie sicher?",
       "error": {
@@ -76,7 +326,8 @@
       "tooltip": "Git Bash ist erforderlich, um Agenten unter Windows auszuführen. Installiere es von git-scm.com, falls es nicht verfügbar ist."
     },
     "input": {
-      "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen"
+      "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen",
+      "soul_placeholder": "Hilf mir, mich mit Telegram zu verbinden"
     },
     "list": {
       "error": {
@@ -245,6 +496,21 @@
         "uninstalling": "Deinstallation läuft..."
       },
       "prompt": "Prompt-Einstellungen",
+      "skills": {
+        "addMore": "Weitere Skills hinzufügen",
+        "builtin": "Integriert",
+        "noFilterResults": "Keine übereinstimmenden Fähigkeiten",
+        "noSkills": "Keine Skills installiert. Installiere Skills über Einstellungen > Skills.",
+        "searchPlaceholder": "Suchfähigkeiten...",
+        "tab": "Fähigkeiten",
+        "title": "Installierte Fertigkeiten"
+      },
+      "soulMode": {
+        "description": "Wenn aktiviert, verwendet der Agent eine benutzerdefinierte Systemaufforderung aus Workspace-Soul-Dateien, fügt autonome Aufgabenverwaltungstools ein und deaktiviert interaktive Tools, die sich nicht für den autonomen Betrieb eignen.",
+        "disabledBadge": "Deaktiviert durch den autonomen Modus",
+        "disabledTooltip": "Dieses Tool wird automatisch deaktiviert, wenn der Autonome Modus aktiv ist.",
+        "title": "Autonomer Modus"
+      },
       "tooling": {
         "mcp": {
           "description": "Verbinden Sie MCP-Server, um weitere Tools freizuschalten, die oben vorab autorisiert werden können.",
@@ -301,6 +567,7 @@
       },
       "toolsMcp": {
         "mcp": {
+          "tab": "MCP",
           "title": "MCP-Server"
         },
         "tab": "Tools",
@@ -579,6 +846,7 @@
         "agent": "Assistent exportieren"
       },
       "import": {
+        "action": "[to be translated]:Import Assistant",
         "button": "Importieren",
         "error": {
           "fetch_failed": "Daten von URL abrufen fehlgeschlagen",
@@ -689,17 +957,6 @@
         "off_description": "Denken deaktivieren",
         "xhigh": "Extra hoch",
         "xhigh_description": "Extra hohes Denkvermögen"
-      },
-      "regular_phrases": {
-        "add": "Phrase hinzufügen",
-        "contentLabel": "Inhalt",
-        "contentPlaceholder": "Bitte geben Sie den Phraseninhalt ein. Sie können Variablen verwenden und dann die Tab-Taste drücken, um schnell zu Variablen zu navigieren und sie zu ändern. Zum Beispiel:\nPlanen Sie mir eine Route von ${from} nach ${to} und senden Sie sie an ${email}",
-        "delete": "Phrase löschen",
-        "deleteConfirm": "Möchten Sie diese Phrase wirklich löschen?",
-        "edit": "Phrase bearbeiten",
-        "title": "Häufig verwendete Phrasen",
-        "titleLabel": "Titel",
-        "titlePlaceholder": "Titel eingeben"
       },
       "title": "Assistenteneinstellungen",
       "tool_use_mode": {
@@ -1231,6 +1488,7 @@
       "unpin": "Anheften aufheben"
     },
     "translate": "Übersetzen",
+    "user": "Benutzer",
     "web_search": {
       "warning": {
         "openai": "GPT5-Modell mit minimaler Denkstärke unterstützt keine Websuche"
@@ -1242,11 +1500,23 @@
     "bun_required_message": "Bun-Umgebung erforderlich zum Ausführen von CLI-Tools",
     "cli_tool": "CLI-Tool",
     "cli_tool_placeholder": "CLI-Tool auswählen",
+    "count_one": "{{count}} Artikel",
+    "count_other": "{{count}} Artikel",
     "custom_path": "Benutzerdefinierter Pfad",
     "custom_path_error": "Benutzerdefinierten Terminalpfad festlegen fehlgeschlagen",
     "custom_path_required": "Dieses Terminal erfordert einen benutzerdefinierten Pfad",
     "custom_path_set": "Benutzerdefinierter Terminalpfad erfolgreich festgelegt",
     "description": "Starten Sie schnell mehrere Code-CLI-Tools, um die Entwicklungseffizienz zu steigern",
+    "empty": {
+      "no_match": {
+        "description": "Versuchen Sie, Ihre Suchbegriffe anzupassen",
+        "title": "Keine passenden Werkzeuge gefunden"
+      },
+      "no_tool": {
+        "description": "Fügen Sie ein CLI-Tool oder einen Code-Assistenten hinzu, um loszulegen",
+        "title": "Noch keine Code-Tools"
+      }
+    },
     "env_vars_help": "Benutzerdefinierte Umgebungsvariablen eingeben (eine pro Zeile, Format: KEY=value)",
     "environment_variables": "Umgebungsvariablen",
     "folder_placeholder": "Arbeitsverzeichnis auswählen",
@@ -1256,21 +1526,28 @@
       "bun_required": "Bitte installieren Sie zuerst die Bun-Umgebung, bevor Sie CLI-Tools starten",
       "error": "Start fehlgeschlagen, bitte versuchen Sie es erneut",
       "label": "Starten",
+      "launched": "Gestartet",
       "success": "Erfolgreich gestartet",
       "validation_error": "Bitte füllen Sie alle Pflichtfelder aus: CLI-Tool, Modell und Arbeitsverzeichnis"
     },
     "launching": "Wird gestartet...",
     "model": "Modell",
+    "model_hint": "Wählen Sie, welches KI-Modell das CLI-Tool verwenden soll",
     "model_placeholder": "Zu verwendendes Modell auswählen",
     "model_required": "Bitte Modell auswählen",
+    "official_tag": "Offiziell",
+    "official_tools": "Offiziell",
+    "search_placeholder": "CLI-Tools suchen…",
     "select_folder": "Ordner auswählen",
     "set_custom_path": "Benutzerdefinierten Terminalpfad festlegen",
     "supported_providers": "Unterstützte Anbieter",
     "terminal": "Terminal",
+    "terminal_hint": "Wählen Sie, in welchem Terminal die CLI ausgeführt werden soll",
     "terminal_placeholder": "Terminal-Anwendung auswählen",
     "title": "Code-Tools",
     "update_options": "Update-Optionen",
-    "working_directory": "Arbeitsverzeichnis"
+    "working_directory": "Arbeitsverzeichnis",
+    "working_directory_hint": "Das Arbeitsverzeichnis, in dem das CLI-Tool gestartet wird"
   },
   "code_block": {
     "collapse": "Einklappen",
@@ -1500,6 +1777,31 @@
     "data": "Daten",
     "detail": "Fehlerdetails",
     "details": "Details",
+    "diagnosis": {
+      "ai_button": "KI-Diagnose",
+      "ai_done": "Diagnostiziert",
+      "ai_loading": "Wird diagnostiziert",
+      "ai_result": "KI-Diagnoseergebnis",
+      "auth": "API-Schlüssel ungültig, bitte überprüfen und neu konfigurieren",
+      "content": "Inhalt wurde vom Sicherheitssystem blockiert, bitte ändern und erneut versuchen",
+      "context_length": "Unterhaltung zu lang, bitte Verlauf löschen oder einen neuen Chat beginnen",
+      "deprecated": "Dieses Modell wurde außer Betrieb genommen, bitte wechseln Sie zu einem anderen Modell",
+      "go_to_settings": "Zu Einstellungen",
+      "knowledge": "Vektorisierung der Wissensdatenbank fehlgeschlagen",
+      "mcp": "Verbindung zum MCP-Server fehlgeschlagen, prüfen Sie ob der Dienst läuft",
+      "model": "Modell nicht gefunden oder kein Zugriff",
+      "model_conflict": "Diagnosemodell ist identisch mit dem fehlerhaften Modell",
+      "network": "Verbindung zum Server nicht möglich, Netzwerk- oder Proxy-Einstellungen prüfen",
+      "ocr": "OCR-Engine nicht initialisiert, OCR-Einstellungen prüfen",
+      "parse": "Die KI hat eine ungültige Antwort zurückgegeben, bitte versuchen Sie es erneut oder wechseln Sie das Modell.",
+      "payload": "Anfrageinhalt zu groß, bitte verringern Sie die Datei- oder Textgröße",
+      "proxy": "Proxy- oder SSL-Zertifikatsfehler, überprüfen Sie die Proxy- und Netzwerkeinstellungen",
+      "quota": "Kontoguthaben aufgebraucht, bitte aufladen oder Anbieter wechseln",
+      "server": "Serverfehler, bitte später erneut versuchen",
+      "stream": "Antwort unterbrochen, überprüfen Sie die Netzwerkstabilität oder versuchen Sie es erneut",
+      "unknown": "Ein Fehler ist aufgetreten",
+      "view_details": "Details anzeigen"
+    },
     "errors": "Fehler",
     "finishReason": "Beendigungsgrund",
     "functionality": "Funktion",
@@ -1654,7 +1956,8 @@
     "empty_preview": "Kein Inhalt zum Anzeigen",
     "generating": "Wird generiert",
     "preview": "Vorschau",
-    "split": "Geteilte Ansicht"
+    "split": "Geteilte Ansicht",
+    "view_mode": "Ansichtsmodus"
   },
   "import": {
     "chatgpt": {
@@ -1835,7 +2138,358 @@
   },
   "launchpad": {
     "apps": "Apps",
-    "minapps": "Mini-Apps"
+    "miniApps": "Mini-Apps"
+  },
+  "library": {
+    "action": {
+      "create": "[to be translated]:New",
+      "delete": "[to be translated]:Delete",
+      "disable": "[to be translated]:Disable",
+      "duplicate": "[to be translated]:Duplicate",
+      "edit": "[to be translated]:Edit",
+      "enable": "[to be translated]:Enable",
+      "manage_tags": "[to be translated]:Manage tags",
+      "uninstall": "[to be translated]:Uninstall"
+    },
+    "badge": {
+      "update": "[to be translated]:Update"
+    },
+    "config": {
+      "agent": {
+        "create_banner": "[to be translated]:Save before binding tools and MCP servers",
+        "create_title": "[to be translated]:New agent",
+        "field": {
+          "accessible_paths": {
+            "add": "[to be translated]:Add directory",
+            "empty": "[to be translated]:Not set (defaults to the workspace root)",
+            "label": "[to be translated]:Accessible directories"
+          },
+          "allowed_tools": {
+            "add": "[to be translated]:Add tool",
+            "empty": "[to be translated]:Leave empty to use the permission mode default",
+            "label": "[to be translated]:Allowed tools"
+          },
+          "description": {
+            "label": "[to be translated]:Description",
+            "placeholder": "[to be translated]:What this agent is for…"
+          },
+          "env_vars": {
+            "help": "[to be translated]:One KEY=VALUE per line",
+            "label": "[to be translated]:Environment variables"
+          },
+          "heartbeat_enabled": {
+            "label": "[to be translated]:Heartbeat check"
+          },
+          "heartbeat_interval": {
+            "label": "[to be translated]:Heartbeat interval (minutes)"
+          },
+          "instructions": {
+            "label": "[to be translated]:System prompt",
+            "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
+          },
+          "max_turns": {
+            "help": "[to be translated]:0 means use the default",
+            "label": "[to be translated]:Max conversation turns"
+          },
+          "mcps": {
+            "add": "[to be translated]:Add MCP server",
+            "empty": "[to be translated]:None bound",
+            "label": "[to be translated]:MCP servers (id)"
+          },
+          "model": {
+            "help": "[to be translated]:UniqueModelId; will switch to a picker backed by /models later",
+            "hint": "[to be translated]:Main reasoning and execution",
+            "label": "[to be translated]:Primary model (required)"
+          },
+          "name": {
+            "label": "[to be translated]:Agent name",
+            "placeholder": "[to be translated]:Give the agent a name"
+          },
+          "permission_mode": {
+            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
+            "label": "[to be translated]:Permission mode",
+            "option": {
+              "acceptEdits": "[to be translated]:Accept edits",
+              "bypassPermissions": "[to be translated]:Bypass permissions (Soul)",
+              "default": "[to be translated]:Default",
+              "plan": "[to be translated]:Plan mode"
+            }
+          },
+          "plan_model": {
+            "hint": "[to be translated]:Task decomposition and planning",
+            "label": "[to be translated]:Plan model (optional)"
+          },
+          "small_model": {
+            "hint": "[to be translated]:Lightweight checks and formatting",
+            "label": "[to be translated]:Small model (optional)"
+          },
+          "soul_enabled": {
+            "help": "[to be translated]:When enabled, automatically grants bypassPermissions",
+            "label": "[to be translated]:Soul mode"
+          }
+        },
+        "model_config": "[to be translated]:Model configuration",
+        "section": {
+          "advanced": {
+            "desc": "[to be translated]:Execution limits and runtime parameters",
+            "label": "[to be translated]:Advanced",
+            "title": "[to be translated]:Advanced"
+          },
+          "basic": {
+            "desc": "[to be translated]:Agent name, description, and primary model",
+            "label": "[to be translated]:Basic",
+            "title": "[to be translated]:Basic"
+          },
+          "permission": {
+            "desc": "[to be translated]:Authorization scope for agent actions",
+            "label": "[to be translated]:Permission mode",
+            "title": "[to be translated]:Permission mode"
+          },
+          "prompt": {
+            "desc": "[to be translated]:System prompt and behavioral constraints",
+            "label": "[to be translated]:Prompt",
+            "title": "[to be translated]:Prompt"
+          },
+          "tools": {
+            "add": "[to be translated]:Add",
+            "desc": "[to be translated]:MCP servers, allowed tools, and runtime settings",
+            "label": "[to be translated]:Tools & runtime",
+            "no_builtin_enabled": "[to be translated]:No built-in tools enabled",
+            "no_mcp_bound": "[to be translated]:No MCP servers bound",
+            "no_skills_enabled": "[to be translated]:No skills enabled",
+            "search_placeholder": "[to be translated]:Search tools or servers...",
+            "skills_coming_soon": "[to be translated]:Skill bindings coming soon",
+            "skills_require_save": "[to be translated]:Save before enabling skills",
+            "tab": {
+              "mcp": "[to be translated]:MCP Server",
+              "skills": "[to be translated]:Skills",
+              "tools": "[to be translated]:Built-in tools"
+            },
+            "title": "[to be translated]:Tools & runtime"
+          }
+        }
+      },
+      "basic": {
+        "context_count": "[to be translated]:Context count",
+        "creative": "[to be translated]:Creative",
+        "custom_params": "[to be translated]:Custom parameters",
+        "custom_params_add": "[to be translated]:Add parameter",
+        "custom_params_name": "[to be translated]:Parameter name",
+        "default_value": "[to be translated]:Model default",
+        "desc": "[to be translated]:Configure the assistant's identity and model parameters",
+        "description_label": "[to be translated]:Description",
+        "json_invalid": "[to be translated]:Invalid JSON format",
+        "max_tokens": "[to be translated]:Max tokens",
+        "max_tool_calls": "[to be translated]:Max tool calls",
+        "model": "[to be translated]:Default model",
+        "model_clear": "[to be translated]:Clear",
+        "model_not_found": "[to be translated]:Model not found (may have been removed): {{id}}",
+        "model_pick": "[to be translated]:+ Pick model",
+        "pick_avatar": "[to be translated]:Pick avatar",
+        "precise": "[to be translated]:Precise",
+        "stream_output": "[to be translated]:Stream output",
+        "tag_empty": "[to be translated]:No tags available",
+        "tag_hint": "[to be translated]:To add a new tag, use the \"+ Tag\" entry in the library top bar",
+        "tag_placeholder": "[to be translated]:Select tags",
+        "tag_search": "[to be translated]:Search tags",
+        "tags": "[to be translated]:Tags",
+        "temperature": "[to be translated]:Temperature",
+        "title": "[to be translated]:Basic settings",
+        "tool_use_function": "[to be translated]:Function",
+        "tool_use_mode": "[to be translated]:Tool call mode",
+        "tool_use_prompt": "[to be translated]:Prompt",
+        "top_p": "[to be translated]:Top-P",
+        "unlimited": "[to be translated]:Unlimited"
+      },
+      "breadcrumb": "[to be translated]:Library",
+      "knowledge": {
+        "add": "[to be translated]:Add knowledge base",
+        "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
+        "doc_count": "[to be translated]:{{count}} docs",
+        "empty_desc": "[to be translated]:Once linked, the assistant can answer based on document content",
+        "empty_title": "[to be translated]:No knowledge bases linked",
+        "invalid_suffix": "[to be translated]:... (unavailable)",
+        "linked": "[to be translated]:Linked knowledge bases",
+        "no_more": "[to be translated]:No more knowledge bases available",
+        "remove_aria": "[to be translated]:Remove",
+        "search": "[to be translated]:Search knowledge bases...",
+        "title": "[to be translated]:Knowledge bases"
+      },
+      "prompt": {
+        "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
+        "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
+        "label": "[to be translated]:System prompt",
+        "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
+        "title": "[to be translated]:Prompt",
+        "tokens_label": "[to be translated]:Tokens: ",
+        "variables_title": "[to be translated]:Available variables",
+        "vars": {
+          "arch": "[to be translated]:CPU architecture",
+          "date": "[to be translated]:Date",
+          "datetime": "[to be translated]:Date and time",
+          "language": "[to be translated]:Language",
+          "model_name": "[to be translated]:Model name",
+          "os": "[to be translated]:Operating system",
+          "time": "[to be translated]:Time",
+          "username": "[to be translated]:Username"
+        }
+      },
+      "save_failed": "[to be translated]:Save failed",
+      "saving": "[to be translated]:Saving...",
+      "section": {
+        "basic": {
+          "desc": "[to be translated]:Name, avatar, model parameters",
+          "label": "[to be translated]:Basic"
+        },
+        "knowledge": {
+          "desc": "[to be translated]:Linked knowledge bases and retrieval",
+          "label": "[to be translated]:Knowledge"
+        },
+        "prompt": {
+          "desc": "[to be translated]:System prompt and variables",
+          "label": "[to be translated]:Prompt"
+        },
+        "tools": {
+          "desc": "[to be translated]:MCP servers and tool configuration",
+          "label": "[to be translated]:Tools"
+        }
+      },
+      "tools": {
+        "add_mcp": "[to be translated]:Add MCP server",
+        "added": "[to be translated]:Added MCP servers",
+        "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
+        "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
+        "empty_title": "[to be translated]:No MCP servers added",
+        "inactive_badge": "[to be translated]:Inactive",
+        "info_main": "[to be translated]:MCP (Model Context Protocol) lets the model safely invoke external tools.",
+        "info_sub": "[to be translated]:Enabling only necessary servers improves safety and response speed.",
+        "mode": {
+          "auto": {
+            "desc": "[to be translated]:The model decides which enabled MCP tools to call",
+            "label": "[to be translated]:Auto"
+          },
+          "disabled": {
+            "desc": "[to be translated]:No MCP tools are available during chat",
+            "label": "[to be translated]:Disabled"
+          },
+          "manual": {
+            "desc": "[to be translated]:Expose only the MCP servers selected below",
+            "label": "[to be translated]:Manual"
+          }
+        },
+        "no_more": "[to be translated]:No more servers available",
+        "search": "[to be translated]:Search available servers...",
+        "switch_title_active": "[to be translated]:Toggle off to remove",
+        "switch_title_inactive": "[to be translated]:This server is disabled in MCP settings; remove it to re-add later",
+        "title": "[to be translated]:Tools"
+      }
+    },
+    "create_menu": {
+      "create": "[to be translated]:New {{type}}",
+      "import": "[to be translated]:Import {{type}}"
+    },
+    "delete": {
+      "agent": {
+        "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
+        "title": "[to be translated]:Delete agent"
+      }
+    },
+    "delete_confirm": {
+      "cancel": "[to be translated]:Cancel",
+      "confirm": "[to be translated]:Delete",
+      "description": "[to be translated]:Delete \"{{name}}\"? This action cannot be undone.",
+      "title": "[to be translated]:Delete"
+    },
+    "duplicate_name": "[to be translated]:{{name}} (copy)",
+    "empty_state": {
+      "description": "[to be translated]:Click \"New\" to create your first resource.",
+      "empty_description": "[to be translated]:Create your first agent or assistant",
+      "empty_title": "[to be translated]:No resources yet",
+      "no_match_description": "[to be translated]:Try a different search keyword",
+      "no_match_title": "[to be translated]:No matching resources",
+      "title": "[to be translated]:No resources"
+    },
+    "import_dialog": {
+      "clipboard": {
+        "button": "[to be translated]:Parse and import",
+        "placeholder": "[to be translated]:Paste JSON configuration here..."
+      },
+      "error": {
+        "content_too_large": "[to be translated]:Content too large (>5 MB)",
+        "file_too_large": "[to be translated]:File too large (>5 MB)",
+        "invalid_url": "[to be translated]:Invalid URL",
+        "response_too_large": "[to be translated]:Response too large (>5 MB)",
+        "timeout": "[to be translated]:Request timed out. Check that the URL is reachable.",
+        "unsupported_protocol": "[to be translated]:Only http or https URLs are supported"
+      },
+      "failure": "[to be translated]:Import failed: {{error}}",
+      "file": {
+        "drop_hint": "[to be translated]:Drag and drop a file here, or click to pick one",
+        "formats": "[to be translated]:Supports .json"
+      },
+      "partial_success": "[to be translated]:Partial success: {{success}} imported, {{failed}} failed ({{first_name}}: {{first_error}})",
+      "subtitle": "[to be translated]:JSON configuration files are supported",
+      "success": "[to be translated]:Imported successfully: {{name}}",
+      "tab": {
+        "clipboard": "[to be translated]:Clipboard",
+        "file": "[to be translated]:File upload",
+        "url": "[to be translated]:Import from URL"
+      },
+      "url": {
+        "button": "[to be translated]:Fetch and import",
+        "hint": "[to be translated]:Import from a GitHub Gist, GitHub repo, or any public URL",
+        "supports": "[to be translated]:Raw file URLs are supported"
+      }
+    },
+    "no_match": "[to be translated]:No matching results",
+    "pending_backend": {
+      "description": "[to be translated]:Write operations for this resource are coming soon. This view is a placeholder.",
+      "title": "[to be translated]:Backend setup in progress"
+    },
+    "sidebar": {
+      "all_resources": "[to be translated]:All resources",
+      "all_tags": "[to be translated]:All tags",
+      "no_tags": "[to be translated]:No tags yet",
+      "subtitle": "[to be translated]:Manage your AI resources",
+      "tags": "[to be translated]:Tags",
+      "title": "[to be translated]:Library"
+    },
+    "sort": {
+      "created": "[to be translated]:Sort by created",
+      "name": "[to be translated]:Sort by name",
+      "updated": "[to be translated]:Sort by updated"
+    },
+    "subtitle": "[to be translated]:Manage your assistants, agents and skills",
+    "tag_picker": {
+      "no_tags": "[to be translated]:No tags yet",
+      "placeholder": "[to be translated]:New tag name..."
+    },
+    "tag_sync_failed": "[to be translated]:Failed to sync tags",
+    "time_ago": {
+      "days": "[to be translated]:{{count}} day(s) ago",
+      "hours": "[to be translated]:{{count}} hour(s) ago",
+      "just_now": "[to be translated]:Just now",
+      "minutes": "[to be translated]:{{count}} minute(s) ago",
+      "months": "[to be translated]:{{count}} month(s) ago"
+    },
+    "title": "[to be translated]:Library",
+    "toolbar": {
+      "add_tag_placeholder": "[to be translated]:Tag name...",
+      "new_resource": "[to be translated]:New resource",
+      "search_placeholder": "[to be translated]:Search resources...",
+      "tag_button": "[to be translated]:Tag"
+    },
+    "type": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "new_agent": "[to be translated]:New agent",
+      "new_assistant": "[to be translated]:New assistant",
+      "skill": "[to be translated]:Skill"
+    },
+    "view": {
+      "grid": "[to be translated]:Grid view",
+      "list": "[to be translated]:List view"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -1844,112 +2498,6 @@
       "title": "Aktiv-Haltezeit"
     },
     "title": "LM Studio"
-  },
-  "memory": {
-    "actions": "Aktionen",
-    "add_failed": "Erinnerung hinzufügen fehlgeschlagen",
-    "add_first_memory": "Erste Erinnerung hinzufügen",
-    "add_memory": "Erinnerung hinzufügen",
-    "add_new_user": "Neuen Benutzer hinzufügen",
-    "add_success": "Erinnerung erfolgreich hinzugefügt",
-    "add_user": "Benutzer hinzufügen",
-    "add_user_failed": "Benutzer hinzufügen fehlgeschlagen",
-    "all_users": "Alle Benutzer",
-    "cannot_delete_default_user": "Standardbenutzer kann nicht gelöscht werden",
-    "configure_memory_first": "Bitte konfigurieren Sie zuerst die Erinnerungseinstellungen",
-    "content": "Inhalt",
-    "current_user": "Aktueller Benutzer",
-    "custom": "Benutzerdefiniert",
-    "default": "Standard",
-    "default_user": "Standardbenutzer",
-    "delete_confirm": "Möchten Sie diese Erinnerung wirklich löschen?",
-    "delete_confirm_content": "Möchten Sie {{count}} Erinnerungen wirklich löschen?",
-    "delete_confirm_single": "Möchten Sie diese Erinnerung wirklich löschen?",
-    "delete_confirm_title": "Erinnerung löschen",
-    "delete_failed": "Erinnerung löschen fehlgeschlagen",
-    "delete_selected": "Ausgewählte löschen",
-    "delete_success": "Erinnerung erfolgreich gelöscht",
-    "delete_user": "Benutzer löschen",
-    "delete_user_confirm_content": "Möchten Sie Benutzer {{user}} und alle zugehörigen Erinnerungen wirklich löschen?",
-    "delete_user_confirm_title": "Benutzer löschen",
-    "delete_user_failed": "Benutzer löschen fehlgeschlagen",
-    "description": "Die Erinnerungsfunktion ermöglicht es Ihnen, Informationen aus Ihren Interaktionen mit dem Assistenten zu speichern und zu verwalten. Sie können Erinnerungen hinzufügen, bearbeiten und löschen sowie filtern und durchsuchen.",
-    "edit_memory": "Erinnerung bearbeiten",
-    "embedding_dimensions": "Embedding-Dimensionen",
-    "embedding_model": "Embedding-Modell",
-    "enable_global_memory_first": "Bitte aktivieren Sie zuerst die globale Erinnerung",
-    "end_date": "Enddatum",
-    "global_memory": "Globale Erinnerung",
-    "global_memory_description": "Globale Erinnerung muss in den Assistenteneinstellungen aktiviert werden, um sie zu verwenden",
-    "global_memory_disabled_desc": "Um die Erinnerungsfunktion zu nutzen, aktivieren Sie bitte zuerst die globale Erinnerung in den Assistenteneinstellungen.",
-    "global_memory_disabled_title": "Globale Erinnerung ist deaktiviert",
-    "global_memory_enabled": "Globale Erinnerung ist aktiviert",
-    "go_to_memory_page": "Zur Erinnerungsseite",
-    "initial_memory_content": "Willkommen! Dies ist Ihre erste Erinnerung.",
-    "llm_model": "LLM-Modell",
-    "load_failed": "Erinnerungen laden fehlgeschlagen",
-    "loading": "Erinnerungen werden geladen...",
-    "loading_memories": "Erinnerungen werden geladen...",
-    "memories_description": "{{count}} / {{total}} Erinnerungen angezeigt",
-    "memories_reset_success": "Alle Erinnerungen von {{user}} wurden erfolgreich zurückgesetzt",
-    "memory": "Erinnerungen",
-    "memory_content": "Erinnerungsinhalt",
-    "memory_placeholder": "Erinnerungsinhalt eingeben...",
-    "new_user_id": "Neue Benutzer-ID",
-    "new_user_id_placeholder": "Eindeutige Benutzer-ID eingeben",
-    "no_matching_memories": "Keine passenden Erinnerungen gefunden",
-    "no_memories": "Keine Erinnerungen vorhanden",
-    "no_memories_description": "Beginnen Sie damit, Ihre erste Erinnerung hinzuzufügen",
-    "not_configured_desc": "Bitte konfigurieren Sie Embedding- und LLM-Modelle in den Erinnerungseinstellungen, um die Erinnerungsfunktion zu aktivieren.",
-    "not_configured_title": "Erinnerung nicht konfiguriert",
-    "pagination_total": "Eintrag {{start}}-{{end}} von {{total}}",
-    "please_enter_memory": "Bitte Erinnerungsinhalt eingeben",
-    "please_select_embedding_model": "Bitte Embedding-Modell auswählen",
-    "please_select_llm_model": "Bitte LLM-Modell auswählen",
-    "reset_filters": "Filter zurücksetzen",
-    "reset_memories": "Erinnerungen zurücksetzen",
-    "reset_memories_confirm_content": "Möchten Sie alle Erinnerungen von {{user}} dauerhaft löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.",
-    "reset_memories_confirm_title": "Alle Erinnerungen zurücksetzen",
-    "reset_memories_failed": "Erinnerungen zurücksetzen fehlgeschlagen",
-    "reset_user_memories": "Benutzererinnerungen zurücksetzen",
-    "reset_user_memories_confirm_content": "Möchten Sie alle Erinnerungen von {{user}} wirklich zurücksetzen?",
-    "reset_user_memories_confirm_title": "Benutzererinnerungen zurücksetzen",
-    "reset_user_memories_failed": "Benutzererinnerungen zurücksetzen fehlgeschlagen",
-    "score": "Bewertung",
-    "search": "Suchen",
-    "search_placeholder": "Erinnerungen durchsuchen...",
-    "select_embedding_model_placeholder": "Embedding-Modell auswählen",
-    "select_llm_model_placeholder": "LLM-Modell auswählen",
-    "select_user": "Benutzer auswählen",
-    "settings": "Einstellungen",
-    "settings_title": "Erinnerungseinstellungen",
-    "start_date": "Startdatum",
-    "statistics": "Statistiken",
-    "stored_memories": "Gespeicherte Erinnerungen",
-    "switch_user": "Benutzer wechseln",
-    "switch_user_confirm": "Benutzerkontext zu {{user}} wechseln?",
-    "time": "Zeit",
-    "title": "Globale Erinnerung",
-    "total_memories": "Erinnerungen",
-    "try_different_filters": "Versuchen Sie, die Suchkriterien anzupassen",
-    "update_failed": "Erinnerung aktualisieren fehlgeschlagen",
-    "update_success": "Erinnerung erfolgreich aktualisiert",
-    "user": "Benutzer",
-    "user_created": "Benutzer {{user}} erfolgreich erstellt und gewechselt",
-    "user_deleted": "Benutzer {{user}} erfolgreich gelöscht",
-    "user_id": "Benutzer-ID",
-    "user_id_exists": "Diese Benutzer-ID existiert bereits",
-    "user_id_invalid_chars": "Benutzer-ID darf nur Buchstaben, Zahlen, Bindestriche und Unterstriche enthalten",
-    "user_id_placeholder": "Benutzer-ID eingeben (optional)",
-    "user_id_required": "Benutzer-ID ist erforderlich",
-    "user_id_reserved": "'default-user' ist reserviert. Bitte verwenden Sie eine andere ID",
-    "user_id_rules": "Benutzer-ID muss eindeutig sein und darf nur Buchstaben, Zahlen, Bindestriche (-) und Unterstriche (_) enthalten",
-    "user_id_too_long": "Benutzer-ID darf 50 Zeichen nicht überschreiten",
-    "user_management": "Benutzerverwaltung",
-    "user_memories_reset": "Alle Erinnerungen von {{user}} wurden zurückgesetzt",
-    "user_switch_failed": "Benutzer wechseln fehlgeschlagen",
-    "user_switched": "Benutzerkontext zu {{user}} gewechselt",
-    "users": "Benutzer"
   },
   "message": {
     "agents": {
@@ -2291,20 +2839,23 @@
     "websearch": {
       "cutoff": "Suchergebnisse werden gekürzt...",
       "fetch_complete": "{{count}} Suchergebnisse",
-      "rag": "RAG wird ausgeführt...",
-      "rag_complete": "{{countAfter}} von {{countBefore}} Ergebnissen behalten...",
-      "rag_failed": "RAG fehlgeschlagen, leere Ergebnisse zurückgegeben..."
+      "partial_failure": "{{count}} Suchergebnisse, einige Suchvorgänge sind fehlgeschlagen"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Zu Launchpad hinzufügen",
     "add_to_sidebar": "Zur Seitenleiste hinzufügen",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Mini-App schließen",
       "devtools": "Entwicklertools",
       "goBack": "Zurück",
       "goForward": "Vorwärts",
-      "minimize": "Mini-App minimieren",
       "openExternal": "In Browser öffnen",
       "open_link_external_off": "Aktuell: Links im Standardfenster öffnen",
       "open_link_external_on": "Aktuell: Links im Browser öffnen",
@@ -2313,6 +2864,13 @@
     },
     "remove_from_launchpad": "Aus Launchpad entfernen",
     "remove_from_sidebar": "Aus Seitenleiste entfernen",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Schließen"
@@ -2327,9 +2885,11 @@
         "title": "Benutzerdefinierte App entfernen"
       }
     },
-    "title": "Mini-Apps"
+    "title": "Mini-Apps",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baixiaoying",
     "baidu-ai-search": "Baidu AI Suche",
@@ -2348,44 +2908,18 @@
     "stepfun": "StepFun AI",
     "tencent-yuanbao": "Tencent Yuanbao",
     "tiangong-ai": "Tiangong AI",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "Wenxin Yiyan",
     "wps-copilot": "WPS Lingxi",
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu Zhida"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Hinweis: Falls Sie beim Google-Login die Meldung \"Nicht vertrauenswürdiger Browser\" erhalten, melden Sie sich bitte zuerst in der Google Mini-App in der Mini-App-Liste an, bevor Sie Google-Login in anderen Mini-Apps verwenden"
-    },
-    "clipboard": {
-      "empty": "Zwischenablage ist leer"
-    },
-    "feature": {
-      "chat": "Diese Frage beantworten",
-      "explanation": "Erklärung",
-      "summary": "Zusammenfassung",
-      "translate": "Textübersetzung"
-    },
-    "footer": {
-      "backspace_clear": "Backspace zum Löschen",
-      "copy_last_message": "C zum Kopieren",
-      "esc": "ESC zum {{action}}",
-      "esc_back": "Zurück",
-      "esc_close": "Schließen",
-      "esc_pause": "Pausieren"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "{{model}} um Hilfe fragen...",
-        "title": "Was möchten Sie mit dem folgenden Text tun"
-      }
-    },
-    "tooltip": {
-      "pin": "Fenster immer im Vordergrund"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "Dieses Modell anheften",
+      "unpin": "Modell lösen"
+    },
     "add_parameter": "Parameter hinzufügen",
     "all": "Alle",
     "custom_parameters": "Benutzerdefinierte Parameter",
@@ -2403,6 +2937,9 @@
     "function_calling": "Funktionsaufruf",
     "invalid_model": "Ungültiges Modell",
     "json_parse_error": "Ungültiges JSON-Format",
+    "multi_select": {
+      "label": "Multi-Modell-Parallelität (schließt sich gegenseitig mit Multi-Assistent aus)"
+    },
     "no_matches": "Keine verfügbaren Modelle",
     "parameter_name": "Parametername",
     "parameter_type": {
@@ -3171,6 +3708,37 @@
     "zhinao": "360 Zhinao",
     "zhipu": "Zhipu AI"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Hinweis: Falls Sie beim Google-Login die Meldung \"Nicht vertrauenswürdiger Browser\" erhalten, melden Sie sich bitte zuerst in der Google Mini-App in der Mini-App-Liste an, bevor Sie Google-Login in anderen Mini-Apps verwenden"
+    },
+    "clipboard": {
+      "empty": "Zwischenablage ist leer"
+    },
+    "feature": {
+      "chat": "Diese Frage beantworten",
+      "explanation": "Erklärung",
+      "summary": "Zusammenfassung",
+      "translate": "Textübersetzung"
+    },
+    "footer": {
+      "backspace_clear": "Backspace zum Löschen",
+      "copy_last_message": "C zum Kopieren",
+      "esc": "ESC zum {{action}}",
+      "esc_back": "Zurück",
+      "esc_close": "Schließen",
+      "esc_pause": "Pausieren"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "{{model}} um Hilfe fragen...",
+        "title": "Was möchten Sie mit dem folgenden Text tun"
+      }
+    },
+    "tooltip": {
+      "pin": "Fenster immer im Vordergrund"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "Backup-Datei auswählen",
@@ -3490,7 +4058,7 @@
         "title": "App-Filterliste anwenden",
         "user_tips": {
           "mac": "Bitte geben Sie die Bundle-ID der App ein, eine pro Zeile, Groß-/Kleinschreibung egal, unscharfe Übereinstimmung möglich. Z. B.: com.google.Chrome, com.apple.mail",
-          "windows": "Bitte geben Sie den ausführbaren Dateinamen der App ein, eine pro Zeile, Groß-/Kleinschreibung egal, unscharfe Übereinstimmung möglich. Z. B.: chrome.exe, weixin.exe, Cherry Studio.exe"
+          "windows": "Bitte geben Sie den ausführbaren Dateinamen der App ein, eine pro Zeile, Groß-/Kleinschreibung egal, unscharfe Übereinstimmung möglich. Z. B.: chrome.exe, weixin.exe, CherryStudio.exe"
         }
       },
       "linux": {
@@ -3611,6 +4179,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "Neuer Agent",
+      "empty_text": "Noch keine Agenten",
+      "search_placeholder": "Suchagenten…"
+    },
+    "assistant": {
+      "create_new": "Neuer Assistent",
+      "empty_text": "Noch keine Assistenten",
+      "multi_hint": "(gegenseitig ausschließend mit Multi-Modell)",
+      "multi_label": "Multi-Assistent-Parallel",
+      "search_placeholder": "Suchassistenten…"
+    },
+    "common": {
+      "edit": "Bearbeiten",
+      "pin": "Stift",
+      "pinned_title": "Angepinnt",
+      "sort": {
+        "asc": "Ältester",
+        "desc": "Kürzlich"
+      },
+      "sort_label": "Sortieren",
+      "unpin": "Lösen"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3672,6 +4265,79 @@
       "label": "Standardassistent",
       "model_params": "Modellparameter",
       "title": "Standardassistent"
+    },
+    "channels": {
+      "description": "Verbinden Sie Agenten mit Messaging-Plattformen wie Telegram, Feishu, Discord und vielen mehr.",
+      "title": "Kanäle"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "Klar",
+        "configDescription": "Schalten Sie Props um, um das Verhalten der Komponente in der Vorschau anzuzeigen",
+        "configTitle": "Konfig",
+        "currentProps": "Aktuelle Requisiten",
+        "description": "AgentSelector liest jetzt echte /agents-Daten der DataApi, um die Auswahl der ID/des Elements, das Anheften, Sortieren und Suchverhalten zu überprüfen.",
+        "emptyShellNotice": "Diese Vorschau verwendet die echte Agentenliste, die von der /agents DataApi zurückgegeben wird.",
+        "lastOnChange": "Neuestes onChange",
+        "previewDescription": "Klicken Sie auf den Auslöser, um den Selektor zu öffnen",
+        "previewTitle": "Vorschau",
+        "title": "Agenten-Auswahl",
+        "triggerPlaceholder": "Wählen Sie einen Agenten",
+        "valueProp": "Aktueller Wert"
+      },
+      "assistantSelector": {
+        "clearSelection": "Klar",
+        "configDescription": "Schalten Sie Props um, um das Verhalten der Komponente in der Vorschau anzuzeigen",
+        "configTitle": "Konfig",
+        "currentProps": "Aktuelle Requisiten",
+        "description": "Bindet die AssistantSelector-Business-Komponente direkt ein, um das Verhalten bei Multi-/Single-Auswahl, ID/Element, Anheften, Sortierung und Suche zu überprüfen.",
+        "lastOnChange": "Neuestes onChange",
+        "previewDescription": "Klicken Sie auf den Auslöser, um den Selektor zu öffnen",
+        "previewTitle": "Vorschau",
+        "title": "Assistentenauswahl",
+        "triggerPlaceholder": "Wählen Sie einen Assistenten",
+        "triggerSelectedCount": "{{count}} Assistenten ausgewählt",
+        "valueProp": "Aktueller Wert"
+      },
+      "description": "Nur in der Entwicklung sichtbar, um die neue Modellauswahl direkt in der App zu testen.",
+      "label": "Komponentenlabor",
+      "modelSelector": {
+        "behaviorConfig": "Verhalten & Anzeige-Konfiguration",
+        "callbackEmpty": "Noch kein Komponenten-Callback erhalten",
+        "clearSelection": "Auswahl aufheben",
+        "configDescription": "Schalten Sie die oben genannten ModelSelector-Schlüsseleigenschaften um und untersuchen Sie den Eingabewert sowie die Callback-Nutzlasten unten.",
+        "configTitle": "Requisiten-Spielplatz",
+        "controlMultiSelectMode": "Gesteuerte Mehrfachauswahl-Modus",
+        "currentProps": "Aktuelle Props",
+        "defaultMultiSelectMode": "Standard-Mehrfachauswahlmodus",
+        "description": "Diese Seite bindet die aktuelle ModelSelector-Businesskomponente direkt ein, sodass wir Auswahl, Filterung, Suche und Anheftverhalten überprüfen können.",
+        "empty": "Derzeit sind keine Modelle verfügbar, daher kann die Auswahl noch nicht angezeigt werden.",
+        "lastModeChangeReturn": "Neuestes zu onMultiSelectModeChange Rückgabe",
+        "lastSelectReturn": "Neuestes onSelect Return",
+        "loading": "Modelle werden geladen...",
+        "modelId": "Modell-ID",
+        "multiSelectMode": "Mehrfachauswahlmodus",
+        "multiple": "mehrere",
+        "normalizedIds": "Normalisierte ausgewählte IDs",
+        "outputEmpty": "Noch keine Daten anzuzeigen",
+        "provider": "Anbieter",
+        "resetOutputs": "Ausgaben zurücksetzen",
+        "resultsDescription": "Dies zeigt die aktuelle Value-Prop, die normalisierten ausgewählten IDs und die neueste Callback-Ausgabe der Komponente.",
+        "resultsTitle": "Ausgaben & Zustand",
+        "selected": "Aktuelle Auswahl",
+        "selectedEmpty": "Noch kein Modell ausgewählt",
+        "selectionConfig": "Auswahlwert-Konfiguration",
+        "selectionType": "Auswahltyp",
+        "selectionTypeId": "Modell-IDs zurückgeben",
+        "selectionTypeModel": "Modellobjekte zurückgeben",
+        "showPinnedModels": "angeheftete Modelle anzeigen",
+        "showTagFilter": "showTagFilter",
+        "title": "Modell-Auswahl",
+        "triggerPlaceholder": "Wählen Sie ein Modell",
+        "triggerSelectedCount": "{{count}} Modelle ausgewählt",
+        "valueProp": "Aktueller Wertvorschlag"
+      },
+      "title": "Entwicklungskomponentenlabor"
     },
     "data": {
       "app_data": {
@@ -4337,7 +5003,7 @@
         "knowledge": {
           "icon": "Wissens-Symbol anzeigen"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "Mini-App-Symbol anzeigen"
         },
         "painting": {
@@ -4371,6 +5037,15 @@
       "backup": {
         "button": "Backup",
         "title": "Datensicherung und -wiederherstellung"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "Benutzerdefiniertes CSS",
+          "display_language": "Anzeige & Sprache",
+          "privacy_advanced": "Privatsphäre & Erweitert",
+          "system_startup": "System & Start"
+        },
+        "title": "Allgemeine Einstellungen"
       },
       "display": {
         "title": "Anzeigeeinstellungen"
@@ -4432,6 +5107,12 @@
         "label": "Zielsprache",
         "russian": "Russisch"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "Notizen"
+      },
+      "title": "Integrationen"
     },
     "launch": {
       "onboot": "Beim Systemstart automatisch starten",
@@ -4554,6 +5235,7 @@
         "glama": "Glama MCP-Server-Verzeichnis",
         "higress": "Higress MCP-Server",
         "mcpso": "MCP-Server-Discovery-Plattform",
+        "mcpworld": "Baidu MCP-Aggregationsplattform",
         "modelscope": "Modelscope MCP-Server",
         "official": "Offizielle MCP-Server-Sammlung",
         "pulsemcp": "Pulse MCP-Server",
@@ -4701,6 +5383,13 @@
       "url": "URL",
       "user": "Benutzer"
     },
+    "menuGroups": {
+      "appSettings": "App-Einstellungen",
+      "integrations": "Modelle",
+      "productivity": "Produktivität",
+      "services": "Plugins",
+      "system": "System"
+    },
     "messages": {
       "divider": {
         "label": "Nachrichtentrennlinie",
@@ -4738,7 +5427,7 @@
       "title": "Nachrichteneinstellungen",
       "use_serif_font": "Serifenschrift verwenden"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Änderung wird wirksam wenn Anzahl geöffneter Mini-Apps auf festgelegten Wert angepasst wird",
       "cache_description": "Maximale Anzahl gleichzeitig aktiver Mini-Apps festlegen",
       "cache_settings": "Cache-Einstellungen",
@@ -4788,8 +5477,6 @@
         "title": "Bereichsfilterung für Mini-Programme"
       },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
-      "sidebar_description": "Festlegen ob Seitenleiste aktive Mini-Apps anzeigt",
-      "sidebar_title": "Einstellungen für aktive Mini-Apps in Seitenleiste",
       "title": "Mini-App-Einstellungen",
       "visible": "Angezeigte Mini-Apps"
     },
@@ -4854,7 +5541,7 @@
         "use_all_keys": "Schlüssel verwenden"
       },
       "default_assistant_model": "Standard-Assistent-Modell",
-      "default_assistant_model_description": "Modell für neue Assistenten. Wird verwendet, wenn Assistent kein Modell hat.",
+      "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
       "empty": "Kein Modell",
       "manage": {
         "add_listed": {
@@ -4948,9 +5635,35 @@
         "title": "Detailgrad"
       }
     },
+    "plugins": {
+      "bunDescription": "JavaScript-Laufzeitumgebung, die von MCP-Diensten und zugehörigen Toolchains verwendet wird.",
+      "description": "Verwalten Sie binäre Tools und Laufzeitabhängigkeiten, die von der App benötigt werden.",
+      "installing": "Installiere...",
+      "notInstalled": "Nicht installiert",
+      "title": "Umgebungsabhängigkeiten",
+      "uvDescription": "Python-Paketmanager für MCP-Dienste und Abhängigkeitsinstallation."
+    },
     "privacy": {
       "enable_privacy_mode": "Fehlerberichte und Statistiken anonym senden",
       "title": "Datenschutzeinstellungen"
+    },
+    "prompts": {
+      "add": "Prompt hinzufügen",
+      "contentLabel": "Inhalt",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Prompt löschen",
+      "deleteConfirm": "Der Prompt wird dauerhaft gelöscht. Fortfahren?",
+      "edit": "Prompt bearbeiten",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Prompt-Verwaltung",
+      "titleLabel": "Titel",
+      "titlePlaceholder": "Geben Sie einen Titel für den Prompt ein"
     },
     "provider": {
       "add": {
@@ -5192,7 +5905,8 @@
         "documentation": "Offizielle Dokumentation für weitere Konfigurationsdetails ansehen:",
         "learn_more": "Mehr erfahren",
         "location": "Region",
-        "location_help": "Vertex AI-Serviceregion, z.B. us-central1",
+        "location_help": "Vertex AI-Serviceregion, z.B. us-central1. Dieses Feld wird nicht aus dem Service Account JSON gelesen und muss manuell eingegeben werden.",
+        "location_placeholder": "Vertex AI-Region auswählen",
         "project_id": "Projekt-ID",
         "project_id_help": "Ihre Google Cloud Projekt-ID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5203,6 +5917,11 @@
           "client_email_placeholder": "Service Account-Client-E-Mail eingeben",
           "description": "Authentifizierung mit Service Account, geeignet für Umgebungen, in denen ADC nicht verwendet werden kann",
           "incomplete_config": "Bitte zuerst vollständig Service Account-Informationen konfigurieren",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Fügen Sie den vollständigen JSON-Schlüsselinhalt ein. Nach dem Parsen werden nur project_id, client_email und private_key gespeichert, und das rohe JSON wird gelöscht.",
+          "json_input_placeholder": "Vollständigen Service Account JSON-Schlüsselinhalt einfügen",
+          "json_parse_error": "Service Account JSON konnte nicht geparst werden. Bitte prüfen Sie, ob das Format korrekt ist.",
+          "json_parse_success": "Service Account JSON geparst",
           "private_key": "Privater Schlüssel",
           "private_key_help": "private_key-Feld aus der JSON-Schlüsseldatei aus Google Cloud Console",
           "private_key_placeholder": "Service Account-Privat-Schlüssel eingeben",
@@ -5239,39 +5958,51 @@
       "select": "Auswählen",
       "title": "Schnellmenü"
     },
-    "quickPhrase": {
-      "add": "Phrase hinzufügen",
-      "assistant": "Assistenten-Phrasen",
-      "contentLabel": "Inhalt",
-      "contentPlaceholder": "Bitte Phrase-Inhalt eingeben, unterstützt Variablenverwendung, dann Tab-Taste zum schnellen Navigieren zu Variablen für Bearbeitung. Z.B.:\nPlanen Sie eine Route von ${from} nach ${to} und senden Sie sie an ${email}",
-      "delete": "Phrase löschen",
-      "deleteConfirm": "Gelöschte Phrase kann nicht wiederhergestellt werden. Fortfahren?",
-      "edit": "Phrase bearbeiten",
-      "global": "Globale Phrasen",
-      "locationLabel": "Position hinzufügen",
-      "title": "Schnellphrasen",
-      "titleLabel": "Titel",
-      "titlePlaceholder": "Bitte Phrasentitel eingeben"
+    "scheduledTasks": {
+      "description": "Verwalten Sie geplante Aufgaben über alle Agents hinweg. Aufgaben werden automatisch nach dem konfigurierten Zeitplan ausgeführt.",
+      "noAgents": "Keine Agenten gefunden. Erstellen Sie zuerst einen Agenten, um geplante Aufgaben hinzuzufügen.",
+      "noAgentsTip": "Tipp: Sie können Ihren Agenten auch bitten, per Chat geplante Aufgaben zu erstellen.",
+      "noTasks": "Keine geplanten Aufgaben. Klicken Sie auf „+ Hinzufügen“, um eine für einen Agenten zu erstellen.",
+      "selectTask": "Wählen Sie eine Aufgabe aus, um Details anzuzeigen",
+      "title": "Geplante Aufgaben"
     },
     "shortcuts": {
       "action": "Aktionen",
       "actions": "Aktionen",
+      "all_disable": "Alle deaktivieren",
+      "all_enable": "Alle aktivieren",
+      "bind_first_to_enable": "Weisen Sie zunächst eine Tastenkombination zu, um ihren aktivierten Zustand zu ändern.",
+      "categories": {
+        "assistant": "KI-Assistenten-Tools",
+        "chat": "Nachrichteninteraktion",
+        "general": "Global und Fenster",
+        "title": "Tastenkürzelgruppen",
+        "topic": "Gespräch und Themen"
+      },
       "clear_shortcut": "Shortcut löschen",
       "clear_topic": "Nachricht leeren",
+      "conflict_with": "Bereits von \"{{name}}\" verwendet",
       "copy_last_message": "Letzte Nachricht kopieren",
       "edit_last_user_message": "Letzte Benutzernachricht bearbeiten",
+      "empty": "In dieser Gruppe sind keine Verknüpfungen verfügbar.",
       "enabled": "Aktivieren",
       "exit_fullscreen": "Vollbildmodus beenden",
       "label": "Taste",
-      "mini_window": "Schnellassistent",
       "new_topic": "Neues Thema",
+      "occupied_by_other_application": "Dieses Kürzel wird bereits vom System oder einer anderen Anwendung verwendet",
       "press_shortcut": "Shortcut drücken",
+      "quick_assistant": "Schnellassistent",
       "rename_topic": "Thema umbenennen",
+      "reset": "Zurücksetzen",
       "reset_defaults": "Standard-Shortcuts zurücksetzen",
       "reset_defaults_confirm": "Alle Shortcuts wirklich zurücksetzen?",
+      "reset_defaults_failed": "Verknüpfungen konnten nicht auf Standard zurückgesetzt werden",
       "reset_to_default": "Auf Standard zurücksetzen",
+      "save_failed": "Verknüpfung konnte nicht gespeichert werden",
+      "save_failed_with_name": "Fehler beim Speichern der Verknüpfung: {{name}}",
       "search_message": "Nachricht suchen",
       "search_message_in_chat": "In aktuellem Chat suchen",
+      "search_placeholder": "Suchverknüpfungen...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Textauswahl-Assistent: Text erfassen",
       "selection_assistant_toggle": "Textauswahl-Assistent umschalten",
@@ -5279,11 +6010,46 @@
       "show_settings": "Einstellungen öffnen",
       "title": "Shortcut",
       "toggle_new_context": "Kontext löschen",
-      "toggle_show_assistants": "Assistentenanzeige umschalten",
       "toggle_show_topics": "Themenanzeige umschalten",
+      "toggle_sidebar": "Seitenleiste umschalten",
       "zoom_in": "Oberfläche vergrößern",
       "zoom_out": "Oberfläche verkleinern",
       "zoom_reset": "Zoom zurücksetzen"
+    },
+    "skills": {
+      "author": "Autor",
+      "batchUninstallSuccess": "{{count}} Fähigkeiten deinstalliert",
+      "builtin": "Integriert",
+      "confirmBatchUninstall": "Sind Sie sicher, dass Sie {{count}} ausgewählte Fähigkeiten deinstallieren möchten?",
+      "confirmUninstall": "Bist du sicher, dass du diese Fähigkeit deinstallieren möchtest?",
+      "directory": "Verzeichnis",
+      "dropHint": "Oder ziehen Sie eine ZIP-Datei oder einen Ordner hierher.",
+      "emptyDesc": "Installiere Fähigkeiten aus ZIP, Verzeichnis oder suche in Online-Registries, um die Agenten-Fähigkeiten zu erweitern.",
+      "emptyTip": "Tipp: Sie können auch einen Agenten bitten, Fähigkeiten für Sie zu installieren.",
+      "emptyTitle": "Keine Fähigkeit ausgewählt",
+      "filterPlaceholder": "Filter Fähigkeiten...",
+      "install": "Installieren",
+      "installFailed": "Fehler beim Installieren der Fähigkeit: {{name}}",
+      "installFromDirectory": "Aus Verzeichnis installieren",
+      "installFromZip": "Aus ZIP-Datei installieren",
+      "installSuccess": "Fähigkeit installiert: {{name}}",
+      "installed": "Installierte Fähigkeiten",
+      "invalidFormat": "Nur ZIP-Dateien und Verzeichnisse werden unterstützt",
+      "localInstall": "Lokale Installation",
+      "multiSelect": "Mehrfachauswahl",
+      "noFilterResults": "Keine übereinstimmenden Fähigkeiten",
+      "noInstalled": "Keine Fähigkeiten installiert",
+      "noResults": "Keine Fähigkeiten gefunden",
+      "noSkillFile": "Keine SKILL.md gefunden",
+      "searchPlaceholder": "Weitere Fähigkeiten entdecken...",
+      "searchRegistryTitle": "Durchsuche Fähigkeitsregister online",
+      "searchTitle": "Suchfähigkeiten",
+      "selectFile": "Wählen Sie eine Datei zum Anzeigen",
+      "title": "Fähigkeiten",
+      "uninstall": "Deinstallieren",
+      "uninstallSuccess": "Skill deinstalliert: {{name}}",
+      "viewSource": "Quelltext anzeigen",
+      "zip": "PLZ"
     },
     "theme": {
       "color_primary": "Theme-Farbe",
@@ -5307,6 +6073,14 @@
         },
         "error": {
           "not_system": "System OCR unterstützt nur Windows und MacOS"
+        },
+        "features": {
+          "paddleocr": "Stärker für chinesische Texte und besser geeignet für Quittungen, Scans und Bilder mit komplexeren Layouts.",
+          "system": {
+            "macos": "Verwendet die integrierte macOS-OCR-Engine ohne jegliche Einrichtung – ideal für Screenshots und einfache Textextraktion.",
+            "windows": "Verwendet die native Windows-OCR-Engine mit starker OS-Integration für grundlegende lokale Erkennungsaufgaben."
+          },
+          "tesseract": "Eine klassische lokale OCR-Option mit anpassbaren Sprachpaketen, gut geeignet für Offline- und mehrsprachige Workflows."
         },
         "image": {
           "error": {
@@ -5334,6 +6108,13 @@
         "title": "OCR-Dienst"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "Gut geeignet zur Konvertierung von PDFs in sauberes Markdown oder bearbeitbaren Text für die nachgelagerte Wiederverwendung und Bearbeitung.",
+          "mineru": "Optimiert für hochwertigere Layout-Wiederherstellung, besonders nützlich für akademische PDFs, Tabellen und Formeln.",
+          "mistral": "Starke cloudbasierte Dokumentenverständnis, geeignet für strukturierte Extraktion, mehrseitige Dateien und komplexe Layouts.",
+          "open_mineru": "Eine offene Bereitstellungsoption, die Teams passt, die Self-Hosting oder eine engere Kontrolle über die Verarbeitungspipeline wünschen.",
+          "paddleocr": "Eine leichtere Integrationsoption, die gut für chinesische Dokumente, Scans und gängige Belegformate funktioniert."
+        },
         "paddleocr": {
           "aistudio_access_token": "Zugriffstoken der AI Studio Community",
           "api_url": "API-URL",
@@ -5372,23 +6153,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG fehlgeschlagen"
-          },
-          "info": {
-            "dimensions_auto_success": "Dimensionen automatisch erfolgreich abgerufen, Dimensionen sind {{dimensions}}"
-          },
           "method": {
             "cutoff": "Abschneiden",
             "label": "Kompressionsmethode",
-            "none": "Nicht komprimieren",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Anzahl Dokumentfragmente",
-              "tooltip": "Die erwartete Anzahl von Dokumentfragmenten, die aus einem einzelnen Suchergebnis extrahiert werden, ist dieser Wert multipliziert mit der Anzahl der Suchergebnisse."
-            }
+            "none": "Nicht komprimieren"
           },
           "title": "Suchergebnis-Kompression"
         },
@@ -5514,7 +6282,11 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "close": "Tab schließen",
+    "moveToFirst": "Zum Anfang verschieben",
+    "new": "Neuer Tab",
+    "pin": "Tab anheften",
+    "unpin": "Tab lösen"
   },
   "title": {
     "apps": "Mini-Apps",
@@ -5524,7 +6296,6 @@
     "knowledge": "Wissensdatenbank",
     "launchpad": "Launchpad",
     "mcp-servers": "MCP-Server",
-    "memories": "Erinnerungen",
     "notes": "Notizen",
     "openclaw": "OpenClaw",
     "paintings": "Zeichnen",
@@ -5626,6 +6397,7 @@
       "empty": "Keine Übersetzungshistorie",
       "error": {
         "delete": "Löschen fehlgeschlagen",
+        "load": "Übersetzungsverlauf konnte nicht geladen werden",
         "save": "Speichern der Übersetzungshistorie fehlgeschlagen"
       },
       "search": {
@@ -5682,7 +6454,7 @@
   },
   "tray": {
     "quit": "Beenden",
-    "show_mini_window": "Schnellassistent",
+    "show_quick_assistant": "Schnellassistent",
     "show_window": "Fenster anzeigen"
   },
   "update": {

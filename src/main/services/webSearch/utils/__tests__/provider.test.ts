@@ -1,16 +1,15 @@
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 import { describe, expect, it } from 'vitest'
 
-import { resolveProviderApiHost, resolveProviderApiKey } from '../provider'
+import { ApiKeyRotationState, resolveProviderApiHost } from '../provider'
 
 function createProvider(overrides: Partial<ResolvedWebSearchProvider>): ResolvedWebSearchProvider {
   return {
     id: 'tavily',
     name: 'Tavily',
     type: 'api',
-    usingBrowser: false,
     apiKeys: ['test-key'],
-    apiHost: 'https://api.example.com',
+    capabilities: [{ feature: 'searchKeywords', apiHost: 'https://api.example.com' }],
     engines: [],
     basicAuthUsername: '',
     basicAuthPassword: '',
@@ -21,10 +20,10 @@ function createProvider(overrides: Partial<ResolvedWebSearchProvider>): Resolved
 describe('webSearch provider utils', () => {
   it('trims the configured API host', () => {
     const provider = createProvider({
-      apiHost: '  https://api.example.com/v1  '
+      capabilities: [{ feature: 'searchKeywords', apiHost: '  https://api.example.com/v1  ' }]
     })
 
-    expect(resolveProviderApiHost(provider)).toBe('https://api.example.com/v1')
+    expect(resolveProviderApiHost(provider, 'searchKeywords')).toBe('https://api.example.com/v1')
   })
 
   it('throws when required API keys are missing after trimming', () => {
@@ -33,7 +32,7 @@ describe('webSearch provider utils', () => {
       apiKeys: ['  ', '\n']
     })
 
-    expect(() => resolveProviderApiKey(provider)).toThrow('API key is required for provider bocha')
+    expect(() => new ApiKeyRotationState().resolve(provider)).toThrow('API key is required for provider bocha')
   })
 
   it('returns an empty API key when the provider marks it optional', () => {
@@ -42,7 +41,7 @@ describe('webSearch provider utils', () => {
       apiKeys: [' ', '']
     })
 
-    expect(resolveProviderApiKey(provider, false)).toBe('')
+    expect(new ApiKeyRotationState().resolve(provider, false)).toBe('')
   })
 
   it('rotates across multiple trimmed API keys for the same provider', () => {
@@ -51,8 +50,25 @@ describe('webSearch provider utils', () => {
       apiKeys: [' alpha-key ', ' beta-key ']
     })
 
-    expect(resolveProviderApiKey(provider)).toBe('alpha-key')
-    expect(resolveProviderApiKey(provider)).toBe('beta-key')
-    expect(resolveProviderApiKey(provider)).toBe('alpha-key')
+    const rotationState = new ApiKeyRotationState()
+
+    expect(rotationState.resolve(provider)).toBe('alpha-key')
+    expect(rotationState.resolve(provider)).toBe('beta-key')
+    expect(rotationState.resolve(provider)).toBe('alpha-key')
+  })
+
+  it('clears service-owned rotation state', () => {
+    const rotationState = new ApiKeyRotationState()
+    const provider = createProvider({
+      id: 'exa',
+      apiKeys: [' alpha-key ', ' beta-key ']
+    })
+
+    expect(rotationState.resolve(provider)).toBe('alpha-key')
+    expect(rotationState.resolve(provider)).toBe('beta-key')
+
+    rotationState.clear()
+
+    expect(rotationState.resolve(provider)).toBe('alpha-key')
   })
 })

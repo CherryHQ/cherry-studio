@@ -28,6 +28,256 @@
       "submit": "Υποβολή",
       "title": "Ερωτήσεις από τον πράκτορα"
     },
+    "cherryClaw": {
+      "channels": {
+        "add": "Προσθήκη",
+        "bindAgent": "Δέσμευση Πράκτορα",
+        "chatIdsAutoTrackHint": "Όταν μείνει κενό, το σύστημα θα παρακολουθεί αυτόματα: πρέπει πρώτα να στείλετε ένα μήνυμα στο Bot στην πλατφόρμα, τότε το σύστημα θα καταγράψει το Chat ID για μελλοντικές ειδοποιήσεις.",
+        "comingSoon": "Σύντομα διαθέσιμο",
+        "connected": "Συνδεδεμένος",
+        "connecting": "Σύνδεση",
+        "createError": "Αποτυχία δημιουργίας καναλιού",
+        "deleteConfirm": "Διαγραφή καναλιού \"{{name}}\";",
+        "deleteError": "Αποτυχία διαγραφής καναλιού",
+        "description": "Συνδέστε τον πράκτορά σας σε πλατφόρμες μηνυμάτων.",
+        "disconnected": "Αποσυνδέθηκε",
+        "discord": {
+          "botToken": "Διακριτικό Bot",
+          "botTokenPlaceholder": "Εισάγετε το διακριτικό του bot σας στο Discord",
+          "channelIds": "Επιτρεπόμενα Αναγνωριστικά Καναλιών",
+          "channelIdsHint": "Μορφή: channel:id ή dm:id. Αφήστε κενό για να επιτρέψετε όλα.",
+          "channelIdsPlaceholder": "κανάλι:123456789, dm:987654321",
+          "description": "Λάβετε και απαντήστε σε μηνύματα μέσω ενός bot Discord χρησιμοποιώντας την πύλη WebSocket.",
+          "title": "Discord",
+          "whoamiTip": "💡 Συμβουλή: Στείλτε /whoami στο bot για να λάβετε το ID του καναλιού σας στη σωστή μορφή."
+        },
+        "error": "Σφάλμα",
+        "feishu": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Εισαγάγετε το App ID της εφαρμογής Feishu",
+          "appSecret": "App Secret",
+          "appSecretPlaceholder": "Εισαγάγετε το App Secret της εφαρμογής Feishu",
+          "chatIds": "Επιτρεπόμενα Chat IDs",
+          "chatIdsHint": "Chat IDs διαχωρισμένα με κόμμα. Αφήστε κενό για να επιτρέψετε όλες τις συνομιλίες.",
+          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
+          "connected": "Συνδεδεμένος",
+          "description": "Λήψη και απάντηση μηνυμάτων μέσω bot Feishu/Lark χρησιμοποιώντας WebSocket.",
+          "domain": "Τομέας",
+          "domainFeishu": "Feishu (Κίνα)",
+          "domainLark": "Lark (Διεθνές)",
+          "encryptKey": "Κλειδί κρυπτογράφησης",
+          "encryptKeyPlaceholder": "Εισαγάγετε το κλειδί κρυπτογράφησης της εφαρμογής Feishu",
+          "loginHint": "Δεν έχουν διαμορφωθεί διαπιστευτήρια. Ενεργοποιήστε το κανάλι για να ξεκινήσει η εγγραφή μέσω κωδικού QR ή εισάγετε χειροκίνητα το App ID και το App Secret.",
+          "qrExpired": "Ο κωδικός QR έληξε. Προσπαθήστε ξανά εναλλάσσοντας το κανάλι.",
+          "qrHint": "Αναμονή για σάρωση κωδικού QR...",
+          "qrScanHint": "Άνοιξε το Feishu στο κινητό σου και σάρωσε τον κωδικό QR για να δημιουργήσεις μια εφαρμογή bot.",
+          "qrTitle": "Εγγραφή μέσω QR Feishu",
+          "title": "Feishu",
+          "verificationToken": "Token επαλήθευσης",
+          "verificationTokenPlaceholder": "Εισαγάγετε το token επαλήθευσης της εφαρμογής Feishu"
+        },
+        "logs": "Κούτσουρα",
+        "noInstances": "Δεν έχουν διαμορφωθεί κανάλια {{type}}. Κάντε κλικ στο \"+ Προσθήκη\" για να δημιουργήσετε ένα.",
+        "noLogs": "Δεν υπάρχουν αρχεία καταγραφής ακόμα",
+        "notifyReceiver": "Λήψη ειδοποιήσεων εργασιών",
+        "notifyReceiverHint": "Αποστολή αποτελεσμάτων προγραμματισμένων εργασιών σε αυτό το κανάλι.",
+        "qq": {
+          "appId": "App ID",
+          "appIdPlaceholder": "Εισάγετε το App ID του QQ Bot σας",
+          "chatIds": "Επιτρεπόμενα ID συνομιλίας",
+          "chatIdsHint": "Μορφή: c2c:openid, group:groupid, channel:channelid. Αφήστε κενό για να επιτρέψετε όλα.",
+          "chatIdsPlaceholder": "c2c:abc123, group:xyz789",
+          "clientSecret": "Client Secret",
+          "clientSecretPlaceholder": "Εισάγετε το Client Secret του QQ Bot σας",
+          "description": "Λήψη και απάντηση μηνυμάτων μέσω του επίσημου API του QQ Bot.",
+          "title": "QQ",
+          "whoamiTip": "💡 Συμβουλή: Στείλτε /whoami στο bot για να λάβετε το ID συνομιλίας σας στη σωστή μορφή."
+        },
+        "security": {
+          "inheritFromAgent": "Κληρονομήστε από τον πράκτορα",
+          "permissionMode": "Λειτουργία Αδειών Καναλιού",
+          "permissionModeHint": "Παράκαμψη της λειτουργίας αδειών του πράκτορα για μηνύματα από αυτό το κανάλι. Η επιλογή «Κληρονόμηση» χρησιμοποιεί την προεπιλογή του πράκτορα."
+        },
+        "selectAgent": "Επιλέξτε έναν πράκτορα για σύνδεση",
+        "slack": {
+          "appToken": "Διακριτικό Επιπέδου Εφαρμογής",
+          "appTokenPlaceholder": "xapp-...",
+          "botToken": "Διακριτικό Bot",
+          "botTokenPlaceholder": "xoxb-...",
+          "channelIds": "Επιτρεπόμενα Αναγνωριστικά Καναλιών",
+          "channelIdsHint": "Αναγνωριστικά καναλιών του Slack. Αφήστε κενό για να επιτρέπονται όλα.",
+          "channelIdsPlaceholder": "C01234567, D89012345",
+          "description": "Λάβετε και απαντήστε σε μηνύματα μέσω ενός bot του Slack χρησιμοποιώντας τη λειτουργία Socket.",
+          "title": "Slack",
+          "whoamiTip": "💡 Συμβουλή: Στείλε /whoami στο bot για να πάρεις το ID του καναλιού."
+        },
+        "soulModeRequired": "Αυτός ο πράκτορας δεν έχει ενεργοποιημένη την Αυτόνομη Λειτουργία. Οι λειτουργίες καναλιού δεν θα λειτουργούν. Παρακαλώ ενεργοποιήστε την στις ρυθμίσεις του πράκτορα.",
+        "tab": "Κανάλια",
+        "telegram": {
+          "botToken": "Token Bot",
+          "botTokenPlaceholder": "Εισάγετε το token του Telegram bot σας",
+          "chatIds": "Επιτρεπόμενα ID συνομιλίας",
+          "chatIdsHint": "Διαχωρισμένα με κόμμα. Αφήστε κενό για να επιτρέψετε όλες τις συνομιλίες.",
+          "chatIdsPlaceholder": "123456789, 987654321",
+          "description": "Λήψη και απάντηση μηνυμάτων μέσω Telegram bot χρησιμοποιώντας long polling.",
+          "title": "Telegram"
+        },
+        "title": "Κανάλια",
+        "updateError": "Αποτυχία ενημέρωσης καναλιού",
+        "wechat": {
+          "addAccount": "Προσθέστε λογαριασμό WeChat",
+          "chatIds": "Επιτρεπόμενα Αναγνωριστικά Χρηστών",
+          "chatIdsHint": "Διαχωρισμένα με κόμμα. Αφήστε κενό για να επιτρέπονται όλοι οι χρήστες.",
+          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+          "connected": "Συνδεδεμένος",
+          "description": "Λάβετε και απαντήστε σε μηνύματα μέσω WeChat χρησιμοποιώντας το iLink Bot API.",
+          "disconnected": "Αποσυνδέθηκε",
+          "loginHint": "Η πρώτη σύνδεση απαιτεί σάρωση κωδικού QR. Ελέγξτε τα αρχεία καταγραφής της εφαρμογής για τη διεύθυνση URL σύνδεσης.",
+          "qrHint": "Άνοιξε το WeChat στο κινητό σου και σάρωσε τον κωδικό QR για να συνδεθείς.",
+          "qrTitle": "Σύνδεση με QR code στο WeChat",
+          "title": "WeChat",
+          "whoamiTip": "Συμβουλή: Στείλτε /whoami στο WeChat για να λάβετε το αναγνωριστικό ενός χρήστη."
+        }
+      },
+      "heartbeat": {
+        "enabled": "Ενεργοποίηση Heartbeat",
+        "enabledHelper": "Όταν είναι ενεργοποιημένο και υπάρχει heartbeat.md στον χώρο εργασίας, ο προγραμματιστής διαβάζει το περιεχόμενό του και το στέλνει στην κύρια συνεδρία στο διαμορφωμένο διάστημα.",
+        "interval": "Διάστημα (λεπτά)",
+        "intervalHelper": "Πόσο συχνά εκτελείται το heartbeat, σε λεπτά."
+      },
+      "sandbox": {
+        "description": "Περιορίζει την πρόσβαση του πράκτορα στο σύστημα αρχείων και το δίκτυο στον κατάλογο του χώρου εργασίας χρησιμοποιώντας sandboxing σε επίπεδο λειτουργικού συστήματος.",
+        "helper": "Περιορισμός πρόσβασης στο σύστημα αρχείων και εντολών στη διαδρομή του χώρου εργασίας.",
+        "label": "Λειτουργία Sandbox"
+      },
+      "scheduler": {
+        "cron": {
+          "helper": "Τυπική έκφραση cron (π.χ. '*/30 * * * *' για κάθε 30 λεπτά).",
+          "label": "Έκφραση Cron",
+          "placeholder": "*/30 * * * *"
+        },
+        "description": "Ο προγραμματιστής ενεργοποιεί τον πράκτορα αυτόματα σύμφωνα με ένα χρονοδιάγραμμα.",
+        "enabled": "Ενεργοποίηση προγραμματιστή",
+        "enabledHelper": "Όταν είναι ενεργοποιημένο, ο πράκτορας θα εκτελείται αυτόματα με βάση το διαμορφωμένο χρονοδιάγραμμα.",
+        "errors": {
+          "invalidCron": "Μη έγκυρη έκφραση cron",
+          "invalidDelay": "Η καθυστέρηση πρέπει να είναι θετικός αριθμός",
+          "invalidInterval": "Το διάστημα πρέπει να είναι θετικός αριθμός"
+        },
+        "interval": {
+          "helper": "Πόσο συχνά πρέπει να εκτελείται ο πράκτορας, σε δευτερόλεπτα.",
+          "label": "Διάστημα (δευτερόλεπτα)"
+        },
+        "lastRun": "Τελευταία εκτέλεση",
+        "never": "Ποτέ",
+        "nextRun": "Επόμενη εκτέλεση",
+        "oneTime": {
+          "helper": "Μοναδική καθυστέρηση σε δευτερόλεπτα πριν την εκτέλεση του πράκτορα.",
+          "label": "Καθυστέρηση (δευτερόλεπτα)"
+        },
+        "status": {
+          "running": "Εκτελείται",
+          "stopped": "Σταματημένο",
+          "tickInProgress": "Tick σε εξέλιξη"
+        },
+        "tab": "Προγραμματιστής",
+        "title": "Ρύθμιση προγραμματιστή",
+        "type": {
+          "cron": "Έκφραση Cron",
+          "interval": "Σταθερό διάστημα",
+          "label": "Τύπος χρονοδιαγράμματος",
+          "one-time": "Μοναδική καθυστέρηση"
+        }
+      },
+      "soul": {
+        "description": "Η ψυχή καθορίζει την προσωπικότητα και τη βασική συμπεριφορά του πράκτορα. Διαβάζεται από το soul.md στη ρίζα του χώρου εργασίας.",
+        "empty": "Δεν βρέθηκε soul.md στη ρίζα του χώρου εργασίας. Δημιουργήστε ένα για να ορίσετε την προσωπικότητα του πράκτορα.",
+        "enabled": "Ενεργοποίηση ψυχής",
+        "enabledHelper": "Όταν είναι ενεργοποιημένο, ο πράκτορας διαβάζει το soul.md από τη ρίζα του χώρου εργασίας και το προσθέτει στην αρχή του system prompt.",
+        "fileLabel": "soul.md",
+        "preview": "Προεπισκόπηση ψυχής",
+        "tab": "Ψυχή",
+        "title": "Ρύθμιση ψυχής"
+      },
+      "tasks": {
+        "add": "Προσθήκη εργασίας",
+        "cancel": "Ακύρωση",
+        "channels": {
+          "label": "Αποστολή σε Κανάλια",
+          "noActiveChatIds": "Τα επιλεγμένα κανάλια δεν διαθέτουν διαθέσιμους παραλήπτες (Chat ID). Τα αποτελέσματα της εργασίας ενδέχεται να μην παραδοθούν. Παρακαλώ στείλτε πρώτα ένα μήνυμα στο Bot στην πλατφόρμα.",
+          "placeholder": "Επιλέξτε κανάλια για να λαμβάνετε αποτελέσματα"
+        },
+        "cronPlaceholder": "π.χ. 0 9 * * * (κάθε μέρα στις 9 π.μ.)",
+        "delete": {
+          "confirm": "Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την εργασία;",
+          "label": "Διαγραφή"
+        },
+        "edit": "Επεξεργασία",
+        "empty": "Δεν υπάρχουν προγραμματισμένες εργασίες. Προσθέστε μία για να ξεκινήσετε.",
+        "error": {
+          "loadFailed": "Αποτυχία φόρτωσης εργασιών"
+        },
+        "intervalPlaceholder": "Διάστημα σε λεπτά",
+        "intervalUnit": "λεπτά",
+        "lastRun": "Τελευταία εκτέλεση",
+        "logs": {
+          "duration": "Διάρκεια",
+          "empty": "Δεν υπάρχει ακόμα ιστορικό εκτελέσεων.",
+          "error": "Σφάλμα",
+          "justNow": "μόλις τώρα",
+          "label": "Ιστορικό εκτελέσεων",
+          "loadError": "Αποτυχία φόρτωσης ιστορικού εκτέλεσης",
+          "result": "Αποτέλεσμα",
+          "runAt": "Εκτελέστηκε στις",
+          "running": "Τρέχει...",
+          "search": "Αναζήτηση αρχείων καταγραφής...",
+          "status": "Κατάσταση",
+          "success": "Επιτυχία",
+          "viewSession": "Δείτε τη συνεδρία"
+        },
+        "name": {
+          "label": "Όνομα",
+          "placeholder": "π.χ. Καθημερινή αναθεώρηση κώδικα"
+        },
+        "nextRun": "Επόμενη εκτέλεση",
+        "oncePlaceholder": "Επιλέξτε ημερομηνία και ώρα",
+        "pause": "Παύση",
+        "prompt": {
+          "expand": "Αναπτύξτε τον επεξεργαστή",
+          "label": "Prompt",
+          "placeholder": "Τι πρέπει να κάνει ο πράκτορας όταν εκτελείται αυτή η εργασία;"
+        },
+        "resume": "Συνέχιση",
+        "run": "Εκτέλεση",
+        "runTriggered": "Η εργασία ενεργοποιήθηκε",
+        "save": "Αποθήκευση",
+        "scheduleType": {
+          "cron": "Cron",
+          "interval": "Διάστημα",
+          "label": "Τύπος χρονοδιαγράμματος",
+          "once": "Μία φορά"
+        },
+        "scheduleValue": "Τιμή χρονοδιαγράμματος",
+        "status": {
+          "active": "Ενεργή",
+          "completed": "Ολοκληρώθηκε",
+          "paused": "Σε παύση"
+        },
+        "tab": "Εργασίες",
+        "time": {
+          "hoursAgo": "{{count}}h πριν",
+          "minutesAgo": "{{count}}μ πριν"
+        },
+        "timeout": {
+          "label": "Λήξη χρόνου",
+          "placeholder": "Χωρίς όριο"
+        },
+        "title": "Προγραμματισμένες εργασίες"
+      },
+      "warning": {
+        "bypassPermissions": "Οι πράκτορες CherryClaw εκτελούνται σε πλήρη αυτόματη λειτουργία από προεπιλογή. Όλα τα εργαλεία εκτελούνται χωρίς να ζητούν έγκριση."
+      }
+    },
     "delete": {
       "content": "Η διαγραφή αυτού του Agent θα τερματίσει βίαια και θα διαγράψει όλες τις συνεδρίες υπό αυτόν τον Agent. Είστε σίγουροι;",
       "error": {
@@ -76,7 +326,8 @@
       "tooltip": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Εγκαταστήστε το από το git-scm.com εάν δεν είναι διαθέσιμο."
     },
     "input": {
-      "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή"
+      "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή",
+      "soul_placeholder": "Βοηθήστε με να συνδεθώ στο Telegram"
     },
     "list": {
       "error": {
@@ -245,6 +496,21 @@
         "uninstalling": "Απεγκατάσταση..."
       },
       "prompt": "Ρυθμίσεις Προτροπής",
+      "skills": {
+        "addMore": "Προσθήκη περισσότερων δεξιοτήτων",
+        "builtin": "Ενσωματωμένο",
+        "noFilterResults": "Δεν υπάρχουν αντιστοιχιζόμενες δεξιότητες",
+        "noSkills": "Δεν έχουν εγκατασταθεί δεξιότητες. Εγκαταστήστε δεξιότητες από Ρυθμίσεις > Δεξιότητες.",
+        "searchPlaceholder": "Δεξιότητες αναζήτησης...",
+        "tab": "Δεξιότητες",
+        "title": "Εγκατεστημένες Δεξιότητες"
+      },
+      "soulMode": {
+        "description": "Όταν είναι ενεργοποιημένο, ο πράκτορας χρησιμοποιεί ένα προσαρμοσμένο σύστημα προτροπής από αρχεία soul του χώρου εργασίας, εισάγει αυτόνομα εργαλεία διαχείρισης εργασιών και απενεργοποιεί διαδραστικά εργαλεία που δεν είναι κατάλληλα για αυτόνομη λειτουργία.",
+        "disabledBadge": "Απενεργοποιημένο από Αυτόνομη Λειτουργία",
+        "disabledTooltip": "Αυτό το εργαλείο απενεργοποιείται αυτόματα όταν είναι ενεργή η Αυτόνομη Λειτουργία",
+        "title": "Αυτόνομη Λειτουργία"
+      },
       "tooling": {
         "mcp": {
           "description": "Συνδέστε διακομιστές MCP για να ξεκλειδώσετε πρόσθετα εργαλεία που μπορείτε να εγκρίνετε παραπάνω.",
@@ -301,6 +567,7 @@
       },
       "toolsMcp": {
         "mcp": {
+          "tab": "MCP",
           "title": "Διακομιστές MCP"
         },
         "tab": "Εργαλεία",
@@ -579,6 +846,7 @@
         "agent": "Εξαγωγή βοηθού"
       },
       "import": {
+        "action": "[to be translated]:Import Assistant",
         "button": "Εισαγωγή",
         "error": {
           "fetch_failed": "Αποτυχία λήψης δεδομένων από το URL",
@@ -689,17 +957,6 @@
         "off_description": "Απενεργοποίηση λογικής",
         "xhigh": "Εξαιρετικά Υψηλή",
         "xhigh_description": "Εξαιρετικά υψηλού επιπέδου συλλογισμός"
-      },
-      "regular_phrases": {
-        "add": "Προσθήκη φράσης",
-        "contentLabel": "Περιεχόμενο",
-        "contentPlaceholder": "Παρακαλώ εισάγετε το περιεχόμενο της φράσης. Υποστηρίζονται μεταβλητές, και στη συνέχεια πατήστε Tab για να μεταβείτε γρήγορα στη μεταβλητή και να την επεξεργαστείτε. Για παράδειγμα: \\nΒοήθησέ με να σχεδιάσω μια διαδρομή από το ${from} στο ${to}, και στη συνέχεια στείλε την στο ${email}.",
-        "delete": "Διαγραφή φράσης",
-        "deleteConfirm": "Είστε βέβαιος ότι θέλετε να διαγράψετε αυτήν τη φράση;",
-        "edit": "Επεξεργασία φράσης",
-        "title": "Δημοφιλείς φράσεις",
-        "titleLabel": "Τίτλος",
-        "titlePlaceholder": "Εισαγάγετε τίτλο"
       },
       "title": "Ρυθμίσεις Βοηθού",
       "tool_use_mode": {
@@ -1231,6 +1488,7 @@
       "unpin": "Ξεκαρφίτσωμα"
     },
     "translate": "Μετάφραση",
+    "user": "Χρήστης",
     "web_search": {
       "warning": {
         "openai": "Το μοντέλο GPT5 με ελάχιστη ένταση σκέψης δεν υποστηρίζει αναζήτηση στο διαδίκτυο"
@@ -1242,11 +1500,23 @@
     "bun_required_message": "Για τη λειτουργία του εργαλείου CLI πρέπει να εγκαταστήσετε το περιβάλλον Bun",
     "cli_tool": "Εργαλείο CLI",
     "cli_tool_placeholder": "Επιλέξτε το CLI εργαλείο που θέλετε να χρησιμοποιήσετε",
+    "count_one": "{{count}} αντικείμενο",
+    "count_other": "{{count}} αντικείμενα",
     "custom_path": "Προσαρμοσμένη διαδρομή",
     "custom_path_error": "Η ρύθμιση της προσαρμοσμένης διαδρομής τερματικού απέτυχε",
     "custom_path_required": "Αυτό το τερματικό απαιτεί τη ρύθμιση προσαρμοσμένης διαδρομής",
     "custom_path_set": "Η προσαρμοσμένη διαδρομή τερματικού ορίστηκε με επιτυχία",
     "description": "Εκκίνηση γρήγορα πολλών εργαλείων CLI κώδικα, για αύξηση της αποδοτικότητας ανάπτυξης",
+    "empty": {
+      "no_match": {
+        "description": "Δοκιμάστε να προσαρμόσετε τους όρους αναζήτησής σας",
+        "title": "Δεν βρέθηκαν αντιστοιχιζόμενα εργαλεία"
+      },
+      "no_tool": {
+        "description": "Προσθέστε ένα εργαλείο CLI ή βοηθό κώδικα για να ξεκινήσετε",
+        "title": "Κανένα εργαλείο κώδικα ακόμα"
+      }
+    },
     "env_vars_help": "Εισαγάγετε προσαρμοσμένες μεταβλητές περιβάλλοντος (μία ανά γραμμή, με τη μορφή: KEY=value)",
     "environment_variables": "Μεταβλητές περιβάλλοντος",
     "folder_placeholder": "Επιλέξτε κατάλογο εργασίας",
@@ -1256,21 +1526,28 @@
       "bun_required": "Παρακαλώ εγκαταστήστε πρώτα το περιβάλλον Bun πριν εκκινήσετε το εργαλείο CLI",
       "error": "Η εκκίνηση απέτυχε, παρακαλώ δοκιμάστε ξανά",
       "label": "Εκκίνηση",
+      "launched": "Ξεκίνησε",
       "success": "Επιτυχής εκκίνηση",
       "validation_error": "Συμπληρώστε όλα τα υποχρεωτικά πεδία: εργαλείο CLI, μοντέλο και κατάλογος εργασίας"
     },
     "launching": "Εκκίνηση...",
     "model": "μοντέλο",
+    "model_hint": "Επέλεξε ποιο μοντέλο AI θα χρησιμοποιήσει το εργαλείο CLI",
     "model_placeholder": "Επιλέξτε το μοντέλο που θα χρησιμοποιήσετε",
     "model_required": "Επιλέξτε μοντέλο",
+    "official_tag": "Επίσημος",
+    "official_tools": "Επίσημος",
+    "search_placeholder": "Αναζήτηση εργαλείων CLI…",
     "select_folder": "Επιλογή φακέλου",
     "set_custom_path": "Ρύθμιση προσαρμοσμένης διαδρομής τερματικού",
     "supported_providers": "υποστηριζόμενοι πάροχοι",
     "terminal": "τερματικό",
+    "terminal_hint": "Επιλέξτε σε ποιο τερματικό θα εκτελέσετε τη γραμμή εντολών",
     "terminal_placeholder": "Επιλέξτε εφαρμογή τερματικού",
     "title": "Εργαλεία κώδικα",
     "update_options": "Ενημέρωση επιλογών",
-    "working_directory": "κατάλογος εργασίας"
+    "working_directory": "κατάλογος εργασίας",
+    "working_directory_hint": "Ο κατάλογος εργασίας στον οποίο εκκινεί το εργαλείο CLI"
   },
   "code_block": {
     "collapse": "συμπεριληφθείς",
@@ -1500,6 +1777,31 @@
     "data": "δεδομένα",
     "detail": "Λεπτομέρειες σφάλματος",
     "details": "Λεπτομέρειες",
+    "diagnosis": {
+      "ai_button": "Διάγνωση AI",
+      "ai_done": "Διαγνώστηκε",
+      "ai_loading": "Γίνεται διάγνωση",
+      "ai_result": "Αποτέλεσμα διάγνωσης AI",
+      "auth": "Μη έγκυρο κλειδί API, ελέγξτε και ρυθμίστε ξανά",
+      "content": "Το περιεχόμενο αποκλείστηκε από το σύστημα ασφαλείας, τροποποιήστε και δοκιμάστε ξανά",
+      "context_length": "Η συνομιλία είναι πολύ μεγάλη, παρακαλώ καθαρίστε το ιστορικό ή ξεκινήστε μια νέα συνομιλία",
+      "deprecated": "Αυτό το μοντέλο έχει αποσυρθεί· παρακαλούμε μεταβείτε σε άλλο μοντέλο",
+      "go_to_settings": "Μετάβαση στις ρυθμίσεις",
+      "knowledge": "Αποτυχία διανυσματοποίησης βάσης γνώσεων",
+      "mcp": "Αποτυχία σύνδεσης με τον διακομιστή MCP, ελέγξτε αν η υπηρεσία εκτελείται",
+      "model": "Το μοντέλο δεν βρέθηκε ή δεν έχετε πρόσβαση",
+      "model_conflict": "Το μοντέλο διάγνωσης είναι ίδιο με το μοντέλο σφάλματος",
+      "network": "Αδυναμία σύνδεσης με τον διακομιστή, ελέγξτε τις ρυθμίσεις δικτύου ή proxy",
+      "ocr": "Η μηχανή OCR δεν έχει αρχικοποιηθεί, ελέγξτε τις ρυθμίσεις OCR",
+      "parse": "Η τεχνητή νοημοσύνη επέστρεψε μη έγκυρη απάντηση, παρακαλώ δοκιμάστε ξανά ή αλλάξτε μοντέλο",
+      "payload": "Το περιεχόμενο του αιτήματος είναι πολύ μεγάλο, παρακαλώ μειώστε το μέγεθος του αρχείου ή του κειμένου",
+      "proxy": "Σφάλμα διακομιστή μεσολάβησης ή πιστοποιητικού SSL, ελέγξτε τις ρυθμίσεις μεσολάβησης και δικτύου",
+      "quota": "Εξαντλήθηκε το όριο λογαριασμού, φορτίστε ή αλλάξτε πάροχο",
+      "server": "Σφάλμα διακομιστή, δοκιμάστε ξανά αργότερα",
+      "stream": "Η απάντηση διακόπηκε, ελέγξτε τη σταθερότητα του δικτύου ή δοκιμάστε ξανά",
+      "unknown": "Παρουσιάστηκε σφάλμα",
+      "view_details": "Προβολή λεπτομερειών"
+    },
     "errors": "Λάθος",
     "finishReason": "Αιτία λήξης",
     "functionality": "λειτουργία",
@@ -1654,7 +1956,8 @@
     "empty_preview": "Δεν υπάρχει περιεχόμενο για εμφάνιση",
     "generating": "Δημιουργία",
     "preview": "Προεπισκόπηση",
-    "split": "Διαχωρισμός"
+    "split": "Διαχωρισμός",
+    "view_mode": "Λειτουργία προβολής"
   },
   "import": {
     "chatgpt": {
@@ -1835,7 +2138,358 @@
   },
   "launchpad": {
     "apps": "Εφαρμογές",
-    "minapps": "Μικρές εφαρμογές"
+    "miniApps": "Μικρές εφαρμογές"
+  },
+  "library": {
+    "action": {
+      "create": "[to be translated]:New",
+      "delete": "[to be translated]:Delete",
+      "disable": "[to be translated]:Disable",
+      "duplicate": "[to be translated]:Duplicate",
+      "edit": "[to be translated]:Edit",
+      "enable": "[to be translated]:Enable",
+      "manage_tags": "[to be translated]:Manage tags",
+      "uninstall": "[to be translated]:Uninstall"
+    },
+    "badge": {
+      "update": "[to be translated]:Update"
+    },
+    "config": {
+      "agent": {
+        "create_banner": "[to be translated]:Save before binding tools and MCP servers",
+        "create_title": "[to be translated]:New agent",
+        "field": {
+          "accessible_paths": {
+            "add": "[to be translated]:Add directory",
+            "empty": "[to be translated]:Not set (defaults to the workspace root)",
+            "label": "[to be translated]:Accessible directories"
+          },
+          "allowed_tools": {
+            "add": "[to be translated]:Add tool",
+            "empty": "[to be translated]:Leave empty to use the permission mode default",
+            "label": "[to be translated]:Allowed tools"
+          },
+          "description": {
+            "label": "[to be translated]:Description",
+            "placeholder": "[to be translated]:What this agent is for…"
+          },
+          "env_vars": {
+            "help": "[to be translated]:One KEY=VALUE per line",
+            "label": "[to be translated]:Environment variables"
+          },
+          "heartbeat_enabled": {
+            "label": "[to be translated]:Heartbeat check"
+          },
+          "heartbeat_interval": {
+            "label": "[to be translated]:Heartbeat interval (minutes)"
+          },
+          "instructions": {
+            "label": "[to be translated]:System prompt",
+            "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
+          },
+          "max_turns": {
+            "help": "[to be translated]:0 means use the default",
+            "label": "[to be translated]:Max conversation turns"
+          },
+          "mcps": {
+            "add": "[to be translated]:Add MCP server",
+            "empty": "[to be translated]:None bound",
+            "label": "[to be translated]:MCP servers (id)"
+          },
+          "model": {
+            "help": "[to be translated]:UniqueModelId; will switch to a picker backed by /models later",
+            "hint": "[to be translated]:Main reasoning and execution",
+            "label": "[to be translated]:Primary model (required)"
+          },
+          "name": {
+            "label": "[to be translated]:Agent name",
+            "placeholder": "[to be translated]:Give the agent a name"
+          },
+          "permission_mode": {
+            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
+            "label": "[to be translated]:Permission mode",
+            "option": {
+              "acceptEdits": "[to be translated]:Accept edits",
+              "bypassPermissions": "[to be translated]:Bypass permissions (Soul)",
+              "default": "[to be translated]:Default",
+              "plan": "[to be translated]:Plan mode"
+            }
+          },
+          "plan_model": {
+            "hint": "[to be translated]:Task decomposition and planning",
+            "label": "[to be translated]:Plan model (optional)"
+          },
+          "small_model": {
+            "hint": "[to be translated]:Lightweight checks and formatting",
+            "label": "[to be translated]:Small model (optional)"
+          },
+          "soul_enabled": {
+            "help": "[to be translated]:When enabled, automatically grants bypassPermissions",
+            "label": "[to be translated]:Soul mode"
+          }
+        },
+        "model_config": "[to be translated]:Model configuration",
+        "section": {
+          "advanced": {
+            "desc": "[to be translated]:Execution limits and runtime parameters",
+            "label": "[to be translated]:Advanced",
+            "title": "[to be translated]:Advanced"
+          },
+          "basic": {
+            "desc": "[to be translated]:Agent name, description, and primary model",
+            "label": "[to be translated]:Basic",
+            "title": "[to be translated]:Basic"
+          },
+          "permission": {
+            "desc": "[to be translated]:Authorization scope for agent actions",
+            "label": "[to be translated]:Permission mode",
+            "title": "[to be translated]:Permission mode"
+          },
+          "prompt": {
+            "desc": "[to be translated]:System prompt and behavioral constraints",
+            "label": "[to be translated]:Prompt",
+            "title": "[to be translated]:Prompt"
+          },
+          "tools": {
+            "add": "[to be translated]:Add",
+            "desc": "[to be translated]:MCP servers, allowed tools, and runtime settings",
+            "label": "[to be translated]:Tools & runtime",
+            "no_builtin_enabled": "[to be translated]:No built-in tools enabled",
+            "no_mcp_bound": "[to be translated]:No MCP servers bound",
+            "no_skills_enabled": "[to be translated]:No skills enabled",
+            "search_placeholder": "[to be translated]:Search tools or servers...",
+            "skills_coming_soon": "[to be translated]:Skill bindings coming soon",
+            "skills_require_save": "[to be translated]:Save before enabling skills",
+            "tab": {
+              "mcp": "[to be translated]:MCP Server",
+              "skills": "[to be translated]:Skills",
+              "tools": "[to be translated]:Built-in tools"
+            },
+            "title": "[to be translated]:Tools & runtime"
+          }
+        }
+      },
+      "basic": {
+        "context_count": "[to be translated]:Context count",
+        "creative": "[to be translated]:Creative",
+        "custom_params": "[to be translated]:Custom parameters",
+        "custom_params_add": "[to be translated]:Add parameter",
+        "custom_params_name": "[to be translated]:Parameter name",
+        "default_value": "[to be translated]:Model default",
+        "desc": "[to be translated]:Configure the assistant's identity and model parameters",
+        "description_label": "[to be translated]:Description",
+        "json_invalid": "[to be translated]:Invalid JSON format",
+        "max_tokens": "[to be translated]:Max tokens",
+        "max_tool_calls": "[to be translated]:Max tool calls",
+        "model": "[to be translated]:Default model",
+        "model_clear": "[to be translated]:Clear",
+        "model_not_found": "[to be translated]:Model not found (may have been removed): {{id}}",
+        "model_pick": "[to be translated]:+ Pick model",
+        "pick_avatar": "[to be translated]:Pick avatar",
+        "precise": "[to be translated]:Precise",
+        "stream_output": "[to be translated]:Stream output",
+        "tag_empty": "[to be translated]:No tags available",
+        "tag_hint": "[to be translated]:To add a new tag, use the \"+ Tag\" entry in the library top bar",
+        "tag_placeholder": "[to be translated]:Select tags",
+        "tag_search": "[to be translated]:Search tags",
+        "tags": "[to be translated]:Tags",
+        "temperature": "[to be translated]:Temperature",
+        "title": "[to be translated]:Basic settings",
+        "tool_use_function": "[to be translated]:Function",
+        "tool_use_mode": "[to be translated]:Tool call mode",
+        "tool_use_prompt": "[to be translated]:Prompt",
+        "top_p": "[to be translated]:Top-P",
+        "unlimited": "[to be translated]:Unlimited"
+      },
+      "breadcrumb": "[to be translated]:Library",
+      "knowledge": {
+        "add": "[to be translated]:Add knowledge base",
+        "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
+        "doc_count": "[to be translated]:{{count}} docs",
+        "empty_desc": "[to be translated]:Once linked, the assistant can answer based on document content",
+        "empty_title": "[to be translated]:No knowledge bases linked",
+        "invalid_suffix": "[to be translated]:... (unavailable)",
+        "linked": "[to be translated]:Linked knowledge bases",
+        "no_more": "[to be translated]:No more knowledge bases available",
+        "remove_aria": "[to be translated]:Remove",
+        "search": "[to be translated]:Search knowledge bases...",
+        "title": "[to be translated]:Knowledge bases"
+      },
+      "prompt": {
+        "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
+        "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
+        "label": "[to be translated]:System prompt",
+        "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
+        "title": "[to be translated]:Prompt",
+        "tokens_label": "[to be translated]:Tokens: ",
+        "variables_title": "[to be translated]:Available variables",
+        "vars": {
+          "arch": "[to be translated]:CPU architecture",
+          "date": "[to be translated]:Date",
+          "datetime": "[to be translated]:Date and time",
+          "language": "[to be translated]:Language",
+          "model_name": "[to be translated]:Model name",
+          "os": "[to be translated]:Operating system",
+          "time": "[to be translated]:Time",
+          "username": "[to be translated]:Username"
+        }
+      },
+      "save_failed": "[to be translated]:Save failed",
+      "saving": "[to be translated]:Saving...",
+      "section": {
+        "basic": {
+          "desc": "[to be translated]:Name, avatar, model parameters",
+          "label": "[to be translated]:Basic"
+        },
+        "knowledge": {
+          "desc": "[to be translated]:Linked knowledge bases and retrieval",
+          "label": "[to be translated]:Knowledge"
+        },
+        "prompt": {
+          "desc": "[to be translated]:System prompt and variables",
+          "label": "[to be translated]:Prompt"
+        },
+        "tools": {
+          "desc": "[to be translated]:MCP servers and tool configuration",
+          "label": "[to be translated]:Tools"
+        }
+      },
+      "tools": {
+        "add_mcp": "[to be translated]:Add MCP server",
+        "added": "[to be translated]:Added MCP servers",
+        "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
+        "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
+        "empty_title": "[to be translated]:No MCP servers added",
+        "inactive_badge": "[to be translated]:Inactive",
+        "info_main": "[to be translated]:MCP (Model Context Protocol) lets the model safely invoke external tools.",
+        "info_sub": "[to be translated]:Enabling only necessary servers improves safety and response speed.",
+        "mode": {
+          "auto": {
+            "desc": "[to be translated]:The model decides which enabled MCP tools to call",
+            "label": "[to be translated]:Auto"
+          },
+          "disabled": {
+            "desc": "[to be translated]:No MCP tools are available during chat",
+            "label": "[to be translated]:Disabled"
+          },
+          "manual": {
+            "desc": "[to be translated]:Expose only the MCP servers selected below",
+            "label": "[to be translated]:Manual"
+          }
+        },
+        "no_more": "[to be translated]:No more servers available",
+        "search": "[to be translated]:Search available servers...",
+        "switch_title_active": "[to be translated]:Toggle off to remove",
+        "switch_title_inactive": "[to be translated]:This server is disabled in MCP settings; remove it to re-add later",
+        "title": "[to be translated]:Tools"
+      }
+    },
+    "create_menu": {
+      "create": "[to be translated]:New {{type}}",
+      "import": "[to be translated]:Import {{type}}"
+    },
+    "delete": {
+      "agent": {
+        "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
+        "title": "[to be translated]:Delete agent"
+      }
+    },
+    "delete_confirm": {
+      "cancel": "[to be translated]:Cancel",
+      "confirm": "[to be translated]:Delete",
+      "description": "[to be translated]:Delete \"{{name}}\"? This action cannot be undone.",
+      "title": "[to be translated]:Delete"
+    },
+    "duplicate_name": "[to be translated]:{{name}} (copy)",
+    "empty_state": {
+      "description": "[to be translated]:Click \"New\" to create your first resource.",
+      "empty_description": "[to be translated]:Create your first agent or assistant",
+      "empty_title": "[to be translated]:No resources yet",
+      "no_match_description": "[to be translated]:Try a different search keyword",
+      "no_match_title": "[to be translated]:No matching resources",
+      "title": "[to be translated]:No resources"
+    },
+    "import_dialog": {
+      "clipboard": {
+        "button": "[to be translated]:Parse and import",
+        "placeholder": "[to be translated]:Paste JSON configuration here..."
+      },
+      "error": {
+        "content_too_large": "[to be translated]:Content too large (>5 MB)",
+        "file_too_large": "[to be translated]:File too large (>5 MB)",
+        "invalid_url": "[to be translated]:Invalid URL",
+        "response_too_large": "[to be translated]:Response too large (>5 MB)",
+        "timeout": "[to be translated]:Request timed out. Check that the URL is reachable.",
+        "unsupported_protocol": "[to be translated]:Only http or https URLs are supported"
+      },
+      "failure": "[to be translated]:Import failed: {{error}}",
+      "file": {
+        "drop_hint": "[to be translated]:Drag and drop a file here, or click to pick one",
+        "formats": "[to be translated]:Supports .json"
+      },
+      "partial_success": "[to be translated]:Partial success: {{success}} imported, {{failed}} failed ({{first_name}}: {{first_error}})",
+      "subtitle": "[to be translated]:JSON configuration files are supported",
+      "success": "[to be translated]:Imported successfully: {{name}}",
+      "tab": {
+        "clipboard": "[to be translated]:Clipboard",
+        "file": "[to be translated]:File upload",
+        "url": "[to be translated]:Import from URL"
+      },
+      "url": {
+        "button": "[to be translated]:Fetch and import",
+        "hint": "[to be translated]:Import from a GitHub Gist, GitHub repo, or any public URL",
+        "supports": "[to be translated]:Raw file URLs are supported"
+      }
+    },
+    "no_match": "[to be translated]:No matching results",
+    "pending_backend": {
+      "description": "[to be translated]:Write operations for this resource are coming soon. This view is a placeholder.",
+      "title": "[to be translated]:Backend setup in progress"
+    },
+    "sidebar": {
+      "all_resources": "[to be translated]:All resources",
+      "all_tags": "[to be translated]:All tags",
+      "no_tags": "[to be translated]:No tags yet",
+      "subtitle": "[to be translated]:Manage your AI resources",
+      "tags": "[to be translated]:Tags",
+      "title": "[to be translated]:Library"
+    },
+    "sort": {
+      "created": "[to be translated]:Sort by created",
+      "name": "[to be translated]:Sort by name",
+      "updated": "[to be translated]:Sort by updated"
+    },
+    "subtitle": "[to be translated]:Manage your assistants, agents and skills",
+    "tag_picker": {
+      "no_tags": "[to be translated]:No tags yet",
+      "placeholder": "[to be translated]:New tag name..."
+    },
+    "tag_sync_failed": "[to be translated]:Failed to sync tags",
+    "time_ago": {
+      "days": "[to be translated]:{{count}} day(s) ago",
+      "hours": "[to be translated]:{{count}} hour(s) ago",
+      "just_now": "[to be translated]:Just now",
+      "minutes": "[to be translated]:{{count}} minute(s) ago",
+      "months": "[to be translated]:{{count}} month(s) ago"
+    },
+    "title": "[to be translated]:Library",
+    "toolbar": {
+      "add_tag_placeholder": "[to be translated]:Tag name...",
+      "new_resource": "[to be translated]:New resource",
+      "search_placeholder": "[to be translated]:Search resources...",
+      "tag_button": "[to be translated]:Tag"
+    },
+    "type": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "new_agent": "[to be translated]:New agent",
+      "new_assistant": "[to be translated]:New assistant",
+      "skill": "[to be translated]:Skill"
+    },
+    "view": {
+      "grid": "[to be translated]:Grid view",
+      "list": "[to be translated]:List view"
+    }
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -1844,112 +2498,6 @@
       "title": "Χρόνος διατήρησης ενεργοποίησης"
     },
     "title": "LM Studio"
-  },
-  "memory": {
-    "actions": "Ενέργειες",
-    "add_failed": "Αποτυχία προσθήκης μνήμης",
-    "add_first_memory": "Προσθέστε την πρώτη σας μνήμη",
-    "add_memory": "Προσθήκη μνήμης",
-    "add_new_user": "Προσθήκη νέου χρήστη",
-    "add_success": "Η μνήμη προστέθηκε επιτυχώς",
-    "add_user": "Προσθήκη χρήστη",
-    "add_user_failed": "Αποτυχία προσθήκης χρήστη",
-    "all_users": "Όλοι οι χρήστες",
-    "cannot_delete_default_user": "Δεν είναι δυνατή η διαγραφή του προεπιλεγμένου χρήστη",
-    "configure_memory_first": "Παρακαλώ ρυθμίστε πρώτα τις ρυθμίσεις μνήμης",
-    "content": "Περιεχόμενο",
-    "current_user": "Τρέχων χρήστης",
-    "custom": "Προσαρμοσμένο",
-    "default": "Προεπιλογή",
-    "default_user": "Προεπιλεγμένος χρήστης",
-    "delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτή τη μνήμη;",
-    "delete_confirm_content": "Είστε βέβαιοι ότι θέλετε να διαγράψετε {{count}} μνήμες;",
-    "delete_confirm_single": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτή τη μνήμη;",
-    "delete_confirm_title": "Διαγραφή μνήμης",
-    "delete_failed": "Αποτυχία διαγραφής μνήμης",
-    "delete_selected": "Διαγραφή επιλεγμένων",
-    "delete_success": "Η μνήμη διαγράφηκε επιτυχώς",
-    "delete_user": "Διαγραφή χρήστη",
-    "delete_user_confirm_content": "Είστε βέβαιοι ότι θέλετε να διαγράψετε τον χρήστη {{user}} και όλες τις μνήμες του;",
-    "delete_user_confirm_title": "Διαγραφή χρήστη",
-    "delete_user_failed": "Αποτυχία διαγραφής χρήστη",
-    "description": "Η λειτουργία μνήμης σας επιτρέπει να αποθηκεύετε και να διαχειρίζεστε πληροφορίες από την αλληλεπίδρασή σας με τον βοηθό. Μπορείτε να προσθέτετε, επεξεργάζεστε και διαγράφετε μνήμες, καθώς και να τις φιλτράρετε και να τις αναζητάτε.",
-    "edit_memory": "Επεξεργασία μνήμης",
-    "embedding_dimensions": "Διαστάσεις ενσωμάτωσης",
-    "embedding_model": "Μοντέλο ενσωμάτωσης",
-    "enable_global_memory_first": "Παρακαλώ ενεργοποιήστε πρώτα τη γενική μνήμη",
-    "end_date": "Ημερομηνία λήξης",
-    "global_memory": "Γενική μνήμη",
-    "global_memory_description": "Απαιτείται η ενεργοποίηση της γενικής μνήμης στις ρυθμίσεις του βοηθού για να χρησιμοποιηθεί",
-    "global_memory_disabled_desc": "Για να χρησιμοποιήσετε τη λειτουργία μνήμης, ενεργοποιήστε πρώτα τη γενική μνήμη στις ρυθμίσεις του βοηθού.",
-    "global_memory_disabled_title": "Η γενική μνήμη είναι απενεργοποιημένη",
-    "global_memory_enabled": "Η γενική μνήμη είναι ενεργοποιημένη",
-    "go_to_memory_page": "Μετάβαση στη σελίδα μνήμης",
-    "initial_memory_content": "Καλώς ήρθατε! Αυτή είναι η πρώτη σας μνήμη.",
-    "llm_model": "Μοντέλο LLM",
-    "load_failed": "Αποτυχία φόρτωσης μνήμης",
-    "loading": "Φόρτωση μνήμης...",
-    "loading_memories": "Φόρτωση μνήμης...",
-    "memories_description": "Εμφάνιση {{count}} / {{total}} μνήμης",
-    "memories_reset_success": "Όλες οι μνήμες του {{user}} επαναφέρθηκαν επιτυχώς",
-    "memory": "μνήμη",
-    "memory_content": "Περιεχόμενο μνήμης",
-    "memory_placeholder": "Εισαγωγή περιεχομένου μνήμης...",
-    "new_user_id": "Νέο ID χρήστη",
-    "new_user_id_placeholder": "Εισαγωγή μοναδικού ID χρήστη",
-    "no_matching_memories": "Δεν βρέθηκαν αντίστοιχες μνήμες",
-    "no_memories": "Δεν υπάρχουν μνήμες",
-    "no_memories_description": "Ξεκινήστε προσθέτοντας την πρώτη σας μνήμη",
-    "not_configured_desc": "Παρακαλώ ρυθμίστε τα μοντέλα ενσωμάτωσης και LLM στις ρυθμίσεις μνήμης για να ενεργοποιήσετε τη λειτουργία μνήμης.",
-    "not_configured_title": "Η μνήμη δεν έχει ρυθμιστεί",
-    "pagination_total": "{{start}}-{{end}} από {{total}} συνολικά",
-    "please_enter_memory": "Παρακαλώ εισάγετε περιεχόμενο μνήμης",
-    "please_select_embedding_model": "Παρακαλώ επιλέξτε μοντέλο ενσωμάτωσης",
-    "please_select_llm_model": "Παρακαλώ επιλέξτε μοντέλο LLM",
-    "reset_filters": "Επαναφορά φίλτρων",
-    "reset_memories": "Επαναφορά μνήμης",
-    "reset_memories_confirm_content": "Είστε βέβαιοι ότι θέλετε να διαγράψετε μόνιμα όλες τις μνήμες του {{user}}; Η ενέργεια αυτή δεν μπορεί να αναιρεθεί.",
-    "reset_memories_confirm_title": "Επαναφορά όλων των μνήμων",
-    "reset_memories_failed": "Αποτυχία επαναφοράς μνήμης",
-    "reset_user_memories": "Επαναφορά μνήμης χρήστη",
-    "reset_user_memories_confirm_content": "Είστε βέβαιοι ότι θέλετε να επαναφέρετε όλες τις μνήμες του {{user}};",
-    "reset_user_memories_confirm_title": "Επαναφορά μνήμης χρήστη",
-    "reset_user_memories_failed": "Αποτυχία επαναφοράς μνήμης χρήστη",
-    "score": "Βαθμολογία",
-    "search": "Αναζήτηση",
-    "search_placeholder": "Αναζήτηση μνήμης...",
-    "select_embedding_model_placeholder": "Επιλέξτε μοντέλο ενσωμάτωσης",
-    "select_llm_model_placeholder": "Επιλέξτε μοντέλο LLM",
-    "select_user": "Επιλογή χρήστη",
-    "settings": "Ρυθμίσεις",
-    "settings_title": "Ρυθμίσεις μνήμης",
-    "start_date": "Ημερομηνία έναρξης",
-    "statistics": "Στατιστικά",
-    "stored_memories": "Αποθηκευμένες μνήμες",
-    "switch_user": "Αλλαγή χρήστη",
-    "switch_user_confirm": "Αλλαγή περιβάλλοντος χρήστη στο {{user}};",
-    "time": "Ώρα",
-    "title": "Γενική μνήμη",
-    "total_memories": "μνήμες",
-    "try_different_filters": "Δοκιμάστε να αλλάξετε τα κριτήρια αναζήτησης",
-    "update_failed": "Αποτυχία ενημέρωσης μνήμης",
-    "update_success": "Η μνήμη ενημερώθηκε επιτυχώς",
-    "user": "Χρήστης",
-    "user_created": "Ο χρήστης {{user}} δημιουργήθηκε και η αλλαγή ήταν επιτυχής",
-    "user_deleted": "Ο χρήστης {{user}} διαγράφηκε επιτυχώς",
-    "user_id": "ID χρήστη",
-    "user_id_exists": "Το ID χρήστη υπάρχει ήδη",
-    "user_id_invalid_chars": "Το ID χρήστη μπορεί να περιέχει μόνο γράμματα, αριθμούς, παύλες και κάτω παύλες",
-    "user_id_placeholder": "Εισαγωγή ID χρήστη (προαιρετικό)",
-    "user_id_required": "Το ID χρήστη είναι υποχρεωτικό",
-    "user_id_reserved": "Το 'default-user' είναι δεσμευμένο, χρησιμοποιήστε άλλο ID",
-    "user_id_rules": "Το ID χρήστη πρέπει να είναι μοναδικό και να περιέχει μόνο γράμματα, αριθμούς, παύλες (-) και κάτω παύλες (_)",
-    "user_id_too_long": "Το ID χρήστη δεν μπορεί να ξεπερνά τους 50 χαρακτήρες",
-    "user_management": "Διαχείριση χρηστών",
-    "user_memories_reset": "Όλες οι μνήμες του {{user}} επαναφέρθηκαν",
-    "user_switch_failed": "Αποτυχία αλλαγής χρήστη",
-    "user_switched": "Το περιβάλλον χρήστη άλλαξε στο {{user}}",
-    "users": "Χρήστες"
   },
   "message": {
     "agents": {
@@ -2291,20 +2839,23 @@
     "websearch": {
       "cutoff": "Περικόπτεται η αναζήτηση...",
       "fetch_complete": "{{count}} αποτελέσματα αναζήτησης",
-      "rag": "Εκτελείται RAG...",
-      "rag_complete": "Διατηρούνται {{countAfter}} από τα {{countBefore}} αποτελέσματα...",
-      "rag_failed": "Το RAG απέτυχε, επιστρέφεται κενό αποτέλεσμα..."
+      "partial_failure": "{{count}} αποτελέσματα αναζήτησης, ορισμένες αναζητήσεις απέτυχαν"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Προσθήκη στο Launchpad",
     "add_to_sidebar": "Προσθήκη στην πλευρική μπάρα",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Κλείσιμο της εφαρμογής",
       "devtools": "Εργαλεία προγραμματιστή",
       "goBack": "Πίσω",
       "goForward": "Μπροστά",
-      "minimize": "Ελαχιστοποίηση της εφαρμογής",
       "openExternal": "Άνοιγμα στον περιηγητή",
       "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμου χρησιμοποιώντας το προεπιλεγμένο παράθυρο",
       "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμου στον περιηγητή",
@@ -2313,6 +2864,13 @@
     },
     "remove_from_launchpad": "Κατάργηση από το Launchpad",
     "remove_from_sidebar": "Κατάργηση από την πλευρική μπάρα",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Κλείσιμο"
@@ -2327,9 +2885,11 @@
         "title": "Διαγραφή προσαρμοσμένης εφαρμογής"
       }
     },
-    "title": "Μικρόπρογραμμα"
+    "title": "Μικρόπρογραμμα",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -2348,44 +2908,18 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Υπόδειξη: Αν συναντήσετε την ειδοποίηση «Μη εμπιστευόμενος περιηγητής» κατά τη σύνδεση στο Google, πρώτα ολοκληρώστε τη σύνδεση του λογαριασμού σας μέσω της εφαρμογής Google στη λίστα μικροεφαρμογών, και στη συνέχεια χρησιμοποιήστε τη σύνδεση Google σε άλλες μικροεφαρμογές"
-    },
-    "clipboard": {
-      "empty": "Το πινάκιδα κόπων είναι άδειο"
-    },
-    "feature": {
-      "chat": "Απάντηση σ' αυτή την ερώτηση",
-      "explanation": "Εξήγηση",
-      "summary": "Σύνοψη",
-      "translate": "Μετάφραση κειμένου"
-    },
-    "footer": {
-      "backspace_clear": "Πατήστε το πλήκτρο Backspace για να κάνετε εκκαθάριση",
-      "copy_last_message": "Παράκαμε το τελευταίο μήνυμα",
-      "esc": "πατήστε ESC για {{action}}",
-      "esc_back": "Επιστροφή",
-      "esc_close": "Κλείσιμο παραθύρου",
-      "esc_pause": "Παύση"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Ρώτα τον {{model}} για βοήθεια...",
-        "title": "Τι θέλεις να κάνεις με το κείμενο που είναι παρακάτω"
-      }
-    },
-    "tooltip": {
-      "pin": "Καρφίτσωμα παραθύρου"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "Καρφίτσωσε αυτό το μοντέλο",
+      "unpin": "Ξεκαρφίτσωμα μοντέλου"
+    },
     "add_parameter": "Προσθήκη παραμέτρων",
     "all": "Όλα",
     "custom_parameters": "Προσαρμοσμένοι παράμετροι",
@@ -2403,6 +2937,9 @@
     "function_calling": "Ξεχωριστική Κλήση Συναρτήσεων",
     "invalid_model": "Μη έγκυρο μοντέλο",
     "json_parse_error": "Μη έγκυρη μορφή JSON",
+    "multi_select": {
+      "label": "Παράλληλη λειτουργία πολλών μοντέλων (αμοιβαία αποκλειόμενη με πολλούς βοηθούς)"
+    },
     "no_matches": "Δεν υπάρχουν διαθέσιμα μοντέλα",
     "parameter_name": "Όνομα παραμέτρου",
     "parameter_type": {
@@ -3171,6 +3708,37 @@
     "zhinao": "360 Intelligent Brain",
     "zhipu": "BigModel"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Υπόδειξη: Αν συναντήσετε την ειδοποίηση «Μη εμπιστευόμενος περιηγητής» κατά τη σύνδεση στο Google, πρώτα ολοκληρώστε τη σύνδεση του λογαριασμού σας μέσω της εφαρμογής Google στη λίστα μικροεφαρμογών, και στη συνέχεια χρησιμοποιήστε τη σύνδεση Google σε άλλες μικροεφαρμογές"
+    },
+    "clipboard": {
+      "empty": "Το πινάκιδα κόπων είναι άδειο"
+    },
+    "feature": {
+      "chat": "Απάντηση σ' αυτή την ερώτηση",
+      "explanation": "Εξήγηση",
+      "summary": "Σύνοψη",
+      "translate": "Μετάφραση κειμένου"
+    },
+    "footer": {
+      "backspace_clear": "Πατήστε το πλήκτρο Backspace για να κάνετε εκκαθάριση",
+      "copy_last_message": "Παράκαμε το τελευταίο μήνυμα",
+      "esc": "πατήστε ESC για {{action}}",
+      "esc_back": "Επιστροφή",
+      "esc_close": "Κλείσιμο παραθύρου",
+      "esc_pause": "Παύση"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Ρώτα τον {{model}} για βοήθεια...",
+        "title": "Τι θέλεις να κάνεις με το κείμενο που είναι παρακάτω"
+      }
+    },
+    "tooltip": {
+      "pin": "Καρφίτσωμα παραθύρου"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "Επιλογή αρχείου εφαρμογής",
@@ -3490,7 +4058,7 @@
         "title": "Λίστα Εφαρμογών Φιλτραρίσματος",
         "user_tips": {
           "mac": "Παρακαλώ εισαγάγετε το Bundle ID της εφαρμογής, ένα ανά γραμμή, δεν γίνεται διάκριση πεζών/κεφαλαίων, υποστηρίζεται ασαφής αντιστοίχιση. Για παράδειγμα: com.google.Chrome, com.apple.mail κ.λπ.",
-          "windows": "Παρακαλώ εισαγάγετε το όνομα του εκτελέσιμου αρχείου της εφαρμογής, ένα ανά γραμμή, δεν γίνεται διάκριση πεζών/κεφαλαίων, υποστηρίζεται ασαφής αντιστοίχιση. Για παράδειγμα: chrome.exe, weixin.exe, Cherry Studio.exe κ.λπ."
+          "windows": "Παρακαλώ εισαγάγετε το όνομα του εκτελέσιμου αρχείου της εφαρμογής, ένα ανά γραμμή, δεν γίνεται διάκριση πεζών/κεφαλαίων, υποστηρίζεται ασαφής αντιστοίχιση. Για παράδειγμα: chrome.exe, weixin.exe, CherryStudio.exe κ.λπ."
         }
       },
       "linux": {
@@ -3611,6 +4179,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "Νέος Πράκτορας",
+      "empty_text": "Κανένας πράκτορας ακόμα",
+      "search_placeholder": "Αναζήτηση πρακτόρων…"
+    },
+    "assistant": {
+      "create_new": "Νέος Βοηθός",
+      "empty_text": "Κανένας βοηθός ακόμα",
+      "multi_hint": "(αμοιβαία αποκλειόμενο με πολλαπλά μοντέλα)",
+      "multi_label": "Παράλληλος πολλαπλών βοηθών",
+      "search_placeholder": "Αναζήτηση βοηθών…"
+    },
+    "common": {
+      "edit": "Επεξεργασία",
+      "pin": "Καρφίτσα",
+      "pinned_title": "Καρφιτσωμένο",
+      "sort": {
+        "asc": "Παλαιότερος",
+        "desc": "Πρόσφατα"
+      },
+      "sort_label": "Ταξινόμηση",
+      "unpin": "Ξεκαρφίτσωμα"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3672,6 +4265,79 @@
       "label": "Πρόεδρος Υπηρεσίας",
       "model_params": "Παράμετροι Μοντέλου",
       "title": "Πρόεδρος Υπηρεσίας"
+    },
+    "channels": {
+      "description": "Συνδέστε πράκτορες με πλατφόρμες μηνυμάτων όπως το Telegram, το Feishu, το Discord και άλλες.",
+      "title": "Κανάλια"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "Καθαρό",
+        "configDescription": "Εναλλαγή ιδιοτήτων για προεπισκόπηση της συμπεριφοράς του στοιχείου",
+        "configTitle": "Διαμόρφωση",
+        "currentProps": "Τρέχοντα props",
+        "description": "Το AgentSelector διαβάζει πλέον πραγματικά δεδομένα από το /agents του DataApi για να επαληθεύει τη συμπεριφορά επιλογής id/item, καρφιτσώματος, ταξινόμησης και αναζήτησης.",
+        "emptyShellNotice": "Αυτή η προεπισκόπηση χρησιμοποιει την πραγματική λίστα πρακτόρων που επιστρέφεται από το /agents DataApi.",
+        "lastOnChange": "Τελευταίο onChange",
+        "previewDescription": "Κάντε κλικ στον διακόπτη για να ανοίξετε τον επιλογέα",
+        "previewTitle": "Προεπισκόπηση",
+        "title": "Επιλογέας Πράκτορα",
+        "triggerPlaceholder": "Επιλέξτε έναν πράκτορα",
+        "valueProp": "Τρέχουσα τιμή"
+      },
+      "assistantSelector": {
+        "clearSelection": "Καθαρό",
+        "configDescription": "Εναλλαγή ιδιοτήτων για προεπισκόπηση της συμπεριφοράς του στοιχείου",
+        "configTitle": "Διαμόρφωση",
+        "currentProps": "Τρέχοντα props",
+        "description": "Τοποθετεί το επιχειρησιακό στοιχείο AssistantSelector απευθείας για να επαληθεύσει τη συμπεριφορά πολλαπλού/μονού, αναγνωριστικού/αντικειμένου, καρφίτσας, ταξινόμησης και αναζήτησης.",
+        "lastOnChange": "Τελευταίο onChange",
+        "previewDescription": "Κάντε κλικ στον διακόπτη για να ανοίξετε τον επιλογέα",
+        "previewTitle": "Προεπισκόπηση",
+        "title": "Επιλογέας Βοηθού",
+        "triggerPlaceholder": "Επιλέξτε βοηθό",
+        "triggerSelectedCount": "{{count}} βοηθοί επιλέχθηκαν",
+        "valueProp": "Τρέχουσα τιμή"
+      },
+      "description": "Ορατό μόνο κατά την ανάπτυξη για τη δοκιμή του νέου επιλογέα μοντέλου απευθείας μέσα στην εφαρμογή.",
+      "label": "Εργαστήριο Συστατικών",
+      "modelSelector": {
+        "behaviorConfig": "Ρύθμιση Συμπεριφοράς και Εμφάνισης",
+        "callbackEmpty": "Δεν έχει ληφθεί ακόμη κλήση συστατικού",
+        "clearSelection": "Καθαρισμός Επιλογής",
+        "configDescription": "Εναλλάξτε τα βασικά props του ModelSelector παραπάνω και επιθεωρήστε την τιμή εισόδου καθώς και τα payloads των callbacks παρακάτω.",
+        "configTitle": "Παιχνίδι με Αξεσουάρ",
+        "controlMultiSelectMode": "Ελεγχόμενη λειτουργία πολλαπλής επιλογής",
+        "currentProps": "Τρέχοντα Props",
+        "defaultMultiSelectMode": "προεπιλεγμένηΛειτουργίαΠολλαπλήςΕπιλογής",
+        "description": "Αυτή η σελίδα τοποθετεί απευθείας το τρέχον επιχειρησιακό στοιχείο ModelSelector, ώστε να μπορούμε να επαληθεύσουμε τη συμπεριφορά επιλογής, φιλτραρίσματος, αναζήτησης και καρφιτσώματος.",
+        "empty": "Δεν είναι διαθέσιμα μοντέλα αυτή τη στιγμή, επομένως ο επιλογέας δεν μπορεί ακόμα να εμφανιστεί.",
+        "lastModeChangeReturn": "Τελευταία επιστροφή onMultiSelectModeChange",
+        "lastSelectReturn": "Τελευταίο onSelect Return",
+        "loading": "Φόρτωση μοντέλων...",
+        "modelId": "Αναγνωριστικό μοντέλου",
+        "multiSelectMode": "πολλαπλήΛειτουργίαΕπιλογής",
+        "multiple": "πολλαπλές",
+        "normalizedIds": "Κανονικοποιημένα Επιλεγμένα Αναγνωριστικά",
+        "outputEmpty": "Δεν υπάρχουν ακόμα δεδομένα για εμφάνιση",
+        "provider": "Πάροχος",
+        "resetOutputs": "Επαναφορά Εξόδων",
+        "resultsDescription": "Αυτό δείχνει την τρέχουσα πρόταση αξίας, τα κανονικοποιημένα επιλεγμένα αναγνωριστικά και το τελευταίο αποτέλεσμα callback από το στοιχείο.",
+        "resultsTitle": "Έξοδοι & Κατάσταση",
+        "selected": "Τρέχουσα Επιλογή",
+        "selectedEmpty": "Δεν έχει επιλεγεί ακόμα μοντέλο",
+        "selectionConfig": "Διαμόρφωση τιμής επιλογής",
+        "selectionType": "τύπος επιλογής",
+        "selectionTypeId": "Επιστροφή Αναγνωριστικών Μοντέλου",
+        "selectionTypeModel": "Επιστροφή Αντικειμένων Μοντέλου",
+        "showPinnedModels": "εμφάνιση καρφιτσωμένων μοντέλων",
+        "showTagFilter": "showTagFilter",
+        "title": "Επιλογέας Μοντέλου",
+        "triggerPlaceholder": "Επιλέξτε ένα μοντέλο",
+        "triggerSelectedCount": "{{count}} μοντέλα επιλέχθηκαν",
+        "valueProp": "Τρέχουσα Πρόταση Αξίας"
+      },
+      "title": "Εργαστήριο Ανάπτυξης Συστατικών"
     },
     "data": {
       "app_data": {
@@ -4337,7 +5003,7 @@
         "knowledge": {
           "icon": "Εμφάνιση εικονιδίου γνώσης"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "Εμφάνιση εικονιδίου μικροπρογραμμάτων"
         },
         "painting": {
@@ -4371,6 +5037,15 @@
       "backup": {
         "button": "Αντιγραφή ασφαλείας",
         "title": "Αντιγραφή ασφαλείας και αποκατάσταση δεδομένων"
+      },
+      "common": {
+        "sections": {
+          "custom_css": "Προσαρμοσμένη CSS",
+          "display_language": "Εμφάνιση & Γλώσσα",
+          "privacy_advanced": "Ιδιωτικότητα & Προηγμένα",
+          "system_startup": "Σύστημα & Εκκίνηση"
+        },
+        "title": "Κοινές Ρυθμίσεις"
       },
       "display": {
         "title": "Ρυθμίσεις εμφάνισης"
@@ -4432,6 +5107,12 @@
         "label": "Γλώσσα προορισμού",
         "russian": "Ρωσικά"
       }
+    },
+    "integrations": {
+      "groups": {
+        "notes": "Σημειώσεις"
+      },
+      "title": "Ενσωματώσεις"
     },
     "launch": {
       "onboot": "Αυτόματη εκκίνηση κατά την εκκίνηση του συστήματος",
@@ -4554,6 +5235,7 @@
         "glama": "Κατάλογος διακομιστών Glama MCP",
         "higress": "Διακομιστής MCP Higress",
         "mcpso": "Πλατφόρμα ανακάλυψης διακομιστών MCP",
+        "mcpworld": "Πλατφόρμα συγκέντρωσης MCP της Baidu",
         "modelscope": "Διακομιστής MCP κοινότητας ModelScope",
         "official": "Επίσημη συλλογή διακομιστών MCP",
         "pulsemcp": "Διακομιστής Pulse MCP",
@@ -4701,6 +5383,13 @@
       "url": "URL",
       "user": "Χρήστης"
     },
+    "menuGroups": {
+      "appSettings": "Ρυθμίσεις Εφαρμογής",
+      "integrations": "Μοντέλα",
+      "productivity": "Παραγωγικότητα",
+      "services": "Πρόσθετα",
+      "system": "Σύστημα"
+    },
     "messages": {
       "divider": {
         "label": "Διαχωριστική γραμμή μηνυμάτων",
@@ -4738,7 +5427,7 @@
       "title": "Ρυθμίσεις μηνυμάτων",
       "use_serif_font": "Χρήση μορφής Serif"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Η αλλαγή θα τεθεί σε ισχύ αφού το πλήθος των ανοιχτών μικροπρογραμμάτων φτάσει τη ρυθμισμένη τιμή",
       "cache_description": "Ορίστε τον μέγιστο αριθμό των μικροπρογραμμάτων που μπορούν να είναι ενεργά ταυτόχρονα",
       "cache_settings": "Ρυθμίσεις Προσωρινής Μνήμης",
@@ -4788,8 +5477,6 @@
         "title": "Φίλτραρισμα περιοχής για μικρές εφαρμογές"
       },
       "reset_tooltip": "Επαναφορά στις προεπιλεγμένες τιμές",
-      "sidebar_description": "Καθορίστε εάν το ενεργό μικροπρόγραμμα θα εμφανίζεται στην πλευρική γραμμή",
-      "sidebar_title": "Ρυθμίσεις Εμφάνισης Ενεργού Μικροπρογράμματος στην Πλευρική Γραμμή",
       "title": "Ρυθμίσεις Μικροπρογράμματος",
       "visible": "Εμφανιζόμενα μικροπρογράμματα"
     },
@@ -4854,7 +5541,7 @@
         "use_all_keys": "Χρήση όλων των κλειδιών"
       },
       "default_assistant_model": "Πρόεδρος Υπηρεσίας προεπιλεγμένου μοντέλου",
-      "default_assistant_model_description": "Το μοντέλο που χρησιμοποιείται όταν δημιουργείτε νέο υπάλληλο. Αν το υπάλληλο δεν έχει επιλεγμένο ένα μοντέλο, τότε θα χρησιμοποιεί αυτό το μοντέλο.",
+      "default_assistant_model_description": "Χρησιμοποιείται όταν ένας βοηθός δεν έχει μοντέλο.",
       "empty": "Δεν υπάρχουν μοντέλα",
       "manage": {
         "add_listed": {
@@ -4948,9 +5635,35 @@
         "title": "λεπτομέρεια"
       }
     },
+    "plugins": {
+      "bunDescription": "JavaScript runtime που χρησιμοποιείται από υπηρεσίες MCP και σχετικά εργαλειοθέματα.",
+      "description": "Διαχειριστείτε τα δυαδικά εργαλεία και τις εξαρτήσεις χρόνου εκτέλεσης που απαιτούνται από την εφαρμογή.",
+      "installing": "Εγκατάσταση...",
+      "notInstalled": "Δεν έχει εγκατασταθεί",
+      "title": "Εξαρτήσεις Περιβάλλοντος",
+      "uvDescription": "Διαχειριστής πακέτων Python για υπηρεσίες MCP και εγκατάσταση εξαρτήσεων."
+    },
     "privacy": {
       "enable_privacy_mode": "Αποστολή ανώνυμων αναφορών σφαλμάτων και στατιστικών δεδομένων",
       "title": "Ρυθμίσεις Απορρήτου"
+    },
+    "prompts": {
+      "add": "Προσθήκη Prompt",
+      "contentLabel": "Περιεχόμενο",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Διαγραφή Prompt",
+      "deleteConfirm": "Το prompt θα διαγραφεί οριστικά. Συνέχεια;",
+      "edit": "Επεξεργασία Prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Διαχείριση Prompts",
+      "titleLabel": "Τίτλος",
+      "titlePlaceholder": "Εισαγάγετε τίτλο prompt"
     },
     "provider": {
       "add": {
@@ -5192,7 +5905,8 @@
         "documentation": "Δείτε την επίσημη τεκμηρίωση για περισσότερες λεπτομέρειες ρύθμισης:",
         "learn_more": "Μάθετε περισσότερα",
         "location": "Περιοχή",
-        "location_help": "Η περιοχή της υπηρεσίας Vertex AI, π.χ. us-central1",
+        "location_help": "Η περιοχή της υπηρεσίας Vertex AI, π.χ. us-central1. Αυτό το πεδίο δεν διαβάζεται από το JSON του Service Account και πρέπει να συμπληρωθεί χειροκίνητα.",
+        "location_placeholder": "Επιλέξτε περιοχή Vertex AI",
         "project_id": "Αναγνωριστικό έργου",
         "project_id_help": "Το αναγνωριστικό έργου Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5203,6 +5917,11 @@
           "client_email_placeholder": "Παρακαλώ εισάγετε το email πελάτη του λογαριασμού υπηρεσίας",
           "description": "Επαλήθευση με λογαριασμό υπηρεσίας, κατάλληλο για περιβάλλοντα όπου δεν είναι διαθέσιμο το ADC",
           "incomplete_config": "Παρακαλώ συμπληρώστε πρώτα πλήρως τις πληροφορίες του λογαριασμού υπηρεσίας",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Επικολλήστε το πλήρες περιεχόμενο κλειδιού JSON. Μετά την ανάλυση αποθηκεύονται μόνο τα project_id, client_email και private_key και το αρχικό JSON διαγράφεται.",
+          "json_input_placeholder": "Επικολλήστε το πλήρες περιεχόμενο κλειδιού JSON του Service Account",
+          "json_parse_error": "Αποτυχία ανάλυσης Service Account JSON. Παρακαλώ επιβεβαιώστε ότι η μορφή είναι σωστή.",
+          "json_parse_success": "Το Service Account JSON αναλύθηκε",
           "private_key": "Ιδιωτικό κλειδί",
           "private_key_help": "Το πεδίο private_key από το αρχείο κλειδιού JSON που κατεβάσατε από το Google Cloud Console",
           "private_key_placeholder": "Παρακαλώ εισάγετε το ιδιωτικό κλειδί του λογαριασμού υπηρεσίας",
@@ -5239,39 +5958,51 @@
       "select": "Επιλογή",
       "title": "Γρήγορη Πρόσβαση"
     },
-    "quickPhrase": {
-      "add": "Προσθήκη Φράσης",
-      "assistant": "Φράσεις Βοηθού",
-      "contentLabel": "Περιεχόμενο",
-      "contentPlaceholder": "Παρακαλώ εισάγετε περιεχόμενο φράσης. Υποστηρίζεται η χρήση μεταβλητών, και στη συνέχεια πατήστε Tab για να μεταβείτε γρήγορα στη μεταβλητή και να την τροποποιήσετε. Για παράδειγμα: \\\\n Βοήθησέ με να σχεδιάσω μια διαδρομή από το ${from} στο ${to}, και στη συνέχεια να τη στείλεις στο ${email}.",
-      "delete": "Διαγραφή Φράσης",
-      "deleteConfirm": "Η διαγραφή της φράσης δεν μπορεί να αναιρεθεί. Θέλετε να συνεχίσετε;",
-      "edit": "Επεξεργασία Φράσης",
-      "global": "Κοινές Φράσεις",
-      "locationLabel": "Προσθήκη Τοποθεσίας",
-      "title": "Γρήγορες Φράσεις",
-      "titleLabel": "Τίτλος",
-      "titlePlaceholder": "Παρακαλώ εισάγετε τίτλο φράσης"
+    "scheduledTasks": {
+      "description": "Διαχειριστείτε προγραμματισμένες εργασίες σε όλους τους πράκτορες. Οι εργασίες εκτελούνται αυτόματα σύμφωνα με το διαμορφωμένο πρόγραμμα.",
+      "noAgents": "Δεν βρέθηκαν πράκτορες. Δημιουργήστε πρώτα έναν πράκτορα για να προσθέσετε προγραμματισμένες εργασίες.",
+      "noAgentsTip": "Συμβουλή: Μπορείτε επίσης να ζητήσετε από τον παράγοντά σας να δημιουργήσει προγραμματισμένες εργασίες μέσω συνομιλίας.",
+      "noTasks": "Κανένα προγραμματισμένο task. Κάντε κλικ στο \"+ Προσθήκη\" για να δημιουργήσετε ένα για έναν πράκτορα.",
+      "selectTask": "Επιλέξτε μια εργασία για να δείτε λεπτομέρειες",
+      "title": "Προγραμματισμένες Εργασίες"
     },
     "shortcuts": {
       "action": "Ενέργεια",
       "actions": "Λειτουργία",
+      "all_disable": "Απενεργοποίηση Όλων",
+      "all_enable": "Ενεργοποίηση Όλων",
+      "bind_first_to_enable": "Δέστε πρώτα μια συντόμευση για να αλλάξετε την κατάσταση ενεργοποίησής της",
+      "categories": {
+        "assistant": "Εργαλεία Βοηθού Τεχνητής Νοημοσύνης",
+        "chat": "Αλληλεπίδραση Μηνυμάτων",
+        "general": "Καθολικό και Παράθυρο",
+        "title": "Ομάδες Συντομεύσεων",
+        "topic": "Συζήτηση και Θέματα"
+      },
       "clear_shortcut": "Καθαρισμός συντομού πλήκτρου",
       "clear_topic": "Άδειασμα μηνυμάτων",
+      "conflict_with": "Ήδη χρησιμοποιείται από τον \"{{name}}\"",
       "copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
       "edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",
+      "empty": "Δεν υπάρχουν διαθέσιμες συντομεύσεις σε αυτήν την ομάδα",
       "enabled": "ενεργοποίηση",
       "exit_fullscreen": "Έξοδος από πλήρη οθόνη",
       "label": "Πλήκτρο",
-      "mini_window": "Συντομεύστε επιχειρηματικά",
       "new_topic": "Νέο θέμα",
+      "occupied_by_other_application": "Αυτή η συντόμευση χρησιμοποιείται ήδη από το σύστημα ή από άλλη εφαρμογή",
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
+      "quick_assistant": "Συντομεύστε επιχειρηματικά",
       "rename_topic": "Μετονομασία θέματος",
+      "reset": "Επαναφορά",
       "reset_defaults": "Επαναφορά στα προεπιλεγμένα συντομού πλήκτρα",
       "reset_defaults_confirm": "Θέλετε να επαναφέρετε όλα τα συντομού πλήκτρα στις προεπιλεγμένες τιμές;",
+      "reset_defaults_failed": "Αποτυχία επαναφοράς των συντομεύσεων στις προεπιλογές",
       "reset_to_default": "Επαναφορά στις προεπιλεγμένες",
+      "save_failed": "Αποτυχία αποθήκευσης της συντόμευσης",
+      "save_failed_with_name": "Αποτυχία αποθήκευσης συντόμευσης: {{name}}",
       "search_message": "Αναζήτηση μηνυμάτων",
       "search_message_in_chat": "Αναζήτηση μηνύματος στην τρέχουσα συνομιλία",
+      "search_placeholder": "Συντομεύσεις αναζήτησης...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Βοηθός επιλογής κειμένου: επιλογή λέξης",
       "selection_assistant_toggle": "Εναλλαγή βοηθού επιλογής κειμένου",
@@ -5279,11 +6010,46 @@
       "show_settings": "Άνοιγμα των ρυθμίσεων",
       "title": "Συντομοί δρομολόγια",
       "toggle_new_context": "Άδειασμα σενάριων",
-      "toggle_show_assistants": "Εναλλαγή εμφάνισης βοηθών",
       "toggle_show_topics": "Εναλλαγή εμφάνισης θεμάτων",
+      "toggle_sidebar": "Εναλλαγή πλευρικής γραμμής",
       "zoom_in": "Μεγέθυνση εμφάνισης",
       "zoom_out": "Σμικρύνση εμφάνισης",
       "zoom_reset": "Επαναφορά εμφάνισης"
+    },
+    "skills": {
+      "author": "Συγγραφέας",
+      "batchUninstallSuccess": "{{count}} δεξιότητες απεγκαταστάθηκαν",
+      "builtin": "Ενσωματωμένο",
+      "confirmBatchUninstall": "Είστε σίγουροι ότι θέλετε να απεγκαταστήσετε {{count}} επιλεγμένες δεξιότητες;",
+      "confirmUninstall": "Είσαι σίγουρος ότι θέλεις να απεγκαταστήσεις αυτή την ικανότητα;",
+      "directory": "Κατάλογος",
+      "dropHint": "Ή σύρετε και αφήστε εδώ ένα αρχείο ZIP ή έναν φάκελο",
+      "emptyDesc": "Εγκαταστήστε δεξιότητες από ZIP, φάκελο ή αναζητήστε σε διαδικτυακά μητρώα για να επεκτείνετε τις δυνατότητες του πράκτορα.",
+      "emptyTip": "Συμβουλή: Μπορείς επίσης να ζητήσεις από έναν πράκτορα να εγκαταστήσει δεξιότητες για εσένα.",
+      "emptyTitle": "Δεν έχει επιλεγεί δεξιότητα",
+      "filterPlaceholder": "Φιλτράρισμα δεξιοτήτων...",
+      "install": "Εγκατάσταση",
+      "installFailed": "Αποτυχία εγκατάστασης δεξιότητας: {{name}}",
+      "installFromDirectory": "Εγκατάσταση από φάκελο",
+      "installFromZip": "Εγκατάσταση από αρχείο ZIP",
+      "installSuccess": "Δεξιότητα εγκαταστάθηκε: {{name}}",
+      "installed": "Εγκατεστημένες Δεξιότητες",
+      "invalidFormat": "Μόνο αρχεία ZIP και κατάλογοι υποστηρίζονται",
+      "localInstall": "Τοπική Εγκατάσταση",
+      "multiSelect": "Πολλαπλής επιλογής",
+      "noFilterResults": "Καμία αντιστοιχία δεξιοτήτων",
+      "noInstalled": "Δεν έχουν εγκατασταθεί δεξιότητες",
+      "noResults": "Δεν βρέθηκαν δεξιότητες",
+      "noSkillFile": "Δεν βρέθηκε SKILL.md",
+      "searchPlaceholder": "Ανακαλύψτε περισσότερες δεξιότητες...",
+      "searchRegistryTitle": "Αναζητήστε μητρώα δεξιοτήτων στο διαδίκτυο",
+      "searchTitle": "Δεξιότητες Αναζήτησης",
+      "selectFile": "Επιλέξτε ένα αρχείο για προβολή",
+      "title": "Δεξιότητες",
+      "uninstall": "Απεγκατάσταση",
+      "uninstallSuccess": "Δεξιότητα απεγκαταστάθηκε: {{name}}",
+      "viewSource": "Προβολή Πηγής",
+      "zip": "Τ.Κ."
     },
     "theme": {
       "color_primary": "Κύριο Χρώμα Θέματος",
@@ -5307,6 +6073,14 @@
         },
         "error": {
           "not_system": "Το σύστημα OCR υποστηρίζει μόνο Windows και MacOS"
+        },
+        "features": {
+          "paddleocr": "Ισχυρότερο για κινέζικο κείμενο και πιο κατάλληλο για αποδείξεις, σαρωμένα έγγραφα και εικόνες με πιο πολύπλοκες διατάξεις.",
+          "system": {
+            "macos": "Χρησιμοποιεί την ενσωματωμένη μηχανή OCR του macOS χωρίς καμία ρύθμιση, ιδανική για στιγμιότυπα οθόνης και ελαφριά εξαγωγή κειμένου.",
+            "windows": "Χρησιμοποιεί τη γηγενή μηχανή OCR των Windows με ισχυρή ενσωμάτωση στο λειτουργικό σύστημα για βασικές τοπικές εργασίες αναγνώρισης."
+          },
+          "tesseract": "Μια κλασική τοπική επιλογή OCR με προσαρμόσιμα πακέτα γλωσσών, ιδανική για χρήση εκτός σύνδεσης και πολύγλωσσες ροές εργασίας."
         },
         "image": {
           "error": {
@@ -5334,6 +6108,13 @@
         "title": "Υπηρεσία OCR"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "Κατάλληλο για τη μετατροπή αρχείων PDF σε καθαρότερη μορφή Markdown ή επεξεργάσιμο κείμενο για περαιτέρω ανάκτηση και επεξεργασία.",
+          "mineru": "Βελτιστοποιημένο για ανάκτηση διάταξης υψηλότερης πιστότητας, ιδιαίτερα χρήσιμο για ακαδημαϊκά PDF, πίνακες και τύπους.",
+          "mistral": "Ισχυρή κατανόηση εγγράφων μέσω cloud, κατάλληλη για δομημένη εξαγωγή, πολυσέλιδα αρχεία και πολύπλοκες διατάξεις.",
+          "open_mineru": "Μια ανοιχτή επιλογή ανάπτυξης που ταιριάζει σε ομάδες που επιθυμούν αυτο-φιλοξενία ή μεγαλύτερο έλεγχο στη διαδικασία επεξεργασίας.",
+          "paddleocr": "Μια ελαφρύτερη επιλογή ενσωμάτωσης που λειτουργεί καλά για κινέζικα έγγραφα, σκαναρίσματα και κοινό περιεχόμενο σε στυλ αποδείξεων."
+        },
         "paddleocr": {
           "aistudio_access_token": "Δείκτης πρόσβασης της κοινότητας AI Studio",
           "api_url": "Διεύθυνση URL του API",
@@ -5372,23 +6153,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "Το RAG απέτυχε"
-          },
-          "info": {
-            "dimensions_auto_success": "Η αυτόματη λήψη διαστάσεων ήταν επιτυχής, οι διαστάσεις είναι {{dimensions}}"
-          },
           "method": {
             "cutoff": "Αποκοπή",
             "label": "Μέθοδος συμπίεσης",
-            "none": "Χωρίς συμπίεση",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Αριθμός αποσπασμάτων εγγράφου",
-              "tooltip": "Ο αναμενόμενος αριθμός αποσπασμάτων εγγράφου που θα εξαχθούν από κάθε αποτέλεσμα αναζήτησης· ο πραγματικός συνολικός αριθμός είναι αυτή η τιμή επί τον αριθμό των αποτελεσμάτων αναζήτησης"
-            }
+            "none": "Χωρίς συμπίεση"
           },
           "title": "Συμπίεση αποτελεσμάτων αναζήτησης"
         },
@@ -5514,7 +6282,11 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "close": "Κλείσιμο Καρτέλας",
+    "moveToFirst": "Μετακίνηση στο Πρώτο",
+    "new": "Νέα Καρτέλα",
+    "pin": "Καρφίτσωμα καρτέλας",
+    "unpin": "Ξεκαρφίτσωση Καρτέλας"
   },
   "title": {
     "apps": "Εφαρμογές",
@@ -5524,7 +6296,6 @@
     "knowledge": "Βάση Γνώσης",
     "launchpad": "Πίνακας Εκκίνησης",
     "mcp-servers": "Διακομιστές MCP",
-    "memories": "Μνήμες",
     "notes": "σημειώσεις",
     "openclaw": "OpenClaw",
     "paintings": "Ζωγραφική",
@@ -5626,6 +6397,7 @@
       "empty": "δεν υπάρχουν απομνημονεύματα μετάφρασης",
       "error": {
         "delete": "Αποτυχία διαγραφής",
+        "load": "Αποτυχία φόρτωσης ιστορικού μεταφράσεων",
         "save": "Αποτυχία αποθήκευσης του ιστορικού μεταφράσεων"
       },
       "search": {
@@ -5682,7 +6454,7 @@
   },
   "tray": {
     "quit": "Έξοδος",
-    "show_mini_window": "Σύντομη βοήθεια",
+    "show_quick_assistant": "Σύντομη βοήθεια",
     "show_window": "Εμφάνιση παραθύρου"
   },
   "update": {

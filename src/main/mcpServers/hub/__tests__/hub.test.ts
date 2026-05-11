@@ -52,7 +52,7 @@ const mockTools: MCPTool[] = [
   }
 ]
 
-const mockMCPService = {
+const mockMcpService = {
   listAllActiveServerTools: vi.fn(async () => mockTools),
   callToolById: vi.fn(async (toolId: string, args: unknown) => {
     if (toolId === 'github__search_repos') {
@@ -83,11 +83,11 @@ const mockCacheService = {
   delete: vi.fn((key: string) => cacheStore.delete(key))
 }
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
-      if (name === 'MCPService') {
-        return mockMCPService
+      if (name === 'McpService') {
+        return mockMcpService
       }
       if (name === 'CacheService') {
         return mockCacheService
@@ -154,22 +154,22 @@ describe('HubServer Integration', () => {
   describe('tools caching', () => {
     it('uses cached tools within TTL', async () => {
       await (hubServer as any).handleList({ limit: 100, offset: 0 })
-      const firstCallCount = mockMCPService.listAllActiveServerTools.mock.calls.length
+      const firstCallCount = mockMcpService.listAllActiveServerTools.mock.calls.length
 
       await (hubServer as any).handleList({ limit: 100, offset: 0 })
-      const secondCallCount = mockMCPService.listAllActiveServerTools.mock.calls.length
+      const secondCallCount = mockMcpService.listAllActiveServerTools.mock.calls.length
 
       expect(secondCallCount).toBe(firstCallCount) // Should use cache
     })
 
     it('refreshes tools after cache invalidation', async () => {
       await (hubServer as any).handleList({ limit: 100, offset: 0 })
-      const firstCallCount = mockMCPService.listAllActiveServerTools.mock.calls.length
+      const firstCallCount = mockMcpService.listAllActiveServerTools.mock.calls.length
 
       hubServer.invalidateCache()
 
       await (hubServer as any).handleList({ limit: 100, offset: 0 })
-      const secondCallCount = mockMCPService.listAllActiveServerTools.mock.calls.length
+      const secondCallCount = mockMcpService.listAllActiveServerTools.mock.calls.length
 
       expect(secondCallCount).toBe(firstCallCount + 1)
     })
@@ -212,7 +212,7 @@ describe('HubServer Integration', () => {
         toolCallStarted = resolve
       })
 
-      mockMCPService.callToolById.mockImplementationOnce(async () => {
+      mockMcpService.callToolById.mockImplementationOnce(async () => {
         toolCallStarted?.()
         return await new Promise(() => {})
       })
@@ -235,7 +235,7 @@ describe('HubServer Integration', () => {
       expect(execOutput.result).toBeUndefined()
       expect(execOutput.isError).toBe(true)
       expect(execOutput.logs).toContain('[log] starting')
-      expect(mockMCPService.abortTool).toHaveBeenCalled()
+      expect(mockMcpService.abortTool).toHaveBeenCalled()
     })
   })
 

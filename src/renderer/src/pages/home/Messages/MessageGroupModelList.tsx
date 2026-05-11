@@ -41,7 +41,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
 
       if (isCompact) {
         return (
-          <Tooltip key={message.id} content={modelTip} delay={500} closeDelay={0}>
+          <Tooltip key={message.id} content={modelTip} delay={500}>
             <AvatarWrapper
               className="avatar-wrapper"
               $isSelected={message.id === selectMessageId}
@@ -73,8 +73,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
             ? t('message.message.multi_model_style.fold.expand')
             : t('message.message.multi_model_style.fold.compress')
         }
-        delay={500}
-        closeDelay={0}>
+        delay={500}>
         <DisplayModeToggle
           displayMode={foldDisplayMode}
           onClick={() => setFoldDisplayMode(isCompact ? 'expanded' : 'compact')}>
@@ -90,7 +89,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
               const isSelected = message.id === selectMessageId
 
               return (
-                <Tooltip key={message.id} content={modelTip} delay={500} closeDelay={0}>
+                <Tooltip key={message.id} content={modelTip} delay={500}>
                   {(() => {
                     const Icon = getModelLogo(message.model)
                     return Icon ? (

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { parseCurrentVersion, parseUpdateStatus } from '../utils/openClawParsers'
+import { parseCurrentVersion, parseUpdateStatus } from '../OpenClawService'
 
 // --- Mocks for OpenClawService dependencies ---
 
@@ -15,15 +15,18 @@ vi.mock('@main/core/lifecycle', () => {
   }
 })
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
-      if (name === 'WindowService') {
+      if (name === 'MainWindowService') {
         return {
           getMainWindow: vi.fn(() => ({
             webContents: { send: vi.fn() }
           }))
         }
+      }
+      if (name === 'WindowManager') {
+        return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []), getAllWindows: vi.fn(() => []) }
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     })
@@ -97,6 +100,24 @@ describe('OpenClawService gateway status state machine', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  describe('getDashboardUrl', () => {
+    it('uses fragment token to keep dashboard auth client-side', () => {
+      // @ts-expect-error -- accessing private field for testing
+      service.gatewayAuthToken = 'a b+c'
+
+      const url = service.getDashboardUrl()
+      expect(url).toBe(`http://127.0.0.1:18790#token=${encodeURIComponent('a b+c')}`)
+    })
+
+    it('throws when dashboard auth token cannot be recovered', () => {
+      // @ts-expect-error -- accessing private field for testing
+      service.gatewayAuthToken = ''
+      vi.spyOn(service as any, 'loadAuthTokenFromConfig').mockImplementation(() => undefined)
+
+      expect(() => service.getDashboardUrl()).toThrow('OpenClaw dashboard auth token is missing')
+    })
   })
 
   // ─── getStatus ───────────────────────────────────────────────

@@ -16,7 +16,8 @@
  */
 import { loggerService } from '@logger'
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
-import { IpcChannel } from '@shared/IpcChannel'
+// [v2] Removed: IpcChannel only referenced by the ReduxStoreReady signal below, which is now commented out.
+// import { IpcChannel } from '@shared/IpcChannel'
 import { useDispatch, useSelector, useStore } from 'react-redux'
 import { FLUSH, PAUSE, PERSIST, persistReducer, persistStore, PURGE, REGISTER, REHYDRATE } from 'redux-persist'
 import storage from 'redux-persist/lib/storage'
@@ -85,7 +86,7 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 205,
+    version: 206,
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
     migrate
   },
@@ -124,9 +125,9 @@ export const persistor = persistStore(store, undefined, () => {
     }, 0)
   }
 
-  // Notify main process that Redux store is ready
-  void window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
-  logger.info('Redux store ready, notified main process')
+  // [v2] Removed: ReduxService is stubbed in v2 and no longer registers a handler for this channel.
+  // void window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
+  // logger.info('Redux store ready, notified main process')
 })
 
 export const useAppDispatch = useDispatch.withTypes<AppDispatch>()

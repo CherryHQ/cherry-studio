@@ -1,3 +1,4 @@
+import { Alert, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorTag } from '@renderer/components/Tags/ErrorTag'
 import { isMac, isWin } from '@renderer/config/constant'
@@ -5,7 +6,6 @@ import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import type { ImageOcrProvider, OcrProvider } from '@renderer/types'
 import { BuiltinOcrProviderIds, isImageOcrProvider } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
-import { Alert, Select, Skeleton } from 'antd'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWRImmutable from 'swr/immutable'
@@ -94,14 +94,27 @@ const OcrProviderSelector = ({ isLoading, error, value, options, onChange }: Ocr
   const { t } = useTranslation()
 
   if (isLoading) {
-    return <Skeleton.Input active style={{ width: '200px', height: '32px' }} />
+    return <Skeleton className="h-8 w-[200px]" />
   }
 
   if (error) {
     return <Alert type="error" message={t('ocr.error.provider.get_providers')} description={getErrorMessage(error)} />
   }
 
-  return <Select value={value} style={{ width: '200px' }} onChange={onChange} options={options} />
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="w-[200px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
 }
 
 export default OcrImageSettings

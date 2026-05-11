@@ -4,12 +4,12 @@ import { readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { audioExts, documentExts, HOME_CHERRY_DIR, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
+import { audioExts, documentExts, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
 import type { FileMetadata, FileType, NotesTreeNode } from '@types'
 import { FILE_TYPE } from '@types'
 import chardet from 'chardet'
-import { app } from 'electron'
 import iconv from 'iconv-lite'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -161,39 +161,6 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileMetadata[] = []):
   return arrayOfFiles
 }
 
-export function getTempDir() {
-  return path.join(app.getPath('temp'), 'CherryStudio')
-}
-
-export function getFilesDir() {
-  return path.join(app.getPath('userData'), 'Data', 'Files')
-}
-
-export function getNotesDir() {
-  const notesDir = path.join(app.getPath('userData'), 'Data', 'Notes')
-  if (!fs.existsSync(notesDir)) {
-    fs.mkdirSync(notesDir, { recursive: true })
-    logger.info(`Notes directory created at: ${notesDir}`)
-  }
-  return notesDir
-}
-
-export function getConfigDir() {
-  return path.join(os.homedir(), HOME_CHERRY_DIR, 'config')
-}
-
-export function getCacheDir() {
-  return path.join(app.getPath('userData'), 'Cache')
-}
-
-export function getAppConfigDir(name: string) {
-  return path.join(getConfigDir(), name)
-}
-
-export function getMcpDir() {
-  return path.join(os.homedir(), HOME_CHERRY_DIR, 'mcp')
-}
-
 /**
  * 读取文件内容并自动检测编码格式进行解码
  * @param filePath - 文件路径
@@ -291,11 +258,12 @@ export async function writeWithLock(
 }
 
 export async function base64Image(file: FileMetadata): Promise<{ mime: string; base64: string; data: string }> {
-  const filePath = path.join(getFilesDir(), `${file.id}${file.ext}`)
+  const filePath = application.getPath('feature.files.data', `${file.id}${file.ext}`)
   const data = await fs.promises.readFile(filePath)
   const base64 = data.toString('base64')
-  const ext = path.extname(filePath).slice(1) == 'jpg' ? 'jpeg' : path.extname(filePath).slice(1)
-  const mime = `image/${ext}`
+  const rawExt = path.extname(filePath).slice(1)
+  const ext = rawExt === 'jpg' ? 'jpeg' : rawExt
+  const mime = ext ? `image/${ext}` : 'image/png'
   return {
     mime,
     base64,

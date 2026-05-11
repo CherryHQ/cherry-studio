@@ -68,15 +68,19 @@ files:
   - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
+  - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
 asarUnpack:
+  - out/proxy/**
   - resources/**
   - "**/*.{metal,exp,lib}"
-  - "node_modules/@img/sharp-libvips-*/**"
+  - "node_modules/@img/sharp-*/**"
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
+  - from: "packages/provider-registry/data"
+    to: "provider-registry"
 win:
-  executableName: Cherry Studio
+  executableName: CherryStudio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
     - target: nsis
@@ -142,22 +146,38 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.8.4 - Bug Fixes and New Features
-
-    ✨ New Features
-    - [API] Add knowledge base REST API endpoints
-    - [SelectionAssistant] Add Linux support for text selection toolbar
+    Cherry Studio 1.9.4 - Bug Fixes & Model Support
 
     🐛 Bug Fixes
-    - [Files] Fix PDF upload failing with "invalid part type: file" error for OpenAI-compatible providers (Moonshot, DeepSeek, Groq, etc.)
+    - [OpenCode] NEWAPI provider models now appear in the dropdown and route correctly
+    - [Image Generation] Fixed gpt-image-2/gpt-image-1.5 editing and generation across multiple providers
+    - [Models] Fixed Kimi K2.6 requests being rejected due to unsupported temperature settings
+    - [Gateway] Fixed Vercel AI Gateway model list fetch failing due to missing authentication
+    - [Copilot] Fixed GitHub Copilot model synchronization
+
+    ✨ New Features
+    - [Models] Added MiMo V2.5 model support with reasoning and calling capabilities
+    - [Models] Added DeepSeek V4+ model support with reasoning effort control (high/max)
+    - [Models] Mistral Small 4 now supports vision and adjustable reasoning effort
+
+    💄 Improvements
+    - [Agents] Removed auto-injected @cherry/browser MCP (re-enable manually if needed)
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.8.4 - 错误修复和新功能
-
-    ✨ 新功能
-    - [API] 添加知识库 REST API 端点
-    - [选择助手] 为文本选择工具栏添加 Linux 支持
+    Cherry Studio 1.9.4 - 错误修复与模型支持
 
     🐛 问题修复
-    - [文件] 修复 OpenAI 兼容提供商（Moonshot、DeepSeek、Groq 等）的 PDF 上传失败问题（"invalid part type: file" 错误）
+    - [OpenCode] NEWAPI 服务商模型现在显示在列表中并正确路由
+    - [图像生成] 修复多个服务商的 gpt-image-2/gpt-image-1.5 编辑和生成问题
+    - [模型] 修复 Kimi K2.6 因不支持的温度设置导致请求失败
+    - [网关] 修复 Vercel AI Gateway 模型列表获取因缺少认证而失败
+    - [Copilot] 修复 GitHub Copilot 模型同步问题
+
+    ✨ 新功能
+    - [模型] 添加 MiMo V2.5 模型支持，包含推理和调用能力
+    - [模型] 添加 DeepSeek V4+ 模型支持，支持推理强度控制 (high/max)
+    - [模型] Mistral Small 4 现在支持视觉和可调节推理强度
+
+    💄 改进
+    - [智能体] 移除自动注入的 @cherry/browser MCP（如需要请手动重新启用）
     <!--LANG:END-->

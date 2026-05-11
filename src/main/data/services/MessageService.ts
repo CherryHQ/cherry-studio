@@ -8,10 +8,10 @@
  * - Cascade delete and reparenting
  */
 
+import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type {
   ActiveNodeStrategy,
@@ -27,7 +27,10 @@ import type {
   TreeNode,
   TreeResponse
 } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+
+import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
 
@@ -42,11 +45,16 @@ const PREVIEW_LENGTH = 50
 const DEFAULT_LIMIT = 20
 
 /**
- * Convert database row to Message entity
+ * Convert database row to Message entity.
  *
- * Note: When using raw SQL queries (db.all with sql``), Drizzle ORM does NOT
- * automatically parse JSON columns. This function handles both parsed objects
- * (from ORM queries) and JSON strings (from raw SQL queries).
+ * Expects camelCase keys — only ORM-channel results match.
+ * Raw SQL via `db.all(sql\`...\`)` returns snake_case columns and CANNOT be
+ * passed here directly. See docs/references/data/database-patterns.md →
+ * "Raw SQL Queries & Recursive CTEs" for the recommended CTE-for-IDs +
+ * ORM-for-rows pattern used by getTree, getBranchMessages, getPathToNode.
+ *
+ * Also handles JSON columns: ORM returns parsed objects; the parseJson
+ * helper covers any legacy code path that still hands in JSON strings.
  */
 function rowToMessage(row: typeof messageTable.$inferSelect): Message {
   // Handle JSON strings from raw SQL queries (db.all with sql``)
@@ -65,15 +73,13 @@ function rowToMessage(row: typeof messageTable.$inferSelect): Message {
     data: parseJson(row.data)!,
     searchableText: row.searchableText,
     status: row.status as Message['status'],
-    siblingsGroupId: row.siblingsGroupId ?? 0,
-    assistantId: row.assistantId,
-    assistantMeta: parseJson(row.assistantMeta),
-    modelId: row.modelId,
-    modelMeta: parseJson(row.modelMeta),
+    siblingsGroupId: row.siblingsGroupId,
+    modelId: (row.modelId ?? null) as UniqueModelId | null,
+    modelSnapshot: parseJson(row.modelSnapshot),
     traceId: row.traceId,
     stats: parseJson(row.stats),
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
@@ -103,7 +109,6 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
     role: message.role === 'system' ? 'assistant' : message.role,
     preview: extractPreview(message),
     modelId: message.modelId,
-    modelMeta: message.modelMeta,
     status: message.status,
     createdAt: message.createdAt,
     hasChildren
@@ -141,7 +146,7 @@ export class MessageService {
       const [root] = await db
         .select({ id: messageTable.id })
         .from(messageTable)
-        .where(and(eq(messageTable.topicId, topicId), sql`${messageTable.parentId} IS NULL`))
+        .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt)))
         .limit(1)
       rootId = root?.id
     }
@@ -155,10 +160,11 @@ export class MessageService {
     if (activeNodeId) {
       const pathRows = await db.all<{ id: string }>(sql`
         WITH RECURSIVE path AS (
-          SELECT id, parent_id FROM message WHERE id = ${activeNodeId}
+          SELECT id, parent_id FROM message WHERE id = ${activeNodeId} AND deleted_at IS NULL
           UNION ALL
           SELECT m.id, m.parent_id FROM message m
           INNER JOIN path p ON m.id = p.parent_id
+          WHERE m.deleted_at IS NULL
         )
         SELECT id FROM path
       `)
@@ -169,24 +175,49 @@ export class MessageService {
     // Use a large depth for unlimited (-1)
     const maxDepth = depth === -1 ? 999 : depth
 
-    const treeRows = await db.all<typeof messageTable.$inferSelect & { tree_depth: number }>(sql`
+    // Recursive CTE returns ID + depth only (single-word columns are
+    // casing-safe). Full rows are fetched via ORM below for camelCase mapping.
+    // See docs/references/data/database-patterns.md.
+    const treeDepthRows = await db.all<{ id: string; tree_depth: number }>(sql`
       WITH RECURSIVE tree AS (
-        SELECT *, 0 as tree_depth FROM message WHERE id = ${rootId}
+        SELECT id, 0 as tree_depth FROM message WHERE id = ${rootId} AND deleted_at IS NULL
         UNION ALL
-        SELECT m.*, t.tree_depth + 1 FROM message m
+        SELECT m.id, t.tree_depth + 1 FROM message m
         INNER JOIN tree t ON m.parent_id = t.id
-        WHERE t.tree_depth < ${maxDepth}
+        WHERE t.tree_depth < ${maxDepth} AND m.deleted_at IS NULL
       )
-      SELECT * FROM tree
+      SELECT id, tree_depth FROM tree
     `)
+
+    const depthByCteId = new Map(treeDepthRows.map((r) => [r.id, r.tree_depth]))
+    const baseTreeRows =
+      treeDepthRows.length === 0
+        ? []
+        : await db
+            .select()
+            .from(messageTable)
+            .where(
+              inArray(
+                messageTable.id,
+                treeDepthRows.map((r) => r.id)
+              )
+            )
+
+    const treeRows: Array<typeof messageTable.$inferSelect & { treeDepth: number }> = baseTreeRows.map((r) => ({
+      ...r,
+      treeDepth: depthByCteId.get(r.id)!
+    }))
 
     // Also fetch active path nodes that might be beyond depth limit
     const treeNodeIds = new Set(treeRows.map((r) => r.id))
     const missingActivePathIds = [...activePath].filter((id) => !treeNodeIds.has(id))
 
     if (missingActivePathIds.length > 0) {
-      const additionalRows = await db.select().from(messageTable).where(inArray(messageTable.id, missingActivePathIds))
-      treeRows.push(...additionalRows.map((r) => ({ ...r, tree_depth: maxDepth + 1 })))
+      const additionalRows = await db
+        .select()
+        .from(messageTable)
+        .where(and(inArray(messageTable.id, missingActivePathIds), isNull(messageTable.deletedAt)))
+      treeRows.push(...additionalRows.map((r) => ({ ...r, treeDepth: maxDepth + 1 })))
     }
 
     // Also need children of active path nodes for proper tree building
@@ -208,17 +239,20 @@ export class MessageService {
 
       for (const row of childrenRows) {
         if (!treeNodeIds.has(row.id)) {
-          treeRows.push({ ...row, tree_depth: maxDepth + 1 })
+          treeRows.push({ ...row, treeDepth: maxDepth + 1 })
           treeNodeIds.add(row.id)
         }
       }
     } else if (activePathArray.length > 0) {
       // No tree nodes loaded yet, just get all children of active path
-      const childrenRows = await db.select().from(messageTable).where(inArray(messageTable.parentId, activePathArray))
+      const childrenRows = await db
+        .select()
+        .from(messageTable)
+        .where(and(inArray(messageTable.parentId, activePathArray), isNull(messageTable.deletedAt)))
 
       for (const row of childrenRows) {
         if (!treeNodeIds.has(row.id)) {
-          treeRows.push({ ...row, tree_depth: maxDepth + 1 })
+          treeRows.push({ ...row, treeDepth: maxDepth + 1 })
           treeNodeIds.add(row.id)
         }
       }
@@ -236,7 +270,7 @@ export class MessageService {
     for (const row of treeRows) {
       const message = rowToMessage(row)
       messagesById.set(message.id, message)
-      depthMap.set(message.id, row.tree_depth)
+      depthMap.set(message.id, row.treeDepth)
 
       const parentId = message.parentId || 'root'
       if (!childrenMap.has(parentId)) {
@@ -348,20 +382,30 @@ export class MessageService {
       return { items: [], nextCursor: undefined, activeNodeId: null }
     }
 
-    // Use recursive CTE to get path from nodeId to root (single query)
-    const pathMessages = await db.all<typeof messageTable.$inferSelect>(sql`
+    // Use recursive CTE to collect path IDs from nodeId to root (single-column
+    // result is casing-safe), then fetch full rows via ORM to get camelCase
+    // mapping. See docs/references/data/database-patterns.md.
+    const pathIdRows = await db.all<{ id: string }>(sql`
       WITH RECURSIVE path AS (
-        SELECT * FROM message WHERE id = ${nodeId}
+        SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
         UNION ALL
-        SELECT m.* FROM message m
+        SELECT m.id, m.parent_id FROM message m
         INNER JOIN path p ON m.id = p.parent_id
+        WHERE m.deleted_at IS NULL
       )
-      SELECT * FROM path
+      SELECT id FROM path
     `)
 
-    if (pathMessages.length === 0) {
+    if (pathIdRows.length === 0) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
+
+    const pathIds = pathIdRows.map((r) => r.id)
+    const pathRows = await db.select().from(messageTable).where(inArray(messageTable.id, pathIds))
+
+    // Preserve CTE order (nodeId → root); ORM IN-list does not guarantee order.
+    const pathOrder = new Map(pathIds.map((id, i) => [id, i]))
+    const pathMessages = pathRows.sort((a, b) => pathOrder.get(a.id)! - pathOrder.get(b.id)!)
 
     // Reverse to get root->nodeId order
     const fullPath = pathMessages.reverse()
@@ -416,7 +460,7 @@ export class MessageService {
         const siblingsRows = await db
           .select()
           .from(messageTable)
-          .where(or(...orConditions))
+          .where(and(isNull(messageTable.deletedAt), or(...orConditions)))
 
         // Group results by parentId-siblingsGroupId
         for (const row of siblingsRows) {
@@ -461,7 +505,11 @@ export class MessageService {
   async getById(id: string): Promise<Message> {
     const db = application.get('DbService').getDb()
 
-    const [row] = await db.select().from(messageTable).where(eq(messageTable.id, id)).limit(1)
+    const [row] = await db
+      .select()
+      .from(messageTable)
+      .where(and(eq(messageTable.id, id), isNull(messageTable.deletedAt)))
+      .limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Message', id)
@@ -570,11 +618,9 @@ export class MessageService {
           role: dto.role,
           data: dto.data,
           status: dto.status ?? 'pending',
-          siblingsGroupId: dto.siblingsGroupId ?? 0,
-          assistantId: dto.assistantId,
-          assistantMeta: dto.assistantMeta,
-          modelId: dto.modelId,
-          modelMeta: dto.modelMeta,
+          siblingsGroupId: dto.siblingsGroupId,
+          modelId: dto.modelId ?? null,
+          modelSnapshot: dto.modelSnapshot,
           traceId: dto.traceId,
           stats: dto.stats
         })
@@ -773,10 +819,11 @@ export class MessageService {
     // Use recursive query to get all descendants
     const result = await db.all<{ id: string }>(sql`
       WITH RECURSIVE descendants AS (
-        SELECT id FROM message WHERE parent_id = ${id}
+        SELECT id FROM message WHERE parent_id = ${id} AND deleted_at IS NULL
         UNION ALL
         SELECT m.id FROM message m
         INNER JOIN descendants d ON m.parent_id = d.id
+        WHERE m.deleted_at IS NULL
       )
       SELECT id FROM descendants
     `)
@@ -793,23 +840,31 @@ export class MessageService {
   async getPathToNode(nodeId: string): Promise<Message[]> {
     const db = application.get('DbService').getDb()
 
-    // Use recursive CTE to get all ancestors in one query
-    const result = await db.all<typeof messageTable.$inferSelect>(sql`
+    // Recursive CTE collects ancestor IDs (single-column, casing-safe);
+    // full rows fetched via ORM for camelCase mapping.
+    const ancestorIdRows = await db.all<{ id: string }>(sql`
       WITH RECURSIVE ancestors AS (
-        SELECT * FROM message WHERE id = ${nodeId}
+        SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
         UNION ALL
-        SELECT m.* FROM message m
+        SELECT m.id, m.parent_id FROM message m
         INNER JOIN ancestors a ON m.id = a.parent_id
+        WHERE m.deleted_at IS NULL
       )
-      SELECT * FROM ancestors
+      SELECT id FROM ancestors
     `)
 
-    if (result.length === 0) {
+    if (ancestorIdRows.length === 0) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
 
-    // Result is from nodeId to root, reverse to get root to nodeId
-    return result.reverse().map(rowToMessage)
+    const ancestorIds = ancestorIdRows.map((r) => r.id)
+    const ancestorRows = await db.select().from(messageTable).where(inArray(messageTable.id, ancestorIds))
+
+    // Preserve CTE order (nodeId → root) before reversing to root → nodeId.
+    const ancestorOrder = new Map(ancestorIds.map((id, i) => [id, i]))
+    const ordered = ancestorRows.sort((a, b) => ancestorOrder.get(a.id)! - ancestorOrder.get(b.id)!)
+
+    return ordered.reverse().map(rowToMessage)
   }
 }
 
