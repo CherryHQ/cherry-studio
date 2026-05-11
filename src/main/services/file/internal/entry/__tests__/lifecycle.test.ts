@@ -13,6 +13,18 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+const mockLoggerWarn = vi.hoisted(() => vi.fn())
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: mockLoggerWarn,
+      error: vi.fn()
+    })
+  }
+}))
+
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
@@ -177,6 +189,31 @@ describe('internal/entry/lifecycle', () => {
       const result = await batchPermanentDelete(deps, [internal, external])
       expect(result.succeeded.sort()).toEqual([internal, external].sort())
       expect(result.failed).toEqual([])
+    })
+
+    it('side-channels the full Error object through logger.warn so the stack is preserved', async () => {
+      // Regression guard for 5bcf03529: BatchOperationResult.failed[].error is
+      // a string for IPC serialisation, so the wire format drops the stack.
+      // The fix routes the original Error through logger.warn as { id, err };
+      // anyone refactoring this to logger.warn(..., { id, msg: err.message })
+      // would pass this assertion's existence but fail the toBe identity
+      // check below — exactly the regression we want to catch.
+      mockLoggerWarn.mockClear()
+      const internal = await makeInternal()
+      const external = await makeExternal()
+      const result = await batchTrash(deps, [internal, external])
+      expect(result.failed).toHaveLength(1)
+      const warnCalls = mockLoggerWarn.mock.calls.filter(([msg]) => msg === 'batch op item failed')
+      expect(warnCalls).toHaveLength(1)
+      const [, payload] = warnCalls[0]
+      expect(payload.id).toBe(external)
+      // The contract: payload.err must be the original Error (with stack),
+      // not its `.message` projection. Identity check via `toBeInstanceOf`
+      // tolerates whichever Error subclass the CHECK constraint raises but
+      // still catches a string downgrade.
+      expect(payload.err).toBeInstanceOf(Error)
+      expect(typeof payload.err.stack).toBe('string')
+      expect(payload.err.stack.length).toBeGreaterThan(0)
     })
   })
 })
