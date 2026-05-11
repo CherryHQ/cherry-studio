@@ -73,6 +73,7 @@ describe('WebLoader: local content (isUrl=false) — URL stripping', () => {
     })
     const text = await collectAllText(loader)
     expect(text).toContain('https://example.com/page')
+    expect(text).toContain('q=search')
   })
 
   it('preserves href URL inside HTML content', async () => {
@@ -86,11 +87,11 @@ describe('WebLoader: local content (isUrl=false) — URL stripping', () => {
 
   it('treats bare URL as remote fetch (isUrl=true)', async () => {
     const loader = new WebLoader({
-      urlOrContent: 'https://example.com/resource'
+      urlOrContent: 'https://test.invalid/resource'
     })
     // A bare URL is treated as a remote URL, so getSafe is invoked.
-    // Since example.com/resource is unreachable from test env, fetch fails
-    // and the generator catches the error, yielding no chunks.
+    // The .invalid TLD is guaranteed to fail DNS resolution, so the
+    // generator catches the error and yields no chunks.
     const chunks = await collectChunks(loader)
     expect(chunks).toEqual([])
   })
