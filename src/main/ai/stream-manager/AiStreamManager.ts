@@ -726,9 +726,6 @@ export class AiStreamManager extends BaseService {
     }
     const requestWithQueue: AiStreamRequest = { ...request, pendingMessages }
 
-    // If a root span was supplied, run the loop inside its active context
-    // so AI SDK auto-spans become children (sharing the traceId persisted
-    // on the message row). Without a span, fall back to current context.
     const launchLoop = rootSpan
       ? () =>
           otelContext.with(trace.setSpan(otelContext.active(), rootSpan), () =>
