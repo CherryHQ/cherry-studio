@@ -142,38 +142,64 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.4 - Bug Fixes & Model Support
+    Cherry Studio 1.9.5 - Bug Fixes & Improvements
 
     🐛 Bug Fixes
-    - [OpenCode] NEWAPI provider models now appear in the dropdown and route correctly
-    - [Image Generation] Fixed gpt-image-2/gpt-image-1.5 editing and generation across multiple providers
-    - [Models] Fixed Kimi K2.6 requests being rejected due to unsupported temperature settings
-    - [Gateway] Fixed Vercel AI Gateway model list fetch failing due to missing authentication
-    - [Copilot] Fixed GitHub Copilot model synchronization
-
-    ✨ New Features
-    - [Models] Added MiMo V2.5 model support with reasoning and calling capabilities
-    - [Models] Added DeepSeek V4+ model support with reasoning effort control (high/max)
-    - [Models] Mistral Small 4 now supports vision and adjustable reasoning effort
+    - [Search] Fixed built-in web search truncating assistant responses when web search was the only active tool
+    - [Messages] Fixed outer scrolling issue in horizontal multi-model layout
+    - [Backup] Fixed app hanging during restore when selection helper was enabled
+    - [Backup] Fixed silent data loss when restoring v6 .zip backups on macOS/Linux
+    - [Models] Fixed CherryIN OpenAI-protocol models not appearing in Agent model picker
+    - [Models] Fixed DeepSeek V4 model slugs not being detected for reasoning effort
+    - [Models] Fixed Tongyi model icon matching
+    - [Models] Fixed Claude Opus 4.7 support
+    - [Image] Fixed generated image re-editing in NewApiPage
+    - [Code Tools] Disabled opencode built-in auto-update check
+    - [API Server] Fixed trailing /v1 stripping from Anthropic SDK baseURL
+    - [Gateway] Fixed Vercel AI Gateway model list fetch
 
     💄 Improvements
-    - [Agents] Removed auto-injected @cherry/browser MCP (re-enable manually if needed)
+    - [Agents] Show all sessions and agents in sidebar instead of capping at 20
+    - [Agents] Removed stale mcp__browser__* references from agent prompt
+    - [Models] Updated DeepSeek provider defaults to use V4 model IDs
+    - [Models] Added support for hosted Gemma 4 thinking mode
+    - [Feishu] Use emoji reaction as typing indicator
+    - [i18n] Fixed default assistant and topic names not updating on language switch
+    - [Vertex] Improved model list fetch and service account setup
+    - [Reasoning] Added enable_thinking param for SiliconFlow DeepSeek/Zhipu models
+    - [Claw] Added timeout_minutes parameter to cron tool
+
+    ✨ New Features
+    - [Painting] Added gpt-image-2 support to AiHubMix provider
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.4 - 错误修复与模型支持
+    Cherry Studio 1.9.5 - 错误修复与改进
 
     🐛 问题修复
-    - [OpenCode] NEWAPI 服务商模型现在显示在列表中并正确路由
-    - [图像生成] 修复多个服务商的 gpt-image-2/gpt-image-1.5 编辑和生成问题
-    - [模型] 修复 Kimi K2.6 因不支持的温度设置导致请求失败
-    - [网关] 修复 Vercel AI Gateway 模型列表获取因缺少认证而失败
-    - [Copilot] 修复 GitHub Copilot 模型同步问题
-
-    ✨ 新功能
-    - [模型] 添加 MiMo V2.5 模型支持，包含推理和调用能力
-    - [模型] 添加 DeepSeek V4+ 模型支持，支持推理强度控制 (high/max)
-    - [模型] Mistral Small 4 现在支持视觉和可调节推理强度
+    - [搜索] 修复内置网页搜索作为唯一活动工具时截断助手回复的问题
+    - [消息] 修复水平多模型布局中的外部滚动问题
+    - [备份] 修复启用选择助手时恢复期间应用挂起的问题
+    - [备份] 修复在 macOS/Linux 上恢复 v6 .zip 备份时的静默数据丢失问题
+    - [模型] 修复 CherryIN OpenAI 协议模型未显示在智能体模型选择器中的问题
+    - [模型] 修复 DeepSeek V4 模型标识符未检测推理强度的问题
+    - [模型] 修复通义模型图标匹配问题
+    - [模型] 修复 Claude Opus 4.7 支持
+    - [图像] 修复 NewApiPage 中的生成图像重新编辑功能
+    - [代码工具] 禁用 opencode 内置自动更新检查
+    - [API 服务器] 修复 Anthropic SDK baseURL 的尾部 /v1 去除问题
+    - [网关] 修复 Vercel AI Gateway 模型列表获取问题
 
     💄 改进
-    - [智能体] 移除自动注入的 @cherry/browser MCP（如需要请手动重新启用）
+    - [智能体] 侧边栏显示所有会话和智能体，而不是限制为 20 个
+    - [智能体] 移除智能体提示词中过时的 mcp__browser__* 引用
+    - [模型] 更新 DeepSeek 提供商默认设置以使用 V4 模型 ID
+    - [模型] 添加对托管的 Gemma 4 推理模式的支持
+    - [飞书] 使用表情符号反应作为输入指示器
+    - [国际化] 修复切换语言时默认助手和主题名称不更新的问题
+    - [Vertex] 改进模型列表获取和服务账户设置
+    - [推理] 为 SiliconFlow DeepSeek/智谱模型添加 enable_thinking 参数
+    - [Claw] 为 cron 工具添加 timeout_minutes 参数
+
+    ✨ 新功能
+    - [绘画] 为 AiHubMix 提供商添加 gpt-image-2 支持
     <!--LANG:END-->
