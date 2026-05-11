@@ -1,13 +1,16 @@
+import type { ChatPanePosition } from '@renderer/components/chat'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 
 import Sessions from './components/Sessions'
 
 interface AgentSidePanelProps {
   onSelectItem?: () => void
+  position?: ChatPanePosition
 }
 
-const AgentSidePanel = ({ onSelectItem }: AgentSidePanelProps) => {
+const AgentSidePanel = ({ onSelectItem, position = 'left' }: AgentSidePanelProps) => {
   const { isLeftNavbar } = useNavbarPosition()
+  const borderStyle = '0.5px solid var(--color-border)'
 
   return (
     <div
@@ -15,7 +18,8 @@ const AgentSidePanel = ({ onSelectItem }: AgentSidePanelProps) => {
       style={{
         width: 'var(--assistants-width)',
         height: 'calc(100vh - var(--navbar-height))',
-        borderRight: isLeftNavbar ? '0.5px solid var(--color-border)' : 'none',
+        borderRight: isLeftNavbar && position === 'left' ? borderStyle : 'none',
+        borderLeft: isLeftNavbar && position === 'right' ? borderStyle : 'none',
         backgroundColor: isLeftNavbar ? 'var(--color-background)' : undefined
       }}>
       <div className="flex flex-1 flex-col overflow-hidden">

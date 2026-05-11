@@ -1,1 +1,6 @@
-export { ChatAgentShell, type ChatAgentShellProps } from './shell/ChatAgentShell'
+export * from './primitives'
+export { ChatAppShell, type ChatAppShellProps } from './shell/ChatAppShell'
+export { OverlayHost, type OverlayHostProps } from './shell/OverlayHost'
+export { PageSidebar, type PageSidebarProps } from './shell/PageSidebar'
+export { RightPaneHost, type RightPaneHostProps } from './shell/RightPaneHost'
+export type { ChatPanePosition } from './shell/types'

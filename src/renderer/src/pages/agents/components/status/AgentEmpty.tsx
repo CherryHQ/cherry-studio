@@ -9,7 +9,7 @@ const AgentEmpty = () => {
   return (
     <AgentStatusScreen
       icon={Bot}
-      iconClassName="text-(--color-text-secondary)"
+      iconClassName="text-muted-foreground"
       title={t('agent.empty.title')}
       description={t('agent.empty.description')}
     />
