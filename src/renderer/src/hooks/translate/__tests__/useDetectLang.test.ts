@@ -5,12 +5,14 @@ import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { Chunk } from '../../../types/chunk'
-import { ChunkType } from '../../../types/chunk'
 import { UNKNOWN_LANG_CODE } from '../../../utils/translate'
 import { detectLanguageByFranc, detectLanguageByLLM, detectWithMethod, useDetectLang } from '../useDetectLang'
 
 const lang = parseTranslateLangCode
+
+// Stand-in Model used everywhere the helper needs one. Shape only — never
+// inspected by the assertions; what matters is whether the LLM path was hit.
+const TEST_MODEL = { id: 'gpt', provider: 'openai' } as never
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => `t(${key})` })
@@ -26,36 +28,38 @@ vi.mock('franc-min', () => ({
   franc: (input: string) => francMock(input)
 }))
 
-// LLM fetch stream — tests push their own chunks via mockImplementation.
-const fetchChatCompletionMock = vi.fn<(args: { onChunkReceived: (c: Chunk) => void }) => Promise<void>>()
-vi.mock('@renderer/services/ApiService', () => ({
-  fetchChatCompletion: (args: any) => fetchChatCompletionMock(args)
-}))
-
-const getQuickModelMock = vi.fn()
-const getDefaultAssistantMock = vi.fn(() => ({ model: undefined, settings: {}, prompt: '' }))
-vi.mock('@renderer/services/AssistantService', () => ({
-  getQuickModel: () => getQuickModelMock(),
-  getDefaultAssistant: () => getDefaultAssistantMock()
-}))
-
-const hasModelMock = vi.fn()
-vi.mock('@renderer/services/ModelService', () => ({
-  hasModel: (m: any) => hasModelMock(m)
-}))
+// LLM goes through window.api.ai.generateText now (Main IPC). Tests can drive
+// the response per case via mockImplementation/mockResolvedValueOnce.
+const generateTextMock =
+  vi.fn<(args: { uniqueModelId: string; system?: string; prompt: string }) => Promise<{ text: string }>>()
+vi.stubGlobal('window', {
+  ...globalThis.window,
+  api: { ai: { generateText: (args: any) => generateTextMock(args) } },
+  toast: { error: vi.fn() }
+})
 
 const isQwenMTModelMock = vi.fn()
 vi.mock('@renderer/config/models', () => ({
   isQwenMTModel: (m: any) => isQwenMTModelMock(m)
 }))
 
-// Token-count threshold: 100 in the hook. Tests drive the branch via this mock.
-const estimateTextTokensMock = vi.fn()
-vi.mock('@renderer/services/TokenService', () => ({
-  estimateTextTokens: (text: string) => estimateTextTokensMock(text)
+// _bridge is exercised by the hook to convert v2 SharedModel → v1 Model; the
+// pure helpers receive the v1-shaped Model directly so this mock only matters
+// for the hook surface tests.
+vi.mock('@renderer/config/models/_bridge', () => ({
+  fromSharedModel: (m: any) => m
 }))
 
+const useDefaultModelMock = vi.fn(() => ({ quickModel: TEST_MODEL }))
+vi.mock('@renderer/hooks/useModels', () => ({
+  useDefaultModel: () => useDefaultModelMock()
+}))
+
+// Token-count threshold: 100 in the hook. Tests drive the branch via the
+// tokenx estimateTokenCount mock.
+const estimateTokenCountMock = vi.fn()
 vi.mock('tokenx', () => ({
+  estimateTokenCount: (text: string) => estimateTokenCountMock(text),
   sliceByTokens: (text: string) => text
 }))
 
@@ -67,56 +71,38 @@ describe('detectLanguageByLLM', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // Happy baseline: valid model, not Qwen-MT, LLM returns a valid code.
-    getQuickModelMock.mockReturnValue({ id: 'gpt' })
-    hasModelMock.mockReturnValue(true)
     isQwenMTModelMock.mockReturnValue(false)
-    fetchChatCompletionMock.mockImplementation(async ({ onChunkReceived }) => {
-      onChunkReceived({ type: ChunkType.TEXT_DELTA, text: 'en-us' } as Chunk)
-    })
+    generateTextMock.mockResolvedValue({ text: 'en-us' })
   })
 
-  it('returns the trimmed lang code the LLM streams back', async () => {
-    fetchChatCompletionMock.mockImplementationOnce(async ({ onChunkReceived }) => {
-      onChunkReceived({ type: ChunkType.TEXT_DELTA, text: '  en-us  ' } as Chunk)
-    })
+  it('returns the trimmed lang code from window.api.ai.generateText', async () => {
+    generateTextMock.mockResolvedValueOnce({ text: '  en-us  ' })
 
-    await expect(detectLanguageByLLM('Hello', [lang('en-us'), lang('zh-cn')])).resolves.toBe('en-us')
+    await expect(detectLanguageByLLM('Hello', [lang('en-us'), lang('zh-cn')], TEST_MODEL)).resolves.toBe('en-us')
   })
 
-  it('throws when getQuickModel returns nothing', async () => {
-    getQuickModelMock.mockReturnValueOnce(undefined)
-    await expect(detectLanguageByLLM('Hello', [lang('en-us')])).rejects.toThrow(/model/i)
-  })
-
-  it('throws when hasModel returns false', async () => {
-    hasModelMock.mockReturnValueOnce(false)
-    await expect(detectLanguageByLLM('Hello', [lang('en-us')])).rejects.toThrow(/model/i)
+  it('throws when no model is supplied', async () => {
+    await expect(detectLanguageByLLM('Hello', [lang('en-us')], undefined)).rejects.toThrow(/model/i)
   })
 
   it('throws when the selected model is a Qwen-MT model', async () => {
     isQwenMTModelMock.mockReturnValueOnce(true)
-    await expect(detectLanguageByLLM('Hello', [lang('en-us')])).rejects.toThrow(/qwen_mt/i)
+    await expect(detectLanguageByLLM('Hello', [lang('en-us')], TEST_MODEL)).rejects.toThrow(/qwen_mt/i)
   })
 
   it('throws when the LLM responds with an empty string', async () => {
-    fetchChatCompletionMock.mockImplementationOnce(async ({ onChunkReceived }) => {
-      onChunkReceived({ type: ChunkType.TEXT_DELTA, text: '   ' } as Chunk)
-    })
-    await expect(detectLanguageByLLM('Hello', [lang('en-us')])).rejects.toThrow(/empty/i)
+    generateTextMock.mockResolvedValueOnce({ text: '   ' })
+    await expect(detectLanguageByLLM('Hello', [lang('en-us')], TEST_MODEL)).rejects.toThrow(/empty/i)
   })
 
   it('throws when the LLM responds with an invalid lang code', async () => {
-    fetchChatCompletionMock.mockImplementationOnce(async ({ onChunkReceived }) => {
-      onChunkReceived({ type: ChunkType.TEXT_DELTA, text: 'NOT_A_CODE' } as Chunk)
-    })
-    await expect(detectLanguageByLLM('Hello', [lang('en-us')])).rejects.toThrow(/invalid/i)
+    generateTextMock.mockResolvedValueOnce({ text: 'NOT_A_CODE' })
+    await expect(detectLanguageByLLM('Hello', [lang('en-us')], TEST_MODEL)).rejects.toThrow(/invalid/i)
   })
 
-  it('throws when the LLM stream emits a ChunkType.ERROR chunk (not misreported as empty)', async () => {
-    fetchChatCompletionMock.mockImplementationOnce(async ({ onChunkReceived }) => {
-      onChunkReceived({ type: ChunkType.ERROR, error: { message: 'rate limited' } } as unknown as Chunk)
-    })
-    await expect(detectLanguageByLLM('Hello', [lang('en-us')])).rejects.toThrow(/failed/i)
+  it('rejects when the IPC call itself rejects (no silent fallback to "empty")', async () => {
+    generateTextMock.mockRejectedValueOnce(new Error('rate limited'))
+    await expect(detectLanguageByLLM('Hello', [lang('en-us')], TEST_MODEL)).rejects.toThrow(/rate limited/i)
   })
 })
 
@@ -140,47 +126,43 @@ describe('detectLanguageByFranc', () => {
 describe('detectWithMethod', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getQuickModelMock.mockReturnValue({ id: 'gpt' })
-    hasModelMock.mockReturnValue(true)
     isQwenMTModelMock.mockReturnValue(false)
-    fetchChatCompletionMock.mockImplementation(async ({ onChunkReceived }) => {
-      onChunkReceived({ type: ChunkType.TEXT_DELTA, text: 'en-us' } as Chunk)
-    })
+    generateTextMock.mockResolvedValue({ text: 'en-us' })
   })
 
   it('auto + short text (< token threshold) routes to the LLM', async () => {
-    estimateTextTokensMock.mockReturnValueOnce(10)
-    await expect(detectWithMethod('Hi', 'auto', [lang('en-us')])).resolves.toBe('en-us')
-    expect(fetchChatCompletionMock).toHaveBeenCalledTimes(1)
+    estimateTokenCountMock.mockReturnValueOnce(10)
+    await expect(detectWithMethod('Hi', 'auto', [lang('en-us')], TEST_MODEL)).resolves.toBe('en-us')
+    expect(generateTextMock).toHaveBeenCalledTimes(1)
     expect(francMock).not.toHaveBeenCalled()
   })
 
   it('auto + long text uses franc when franc resolves a known language', async () => {
-    estimateTextTokensMock.mockReturnValueOnce(500)
+    estimateTokenCountMock.mockReturnValueOnce(500)
     francMock.mockReturnValueOnce('jpn')
-    await expect(detectWithMethod('日本語の長い文章…', 'auto', [lang('ja-jp')])).resolves.toBe('ja-jp')
-    expect(fetchChatCompletionMock).not.toHaveBeenCalled()
+    await expect(detectWithMethod('日本語の長い文章…', 'auto', [lang('ja-jp')], TEST_MODEL)).resolves.toBe('ja-jp')
+    expect(generateTextMock).not.toHaveBeenCalled()
   })
 
   it('auto + long text falls back to the LLM when franc returns UNKNOWN (logs the fallback)', async () => {
-    estimateTextTokensMock.mockReturnValueOnce(500)
+    estimateTokenCountMock.mockReturnValueOnce(500)
     francMock.mockReturnValueOnce('und') // not in isoMap
     const infoSpy = vi.spyOn(mockRendererLoggerService, 'info').mockImplementation(() => {})
 
-    await expect(detectWithMethod('gibberish text', 'auto', [lang('en-us')])).resolves.toBe('en-us')
-    expect(fetchChatCompletionMock).toHaveBeenCalledTimes(1)
+    await expect(detectWithMethod('gibberish text', 'auto', [lang('en-us')], TEST_MODEL)).resolves.toBe('en-us')
+    expect(generateTextMock).toHaveBeenCalledTimes(1)
     expect(infoSpy).toHaveBeenCalledWith('franc returned UNKNOWN, falling back to LLM detection')
   })
 
   it('franc method goes through franc directly (no LLM)', async () => {
     francMock.mockReturnValueOnce('kor')
-    await expect(detectWithMethod('안녕하세요', 'franc', [lang('ko-kr')])).resolves.toBe('ko-kr')
-    expect(fetchChatCompletionMock).not.toHaveBeenCalled()
+    await expect(detectWithMethod('안녕하세요', 'franc', [lang('ko-kr')], TEST_MODEL)).resolves.toBe('ko-kr')
+    expect(generateTextMock).not.toHaveBeenCalled()
   })
 
   it('llm method always goes through the LLM (no franc)', async () => {
-    await expect(detectWithMethod('Hi there', 'llm', [lang('en-us')])).resolves.toBe('en-us')
-    expect(fetchChatCompletionMock).toHaveBeenCalledTimes(1)
+    await expect(detectWithMethod('Hi there', 'llm', [lang('en-us')], TEST_MODEL)).resolves.toBe('en-us')
+    expect(generateTextMock).toHaveBeenCalledTimes(1)
     expect(francMock).not.toHaveBeenCalled()
   })
 })
@@ -207,12 +189,9 @@ describe('useDetectLang hook', () => {
           mutate: vi.fn()
         }) as any
     )
-    getQuickModelMock.mockReturnValue({ id: 'gpt' })
-    hasModelMock.mockReturnValue(true)
+    useDefaultModelMock.mockReturnValue({ quickModel: TEST_MODEL })
     isQwenMTModelMock.mockReturnValue(false)
-    fetchChatCompletionMock.mockImplementation(async ({ onChunkReceived }) => {
-      onChunkReceived({ type: ChunkType.TEXT_DELTA, text: 'en-us' } as Chunk)
-    })
+    generateTextMock.mockResolvedValue({ text: 'en-us' })
   })
 
   it('returns the unknown lang code for empty/whitespace input without hitting detection', async () => {
@@ -220,7 +199,7 @@ describe('useDetectLang hook', () => {
 
     const code = await act(async () => result.current('   '))
     expect(code).toBe(UNKNOWN_LANG_CODE)
-    expect(fetchChatCompletionMock).not.toHaveBeenCalled()
+    expect(generateTextMock).not.toHaveBeenCalled()
     expect(francMock).not.toHaveBeenCalled()
   })
 
@@ -242,7 +221,7 @@ describe('useDetectLang hook', () => {
 
     const code = await act(async () => result.current('Hello'))
     expect(code).toBe(UNKNOWN_LANG_CODE)
-    expect(fetchChatCompletionMock).not.toHaveBeenCalled()
+    expect(generateTextMock).not.toHaveBeenCalled()
     expect(warnSpy).toHaveBeenCalledWith('useDetectLang invoked before languages were ready, returning UNKNOWN')
   })
 
@@ -264,7 +243,7 @@ describe('useDetectLang hook', () => {
 
     const code = await act(async () => result.current('Hello'))
     expect(code).toBe(UNKNOWN_LANG_CODE)
-    expect(fetchChatCompletionMock).not.toHaveBeenCalled()
+    expect(generateTextMock).not.toHaveBeenCalled()
     expect(errorSpy).toHaveBeenCalledWith('useDetectLang invoked with an empty language list')
   })
 
@@ -277,6 +256,6 @@ describe('useDetectLang hook', () => {
     const code = await act(async () => result.current('Hello world'))
     expect(code).toBe('en-us')
     expect(francMock).toHaveBeenCalledWith('Hello world')
-    expect(fetchChatCompletionMock).not.toHaveBeenCalled()
+    expect(generateTextMock).not.toHaveBeenCalled()
   })
 })

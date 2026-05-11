@@ -18,7 +18,6 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     description: '',
     model: 'claude-sonnet-4-5',
     modelName: null,
-    accessiblePaths: [],
     instructions: '',
     mcps: [],
     allowedTools: [],
@@ -38,7 +37,6 @@ describe('buildInitialAgentFormState', () => {
       planModel: 'p-1',
       smallModel: 's-1',
       instructions: 'hi',
-      accessiblePaths: ['/a', '/b'],
       mcps: ['mcp-1'],
       allowedTools: ['Read']
     })
@@ -50,7 +48,6 @@ describe('buildInitialAgentFormState', () => {
       planModel: 'p-1',
       smallModel: 's-1',
       instructions: 'hi',
-      accessiblePaths: ['/a', '/b'],
       mcps: ['mcp-1'],
       allowedTools: ['Read']
     })
@@ -284,15 +281,6 @@ describe('diffAgentUpdate', () => {
         SPACED_KEY: 'value=with=equals'
       }
     })
-  })
-
-  it('emits the accessiblePaths array when list contents change', () => {
-    const agent = createAgent({ accessiblePaths: ['/a'] })
-    const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, accessiblePaths: ['/a', '/b'] }
-
-    const result = diffAgentUpdate(baseline, next, agent)
-    expect(result?.dto.accessiblePaths).toEqual(['/a', '/b'])
   })
 
   it('persists the explicit default permission mode when switching back from another mode', () => {

@@ -65,14 +65,12 @@ export const AGENT_CONFIG_SECTIONS: readonly SectionDescriptor<AgentConfigSectio
  * `UpdateAgentDto`.
  */
 export interface AgentFormState {
-  // AgentBase primitives
   name: string
   description: string
   model: string
   planModel: string
   smallModel: string
   instructions: string
-  accessiblePaths: string[]
   mcps: string[]
   allowedTools: string[]
 
@@ -159,7 +157,6 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
     planModel: agent?.planModel ?? '',
     smallModel: agent?.smallModel ?? '',
     instructions: agent?.instructions ?? '',
-    accessiblePaths: [...(agent?.accessiblePaths ?? [])],
     mcps: [...(agent?.mcps ?? [])],
     allowedTools: [...(agent?.allowedTools ?? [])],
     avatar: asString(cfg.avatar),
@@ -236,7 +233,6 @@ export function buildCreateAgentPayload(form: AgentFormState, type: AgentType = 
     type,
     name: form.name.trim(),
     model: form.model.trim(),
-    accessiblePaths: form.accessiblePaths,
     description: form.description || undefined,
     instructions: form.instructions || undefined,
     planModel: form.planModel || undefined,
@@ -317,10 +313,6 @@ export function diffAgentUpdate(
   }
   if (baseline.instructions !== next.instructions) {
     dto.instructions = next.instructions
-    dirty = true
-  }
-  if (!arraysEqual(baseline.accessiblePaths, next.accessiblePaths)) {
-    dto.accessiblePaths = next.accessiblePaths
     dirty = true
   }
   if (!arraysEqual(baseline.mcps, next.mcps)) {

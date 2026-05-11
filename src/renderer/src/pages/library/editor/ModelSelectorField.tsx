@@ -19,7 +19,7 @@ interface Props {
   onSelect: (modelId: UniqueModelId | null, model?: Model) => void
 }
 
-function buildModelsById(models: Model[]): Map<UniqueModelId, Model> {
+function buildModelsById(models: readonly Model[]): Map<UniqueModelId, Model> {
   return new Map(models.map((model) => [model.id, model]))
 }
 

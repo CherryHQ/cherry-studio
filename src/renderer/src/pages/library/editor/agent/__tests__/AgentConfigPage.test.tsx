@@ -114,7 +114,6 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     description: '',
     model: 'claude-sonnet-4-5',
     modelName: null,
-    accessiblePaths: [],
     instructions: '',
     mcps: [],
     allowedTools: [],

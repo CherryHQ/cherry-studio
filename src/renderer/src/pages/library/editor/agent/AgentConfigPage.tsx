@@ -45,7 +45,6 @@ const EMPTY_AGENT_FOR_CREATE: AgentDetail = {
   id: '',
   type: 'claude-code',
   name: '',
-  accessiblePaths: [],
   model: '',
   modelName: null,
   createdAt: '',

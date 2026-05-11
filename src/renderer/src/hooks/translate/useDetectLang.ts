@@ -1,12 +1,9 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isQwenMTModel } from '@renderer/config/models'
-import { fetchChatCompletion } from '@renderer/services/ApiService'
-import { getDefaultAssistant, getQuickModel } from '@renderer/services/AssistantService'
-import { hasModel } from '@renderer/services/ModelService'
-import { estimateTextTokens } from '@renderer/services/TokenService'
-import type { Chunk } from '@renderer/types/chunk'
-import { ChunkType } from '@renderer/types/chunk'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
+import { useDefaultModel } from '@renderer/hooks/useModels'
+import type { Model } from '@renderer/types'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { LANG_DETECT_PROMPT } from '@shared/config/prompts'
 import {
@@ -15,10 +12,11 @@ import {
   type TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { franc } from 'franc-min'
 import i18n from 'i18next'
 import { useCallback, useRef } from 'react'
-import { sliceByTokens } from 'tokenx'
+import { estimateTokenCount, sliceByTokens } from 'tokenx'
 
 import { useLanguages } from './useTranslateLanguages'
 
@@ -44,15 +42,14 @@ const AUTO_MODE_LLM_THRESHOLD = 100
  */
 export const detectLanguageByLLM = async (
   inputText: string,
-  langCodes: TranslateLangCode[]
+  langCodes: TranslateLangCode[],
+  model: Model | undefined
 ): Promise<TranslateLangCode> => {
   logger.info('Detect language by LLM')
-  let detectedLang: string = ''
   const text = sliceByTokens(inputText, 0, LLM_INPUT_MAX_TOKENS)
   const listLangText = JSON.stringify(langCodes)
 
-  const model = getQuickModel()
-  if (!model || !hasModel(model)) {
+  if (!model) {
     throw new Error(i18n.t('error.model.not_exists'))
   }
 
@@ -60,24 +57,15 @@ export const detectLanguageByLLM = async (
     throw new Error(i18n.t('translate.error.detect.qwen_mt'))
   }
 
-  const assistant = getDefaultAssistant()
-  assistant.model = model
-  assistant.settings = { reasoning_effort: 'none' }
-  assistant.prompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
+  const systemPrompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
 
-  const onChunk = (chunk: Chunk) => {
-    if (chunk.type === ChunkType.TEXT_DELTA) {
-      detectedLang = chunk.text
-    } else if (chunk.type === ChunkType.ERROR) {
-      // Surface upstream LLM errors instead of letting the caller mistake them
-      // for an empty-response / invalid-langcode result further down.
-      throw new Error(i18n.t('translate.error.detect.failed'))
-    }
-  }
+  const { text: result } = await window.api.ai.generateText({
+    uniqueModelId: createUniqueModelId(model.provider, model.id),
+    system: systemPrompt,
+    prompt: 'follow system prompt'
+  })
 
-  await fetchChatCompletion({ prompt: 'follow system prompt', assistant, onChunkReceived: onChunk })
-
-  const trimmed = detectedLang.trim()
+  const trimmed = result.trim()
   if (!trimmed) {
     throw new Error(i18n.t('translate.error.detect.empty'))
   }
@@ -138,26 +126,27 @@ export const detectLanguageByFranc = (inputText: string): TranslateLangCode => {
 export const detectWithMethod = async (
   text: string,
   method: AutoDetectionMethod,
-  langCodes: TranslateLangCode[]
+  langCodes: TranslateLangCode[],
+  model: Model | undefined
 ): Promise<TranslateLangCode> => {
   switch (method) {
     case 'auto':
-      if (estimateTextTokens(text) < AUTO_MODE_LLM_THRESHOLD) {
-        return detectLanguageByLLM(text, langCodes)
+      if (estimateTokenCount(text) < AUTO_MODE_LLM_THRESHOLD) {
+        return detectLanguageByLLM(text, langCodes, model)
       } else {
         const francResult = detectLanguageByFranc(text)
         if (francResult === UNKNOWN_LANG_CODE) {
           // Auto mode's contract is "pick what works"; we fall back silently from
           // the user's perspective but log so `auto` → LLM quota bursts are traceable.
           logger.info('franc returned UNKNOWN, falling back to LLM detection')
-          return detectLanguageByLLM(text, langCodes)
+          return detectLanguageByLLM(text, langCodes, model)
         }
         return francResult
       }
     case 'franc':
       return detectLanguageByFranc(text)
     case 'llm':
-      return detectLanguageByLLM(text, langCodes)
+      return detectLanguageByLLM(text, langCodes, model)
     default:
       throw new Error('Invalid detection method.')
   }
@@ -180,6 +169,8 @@ export const detectWithMethod = async (
 export const useDetectLang = () => {
   const [method] = usePreference('feature.translate.auto_detection_method')
   const { languages } = useLanguages()
+  const { quickModel: sharedQuickModel } = useDefaultModel()
+  const quickModel: Model | undefined = sharedQuickModel ? fromSharedModel(sharedQuickModel) : undefined
 
   // One-shot UX surface: useLanguages only toasts on SWR error, but a successful
   // empty-array response (seeder failure / DB corruption) slips past it. Notify
@@ -215,11 +206,11 @@ export const useDetectLang = () => {
 
       const langCodes = languages.map((l) => l.langCode)
       logger.info(`Auto detection method: ${method}`)
-      const result = await detectWithMethod(text, method, langCodes)
+      const result = await detectWithMethod(text, method, langCodes, quickModel)
       logger.info(`Detected language: ${result}`)
       return result
     },
-    [method, languages]
+    [method, languages, quickModel]
   )
 
   return detectLanguage
