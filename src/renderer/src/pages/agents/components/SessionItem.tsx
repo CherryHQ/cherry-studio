@@ -1,6 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import { ActionMenu, ContextMenu, ContextMenuTrigger } from '@renderer/components/chat'
+import { DeleteIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { isMac } from '@renderer/config/constant'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -13,12 +14,12 @@ import { classNames } from '@renderer/utils'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import type { MenuProps } from 'antd'
-import { Dropdown } from 'antd'
-import { MenuIcon, PinIcon, PinOffIcon, XIcon } from 'lucide-react'
-import React, { memo, startTransition, useEffect, useMemo, useState } from 'react'
+import { XIcon } from 'lucide-react'
+import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import { executeSessionMenuAction, resolveSessionMenuActions, type SessionActionContext } from './sessionItemActions'
 
 // const logger = loggerService.withContext('AgentItem')
 
@@ -110,90 +111,64 @@ const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPr
   const [topicPosition, setTopicPosition] = usePreference('topic.position')
   const singlealone = topicPosition === 'right'
 
-  const menuItems: MenuProps['items'] = useMemo(
-    () => [
-      {
-        label: t('common.rename'),
-        key: 'rename',
-        icon: <EditIcon size={14} />,
-        onClick: () => startEdit(session.name ?? '')
-      },
-      ...(onTogglePin
-        ? [
-            {
-              label: pinned ? t('chat.topics.unpin') : t('chat.topics.pin'),
-              key: 'pin',
-              icon: pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
-              onClick: () => onTogglePin()
-            }
-          ]
-        : []),
-      {
-        label: t('settings.topic.position.label'),
-        key: 'topic-position',
-        icon: <MenuIcon size={14} />,
-        children: [
-          {
-            label: t('settings.topic.position.left'),
-            key: 'left',
-            onClick: () => setTopicPosition('left')
-          },
-          {
-            label: t('settings.topic.position.right'),
-            key: 'right',
-            onClick: () => setTopicPosition('right')
-          }
-        ]
-      },
-      {
-        label: t('common.delete'),
-        key: 'delete',
-        icon: <DeleteIcon size={14} className="lucide-custom" />,
-        danger: true,
-        onClick: () => {
-          onDelete()
-        }
-      }
-    ],
+  const actionContext = useMemo<SessionActionContext>(
+    () => ({
+      onDelete,
+      onTogglePin,
+      pinned,
+      sessionName: session.name ?? '',
+      setTopicPosition,
+      startEdit,
+      t
+    }),
     [onDelete, onTogglePin, pinned, session.name, setTopicPosition, startEdit, t]
   )
 
+  const menuActions = useMemo(() => resolveSessionMenuActions(actionContext), [actionContext])
+
+  const handleMenuAction = useCallback(
+    async (action: (typeof menuActions)[number]) => {
+      await executeSessionMenuAction(action, actionContext)
+    },
+    [actionContext]
+  )
+
   return (
-    <Dropdown
-      menu={{ items: menuItems }}
-      trigger={['contextMenu']}
-      popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
-      <SessionListItem
-        className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-        onClick={isEditing ? undefined : onPress}
-        onDoubleClick={() => startEdit(session.name ?? '')}
-        title={session.name ?? session.id}
-        style={{
-          borderRadius: 'var(--list-item-border-radius)',
-          cursor: isEditing ? 'default' : 'pointer'
-        }}>
-        {isPending && !isActive && <PendingIndicator />}
-        {isFulfilled && !isActive && <FulfilledIndicator />}
-        <SessionNameContainer>
-          {isEditing ? (
-            <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
-          ) : (
-            <>
-              <SessionName>
-                {channelIcon && <ChannelIconImg src={channelIcon} />}
-                <MarqueeText className="flex min-w-0 flex-1">
-                  <SessionLabel
-                    session={session}
-                    className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
-                  />
-                </MarqueeText>
-              </SessionName>
-              <DeleteButton />
-            </>
-          )}
-        </SessionNameContainer>
-      </SessionListItem>
-    </Dropdown>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <SessionListItem
+          className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
+          onClick={isEditing ? undefined : onPress}
+          onDoubleClick={() => startEdit(session.name ?? '')}
+          title={session.name ?? session.id}
+          style={{
+            borderRadius: 'var(--list-item-border-radius)',
+            cursor: isEditing ? 'default' : 'pointer'
+          }}>
+          {isPending && !isActive && <PendingIndicator />}
+          {isFulfilled && !isActive && <FulfilledIndicator />}
+          <SessionNameContainer>
+            {isEditing ? (
+              <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
+            ) : (
+              <>
+                <SessionName>
+                  {channelIcon && <ChannelIconImg src={channelIcon} />}
+                  <MarqueeText className="flex min-w-0 flex-1">
+                    <SessionLabel
+                      session={session}
+                      className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
+                    />
+                  </MarqueeText>
+                </SessionName>
+                <DeleteButton />
+              </>
+            )}
+          </SessionNameContainer>
+        </SessionListItem>
+      </ContextMenuTrigger>
+      <ActionMenu actions={menuActions} onAction={handleMenuAction} />
+    </ContextMenu>
   )
 }
 

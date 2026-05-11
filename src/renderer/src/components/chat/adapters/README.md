@@ -87,6 +87,37 @@ const actions = registry.resolve({ message })
 dispose()
 ```
 
+## Render Stability
+
+Adapters are pure projection helpers, so they do not cause rerenders by themselves. Rerender risk comes from creating fresh arrays, objects, callbacks, or registries on every React render. When these contracts are wired into real UI, keep the projection boundary stable.
+
+Use `useMemo` for list projections:
+
+```tsx
+const items = useMemo(
+  () => topics.map((topic) => ResourceListAdapter.fromTopic(topic, { active: topic.id === activeTopicId })),
+  [topics, activeTopicId]
+)
+```
+
+Do not map resources inline in JSX:
+
+```tsx
+<ResourceList items={topics.map((topic) => ResourceListAdapter.fromTopic(topic))} />
+```
+
+For messages, project once at the message-list data boundary. Do not call `MessageListAdapter` inside an item renderer; virtualized lists rely on stable item identity and measurement caches.
+
+For composer contracts, wrap `ComposerAdapter.createChat()` and `ComposerAdapter.createSession()` in `useMemo`, and keep `send` / `stop` callbacks stable with the existing business hook output or `useCallback`.
+
+Create registries at module scope, provider initialization, or in `useRef`. Register providers or pane descriptors from effects, not during render:
+
+```tsx
+const registryRef = useRef(createMessageActionRegistry())
+```
+
+Keep adapter output small. Do not place raw `topic`, `session`, `agent`, or `message` objects in `meta`; that would re-couple components to private business shapes and make downstream memoization depend on raw object identity.
+
 ## Boundaries
 
 - Do not import these adapters into data hooks to create a second source of truth.
