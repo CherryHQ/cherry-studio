@@ -167,24 +167,17 @@ describe('TranslateLanguageBar', () => {
 
   it('invokes onExchange when swap button is clicked', () => {
     const props = baseProps()
-    const { container } = render(<TranslateLanguageBar {...props} />)
-    // swap button is the only ArrowLeftRight-containing button outside the language popovers
-    const swapButton = container.querySelector('button[disabled="false"], button:not([disabled])')
-    // Find by process of elimination: the swap button contains no text
-    const allButtons = Array.from(container.querySelectorAll('button'))
-    const emptyLabelButton = allButtons.find((b) => !b.textContent?.trim())
-    expect(emptyLabelButton).toBeTruthy()
-    fireEvent.click(emptyLabelButton!)
+    render(<TranslateLanguageBar {...props} />)
+    const swapButton = screen.getByRole('button', { name: 'translate.exchange.label' })
+    fireEvent.click(swapButton)
     expect(props.onExchange).toHaveBeenCalled()
-    expect(swapButton).toBeTruthy()
   })
 
   it('disables swap button when couldExchange is false', () => {
     const props = baseProps()
     props.couldExchange = false
-    const { container } = render(<TranslateLanguageBar {...props} />)
-    const allButtons = Array.from(container.querySelectorAll('button'))
-    const swapButton = allButtons.find((b) => !b.textContent?.trim())
+    render(<TranslateLanguageBar {...props} />)
+    const swapButton = screen.getByRole('button', { name: 'translate.exchange.label' })
     expect(swapButton).toHaveAttribute('disabled')
   })
 

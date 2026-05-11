@@ -1,4 +1,6 @@
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
+import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
@@ -10,7 +12,7 @@ const translateLanguageMutationsMock = vi.hoisted(() => ({
   remove: vi.fn()
 }))
 
-let mockLanguages: Array<{ value: string; langCode: string; emoji: string; createdAt: string; updatedAt: string }> = []
+let mockLanguages: TranslateLanguage[] = []
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -51,7 +53,11 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  ConfirmDialog: () => null,
+  ConfirmDialog: ({ onConfirm, title }: { onConfirm?: () => void | Promise<void>; title?: string }) => (
+    <button type="button" data-testid={`confirm-${title ?? 'unknown'}`} onClick={() => void onConfirm?.()}>
+      {title}
+    </button>
+  ),
   HelpTooltip: () => null,
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   PageSidePanel: ({ children, open }: { children: React.ReactNode; open?: boolean }) =>
@@ -68,6 +74,30 @@ vi.mock('@cherrystudio/ui', () => ({
 import TranslateSettings, { TranslateSettingsPanelContent } from '../TranslateSettings'
 
 const getPromptTextarea = () => screen.getAllByRole('textbox')[0]
+const getAddLanguageButton = () => screen.getByRole('button', { name: 'common.add common.language' })
+const openAddLanguageForm = () => {
+  fireEvent.click(getAddLanguageButton())
+}
+
+const setBasePreferenceMocks = () => {
+  MockUsePreferenceUtils.setMultiplePreferenceValues({
+    'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn'],
+    'feature.translate.page.enable_markdown': false,
+    'feature.translate.page.auto_copy': false,
+    'feature.translate.auto_detection_method': 'auto',
+    'feature.translate.page.scroll_sync': false,
+    'feature.translate.page.bidirectional_enabled': true,
+    'feature.translate.model_prompt': TRANSLATE_PROMPT
+  })
+}
+
+const createCustomLanguage = (langCode: string, value: string, emoji = '🌐'): TranslateLanguage => ({
+  value,
+  langCode: parsePersistedLangCode(langCode),
+  emoji,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z'
+})
 
 describe('TranslateSettings', () => {
   const setBidirectionalPair = vi.fn().mockResolvedValue(undefined)
@@ -92,15 +122,7 @@ describe('TranslateSettings', () => {
     setModelPrompt.mockReset()
     fallbackSetter.mockReset()
 
-    MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn'],
-      'feature.translate.page.enable_markdown': false,
-      'feature.translate.page.auto_copy': false,
-      'feature.translate.auto_detection_method': 'auto',
-      'feature.translate.page.scroll_sync': false,
-      'feature.translate.page.bidirectional_enabled': true,
-      'feature.translate.model_prompt': TRANSLATE_PROMPT
-    })
+    setBasePreferenceMocks()
 
     mockUsePreference.mockImplementation((key: string) => {
       if (key === 'feature.translate.page.bidirectional_pair') {
@@ -169,7 +191,9 @@ describe('TranslateSettingsPanelContent', () => {
     translateLanguageMutationsMock.add.mockReset()
     translateLanguageMutationsMock.add.mockResolvedValue(undefined)
     translateLanguageMutationsMock.update.mockReset()
+    translateLanguageMutationsMock.update.mockResolvedValue(undefined)
     translateLanguageMutationsMock.remove.mockReset()
+    translateLanguageMutationsMock.remove.mockResolvedValue(undefined)
 
     MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_prompt', TRANSLATE_PROMPT)
     mockUsePreference.mockImplementation((key: string) => {
@@ -219,7 +243,7 @@ describe('TranslateSettingsPanelContent', () => {
   it('shows validation error and skips add when custom language name is empty', () => {
     render(<TranslateSettingsPanelContent />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.add common.language' }))
+    openAddLanguageForm()
     fireEvent.change(screen.getByPlaceholderText('settings.translate.custom.langCode.placeholder'), {
       target: { value: 'x-test' }
     })
@@ -229,10 +253,23 @@ describe('TranslateSettingsPanelContent', () => {
     expect(translateLanguageMutationsMock.add).not.toHaveBeenCalled()
   })
 
+  it('shows validation error and skips add when custom language code is empty', () => {
+    render(<TranslateSettingsPanelContent />)
+
+    openAddLanguageForm()
+    fireEvent.change(screen.getByPlaceholderText('settings.translate.custom.value.placeholder'), {
+      target: { value: 'Klingon' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
+
+    expect((window as any).toast.error).toHaveBeenCalledWith('settings.translate.custom.error.langCode.empty')
+    expect(translateLanguageMutationsMock.add).not.toHaveBeenCalled()
+  })
+
   it('shows validation error and skips add when custom language code is invalid', () => {
     render(<TranslateSettingsPanelContent />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.add common.language' }))
+    openAddLanguageForm()
     fireEvent.change(screen.getByPlaceholderText('settings.translate.custom.value.placeholder'), {
       target: { value: 'Klingon' }
     })
@@ -245,10 +282,43 @@ describe('TranslateSettingsPanelContent', () => {
     expect(translateLanguageMutationsMock.add).not.toHaveBeenCalled()
   })
 
+  it('shows validation error and skips add when custom language code conflicts with builtin language', () => {
+    render(<TranslateSettingsPanelContent />)
+
+    openAddLanguageForm()
+    fireEvent.change(screen.getByPlaceholderText('settings.translate.custom.value.placeholder'), {
+      target: { value: 'English Variant' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.translate.custom.langCode.placeholder'), {
+      target: { value: 'en-us' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
+
+    expect((window as any).toast.error).toHaveBeenCalledWith('settings.translate.custom.error.langCode.builtin')
+    expect(translateLanguageMutationsMock.add).not.toHaveBeenCalled()
+  })
+
+  it('shows validation error and skips add when custom language code already exists', () => {
+    mockLanguages = [createCustomLanguage('xk-la', 'Klingon')]
+    render(<TranslateSettingsPanelContent />)
+
+    openAddLanguageForm()
+    fireEvent.change(screen.getByPlaceholderText('settings.translate.custom.value.placeholder'), {
+      target: { value: 'Klingon Alt' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.translate.custom.langCode.placeholder'), {
+      target: { value: 'xk-la' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
+
+    expect((window as any).toast.error).toHaveBeenCalledWith('settings.translate.custom.error.langCode.exists')
+    expect(translateLanguageMutationsMock.add).not.toHaveBeenCalled()
+  })
+
   it('submits normalized custom language payload when inputs are valid', async () => {
     render(<TranslateSettingsPanelContent />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.add common.language' }))
+    openAddLanguageForm()
     fireEvent.change(screen.getByPlaceholderText('settings.translate.custom.value.placeholder'), {
       target: { value: ' Klingon ' }
     })
@@ -266,5 +336,45 @@ describe('TranslateSettingsPanelContent', () => {
         emoji: '🌐'
       })
     )
+  })
+
+  it('updates custom language row and keeps normalized payload', async () => {
+    mockLanguages = [createCustomLanguage('xk-la', 'Klingon', '🖖')]
+    render(<TranslateSettingsPanelContent />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    const textboxes = screen.getAllByRole('textbox')
+    fireEvent.change(textboxes[1], { target: { value: ' Klingon Prime ' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+    })
+
+    await waitFor(() => expect(translateLanguageMutationsMock.update).toHaveBeenCalledWith('xk-la', expect.any(Object)))
+    expect(translateLanguageMutationsMock.update).toHaveBeenCalledWith('xk-la', {
+      value: 'Klingon Prime',
+      emoji: '🖖'
+    })
+  })
+
+  it('cancels custom language editing without calling update', () => {
+    mockLanguages = [createCustomLanguage('xk-la', 'Klingon', '🖖')]
+    render(<TranslateSettingsPanelContent />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(translateLanguageMutationsMock.update).not.toHaveBeenCalled()
+  })
+
+  it('deletes custom language after confirm', async () => {
+    mockLanguages = [createCustomLanguage('xk-la', 'Klingon', '🖖')]
+    render(<TranslateSettingsPanelContent />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('confirm-settings.translate.custom.delete.title'))
+    })
+
+    await waitFor(() => expect(translateLanguageMutationsMock.remove).toHaveBeenCalledWith('xk-la'))
   })
 })

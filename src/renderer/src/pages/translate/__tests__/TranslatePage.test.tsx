@@ -26,6 +26,7 @@ const translateCoreMock = vi.hoisted(() => ({
   formatErrorMessageWithPrefix: vi.fn((_: unknown, prefix: string) => prefix)
 }))
 const loggerWarnMock = vi.hoisted(() => vi.fn())
+const clipboardWriteTextMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -284,6 +285,14 @@ describe('TranslatePage', () => {
     translateCoreMock.formatErrorMessageWithPrefix.mockReset()
     translateCoreMock.formatErrorMessageWithPrefix.mockImplementation((_: unknown, prefix: string) => prefix)
     loggerWarnMock.mockReset()
+    clipboardWriteTextMock.mockReset()
+    clipboardWriteTextMock.mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteTextMock
+      }
+    })
     ;(window as any).toast = {
       error: vi.fn(),
       info: vi.fn(),
@@ -522,5 +531,30 @@ describe('TranslatePage', () => {
       abortKey: ''
     })
     expect(translateCoreMock.abortCompletion).not.toHaveBeenCalled()
+  })
+
+  it('schedules auto-copy after successful translation when auto-copy is enabled', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn',
+      'feature.translate.page.auto_copy': true
+    })
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() =>
+      expect(translateCoreMock.setTimeoutTimer).toHaveBeenCalledWith('auto-copy', expect.any(Function), 100)
+    )
+
+    const autoCopyCallback = translateCoreMock.setTimeoutTimer.mock.calls[0]?.[1] as (() => Promise<void>) | undefined
+    expect(autoCopyCallback).toBeTypeOf('function')
+    await act(async () => {
+      await autoCopyCallback?.()
+    })
+
+    expect(clipboardWriteTextMock).toHaveBeenCalledWith('translated text')
   })
 })

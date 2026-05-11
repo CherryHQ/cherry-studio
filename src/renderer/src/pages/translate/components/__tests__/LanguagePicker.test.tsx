@@ -95,7 +95,7 @@ describe('LanguagePicker', () => {
     const listbox = screen.getByRole('listbox')
     const options = screen.getAllByRole('option')
     expect(listbox).toBeInTheDocument()
-    expect(options).toHaveLength(3) // english, chinese, japanese — no UNKNOWN
+    expect(options).toHaveLength(3)
     expect(listbox.textContent).not.toContain('Unknown')
   })
 
