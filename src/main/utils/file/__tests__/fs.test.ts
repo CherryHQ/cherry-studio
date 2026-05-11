@@ -15,6 +15,7 @@ import {
   ensureDir,
   exists,
   hash,
+  isSameFile,
   mkdir as fsMkdir,
   move as fsMove,
   PathStaleVersionError,
@@ -77,6 +78,61 @@ describe('exists', () => {
 
   it('returns false for a missing path', async () => {
     expect(await exists(path.join(tmp, 'nope') as FilePath)).toBe(false)
+  })
+})
+
+describe('isSameFile', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-fs-test-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('returns true when both arguments refer to the same on-disk file', async () => {
+    // Trivial dev+ino self-equality: stat(f) twice yields identical (dev, ino).
+    const f = path.join(tmp, 'a.txt')
+    await writeFile(f, 'x')
+    expect(await isSameFile(f as FilePath, f as FilePath)).toBe(true)
+  })
+
+  it('returns true for a hardlink (different paths, same inode) — the real dev+ino check', async () => {
+    // The case-only rename path on case-insensitive filesystems is the primary
+    // use case, but it's awkward to set up in a portable test. A hardlink is
+    // the cross-platform equivalent: two distinct path strings, single inode.
+    // If isSameFile compared path strings or stat-derived metadata other than
+    // (dev, ino), this assertion would fail.
+    const { link } = await import('node:fs/promises')
+    const f = path.join(tmp, 'orig.txt')
+    const linked = path.join(tmp, 'hardlinked.txt')
+    await writeFile(f, 'x')
+    await link(f, linked)
+    expect(await isSameFile(f as FilePath, linked as FilePath)).toBe(true)
+  })
+
+  it('returns false for two distinct files even with identical content', async () => {
+    // Guards against any future "compare bytes" or "compare size" shortcut —
+    // content equality is not file identity.
+    const a = path.join(tmp, 'one.txt')
+    const b = path.join(tmp, 'two.txt')
+    await writeFile(a, 'same')
+    await writeFile(b, 'same')
+    expect(await isSameFile(a as FilePath, b as FilePath)).toBe(false)
+  })
+
+  it('returns false when one path is missing (ENOENT — the expected miss)', async () => {
+    const real = path.join(tmp, 'real.txt')
+    await writeFile(real, 'x')
+    const ghost = path.join(tmp, 'ghost.txt')
+    expect(await isSameFile(real as FilePath, ghost as FilePath)).toBe(false)
+    expect(await isSameFile(ghost as FilePath, real as FilePath)).toBe(false)
+  })
+
+  it('returns false when both paths are missing', async () => {
+    const a = path.join(tmp, 'ghost-a.txt')
+    const b = path.join(tmp, 'ghost-b.txt')
+    expect(await isSameFile(a as FilePath, b as FilePath)).toBe(false)
   })
 })
 
