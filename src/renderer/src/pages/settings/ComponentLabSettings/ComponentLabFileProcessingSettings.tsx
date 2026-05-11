@@ -184,7 +184,7 @@ function ProcessorResultCard({ processor, state }: { processor: FileProcessorMer
 
   return (
     <div
-      className="rounded-[12px] border border-border bg-background p-3"
+      className="rounded-xl border border-border bg-background p-3"
       data-testid={`file-processing-result-${processor.id}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -215,7 +215,7 @@ function ProcessorResultCard({ processor, state }: { processor: FileProcessorMer
       ) : null}
 
       {state?.error ? (
-        <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap rounded-[8px] border border-destructive/20 bg-destructive/5 p-2 font-mono text-destructive text-xs leading-5">
+        <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg border border-destructive/20 bg-destructive/5 p-2 font-mono text-destructive text-xs leading-5">
           {state.error}
         </pre>
       ) : null}
@@ -223,13 +223,13 @@ function ProcessorResultCard({ processor, state }: { processor: FileProcessorMer
       {state?.artifacts?.length ? (
         <div className="mt-3 space-y-2">
           {state.artifacts.map((artifact, index) => (
-            <div key={`${artifact.kind}-${index}`} className="rounded-[8px] border border-border/70 bg-muted/20 p-2">
+            <div key={`${artifact.kind}-${index}`} className="rounded-lg border border-border/70 bg-muted/20 p-2">
               <div className="mb-1 text-muted-foreground text-xs">
                 {artifact.kind === 'file'
                   ? t('settings.componentLab.fileProcessing.artifact.file')
                   : t('settings.componentLab.fileProcessing.artifact.text')}
               </div>
-              <pre className="max-h-40 overflow-auto whitespace-pre-wrap wrap-break-word font-mono text-foreground text-xs leading-5">
+              <pre className="wrap-break-word max-h-40 overflow-auto whitespace-pre-wrap font-mono text-foreground text-xs leading-5">
                 {getArtifactPreview(artifact)}
               </pre>
             </div>
@@ -271,6 +271,8 @@ const ComponentLabFileProcessingSettings: FC = () => {
   })
 
   useEffect(() => {
+    mountedRef.current = true
+
     return () => {
       mountedRef.current = false
       runIdRef.current.document_to_markdown += 1
@@ -453,7 +455,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
           return (
             <section
               key={section.feature}
-              className="rounded-[12px] border border-border bg-background p-4"
+              className="rounded-xl border border-border bg-background p-4"
               data-testid={`file-processing-lab-${section.testId}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -485,12 +487,12 @@ const ComponentLabFileProcessingSettings: FC = () => {
                 </Button>
               </div>
 
-              <div className="mt-3 truncate rounded-[8px] border border-border/70 bg-muted/20 px-3 py-2 text-muted-foreground text-xs">
+              <div className="mt-3 truncate rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-muted-foreground text-xs">
                 {file ? file.path : t(section.noFileKey)}
               </div>
 
               {sectionErrors[section.feature] ? (
-                <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap rounded-[8px] border border-destructive/20 bg-destructive/5 p-2 font-mono text-destructive text-xs leading-5">
+                <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg border border-destructive/20 bg-destructive/5 p-2 font-mono text-destructive text-xs leading-5">
                   {sectionErrors[section.feature]}
                 </pre>
               ) : null}

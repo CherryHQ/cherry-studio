@@ -6590,12 +6590,6 @@
           "api_keys_placeholder": "Separate multiple keys with commas",
           "languages": "Languages"
         },
-        "knowledge": {
-          "provider": "File processor",
-          "provider_placeholder": "Choose a file processor",
-          "title": "File Processing",
-          "tooltip": "Configure a file processor in Settings -> Tools to improve retrieval for complex files and scanned files."
-        },
         "processors": {
           "doc2x": {
             "description": "Advanced file restoration engine.",
@@ -6648,7 +6642,6 @@
           "model_parameters": "Model Parameters",
           "status": "Status"
         },
-        "sidebar_title": "Document Services",
         "title": "Document Parsing"
       },
       "title": "Other Settings",

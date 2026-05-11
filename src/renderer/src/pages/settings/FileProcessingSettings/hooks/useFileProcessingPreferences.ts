@@ -10,7 +10,7 @@ import {
   updateProcessorCapabilityOverride,
   updateProcessorLanguageOptions
 } from '@shared/data/utils/fileProcessingUtils'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useMemo } from 'react'
 
 const FILE_PROCESSING_KEYS = {
   defaultDocumentProcessor: 'feature.file_processing.default_document_to_markdown',
@@ -26,12 +26,6 @@ const DEFAULT_KEY_BY_FEATURE = {
 export function useFileProcessingPreferences() {
   const [preferences, setPreferences] = useMultiplePreferences(FILE_PROCESSING_KEYS, { optimistic: false })
   const overrides = preferences.overrides
-  const overridesRef = useRef(overrides)
-  const overridesUpdateQueueRef = useRef(Promise.resolve())
-
-  useEffect(() => {
-    overridesRef.current = overrides
-  }, [overrides])
 
   const processors = useMemo(() => mergeFileProcessorPresets(overrides), [overrides])
 
@@ -45,19 +39,12 @@ export function useFileProcessingPreferences() {
   )
 
   const updateOverrides = useCallback(
-    (updater: (currentOverrides: FileProcessorOverrides) => FileProcessorOverrides) => {
-      const update = overridesUpdateQueueRef.current.then(async () => {
-        const nextOverrides = updater(overridesRef.current)
-        await setPreferences({
-          overrides: nextOverrides
-        })
-        overridesRef.current = nextOverrides
+    async (updater: (currentOverrides: FileProcessorOverrides) => FileProcessorOverrides) => {
+      await setPreferences({
+        overrides: updater(overrides)
       })
-
-      overridesUpdateQueueRef.current = update.catch(() => undefined)
-      return update
     },
-    [setPreferences]
+    [overrides, setPreferences]
   )
 
   const setApiKeys = useCallback(

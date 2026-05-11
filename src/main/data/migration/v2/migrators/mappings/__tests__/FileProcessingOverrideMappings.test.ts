@@ -328,5 +328,38 @@ describe('FileProcessingOverrideMappings', () => {
         }
       })
     })
+
+    it('should trim migrated override strings when pruning empty values', () => {
+      const result = mergeFileProcessingOverrides({
+        preprocessProviders: [
+          {
+            id: 'mistral',
+            name: 'Mistral',
+            apiKey: ' mistral-key ',
+            apiHost: ' https://mistral-proxy.example.com ',
+            model: ' mistral-ocr-custom '
+          }
+        ],
+        ocrProviders: []
+      })
+
+      expect(result).toEqual({
+        'feature.file_processing.overrides': {
+          mistral: {
+            apiKeys: ['mistral-key'],
+            capabilities: {
+              document_to_markdown: {
+                apiHost: 'https://mistral-proxy.example.com',
+                modelId: 'mistral-ocr-custom'
+              },
+              image_to_text: {
+                apiHost: 'https://mistral-proxy.example.com',
+                modelId: 'mistral-ocr-custom'
+              }
+            }
+          }
+        }
+      })
+    })
   })
 })

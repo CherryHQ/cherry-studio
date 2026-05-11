@@ -271,7 +271,7 @@ describe('FileProcessingSettings', () => {
   it('sets the active image processor as the image-to-text default', async () => {
     render(<FileProcessingSettings />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' }))
 
     await waitFor(() => {
       expect(setPreferencesMock).toHaveBeenCalledWith({
@@ -280,12 +280,14 @@ describe('FileProcessingSettings', () => {
     })
   })
 
-  it('shows the provider detail header with a default badge and hides the default button', () => {
+  it('shows the provider detail header with a default badge and hides the default button', async () => {
     preferencesMock.defaultImageProcessor = 'system'
 
     render(<FileProcessingSettings />)
 
-    expect(screen.getAllByText('settings.tool.file_processing.processors.system.name').length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('settings.tool.file_processing.processors.system.name')).length).toBeGreaterThan(
+      0
+    )
     expect(screen.queryByText('settings.tool.file_processing.processors.system.description')).not.toBeInTheDocument()
     expect(screen.getAllByText('common.default').length).toBeGreaterThan(0)
     expect(
@@ -293,10 +295,12 @@ describe('FileProcessingSettings', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('uses the Open MinerU label', () => {
+  it('uses the Open MinerU label', async () => {
     render(<FileProcessingSettings />)
 
-    fireEvent.click(screen.getByRole('button', { name: /settings.tool.file_processing.processors.open_mineru.name/ }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.open_mineru.name/ })
+    )
 
     expect(screen.getAllByText('settings.tool.file_processing.processors.open_mineru.name').length).toBeGreaterThan(0)
     expect(
@@ -330,8 +334,8 @@ describe('FileProcessingSettings', () => {
     render(<FileProcessingSettings />)
 
     expect(
-      screen.getByRole('button', { name: /settings.tool.file_processing.processors.system.name/ })
-    ).toBeInTheDocument()
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.system.name/ })
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
     ).not.toBeInTheDocument()
@@ -350,7 +354,9 @@ describe('FileProcessingSettings', () => {
   it('stores API key input as file processing overrides', async () => {
     render(<FileProcessingSettings />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
     expect(screen.queryByText('settings.tool.file_processing.fields.model_id')).not.toBeInTheDocument()
     fireEvent.change(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'), {
       target: { value: ' key-1, key-2 ' }
@@ -371,7 +377,9 @@ describe('FileProcessingSettings', () => {
   it('opens the file processing API key list popup from the API key field', async () => {
     render(<FileProcessingSettings />)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
     fireEvent.change(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'), {
       target: { value: ' key-1, key-2 ' }
     })
@@ -392,7 +400,7 @@ describe('FileProcessingSettings', () => {
   it('stores System OCR language options on Windows', async () => {
     render(<FileProcessingSettings />)
 
-    fireEvent.click(screen.getByRole('button', { name: /English \(en-us\)/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /English \(en-us\)/ }))
 
     await waitFor(() => {
       expect(setPreferencesMock).toHaveBeenCalledWith({
@@ -407,11 +415,11 @@ describe('FileProcessingSettings', () => {
     })
   })
 
-  it('shows PaddleOCR deployment guidance with the deployment link', () => {
+  it('shows PaddleOCR deployment guidance with the deployment link', async () => {
     render(<FileProcessingSettings />)
 
     fireEvent.click(
-      screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })[0]
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
     )
 
     const apiKeyLabel = screen.getByText('settings.tool.file_processing.fields.api_key')
@@ -429,10 +437,10 @@ describe('FileProcessingSettings', () => {
   })
 
   it('stores PaddleOCR model changes per feature', async () => {
-    render(<FileProcessingSettings />)
+    const { rerender } = render(<FileProcessingSettings />)
 
     fireEvent.click(
-      screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })[0]
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
     )
     fireEvent.click(screen.getByRole('button', { name: 'PP-OCRv5' }))
 
@@ -449,6 +457,9 @@ describe('FileProcessingSettings', () => {
         }
       })
     })
+
+    preferencesMock.overrides = setPreferencesMock.mock.calls.at(-1)?.[0].overrides ?? {}
+    rerender(<FileProcessingSettings />)
 
     fireEvent.click(
       screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })[1]
@@ -473,7 +484,7 @@ describe('FileProcessingSettings', () => {
     })
   })
 
-  it('shows PaddleOCR OCR and document models from their own feature overrides', () => {
+  it('shows PaddleOCR OCR and document models from their own feature overrides', async () => {
     preferencesMock.overrides = {
       paddleocr: {
         capabilities: {
@@ -490,7 +501,7 @@ describe('FileProcessingSettings', () => {
     render(<FileProcessingSettings />)
 
     fireEvent.click(
-      screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ })[0]
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
     )
     expect(
       screen.getByRole('button', { name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model' })
@@ -515,7 +526,9 @@ describe('FileProcessingSettings', () => {
 
     render(<FileProcessingSettings />)
 
-    fireEvent.click(screen.getByRole('button', { name: /settings.tool.file_processing.processors.tesseract.name/ }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.tesseract.name/ })
+    )
 
     expect(screen.getByRole('button', { name: /English \(eng\)/ })).toBeInTheDocument()
 

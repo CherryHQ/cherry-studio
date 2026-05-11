@@ -1,8 +1,8 @@
 import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudio/ui'
 import { useLanguages } from '@renderer/hooks/translate'
+import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { getProcessorLanguageOptions } from '@shared/data/utils/fileProcessingUtils'
-import { splitApiKeyString } from '@shared/utils/api'
 import { List, SquareCheckBig } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -109,13 +109,13 @@ export function ProcessorPanel({
   const selectedLanguages = useMemo(() => getProcessorLanguageOptions(processor.options), [processor.options])
 
   const handleApiKeysBlur = useCallback(() => {
-    void onSetApiKeys(processor.id, splitApiKeyString(apiKeysInput))
+    void onSetApiKeys(processor.id, splitApiKeyString(formatApiKeys(apiKeysInput)))
   }, [apiKeysInput, onSetApiKeys, processor.id])
 
   const openApiKeyList = useCallback(async () => {
     await FileProcessingApiKeyListPopup.show({
       processorId: processor.id,
-      apiKeys: splitApiKeyString(apiKeysInput),
+      apiKeys: splitApiKeyString(formatApiKeys(apiKeysInput)),
       onSetApiKeys,
       title: `${processorName} ${t('settings.provider.api.key.list.title')}`
     })

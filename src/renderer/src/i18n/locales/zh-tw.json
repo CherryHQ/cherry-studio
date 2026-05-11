@@ -6590,12 +6590,6 @@
           "api_keys_placeholder": "多個金鑰可用逗號分隔",
           "languages": "語言"
         },
-        "knowledge": {
-          "provider": "檔案處理器",
-          "provider_placeholder": "選擇一個檔案處理器",
-          "title": "檔案處理",
-          "tooltip": "在「設定」->「工具」中設定檔案處理器，可提升複雜檔案與掃描檔案的檢索效果。"
-        },
         "processors": {
           "doc2x": {
             "description": "高級檔案還原引擎。",
@@ -6648,7 +6642,6 @@
           "model_parameters": "模型參數",
           "status": "狀態"
         },
-        "sidebar_title": "文件服務",
         "title": "文件解析"
       },
       "title": "其他設定",

@@ -7,7 +7,7 @@ import {
   type FileProcessorOverride,
   type FileProcessorOverrides
 } from '@shared/data/preference/preferenceTypes'
-import { getFileProcessorPresetById } from '@shared/data/utils/fileProcessingUtils'
+import { getFileProcessorPresetById, normalizeFileProcessorOverrides } from '@shared/data/utils/fileProcessingUtils'
 
 import type { TransformResult } from './ComplexPreferenceMappings'
 
@@ -62,9 +62,14 @@ function addApiKey(override: FileProcessorOverride, apiKey: unknown) {
     return
   }
 
+  const normalizedApiKey = apiKey.trim()
+  if (!normalizedApiKey) {
+    return
+  }
+
   override.apiKeys ??= []
-  if (!override.apiKeys.includes(apiKey)) {
-    override.apiKeys.push(apiKey)
+  if (!override.apiKeys.includes(normalizedApiKey)) {
+    override.apiKeys.push(normalizedApiKey)
   }
 }
 
@@ -106,12 +111,17 @@ function setCapabilityApiHost(
     return
   }
 
-  const presetApiHost = getPresetCapability(processorId, feature).apiHost
-  if (apiHost === presetApiHost) {
+  const normalizedApiHost = apiHost.trim()
+  if (!normalizedApiHost) {
     return
   }
 
-  ensureCapability(override, feature).apiHost = apiHost
+  const presetApiHost = getPresetCapability(processorId, feature).apiHost
+  if (normalizedApiHost === presetApiHost) {
+    return
+  }
+
+  ensureCapability(override, feature).apiHost = normalizedApiHost
 }
 
 function setCapabilityModelId(
@@ -124,12 +134,17 @@ function setCapabilityModelId(
     return
   }
 
-  const presetModelId = getPresetCapability(processorId, feature).modelId
-  if (modelId === presetModelId) {
+  const normalizedModelId = modelId.trim()
+  if (!normalizedModelId) {
     return
   }
 
-  ensureCapability(override, feature).modelId = modelId
+  const presetModelId = getPresetCapability(processorId, feature).modelId
+  if (normalizedModelId === presetModelId) {
+    return
+  }
+
+  ensureCapability(override, feature).modelId = normalizedModelId
 }
 
 function normalizeLangs(value: unknown, providerId: FileProcessorId): string[] {
@@ -152,35 +167,6 @@ function normalizeLangs(value: unknown, providerId: FileProcessorId): string[] {
   return Object.entries(value)
     .filter(([, enabled]) => enabled === true)
     .map(([lang]) => lang)
-}
-
-function pruneEmptyOverrides(overrides: FileProcessorOverrides) {
-  for (const [processorId, override] of Object.entries(overrides)) {
-    if (override.apiKeys?.length === 0) {
-      delete override.apiKeys
-    }
-
-    if (override.capabilities) {
-      for (const feature of Object.keys(override.capabilities) as FileProcessorFeature[]) {
-        const capability = override.capabilities[feature]
-        if (!capability || Object.keys(capability).length === 0) {
-          delete override.capabilities[feature]
-        }
-      }
-
-      if (Object.keys(override.capabilities).length === 0) {
-        delete override.capabilities
-      }
-    }
-
-    if (isRecord(override.options) && Object.keys(override.options).length === 0) {
-      delete override.options
-    }
-
-    if (Object.keys(override).length === 0) {
-      delete overrides[processorId as FileProcessorId]
-    }
-  }
 }
 
 function mergePreprocessProvider(overrides: FileProcessorOverrides, provider: unknown) {
@@ -269,9 +255,7 @@ export function mergeFileProcessingOverrides(sources: {
     sources.ocrProviders.forEach((provider) => mergeOcrProvider(overrides, provider))
   }
 
-  pruneEmptyOverrides(overrides)
-
   return {
-    'feature.file_processing.overrides': overrides
+    'feature.file_processing.overrides': normalizeFileProcessorOverrides(overrides)
   }
 }

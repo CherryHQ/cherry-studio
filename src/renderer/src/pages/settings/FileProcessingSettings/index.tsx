@@ -49,10 +49,10 @@ const FileProcessingSettings: FC = () => {
   const [activeKey, setActiveKey] = useState(() => menuEntries[0]?.key ?? '')
 
   useEffect(() => {
-    if (!menuEntries.some((entry) => entry.key === activeKey)) {
-      setActiveKey(menuEntries[0]?.key ?? '')
-    }
-  }, [activeKey, menuEntries])
+    setActiveKey((currentActiveKey) =>
+      menuEntries.some((entry) => entry.key === currentActiveKey) ? currentActiveKey : (menuEntries[0]?.key ?? '')
+    )
+  }, [menuEntries])
 
   const activeEntry = menuEntries.find((entry) => entry.key === activeKey)
 

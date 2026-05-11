@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { FileMetadata } from '@types'
 import type React from 'react'
+import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ComponentLabFileProcessingSettings from '../ComponentLabFileProcessingSettings'
@@ -221,6 +222,47 @@ describe('ComponentLabFileProcessingSettings', () => {
     ])
     expect(startTaskMock.mock.calls.every(([payload]) => payload.feature === 'image_to_text')).toBe(true)
     expect(startTaskMock.mock.calls.every(([payload]) => payload.file === imageFile)).toBe(true)
+  })
+
+  it('continues updating processor results after StrictMode remount', async () => {
+    selectFileMock.mockResolvedValueOnce([imageFile])
+    startTaskMock.mockImplementation(({ processorId }) =>
+      Promise.resolve({
+        taskId: `ocr-${processorId}`,
+        feature: 'image_to_text',
+        processorId,
+        progress: 0,
+        status: 'pending'
+      })
+    )
+    getTaskMock.mockImplementation(({ taskId }) =>
+      Promise.resolve({
+        taskId,
+        feature: 'image_to_text',
+        processorId: taskId.replace('ocr-', ''),
+        progress: 100,
+        status: 'completed',
+        artifacts: [{ kind: 'text', format: 'plain', text: `result-${taskId}` }]
+      })
+    )
+
+    render(
+      <StrictMode>
+        <ComponentLabFileProcessingSettings />
+      </StrictMode>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.componentLab.fileProcessing.ocr.select/ }))
+
+    await waitFor(() => {
+      expect(screen.getByText('/tmp/sample.png')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.componentLab.fileProcessing.ocr.start/ }))
+
+    await waitFor(() => {
+      expect(screen.getByText('result-ocr-system')).toBeInTheDocument()
+    })
   })
 
   it('excludes System OCR when file processing reports it as unavailable', async () => {

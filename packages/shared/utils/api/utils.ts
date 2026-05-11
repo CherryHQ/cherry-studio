@@ -27,7 +27,7 @@ export function formatApiKeys(value: string): string {
  * Commas may be escaped as `\,` when they are part of a key value.
  */
 export function splitApiKeyString(keyStr: string): string[] {
-  return formatApiKeys(keyStr)
+  return keyStr
     .split(/(?<!\\),/)
     .map((key) => key.trim())
     .map((key) => key.replace(/\\,/g, ','))

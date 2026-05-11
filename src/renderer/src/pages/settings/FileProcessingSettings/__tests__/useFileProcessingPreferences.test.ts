@@ -24,36 +24,87 @@ describe('useFileProcessingPreferences', () => {
     setPreferencesMock.mockResolvedValue(undefined)
   })
 
-  it('serializes override updates and derives each write from the latest pending state', async () => {
-    const { result } = renderHook(() => useFileProcessingPreferences())
-
-    const apiKeysUpdate = result.current.setApiKeys('mistral', ['mistral-key'])
-    const modelUpdate = result.current.setCapabilityField(
-      'paddleocr',
-      'document_to_markdown',
-      'modelId',
-      'PP-StructureV3'
-    )
-
-    await Promise.all([apiKeysUpdate, modelUpdate])
-
-    expect(setPreferencesMock).toHaveBeenNthCalledWith(1, {
-      overrides: {
-        mistral: {
-          apiKeys: ['mistral-key']
+  it('writes API keys by merging into the current overrides', async () => {
+    preferencesMock.overrides = {
+      paddleocr: {
+        capabilities: {
+          document_to_markdown: {
+            modelId: 'PP-StructureV3'
+          }
         }
       }
-    })
-    expect(setPreferencesMock).toHaveBeenNthCalledWith(2, {
+    }
+
+    const { result } = renderHook(() => useFileProcessingPreferences())
+
+    await result.current.setApiKeys('mistral', ['mistral-key'])
+
+    expect(setPreferencesMock).toHaveBeenCalledWith({
       overrides: {
-        mistral: {
-          apiKeys: ['mistral-key']
-        },
         paddleocr: {
           capabilities: {
             document_to_markdown: {
               modelId: 'PP-StructureV3'
             }
+          }
+        },
+        mistral: {
+          apiKeys: ['mistral-key']
+        }
+      }
+    })
+  })
+
+  it('writes capability fields by preserving existing processor override fields', async () => {
+    preferencesMock.overrides = {
+      paddleocr: {
+        apiKeys: ['paddle-key'],
+        capabilities: {
+          image_to_text: {
+            modelId: 'PP-OCRv5'
+          }
+        }
+      }
+    }
+
+    const { result } = renderHook(() => useFileProcessingPreferences())
+
+    await result.current.setCapabilityField('paddleocr', 'document_to_markdown', 'modelId', 'PP-StructureV3')
+
+    expect(setPreferencesMock).toHaveBeenCalledWith({
+      overrides: {
+        paddleocr: {
+          apiKeys: ['paddle-key'],
+          capabilities: {
+            image_to_text: {
+              modelId: 'PP-OCRv5'
+            },
+            document_to_markdown: {
+              modelId: 'PP-StructureV3'
+            }
+          }
+        }
+      }
+    })
+  })
+
+  it('writes language options from the current overrides', async () => {
+    preferencesMock.overrides = {
+      tesseract: {
+        apiKeys: ['unused-key']
+      }
+    }
+
+    const { result } = renderHook(() => useFileProcessingPreferences())
+
+    await result.current.setLanguageOptions('tesseract', ['eng', 'chi_sim'])
+
+    expect(setPreferencesMock).toHaveBeenCalledWith({
+      overrides: {
+        tesseract: {
+          apiKeys: ['unused-key'],
+          options: {
+            langs: ['eng', 'chi_sim']
           }
         }
       }

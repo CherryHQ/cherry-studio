@@ -115,8 +115,10 @@ function omitEmptyCapability(
   }
 }
 
-function omitEmptyOverride(override: FileProcessorOverride): FileProcessorOverride | undefined {
-  const apiKeys = override.apiKeys?.map((item) => item.trim()).filter(Boolean)
+export function normalizeFileProcessorOverride(override: FileProcessorOverride): FileProcessorOverride | undefined {
+  const apiKeys = override.apiKeys
+    ? Array.from(new Set(override.apiKeys.map((item) => item.trim()).filter(Boolean)))
+    : undefined
   const capabilitiesEntries = override.capabilities
     ? (
         Object.entries(override.capabilities) as Array<
@@ -142,13 +144,32 @@ function omitEmptyOverride(override: FileProcessorOverride): FileProcessorOverri
   }
 }
 
+export function normalizeFileProcessorOverrides(overrides: FileProcessorOverrides): FileProcessorOverrides {
+  const nextOverrides: FileProcessorOverrides = {}
+
+  for (const [processorId, override] of Object.entries(overrides) as Array<
+    [FileProcessorId, FileProcessorOverride | undefined]
+  >) {
+    if (!override) {
+      continue
+    }
+
+    const next = normalizeFileProcessorOverride(override)
+    if (next) {
+      nextOverrides[processorId] = next
+    }
+  }
+
+  return nextOverrides
+}
+
 export function updateProcessorApiKeys(
   overrides: FileProcessorOverrides,
   processorId: FileProcessorId,
   apiKeys: string[]
 ): FileProcessorOverrides {
   const current = overrides[processorId] ?? {}
-  const next = omitEmptyOverride({ ...current, apiKeys })
+  const next = normalizeFileProcessorOverride({ ...current, apiKeys })
 
   return setProcessorOverride(overrides, processorId, next)
 }
@@ -170,7 +191,7 @@ export function updateProcessorCapabilityOverride(
     ...current.capabilities,
     [feature]: nextCapability
   }
-  const next = omitEmptyOverride({
+  const next = normalizeFileProcessorOverride({
     ...current,
     capabilities: nextCapabilities
   })
@@ -185,11 +206,11 @@ export function getProcessorLanguageOptions(options: FileProcessorOptions | unde
 
 export function updateProcessorLanguageOptions(
   overrides: FileProcessorOverrides,
-  processorId: Extract<FileProcessorId, 'system' | 'tesseract'>,
+  processorId: FileProcessorId,
   langs: string[]
 ): FileProcessorOverrides {
   const current = overrides[processorId] ?? {}
-  const next = omitEmptyOverride({
+  const next = normalizeFileProcessorOverride({
     ...current,
     options: {
       ...current.options,

@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
+import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 import { FileMetadataSchema } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
@@ -84,9 +85,9 @@ export class FileProcessingOrchestrationService extends BaseService {
   }
 
   listAvailableProcessors(): ListAvailableFileProcessorsResult {
-    return {
+    return ListAvailableFileProcessorsResultSchema.parse({
       processorIds: application.get('FileProcessingTaskService').listAvailableProcessorIds()
-    }
+    })
   }
 
   private registerIpcHandlers(): void {
