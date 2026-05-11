@@ -10,6 +10,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { useLanguages, useTranslateLanguages } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
@@ -33,6 +34,7 @@ type Props = {
 
 const BUILTIN_LANG_CODES = new Set<string>(BUILTIN_TRANSLATE_LANGUAGES.map((lang) => lang.langCode))
 const EMOJI_OPTIONS = ['🌐', '🇺🇸', '🇬🇧', '🇨🇳', '🇯🇵', '🇰🇷', '🇫🇷', '🇩🇪', '🇪🇸', '🇵🇹', '🇮🇳', '🇧🇷']
+const logger = loggerService.withContext('TranslateSettings')
 
 const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
   const { t } = useTranslation()
@@ -43,15 +45,27 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
   const [isScrollSyncEnabled, setIsScrollSyncEnabled] = usePreference('feature.translate.page.scroll_sync')
   const [isBidirectional, setIsBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
 
+  const safePersist = useCallback(
+    async (persistPromise: Promise<unknown>, actionName: string) => {
+      try {
+        await persistPromise
+      } catch (error) {
+        logger.error(`Failed to persist ${actionName}`, error as Error)
+        window.toast.error(t('common.save_failed'))
+      }
+    },
+    [t]
+  )
+
   const updateBidirectionalPair = useCallback(
     (next: TranslateBidirectionalPair) => {
       if (next[0] === next[1]) {
         window.toast.warning(t('translate.language.same'))
         return
       }
-      void setBidirectionalPair(next)
+      void safePersist(setBidirectionalPair(next), 'translate bidirectional pair')
     },
-    [setBidirectionalPair, t]
+    [safePersist, setBidirectionalPair, t]
   )
 
   const toggleItems: Array<{ key: string; label: string; value: boolean; onChange: (next: boolean) => void }> = [
@@ -59,19 +73,19 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
       key: 'markdown',
       label: t('translate.settings.preview'),
       value: enableMarkdown,
-      onChange: (next) => void setEnableMarkdown(next)
+      onChange: (next) => void safePersist(setEnableMarkdown(next), 'translate markdown preference')
     },
     {
       key: 'autoCopy',
       label: t('translate.settings.autoCopy'),
       value: autoCopy,
-      onChange: (next) => void setAutoCopy(next)
+      onChange: (next) => void safePersist(setAutoCopy(next), 'translate auto copy preference')
     },
     {
       key: 'scrollSync',
       label: t('translate.settings.scroll_sync'),
       value: isScrollSyncEnabled,
-      onChange: (next) => void setIsScrollSyncEnabled(next)
+      onChange: (next) => void safePersist(setIsScrollSyncEnabled(next), 'translate scroll sync preference')
     }
   ]
 
@@ -119,7 +133,7 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
             <Tooltip key={opt.value} content={opt.tip} placement="top">
               <button
                 type="button"
-                onClick={() => void setAutoDetectionMethod(opt.value)}
+                onClick={() => void safePersist(setAutoDetectionMethod(opt.value), 'translate auto detection method')}
                 className={cn(
                   'rounded-md px-2 py-0.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                   autoDetectionMethod === opt.value
@@ -142,7 +156,13 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
               iconProps={{ className: 'text-foreground-muted' }}
             />
           </div>
-          <Switch size="sm" checked={isBidirectional} onCheckedChange={(next) => void setIsBidirectional(next)} />
+          <Switch
+            size="sm"
+            checked={isBidirectional}
+            onCheckedChange={(next) =>
+              void safePersist(setIsBidirectional(next), 'translate bidirectional enabled preference')
+            }
+          />
         </div>
         {isBidirectional && (
           <div className="flex items-center gap-2">
@@ -178,6 +198,20 @@ const TranslatePromptField: FC = () => {
   const [local, setLocal] = useState<string>(persisted)
   const pendingRef = useRef<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveFailedMessageRef = useRef(t('common.save_failed'))
+
+  useEffect(() => {
+    saveFailedMessageRef.current = t('common.save_failed')
+  }, [t])
+
+  const safePersist = useCallback(async (persistPromise: Promise<unknown>, actionName: string) => {
+    try {
+      await persistPromise
+    } catch (error) {
+      logger.error(`Failed to persist ${actionName}`, error as Error)
+      window.toast.error(saveFailedMessageRef.current || 'Failed to save')
+    }
+  }, [])
 
   const clearSaveTimer = useCallback(() => {
     if (saveTimerRef.current) {
@@ -201,22 +235,22 @@ const TranslatePromptField: FC = () => {
 
       const savedValue = next
       saveTimerRef.current = setTimeout(() => {
-        void setPersisted(savedValue)
+        void safePersist(setPersisted(savedValue), 'translate prompt')
         pendingRef.current = null
         saveTimerRef.current = null
       }, 400)
     },
-    [clearSaveTimer, setPersisted]
+    [clearSaveTimer, safePersist, setPersisted]
   )
 
   useEffect(
     () => () => {
       clearSaveTimer()
       if (pendingRef.current !== null) {
-        void setPersisted(pendingRef.current)
+        void safePersist(setPersisted(pendingRef.current), 'translate prompt')
       }
     },
-    [clearSaveTimer, setPersisted]
+    [clearSaveTimer, safePersist, setPersisted]
   )
 
   const isDefault = local === TRANSLATE_PROMPT
@@ -224,7 +258,7 @@ const TranslatePromptField: FC = () => {
     clearSaveTimer()
     pendingRef.current = null
     setLocal(TRANSLATE_PROMPT)
-    void setPersisted(TRANSLATE_PROMPT)
+    void safePersist(setPersisted(TRANSLATE_PROMPT), 'translate prompt')
   }
 
   return (

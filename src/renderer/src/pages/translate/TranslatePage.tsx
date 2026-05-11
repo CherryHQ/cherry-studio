@@ -123,6 +123,18 @@ const TranslatePage: FC = () => {
     [setTranslateInput]
   )
 
+  const safePersist = useCallback(
+    async (persistPromise: Promise<unknown>, actionName: string) => {
+      try {
+        await persistPromise
+      } catch (error) {
+        logger.error(`Failed to persist ${actionName}`, error as Error)
+        window.toast.error(t('common.save_failed'))
+      }
+    },
+    [t]
+  )
+
   const appendTranslateInput = useCallback(
     (text: string) => {
       if (isEmpty(text)) return
@@ -296,12 +308,13 @@ const TranslatePage: FC = () => {
 
   const handleExchange = useCallback(() => {
     if (sourceLanguage === 'auto' || translatingState.isTranslating || isDetecting) return
-    void setSourceLanguage(targetLanguage)
-    void setTargetLanguage(sourceLanguage)
+    void safePersist(setSourceLanguage(targetLanguage), 'translate source language')
+    void safePersist(setTargetLanguage(sourceLanguage), 'translate target language')
     setTranslateInputValue(translateOutput)
     setTranslateOutput(translateInput)
   }, [
     isDetecting,
+    safePersist,
     setSourceLanguage,
     setTargetLanguage,
     setTranslateInputValue,
@@ -317,11 +330,11 @@ const TranslatePage: FC = () => {
     (history: TranslateHistory) => {
       setTranslateInputValue(history.sourceText)
       setTranslateOutput(history.targetText)
-      void setSourceLanguage(history.sourceLanguage ?? 'auto')
-      void setTargetLanguage(history.targetLanguage ?? UNKNOWN_LANG_CODE)
+      void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
+      void safePersist(setTargetLanguage(history.targetLanguage ?? UNKNOWN_LANG_CODE), 'translate target language')
       setHistoryOpen(false)
     },
-    [setSourceLanguage, setTargetLanguage, setTranslateInputValue, setTranslateOutput]
+    [safePersist, setSourceLanguage, setTargetLanguage, setTranslateInputValue, setTranslateOutput]
   )
 
   const inputScrollHandler = useMemo(
@@ -360,9 +373,9 @@ const TranslatePage: FC = () => {
 
   const handleModelIdSelect = useCallback(
     (modelId: UniqueModelId | undefined) => {
-      void setTranslateModelId(modelId ?? null)
+      void safePersist(setTranslateModelId(modelId ?? null), 'translate model id')
     },
-    [setTranslateModelId]
+    [safePersist, setTranslateModelId]
   )
 
   const tokenCount = translateInput ? estimateTextTokens(translateInput + prompt) : 0
@@ -639,9 +652,9 @@ const TranslatePage: FC = () => {
 
         <TranslateLanguageBar
           sourceLanguage={sourceLanguage}
-          onSourceChange={(language) => void setSourceLanguage(language)}
+          onSourceChange={(language) => void safePersist(setSourceLanguage(language), 'translate source language')}
           targetLanguage={targetLanguage}
-          onTargetChange={(language) => void setTargetLanguage(language)}
+          onTargetChange={(language) => void safePersist(setTargetLanguage(language), 'translate target language')}
           detectedLanguage={detectedLanguage}
           isBidirectional={isBidirectional}
           bidirectionalPair={bidirectionalPair}
