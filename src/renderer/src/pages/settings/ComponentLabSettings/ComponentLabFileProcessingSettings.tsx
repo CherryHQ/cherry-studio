@@ -229,7 +229,7 @@ function ProcessorResultCard({ processor, state }: { processor: FileProcessorMer
                   ? t('settings.componentLab.fileProcessing.artifact.file')
                   : t('settings.componentLab.fileProcessing.artifact.text')}
               </div>
-              <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-foreground text-xs leading-5">
+              <pre className="max-h-40 overflow-auto whitespace-pre-wrap wrap-break-word font-mono text-foreground text-xs leading-5">
                 {getArtifactPreview(artifact)}
               </pre>
             </div>
