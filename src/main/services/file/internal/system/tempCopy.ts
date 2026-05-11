@@ -40,13 +40,15 @@ export async function withTempCopy<T>(
     await fsCopy(physical, target)
     return await fn(target)
   } finally {
-    // Cleanup must not hijack the original error. `rm({force:true})` tolerates
-    // ENOENT, but EBUSY (Windows: external process holds the file) and EACCES
-    // (sandbox containment changes) still throw — and a throw from finally
-    // would replace any error fn just raised, erasing the caller's stack.
-    // Log and swallow; the leaked directory lives under the OS temp tree
-    // (`feature.files.tempcopy.temp`) and is reaped on the next OS-level
-    // temp cleanup. No application-side sweeper is planned.
+    // Cleanup must not hijack the original error. `fsRemoveDir` wraps
+    // `fs.rm({ recursive: true, force: true })` so it tolerates ENOENT, but
+    // EBUSY (Windows: external process holds the file) and EACCES (sandbox
+    // containment changes) still throw — and a throw from finally would
+    // replace any error fn just raised, erasing the caller's stack. Log and
+    // swallow; the leaked directory lives under the OS temp tree (resolved
+    // from the `feature.files.tempcopy.temp` path-registry key) and is reaped
+    // on the next OS-level temp cleanup. No application-side sweeper is
+    // planned.
     try {
       await fsRemoveDir(dir as FilePath)
     } catch (cleanupErr) {

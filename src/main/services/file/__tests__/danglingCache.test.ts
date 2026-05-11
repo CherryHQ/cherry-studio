@@ -127,10 +127,11 @@ describe('DanglingCache.check', () => {
     // touch byEntryId (no commit, no observedAt refresh, no emit).
     t += 1500
     expect(await cache.check(externalEntry('e-mix', '/p.txt'))).toBe('unknown')
-    // Third check 500ms later: if unknown had refreshed observedAt to t=2500,
-    // we'd be within the new TTL window (3000-2500<1000) and hit cache
-    // without stat-ing. Because unknown is uncommitted, observedAt is still
-    // 1_000_000 — 2_001_500-1_000_000=1_001_500 > 1000 TTL → re-stat fires.
+    // Third check 500ms later (t=1_002_000): if unknown had refreshed
+    // observedAt to t=1_001_500, we'd be within the new TTL window
+    // (1_002_000-1_001_500=500 < 1000) and hit cache without stat-ing.
+    // Because unknown is uncommitted, observedAt is still 1_000_000 —
+    // 1_002_000-1_000_000=2_000 > 1000 TTL → re-stat fires.
     t += 500
     expect(await cache.check(externalEntry('e-mix', '/p.txt'))).toBe('present')
     expect(statProbe).toHaveBeenCalledTimes(3)

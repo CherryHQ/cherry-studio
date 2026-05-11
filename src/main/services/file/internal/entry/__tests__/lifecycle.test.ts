@@ -195,9 +195,10 @@ describe('internal/entry/lifecycle', () => {
       // Regression guard for 5bcf03529: BatchOperationResult.failed[].error is
       // a string for IPC serialisation, so the wire format drops the stack.
       // The fix routes the original Error through logger.warn as { id, err };
-      // anyone refactoring this to logger.warn(..., { id, msg: err.message })
-      // would pass this assertion's existence but fail the toBe identity
-      // check below — exactly the regression we want to catch.
+      // a refactor to logger.warn(..., { id, msg: err.message }) would satisfy
+      // toHaveBeenCalledWith on { id } but fail the `instanceof Error` +
+      // non-empty `stack` assertions below — exactly the regression we want
+      // to catch.
       mockLoggerWarn.mockClear()
       const internal = await makeInternal()
       const external = await makeExternal()
@@ -208,9 +209,9 @@ describe('internal/entry/lifecycle', () => {
       const [, payload] = warnCalls[0]
       expect(payload.id).toBe(external)
       // The contract: payload.err must be the original Error (with stack),
-      // not its `.message` projection. Identity check via `toBeInstanceOf`
-      // tolerates whichever Error subclass the CHECK constraint raises but
-      // still catches a string downgrade.
+      // not its `.message` projection. `toBeInstanceOf` tolerates whichever
+      // Error subclass the CHECK constraint raises while still catching a
+      // string downgrade.
       expect(payload.err).toBeInstanceOf(Error)
       expect(typeof payload.err.stack).toBe('string')
       expect(payload.err.stack.length).toBeGreaterThan(0)

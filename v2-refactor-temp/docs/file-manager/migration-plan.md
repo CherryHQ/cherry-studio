@@ -801,7 +801,7 @@ C4 的 AgentSessionInputbar 是真的需要 FileMetadata.path，因为 agent 的
 | `src/main/knowledge/embedjs/loader/index.ts:60, 78`                    | `filePath: file.path`        |
 | `src/main/knowledge/preprocess/PreprocessingService.ts:24, 29`         | log                          |
 
-Main 侧消费者可以直接用 main 的 `resolvePhysicalPath(entry)`（`src/main/data/utils/pathResolver.ts`），无需 IPC。
+Main 侧消费者可以直接用 main 的 `resolvePhysicalPath(entry)`（`src/main/services/file/utils/pathResolver.ts`），无需 IPC。
 
 #### 2.6.4 v2 映射策略
 
@@ -862,7 +862,7 @@ async function batchGetPhysicalPaths(ids: FileEntryId[]) {
 **Main 侧基础函数**（保留不变）：
 
 ```typescript
-// src/main/data/utils/pathResolver.ts (existing)
+// src/main/services/file/utils/pathResolver.ts (existing)
 export function resolvePhysicalPath(entry): string { ... }  // 绝对路径（authority 源头）
 ```
 
@@ -905,7 +905,7 @@ Renderer helper 方案、DataApi opt-in 方案、IPC 双方法方案皆已作废
 
 | #   | 文件                                        | 改动                                                                                                                                |
 | --- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| A1  | `src/main/data/utils/pathResolver.ts`       | 已有 `resolvePhysicalPath(entry)`；**保持不变**（不再新增 `resolveSafeUrl`——URL 合成下放到共享 util）                             |
+| A1  | `src/main/services/file/utils/pathResolver.ts`       | 已有 `resolvePhysicalPath(entry)`；**保持不变**（不再新增 `resolveSafeUrl`——URL 合成下放到共享 util）                             |
 | A2  | `packages/shared/file/urlUtil.ts`（新）    | 共享纯函数：`isDangerExt(ext)` + `toFileUrl(path)`（跨平台 `file://` 编码）+ `toSafeFileUrl(path, ext)`（危险文件 → dirname wrap）  |
 | A3  | `packages/shared/file/types/ipc.ts`         | 声明 File IPC 新增方法：`getPhysicalPath` / `batchGetPhysicalPaths`（均为 managed-entry-only，接受 `FileEntryId`）                  |
 | A4  | File IPC handler（FileManager）             | 实现 `getPhysicalPath` / `batchGetPhysicalPaths`：内部调 `resolvePhysicalPath(entry)`；批量方法内部 `Promise.all` 并返回 `Record<id, path>` |

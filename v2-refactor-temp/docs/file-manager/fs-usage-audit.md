@@ -542,7 +542,7 @@
 | `fs.unlinkSync()` | 同步 | 删除损坏的/空的数据库文件 |
 | `fs.unlinkSync()` | 同步 | 删除孤立的 WAL/SHM 辅助文件 |
 
-### `data/utils/pathResolver.ts`
+### `services/file/utils/pathResolver.ts`
 - **Import**: `import fs from 'node:fs'`
 - **Tags**: `sync` `stat`
 
