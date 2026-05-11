@@ -1,4 +1,4 @@
-name: Legacy CSS Vars Comment
+name: Style Reminders Comment
 
 permissions:
   contents: read
@@ -11,7 +11,7 @@ on:
     types: [opened, synchronize, ready_for_review]
 
 jobs:
-  comment-legacy-css-vars:
+  comment-style-reminders:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
 
@@ -45,8 +45,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Detect new legacy CSS variable usages
-        run: pnpm exec tsx scripts/check-pr-legacy-css-vars.ts --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}" --markdown-output .tmp/legacy-css-vars-pr-comment.md
+      - name: Detect new style reminders
+        run: pnpm exec tsx scripts/check-pr-style-reminders.ts --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}" --markdown-output .tmp/style-reminders-pr-comment.md
 
       - name: Upsert PR comment
         uses: actions/github-script@v8
@@ -55,8 +55,8 @@ jobs:
             const fs = require('node:fs');
             const path = require('node:path');
 
-            const marker = '<!-- legacy-css-vars-warning -->';
-            const commentPath = path.join(process.env.GITHUB_WORKSPACE, '.tmp/legacy-css-vars-pr-comment.md');
+            const marker = '<!-- style-reminders-warning -->';
+            const commentPath = path.join(process.env.GITHUB_WORKSPACE, '.tmp/style-reminders-pr-comment.md');
             const body = fs.existsSync(commentPath) ? fs.readFileSync(commentPath, 'utf8').trim() : '';
 
             const { data: comments } = await github.rest.issues.listComments({
@@ -77,7 +77,7 @@ jobs:
                   comment_id: botComment.id,
                 });
               }
-              core.info('No new legacy CSS variable usages found in this PR.');
+              core.info('No new style reminders found in this PR.');
               return;
             }
 
