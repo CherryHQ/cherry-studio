@@ -137,7 +137,9 @@ export function ProcessorPanel({
   }, [apiKeysInput, onSetApiKeys, processor.id, processorName, t])
 
   const handleApiHostBlur = useCallback(async () => {
-    await persist(() => onSetCapabilityField(processor.id, entry.feature, 'apiHost', apiHostInput), 'save API host')
+    const trimmedApiHost = apiHostInput.trim()
+    setApiHostInput(trimmedApiHost)
+    await persist(() => onSetCapabilityField(processor.id, entry.feature, 'apiHost', trimmedApiHost), 'save API host')
   }, [apiHostInput, entry.feature, onSetCapabilityField, persist, processor.id])
 
   const setModelIdInputAndPersist = useCallback(

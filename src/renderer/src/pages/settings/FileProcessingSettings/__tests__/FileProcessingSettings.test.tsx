@@ -426,6 +426,33 @@ describe('FileProcessingSettings', () => {
     expect(loggerErrorMock).toHaveBeenCalledWith('Failed to save API host', error)
   })
 
+  it('trims API host before persisting', async () => {
+    render(<FileProcessingSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
+
+    const apiHostInput = screen.getByPlaceholderText('settings.provider.api_host')
+    fireEvent.change(apiHostInput, {
+      target: { value: '  https://draft.example.com  ' }
+    })
+    fireEvent.blur(apiHostInput)
+
+    await waitFor(() => {
+      expect(setOverridesMock).toHaveBeenCalledWith({
+        mistral: {
+          capabilities: {
+            image_to_text: {
+              apiHost: 'https://draft.example.com'
+            }
+          }
+        }
+      })
+    })
+    expect(apiHostInput).toHaveValue('https://draft.example.com')
+  })
+
   it('opens the file processing API key list popup from the API key field', async () => {
     render(<FileProcessingSettings />)
 
