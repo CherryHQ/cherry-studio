@@ -1615,19 +1615,10 @@
     "custom_path_required": "Custom path required for this terminal",
     "custom_path_set": "Custom terminal path set successfully",
     "description": "Quickly launch multiple code CLI tools to improve development efficiency",
-    "empty": {
-      "no_match": {
-        "description": "Try adjusting your search terms",
-        "title": "No matching tools found"
-      },
-      "no_tool": {
-        "description": "Add a CLI tool or code assistant to get started",
-        "title": "No code tools yet"
-      }
-    },
     "env_vars_help": "Enter custom environment variables (one per line, format: KEY=value)",
     "environment_variables": "Environment Variables",
     "folder_placeholder": "Select working directory",
+    "hero_tagline": "Pick a CLI tool to configure",
     "install_bun": "Install Bun",
     "installing_bun": "Installing...",
     "launch": {
@@ -1643,9 +1634,6 @@
     "model_hint": "Choose which AI model the CLI tool should use",
     "model_placeholder": "Select the model to use",
     "model_required": "Please select a model",
-    "official_tag": "Official",
-    "official_tools": "Official",
-    "search_placeholder": "Search CLI tools…",
     "select_folder": "Select Folder",
     "set_custom_path": "Set custom terminal path",
     "supported_providers": "Supported Providers",
@@ -1653,6 +1641,16 @@
     "terminal_hint": "Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Select terminal application",
     "title": "Code Tools",
+    "tool_description": {
+      "claude_code": "Anthropic's official command-line AI coding assistant",
+      "gemini_cli": "Google's official Gemini command-line assistant",
+      "github_copilot_cli": "GitHub's official Copilot command-line companion",
+      "iflow_cli": "iFlow's multi-model command-line assistant",
+      "kimi_cli": "Moonshot's Kimi command-line assistant",
+      "openai_codex": "OpenAI's official code generation CLI",
+      "opencode": "Open-source multi-model coding agent",
+      "qwen_code": "Alibaba Tongyi's open-source CLI coding tool"
+    },
     "update_options": "Update Options",
     "working_directory": "Working Directory",
     "working_directory_hint": "The working directory that the CLI tool launches in"
