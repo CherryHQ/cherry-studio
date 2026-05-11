@@ -254,9 +254,11 @@ describe('Model drawers', () => {
     expect(screen.getByTestId('provider-settings-model-more-settings')).toBeInTheDocument()
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('models.price.input'), {
+      const inputPrice = screen.getByLabelText('models.price.input')
+      fireEvent.change(inputPrice, {
         target: { value: '12.5' }
       })
+      fireEvent.blur(inputPrice)
     })
     expect(updateModelMock).toHaveBeenCalledWith(
       'openai',
