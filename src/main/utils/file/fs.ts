@@ -49,7 +49,7 @@ import xxhashLoader from 'xxhash-wasm'
 const logger = loggerService.withContext('utils/file/fs')
 
 const notImplemented = (op: string): never => {
-  throw new Error(`@main/utils/file/fs.${op}: not implemented (Phase 1a stub, implementation lands in Phase 1b)`)
+  throw new Error(`@main/utils/file/fs.${op}: not implemented (deferred to Phase 2)`)
 }
 
 /** Read file content as text with optional encoding detection. */

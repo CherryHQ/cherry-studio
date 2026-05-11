@@ -1,4 +1,4 @@
-/* oxlint-disable no-unused-vars -- TODO(phase-1b): Phase 1a stub exports; parameters shape the public signature but are unused until implementations land. */
+/* oxlint-disable no-unused-vars -- TODO(phase-2): stub exports deferred to Phase 2 alongside their consumer migrations; parameters shape the public signature but are unused until then. */
 
 /**
  * Path utilities — validation and resolution helpers.
@@ -11,7 +11,7 @@ import { application } from '@application'
 import type { FilePath } from '@shared/file/types'
 
 const notImplemented = (op: string): never => {
-  throw new Error(`@main/utils/file/path.${op}: not implemented (Phase 1a stub, implementation lands in Phase 1b)`)
+  throw new Error(`@main/utils/file/path.${op}: not implemented (deferred to Phase 2)`)
 }
 
 /** Resolve a relative path against a base directory. */
