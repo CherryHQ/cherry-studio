@@ -1,7 +1,7 @@
 import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
-import type { WebSearchProviderUpdates } from '@renderer/utils/webSearchProviders'
 import type { WebSearchCapability, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchProviderUpdates } from '@shared/data/utils/webSearchProviderMerger'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type { ResolvedWebSearchProviderCapability } from '../utils/webSearchProviderMeta'

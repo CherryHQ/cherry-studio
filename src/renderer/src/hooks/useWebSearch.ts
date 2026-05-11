@@ -1,11 +1,14 @@
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { splitApiKeyString } from '@renderer/utils/api'
-import { updateWebSearchProviderOverride, type WebSearchProviderUpdates } from '@renderer/utils/webSearchProviders'
 import type { PreferenceDefaultScopeType, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
-import { mergeWebSearchProviderPresets } from '@shared/data/utils/webSearchProviderMerger'
+import {
+  mergeWebSearchProviderPresets,
+  updateWebSearchProviderOverride,
+  type WebSearchProviderUpdates
+} from '@shared/data/utils/webSearchProviderMerger'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
