@@ -578,6 +578,98 @@
     },
     "sidebar_title": "Πράκτορες",
     "todo": {
+      "mock": {
+        "actions": {
+          "complete": "[to be translated]:Complete",
+          "dismiss": "[to be translated]:Dismiss"
+        },
+        "details": {
+          "addRouter": {
+            "summary": "[to be translated]:Configuring client routing with react-router-dom v6...",
+            "title": "[to be translated]:Add React Router"
+          },
+          "configureProject": {
+            "resources": {
+              "createdMeta": "[to be translated]:created",
+              "postcssConfig": "[to be translated]:postcss.config.js",
+              "tailwindConfig": "[to be translated]:tailwind.config.js",
+              "updatedMeta": "[to be translated]:updated",
+              "viteConfig": "[to be translated]:vite.config.ts - port 3001"
+            },
+            "title": "[to be translated]:Configure project"
+          },
+          "installDependencies": {
+            "resources": {
+              "dependenciesMeta": "[to be translated]:dependencies",
+              "devDependenciesMeta": "[to be translated]:devDependencies",
+              "reactDeps": "[to be translated]:react@18.3.1, react-dom@18.3.1",
+              "tailwindDeps": "[to be translated]:tailwindcss@3.4.4, postcss@8.4.38",
+              "typescriptDeps": "[to be translated]:typescript@5.4.5, vite@5.3.0"
+            },
+            "summary": "[to be translated]:Installed react, react-dom, tailwindcss, postcss, autoprefixer, and TypeScript.",
+            "title": "[to be translated]:Install dependencies"
+          },
+          "reviewReferences": {
+            "collectionTitle": "[to be translated]:Reviewed references",
+            "resources": {
+              "npmCreateVite": "[to be translated]:npm create vite - Official Scaffolding",
+              "npmMeta": "[to be translated]:npmjs.com",
+              "reactDocs": "[to be translated]:React Documentation - Quick Start",
+              "reactMeta": "[to be translated]:react.dev",
+              "tailwindDocs": "[to be translated]:Tailwind CSS - Installation Guide",
+              "tailwindMeta": "[to be translated]:tailwindcss.com",
+              "viteDocs": "[to be translated]:Vite - Next Generation Frontend Tooling",
+              "viteMeta": "[to be translated]:vitejs.dev"
+            },
+            "title": "[to be translated]:Review references"
+          },
+          "searchWeb": {
+            "resources": {
+              "reactViteQuery": "[to be translated]:React Vite TypeScript starter 2025 best practices"
+            },
+            "summary": "[to be translated]:Collected current references for React + Vite scaffolding and best practices.",
+            "title": "[to be translated]:Search web references"
+          },
+          "title": "[to be translated]:Execution details",
+          "writeComponents": {
+            "collectionTitle": "[to be translated]:Created files",
+            "resources": {
+              "app": "[to be translated]:src/App.tsx",
+              "button": "[to be translated]:src/components/Button.tsx",
+              "card": "[to be translated]:src/components/Card.tsx",
+              "footer": "[to be translated]:src/components/Footer.tsx",
+              "header": "[to be translated]:src/components/Header.tsx",
+              "layout": "[to be translated]:src/components/Layout.tsx",
+              "modifiedMeta": "[to be translated]:modified",
+              "newMeta": "[to be translated]:new",
+              "updatedMeta": "[to be translated]:updated"
+            },
+            "title": "[to be translated]:Write components"
+          },
+          "writePages": {
+            "resources": {
+              "about": "[to be translated]:src/pages/About.tsx",
+              "home": "[to be translated]:src/pages/Home.tsx",
+              "newMeta": "[to be translated]:new"
+            },
+            "title": "[to be translated]:Write pages"
+          }
+        },
+        "progress": "[to be translated]:{{completed}}/{{total}} tasks completed",
+        "tasks": {
+          "addLinting": "[to be translated]:Add ESLint + Prettier",
+          "addRouter": "[to be translated]:Add React Router",
+          "buildDeploy": "[to be translated]:Build and deploy",
+          "configureProject": "[to be translated]:Configure project",
+          "finish": "[to be translated]:Finish",
+          "installDependencies": "[to be translated]:Install dependencies",
+          "reviewReferences": "[to be translated]:Review references",
+          "searchWeb": "[to be translated]:Search web references",
+          "writeComponents": "[to be translated]:Write components",
+          "writePages": "[to be translated]:Write pages"
+        },
+        "title": "[to be translated]:Tasks"
+      },
       "panel": {
         "title": "{{completed}}/{{total}} εργασίες ολοκληρώθηκαν"
       },
@@ -1100,7 +1192,7 @@
       },
       "new_session": "Νέα Συνεδρία {{Command}}",
       "new_topic": "Νέο θέμα {{Command}}",
-      "paste_text_file_confirm": "Επικόλληση στο πεδίο εισαγωγής;",
+      "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
@@ -1396,6 +1488,7 @@
         "title_tip": "Συμβουλές: Διπλό κλικ στο όνομα του θέματος για να το μετονομάσετε απευθείας"
       },
       "export": {
+        "failed": "[to be translated]:Export failed",
         "image": "Εξαγωγή ως εικόνα",
         "image_saved": "Η εικόνα αποθηκεύτηκε με επιτυχία",
         "joplin": "Εξαγωγή στο Joplin",
@@ -1663,6 +1756,7 @@
     "models": "Μοντέλα",
     "more": "Περισσότερα",
     "name": "Όνομα",
+    "next": "[to be translated]:Next",
     "next_match": "Επόμενος αγώνας",
     "no_results": "Δεν βρέθηκαν αποτελέσματα",
     "none": "Χωρίς",
@@ -1678,6 +1772,7 @@
     },
     "powered_by": "Με την υποστήριξη της",
     "preview": "Προεπισκόπηση",
+    "previous": "[to be translated]:Previous",
     "previous_match": "Προηγούμενος αγώνας",
     "prompt": "Ενδεικτικός ρήματος",
     "provider": "Παρέχων",
@@ -3805,18 +3900,25 @@
     "uninstalling": "Απεγκατάσταση..."
   },
   "preview": {
+    "close": "[to be translated]:Close Preview",
     "copy": {
       "image": "Αντιγραφή ως εικόνα",
       "src": "Αντιγραφή πηγής εικόνας"
     },
     "dialog": "Άνοιγμα παραθύρου προεπισκόπησης",
+    "flip_horizontal": "[to be translated]:Flip Horizontal",
+    "flip_vertical": "[to be translated]:Flip Vertical",
     "label": "Προεπισκόπηση",
+    "next": "[to be translated]:Next Image",
     "pan": "Μετακίνηση",
     "pan_down": "Μετακίνηση προς τα κάτω",
     "pan_left": "Μετακίνηση προς τα αριστερά",
     "pan_right": "μετακίνηση προς τα δεξιά",
     "pan_up": "Μετακίνηση προς τα πάνω",
+    "previous": "[to be translated]:Previous Image",
     "reset": "Επαναφορά",
+    "rotate_left": "[to be translated]:Rotate Left",
+    "rotate_right": "[to be translated]:Rotate Right",
     "source": "Προβολή πηγαίου κώδικα",
     "zoom_in": "Μεγέθυνση",
     "zoom_out": "συρρίκνωση"
@@ -4478,6 +4580,9 @@
         "title": "Επιλογέας Πράκτορα",
         "triggerPlaceholder": "Επιλέξτε έναν πράκτορα",
         "valueProp": "Τρέχουσα τιμή"
+      },
+      "agentTodoList": {
+        "title": "[to be translated]:Agent Todo List"
       },
       "assistantSelector": {
         "clearSelection": "Καθαρό",
@@ -6477,7 +6582,7 @@
   },
   "tab": {
     "close": "Κλείσιμο Καρτέλας",
-    "moveToFirst": "Μετακίνηση στο Πρώτο",
+    "move_to_first": "[to be translated]:Move to First",
     "new": "Νέα Καρτέλα",
     "pin": "Καρφίτσωμα καρτέλας",
     "unpin": "Ξεκαρφίτσωση Καρτέλας"

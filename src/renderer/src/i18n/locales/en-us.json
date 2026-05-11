@@ -1192,7 +1192,7 @@
       },
       "new_session": "New Session {{Command}}",
       "new_topic": "New Topic {{Command}}",
-      "paste_text_file_confirm": "Paste into input bar?",
+      "paste_text_file": "Paste into input",
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
@@ -1488,6 +1488,7 @@
         "title_tip": "Tips: Double-click the topic name to rename it directly in place"
       },
       "export": {
+        "failed": "Export failed",
         "image": "Export as image",
         "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
@@ -6608,7 +6609,7 @@
   },
   "tab": {
     "close": "Close Tab",
-    "moveToFirst": "Move to First",
+    "move_to_first": "Move to First",
     "new": "New Tab",
     "pin": "Pin Tab",
     "unpin": "Unpin Tab"
