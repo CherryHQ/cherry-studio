@@ -16,7 +16,7 @@ export function AuthenticationSectionContent({ providerId }: AuthenticationSecti
         providerId={providerId}
         apiKeyConnectivity={connectionCheck.apiKeyConnectivity}
         onShowApiKeyError={connectionCheck.showApiKeyError}
-        onOpenConnectionCheck={() => connectionCheck.openConnectionCheck()}
+        onOpenConnectionCheck={connectionCheck.openConnectionCheck}
       />
       <ApiHost providerId={providerId} />
       <ProviderConnectionCheckDrawer
