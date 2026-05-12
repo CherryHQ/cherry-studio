@@ -250,21 +250,7 @@ Some `rowToEntity` functions do too much to benefit from spread. Keep them hand-
 - **Field renaming**: `row.parameters → domain parameterSupport` (ModelService)
 - **Computed / merged fields**: `authType` derivation, `apiFeatures` merging from defaults (ProviderService)
 - **Sensitive data sanitization**: `apiKeys` stripping — `...clean` would leak unsanitized values
-- **Discriminator-driven field stripping with brand validation**: when the
-  entity is a branded discriminated union and each variant declares only
-  the fields it actually owns (so the absent fields aren't `undefined` —
-  they don't exist on the BO shape at all), `nullsToUndefined +
-  timestampToISO` would actively misshape the row by emitting absent
-  fields as `undefined`. The accepted alternative is to dispatch on the
-  discriminator, construct a variant-specific plain object that omits
-  the irrelevant columns, then run `schema.parse(plain)` to rehydrate
-  the brand and validate the invariants in one step. Example:
-  `FileEntryService.rowToFileEntry` does this for `FileEntry` (variants
-  on `origin`). The DB row still carries every column physically — the
-  CHECK constraints handle invariant enforcement at the DB layer; the
-  BO layer expresses the same invariants through field presence /
-  absence so consumers narrow naturally on the discriminator without
-  any `null` checks or `as` casts.
+- **Discriminator-driven field stripping with brand validation**: branded discriminated union where each variant declares only its own fields — `nullsToUndefined + spread` would emit absent fields as `undefined` and break the BO shape. Dispatch on the discriminator and call `schema.parse` per variant. Example: `FileEntryService.rowToFileEntry` for `FileEntry` (variants on `origin`); see `packages/shared/data/types/file/fileEntry.ts` header (§"DB row vs Business Object") for the full DB-CHECK / BO-narrow rationale.
 
 **Anti-pattern — `??` fallbacks for fabricated defaults:**
 
