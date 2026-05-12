@@ -775,8 +775,12 @@ export class FileManager extends BaseService {
       // the cache's existing emission rules — only a real transition fires
       // subscribers.
       stream.once('error', (err) => {
-        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-          this.deps.danglingCache.onFsEvent(physicalPath, 'missing')
+        // Mirror observeExternalAccess: treat both ENOENT and ENOTDIR as
+        // "path proven non-existent" and bucket the commit as 'ops' so
+        // diagnostics tell them apart from watcher-driven transitions.
+        const code = (err as NodeJS.ErrnoException).code
+        if (code === 'ENOENT' || code === 'ENOTDIR') {
+          this.deps.danglingCache.onFsEvent(physicalPath, 'missing', 'ops')
         }
       })
     }

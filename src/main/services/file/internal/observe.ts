@@ -14,9 +14,12 @@
  * - `op()` succeeds → returned as-is; cache is NOT touched (a successful
  *   access does not force 'present' — the cache learns 'present' from the
  *   watcher or from explicit ops-side updates, not from passive reads).
- * - `op()` throws ENOENT and `entry.origin === 'external'` → cache
- *   commits 'missing' for the path, then the original error re-throws so
- *   callers still observe the failure.
+ * - `op()` throws ENOENT or ENOTDIR and `entry.origin === 'external'` →
+ *   cache commits 'missing' for the path with `source: 'ops'`, then the
+ *   original error re-throws so callers still observe the failure.
+ *   ENOTDIR is the "ancestor directory was replaced by a non-directory"
+ *   signal — same "path proven non-existent" semantics as ENOENT, and
+ *   `defaultStatProbe` already treats them identically.
  * - Any other throw → re-throws unchanged (no cache mutation, no swallow).
  */
 
@@ -34,8 +37,11 @@ export async function observeExternalAccess<T>(
   try {
     return await op()
   } catch (err) {
-    if (entry.origin === 'external' && (err as NodeJS.ErrnoException).code === 'ENOENT') {
-      deps.danglingCache.onFsEvent(physicalPath, 'missing')
+    if (entry.origin === 'external') {
+      const code = (err as NodeJS.ErrnoException).code
+      if (code === 'ENOENT' || code === 'ENOTDIR') {
+        deps.danglingCache.onFsEvent(physicalPath, 'missing', 'ops')
+      }
     }
     throw err
   }
