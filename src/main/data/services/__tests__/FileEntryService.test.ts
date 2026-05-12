@@ -373,6 +373,95 @@ describe('FileEntryService', () => {
     })
   })
 
+  describe('setExternalPathAndName', () => {
+    // setExternalPathAndName is the only sanctioned mutation site for
+    // FileEntry.externalPath (per the interface JSDoc) and the atomic core of
+    // the external rename flow. Pin the three legs that callers actually
+    // observe so a regression here is caught at the service surface, not
+    // miles downstream in the rename orchestrator.
+
+    it('returns the refreshed row with new path and name', async () => {
+      const id = '019606a0-0000-7000-8000-000000000d01' as FileEntryId
+      await fileEntryService.create({
+        id,
+        origin: 'external',
+        name: 'old-doc',
+        ext: 'pdf',
+        size: null,
+        externalPath: '/Users/me/old-doc.pdf'
+      })
+      const original = await fileEntryService.getById(id)
+      await new Promise((r) => setTimeout(r, 5))
+
+      const updated = await fileEntryService.setExternalPathAndName(
+        id,
+        '/Users/me/new-doc.pdf' as CanonicalExternalPath,
+        'new-doc'
+      )
+
+      expect(updated.id).toBe(id)
+      expect(updated.externalPath).toBe('/Users/me/new-doc.pdf')
+      expect(updated.name).toBe('new-doc')
+      expect(updated.updatedAt).toBeGreaterThanOrEqual(original.updatedAt)
+      // Row is committed (not just returned from the in-memory diff)
+      const refetched = await fileEntryService.getById(id)
+      expect(refetched.externalPath).toBe('/Users/me/new-doc.pdf')
+      expect(refetched.name).toBe('new-doc')
+    })
+
+    it('throws when the entry does not exist', async () => {
+      await expect(
+        fileEntryService.setExternalPathAndName(
+          '019606a0-0000-7000-8000-000000000dff' as FileEntryId,
+          '/Users/me/ghost.pdf' as CanonicalExternalPath,
+          'ghost'
+        )
+      ).rejects.toThrow(/not found/i)
+    })
+
+    it('throws on fe_external_path_unique_idx conflict (race against a concurrent rename to the same path)', async () => {
+      // Two external entries racing to claim the same canonical path: the
+      // unique index rejects the second UPDATE with a SQLite constraint
+      // failure. Callers that catch only "not found"-shaped errors would
+      // otherwise see this as an unhandled rejection.
+      const a = '019606a0-0000-7000-8000-000000000d10' as FileEntryId
+      const b = '019606a0-0000-7000-8000-000000000d11' as FileEntryId
+      await fileEntryService.create({
+        id: a,
+        origin: 'external',
+        name: 'a',
+        ext: 'txt',
+        size: null,
+        externalPath: '/Users/me/a.txt'
+      })
+      await fileEntryService.create({
+        id: b,
+        origin: 'external',
+        name: 'b',
+        ext: 'txt',
+        size: null,
+        externalPath: '/Users/me/b.txt'
+      })
+
+      // Drizzle wraps the SQLite constraint error in its own "Failed query: …"
+      // shape, so we don't pin a specific keyword. The contract DeJeune flagged
+      // is the negative one: this is NOT a "not found"-shaped error, so callers
+      // catching only that branch will correctly surface this case as
+      // unexpected and bubble it up.
+      const err = await fileEntryService
+        .setExternalPathAndName(b, '/Users/me/a.txt' as CanonicalExternalPath, 'a')
+        .then(
+          () => null,
+          (e: Error) => e
+        )
+      expect(err).toBeInstanceOf(Error)
+      expect(err?.message).not.toMatch(/not found/i)
+      // The conflicting entry is unchanged after the failed mutation
+      const refetched = await fileEntryService.getById(b)
+      expect(refetched.externalPath).toBe('/Users/me/b.txt')
+    })
+  })
+
   describe('delete', () => {
     it('removes an existing row', async () => {
       const id = '019606a0-0000-7000-8000-000000000c01' as FileEntryId
