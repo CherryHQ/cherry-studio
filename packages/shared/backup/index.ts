@@ -13,7 +13,7 @@ export type {
   ValidationOptions
 } from './options.js'
 export { CompressionLevel, ConflictStrategy } from './options.js'
-export type { BackupFileEntry, BackupManifest, DomainStats } from './types.js'
+export type { BackupFileEntry, BackupManifest, BackupMode, DomainStats } from './types.js'
 export { BACKUP_MANIFEST_VERSION, BackupDomain } from './types.js'
 export type {
   BackupValidator,

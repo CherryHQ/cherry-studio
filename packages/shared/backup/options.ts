@@ -3,7 +3,7 @@
  * V2 architecture: VACUUM INTO + selective restore
  */
 
-import type { BackupDomain } from './types.js'
+import type { BackupDomain, BackupMode } from './types.js'
 
 export enum ConflictStrategy {
   SKIP = 'skip',
@@ -19,6 +19,7 @@ export enum CompressionLevel {
 }
 
 export interface BackupOptions {
+  mode?: BackupMode
   domains: BackupDomain[]
   includeFiles?: boolean
   includeKnowledgeFiles?: boolean

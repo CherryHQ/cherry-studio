@@ -21,8 +21,11 @@ export enum BackupDomain {
 
 export const BACKUP_MANIFEST_VERSION = 6 as const
 
+export type BackupMode = 'full' | 'selective'
+
 export interface BackupManifest {
   version: typeof BACKUP_MANIFEST_VERSION
+  mode: BackupMode
   appVersion: string
   platform: string
   arch: string

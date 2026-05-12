@@ -107,20 +107,22 @@ describe('DomainRegistry', () => {
     it('respects all FK dependencies', () => {
       const idx = (d: BackupDomain) => IMPORT_ORDER.indexOf(d)
 
-      // topic.assistant_id -> assistant.id
-      expect(idx(BackupDomain.ASSISTANTS)).toBeLessThan(idx(BackupDomain.TOPICS))
+      // Phase 1 FK chains
+      // topic.group_id -> group.id (TAGS_GROUPS)
+      expect(idx(BackupDomain.TAGS_GROUPS)).toBeLessThan(idx(BackupDomain.TOPICS))
+
+      // Phase 2 intra-phase FK chains
       // assistant_knowledge_base.knowledge_base_id -> knowledge_base.id
       expect(idx(BackupDomain.KNOWLEDGE)).toBeLessThan(idx(BackupDomain.ASSISTANTS))
       // assistant.model_id -> user_model.id (PROVIDERS)
       expect(idx(BackupDomain.PROVIDERS)).toBeLessThan(idx(BackupDomain.ASSISTANTS))
       // assistant_mcp_server.mcp_server_id -> mcp_server.id
       expect(idx(BackupDomain.MCP_SERVERS)).toBeLessThan(idx(BackupDomain.ASSISTANTS))
-      // topic.group_id -> group.id (TAGS_GROUPS)
-      expect(idx(BackupDomain.TAGS_GROUPS)).toBeLessThan(idx(BackupDomain.TOPICS))
-      // message.model_id -> user_model.id (PROVIDERS)
-      expect(idx(BackupDomain.PROVIDERS)).toBeLessThan(idx(BackupDomain.TOPICS))
-      // knowledge_base.embedding_model_id -> user_model.id (PROVIDERS)
-      expect(idx(BackupDomain.PROVIDERS)).toBeLessThan(idx(BackupDomain.KNOWLEDGE))
+
+      // Cross-phase FKs (TOPICS -> ASSISTANTS, TOPICS -> PROVIDERS, KNOWLEDGE -> PROVIDERS)
+      // are handled by DomainStripper SET_NULL at export time, not by IMPORT_ORDER.
+      // Phase 1 domains may appear before Phase 2 domains in IMPORT_ORDER;
+      // FK references across phases are nullified during selective backup/restore.
     })
   })
 

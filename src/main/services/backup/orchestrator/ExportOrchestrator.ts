@@ -6,7 +6,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
-import type { BackupManifest, BackupOptions, BackupStatistics, DomainStats } from '@shared/backup'
+import type { BackupManifest, BackupMode, BackupOptions, BackupStatistics, DomainStats } from '@shared/backup'
 import { BACKUP_MANIFEST_VERSION, BackupDomain } from '@shared/backup'
 import archiver from 'archiver'
 import { sql } from 'drizzle-orm'
@@ -20,6 +20,7 @@ import { collectReferencedFiles } from '../files/FileCollector'
 import { filterPreferences } from '../filters/PreferenceFilter'
 import { BackupPhase, type BackupProgressTracker } from '../progress/BackupProgressTracker'
 import { hashFile } from '../utils/checksum'
+import { createSelectiveBackupDb } from './SelectiveExport'
 
 const logger = loggerService.withContext('ExportOrchestrator')
 
@@ -31,15 +32,20 @@ export class ExportOrchestrator {
 
   async execute(outputPath: string, options: BackupOptions): Promise<BackupStatistics> {
     const startTime = Date.now()
+    const mode: BackupMode = options.mode ?? 'full'
     const tempDir = await fsp.mkdtemp(path.join(application.getPath('feature.backup.temp'), 'export-'))
 
     try {
       this.progressTracker.setPhase(BackupPhase.VACUUM)
       const backupDbPath = path.join(tempDir, 'backup.sqlite')
-      await this.vacuumInto(backupDbPath)
 
-      this.token.throwIfCancelled()
-      await stripUnselectedDomains(backupDbPath, options.domains, this.token)
+      if (mode === 'selective') {
+        await createSelectiveBackupDb(backupDbPath, options.domains, this.token)
+      } else {
+        await this.vacuumInto(backupDbPath)
+        this.token.throwIfCancelled()
+        await stripUnselectedDomains(backupDbPath, options.domains, this.token)
+      }
 
       const backupUrl = pathToFileURL(backupDbPath).href
       const backupClient = createClient({ url: backupUrl })
@@ -64,7 +70,7 @@ export class ExportOrchestrator {
       const checksums = await this.computeChecksums(tempDir)
       const schemaHash = await this.getSchemaHash(backupDbPath)
 
-      const manifest = this.buildManifest(options.domains, domainStats, checksums, schemaHash)
+      const manifest = this.buildManifest(mode, options.domains, domainStats, checksums, schemaHash)
       await fsp.writeFile(path.join(tempDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
       await fsp.writeFile(path.join(tempDir, 'checksums.json'), JSON.stringify(checksums, null, 2))
 
@@ -224,6 +230,7 @@ export class ExportOrchestrator {
   }
 
   private buildManifest(
+    mode: BackupMode,
     domains: BackupDomain[],
     domainStats: Record<string, DomainStats>,
     checksums: Record<string, string>,
@@ -231,6 +238,7 @@ export class ExportOrchestrator {
   ): BackupManifest {
     return {
       version: BACKUP_MANIFEST_VERSION,
+      mode,
       appVersion: app.getVersion(),
       platform: process.platform,
       arch: process.arch,
