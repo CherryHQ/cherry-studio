@@ -1493,6 +1493,12 @@
       "delete": {
         "shortcut": "Hold {{key}} to delete directly"
       },
+      "display": {
+        "assistant": "Assistant",
+        "tag": "Tag",
+        "time": "Time",
+        "title": "Display mode"
+      },
       "edit": {
         "placeholder": "Enter new name",
         "title": "Edit Name",
