@@ -192,7 +192,7 @@ const CommonEntryFields = {
 } as const
 
 /** origin='internal': Cherry owns the content. `externalPath` must be null. */
-export const InternalEntrySchema = z.object({
+export const InternalEntrySchema = z.strictObject({
   ...CommonEntryFields,
   origin: z.literal('internal'),
   /**
@@ -207,7 +207,7 @@ export const InternalEntrySchema = z.object({
 })
 
 /** origin='external': Cherry references a user-provided path. `externalPath` must be a non-null absolute path. */
-export const ExternalEntrySchema = z.object({
+export const ExternalEntrySchema = z.strictObject({
   ...CommonEntryFields,
   origin: z.literal('external'),
   /**
