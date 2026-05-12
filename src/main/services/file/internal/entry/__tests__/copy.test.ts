@@ -72,6 +72,7 @@ describe('internal/entry/copy', () => {
     const dst = await copy(deps, { id: src.id })
     expect(dst.id).not.toBe(src.id)
     expect(dst.origin).toBe('internal')
+    if (dst.origin !== 'internal') throw new Error('expected internal entry')
     expect(dst.size).toBe(4)
     const dstPhysical = path.join(filesDir, `${dst.id}.bin`)
     const buf = await readFile(dstPhysical)

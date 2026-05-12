@@ -222,8 +222,9 @@ describe('FileManager (integration)', () => {
       name: 'note',
       ext: 'txt'
     })
-    expect(created.size).toBe(2)
     expect(created.origin).toBe('internal')
+    if (created.origin !== 'internal') throw new Error('expected internal entry')
+    expect(created.size).toBe(2)
 
     const v = await fm.write(created.id, new Uint8Array([0xaa, 0xbb, 0xcc]))
     expect(v.size).toBe(3)

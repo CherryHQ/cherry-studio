@@ -85,6 +85,7 @@ describe('internal/entry/rename', () => {
     const renamed = await rename(deps, entry.id, 'after')
     expect(renamed.name).toBe('after')
     const expectedPath = path.join(tmp, 'after.txt')
+    if (renamed.origin !== 'external') throw new Error('expected external entry')
     expect(renamed.externalPath).toBe(expectedPath)
     expect(await readFile(expectedPath, 'utf-8')).toBe('hello')
   })
@@ -98,6 +99,7 @@ describe('internal/entry/rename', () => {
     await expect(rename(deps, entry.id, 'b')).rejects.toThrow()
     const stored = await fileEntryService.getById(entry.id)
     expect(stored.name).toBe('a')
+    if (stored.origin !== 'external') throw new Error('expected external entry')
     expect(stored.externalPath).toBe(original)
     // Both files still exist with their original content
     expect(await readFile(original, 'utf-8')).toBe('A')
@@ -134,6 +136,9 @@ describe('internal/entry/rename', () => {
 
     expect(moveSpy).not.toHaveBeenCalled()
     expect(result.id).toBe(entry.id)
+    if (result.origin !== 'external' || entry.origin !== 'external') {
+      throw new Error('expected external entries')
+    }
     expect(result.externalPath).toBe(entry.externalPath) // still NFC-canonical
   })
 
@@ -169,6 +174,7 @@ describe('internal/entry/rename', () => {
     await expect(rename(deps, entry.id, 'dst-collide')).rejects.toThrow(/already exists/)
     // No DB or FS state change
     const stored = await fileEntryService.getById(entry.id)
+    if (stored.origin !== 'external') throw new Error('expected external entry')
     expect(stored.externalPath).toBe(original)
     expect(await readFile(original, 'utf-8')).toBe('S')
     expect(await readFile(collision, 'utf-8')).toBe('D')
@@ -227,7 +233,8 @@ describe('internal/entry/rename', () => {
 
     // DB row was not mutated — externalPath still points at the original.
     const dbRow = await fileEntryService.findById(entry.id)
-    expect(dbRow?.externalPath).toBe(original)
-    expect(dbRow?.name).toBe(entry.name)
+    if (dbRow?.origin !== 'external') throw new Error('expected external entry')
+    expect(dbRow.externalPath).toBe(original)
+    expect(dbRow.name).toBe(entry.name)
   })
 })

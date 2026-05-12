@@ -102,6 +102,7 @@ describe('internal/content/write', () => {
       const next = await write(deps, e.id, new Uint8Array([0x01, 0x02, 0x03]))
       expect(next.size).toBe(3)
       const refreshed = await fileEntryService.getById(e.id)
+      if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
       expect(refreshed.size).toBe(3)
       expect(cacheStore.get(e.id)).toEqual(next)
     })
@@ -246,6 +247,7 @@ describe('internal/content/write', () => {
       // Give the post-commit async catch handler one more tick to settle.
       await new Promise<void>((r) => setImmediate(r))
       const refreshed = await fileEntryService.getById(e.id)
+      if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
       expect(refreshed.size).toBe(payload.length)
       expect(cacheStore.get(e.id)?.size).toBe(payload.length)
     })
@@ -264,8 +266,10 @@ describe('internal/content/write', () => {
       })
       await new Promise<void>((r) => setImmediate(r))
       const refreshed = await fileEntryService.getById(e.id)
-      // External rows must keep size=null per the schema CHECK; only the cache reflects the new version.
-      expect(refreshed.size).toBeNull()
+      // External BO has no `size` field by construction (live values come from
+      // File IPC `getMetadata`); the DB still stores `size: null` per CHECK.
+      expect(refreshed.origin).toBe('external')
+      expect(refreshed).not.toHaveProperty('size')
       expect(cacheStore.get(e.id)?.size).toBe('updated payload'.length)
     })
 

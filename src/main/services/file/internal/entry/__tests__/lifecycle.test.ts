@@ -140,6 +140,7 @@ describe('internal/entry/lifecycle', () => {
     it('removes DB row but leaves user file untouched for external entries', async () => {
       const id = await makeExternal()
       const entry = await fileEntryService.getById(id)
+      if (entry.origin !== 'external') throw new Error('expected external entry')
       const userFile = entry.externalPath as string
       expect(await exists(userFile as FilePath)).toBe(true)
       await permanentDelete(deps, id)
@@ -160,6 +161,7 @@ describe('internal/entry/lifecycle', () => {
     it('removes the entry from DanglingCache reverse index when external', async () => {
       const id = await makeExternal()
       const entry = await fileEntryService.getById(id)
+      if (entry.origin !== 'external') throw new Error('expected external entry')
       vi.mocked(deps.danglingCache.removeEntry).mockClear()
       await permanentDelete(deps, id)
       expect(deps.danglingCache.removeEntry).toHaveBeenCalledWith(id, entry.externalPath)

@@ -239,8 +239,7 @@ class DanglingCacheImpl implements DanglingCache {
     }
     const rows = await this.fileEntryService.findMany({ origin: 'external' })
     for (const row of rows) {
-      if (row.trashedAt) continue
-      if (!row.externalPath) continue
+      if (row.origin !== 'external') continue
       this.addEntry(row.id, row.externalPath as FilePath)
     }
   }

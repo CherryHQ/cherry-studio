@@ -75,6 +75,7 @@ describe('internal/entry/create.createInternal', () => {
       expect(entry.origin).toBe('internal')
       expect(entry.name).toBe('doc')
       expect(entry.ext).toBe('bin')
+      if (entry.origin !== 'internal') throw new Error('expected internal entry')
       expect(entry.size).toBe(4)
       const physical = path.join(filesDir, `${entry.id}.bin`)
       const onDisk = await readFile(physical)
@@ -85,6 +86,7 @@ describe('internal/entry/create.createInternal', () => {
       const entry = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0]), name: 'x', ext: null })
       const found = await fileEntryService.getById(entry.id)
       expect(found.id).toBe(entry.id)
+      if (found.origin !== 'internal') throw new Error('expected internal entry')
       expect(found.size).toBe(1)
     })
 
@@ -140,6 +142,7 @@ describe('internal/entry/create.createInternal', () => {
       const entry = await createInternal(deps, { source: 'url', url: `${baseUrl}/photos/sunset.png` as never })
       expect(entry.name).toBe('sunset')
       expect(entry.ext).toBe('png')
+      if (entry.origin !== 'internal') throw new Error('expected internal entry')
       expect(entry.size).toBe(4)
       // Verify the downloaded bytes ended up at the expected storage path.
       const physical = path.join(filesDir, `${entry.id}.png`)
@@ -188,6 +191,7 @@ describe('internal/entry/create.createInternal', () => {
       const dataUri = `data:image/png;base64,${base64}` as `data:${string};base64,${string}`
       const entry = await createInternal(deps, { source: 'base64', data: dataUri })
       expect(entry.origin).toBe('internal')
+      if (entry.origin !== 'internal') throw new Error('expected internal entry')
       expect(entry.size).toBe(4)
       expect(entry.ext).toBe('png')
       expect(entry.name.length).toBeGreaterThan(0)

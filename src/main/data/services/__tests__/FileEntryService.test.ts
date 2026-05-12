@@ -38,7 +38,9 @@ describe('FileEntryService', () => {
       const entry = await fileEntryService.findById(id)
       expect(entry?.id).toBe(id)
       expect(entry?.origin).toBe('internal')
-      expect(entry?.size).toBe(11)
+      if (entry?.origin === 'internal') {
+        expect(entry.size).toBe(11)
+      }
     })
 
     it('returns null for missing id', async () => {
@@ -77,7 +79,11 @@ describe('FileEntryService', () => {
       })
 
       const entry = await fileEntryService.findById(id)
-      expect(entry?.trashedAt).toBe(now)
+      if (entry?.origin === 'internal') {
+        expect(entry.trashedAt).toBe(now)
+      } else {
+        throw new Error('expected internal entry')
+      }
     })
   })
 
@@ -423,7 +429,9 @@ describe('FileEntryService', () => {
       })
       expect(entry.id).toBe(id)
       expect(entry.origin).toBe('internal')
-      expect(entry.size).toBe(11)
+      if (entry.origin === 'internal') {
+        expect(entry.size).toBe(11)
+      }
       expect(entry.createdAt).toBeGreaterThan(0)
       expect(entry.updatedAt).toBeGreaterThan(0)
     })
@@ -498,6 +506,7 @@ describe('FileEntryService', () => {
       await fileEntryService.create({ id, origin: 'internal', name: 'tmp', ext: 'txt', size: 1, externalPath: null })
       const trashedAt = Date.now()
       const updated = await fileEntryService.update(id, { trashedAt })
+      if (updated.origin !== 'internal') throw new Error('expected internal entry')
       expect(updated.trashedAt).toBe(trashedAt)
     })
 
@@ -584,11 +593,13 @@ describe('FileEntryService', () => {
       )
 
       expect(updated.id).toBe(id)
+      if (updated.origin !== 'external') throw new Error('expected external entry')
       expect(updated.externalPath).toBe('/Users/me/new-doc.pdf')
       expect(updated.name).toBe('new-doc')
       expect(updated.updatedAt).toBeGreaterThanOrEqual(original.updatedAt)
       // Row is committed (not just returned from the in-memory diff)
       const refetched = await fileEntryService.getById(id)
+      if (refetched.origin !== 'external') throw new Error('expected external entry')
       expect(refetched.externalPath).toBe('/Users/me/new-doc.pdf')
       expect(refetched.name).toBe('new-doc')
     })
@@ -642,6 +653,7 @@ describe('FileEntryService', () => {
       expect(err?.message).not.toMatch(/not found/i)
       // The conflicting entry is unchanged after the failed mutation
       const refetched = await fileEntryService.getById(b)
+      if (refetched.origin !== 'external') throw new Error('expected external entry')
       expect(refetched.externalPath).toBe('/Users/me/b.txt')
     })
   })

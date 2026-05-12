@@ -12,8 +12,6 @@ const internalEntry = (id: string = 'i-1'): FileEntry =>
     name: 'a',
     ext: 'txt',
     size: 1,
-    externalPath: null,
-    trashedAt: null,
     createdAt: 0,
     updatedAt: 0
   }) as FileEntry
@@ -24,9 +22,7 @@ const externalEntry = (id: string = 'e-1', path: string = '/abs/file.txt'): File
     origin: 'external',
     name: 'file',
     ext: 'txt',
-    size: null,
     externalPath: path,
-    trashedAt: null,
     createdAt: 0,
     updatedAt: 0
   }) as FileEntry
@@ -250,23 +246,6 @@ describe('DanglingCache.initFromDb', () => {
     // The cache hit means probe is not called for 'e-init-1':
     expect(await cache.check(externalEntry('e-init-1', '/abs/init-a.txt'))).toBe('present')
     expect(probe).not.toHaveBeenCalled()
-  })
-
-  it('skips trashed external entries', async () => {
-    const findMany = vi.fn<(q: { origin: 'external' }) => Promise<FileEntry[]>>().mockResolvedValue([
-      // trashedAt set → must be skipped
-      { ...externalEntry('e-trash', '/abs/trash.txt'), trashedAt: 123 } as FileEntry,
-      externalEntry('e-live', '/abs/live.txt')
-    ])
-    const cache = createDanglingCacheImpl({
-      fileEntryService: { findMany },
-      statProbe: vi.fn<(p: FilePath) => Promise<ObservedPresence>>().mockResolvedValue('missing')
-    })
-    await cache.initFromDb()
-    // Event for /abs/trash.txt must NOT reach e-trash
-    cache.onFsEvent('/abs/trash.txt' as FilePath, 'present')
-    const trashState = await cache.check(externalEntry('e-trash', '/abs/trash.txt'))
-    expect(trashState).toBe('missing') // re-stat, not the cached 'present'
   })
 })
 

@@ -32,8 +32,7 @@ describe('resolvePhysicalPath', () => {
       const entry: PathResolvableEntry = {
         id: 'abc-123',
         origin: 'internal',
-        ext: 'pdf',
-        externalPath: null
+        ext: 'pdf'
       }
       expect(resolvePhysicalPath(entry)).toBe('/mock/feature.files.data/abc-123.pdf')
     })
@@ -42,8 +41,7 @@ describe('resolvePhysicalPath', () => {
       const entry: PathResolvableEntry = {
         id: 'abc-123',
         origin: 'internal',
-        ext: null,
-        externalPath: null
+        ext: null
       }
       expect(resolvePhysicalPath(entry)).toBe('/mock/feature.files.data/abc-123')
     })
@@ -69,16 +67,6 @@ describe('resolvePhysicalPath', () => {
       }
       expect(resolvePhysicalPath(entry)).toBe('/Users/me/docs/report.pdf')
     })
-
-    it('throws when externalPath is null (schema invariant violated)', () => {
-      const entry: PathResolvableEntry = {
-        id: 'x',
-        origin: 'external',
-        ext: null,
-        externalPath: null
-      }
-      expect(() => resolvePhysicalPath(entry)).toThrow('null externalPath')
-    })
   })
 
   describe('security', () => {
@@ -86,8 +74,7 @@ describe('resolvePhysicalPath', () => {
       const entry: PathResolvableEntry = {
         id: 'abc\0evil',
         origin: 'internal',
-        ext: 'txt',
-        externalPath: null
+        ext: 'txt'
       }
       expect(() => resolvePhysicalPath(entry)).toThrow('null bytes')
     })
@@ -96,8 +83,7 @@ describe('resolvePhysicalPath', () => {
       const entry: PathResolvableEntry = {
         id: 'abc-123',
         origin: 'internal',
-        ext: 'txt\0evil',
-        externalPath: null
+        ext: 'txt\0evil'
       }
       expect(() => resolvePhysicalPath(entry)).toThrow('null bytes')
     })
