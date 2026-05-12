@@ -257,19 +257,19 @@ describe('internal/content/write', () => {
       stream.write(payload)
       stream.end()
       await new Promise<void>((resolve, reject) => {
-        stream.once('finish', () => {
-          // The 'finish' handler is a microtask chain; let the post-commit
-          // hook drain before asserting.
-          setImmediate(resolve)
-        })
+        stream.once('finish', resolve)
         stream.once('error', reject)
       })
-      // Give the post-commit async catch handler one more tick to settle.
-      await new Promise<void>((r) => setImmediate(r))
-      const refreshed = await fileEntryService.getById(e.id)
-      if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
-      expect(refreshed.size).toBe(payload.length)
-      expect(cacheStore.get(e.id)?.size).toBe(payload.length)
+      // The post-commit hook is an async `'finish'` listener that the stream
+      // emitter does not await — `fileEntryService.update` may still be
+      // round-tripping through Drizzle when `'finish'` fires. Poll the DB and
+      // cache until the metadata sync lands (slow CI runners need this).
+      await vi.waitFor(async () => {
+        const refreshed = await fileEntryService.getById(e.id)
+        if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
+        expect(refreshed.size).toBe(payload.length)
+        expect(cacheStore.get(e.id)?.size).toBe(payload.length)
+      })
     })
 
     it('keeps DB size null for external entries after the stream finishes', async () => {
@@ -281,16 +281,20 @@ describe('internal/content/write', () => {
       stream.write(Buffer.from('updated payload'))
       stream.end()
       await new Promise<void>((resolve, reject) => {
-        stream.once('finish', () => setImmediate(resolve))
+        stream.once('finish', resolve)
         stream.once('error', reject)
       })
-      await new Promise<void>((r) => setImmediate(r))
+      // The post-commit hook is async — poll until the versionCache update lands.
+      // External entries skip the DB write (no size for externals), so only the
+      // cache assertion is gated by the async hook completing.
+      await vi.waitFor(() => {
+        expect(cacheStore.get(e.id)?.size).toBe('updated payload'.length)
+      })
       const refreshed = await fileEntryService.getById(e.id)
       // External BO has no `size` field by construction (live values come from
       // File IPC `getMetadata`); the DB still stores `size: null` per CHECK.
       expect(refreshed.origin).toBe('external')
       expect(refreshed).not.toHaveProperty('size')
-      expect(cacheStore.get(e.id)?.size).toBe('updated payload'.length)
     })
 
     it('error-logs WRITE_STREAM_DB_DESYNC when the post-commit re-stat fails', async () => {
