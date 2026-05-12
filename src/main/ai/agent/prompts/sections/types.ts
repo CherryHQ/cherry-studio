@@ -11,7 +11,9 @@
  */
 
 import type { Assistant } from '@shared/data/types/assistant'
+import type { EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { ToolSet } from 'ai'
 
 import type { ToolEntry } from '../../../tools/types'
@@ -25,6 +27,9 @@ export type SectionId =
   | 'identity'
   | 'system_rules'
   | 'agent_discipline'
+  | 'persisted_output'
+  | 'context_compaction'
+  | 'context_compression'
   | 'actions'
   | 'code_workflow'
   | 'tone_and_output'
@@ -53,6 +58,14 @@ export interface SystemSection {
 export interface BuildSystemPromptCtx {
   assistant?: Assistant
   model: Model
+  /** Provider hosting the model — used by provider-specific sections (e.g. anthropic cache control). */
+  provider?: Provider
+  /**
+   * Fully resolved context-chef settings for this request (collapsed
+   * from globals/assistant/topic). Drives gating for the three
+   * context-* hint sections.
+   */
+  contextSettings?: EffectiveContextSettings
   /** Absolute path the topic is bound to, if any. Drives `env` section + git detection. */
   workspaceRoot?: string | null
   /** Final tool set going to the model — checked for `tool_search` membership. */

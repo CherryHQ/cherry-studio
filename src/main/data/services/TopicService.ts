@@ -35,6 +35,7 @@ function rowToTopic(row: TopicRow): Topic {
     workspaceRoot: row.workspaceRoot,
     groupId: row.groupId,
     orderKey: row.orderKey,
+    contextSettings: row.contextSettings ?? undefined,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -195,6 +196,7 @@ export class TopicService {
       if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
       if (dto.groupId !== undefined) updates.groupId = dto.groupId
       if (dto.workspaceRoot !== undefined) updates.workspaceRoot = dto.workspaceRoot
+      if (dto.contextSettings !== undefined) updates.contextSettings = dto.contextSettings
 
       const [row] = await tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning()
       if (!row) throw DataApiErrorFactory.notFound('Topic', id)

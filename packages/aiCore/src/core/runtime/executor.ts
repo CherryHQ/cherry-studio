@@ -190,27 +190,41 @@ export class RuntimeExecutor<
   // === 辅助方法 ===
 
   /**
-   * 解析模型：将字符串 modelId 解析为 model 对象
+   * Resolve a model id to a `LanguageModelV3` instance using this
+   * executor's configured provider + registry.
    *
-   * 对于有 modelResolver 的配置（如 xAI responses, OpenAI chat），
-   * 使用 resolver 函数解析模型，而不是通过 registry.languageModel()。
-   * resolver 在 extension 声明处类型安全地捕获了具体 provider 方法。
+   * Single source of truth for model resolution: respects the optional
+   * `modelResolver` (xAI responses, OpenAI chat, etc.) and falls back
+   * to `registry.languageModel('${providerId}:${modelId}')`. Both the
+   * agent path (via internal `resolveModel` → `streamText`) and external
+   * callers that need a bare `LanguageModelV3` (e.g. context-chef's
+   * `compress.model`) go through this method, so the resolution logic
+   * never forks.
+   */
+  public async languageModel(modelId: string): Promise<LanguageModelV3> {
+    if (this.config.modelResolver) {
+      return this.config.modelResolver(modelId)
+    }
+    return this.registry.languageModel(`${this.config.providerId}:${modelId}` as `${string}:${string}`)
+  }
+
+  /**
+   * Internal model resolution used by `streamText` / `generateText` /
+   * `embedMany` / `generateImage`. Accepts either a model id (delegated
+   * to the public `languageModel()`) or an already-built V3 model
+   * instance (validated and returned as-is).
    */
   private async resolveModel(modelOrId: LanguageModel): Promise<LanguageModelV3> {
     if (typeof modelOrId === 'string') {
-      if (this.config.modelResolver) {
-        return this.config.modelResolver(modelOrId)
-      }
-      return this.registry.languageModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
-    } else {
-      if (!isV3Model(modelOrId)) {
-        throw new Error(
-          `Model must be V3. Provider "${this.config.providerId}" returned a V2 model. ` +
-            'All providers should be wrapped with wrapProvider to return V3 models.'
-        )
-      }
-      return modelOrId
+      return this.languageModel(modelOrId)
     }
+    if (!isV3Model(modelOrId)) {
+      throw new Error(
+        `Model must be V3. Provider "${this.config.providerId}" returned a V2 model. ` +
+          'All providers should be wrapped with wrapProvider to return V3 models.'
+      )
+    }
+    return modelOrId
   }
 
   /**

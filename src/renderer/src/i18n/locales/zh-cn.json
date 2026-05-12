@@ -2492,6 +2492,14 @@
         "plan_other": "{{count}} 个计划",
         "result_one": "{{count}} 个结果",
         "result_other": "{{count}} 个结果"
+      },
+      "vfs": {
+        "dialog_title": "完整工具输出",
+        "error_generic": "加载完整内容失败：{{message}}",
+        "error_missing": "该内容已不可用，可能已被淘汰回收。",
+        "loading": "正在加载完整内容…",
+        "retry": "重试",
+        "view_full": "查看完整内容"
       }
     },
     "topic": {
@@ -4009,6 +4017,32 @@
       },
       "title": "开发环境组件测试"
     },
+    "context_settings": {
+      "compression": {
+        "fallback_to_topic_naming": "未指定时将使用主题命名模型：{{name}}",
+        "help": "请选择一个便宜且响应快的模型——每次压缩都会发起一次 LLM 调用。",
+        "model": "模型",
+        "no_model_warning": "请选择一个压缩模型，或在 设置 → 主题 中配置主题命名模型",
+        "placeholder": "选择模型",
+        "section": "压缩（高级）",
+        "toggle": "启用摘要",
+        "toggle_help": "对话历史变长后，将较早的轮次摘要为简短总结。需要选择一个便宜且响应快的模型。"
+      },
+      "help": "在每轮请求前对会话进行压缩、截断，以及（可选的）摘要，以适配模型的上下文窗口。关闭时，所有消息和工具结果均原样发送。",
+      "inherit": {
+        "click_to_inherit": "点击改为继承",
+        "click_to_override": "点击改为覆盖",
+        "label_with_value": "继承（{{value}}）",
+        "override_label": "覆盖",
+        "value_off": "关",
+        "value_on": "开",
+        "value_unset": "未设置"
+      },
+      "label": "上下文管理",
+      "section_title": "上下文管理",
+      "truncate_threshold": "工具结果截断阈值（字符数）",
+      "truncate_threshold_help": "超过该字符数的工具结果将被截断为头部 + 尾部，完整内容会写入虚拟文件，模型可按需读取。"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "复制数据，会自动重启后将原始目录数据复制到新目录",
@@ -5352,6 +5386,21 @@
           "array_content": {
             "help": "该提供商是否支持 message 的 content 字段为 array 类型",
             "label": "支持数组格式的 message content"
+          },
+          "context_management": {
+            "compression": {
+              "help": "请选择一个便宜且响应快的模型——每次压缩都会发起一次 LLM 调用。",
+              "label": "摘要模型",
+              "model": "模型",
+              "placeholder": "选择模型",
+              "section": "压缩(高级)",
+              "toggle": "启用摘要",
+              "toggle_help": "对话历史变长后,将较早的轮次摘要为简短总结。需要选择一个便宜且响应快的模型。"
+            },
+            "help": "在每轮请求前对会话进行压缩、截断,以及(可选的)摘要,以适配模型的上下文窗口。关闭时,所有消息和工具结果均原样发送。",
+            "label": "上下文管理",
+            "truncate_threshold": "工具结果截断阈值(字符数)",
+            "truncate_threshold_help": "超过该字符数的工具结果将被截断为头部 + 尾部,完整内容会写入虚拟文件,模型可按需读取。"
           },
           "developer_role": {
             "help": "该提供商是否支持 role: \"developer\" 的消息",

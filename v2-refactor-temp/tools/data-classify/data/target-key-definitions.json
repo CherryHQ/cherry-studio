@@ -179,6 +179,34 @@
       "defaultValue": false,
       "status": "classified",
       "description": "Opt-in: scan ~/.agent/skills/*/SKILL.md when building the agent skill catalog"
+    },
+    {
+      "targetKey": "chat.context_settings.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Global default: context-chef enabled (truncate + compact + optional compress). Assistant/topic may override."
+    },
+    {
+      "targetKey": "chat.context_settings.truncate_threshold",
+      "type": "number",
+      "defaultValue": 100000,
+      "status": "classified",
+      "description": "Global default: character threshold for tool-result persistence. Chef writes the full payload to a file under feature.context_chef.vfs and replaces the inline result with a <persisted-output> marker (containing the absolute path); the model uses fs__read to retrieve. Read tools (fs__read) are exempt — they return their own too-large error to force native pagination."
+    },
+    {
+      "targetKey": "chat.context_settings.compress.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Global default: LLM-based history compression. Off by default (paid). Even when on, compression only runs if a compression model resolves (explicit pick or fallback to topic.naming.model_id)."
+    },
+    {
+      "targetKey": "chat.context_settings.compress.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Global default: explicit compression model (UniqueModelId 'providerId::modelId'). null = fall back to topic.naming.model_id at request time."
     }
   ]
 }

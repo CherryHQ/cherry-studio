@@ -6,11 +6,11 @@
   },
   "dialect": "sqlite",
   "enums": {},
-  "id": "f6269832-05b0-43a7-847c-9e78ec7852b2",
+  "id": "678cf72a-218d-4bc0-9feb-f2132fbd4f1e",
   "internal": {
     "indexes": {}
   },
-  "prevId": "39877ab7-aad7-4432-adb5-c526fd17cca5",
+  "prevId": "f6269832-05b0-43a7-847c-9e78ec7852b2",
   "tables": {
     "agent": {
       "checkConstraints": {},
@@ -2476,6 +2476,13 @@
         "assistant_id": {
           "autoincrement": false,
           "name": "assistant_id",
+          "notNull": false,
+          "primaryKey": false,
+          "type": "text"
+        },
+        "context_settings": {
+          "autoincrement": false,
+          "name": "context_settings",
           "notNull": false,
           "primaryKey": false,
           "type": "text"

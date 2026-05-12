@@ -9,6 +9,7 @@
 import type { RequestFeature } from '../feature'
 import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
+import { contextBuildFeature } from './contextBuild'
 import { devtoolsFeature } from './devtools'
 import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
 import { modelParamsFeature } from './modelParams'
@@ -35,6 +36,11 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   // adapter (anthropic-cache, etc.) so the wrapped block becomes part
   // of the prompt those features see and price for.
   staticRemindersFeature,
+  // context-build runs BEFORE anthropic-cache so cache markers are placed
+  // on the post-truncation/compaction shape. The chef-backed middleware
+  // preserves message-level `providerOptions` losslessly through round-trip,
+  // so anthropic markers pass through subsequent middleware unharmed.
+  contextBuildFeature,
   anthropicCacheFeature,
   anthropicHeadersFeature,
   openrouterReasoningFeature,

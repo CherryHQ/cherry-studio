@@ -112,7 +112,11 @@ export function createWebSearchToolEntry(): ToolEntry {
     capability: ToolCapability.Read,
     tool: webSearchTool,
     applies: () => true,
-    checkPermissions: () => ({ behavior: 'allow' })
+    checkPermissions: () => ({ behavior: 'allow' }),
+    // Citation contract: results carry `[id]` anchors the model references
+    // back. Mid-array truncation breaks those refs → opt out of context-build
+    // truncation entirely.
+    truncatable: false
   }
 }
 

@@ -63,7 +63,8 @@ export const UpdateTopicSchema = TopicSchema.pick({
   name: true,
   isNameManuallyEdited: true,
   assistantId: true,
-  groupId: true
+  groupId: true,
+  contextSettings: true
 })
   .partial()
   .extend({

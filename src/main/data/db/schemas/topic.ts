@@ -1,3 +1,4 @@
+import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, orderKeyColumns, scopedOrderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
@@ -33,6 +34,14 @@ export const topicTable = sqliteTable(
 
     // Fractional-indexing order key, partitioned by groupId.
     ...orderKeyColumns,
+
+    /**
+     * Per-topic override for context settings (chef).
+     * NULL/missing = inherit fully from assistant (then global).
+     * Stored as partial JSON so individual fields can be overridden
+     * while others inherit.
+     */
+    contextSettings: text({ mode: 'json' }).$type<ContextSettingsOverride>(),
 
     ...createUpdateDeleteTimestamps
   },

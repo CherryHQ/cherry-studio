@@ -7,6 +7,7 @@
 
 import * as z from 'zod'
 
+import { ContextSettingsOverrideSchema } from './contextSettings'
 import { UniqueModelIdSchema } from './model'
 
 // ============================================================================
@@ -58,6 +59,14 @@ export const AssistantSettingsSchema = z.object({
 
   // -- Context sources --
   enableWebSearch: z.boolean(),
+
+  /**
+   * Per-assistant override for context settings (chef).
+   * Each field is optional — undefined = inherit from global preferences
+   * (`chat.context_settings.*`). The whole object is also optional.
+   * Topics may further override individual fields.
+   */
+  contextSettings: ContextSettingsOverrideSchema.optional(),
 
   /** User-defined model parameters (e.g. {"top_k": 40, "repetition_penalty": 1.1}).
    *  Discriminated union on `type` ensures `value` is type-safe:
