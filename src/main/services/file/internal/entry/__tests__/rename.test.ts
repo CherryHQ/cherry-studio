@@ -200,4 +200,34 @@ describe('internal/entry/rename', () => {
     await rename(deps, entry.id, 'occ-fresh')
     expect(deps.versionCache.invalidate).toHaveBeenCalledWith(entry.id)
   })
+
+  it('rolls FS back when the DB update fails after fsMove (best-effort skew repair)', async () => {
+    // Simulate a DB-update failure between fsMove and setExternalPathAndName.
+    // The rollback contract says: move the file back to its original path so
+    // the on-disk state stays consistent with the DB row that did NOT update.
+    // The original error from the DB is what callers see; the rollback is
+    // silent on success.
+    const original = path.join(tmp, 'rollback-old.txt')
+    await writeFile(original, 'payload')
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+
+    const dbErr = new Error('UNIQUE constraint failed: file_entry.externalPath')
+    const spy = vi.spyOn(deps.fileEntryService, 'setExternalPathAndName').mockRejectedValueOnce(dbErr)
+
+    await expect(rename(deps, entry.id, 'rollback-new')).rejects.toBe(dbErr)
+    spy.mockRestore()
+
+    // FS rollback succeeded: file is back at the original path; nothing left
+    // at the target.
+    const targetPath = path.join(tmp, 'rollback-new.txt')
+    const { existsSync } = await import('node:fs')
+    expect(existsSync(original)).toBe(true)
+    expect(existsSync(targetPath)).toBe(false)
+    expect(await readFile(original, 'utf-8')).toBe('payload')
+
+    // DB row was not mutated — externalPath still points at the original.
+    const dbRow = await fileEntryService.findById(entry.id)
+    expect(dbRow?.externalPath).toBe(original)
+    expect(dbRow?.name).toBe(entry.name)
+  })
 })

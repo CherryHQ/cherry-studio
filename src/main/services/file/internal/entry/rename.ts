@@ -10,12 +10,15 @@
 
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { exists, isSameFile, move as fsMove } from '@main/utils/file/fs'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 
 import { canonicalizeExternalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
+
+const logger = loggerService.withContext('internal/entry/rename')
 
 export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: string): Promise<FileEntry> {
   const entry = await deps.fileEntryService.getById(id)
@@ -52,7 +55,33 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   // mutation site for `externalPath`. Doing both column changes in one
   // statement avoids the half-renamed state where the FS file is at the new
   // path but the DB row still carries the old `name` projection.
-  const renamed = await deps.fileEntryService.setExternalPathAndName(id, canonical, newName)
+  //
+  // FS-DB skew window: between fsMove (above) and the DB update below the
+  // user's file is at `target` while the DB still points at `oldPath`. If
+  // the DB write fails (typically a UNIQUE-conflict from a concurrent
+  // rename hitting the same `externalPath`), best-effort move the file
+  // back to `oldPath` so the entry stays self-consistent with its DB
+  // projection. Rollback can itself fail (cross-device EXDEV, the source
+  // dir disappeared, etc.); in that rare case warn-log both errors so an
+  // operator can reconcile the orphan file at `target`, then propagate
+  // the original DB error so the caller sees the real failure cause.
+  let renamed: FileEntry
+  try {
+    renamed = await deps.fileEntryService.setExternalPathAndName(id, canonical, newName)
+  } catch (dbErr) {
+    try {
+      await fsMove(canonical as FilePath, oldPath)
+    } catch (rollbackErr) {
+      logger.warn('rename: FS-DB skew — file moved to target but DB update failed, and rollback failed', {
+        id,
+        oldPath,
+        target: canonical,
+        dbErr,
+        rollbackErr
+      })
+    }
+    throw dbErr
+  }
   // Invalidate the cached FileVersion: `fsMove` may have fallen back to
   // copy+unlink across devices (EXDEV), producing a new inode whose mtime
   // differs from the snapshot captured before the rename. A subsequent
