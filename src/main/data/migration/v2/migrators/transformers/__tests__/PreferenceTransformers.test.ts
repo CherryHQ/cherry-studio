@@ -166,10 +166,9 @@ describe('PreferenceTransformers', () => {
       const result = flattenCompressionConfig({})
       expect(result['chat.web_search.compression.method']).toBe('none')
       expect(result['chat.web_search.compression.cutoff_limit']).toBe(2000)
-      expect(result['chat.web_search.compression.cutoff_unit']).toBe('char')
     })
 
-    it('should flatten compression config with all fields', () => {
+    it('should flatten compression config while dropping v1 cutoff unit', () => {
       const result = flattenCompressionConfig({
         compressionConfig: {
           method: 'cutoff',
@@ -180,7 +179,7 @@ describe('PreferenceTransformers', () => {
 
       expect(result['chat.web_search.compression.method']).toBe('cutoff')
       expect(result['chat.web_search.compression.cutoff_limit']).toBe(2000)
-      expect(result['chat.web_search.compression.cutoff_unit']).toBe('token')
+      expect(result).not.toHaveProperty('chat.web_search.compression.cutoff_unit')
     })
 
     it('should handle partial config with defaults', () => {
@@ -193,7 +192,6 @@ describe('PreferenceTransformers', () => {
 
       expect(result['chat.web_search.compression.method']).toBe('cutoff')
       expect(result['chat.web_search.compression.cutoff_limit']).toBe(1000)
-      expect(result['chat.web_search.compression.cutoff_unit']).toBe('char')
     })
 
     it('should fallback to default cutoff limit when cutoff config has no limit', () => {
@@ -217,19 +215,6 @@ describe('PreferenceTransformers', () => {
       })
 
       expect(result['chat.web_search.compression.method']).toBe('none')
-      expect(result['chat.web_search.compression.cutoff_unit']).toBe('token')
-    })
-
-    it('should fallback to default cutoff unit when unit is invalid', () => {
-      const result = flattenCompressionConfig({
-        compressionConfig: {
-          method: 'cutoff',
-          cutoffUnit: 'sentence'
-        }
-      })
-
-      expect(result['chat.web_search.compression.method']).toBe('cutoff')
-      expect(result['chat.web_search.compression.cutoff_unit']).toBe('char')
     })
 
     it('should collapse removed rag method to none', () => {
@@ -269,9 +254,9 @@ describe('PreferenceTransformers', () => {
           {
             id: 'searxng',
             name: 'Searxng',
-            apiHost: 'https://searx.example.com',
-            engines: ['news'],
-            basicAuthUsername: 'user',
+            apiHost: ' https://searx.example.com ',
+            engines: [' news ', '  '],
+            basicAuthUsername: ' user ',
             basicAuthPassword: ' pass '
           }
         ]
@@ -287,7 +272,32 @@ describe('PreferenceTransformers', () => {
           },
           engines: ['news'],
           basicAuthUsername: 'user',
-          basicAuthPassword: ' pass '
+          basicAuthPassword: 'pass'
+        }
+      })
+    })
+
+    it('should omit basic auth password when username is empty', () => {
+      const result = migrateWebSearchProviders({
+        providers: [
+          {
+            id: 'searxng',
+            name: 'Searxng',
+            apiHost: 'https://searx.example.com',
+            basicAuthUsername: ' ',
+            basicAuthPassword: ' pass '
+          }
+        ]
+      })
+
+      const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
+      expect(overrides).toEqual({
+        searxng: {
+          capabilities: {
+            searchKeywords: {
+              apiHost: 'https://searx.example.com'
+            }
+          }
         }
       })
     })

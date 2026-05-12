@@ -948,6 +948,10 @@
         },
         "file_filter": "JSON 文件",
         "select_file": "选择文件",
+        "subscribe": {
+          "title": "助手订阅",
+          "url_placeholder": "订阅地址"
+        },
         "title": "从外部导入",
         "type": {
           "file": "文件",
@@ -6660,6 +6664,7 @@
         "apikey": "API 密钥",
         "blacklist": "黑名单",
         "blacklist_description": "在搜索结果中不会出现以下网站的结果",
+        "blacklist_invalid_entries": "以下黑名单条目无效：{{entries}}",
         "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
         "check": "检测",
         "check_failed": "验证失败",
@@ -6685,7 +6690,12 @@
         },
         "content_limit": "内容长度限制",
         "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断",
-        "default_provider": "默认搜索引擎",
+        "default_provider": "默认搜索服务商",
+        "errors": {
+          "save_failed": "保存失败",
+          "zhipu_sync_failed": "智谱 API 密钥同步到 Web Search 失败，请重新保存密钥或检查 Web Search 设置。"
+        },
+        "fetch_urls_provider": "默认 URL 获取服务商",
         "free": "免费",
         "is_default": "默认搜索",
         "local_provider": {
@@ -6697,27 +6707,24 @@
         "no_provider_selected": "请选择搜索服务商后再检测",
         "overwrite": "覆盖服务商搜索",
         "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
+        "provider_description": {
+          "bocha": "面向 AI 场景的中文搜索 API，提供实时网页与结构化结果。",
+          "exa": "为 AI 应用设计的神经搜索 API，擅长语义检索高质量网页。",
+          "exa_mcp": "通过 Exa MCP Server 将 Exa 搜索能力暴露给智能体工具调用。",
+          "fetch": "内置 URL 获取服务商，用于从指定 URL 获取网页内容，适合补全搜索结果正文。",
+          "jina": "Jina Reader 搜索与阅读接口，用于检索并提取网页正文。",
+          "querit": "面向 AI 应用的搜索服务，提供可接入的网页检索结果。",
+          "searxng": "可自托管的免费互联网元搜索引擎，聚合多个搜索源。",
+          "tavily": "专为 LLM 优化的搜索引擎。",
+          "zhipu": "智谱 GLM Web Search，提供联网搜索与实时信息检索。"
+        },
         "search_max_result": {
           "label": "搜索结果个数",
           "tooltip": "未开启搜索结果压缩的情况下，数量过大可能会消耗过多 tokens"
         },
         "search_provider": "搜索服务商",
         "search_provider_placeholder": "选择一个搜索服务商",
-        "search_with_time": "搜索包含日期",
         "set_as_default": "设为默认",
-        "subscribe": "黑名单订阅",
-        "subscribe_add": "添加订阅",
-        "subscribe_add_failed": "订阅源添加失败",
-        "subscribe_add_success": "订阅源添加成功!",
-        "subscribe_delete": "删除订阅源",
-        "subscribe_name": {
-          "label": "替代名字",
-          "placeholder": "当下载的订阅源没有名称时所使用的替代名称"
-        },
-        "subscribe_update": "立即更新",
-        "subscribe_update_failed": "订阅源更新失败",
-        "subscribe_update_success": "订阅源更新成功",
-        "subscribe_url": "订阅源地址",
         "tavily": {
           "api_key": {
             "label": "Tavily API 密钥",

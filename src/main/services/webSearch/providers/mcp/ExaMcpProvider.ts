@@ -73,7 +73,8 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
       query,
       maxResults: config.maxResults,
       requestUrl:
-        this.provider.capabilities.find((item) => item.feature === 'searchKeywords')?.apiHost || DEFAULT_API_HOST,
+        this.provider.capabilities.find((item) => item.feature === 'searchKeywords')?.apiHost?.trim() ||
+        DEFAULT_API_HOST,
       requestBody: McpSearchRequestSchema.parse({
         jsonrpc: '2.0',
         id: 1,

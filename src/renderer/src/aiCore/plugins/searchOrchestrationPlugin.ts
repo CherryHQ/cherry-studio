@@ -20,16 +20,17 @@ import type { Assistant } from '@renderer/types'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { extractInfoFromXML } from '@renderer/utils/extract'
 // import { generateObject } from '@cherrystudio/ai-core'
-import {
-  SEARCH_SUMMARY_PROMPT,
-  SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
-  SEARCH_SUMMARY_PROMPT_WEB_ONLY
-} from '@shared/config/prompts'
+import { SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY } from '@shared/config/prompts'
 import type { ModelMessage } from 'ai'
 import { isEmpty } from 'lodash'
 
 import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
-import { BUILTIN_WEB_SEARCH_TOOL_NAME, webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
+import {
+  BUILTIN_FETCH_URLS_TOOL_NAME,
+  BUILTIN_WEB_SEARCH_TOOL_NAME,
+  fetchUrlsTool,
+  webSearchTool
+} from '../tools/WebSearchTool'
 
 const logger = loggerService.withContext('SearchOrchestrationPlugin')
 
@@ -76,37 +77,22 @@ async function analyzeSearchIntent(
   lastUserMessage: ModelMessage,
   assistant: Assistant,
   options: {
-    shouldWebSearch?: boolean
     shouldKnowledgeSearch?: boolean
     lastAnswer?: ModelMessage
     context: AiRequestContext
     topicId: string
   }
 ): Promise<ExtractResults | undefined> {
-  const { shouldWebSearch = false, shouldKnowledgeSearch = false, lastAnswer, context } = options
+  const { shouldKnowledgeSearch = false, lastAnswer, context } = options
 
   if (!lastUserMessage) return undefined
 
   // 根据配置决定是否需要提取
-  const needWebExtract = shouldWebSearch
   const needKnowledgeExtract = shouldKnowledgeSearch
 
-  if (!needWebExtract && !needKnowledgeExtract) return undefined
+  if (!needKnowledgeExtract) return undefined
 
-  // 选择合适的提示词
-  let prompt: string
-  // let schema: z.Schema
-
-  if (needWebExtract && !needKnowledgeExtract) {
-    prompt = SEARCH_SUMMARY_PROMPT_WEB_ONLY
-    // schema = z.object({ websearch: WebSearchSchema })
-  } else if (!needWebExtract && needKnowledgeExtract) {
-    prompt = SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY
-    // schema = z.object({ knowledge: KnowledgeSearchSchema })
-  } else {
-    prompt = SEARCH_SUMMARY_PROMPT
-    // schema = SearchIntentAnalysisSchema
-  }
+  const prompt = SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY
 
   // 构建消息上下文 - 简化逻辑
   const chatHistory = lastAnswer ? `assistant: ${getMessageContent(lastAnswer)}` : ''
@@ -128,7 +114,6 @@ async function analyzeSearchIntent(
       modelId: model.id,
       topicId: options.topicId,
       requestId: context.requestId,
-      hasWebSearch: needWebExtract,
       hasKnowledgeSearch: needKnowledgeExtract
     })
 
@@ -156,7 +141,6 @@ async function analyzeSearchIntent(
 
     // 根据需求过滤结果
     return {
-      websearch: needWebExtract ? parsedResult?.websearch : undefined,
       knowledge: needKnowledgeExtract ? parsedResult?.knowledge : undefined
     }
   } catch (e: any) {
@@ -167,7 +151,6 @@ async function analyzeSearchIntent(
   function getFallbackResult(): ExtractResults {
     const fallbackContent = getMessageContent(lastUserMessage)
     return {
-      websearch: shouldWebSearch ? { question: [fallbackContent || 'search'] } : undefined,
       knowledge: shouldKnowledgeSearch
         ? {
             question: [fallbackContent || 'search'],
@@ -183,7 +166,10 @@ async function analyzeSearchIntent(
  */
 export const searchOrchestrationPlugin = (
   assistant: Assistant,
-  topicId: string
+  topicId: string,
+  options: {
+    enableWebSearchTools?: boolean
+  } = {}
 ): AiPlugin<StreamTextParams, StreamTextResult> => {
   // 存储意图分析结果
   const intentAnalysisResults: { [requestId: string]: ExtractResults } = {}
@@ -197,7 +183,7 @@ export const searchOrchestrationPlugin = (
      */
     onRequestStart: async (context) => {
       // 没开启任何搜索则不进行意图分析
-      if (!(assistant.webSearchProviderId || assistant.knowledge_bases?.length)) return
+      if (!assistant.knowledge_bases?.length) return
 
       try {
         const messages = context.originalParams.messages
@@ -215,13 +201,11 @@ export const searchOrchestrationPlugin = (
         const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
         const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
         const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
-        const shouldWebSearch = !!assistant.webSearchProviderId
         const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
 
         // 执行意图分析
-        if (shouldWebSearch || shouldKnowledgeSearch) {
+        if (shouldKnowledgeSearch) {
           const analysisResult = await analyzeSearchIntent(lastUserMessage, assistant, {
-            shouldWebSearch,
             shouldKnowledgeSearch,
             lastAnswer: lastAssistantMessage,
             context,
@@ -258,36 +242,9 @@ export const searchOrchestrationPlugin = (
         }
 
         // 🌐 网络搜索工具配置
-        if (analysisResult?.websearch && assistant.webSearchProviderId) {
-          const needsSearch = analysisResult.websearch.question && analysisResult.websearch.question[0] !== 'not_needed'
-
-          if (needsSearch) {
-            // onChunk({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
-            // logger.info('🌐 Adding web search tool with pre-extracted keywords')
-            params.tools[BUILTIN_WEB_SEARCH_TOOL_NAME] = webSearchToolWithPreExtractedKeywords(
-              assistant.webSearchProviderId,
-              analysisResult.websearch,
-              context.requestId
-            )
-
-            const prepareStep = params.prepareStep
-            params.prepareStep = async (options) => {
-              const stepConfig = await prepareStep?.(options)
-              const hasWebSearchCall = options.steps.some((step) =>
-                step.toolCalls.some((toolCall) => toolCall.toolName === BUILTIN_WEB_SEARCH_TOOL_NAME)
-              )
-
-              if (!hasWebSearchCall) return stepConfig
-              const filteredTools = (stepConfig?.activeTools ?? Object.keys(params.tools!)).filter(
-                (toolName) => toolName !== BUILTIN_WEB_SEARCH_TOOL_NAME
-              )
-              // When web search is the only tool, don't set activeTools to [] — Anthropic
-              // rejects empty tools arrays. The tool's internal cache (cachedSearchResultsPromise)
-              // already prevents actual re-searching.
-              if (filteredTools.length === 0) return stepConfig
-              return { ...stepConfig, activeTools: filteredTools }
-            }
-          }
+        if (options.enableWebSearchTools) {
+          params.tools[BUILTIN_WEB_SEARCH_TOOL_NAME] = webSearchTool()
+          params.tools[BUILTIN_FETCH_URLS_TOOL_NAME] = fetchUrlsTool()
         }
 
         // 📚 知识库搜索工具配置

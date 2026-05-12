@@ -27,6 +27,7 @@ const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null =>
     toolName = toolName.slice(builtinToolsPrefix.length)
     switch (toolName) {
       case 'web_search':
+      case 'fetch_urls':
       case 'web_search_preview':
         return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
       case 'knowledge_search':

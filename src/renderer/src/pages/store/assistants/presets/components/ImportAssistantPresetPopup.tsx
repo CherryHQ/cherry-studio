@@ -204,8 +204,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
       <RowFlex className="items-center gap-[4px]">
         <Typography.Text strong style={{ flexShrink: 0, fontSize: 16 }}>
-          {t('assistants.presets.tag.agent')}
-          {t('settings.tool.websearch.subscribe_add')}
+          {t('assistants.presets.import.subscribe.title')}
         </Typography.Text>
         <HelpCircle
           size={16}
@@ -222,7 +221,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           value={subscribeUrl}
           onChange={handleSubscribeUrlChange}
           style={{ flex: 1 }}
-          placeholder={t('settings.tool.websearch.subscribe_url')}
+          placeholder={t('assistants.presets.import.subscribe.url_placeholder')}
         />
         <Button variant="default" onClick={handleSubscribe} loading={subscribeLoading} disabled={!subscribeUrl.trim()}>
           {isSubscribed ? t('common.unsubscribe') : t('common.subscribe')}
