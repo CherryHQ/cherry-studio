@@ -141,7 +141,7 @@ describe('internal/entry/lifecycle', () => {
       const id = await makeExternal()
       const entry = await fileEntryService.getById(id)
       if (entry.origin !== 'external') throw new Error('expected external entry')
-      const userFile = entry.externalPath as string
+      const userFile = entry.externalPath
       expect(await exists(userFile as FilePath)).toBe(true)
       await permanentDelete(deps, id)
       expect(await fileEntryService.findById(id)).toBeNull()
