@@ -318,6 +318,71 @@ describe('runDbSweep (umbrella + observability)', () => {
     )
   })
 
+  it('reports partial outcome with HEALTHY sourceTypes still processed (per-type isolation, not blanket abort)', async () => {
+    // Regression: the existing "partial outcome" test (above) mocks
+    // `listDistinctSourceIds` to throw unconditionally, so every registered
+    // sourceType errors out and the per-type try/catch's survivor branch
+    // never executes. A regression that hoists the try/catch outside the
+    // for-loop (turning per-type isolation into "first error aborts the
+    // whole sweep") would silently disable orphan cleanup for healthy
+    // sourceTypes — but the existing test wouldn't catch it. This pins the
+    // mixed-outcome contract: exactly one type errors, the other completes
+    // and its orphans are still cleaned.
+    // Spy on the real instance so prototype methods (cleanupBySourceBatch,
+    // …) stay accessible; a spread `{ ...fileRefService, override }` would
+    // drop them because they live on the prototype. Cache the real
+    // implementation up-front so passthrough doesn't need mockRestore
+    // (which would dismantle the spy mid-iteration).
+    const realListDistinctSourceIds = fileRefService.listDistinctSourceIds.bind(fileRefService)
+    const listSpy = vi.spyOn(fileRefService, 'listDistinctSourceIds').mockImplementation(async (sourceType) => {
+      if (sourceType === 'knowledge_item') throw new Error('boom for ki only')
+      // temp_session passes through to the captured real implementation.
+      return realListDistinctSourceIds(sourceType)
+    })
+
+    // Plant a temp_session orphan ref so the survivor's scan has actual
+    // work to do — proves per-type isolation didn't blanket-abort.
+    const tempEntryId = '019606a0-0000-7000-8000-0000000033aa' as FileEntryId
+    await fileEntryService.create({
+      id: tempEntryId,
+      origin: 'internal',
+      name: 't',
+      ext: 'txt',
+      size: 1,
+      externalPath: null
+    })
+    await fileRefService.create({
+      fileEntryId: tempEntryId,
+      sourceType: 'temp_session',
+      sourceId: 'orphan-session-id',
+      role: 'pending',
+      meta: null
+    })
+
+    const report = await runDbSweep({
+      fileEntryService,
+      fileRefService,
+      registry: {
+        knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
+        // temp_session checker treats every sourceId as deleted, so the
+        // planted ref above is classified orphan and counted.
+        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() }
+      } as never
+    })
+
+    expect(report.outcome).toBe('partial')
+    if (report.outcome === 'partial') {
+      // ONLY knowledge_item is in errorsByType — temp_session's branch
+      // succeeded and its result was aggregated normally.
+      expect(Object.keys(report.errorsByType)).toEqual(['knowledge_item'])
+      expect(report.errorsByType.knowledge_item).toMatch(/boom for ki only/)
+    }
+    // temp_session's orphan was counted — proves the survivor branch ran.
+    expect(report.orphanRefsByType.temp_session).toBe(1)
+    expect(report.orphanRefsTotal).toBeGreaterThanOrEqual(1)
+    listSpy.mockRestore()
+  })
+
   it('reports failed outcome when an outer-level operation throws', async () => {
     const errorSpy = vi.spyOn(loggerService, 'error')
     const failingEntryService = {
@@ -659,6 +724,81 @@ describe('runStartupFileSweep (FS-level)', () => {
     const report = await runStartupFileSweep({ fileEntryService })
     expect(report.outcome).toBe('completed')
     expect(report.actualDeleteCount).toBe(5)
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'reports partial outcome with failedDeleteCount + failedSamples when an unlink fails',
+    async () => {
+      // Regression: the runStartupFileSweep partial branch (orphanSweep.ts
+      // outcome 'partial' shape with failedDeleteCount + failedSamples + the
+      // `orphan-file-sweep-unlink-failed` warn-log) was completely uncovered.
+      //
+      // Trigger an unlink failure by stripping write permission from the
+      // parent directory — POSIX unlink() needs +w on the containing dir,
+      // not on the file itself. Skipped on win32 where directory ACLs work
+      // differently and chmod is a no-op (this test would silently
+      // false-pass).
+      const { chmod } = await import('node:fs/promises')
+      const orphanId = '019606a0-0000-7000-8000-0000000fa1ed'
+      const orphanPath = path.join(filesDir, `${orphanId}.txt`)
+      const ancient = (Date.now() - 10 * 60 * 1000) / 1000
+      await writeFile(orphanPath, 'x')
+      await utimes(orphanPath, ancient, ancient)
+
+      await chmod(filesDir, 0o555) // r-x r-x r-x — readdir ok, unlink not
+      const warnSpy = vi.spyOn(loggerService, 'warn')
+
+      let report
+      try {
+        report = await runStartupFileSweep({ fileEntryService })
+      } finally {
+        // Restore permission so afterEach cleanup can wipe the tmp tree.
+        await chmod(filesDir, 0o755)
+      }
+
+      expect(report.outcome).toBe('partial')
+      if (report.outcome === 'partial') {
+        expect(report.failedDeleteCount).toBe(1)
+        expect(report.failedSamples).toHaveLength(1)
+        expect(report.failedSamples[0]).toContain(`${orphanId}.txt`)
+        // EACCES or EPERM depending on platform — either signals
+        // "permission denied" and is the regression-worthy condition.
+        expect(report.failedSamples[0]).toMatch(/EACCES|EPERM/)
+      }
+      expect(warnSpy).toHaveBeenCalledWith(
+        'orphan-file-sweep-unlink-failed',
+        expect.objectContaining({ path: orphanPath, code: expect.stringMatching(/EACCES|EPERM/) })
+      )
+    }
+  )
+
+  it('preserves trashed entries’ physical files through the sweep (listAllIds returns active + trashed)', async () => {
+    // Regression: `FileEntryService.listAllIds` unit test verifies it returns
+    // active + trashed ids, but no end-to-end test wired it through
+    // runStartupFileSweep. A regression that filtered `WHERE trashedAt IS
+    // NULL` would silently nuke every trashed file's physical blob on next
+    // boot — data loss the user did not consent to. Pin the contract here.
+    const trashedId = '019606a0-0000-7000-8000-0000000fa2ed' as FileEntryId
+    const trashedPath = path.join(filesDir, `${trashedId}.txt`)
+    // 1) Create the entry as if a Cherry-owned write committed,
+    await fileEntryService.create({
+      id: trashedId,
+      origin: 'internal',
+      name: 'doomed-if-filter-creeps-in',
+      ext: 'txt',
+      size: 1,
+      externalPath: null
+    })
+    await writeFile(trashedPath, 'x')
+    // 2) Move to trash via the service (sets trashedAt; row stays in DB).
+    await fileEntryService.update(trashedId, { trashedAt: Date.now() })
+
+    const report = await runStartupFileSweep({ fileEntryService })
+    expect(report.outcome).toBe('completed')
+    // Physical file MUST still be there — listAllIds returned the trashed id,
+    // sweep saw it as known, did not unlink.
+    const onDisk = await stat(trashedPath)
+    expect(onDisk.isFile()).toBe(true)
   })
 })
 
