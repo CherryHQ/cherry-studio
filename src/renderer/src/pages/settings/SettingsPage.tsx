@@ -95,9 +95,9 @@ const SettingsPage: FC = () => {
               <MenuItem
                 className={menuItemClassName}
                 icon={<FileCode />}
-                label={t('settings.tool.preprocess.title')}
-                active={isActive('/settings/docprocess')}
-                onClick={() => go('/settings/docprocess')}
+                label={t('settings.tool.file_processing.title')}
+                active={isActive('/settings/file-processing')}
+                onClick={() => go('/settings/file-processing')}
               />
               <MenuItem
                 className={menuItemClassName}

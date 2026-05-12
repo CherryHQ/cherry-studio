@@ -948,6 +948,10 @@
         },
         "file_filter": "JSON 檔案",
         "select_file": "選擇檔案",
+        "subscribe": {
+          "title": "助手訂閱",
+          "url_placeholder": "訂閱網址"
+        },
         "title": "從外部匯入",
         "type": {
           "file": "檔案",
@@ -4714,6 +4718,43 @@
         "valueProp": "目前 value"
       },
       "description": "僅在開發環境顯示，用於直接在應用內聯調 v2 選擇器等新元件。",
+      "fileProcessing": {
+        "artifact": {
+          "file": "Markdown 檔案",
+          "text": "文字結果"
+        },
+        "description": "透過真實 file processing IPC 執行所有已設定的檔案處理器，並比較結果。",
+        "duration": "{{seconds}} 秒",
+        "markdown": {
+          "description": "選擇文件，並執行所有文件轉 Markdown 處理器。",
+          "fileFilterName": "文件",
+          "noFile": "未選擇文件",
+          "select": "選擇文件",
+          "start": "測試 Markdown",
+          "title": "Markdown"
+        },
+        "noProcessors": "沒有處理器支援這個能力。",
+        "ocr": {
+          "description": "選擇圖片，並執行所有 OCR 處理器。",
+          "fileFilterName": "圖片",
+          "noFile": "未選擇圖片",
+          "select": "選擇圖片",
+          "start": "測試 OCR",
+          "title": "OCR"
+        },
+        "processorCount": "{{count}} 個處理器",
+        "status": {
+          "cancelled": "已取消",
+          "completed": "已完成",
+          "failed": "失敗",
+          "idle": "閒置",
+          "pending": "等待中",
+          "processing": "處理中",
+          "starting": "啟動中"
+        },
+        "taskId": "任務 ID",
+        "title": "文件解析"
+      },
       "label": "元件測試",
       "modelSelector": {
         "behaviorConfig": "互動與顯示設定",
@@ -6668,64 +6709,82 @@
     },
     "title": "設定",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "支援的語言"
+      "file_processing": {
+        "actions": {
+          "set_as_default": "設為預設"
         },
-        "error": {
-          "not_system": "系統 OCR 僅支援 Windows 與 MacOS"
+        "errors": {
+          "invalid_api_host": "API 位址不合法",
+          "load_processors_failed": "載入可用處理器失敗",
+          "save_failed": "儲存失敗"
         },
         "features": {
-          "paddleocr": "更適合中文文字，並更適用於收據、掃描檔案以及版面較複雜的圖片。",
-          "system": {
-            "macos": "使用內建 macOS OCR 引擎，無需設定，適合截圖與輕量文字擷取。",
-            "windows": "使用原生 Windows OCR 引擎，具備強大的作業系統整合能力，適用於基本的本機辨識工作。"
+          "document_to_markdown": {
+            "title": "文件處理"
           },
-          "tesseract": "一款經典的本地 OCR 選項，具備可自訂的語言套件，非常適合離線與多語言工作流程。"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "該供應商不存在"
-          },
-          "system": {
-            "no_need_configure": "MacOS 無需設定"
-          },
-          "title": "圖片"
-        },
-        "image_provider": "OCR 服務供應商",
-        "paddleocr": {
-          "aistudio_access_token": "星河社區訪問令牌",
-          "api_url": "API 網址",
-          "api_url_label": "取得訪問令牌及 API 網址"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "仰賴 Windows 提供的服務，需要在系統中下載語言套件，才能支援相關語言。"
+          "image_to_text": {
+            "title": "OCR"
           }
         },
-        "tesseract": {
-          "langs_tooltip": "閱讀文件以了解哪些自訂語言受支援"
+        "fields": {
+          "api_base_url": "API 位址 (Base URL)",
+          "api_key": "API 金鑰 (API Key)",
+          "api_keys_placeholder": "多個金鑰可用逗號分隔",
+          "languages": "語言"
         },
-        "title": "OCR 服務"
-      },
-      "preprocess": {
-        "features": {
-          "doc2x": "非常適合將 PDF 轉換為更乾淨的 Markdown 或可編輯文字，以便後續檢索與編輯。",
-          "mineru": "針對更高保真度的版面復原進行最佳化，特別適用於學術 PDF、表格與公式。",
-          "mistral": "強大的雲端文件理解能力，適用於結構化擷取、多頁檔案及複雜版面。",
-          "open_mineru": "一個開放的部署選項，適合希望自行託管或對處理流程有更高控制權的團隊。",
-          "paddleocr": "更輕量的整合選擇，非常適合中文文件、掃描檔及常見收據格式的內容。"
+        "processors": {
+          "doc2x": {
+            "description": "高級檔案還原引擎。",
+            "name": "Doc2x"
+          },
+          "mineru": {
+            "description": "OpenDataLab 開源的高品質 PDF 擷取工具。",
+            "name": "MinerU"
+          },
+          "mistral": {
+            "description": "檔案解析與理解服務。",
+            "name": "Mistral"
+          },
+          "open_mineru": {
+            "description": "可自行部署的 MinerU 服務，適合希望自行控制處理流程的團隊。",
+            "name": "Open MinerU"
+          },
+          "ovocr": {
+            "description": "使用 Intel OpenVINO 在本機執行的 OCR 引擎，支援 NPU 加速。",
+            "name": "Intel OV OCR"
+          },
+          "paddleocr": {
+            "deployment": {
+              "description": "你可以使用 PaddleOCR 官方支援的 Docker 映像本機部署，部署後填入 API 位址即可。",
+              "docs": "查看 Docker 部署文件"
+            },
+            "description": "百度飛槳 OCR 識別系統。",
+            "fields": {
+              "parse_model": "解析模型"
+            },
+            "name": "PaddleOCR"
+          },
+          "system": {
+            "description": "原生作業系統 OCR 引擎。",
+            "name": "System OCR",
+            "status": {
+              "available": "偵測到 macOS Live Text / Windows OCR 引擎可用。",
+              "no_configuration": "系統 OCR 直接呼叫系統底層能力。速度最快，但準確率受系統版本影響。"
+            }
+          },
+          "tesseract": {
+            "description": "Google 開源的光學字元辨識引擎，完全本機執行。",
+            "name": "Tesseract OCR"
+          }
         },
-        "paddleocr": {
-          "aistudio_access_token": "星河社區訪問令牌",
-          "api_url": "API 網址",
-          "api_url_label": "取得訪問令牌及 API 網址",
-          "paddleocr_url_label": "PaddleOCR 官方網站"
+        "sections": {
+          "authentication": "認證",
+          "description": "說明",
+          "language_packs": "語言套件",
+          "model_parameters": "模型參數",
+          "status": "狀態"
         },
-        "provider": "文件處理供應商",
-        "provider_placeholder": "選擇一個文件處理供應商",
-        "title": "文件處理",
-        "tooltip": "在「設定」->「工具」中設定文件處理服務供應商。文件處理可有效提升複雜格式文件及掃描文件的檢索效能"
+        "title": "文件解析"
       },
       "title": "其他設定",
       "websearch": {
@@ -6738,6 +6797,7 @@
         "apikey": "API 金鑰",
         "blacklist": "黑名單",
         "blacklist_description": "以下網站不會出現在搜尋結果中",
+        "blacklist_invalid_entries": "以下黑名單項目無效：{{entries}}",
         "blacklist_tooltip": "請使用以下格式 (換行符號分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "檢查",
         "check_failed": "驗證失敗",
@@ -6763,7 +6823,12 @@
         },
         "content_limit": "內容長度限制",
         "content_limit_tooltip": "限制搜尋結果的內容長度；超過限制的內容將被截斷。",
-        "default_provider": "預設搜尋引擎",
+        "default_provider": "預設搜尋供應商",
+        "errors": {
+          "save_failed": "儲存失敗",
+          "zhipu_sync_failed": "智譜 API 金鑰同步到 Web Search 失敗，請重新儲存金鑰或檢查 Web Search 設定。"
+        },
+        "fetch_urls_provider": "預設 URL 擷取供應商",
         "free": "免費",
         "is_default": "預設",
         "local_provider": {
@@ -6775,27 +6840,24 @@
         "no_provider_selected": "請選擇搜尋供應商後再檢查",
         "overwrite": "覆蓋搜尋服務",
         "overwrite_tooltip": "強制使用搜尋服務而不是 LLM",
+        "provider_description": {
+          "bocha": "面向 AI 場景的中文搜尋 API，提供即時網頁與結構化結果。",
+          "exa": "為 AI 應用設計的神經搜尋 API，擅長語意檢索高品質網頁。",
+          "exa_mcp": "透過 Exa MCP Server 將 Exa 搜尋能力暴露給智能體工具呼叫。",
+          "fetch": "內建 URL 擷取供應商，用於從指定 URL 擷取網頁內容，適合補全搜尋結果正文。",
+          "jina": "Jina Reader 搜尋與閱讀介面，用於檢索並提取網頁正文。",
+          "querit": "面向 AI 應用的搜尋服務，提供可接入的網頁檢索結果。",
+          "searxng": "可自架的免費網際網路元搜尋引擎，聚合多個搜尋來源。",
+          "tavily": "專為 LLM 優化的搜尋引擎。",
+          "zhipu": "智譜 GLM Web Search，提供聯網搜尋與即時資訊檢索。"
+        },
         "search_max_result": {
           "label": "搜尋結果個數",
           "tooltip": "未開啟搜尋結果壓縮的情況下，數量過大可能會消耗過多 tokens"
         },
         "search_provider": "搜尋供應商",
         "search_provider_placeholder": "選擇一個搜尋供應商",
-        "search_with_time": "搜尋包含日期",
         "set_as_default": "設為預設",
-        "subscribe": "黑名單訂閱",
-        "subscribe_add": "新增訂閱",
-        "subscribe_add_failed": "訂閱來源新增失敗",
-        "subscribe_add_success": "訂閱來源新增成功！",
-        "subscribe_delete": "刪除",
-        "subscribe_name": {
-          "label": "替代名稱",
-          "placeholder": "下載的訂閱來源沒有名稱時使用的替代名稱。"
-        },
-        "subscribe_update": "更新",
-        "subscribe_update_failed": "訂閱來源更新失敗",
-        "subscribe_update_success": "訂閱來源更新成功",
-        "subscribe_url": "訂閱網址",
         "tavily": {
           "api_key": {
             "label": "Tavily API 金鑰",

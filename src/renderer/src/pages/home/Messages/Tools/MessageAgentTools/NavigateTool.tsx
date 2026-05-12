@@ -29,7 +29,7 @@ const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   '/settings/mcp': { icon: '🔌', label: 'MCP' },
   '/settings/websearch': { icon: '🔍', label: 'Web Search' },
   '/settings/api-server': { icon: '🌐', label: 'API Server' },
-  '/settings/docprocess': { icon: '📄', label: 'Doc Processing' },
+  '/settings/file-processing': { icon: '📄', label: 'File Processing' },
   '/settings/prompts': { icon: '⚡', label: 'Prompt Management' },
   '/settings/shortcut': { icon: '⌨️', label: 'Shortcuts' },
   '/settings/quickAssistant': { icon: '🪟', label: 'Quick Assistant' },
@@ -42,11 +42,7 @@ const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   '/settings/mcp/marketplaces': { icon: '🛒', label: 'MCP Market' },
   '/settings/mcp/npx-search': { icon: '🔍', label: 'NPX Search' },
   '/settings/mcp/mcp-install': { icon: '📥', label: 'Install MCP' },
-  '/settings/mcp/settings': { icon: '⚙️', label: 'MCP Settings' },
-
-  // Web Search sub-pages
-  '/settings/websearch/general': { icon: '🔍', label: 'Search Settings' },
-  '/settings/websearch/provider': { icon: '🔍', label: 'Search Provider' }
+  '/settings/mcp/settings': { icon: '⚙️', label: 'MCP Settings' }
 }
 
 // Sorted by path length descending for longest prefix match

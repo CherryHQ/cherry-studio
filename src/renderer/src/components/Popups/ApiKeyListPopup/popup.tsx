@@ -1,10 +1,10 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
-import { isPreprocessProviderId, isWebSearchProviderId } from '@renderer/types'
+import { isPreprocessProviderId } from '@renderer/types'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DocPreprocessApiKeyList, LlmApiKeyList, WebSearchApiKeyList } from './list'
+import { DocPreprocessApiKeyList, LlmApiKeyList } from './list'
 
 const CLOSE_ANIMATION_MS = 200
 
@@ -12,7 +12,7 @@ interface ShowParams {
   providerId: string
   title?: string
   showHealthCheck?: boolean
-  providerType?: 'llm' | 'webSearch' | 'preprocess'
+  providerType?: 'llm' | 'preprocess'
 }
 
 interface Props extends ShowParams {
@@ -49,13 +49,9 @@ const PopupContainer: React.FC<Props> = ({ providerId, title, resolve, showHealt
   const dialogTitle = title || t('settings.provider.api.key.list.title')
 
   const ListComponent = useMemo(() => {
-    const type =
-      providerType ||
-      (isWebSearchProviderId(providerId) ? 'webSearch' : isPreprocessProviderId(providerId) ? 'preprocess' : 'llm')
+    const type = providerType || (isPreprocessProviderId(providerId) ? 'preprocess' : 'llm')
 
     switch (type) {
-      case 'webSearch':
-        return <WebSearchApiKeyList providerId={providerId as any} showHealthCheck={showHealthCheck} />
       case 'preprocess':
         return <DocPreprocessApiKeyList providerId={providerId as any} showHealthCheck={showHealthCheck} />
       case 'llm':

@@ -948,6 +948,10 @@
         },
         "file_filter": "JSON Files",
         "select_file": "Select File",
+        "subscribe": {
+          "title": "Agent Subscription",
+          "url_placeholder": "Subscription URL"
+        },
         "title": "Import from External",
         "type": {
           "file": "File",
@@ -4714,6 +4718,43 @@
         "valueProp": "Current value"
       },
       "description": "Visible only in development for testing new v2 components (selectors and friends) directly inside the app.",
+      "fileProcessing": {
+        "artifact": {
+          "file": "Markdown file",
+          "text": "Text result"
+        },
+        "description": "Run every configured file processor through the real file processing IPC and compare results.",
+        "duration": "{{seconds}}s",
+        "markdown": {
+          "description": "Select a document and run all document-to-markdown processors.",
+          "fileFilterName": "Documents",
+          "noFile": "No document selected",
+          "select": "Select document",
+          "start": "Test markdown",
+          "title": "Markdown"
+        },
+        "noProcessors": "No processors support this feature.",
+        "ocr": {
+          "description": "Select an image and run all OCR processors.",
+          "fileFilterName": "Images",
+          "noFile": "No image selected",
+          "select": "Select image",
+          "start": "Test OCR",
+          "title": "OCR"
+        },
+        "processorCount": "{{count}} processors",
+        "status": {
+          "cancelled": "Cancelled",
+          "completed": "Completed",
+          "failed": "Failed",
+          "idle": "Idle",
+          "pending": "Pending",
+          "processing": "Processing",
+          "starting": "Starting"
+        },
+        "taskId": "Task ID",
+        "title": "Document Parsing"
+      },
       "label": "Component Lab",
       "modelSelector": {
         "behaviorConfig": "Behavior & Display Config",
@@ -6668,64 +6709,82 @@
     },
     "title": "Settings",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Supported languages"
+      "file_processing": {
+        "actions": {
+          "set_as_default": "Set as default"
         },
-        "error": {
-          "not_system": "System OCR only supports Windows and MacOS"
+        "errors": {
+          "invalid_api_host": "Invalid API host",
+          "load_processors_failed": "Failed to load available processors",
+          "save_failed": "Save failed"
         },
         "features": {
-          "paddleocr": "Stronger for Chinese text and better suited for receipts, scans, and images with more complex layouts.",
-          "system": {
-            "macos": "Uses the built-in macOS OCR engine with zero setup, ideal for screenshots and lightweight text extraction.",
-            "windows": "Uses the native Windows OCR engine with strong OS integration for basic local recognition tasks."
+          "document_to_markdown": {
+            "title": "Document Processing"
           },
-          "tesseract": "A classic local OCR option with customizable language packs, well suited for offline and multilingual workflows."
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "The provider does not exist"
-          },
-          "system": {
-            "no_need_configure": "MacOS requires no configuration"
-          },
-          "title": "Image"
-        },
-        "image_provider": "OCR service provider",
-        "paddleocr": {
-          "aistudio_access_token": "Access token of AI Studio Community",
-          "api_url": "API URL",
-          "api_url_label": "Obtain Access Token and API URL"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Dependent on Windows to provide services, you need to download language packs in the system to support the relevant languages."
+          "image_to_text": {
+            "title": "OCR"
           }
         },
-        "tesseract": {
-          "langs_tooltip": "Read the documentation to learn which custom languages are supported"
+        "fields": {
+          "api_base_url": "API Base URL",
+          "api_key": "API Key",
+          "api_keys_placeholder": "Separate multiple keys with commas",
+          "languages": "Languages"
         },
-        "title": "OCR service"
-      },
-      "preprocess": {
-        "features": {
-          "doc2x": "Well suited for converting PDFs into cleaner Markdown or editable text for downstream retrieval and editing.",
-          "mineru": "Optimized for higher-fidelity layout recovery, especially useful for academic PDFs, tables, and formulas.",
-          "mistral": "Strong cloud-based document understanding, suitable for structured extraction, multi-page files, and complex layouts.",
-          "open_mineru": "An open deployment option that fits teams wanting self-hosting or tighter control over the processing pipeline.",
-          "paddleocr": "A lighter integration choice that works well for Chinese documents, scans, and common receipt-style content."
+        "processors": {
+          "doc2x": {
+            "description": "Advanced file restoration engine.",
+            "name": "Doc2x"
+          },
+          "mineru": {
+            "description": "OpenDataLab's open-source high-quality PDF extraction tool.",
+            "name": "MinerU"
+          },
+          "mistral": {
+            "description": "File parsing and understanding service.",
+            "name": "Mistral"
+          },
+          "open_mineru": {
+            "description": "Self-hostable MinerU service for teams that want more control over the processing pipeline.",
+            "name": "Open MinerU"
+          },
+          "ovocr": {
+            "description": "Intel OpenVINO OCR engine that runs locally with NPU acceleration.",
+            "name": "Intel OV OCR"
+          },
+          "paddleocr": {
+            "deployment": {
+              "description": "You can deploy PaddleOCR locally with the officially supported Docker image, then enter the API address here.",
+              "docs": "View Docker deployment docs"
+            },
+            "description": "Baidu PaddleOCR recognition system.",
+            "fields": {
+              "parse_model": "Parse Model"
+            },
+            "name": "PaddleOCR"
+          },
+          "system": {
+            "description": "Native operating system OCR engine.",
+            "name": "System OCR",
+            "status": {
+              "available": "Detected available macOS Live Text / Windows OCR engine.",
+              "no_configuration": "System OCR calls the native system engine directly. It is fastest, but accuracy depends on the OS version."
+            }
+          },
+          "tesseract": {
+            "description": "Google's open-source OCR engine that runs fully locally.",
+            "name": "Tesseract OCR"
+          }
         },
-        "paddleocr": {
-          "aistudio_access_token": "Access token of AI Studio Community",
-          "api_url": "API URL",
-          "api_url_label": "Obtain Access Token and API URL",
-          "paddleocr_url_label": "PaddleOCR Official Website"
+        "sections": {
+          "authentication": "Authentication",
+          "description": "Description",
+          "language_packs": "Language Packs",
+          "model_parameters": "Model Parameters",
+          "status": "Status"
         },
-        "provider": "Document Processing Provider",
-        "provider_placeholder": "Choose a document processing provider",
-        "title": "Document Processing",
-        "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
+        "title": "Document Parsing"
       },
       "title": "Other Settings",
       "websearch": {
@@ -6738,6 +6797,7 @@
         "apikey": "API key",
         "blacklist": "Blacklist",
         "blacklist_description": "Results from the following websites will not appear in search results",
+        "blacklist_invalid_entries": "Invalid blacklist entries: {{entries}}",
         "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
         "check": "Check",
         "check_failed": "Verification failed",
@@ -6764,6 +6824,11 @@
         "content_limit": "Content length limit",
         "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
         "default_provider": "Default Provider",
+        "errors": {
+          "save_failed": "Save failed",
+          "zhipu_sync_failed": "Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
+        },
+        "fetch_urls_provider": "Default URL fetch provider",
         "free": "Free",
         "is_default": "Default",
         "local_provider": {
@@ -6775,27 +6840,24 @@
         "no_provider_selected": "Please select a search service provider before checking.",
         "overwrite": "Override search service",
         "overwrite_tooltip": "Force use search service instead of LLM",
+        "provider_description": {
+          "bocha": "Chinese AI search API with real-time web and structured results.",
+          "exa": "Neural search API for AI apps, tuned for semantic web retrieval.",
+          "exa_mcp": "Expose Exa search to agents through the Exa MCP Server.",
+          "fetch": "Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
+          "jina": "Jina Reader search and read APIs for retrieving clean web content.",
+          "querit": "Search service for AI apps with web retrieval results.",
+          "searxng": "Self-hostable free internet metasearch engine across many sources.",
+          "tavily": "Search engine optimized for LLMs.",
+          "zhipu": "Zhipu GLM Web Search for live web retrieval and current information."
+        },
         "search_max_result": {
           "label": "Number of search results",
           "tooltip": "When search result compression is disabled, the number of results may be too large, which may lead to insufficient tokens"
         },
         "search_provider": "Search service provider",
         "search_provider_placeholder": "Choose a search service provider.",
-        "search_with_time": "Search with dates included",
         "set_as_default": "Set as Default",
-        "subscribe": "Blacklist Subscription",
-        "subscribe_add": "Add Subscription",
-        "subscribe_add_failed": "Failed to add feed source",
-        "subscribe_add_success": "Subscription feed added successfully!",
-        "subscribe_delete": "Delete",
-        "subscribe_name": {
-          "label": "Alternative name",
-          "placeholder": "Alternative name used when the downloaded subscription feed has no name."
-        },
-        "subscribe_update": "Update",
-        "subscribe_update_failed": "Subscription source update failed",
-        "subscribe_update_success": "Subscription source updated successfully",
-        "subscribe_url": "Subscription Url",
         "tavily": {
           "api_key": {
             "label": "Tavily API Key",

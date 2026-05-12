@@ -547,7 +547,7 @@ Tool 化后，这个 shared cache 不再是结果展示边界：
 4. UI 运行中状态由 AI SDK tool invocation state 或 message/tool block state 表达。
 5. 如果 UI 仍需要跨组件的细粒度进度，再新增明确的 tool progress event、callback 或 tool block progress 字段；不要把 shared cache 作为 service contract。
 
-旧 Renderer WebSearch service 如果仍写入并依赖 `chat.web_search.active_searches`，可以留到旧链路清理时删除。它不属于新 Main-side WebSearch 架构。
+旧 Renderer WebSearch service 已从新的 AI 执行链路移除。若后续清理旧 Redux slice 时仍看到 `chat.web_search.active_searches`，应按旧链路残留删除，而不是重新接回 Main-side WebSearch 架构。
 
 ### 5.4 Blacklist 与 Post Processing
 
@@ -611,18 +611,24 @@ Provider check 应按 capability 执行。
 
 ---
 
-## 8. 当前不做的事
+## 8. Renderer / aiCore 迁移状态
 
-本次 Main-side 架构重构不包含：
+当前 WebSearch 执行链路已经切到 Main-side service：
 
-1. Renderer / aiCore 执行链路切到 Main-side service。
-2. Renderer 旧 `WebSearchService` 和旧 provider driver 清理。
-3. IPC / preload 公共入口设计。
-4. tracing / span 迁移。
-5. Main-side `rag` post processing 实现。
-6. 旧 preference 数据兼容迁移。
-7. `searchWithTime` 恢复。
-8. 把右侧搜索结果面板绑定到 `chat.web_search.active_searches`。
+1. Renderer AI tools 通过 preload IPC 调用 `WebSearchService.searchKeywords()` / `WebSearchService.fetchUrls()`。
+2. 旧 Renderer `WebSearchService` 和 Renderer provider drivers 已删除。
+3. UI 的 WebSearch 开关只控制 `assistant.enableWebSearch`。
+4. 支持原生 web search 的模型继续使用 provider native tool。
+5. 不支持原生 web search 的模型注入 `builtin_web_search` 和 `builtin_fetch_urls` 两个 external tools。
+6. UI 在启用 external web search 或选择默认 provider 时，会静态检查缺失 API key / API host，并跳转到 WebSearch provider 设置页。
+
+当前仍不做：
+
+1. tracing / span 迁移。
+2. Main-side `rag` post processing 实现。
+3. 旧 preference 数据兼容迁移。
+4. `searchWithTime` 恢复。
+5. 把右侧搜索结果面板绑定到 `chat.web_search.active_searches`。
 
 `searchWithTime` 仍视为旧 Renderer WebSearch 栈里的遗留行为，不进入新的 Main-side runtime contract。
 

@@ -200,13 +200,6 @@ export type WebSearchProviderOverride = {
 
 export type WebSearchProviderOverrides = Partial<Record<WebSearchProviderId, WebSearchProviderOverride>>
 
-export type WebSearchSubscribeSource = {
-  key: number
-  url: string
-  name: string
-  blacklist?: string[]
-}
-
 /**
  * Full WebSearch Provider configuration
  * Generated at runtime by merging preset with user overrides
@@ -275,12 +268,6 @@ export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>
  */
 export type WebSearchCompressionMethod = 'none' | 'cutoff'
 
-/**
- * Cutoff unit type
- * Stored in chat.web_search.compression.cutoff_unit
- */
-export type WebSearchCompressionCutoffUnit = 'char' | 'token'
-
 // ============================================================================
 // File Processor Types
 // ============================================================================
@@ -306,7 +293,9 @@ export const FILE_PROCESSOR_IDS = [
 
 export type FileProcessorId = (typeof FILE_PROCESSOR_IDS)[number]
 
-export type FileProcessorOptions = Record<string, unknown>
+export type FileProcessorOptions = {
+  langs?: string[]
+}
 
 export type FileProcessorCapabilityOverride = {
   apiHost?: string

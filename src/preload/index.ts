@@ -27,7 +27,11 @@ import type {
   UnifiedPreferenceType,
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
-import type { FileProcessingTaskResult, FileProcessingTaskStartResult } from '@shared/data/types/fileProcessing'
+import type {
+  FileProcessingTaskResult,
+  FileProcessingTaskStartResult,
+  ListAvailableFileProcessorsResult
+} from '@shared/data/types/fileProcessing'
 import type {
   CreateKnowledgeBaseDto,
   KnowledgeBase,
@@ -849,7 +853,9 @@ const api = {
     getTask: (payload: { taskId: string }): Promise<FileProcessingTaskResult> =>
       ipcRenderer.invoke(IpcChannel.FileProcessing_GetTask, payload),
     cancelTask: (payload: { taskId: string }): Promise<FileProcessingTaskResult> =>
-      ipcRenderer.invoke(IpcChannel.FileProcessing_CancelTask, payload)
+      ipcRenderer.invoke(IpcChannel.FileProcessing_CancelTask, payload),
+    listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>
+      ipcRenderer.invoke(IpcChannel.FileProcessing_ListAvailableProcessors)
   },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
