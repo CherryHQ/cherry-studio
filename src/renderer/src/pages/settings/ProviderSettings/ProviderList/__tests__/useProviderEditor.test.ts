@@ -45,7 +45,6 @@ function makeParams(overrides = {}) {
 
 const provider = { id: 'openai', name: 'OpenAI' } as any
 const endpoint = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-
 describe('useProviderEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -131,6 +130,7 @@ describe('useProviderEditor', () => {
       expect(createProviderMock).toHaveBeenCalledWith({
         providerId: 'new-provider-id',
         name: 'My Provider',
+        presetProviderId: 'openai',
         defaultChatEndpoint: endpoint
       })
       expect(onProviderCreatedMock).toHaveBeenCalledWith('new-provider-id')

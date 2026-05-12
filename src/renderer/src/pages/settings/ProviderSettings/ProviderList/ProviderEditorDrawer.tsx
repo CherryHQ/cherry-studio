@@ -3,16 +3,28 @@ import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { compressImage, convertToBase64, generateColorFromChar, getForegroundColor } from '@renderer/utils'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { AuthConfig, Provider } from '@shared/data/types/provider'
 import { ImagePlus, RotateCcw } from 'lucide-react'
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 
+type ProviderEditorTemplateId =
+  | 'openai'
+  | 'openai-responses'
+  | 'anthropic'
+  | 'gemini'
+  | 'azure-openai'
+  | 'new-api'
+  | 'cherryin'
+  | 'ollama'
+
 type ProviderEditorSubmit = {
   name: string
   defaultChatEndpoint: EndpointType
+  presetProviderId?: string
+  authConfig?: AuthConfig
   logo?: string | null
 }
 
@@ -24,23 +36,89 @@ interface ProviderEditorDrawerProps {
   onSubmit: (providerInput: ProviderEditorSubmit) => Promise<void>
 }
 
-const endpointOptions = [
-  { id: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, label: 'OpenAI' },
-  { id: ENDPOINT_TYPE.OPENAI_RESPONSES, label: 'OpenAI Responses' },
-  { id: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, label: 'Anthropic' },
-  { id: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, label: 'Gemini' },
-  { id: ENDPOINT_TYPE.OLLAMA_CHAT, label: 'Ollama Chat' },
-  { id: ENDPOINT_TYPE.OLLAMA_GENERATE, label: 'Ollama Generate' },
-  { id: ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS, label: 'OpenAI Text Completions' },
-  { id: ENDPOINT_TYPE.OPENAI_EMBEDDINGS, label: 'OpenAI Embeddings' },
-  { id: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, label: 'OpenAI Image Generation' },
-  { id: ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, label: 'OpenAI Image Edit' },
-  { id: ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION, label: 'OpenAI Audio Transcription' },
-  { id: ENDPOINT_TYPE.OPENAI_AUDIO_TRANSLATION, label: 'OpenAI Audio Translation' },
-  { id: ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH, label: 'OpenAI Text to Speech' },
-  { id: ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION, label: 'OpenAI Video Generation' },
-  { id: ENDPOINT_TYPE.JINA_RERANK, label: 'Jina Rerank' }
+type ProviderEditorTemplateOption = {
+  id: ProviderEditorTemplateId
+  label: string
+  defaultChatEndpoint: EndpointType
+  presetProviderId?: string
+  authConfig?: AuthConfig
+}
+
+const templateOptions: ProviderEditorTemplateOption[] = [
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    presetProviderId: 'openai'
+  },
+  {
+    id: 'openai-responses',
+    label: 'OpenAI-Response',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+  },
+  {
+    id: 'gemini',
+    label: 'Gemini',
+    defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+    presetProviderId: 'gemini'
+  },
+  {
+    id: 'anthropic',
+    label: 'Anthropic',
+    defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+    presetProviderId: 'anthropic'
+  },
+  {
+    id: 'azure-openai',
+    label: 'Azure OpenAI',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    presetProviderId: 'azure-openai',
+    authConfig: { type: 'iam-azure', apiVersion: '' }
+  },
+  {
+    id: 'new-api',
+    label: 'New API',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    presetProviderId: 'new-api'
+  },
+  {
+    id: 'cherryin',
+    label: 'CherryIN',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    presetProviderId: 'cherryin'
+  },
+  {
+    id: 'ollama',
+    label: 'Ollama',
+    defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+    presetProviderId: 'ollama'
+  }
 ] as const
+
+function resolveTemplateId(provider: Provider | null | undefined): ProviderEditorTemplateId {
+  if (provider?.authType === 'iam-azure') {
+    return 'azure-openai'
+  }
+  if (provider?.presetProviderId === 'cherryin' || provider?.id === 'cherryin') {
+    return 'cherryin'
+  }
+  if (provider?.presetProviderId === 'new-api' || provider?.id === 'new-api') {
+    return 'new-api'
+  }
+  if (provider?.presetProviderId === 'ollama' || provider?.defaultChatEndpoint === ENDPOINT_TYPE.OLLAMA_CHAT) {
+    return 'ollama'
+  }
+  if (provider?.defaultChatEndpoint === ENDPOINT_TYPE.OPENAI_RESPONSES) {
+    return 'openai-responses'
+  }
+  if (provider?.defaultChatEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+    return 'anthropic'
+  }
+  if (provider?.defaultChatEndpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
+    return 'gemini'
+  }
+  return 'openai'
+}
 
 export default function ProviderEditorDrawer({
   open,
@@ -52,7 +130,7 @@ export default function ProviderEditorDrawer({
   const { t } = useTranslation()
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
   const [name, setName] = useState('')
-  const [selectedEndpoint, setSelectedEndpoint] = useState<EndpointType>(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<ProviderEditorTemplateId>('openai')
   const [logo, setLogo] = useState<string | null>(null)
   const [logoDirty, setLogoDirty] = useState(false)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
@@ -60,6 +138,10 @@ export default function ProviderEditorDrawer({
   const previousOpenRef = useRef(false)
 
   const isEditing = provider != null
+  const selectedTemplate = useMemo(
+    () => templateOptions.find((option) => option.id === selectedTemplateId) ?? templateOptions[0],
+    [selectedTemplateId]
+  )
 
   useEffect(() => {
     const wasOpen = previousOpenRef.current
@@ -70,7 +152,7 @@ export default function ProviderEditorDrawer({
     }
 
     setName(provider?.name ?? '')
-    setSelectedEndpoint(provider?.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    setSelectedTemplateId(resolveTemplateId(provider))
     setLogoDirty(false)
     setLogoPickerOpen(false)
   }, [open, provider])
@@ -119,11 +201,13 @@ export default function ProviderEditorDrawer({
     try {
       await onSubmit({
         name: trimmedName,
-        defaultChatEndpoint: selectedEndpoint,
+        defaultChatEndpoint: selectedTemplate.defaultChatEndpoint,
+        presetProviderId: isEditing ? undefined : selectedTemplate.presetProviderId,
+        authConfig: isEditing ? undefined : selectedTemplate.authConfig,
         logo: isEditing ? (logoDirty ? logo : undefined) : (logo ?? undefined)
       })
     } catch {
-      window.toast.error(t('blocks.edit.save.failed.label'))
+      window.toast.error(t('settings.provider.save_failed'))
     } finally {
       setIsSubmitting(false)
     }
@@ -223,9 +307,9 @@ export default function ProviderEditorDrawer({
         <div className="space-y-2">
           <label className="font-medium text-[13px] text-foreground/85">{t('settings.provider.add.type')}</label>
           <SelectDropdown
-            items={endpointOptions.map((option) => ({ id: option.id, label: option.label }))}
-            selectedId={selectedEndpoint}
-            onSelect={(value) => setSelectedEndpoint(value as EndpointType)}
+            items={templateOptions.map((option) => ({ id: option.id, label: option.label }))}
+            selectedId={selectedTemplate.id}
+            onSelect={(value) => setSelectedTemplateId(value as ProviderEditorTemplateId)}
             renderSelected={(item) => <span className="truncate">{item.label}</span>}
             renderItem={(item) => <span className="truncate">{item.label}</span>}
             virtualize

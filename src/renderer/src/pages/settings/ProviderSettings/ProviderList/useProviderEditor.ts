@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProviders'
 import { uuid } from '@renderer/utils'
 import type { EndpointType } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { AuthConfig, Provider } from '@shared/data/types/provider'
 import { useCallback, useRef, useState } from 'react'
 
 import { clearProviderLogo, saveProviderLogo, useProviderLogo } from '../hooks/useProviderLogo'
@@ -16,6 +16,8 @@ interface UseProviderEditorParams {
 export interface SubmitProviderEditorParams {
   name: string
   defaultChatEndpoint: EndpointType
+  presetProviderId?: string
+  authConfig?: AuthConfig
   logo?: string | null
 }
 
@@ -56,7 +58,13 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   }, [])
 
   const submit = useCallback(
-    async ({ name, defaultChatEndpoint, logo }: SubmitProviderEditorParams): Promise<ProviderEditorSubmitResult> => {
+    async ({
+      name,
+      defaultChatEndpoint,
+      presetProviderId,
+      authConfig,
+      logo
+    }: SubmitProviderEditorParams): Promise<ProviderEditorSubmitResult> => {
       const trimmedName = name.trim()
       if (!trimmedName) {
         return {}
@@ -92,7 +100,13 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
 
       const providerId = uuid()
       const submitToken = ++submitTokenRef.current
-      const provider = await createProvider({ providerId, name: trimmedName, defaultChatEndpoint })
+      const provider = await createProvider({
+        providerId,
+        name: trimmedName,
+        ...(presetProviderId ? { presetProviderId } : {}),
+        defaultChatEndpoint,
+        ...(authConfig ? { authConfig } : {})
+      })
       let notice: ProviderEditorSubmitNotice | undefined
 
       if (logo) {

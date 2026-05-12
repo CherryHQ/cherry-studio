@@ -2,6 +2,8 @@ ALTER TABLE `user_provider` ADD `order_key` text NOT NULL DEFAULT 'a0';
 --> statement-breakpoint
 DROP INDEX `user_provider_enabled_sort_idx`;
 --> statement-breakpoint
+ALTER TABLE `user_provider` DROP COLUMN `sort_order`;
+--> statement-breakpoint
 CREATE INDEX `user_provider_enabled_idx` ON `user_provider` (`is_enabled`);
 --> statement-breakpoint
 CREATE INDEX `user_provider_order_key_idx` ON `user_provider` (`order_key`);

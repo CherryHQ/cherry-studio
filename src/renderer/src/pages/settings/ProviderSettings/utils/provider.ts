@@ -64,6 +64,10 @@ export function isSystemProvider(provider: Provider): boolean {
   return provider.presetProviderId != null
 }
 
+function isCanonicalPresetProvider(provider: Provider): boolean {
+  return provider.presetProviderId != null && provider.id === provider.presetProviderId
+}
+
 /**
  * Canonical preset providers are seeded built-ins whose runtime ID equals the
  * linked preset ID. Preset-derived user providers remain user-manageable.
@@ -119,11 +123,25 @@ export function isProviderSupportAuth(provider: Pick<Provider, 'id'>): boolean {
 // ─── Display helpers ─────────────────────────────────────────────────────────
 
 export function getFancyProviderName(provider: Provider): string {
-  return isSystemProvider(provider) ? getProviderLabel(provider.id) : provider.name
+  if (isCanonicalPresetProvider(provider)) {
+    const presetProviderId = provider.presetProviderId
+    if (presetProviderId) {
+      return getProviderLabel(presetProviderId)
+    }
+  }
+
+  return provider.name
 }
 
 export function getProviderSearchString(provider: Provider): string {
-  return isSystemProvider(provider) ? `${getProviderLabel(provider.id)} ${provider.id}` : provider.name
+  if (isCanonicalPresetProvider(provider)) {
+    const presetProviderId = provider.presetProviderId
+    if (presetProviderId) {
+      return `${getProviderLabel(presetProviderId)} ${provider.id}`
+    }
+  }
+
+  return `${provider.id} ${provider.name}`
 }
 
 export function matchKeywordsInProvider(keywords: string[], provider: Provider): boolean {
