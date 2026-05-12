@@ -1278,7 +1278,7 @@ async function batchGetDanglingStates(ids: FileEntryId[]): Promise<Record<FileEn
 **TTL-based lazy expiration**. A cached entry is considered fresh while `now - observedAt < TTL_MS` (30 min); once stale, the next `check()` call re-stats and updates the cache. `observedAt` is refreshed by any of:
 
 - Watcher add/unlink/rename events (where coverage exists — see §11.1 caveat)
-- Observation side effects of FileManager ops (read success → present; stat ENOENT → missing; write success → present; rename success → oldPath missing + newPath present)
+- Observation side effects of FileManager ops (stat ENOENT → missing; create / ensureExternal / rename / write success → explicit `'present'` commit through `onFsEvent(..., 'ops')`). Read / hash / getMetadata / getVersion **do not** flip the cache to `'present'` on success — they only commit `'missing'` on ENOENT through the `observeExternalAccess` chokepoint. The watcher-led design deliberately keeps presence learning out of the passive-read path; see [`internal/observe.ts`](../../../src/main/services/file/internal/observe.ts) for the contract.
 - Cold-path or TTL-driven `fs.stat` from `check()` / `getMetadata` / `getDanglingState`
 - Explicit `forceRecheck()` calls (F-2 scanner verify step)
 
