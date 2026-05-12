@@ -23,6 +23,7 @@ import {
 import {
   GEMINI_FLASH_MODEL_REGEX,
   isClaude46SeriesModel,
+  isClaude47SeriesModel,
   isGemini3FlashModel,
   isGemini3ProModel,
   isGemini31FlashLiteModel,
@@ -69,6 +70,10 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   gemini3_flash: ['minimal', 'low', 'medium', 'high'] as const,
   gemini3_pro: ['low', 'high'] as const,
   gemini3_1_pro: ['low', 'medium', 'high'] as const,
+  // Google-hosted Gemma 4 documents `minimal` as the closest supported near-off
+  // setting for most requests, but does not guarantee thinking is fully disabled.
+  // Keep the formal UI options aligned with the API guarantee and omit `none`.
+  gemma4_hosted: ['minimal', 'high'] as const,
   qwen: ['low', 'medium', 'high'] as const,
   qwen_thinking: ['low', 'medium', 'high'] as const,
   doubao: ['auto', 'high'] as const,
@@ -110,6 +115,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gemini3_flash: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_flash] as const,
   gemini3_pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_pro] as const,
   gemini3_1_pro: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini3_1_pro] as const,
+  gemma4_hosted: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.gemma4_hosted] as const,
   qwen: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
   qwen_thinking: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking] as const,
   doubao: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
@@ -133,7 +139,9 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   const modelId = getLowerBaseModelName(model.id)
   if (isClaudeReasoningModel(model)) {
     thinkingModelType = 'claude'
-    if (isClaude46SeriesModel(model)) {
+    // 4.7 reuses the 4.6 effort list (low/medium/high/xhigh); provider-level
+    // mapping still distinguishes them (4.7 sends native 'xhigh', 4.6 sends 'max').
+    if (isClaude46SeriesModel(model) || isClaude47SeriesModel(model)) {
       thinkingModelType = 'claude46'
     }
   } else if (isOpenAIDeepResearchModel(model)) {
@@ -174,7 +182,9 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isGrok4FastReasoningModel(model)) {
     thinkingModelType = 'grok4_fast'
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
-    if (isGemini3FlashModel(model) || isGemini31FlashLiteModel(model)) {
+    if (isHostedGemma4ThinkingModel(model)) {
+      thinkingModelType = 'gemma4_hosted'
+    } else if (isGemini3FlashModel(model) || isGemini31FlashLiteModel(model)) {
       thinkingModelType = 'gemini3_flash'
     } else if (isGemini3ProModel(model)) {
       thinkingModelType = 'gemini3_pro'
@@ -412,8 +422,21 @@ export function isGeminiReasoningModel(model?: Model): boolean {
 export const GEMINI_THINKING_MODEL_REGEX =
   /gemini-(?:2\.5.*(?:-latest)?|3(?:\.\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$/i
 
+export const isHostedGemma4ThinkingModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return model.provider?.toLowerCase() === 'gemini' && modelId.startsWith('gemma-4-')
+}
+
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
+  if (isHostedGemma4ThinkingModel(model)) {
+    return true
+  }
+
   if (GEMINI_THINKING_MODEL_REGEX.test(modelId)) {
     // ref: https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-pro-image
     if (modelId.includes('gemini-3-pro-image')) {
@@ -653,7 +676,8 @@ export const isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
  */
 export const isDeepSeekV4PlusModel = (model: Model) => {
   const { idResult, nameResult } = withModelIdAndNameAsId(model, (model) => {
-    const modelId = getLowerBaseModelName(model.id)
+    // Ignore routed provider suffix chains like :deepseek or :deepseek:together.
+    const modelId = getLowerBaseModelName(model.id).split(':', 1)[0]
     // Match deepseek-v{N} where N >= 4, with any optional suffix
     return /(\w+-)?deepseek-v([4-9]|\d{2,})([.-]\w+)*$/.test(modelId)
   })
@@ -828,6 +852,9 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
+  // Opus 4.7 supports 128K output tokens. Uses adaptive thinking (no budgetTokens sent),
+  // but the limit entry is still consulted for the Poe / openai-compatible fallback paths.
+  '(?:anthropic\\.)?claude-opus-4[.-]7(?:[@\\-:][\\w\\-:]+)?$': { min: 1024, max: 128_000 },
   // Opus 4.6 supports 128K output tokens
   '(?:anthropic\\.)?claude-opus-4[.-]6(?:[@\\-:][\\w\\-:]+)?$': { min: 1024, max: 128_000 },
   // Sonnet 4.6, and Haiku is assumed to be also 64k
