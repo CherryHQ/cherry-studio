@@ -47,7 +47,9 @@
  */
 
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
-import type { FileEntry, FileEntryId, FileEntryOrigin, FileRef, FileRefSourceType } from '@shared/data/types/file'
+import type { FileEntry, FileEntryId, FileRef } from '@shared/data/types/file'
+import { FileEntryIdSchema, FileEntryOriginSchema, FileRefSourceTypeSchema } from '@shared/data/types/file'
+import * as z from 'zod'
 
 /**
  * Per-entry reference-count record produced by `GET /files/entries/ref-counts`.
@@ -60,6 +62,45 @@ export interface FileEntryRefCount {
   entryId: FileEntryId
   refCount: number
 }
+
+// ─── Pagination & batch caps ───
+
+export const LIST_FILES_DEFAULT_PAGE = 1
+export const LIST_FILES_DEFAULT_LIMIT = 50
+export const LIST_FILES_MAX_LIMIT = 100
+/**
+ * Upper bound on `entryIds` per `GET /files/entries/ref-counts` request. The
+ * service still chunks the underlying `IN (…)` against SQLite's parameter cap;
+ * this is the renderer-side ceiling so a runaway batch can't fan-out into
+ * dozens of round-trips per call.
+ */
+export const REF_COUNTS_MAX_ENTRY_IDS = 500
+
+// ─── Query schemas ───
+
+export const ListFilesQuerySchema = z.strictObject({
+  origin: FileEntryOriginSchema.optional(),
+  inTrash: z.boolean().optional(),
+  sortBy: z.enum(['name', 'createdAt', 'updatedAt', 'size']).optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
+  page: z.int().positive().default(LIST_FILES_DEFAULT_PAGE),
+  limit: z.int().positive().max(LIST_FILES_MAX_LIMIT).default(LIST_FILES_DEFAULT_LIMIT)
+})
+export type ListFilesQueryParams = z.input<typeof ListFilesQuerySchema>
+export type ListFilesQuery = z.output<typeof ListFilesQuerySchema>
+
+export const RefCountsQuerySchema = z.strictObject({
+  entryIds: z.array(FileEntryIdSchema).max(REF_COUNTS_MAX_ENTRY_IDS)
+})
+export type RefCountsQueryParams = z.input<typeof RefCountsQuerySchema>
+export type RefCountsQuery = z.output<typeof RefCountsQuerySchema>
+
+export const RefsBySourceQuerySchema = z.strictObject({
+  sourceType: FileRefSourceTypeSchema,
+  sourceId: z.string().min(1)
+})
+export type RefsBySourceQueryParams = z.input<typeof RefsBySourceQuerySchema>
+export type RefsBySourceQuery = z.output<typeof RefsBySourceQuerySchema>
 
 export type FileSchemas = {
   // ─── Entry Queries (pure SQL, fixed shape) ───
@@ -92,14 +133,7 @@ export type FileSchemas = {
    */
   '/files/entries': {
     GET: {
-      query: {
-        origin?: FileEntryOrigin
-        inTrash?: boolean
-        sortBy?: 'name' | 'createdAt' | 'updatedAt' | 'size'
-        sortOrder?: 'asc' | 'desc'
-        page?: number
-        limit?: number
-      }
+      query?: ListFilesQueryParams
       response: OffsetPaginationResponse<FileEntry>
     }
   }
@@ -126,7 +160,7 @@ export type FileSchemas = {
    */
   '/files/entries/ref-counts': {
     GET: {
-      query: { entryIds: FileEntryId[] }
+      query: RefCountsQueryParams
       response: FileEntryRefCount[]
     }
   }
@@ -154,7 +188,7 @@ export type FileSchemas = {
    */
   '/files/refs/by-source': {
     GET: {
-      query: { sourceType: FileRefSourceType; sourceId: string }
+      query: RefsBySourceQueryParams
       response: FileRef[]
     }
   }

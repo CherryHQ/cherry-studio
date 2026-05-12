@@ -72,6 +72,26 @@ describe('fileHandlers (DataApi)', () => {
       expect(result.items.length).toBe(1)
       expect(result.items[0].origin).toBe('external')
     })
+
+    it('rejects limit above the MAX cap with ZodError', async () => {
+      // Without a `.max()` on the query schema, a caller could ask for an
+      // unbounded page (DoS surface against the SELECT). Pin the upper bound.
+      await expect(fileHandlers['/files/entries'].GET({ query: { limit: 999 } } as never)).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
+    })
+
+    it('rejects non-positive limit and page with ZodError', async () => {
+      await expect(fileHandlers['/files/entries'].GET({ query: { limit: 0 } } as never)).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
+      await expect(fileHandlers['/files/entries'].GET({ query: { page: 0 } } as never)).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
+    })
   })
 
   describe('GET /files/entries/:id', () => {
@@ -145,11 +165,21 @@ describe('fileHandlers (DataApi)', () => {
       expect(result.find((r) => r.entryId === idB)?.refCount).toBe(0)
     })
 
-    it('rejects entryIds containing non-UUIDv7 strings with ZodError', async () => {
+    it('rejects entryIds containing non-UUID strings with ZodError', async () => {
       await expect(
         fileHandlers['/files/entries/ref-counts'].GET({
           query: { entryIds: ['not-a-uuid'] }
         } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+    })
+
+    it('rejects entryIds batches larger than REF_COUNTS_MAX_ENTRY_IDS with ZodError', async () => {
+      // Pin the renderer-side ceiling — otherwise a runaway batch would
+      // fan-out into many service round-trips (the service still chunks
+      // for SQLite, but it does so once per chunk).
+      const ids = Array.from({ length: 501 }, (_, i) => `019606a0-0000-7000-8000-${String(i).padStart(12, '0')}`)
+      await expect(
+        fileHandlers['/files/entries/ref-counts'].GET({ query: { entryIds: ids } } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
     })
   })

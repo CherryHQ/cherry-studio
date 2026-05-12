@@ -17,17 +17,19 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
-import type { FileSchemas } from '@shared/data/api/schemas/files'
-import { FileEntryIdSchema, FileRefSourceTypeSchema } from '@shared/data/types/file'
-import * as z from 'zod'
-
-const EntryIdsSchema = z.array(FileEntryIdSchema)
-const SourceIdSchema = z.string().min(1)
+import {
+  type FileSchemas,
+  ListFilesQuerySchema,
+  RefCountsQuerySchema,
+  RefsBySourceQuerySchema
+} from '@shared/data/api/schemas/files'
+import { FileEntryIdSchema } from '@shared/data/types/file'
 
 export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/entries': {
     GET: async ({ query }) => {
-      return fileEntryService.listPaged(query ?? {})
+      const validated = ListFilesQuerySchema.parse(query ?? {})
+      return fileEntryService.listPaged(validated)
     }
   },
 
@@ -42,9 +44,9 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
 
   '/files/entries/ref-counts': {
     GET: async ({ query }) => {
-      const ids = EntryIdsSchema.parse(query.entryIds)
-      const counts = await fileRefService.countByEntryIds(ids)
-      return ids.map((id) => ({ entryId: id, refCount: counts.get(id) ?? 0 }))
+      const { entryIds } = RefCountsQuerySchema.parse(query)
+      const counts = await fileRefService.countByEntryIds(entryIds)
+      return entryIds.map((id) => ({ entryId: id, refCount: counts.get(id) ?? 0 }))
     }
   },
 
@@ -57,9 +59,8 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
 
   '/files/refs/by-source': {
     GET: async ({ query }) => {
-      const sourceType = FileRefSourceTypeSchema.parse(query.sourceType)
-      const sourceId = SourceIdSchema.parse(query.sourceId)
-      return fileRefService.findBySource({ sourceType, sourceId })
+      const validated = RefsBySourceQuerySchema.parse(query)
+      return fileRefService.findBySource(validated)
     }
   }
 }
