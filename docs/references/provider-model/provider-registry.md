@@ -61,7 +61,7 @@ POST /models [{ providerId: 'openai', modelId: 'gpt-4o' }]
 ### 3. Resolve SDK Model List
 
 ```
-POST /providers/:providerId/registry-models { models: [{ modelId: 'gpt-4o' }, ...] }
+GET /providers/:providerId/models:resolve?ids=gpt-4o&ids=o3
   → providerRegistryService.resolveModels(providerId, modelIds)
     → For each modelId:
         → RegistryLoader.findModel(modelId)         // O(1), normalize fallback
