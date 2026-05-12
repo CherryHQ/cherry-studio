@@ -166,7 +166,14 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   const canonical = canonicalizeExternalPath(params.externalPath)
   const existing = await deps.fileEntryService.findByExternalPath(canonical)
   if (existing) return existing
-  await fsStat(params.externalPath)
+  // Every downstream derivation must consume the canonical path, not the
+  // raw `params.externalPath`. On macOS APFS the raw input can arrive in
+  // NFD form while `canonical` is NFC; deriving `name` / `ext` from raw
+  // would persist NFD-encoded values alongside an NFC `externalPath`, so
+  // a later strict-equality check like `path.basename(canonical) === entry.name`
+  // would silently diverge. Same risk for trailing-separator / `..`
+  // noise in the raw input.
+  await fsStat(canonical)
   // Peer detection is a `SELECT` against the same DB connection that the
   // upcoming `create()` writes through. If this query fails (transient lock,
   // connection drop), the subsequent INSERT would fail at the same boundary
@@ -179,8 +186,8 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
       peerIds: peers.map((p) => p.id)
     })
   }
-  const name = params.name ?? defaultNameFromPath(params.externalPath)
-  const ext = extWithoutDot(params.externalPath)
+  const name = params.name ?? defaultNameFromPath(canonical)
+  const ext = extWithoutDot(canonical)
   const inserted = await deps.fileEntryService.create({
     origin: 'external',
     name,

@@ -230,4 +230,32 @@ describe('internal/entry/create.createInternal', () => {
       await expect(ensureExternal(deps, { externalPath: file as FilePath })).rejects.toBe(probeErr)
     })
   })
+
+  describe('ensureExternal canonical derivation', () => {
+    it('derives name/ext from the canonical path, not the raw input (NFD → NFC byte equivalence)', async () => {
+      // Regression guard: previously `name = params.name ?? defaultNameFromPath(params.externalPath)`
+      // and `ext = extWithoutDot(params.externalPath)` derived from the raw
+      // input. On macOS APFS the raw input can arrive in NFD form while
+      // `canonical` is NFC — persisting NFD-encoded name/ext alongside an
+      // NFC externalPath silently breaks `path.basename(canonical) === entry.name`
+      // equality checks. The fix derives every field from `canonical`.
+      const nfdName = 'qué' // 'qué' = e + combining acute (NFD)
+      const nfcName = 'qué' // 'qué' = single codepoint (NFC)
+      expect(nfdName).not.toBe(nfcName) // byte-distinct strings
+      expect(nfdName.normalize('NFC')).toBe(nfcName)
+
+      const file = path.join(tmp, `${nfdName}.txt`)
+      await writeFile(file, 'x')
+      const entry = await ensureExternal(deps, { externalPath: file as FilePath })
+
+      if (entry.origin !== 'external') throw new Error('expected external entry')
+      // The stored externalPath is NFC (canonicalize applies .normalize('NFC')).
+      const canonical = entry.externalPath
+      expect(canonical.normalize('NFC')).toBe(canonical)
+      // name must derive from the canonical (NFC) basename, not the raw NFD input.
+      expect(entry.name).toBe(nfcName)
+      // Round-trip equality through path.basename now holds.
+      expect(path.basename(canonical, '.txt')).toBe(entry.name)
+    })
+  })
 })
