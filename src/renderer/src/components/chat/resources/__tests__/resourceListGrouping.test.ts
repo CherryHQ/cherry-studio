@@ -20,16 +20,17 @@ function localIso(year: number, month: number, day: number, hour = 12) {
 }
 
 describe('resourceListGrouping', () => {
-  it('classifies timestamps into today, within-week, and earlier buckets', () => {
-    const now = new Date(2026, 4, 12, 12)
+  it('classifies timestamps into today, yesterday, this-week, and earlier buckets', () => {
+    const now = new Date(2026, 4, 15, 12)
 
-    expect(getResourceTimeBucket(localIso(2026, 5, 12, 9), now)).toBe('today')
-    expect(getResourceTimeBucket(localIso(2026, 5, 6, 9), now)).toBe('within-week')
-    expect(getResourceTimeBucket(localIso(2026, 5, 4, 23), now)).toBe('earlier')
+    expect(getResourceTimeBucket(localIso(2026, 5, 15, 9), now)).toBe('today')
+    expect(getResourceTimeBucket(localIso(2026, 5, 14, 9), now)).toBe('yesterday')
+    expect(getResourceTimeBucket(localIso(2026, 5, 13, 9), now)).toBe('this-week')
+    expect(getResourceTimeBucket(localIso(2026, 5, 8, 23), now)).toBe('earlier')
   })
 
   it('composes pinned and time resolvers with the first matching group winning', () => {
-    const now = new Date(2026, 4, 12, 12)
+    const now = new Date(2026, 4, 15, 12)
     const resolver = composeResourceListGroupResolvers<TestItem>(
       createPinnedGroupResolver({
         isPinned: (item) => item.pinned === true,
@@ -39,26 +40,31 @@ describe('resourceListGrouping', () => {
         getTimestamp: (item) => item.updatedAt,
         labels: {
           today: 'Today',
-          'within-week': 'Within a week',
+          yesterday: 'Yesterday',
+          'this-week': 'This week',
           earlier: 'Earlier'
         },
         now
       })
     )
 
-    expect(resolver({ id: 'pinned-today', pinned: true, updatedAt: localIso(2026, 5, 12, 9) })).toEqual({
+    expect(resolver({ id: 'pinned-today', pinned: true, updatedAt: localIso(2026, 5, 15, 9) })).toEqual({
       id: 'pinned',
       label: 'Pinned'
     })
-    expect(resolver({ id: 'today', updatedAt: localIso(2026, 5, 12, 9) })).toEqual({
+    expect(resolver({ id: 'today', updatedAt: localIso(2026, 5, 15, 9) })).toEqual({
       id: 'time:today',
       label: 'Today'
     })
-    expect(resolver({ id: 'week', updatedAt: localIso(2026, 5, 6, 9) })).toEqual({
-      id: 'time:within-week',
-      label: 'Within a week'
+    expect(resolver({ id: 'yesterday', updatedAt: localIso(2026, 5, 14, 9) })).toEqual({
+      id: 'time:yesterday',
+      label: 'Yesterday'
     })
-    expect(resolver({ id: 'earlier', updatedAt: localIso(2026, 5, 4, 23) })).toEqual({
+    expect(resolver({ id: 'week', updatedAt: localIso(2026, 5, 13, 9) })).toEqual({
+      id: 'time:this-week',
+      label: 'This week'
+    })
+    expect(resolver({ id: 'earlier', updatedAt: localIso(2026, 5, 8, 23) })).toEqual({
       id: 'time:earlier',
       label: 'Earlier'
     })

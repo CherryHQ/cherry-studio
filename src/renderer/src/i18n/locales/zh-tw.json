@@ -1559,8 +1559,9 @@
         "collapse": "摺疊話題",
         "earlier": "更早",
         "show_more": "顯示更多話題",
+        "this_week": "本週",
         "today": "今天",
-        "within_week": "一週內"
+        "yesterday": "昨天"
       },
       "list": "話題列表",
       "manage": {

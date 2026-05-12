@@ -1,6 +1,5 @@
 import {
   composeResourceListGroupResolvers,
-  createPinnedFirstSorter,
   createPinnedGroupResolver,
   createTimeGroupResolver,
   getResourceTimeBucket,
@@ -25,7 +24,7 @@ export type TopicDisplayGroupLabels = {
 export type TopicDisplayGroupOptions = {
   labels: TopicDisplayGroupLabels
   mode: TopicDisplayMode
-  now?: Date
+  now?: Parameters<typeof getResourceTimeBucket>[1]
 }
 
 export type TopicOrderMove = {
@@ -35,6 +34,13 @@ export type TopicOrderMove = {
 
 export type TopicListItem = Topic & {
   name: string
+}
+
+const TOPIC_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
+  today: 1,
+  yesterday: 2,
+  'this-week': 3,
+  earlier: 4
 }
 
 export function buildTopicOrderMoves(currentIds: readonly string[], reorderedIds: readonly string[]): TopicOrderMove[] {
@@ -101,7 +107,10 @@ export function groupTopicByPinned(topic: Pick<Topic, 'pinned'>, pinnedLabel: st
   return { id: 'topics', label: topicLabel }
 }
 
-export function getTopicTimeBucket(updatedAt: string, now?: Date): ResourceListTimeBucket {
+export function getTopicTimeBucket(
+  updatedAt: string,
+  now?: Parameters<typeof getResourceTimeBucket>[1]
+): ResourceListTimeBucket {
   return getResourceTimeBucket(updatedAt, now)
 }
 
@@ -139,6 +148,15 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'pinned' |
   return withTopicGroupIdPrefix(pinnedResolver)
 }
 
-export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'pinned'>>(topics: readonly T[]): T[] {
-  return sortByResourceGroupRank(topics, createPinnedFirstSorter({ isPinned: (topic) => topic.pinned === true }))
+export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'pinned' | 'updatedAt'>>(
+  topics: readonly T[],
+  now?: Parameters<typeof getResourceTimeBucket>[1]
+): T[] {
+  return sortByResourceGroupRank(topics, (topic) => {
+    if (topic.pinned === true) {
+      return 0
+    }
+
+    return TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.updatedAt, now)]
+  })
 }

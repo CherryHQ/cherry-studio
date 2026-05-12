@@ -44,6 +44,7 @@ import {
 } from '@renderer/utils/export'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { cn } from '@renderer/utils/style'
+import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import {
   BrushCleaning,
@@ -154,6 +155,7 @@ function TopicDisplayModeMenu() {
 
 export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
   const { t } = useTranslation()
+  const [groupNow] = useState(() => dayjs())
   const { notesPath } = useNotesSettings()
   const { updateTopic: patchTopic, deleteTopic: deleteTopicById, refreshTopics } = useTopicMutations()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
@@ -376,7 +378,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
     [t, updateTopic]
   )
 
-  const groupedTopics = useMemo(() => sortTopicsForDisplayGroups(topics), [topics])
+  const groupedTopics = useMemo(() => sortTopicsForDisplayGroups(topics, groupNow), [groupNow, topics])
 
   const filteredTopics = useMemo(
     () => filterTopicsForManageMode(groupedTopics, deferredSearchText, isManageMode),
@@ -394,12 +396,14 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
           pinned: t('selector.common.pinned_title'),
           time: {
             today: t('chat.topics.group.today'),
-            'within-week': t('chat.topics.group.within_week'),
+            yesterday: t('chat.topics.group.yesterday'),
+            'this-week': t('chat.topics.group.this_week'),
             earlier: t('chat.topics.group.earlier')
           }
-        }
+        },
+        now: groupNow
       }),
-    [t]
+    [groupNow, t]
   )
 
   return (

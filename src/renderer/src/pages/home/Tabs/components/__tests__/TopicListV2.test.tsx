@@ -157,7 +157,8 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.display.assistant') return 'Assistant'
       if (key === 'chat.topics.display.tag') return 'Tag'
       if (key === 'chat.topics.group.today') return 'Today'
-      if (key === 'chat.topics.group.within_week') return 'Within a week'
+      if (key === 'chat.topics.group.yesterday') return 'Yesterday'
+      if (key === 'chat.topics.group.this_week') return 'This week'
       if (key === 'chat.topics.group.earlier') return 'Earlier'
       if (key === 'chat.topics.group.show_more') return 'Show more topics'
       if (key === 'chat.topics.group.collapse') return 'Collapse topics'
@@ -322,6 +323,14 @@ describe('TopicListV2', () => {
               updatedAt: '2026-01-01T01:00:00.000Z'
             }),
             createApiTopic({
+              id: 'topic-e',
+              name: 'Epsilon yesterday',
+              assistantId: 'assistant-2',
+              orderKey: 'e',
+              createdAt: '2026-01-02T01:00:00.000Z',
+              updatedAt: '2026-01-02T01:00:00.000Z'
+            }),
+            createApiTopic({
               id: 'topic-d',
               name: 'Delta archive',
               assistantId: 'assistant-2',
@@ -352,7 +361,8 @@ describe('TopicListV2', () => {
 
     expect(screen.getByText('Pinned')).toBeInTheDocument()
     expect(screen.getByText('Today')).toBeInTheDocument()
-    expect(screen.getByText('Within a week')).toBeInTheDocument()
+    expect(screen.getByText('Yesterday')).toBeInTheDocument()
+    expect(screen.getByText('This week')).toBeInTheDocument()
     expect(screen.getByText('Earlier')).toBeInTheDocument()
     expect(screen.getByText('Beta pinned')).toBeInTheDocument()
     const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-v2-row"]')
@@ -499,7 +509,13 @@ describe('TopicListV2', () => {
     renderTopicList()
 
     const groupButtons = screen.getAllByRole('button', { expanded: true })
-    expect(groupButtons.map((button) => button.textContent)).toEqual(['Pinned', 'Today', 'Within a week', 'Earlier'])
+    expect(groupButtons.map((button) => button.textContent)).toEqual([
+      'Pinned',
+      'Today',
+      'Yesterday',
+      'This week',
+      'Earlier'
+    ])
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
 
@@ -512,7 +528,7 @@ describe('TopicListV2', () => {
     renderTopicList()
 
     expect(screen.getByText('Topics')).toBeInTheDocument()
-    expect(screen.getByText('4')).toBeInTheDocument()
+    expect(screen.getByText('5')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Search topics')).toBeInTheDocument()
 
     fireEvent.click(screen.getByLabelText('Display mode'))
@@ -534,7 +550,8 @@ describe('TopicListV2', () => {
     expect(patchSpy).toHaveBeenCalledWith('/topics/order:batch', {
       body: {
         moves: [
-          { id: 'topic-c', anchor: { after: 'topic-b' } },
+          { id: 'topic-e', anchor: { after: 'topic-b' } },
+          { id: 'topic-c', anchor: { after: 'topic-e' } },
           { id: 'topic-a', anchor: { after: 'topic-c' } }
         ]
       }

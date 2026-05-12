@@ -1559,8 +1559,9 @@
         "collapse": "Collapse topics",
         "earlier": "Earlier",
         "show_more": "Show more topics",
+        "this_week": "This week",
         "today": "Today",
-        "within_week": "Within a week"
+        "yesterday": "Yesterday"
       },
       "list": "Topic List",
       "manage": {

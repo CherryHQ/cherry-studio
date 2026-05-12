@@ -1,29 +1,40 @@
+import dayjs from 'dayjs'
+
 import type { ResourceListGroup } from './ResourceListContext'
 
-export type ResourceListTimeBucket = 'today' | 'within-week' | 'earlier'
+export type ResourceListTimeBucket = 'today' | 'yesterday' | 'this-week' | 'earlier'
 
 export type ResourceListGroupResolver<T> = (item: T) => ResourceListGroup | null
 
-type TimestampInput = string | number | Date | null | undefined
+type TimestampInput = dayjs.ConfigType
 type GroupRankResolver<T> = (item: T) => number
 
-export function getResourceTimeBucket(timestamp: TimestampInput, now: Date = new Date()): ResourceListTimeBucket {
-  const value = timestamp instanceof Date ? timestamp.getTime() : new Date(timestamp ?? 0).getTime()
-  if (!Number.isFinite(value)) {
+export function getResourceTimeBucket(timestamp: TimestampInput, now?: TimestampInput): ResourceListTimeBucket {
+  if (timestamp === undefined) {
     return 'earlier'
   }
 
-  const date = new Date(value)
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  const itemStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  const item = dayjs(timestamp)
+  const current = now === undefined ? dayjs() : dayjs(now)
+  if (!item.isValid() || !current.isValid()) {
+    return 'earlier'
+  }
 
-  if (itemStart === todayStart) {
+  const itemStart = item.startOf('day')
+  const todayStart = current.startOf('day')
+
+  if (itemStart.isSame(todayStart)) {
     return 'today'
   }
 
-  const withinWeekStart = todayStart - 6 * 24 * 60 * 60 * 1000
-  if (itemStart >= withinWeekStart && itemStart < todayStart) {
-    return 'within-week'
+  const yesterdayStart = todayStart.subtract(1, 'day')
+  if (itemStart.isSame(yesterdayStart)) {
+    return 'yesterday'
+  }
+
+  const weekStart = todayStart.startOf('week')
+  if (itemStart.isSame(weekStart) || (itemStart.isAfter(weekStart) && itemStart.isBefore(yesterdayStart))) {
+    return 'this-week'
   }
 
   return 'earlier'
@@ -58,7 +69,7 @@ export function createTimeGroupResolver<T>({
 }: {
   getTimestamp: (item: T) => TimestampInput
   labels: Record<ResourceListTimeBucket, string>
-  now?: Date
+  now?: TimestampInput
 }): ResourceListGroupResolver<T> {
   return (item) => {
     const bucket = getResourceTimeBucket(getTimestamp(item), now)
