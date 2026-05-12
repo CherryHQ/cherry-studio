@@ -1407,6 +1407,7 @@
             "save_failed": "保存话题失败，请检查知识库配置"
           },
           "loading": "正在分析话题内容...",
+          "menu_title": "保存到知识库",
           "select": {
             "content": {
               "label": "选择要保存的内容类型",
@@ -1555,6 +1556,7 @@
         "yuque": "导出到语雀"
       },
       "group": {
+        "collapse": "折叠话题",
         "earlier": "更早",
         "show_more": "显示更多话题",
         "today": "今天",

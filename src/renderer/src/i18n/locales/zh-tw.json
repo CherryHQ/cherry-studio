@@ -1407,6 +1407,7 @@
             "save_failed": "儲存話題失敗，請檢查知識庫設定"
           },
           "loading": "正在分析話題內容...",
+          "menu_title": "儲存到知識庫",
           "select": {
             "content": {
               "label": "選擇要儲存的內容類型",
@@ -1555,6 +1556,7 @@
         "yuque": "匯出到語雀"
       },
       "group": {
+        "collapse": "摺疊話題",
         "earlier": "更早",
         "show_more": "顯示更多話題",
         "today": "今天",

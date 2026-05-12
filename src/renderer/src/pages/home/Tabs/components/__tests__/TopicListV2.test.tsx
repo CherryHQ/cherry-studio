@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -160,9 +160,34 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.group.within_week') return 'Within a week'
       if (key === 'chat.topics.group.earlier') return 'Earlier'
       if (key === 'chat.topics.group.show_more') return 'Show more topics'
+      if (key === 'chat.topics.group.collapse') return 'Collapse topics'
       if (key === 'chat.topics.search.placeholder') return 'Search topics'
+      if (key === 'chat.topics.pin') return 'Pin Topic'
+      if (key === 'chat.topics.unpin') return 'Unpin Topic'
+      if (key === 'chat.topics.auto_rename') return 'Generate topic name'
+      if (key === 'chat.topics.edit.title') return 'Edit topic name'
+      if (key === 'chat.topics.clear.title') return 'Clear messages'
+      if (key === 'notes.save') return 'Save to notes'
+      if (key === 'chat.save.topic.knowledge.menu_title') return 'Save to knowledge base'
+      if (key === 'chat.save.topic.knowledge.title') return 'Save to knowledge base'
+      if (key === 'chat.topics.copy.title') return 'Copy'
+      if (key === 'chat.topics.copy.image') return 'Copy as Image'
+      if (key === 'chat.topics.copy.md') return 'Copy as Markdown'
+      if (key === 'chat.topics.copy.plain_text') return 'Copy as Plain Text'
+      if (key === 'chat.topics.export.title') return 'Export'
+      if (key === 'chat.topics.export.image') return 'Export as Image'
+      if (key === 'chat.topics.export.md.label') return 'Export as Markdown'
+      if (key === 'chat.topics.export.md.reason') return 'Export as Markdown with Reasoning'
+      if (key === 'chat.topics.export.word') return 'Export as Word'
+      if (key === 'chat.topics.export.notion') return 'Export to Notion'
+      if (key === 'chat.topics.export.yuque') return 'Export to Yuque'
+      if (key === 'chat.topics.export.obsidian') return 'Export to Obsidian'
+      if (key === 'chat.topics.export.joplin') return 'Export to Joplin'
+      if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
+      if (key === 'common.delete') return 'Delete'
       if (key === 'chat.add.topic.title') return 'New Topic'
       if (key === 'common.prompt') return 'Prompt'
+      if (key === 'settings.topic.position.label') return 'Topic position'
       if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
       return key
     }
@@ -330,7 +355,9 @@ describe('TopicListV2', () => {
     expect(screen.getByText('Within a week')).toBeInTheDocument()
     expect(screen.getByText('Earlier')).toBeInTheDocument()
     expect(screen.getByText('Beta pinned')).toBeInTheDocument()
-    expect(getByText('Beta pinned').closest('[data-testid="topic-list-v2-row"]')?.querySelector('button')).toBeNull()
+    const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-v2-row"]')
+    expect(pinnedRow?.querySelector('[aria-label="Unpin Topic"]') ?? null).toBeInTheDocument()
+    expect(pinnedRow?.querySelector('[aria-label="common.delete"]') ?? null).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Gamma topic'))
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
@@ -339,6 +366,68 @@ describe('TopicListV2', () => {
 
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
     expect(screen.getByText('Gamma topic')).toBeInTheDocument()
+  })
+
+  it('toggles pin from the leading row button without selecting the topic', () => {
+    const postSpy = vi.spyOn(dataApiService, 'post').mockResolvedValue(undefined as never)
+    const deleteSpy = vi.spyOn(dataApiService, 'delete').mockResolvedValue({ deleted: true } as never)
+    const { getByText, setActiveTopic } = renderTopicList()
+
+    const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-v2-row"]')
+    const pinButton = alphaRow?.querySelector('[aria-label="Pin Topic"]')
+    expect(pinButton ?? null).toBeInTheDocument()
+
+    fireEvent.click(pinButton as Element)
+
+    expect(postSpy).toHaveBeenCalledWith('/pins', { body: { entityType: 'topic', entityId: 'topic-a' } })
+    expect(setActiveTopic).not.toHaveBeenCalled()
+
+    const betaRow = getByText('Beta pinned').closest('[data-testid="topic-list-v2-row"]')
+    const unpinButton = betaRow?.querySelector('[aria-label="Unpin Topic"]')
+    expect(unpinButton ?? null).toBeInTheDocument()
+
+    fireEvent.click(unpinButton as Element)
+
+    expect(deleteSpy).toHaveBeenCalledWith('/pins/pin-topic-b')
+  })
+
+  it('keeps pin actions in the topic context menu and removes topic position actions', () => {
+    const { getByText } = renderTopicList()
+
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent ?? null).toBeInTheDocument()
+    expect(menuContent).toHaveTextContent('Pin Topic')
+    expect(menuContent).not.toHaveTextContent('Unpin Topic')
+    expect(menuContent).not.toHaveTextContent('Topic position')
+  })
+
+  it('groups topic context menu actions and marks delete as destructive', () => {
+    const { getByText } = renderTopicList()
+
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    expect(menuContent ?? null).toBeInTheDocument()
+
+    expect(Array.from(menuContent?.querySelectorAll('[data-testid="context-menu-separator"]') ?? [])).toHaveLength(2)
+    expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
+      'Generate topic name',
+      'Edit topic name',
+      'Pin Topic',
+      'Clear messages',
+      '',
+      'Save to notes',
+      'Save to knowledge base',
+      'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to Siyuan',
+      'CopyCopy as ImageCopy as MarkdownCopy as Plain Text',
+      '',
+      'Delete'
+    ])
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' })).toHaveAttribute(
+      'variant',
+      'destructive'
+    )
   })
 
   it('keeps topic rows compact and only renders the title field in the sidebar list', () => {
@@ -394,6 +483,16 @@ describe('TopicListV2', () => {
 
     expect(screen.getByText('Topic 10')).toBeInTheDocument()
     expect(screen.queryByText('Topic 11')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more topics' }))
+
+    expect(screen.getByText('Topic 11')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse topics' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse topics' }))
+
+    expect(screen.getByText('Topic 5')).toBeInTheDocument()
+    expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
   })
 
   it('keeps the pinned group first and lets each group collapse independently', () => {
@@ -418,6 +517,9 @@ describe('TopicListV2', () => {
 
     fireEvent.click(screen.getByLabelText('Display mode'))
 
+    expect(screen.getByTestId('popover-content')).toHaveClass('w-28', 'p-1')
+    expect(screen.getByText('Display mode')).toHaveClass('text-[10px]')
+    expect(screen.getByRole('button', { name: 'Time' })).toHaveClass('h-6', 'text-[11px]', 'font-normal')
     expect(screen.getByRole('button', { name: 'Time' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Tag' })).toBeInTheDocument()
