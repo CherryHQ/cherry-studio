@@ -292,10 +292,21 @@ export const ExternalEntrySchema = z.strictObject({
    * eliminating the five `as FilePath` casts that used to sit at every read
    * site (rename.ts, lifecycle.ts, danglingCache.ts, …).
    */
-  externalPath: AbsolutePathSchema.refine(
-    (s) => s === canonicalizeAbsolutePath(s),
-    'externalPath must be canonicalized via canonicalizeExternalPath() before persistence'
-  ).transform((s): CanonicalFilePath => s as CanonicalFilePath)
+  externalPath: AbsolutePathSchema.refine((s) => {
+    // canonicalizeAbsolutePath throws on structural failures (non-absolute,
+    // contains \0) — both already surfaced by `AbsolutePathSchema`'s own
+    // refines, but Zod does not short-circuit on prior refine failure, so we
+    // must absorb the throw here. Failure → return false → schema rejects
+    // with the canonicalization message (and the prior issue is also
+    // reported, giving the caller the full picture).
+    try {
+      return s === canonicalizeAbsolutePath(s)
+    } catch {
+      return false
+    }
+  }, 'externalPath must be canonicalized via canonicalizeExternalPath() before persistence').transform(
+    (s): CanonicalFilePath => s as CanonicalFilePath
+  )
 })
 
 /**
