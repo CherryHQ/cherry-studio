@@ -1,7 +1,7 @@
 import type { Topic } from '@renderer/types'
 import type { FC } from 'react'
 
-import { Topics } from './components/Topics'
+import { TopicListV2 } from './components/TopicListV2'
 
 interface Props {
   activeTopic: Topic
@@ -10,7 +10,7 @@ interface Props {
 }
 
 const TopicsTab: FC<Props> = (props) => {
-  return <Topics {...props} />
+  return <TopicListV2 {...props} />
 }
 
 export default TopicsTab
