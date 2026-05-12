@@ -5,12 +5,21 @@
 // Coexistence Mindset in CLAUDE.md. Don't add new v1 reads.
 
 import { getStoreProviders } from '@renderer/hooks/useStore'
-import type { AssistantSettings, Model } from '@renderer/types'
+import type { Assistant, AssistantSettings, Model } from '@renderer/types'
 import { DEFAULT_ASSISTANT_SETTINGS as SHARED_DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
+import { composeDefaultAssistant } from './defaultAssistant'
 import { getProviderByModel } from './ProviderService'
 
 export { getProviderByModel }
+
+/**
+ * v1 back-compat shim for the Redux assistants slice, which initialises
+ * `defaultAssistant` synchronously without a modelId. Dies with the slice.
+ */
+export function getDefaultAssistant(): Assistant {
+  return composeDefaultAssistant(null)
+}
 
 /**
  * Fallback chain for "give me *some* provider":
