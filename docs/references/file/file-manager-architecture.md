@@ -524,7 +524,7 @@ interface FileVersion {
 
 Used as a fast signal for detecting external changes. Two tiers of usage:
 - Fast path: `statVersion(path)` (microsecond-level, covers 99% of cases)
-- Deep path: `contentHash(path)` → xxhash-128 (millisecond-to-second level, used when mtime/size match but further confirmation is needed)
+- Deep path: `contentHash(path)` → xxhash-h64 (millisecond-to-second level, used when mtime/size match but further confirmation is needed)
 
 Rationale for mtime + size as a signature:
 - Six scenarios where mtime alone fails—multiple writes within the same ms, clock rewind, backup preserving mtime, user touch, low-precision FS (FAT32), in-place 1-byte edit—are covered by size or hash as fallbacks
@@ -866,7 +866,7 @@ CREATE TABLE file_upload (
   file_entry_id   TEXT NOT NULL REFERENCES file_entry(id) ON DELETE CASCADE,
   provider        TEXT NOT NULL,
   remote_id       TEXT NOT NULL,
-  content_version TEXT NOT NULL,   -- xxhash-128 at upload time
+  content_version TEXT NOT NULL,   -- xxhash-h64 at upload time
   uploaded_at     INTEGER NOT NULL,
   expires_at      INTEGER,
   status          TEXT NOT NULL,   -- 'active' | 'expired' | 'failed'
@@ -1352,7 +1352,7 @@ These thresholds are heuristic starting points — tune based on real-world tele
 | **Dangling state carrier** | In-memory singleton DanglingCache | Not in DB (avoids bidirectional DB-FS sync); three states `present/missing/unknown`; TTL-based lazy expiration (§11.6, 30 min); refreshed on query / FS observation / watcher; no periodic background sweep — IO cost scales with query frequency, not entry count |
 | **Dangling exposure method** | File IPC `getDanglingState` / `batchGetDanglingStates` (never DataApi) | DataApi is pure SQL; FS probe lives in IPC where side effects are expected; zero cost by default; parallel stat on demand |
 | **Watcher → DanglingCache wiring** | Factory auto-wires | Business modules unaware of DanglingCache; a single watcher instance serves business events + dangling tracking |
-| **Content hash algorithm** | xxhash-128 | Optimal cost-performance for non-cryptographic scenarios (~20GB/s; 128-bit collision resistance is sufficient) |
+| **Content hash algorithm** | xxhash-h64 | Optimal cost-performance for non-cryptographic scenarios (~20GB/s). 64-bit collision space is sufficient for distinguishing successive versions within a single file's write history — the `xxhash-wasm` package shipped in this version exposes only h32 / h64, and h64 is the strongest variant available; revisit if a 128-bit variant becomes a dependency-cost tradeoff worth taking. |
 | **Does write carry version** | Split into write / writeIfUnchanged | Force the caller to explicitly choose; avoid silent degradation to blind write when version is forgotten |
 | **Atomic write fsync** | On by default | Correctness guarantee takes precedence over performance; Cherry is not a high-throughput scenario |
 | **Trash model** | trashedAt timestamp | parentId unchanged; naturally supports expiry; no system_trash entries |

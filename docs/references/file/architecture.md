@@ -249,7 +249,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 | `read` | Read content | read(userDataPath) | read(externalPath) (live) | read(path) |
 | `getMetadata` | Live physical metadata (`fs.stat`) — entry-id batch variant `batchGetMetadata` (id-only, see below) | resolve + stat | stat(externalPath) — **sole live-size source for external** | stat + getFileType |
 | `getVersion` | FileVersion (live `fs.stat`) | stat userData | stat externalPath | statVersion |
-| `getContentHash` | xxhash-128 | read userData + hash | read externalPath + hash | contentHash |
+| `getContentHash` | xxhash-h64 | read userData + hash | read externalPath + hash | contentHash |
 | `write` | Atomic write | atomic → userData + DB size update | atomic → externalPath (explicit user edit; no DB size column to touch) | atomic → path |
 | `writeIfUnchanged` | Optimistic concurrent write | same as write plus version check | same | same (caller must getVersion first) |
 | `permanentDelete` | Delete entry | unlink userData + delete from DB | **delete from DB only** (physical file untouched; path-level deletion remains available via a `FilePathHandle` to `remove`) | remove(path) |
@@ -706,7 +706,7 @@ Renderer                          Main
 |  |  fs.ts:      read / write / stat / copy / move / remove   |    |
 |  |              atomicWriteFile / atomicWriteIfUnchanged     |    |
 |  |              createAtomicWriteStream                      |    |
-|  |              statVersion / contentHash (xxhash-128)       |    |
+|  |              statVersion / contentHash (xxhash-h64)       |    |
 |  |  shell.ts:   open / showInFolder                          |    |
 |  |  path.ts / metadata.ts / search.ts                        |    |
 |  |  stateless, pure path-based, open to all main modules     |    |
