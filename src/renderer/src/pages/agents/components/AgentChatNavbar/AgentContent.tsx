@@ -28,9 +28,10 @@ import Tools from './Tools'
 
 type AgentContentProps = {
   activeAgent: AgentEntity
+  onOpenSettings: () => void
 }
 
-const AgentContent = ({ activeAgent }: AgentContentProps) => {
+const AgentContent = ({ activeAgent, onOpenSettings }: AgentContentProps) => {
   const { t } = useTranslation()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
@@ -138,7 +139,7 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
         {activeSession && activeSession.accessiblePaths?.[0] && (
           <OpenExternalAppButton workdir={activeSession.accessiblePaths[0]} className="mr-2" />
         )}
-        <Tools />
+        <Tools onOpenSettings={onOpenSettings} />
       </div>
     </div>
   )

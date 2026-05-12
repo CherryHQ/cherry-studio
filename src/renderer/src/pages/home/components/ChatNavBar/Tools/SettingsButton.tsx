@@ -1,40 +1,21 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { useAssistant } from '@renderer/hooks/useAssistant'
-import { Drawer } from 'antd'
 import { t } from 'i18next'
 import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
-import { useState } from 'react'
 
 import NavbarIcon from '../../../../../components/NavbarIcon'
-import { AssistantSettingsTab } from './SettingsTab'
 
 interface Props {
-  /** `undefined` when the topic has no associated assistant. */
-  assistantId: string | undefined
+  onOpenSettings: () => void
 }
 
-const SettingsButton: FC<Props> = ({ assistantId }) => {
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const { assistant } = useAssistant(assistantId)
-
+const SettingsButton: FC<Props> = ({ onOpenSettings }) => {
   return (
-    <>
-      <Tooltip content={t('settings.title')} delay={800}>
-        <NavbarIcon onClick={() => setSettingsOpen(true)}>
-          <Settings2 size={18} />
-        </NavbarIcon>
-      </Tooltip>
-      <Drawer
-        placement="right"
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        width="var(--assistants-width)"
-        closable={false}
-        styles={{ body: { padding: 0, paddingTop: 'var(--navbar-height)' } }}>
-        {assistant && <AssistantSettingsTab assistant={assistant} />}
-      </Drawer>
-    </>
+    <Tooltip content={t('settings.title')} delay={800}>
+      <NavbarIcon onClick={onOpenSettings}>
+        <Settings2 size={18} />
+      </NavbarIcon>
+    </Tooltip>
   )
 }
 

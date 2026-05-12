@@ -5,16 +5,14 @@ import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { styled } from 'styled-components'
 
 import SettingsButton from './SettingsButton'
 
 interface ToolsProps {
-  /** `undefined` when the topic has no associated assistant. */
-  assistantId: string | undefined
+  onOpenSettings: () => void
 }
 
-const Tools = ({ assistantId }: ToolsProps) => {
+const Tools = ({ onOpenSettings }: ToolsProps) => {
   const { t } = useTranslation()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
@@ -28,12 +26,12 @@ const Tools = ({ assistantId }: ToolsProps) => {
 
   return (
     <div className="flex items-center gap-2">
-      <SettingsButton assistantId={assistantId} />
+      <SettingsButton onOpenSettings={onOpenSettings} />
       {isTopNavbar && (
         <Tooltip content={t('navbar.expand')} delay={800}>
-          <NarrowIcon onClick={handleNarrowModeToggle}>
+          <NavbarIcon className="max-[1000px]:hidden" onClick={handleNarrowModeToggle}>
             <i className="iconfont icon-icon-adaptive-width"></i>
-          </NarrowIcon>
+          </NavbarIcon>
         </Tooltip>
       )}
       {isTopNavbar && (
@@ -53,11 +51,5 @@ const Tools = ({ assistantId }: ToolsProps) => {
     </div>
   )
 }
-
-const NarrowIcon = styled(NavbarIcon)`
-  @media (max-width: 1000px) {
-    display: none;
-  }
-`
 
 export default Tools

@@ -21,11 +21,12 @@ type TopicContentProps = {
   /** `undefined` when the topic has no associated assistant. */
   assistantId: string | undefined
   topicId: string
+  onOpenSettings: () => void
 }
 
 const modelFilter = (m: SharedModel) => !isNonChatModel(m)
 
-const TopicContent = ({ assistantId, topicId }: TopicContentProps) => {
+const TopicContent = ({ assistantId, topicId, onOpenSettings }: TopicContentProps) => {
   const { t } = useTranslation()
   const { assistant, model: currentSharedModel, setModel } = useAssistant(assistantId)
   const { updateTopic } = useTopicMutations()
@@ -89,7 +90,7 @@ const TopicContent = ({ assistantId, topicId }: TopicContentProps) => {
           />
         </div>
       </HorizontalScrollContainer>
-      <Tools assistantId={assistantId} />
+      <Tools onOpenSettings={onOpenSettings} />
     </>
   )
 }

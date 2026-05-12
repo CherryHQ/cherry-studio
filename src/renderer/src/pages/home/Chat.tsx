@@ -16,6 +16,7 @@ import React, { useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
+import SettingsPanel from '../chat-settings/SettingsPanel'
 import ChatNavbar from './components/ChatNavBar'
 import V2ChatContent from './V2ChatContent'
 
@@ -41,6 +42,7 @@ const Chat: FC<Props> = (props) => {
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
   const [isTopNavbar] = usePreference('ui.navbar.position')
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = useRef<ContentSearchRef>(null)
@@ -129,9 +131,23 @@ const Chat: FC<Props> = (props) => {
               pane={props.pane}
               paneOpen={props.paneOpen}
               panePosition={props.panePosition}
-              topBar={<ChatNavbar assistantId={props.activeTopic.assistantId} topicId={props.activeTopic.id} />}
+              topBar={
+                <ChatNavbar
+                  assistantId={props.activeTopic.assistantId}
+                  topicId={props.activeTopic.id}
+                  onOpenSettings={() => setSettingsOpen(true)}
+                />
+              }
               main={main}
               bottomComposer={bottomComposer}
+              sidePanel={
+                <SettingsPanel
+                  open={settingsOpen}
+                  onClose={() => setSettingsOpen(false)}
+                  mode="assistant"
+                  assistantId={props.activeTopic.assistantId}
+                />
+              }
               overlay={
                 <>
                   {overlay}
