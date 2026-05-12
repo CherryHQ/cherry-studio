@@ -265,7 +265,9 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
     (topicId: string, name: string) => {
       const topic = topics.find((candidate) => candidate.id === topicId)
       const trimmedName = name.trim()
-      if (!topic || !trimmedName || trimmedName === topic.name) return
+      if (!topic || !trimmedName || trimmedName === topic.name) {
+        return
+      }
 
       void updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true })
       window.toast.success(t('common.saved'))
@@ -366,7 +368,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
         finishTopicRenaming(topic.id)
       }
     },
-    [t, updateTopic]
+    [t, updateTopic, finishTopicRenaming]
   )
 
   const handlePromptRename = useCallback(

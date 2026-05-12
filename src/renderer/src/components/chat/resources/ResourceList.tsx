@@ -712,6 +712,20 @@ type RenameFieldProps<T extends ResourceListItemBase> = Omit<
 function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...props }: RenameFieldProps<T>) {
   const { actions, meta, state } = useResourceList<T>()
   const id = meta.getItemId(item)
+  const didCommitRef = useRef(false)
+
+  useEffect(() => {
+    if (state.renamingId !== id) {
+      didCommitRef.current = false
+    }
+  }, [state.renamingId, id])
+
+  const commitRename = (name: string) => {
+    if (didCommitRef.current) return
+    didCommitRef.current = true
+    actions.commitRename(id, name)
+  }
+
   if (state.renamingId !== id) return null
 
   return (
@@ -723,10 +737,15 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
         'h-6 flex-1 border-none bg-transparent px-0 text-[12px] text-sidebar-foreground/70 shadow-none focus-visible:ring-0',
         className
       )}
-      onBlur={(event) => actions.commitRename(id, event.currentTarget.value)}
+      onBlur={(event) => commitRename(event.currentTarget.value)}
       onKeyDown={(event) => {
         if (event.key === 'Enter') {
-          actions.commitRename(id, event.currentTarget.value)
+          event.preventDefault()
+          event.stopPropagation()
+          commitRename(event.currentTarget.value)
+        }
+        if (event.key === ' ' || event.key === 'Spacebar') {
+          event.stopPropagation()
         }
         if (event.key === 'Escape') {
           actions.cancelRename()
