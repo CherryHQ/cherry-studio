@@ -160,8 +160,52 @@ export interface FileEntryService {
 
 type FileEntryRow = typeof fileEntryTable.$inferSelect
 
+/**
+ * DB row → branded `FileEntry` BO.
+ *
+ * The DB row carries every column physically (with `null` for fields that
+ * don't apply to the row's origin); the BO is a discriminated union where
+ * each variant only declares the fields it actually owns. Dispatch on
+ * `row.origin`, build a variant-specific plain object dropping the
+ * irrelevant columns, then `FileEntrySchema.parse` rehydrates the brand
+ * and validates the invariants. See the `fileEntry.ts` header docstring
+ * for the "DB row vs Business Object" boundary.
+ *
+ * Why not align with the project's `nullsToUndefined + timestampToISO`
+ * row→entity helper: those helpers were designed for entity types whose
+ * schemas use `undefined` for absence and ISO strings for timestamps —
+ * FileEntry uses field absence (`origin`-driven) for absence and `number`
+ * ms-epoch for timestamps, so the helpers' translations would actively
+ * misshape the row. The dispatch-then-parse pattern here is the
+ * discriminated-union counterpart and is documented in
+ * `docs/references/data/database-patterns.md` as an accepted alternative.
+ */
 function rowToFileEntry(row: FileEntryRow): FileEntry {
-  return FileEntrySchema.parse(row)
+  if (row.origin === 'internal') {
+    return FileEntrySchema.parse({
+      id: row.id,
+      origin: 'internal',
+      name: row.name,
+      ext: row.ext,
+      size: row.size,
+      // trashedAt is `optional` on the BO — present iff the DB column is
+      // non-null. Bypass `nullsToUndefined` so we don't pull in a helper
+      // whose project-wide meaning is "every null becomes undefined";
+      // here only this specific column flips.
+      ...(row.trashedAt !== null ? { trashedAt: row.trashedAt } : {}),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    })
+  }
+  return FileEntrySchema.parse({
+    id: row.id,
+    origin: 'external',
+    name: row.name,
+    ext: row.ext,
+    externalPath: row.externalPath,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  })
 }
 
 class FileEntryServiceImpl implements FileEntryService {

@@ -25,9 +25,10 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   if (entry.origin === 'internal') {
     return deps.fileEntryService.update(id, { name: newName })
   }
-  if (!entry.externalPath) {
-    throw new Error(`rename: external entry ${id} has null externalPath (schema invariant violated)`)
-  }
+  // entry.origin === 'external' from here on; the schema discriminator
+  // guarantees externalPath is present as `AbsolutePathSchema` (no `null`
+  // branch exists on ExternalEntrySchema), so the prior defensive
+  // `if (!entry.externalPath)` throw was unreachable and has been removed.
   const dir = path.dirname(entry.externalPath)
   const ext = entry.ext ? `.${entry.ext}` : ''
   // Canonicalize the target so the no-op check below tolerates NFC/NFD,

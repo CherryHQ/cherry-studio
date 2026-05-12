@@ -114,7 +114,10 @@ describe('internal/content/write', () => {
       expect(next.size).toBe('new-payload'.length)
       expect(await readFile(file, 'utf-8')).toBe('new-payload')
       const refreshed = await fileEntryService.getById(e.id)
-      expect(refreshed.size).toBeNull()
+      // External BO has no `size` field by construction (live values come
+      // from File IPC `getMetadata`). The DB row still stores `size: null`.
+      expect(refreshed.origin).toBe('external')
+      expect(refreshed).not.toHaveProperty('size')
     })
   })
 

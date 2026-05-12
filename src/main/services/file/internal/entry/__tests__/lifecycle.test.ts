@@ -93,7 +93,12 @@ describe('internal/entry/lifecycle', () => {
       const id = await makeInternal()
       await trash(deps, id)
       const entry = await fileEntryService.getById(id)
-      expect(entry.trashedAt).not.toBeNull()
+      // trashedAt is an `optional` ms-epoch number on internal entries —
+      // present + non-zero when trashed, absent (undefined) when live.
+      expect(entry.origin).toBe('internal')
+      if (entry.origin === 'internal') {
+        expect(typeof entry.trashedAt).toBe('number')
+      }
     })
 
     it('throws when called on an external entry (CHECK fe_external_no_trash)', async () => {
@@ -108,7 +113,11 @@ describe('internal/entry/lifecycle', () => {
       await trash(deps, id)
       await restore(deps, id)
       const entry = await fileEntryService.getById(id)
-      expect(entry.trashedAt).toBeNull()
+      // After restore, trashedAt is absent (undefined) on the BO.
+      expect(entry.origin).toBe('internal')
+      if (entry.origin === 'internal') {
+        expect(entry.trashedAt).toBeUndefined()
+      }
     })
 
     it('throws on an external entry', async () => {

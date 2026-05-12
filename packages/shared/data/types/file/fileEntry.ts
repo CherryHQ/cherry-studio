@@ -168,6 +168,28 @@ declare const canonicalExternalPathBrand: unique symbol
 export type CanonicalExternalPath = string & { readonly [canonicalExternalPathBrand]: 'CanonicalExternalPath' }
 
 // ─── FileEntry Schema (discriminated union on origin, branded) ───
+//
+// ## DB row vs Business Object
+//
+// The `file_entry` SQLite table is a flat row with all columns physically
+// present (size / externalPath / trashedAt are all nullable on the column
+// level), guarded by three CHECK constraints (`fe_origin_consistency`,
+// `fe_size_internal_only`, `fe_external_no_trash`) so a row can never
+// represent an impossible combination. That is the **DB-row** layer.
+//
+// `FileEntry` is the **business object** consumers actually work with.
+// Discrimination on `origin` means an internal entry doesn't *have* an
+// `externalPath`, and an external entry doesn't *have* a `size` /
+// `trashedAt` — these fields are simply absent on the BO shape, not `null`.
+// Narrowing on `origin` gives TS the right keys at the right callsite,
+// so renderer code never has to `if (entry.origin === 'internal') ...`
+// just to access `entry.size`, and never has to `as` a `null` check away.
+//
+// `rowToFileEntry` is the translation layer: take a DB row, switch on
+// `origin`, build the variant-specific plain object (dropping the null
+// columns that don't belong on that variant), then run
+// `FileEntrySchema.parse` to get the brand back. The DB CHECK constraints
+// and the BO schema express the same invariants from two layers.
 
 const CommonEntryFields = {
   /** Entry ID (UUID v7) */
@@ -191,7 +213,15 @@ const CommonEntryFields = {
   updatedAt: TimestampSchema
 } as const
 
-/** origin='internal': Cherry owns the content. `externalPath` must be null. */
+/**
+ * Internal entry — Cherry owns the content at `{userData}/Data/Files/{id}.{ext}`.
+ *
+ * Variant-only fields: `size` (authoritative byte count), `trashedAt`
+ * (optional, present and non-null when entry is trashed). `externalPath`
+ * is absent on this variant — there is no user-provided path. The DB row
+ * carries `externalPath: null` to satisfy the table schema; the BO
+ * dispatcher drops it.
+ */
 export const InternalEntrySchema = z.strictObject({
   ...CommonEntryFields,
   origin: z.literal('internal'),
@@ -200,33 +230,30 @@ export const InternalEntrySchema = z.strictObject({
    * this value is authoritative and kept in sync with the backing file on disk.
    */
   size: z.int().nonnegative(),
-  /** Must be null for internal entries (physical storage is UUID-based in userData). */
-  externalPath: z.null(),
-  /** Trash timestamp (ms epoch). Non-null = trashed. Internal-only. */
-  trashedAt: TimestampSchema.nullable()
+  /**
+   * Trash timestamp (ms epoch). Optional — present and non-null when the
+   * entry is in the trash, absent when it is live. Internal entries are the
+   * only ones that can be trashed (`fe_external_no_trash` CHECK).
+   */
+  trashedAt: TimestampSchema.optional()
 })
 
-/** origin='external': Cherry references a user-provided path. `externalPath` must be a non-null absolute path. */
+/**
+ * External entry — Cherry references a user-provided path.
+ *
+ * Variant-only field: `externalPath` (absolute, canonical). `size` and
+ * `trashedAt` are absent on this variant — external files may change
+ * outside Cherry at any time so no DB size snapshot is kept (live values
+ * come from File IPC `getMetadata`), and external entries cannot be
+ * trashed (`fe_external_no_trash` CHECK). The DB row carries `size: null`
+ * and `trashedAt: null` to satisfy the table schema; the BO dispatcher
+ * drops them.
+ */
 export const ExternalEntrySchema = z.strictObject({
   ...CommonEntryFields,
   origin: z.literal('external'),
-  /**
-   * Always `null` for external entries. External files may change outside
-   * Cherry at any time, so no DB-level size snapshot is stored. Consumers that
-   * need a live value call File IPC `getMetadata(id)` which performs a single
-   * `fs.stat`. Mirrors the `fe_size_internal_only` CHECK constraint at the DB
-   * level.
-   */
-  size: z.null(),
   /** Absolute filesystem path to the user-provided file. */
-  externalPath: AbsolutePathSchema,
-  /**
-   * External entries cannot be trashed; this is always `null`. Mirrors the
-   * `fe_external_no_trash` CHECK constraint at the DB level. Removal is
-   * always immediate via `permanentDelete` (DB-only — the physical file is
-   * left untouched; path-level `@main/utils/file/fs.remove` is a separate, explicit call).
-   */
-  trashedAt: z.null()
+  externalPath: AbsolutePathSchema
 })
 
 /**

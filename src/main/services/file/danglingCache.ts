@@ -183,6 +183,11 @@ class DanglingCacheImpl implements DanglingCache {
    * on persistent FS errors (EACCES, etc.) within the TTL window.
    */
   private async doStatAndUpdate(entry: FileEntry): Promise<DanglingState> {
+    // `check()` filters internal entries before reaching here; the
+    // narrowing is restated explicitly so TS sees `externalPath` on the
+    // remaining branch without an `as` cast (the BO type no longer
+    // declares `externalPath` on the internal variant).
+    if (entry.origin !== 'external') return 'present'
     const path = entry.externalPath as FilePath
     const state = await this.statProbe(path)
     if (state === 'unknown') return 'unknown'

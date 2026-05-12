@@ -428,7 +428,7 @@ describe('FileEntryService', () => {
       expect(entry.updatedAt).toBeGreaterThan(0)
     })
 
-    it('inserts an external row with size=null', async () => {
+    it('inserts an external row with size=null in DB; size absent on BO projection', async () => {
       const id = '019606a0-0000-7000-8000-000000000a02' as FileEntryId
       const entry = await fileEntryService.create({
         id,
@@ -438,9 +438,13 @@ describe('FileEntryService', () => {
         size: null,
         externalPath: '/Users/me/doc.pdf'
       })
+      // BO shape: external variant has no `size` field at all (live values
+      // come from File IPC `getMetadata`); the DB still stores `size: null`.
       expect(entry.origin).toBe('external')
-      expect(entry.size).toBeNull()
-      expect(entry.externalPath).toBe('/Users/me/doc.pdf')
+      expect(entry).not.toHaveProperty('size')
+      if (entry.origin === 'external') {
+        expect(entry.externalPath).toBe('/Users/me/doc.pdf')
+      }
     })
 
     it('throws when external row has non-null size (CHECK fe_size_internal_only)', async () => {

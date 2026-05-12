@@ -232,10 +232,15 @@ describe('FileManager (integration)', () => {
     expect(Array.from(read.content)).toEqual([0xaa, 0xbb, 0xcc])
 
     await fm.trash(created.id)
-    expect((await fm.getById(created.id)).trashedAt).not.toBeNull()
+    const trashed = await fm.getById(created.id)
+    if (trashed.origin === 'internal') {
+      expect(typeof trashed.trashedAt).toBe('number')
+    }
 
     const restored = await fm.restore(created.id)
-    expect(restored.trashedAt).toBeNull()
+    if (restored.origin === 'internal') {
+      expect(restored.trashedAt).toBeUndefined()
+    }
 
     await fm.permanentDelete(created.id)
     await expect(fm.getById(created.id)).rejects.toThrow(/not found/i)
@@ -246,7 +251,13 @@ describe('FileManager (integration)', () => {
     await writeFile(file, 'x')
     const e = await fm.ensureExternalEntry({ externalPath: file as never })
     await expect(fm.trash(e.id)).rejects.toThrow()
-    expect((await fm.getById(e.id)).trashedAt).toBeNull()
+    // External BO has no `trashedAt` field by construction; if the trash
+    // attempt had slipped through, the DB CHECK fe_external_no_trash would
+    // have rejected it, so reading the row back must still surface as
+    // origin='external' with no trashedAt projection.
+    const refreshed = await fm.getById(e.id)
+    expect(refreshed.origin).toBe('external')
+    expect(refreshed).not.toHaveProperty('trashedAt')
   })
 
   it('INT-6: permanentDelete on external leaves user file untouched', async () => {
