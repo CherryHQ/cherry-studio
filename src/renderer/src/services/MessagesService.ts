@@ -1,3 +1,4 @@
+import { dataApiService } from '@data/DataApiService'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
@@ -12,7 +13,6 @@ import type { UseNavigateResult } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import { t } from 'i18next'
 
-import { getAssistantById } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
 
 const logger = loggerService.withContext('MessagesService')
@@ -21,10 +21,15 @@ export { getGroupedMessages } from '@renderer/utils/messageUtils/filters'
 
 export async function locateToMessage(navigate: UseNavigateResult<string>, message: Message) {
   SearchPopup.hide()
-  const assistant = getAssistantById(message.assistantId)
+  const assistantId = message.assistantId
+    ? await dataApiService
+        .get(`/assistants/${message.assistantId}`)
+        .then((a) => a?.id)
+        .catch(() => undefined)
+    : undefined
   const topic = await getTopicById(message.topicId)
 
-  void navigate({ to: '/app/chat', search: { assistantId: assistant?.id, topicId: topic?.id } })
+  void navigate({ to: '/app/chat', search: { assistantId, topicId: topic?.id } })
 
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 300)

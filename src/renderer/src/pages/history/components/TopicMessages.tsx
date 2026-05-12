@@ -1,6 +1,7 @@
 import { MessageOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
@@ -9,7 +10,6 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
 import MessageGroup from '@renderer/pages/home/Messages/MessageGroup'
-import { getAssistantById } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getGroupedMessages, locateToMessage } from '@renderer/services/MessagesService'
 import type { Topic } from '@renderer/types'
@@ -68,8 +68,15 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
 
   const onContinueChat = async (topic: Topic) => {
     SearchPopup.hide()
-    const assistant = getAssistantById(topic.assistantId)
-    void navigate({ to: '/app/chat', search: { assistantId: assistant?.id, topicId: topic.id } })
+    // Validate `topic.assistantId` against DataApi so a deleted assistant
+    // doesn't leak a dangling id into the route. Falls back to undefined.
+    const assistantId = topic.assistantId
+      ? await dataApiService
+          .get(`/assistants/${topic.assistantId}`)
+          .then((a) => a?.id)
+          .catch(() => undefined)
+      : undefined
+    void navigate({ to: '/app/chat', search: { assistantId, topicId: topic.id } })
     setTimeoutTimer('onContinueChat', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 100)
   }
 

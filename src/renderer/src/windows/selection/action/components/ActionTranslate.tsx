@@ -14,10 +14,10 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
 import ExecutionStreamCollector from '@renderer/pages/home/Messages/ExecutionStreamCollector'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
-import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
+import { resolveTranslatePayload } from '@renderer/services/TranslateService'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
-import type { Assistant, TranslateLanguage } from '@renderer/types'
+import type { TranslateLanguage } from '@renderer/types'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
@@ -69,11 +69,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [showOriginal, setShowOriginal] = useState(false)
   const [initialized, setInitialized] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [activeAssistant, setActiveAssistant] = useState<Assistant | null>(null)
-  // Temporary in-memory topic leased for this translate session.
-  const { topicId: temporaryTopicId, ready: isTopicReady } = useTemporaryTopic({
-    assistantId: activeAssistant?.id
-  })
+  // Temporary in-memory topic leased for this translate session. No persisted
+  // assistant is attached — main resolves the model directly from the IPC payload.
+  const { topicId: temporaryTopicId, ready: isTopicReady } = useTemporaryTopic({ enabled: true })
 
   // Use useRef for values that shouldn't trigger re-renders
   const targetLangRef = useRef(targetLanguage)
@@ -131,12 +129,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     await updateLanguagePair()
     logger.silly('[initialize] UpdateLanguagePair completed.')
 
-    // Initialize assistant — topic is leased asynchronously via useTemporaryTopic.
-    const currentAssistant = await getDefaultTranslateAssistant(targetLangRef.current, action.selectedText)
-
-    setActiveAssistant(currentAssistant)
     setInitialized(true)
-  }, [action.selectedText, initialized, isLanguagesLoaded, updateLanguagePair])
+  }, [initialized, isLanguagesLoaded, updateLanguagePair])
 
   // Try to initialize when:
   // 1. action.selectedText change (generally will not)
@@ -252,14 +246,14 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
     setActualTargetLanguage(translateLang)
 
-    const assistant = await getDefaultTranslateAssistant(translateLang, action.selectedText)
-    setActiveAssistant(assistant)
+    const { content } = await resolveTranslatePayload(translateLang, action.selectedText)
     logger.debug('Run translate action stream')
 
     setCompletionError(null)
     setIsPreparing(true)
-    // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
-    void sendMessage({ text: assistant.content })
+    // The temp topic has no assistant attached — main reads the translate
+    // model from the `feature.translate.model_id` preference on its end.
+    void sendMessage({ text: content })
   }, [
     action,
     temporaryTopicId,
