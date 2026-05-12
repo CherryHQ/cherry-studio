@@ -130,7 +130,6 @@ describe('useProviderEditor', () => {
       expect(createProviderMock).toHaveBeenCalledWith({
         providerId: 'new-provider-id',
         name: 'My Provider',
-        presetProviderId: 'openai',
         defaultChatEndpoint: endpoint
       })
       expect(onProviderCreatedMock).toHaveBeenCalledWith('new-provider-id')
