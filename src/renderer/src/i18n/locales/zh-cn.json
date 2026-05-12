@@ -1559,8 +1559,9 @@
         "collapse": "折叠话题",
         "earlier": "更早",
         "show_more": "显示更多话题",
+        "this_week": "本周",
         "today": "今天",
-        "within_week": "一周内"
+        "yesterday": "昨天"
       },
       "list": "话题列表",
       "manage": {
