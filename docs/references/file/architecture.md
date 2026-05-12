@@ -881,11 +881,16 @@ BeforeReady (parallel with app.whenReady(), no Electron API)
 
 WhenReady (after app.whenReady(), Electron API available)
 +-- FileManager                  -- entry coordination + IPC + event broadcast
-      @DependsOn(DbService, WindowManager)
-      onInit(): registers IPC, inits LRU cache, inits DanglingCache reverse
-                index from DB, wires mutation events to WindowManager
-                broadcast (see §3.6), FIRES background orphan sweep
-                (sweep runs async; does NOT block ready)
+      @Injectable + @ServicePhase(WhenReady)
+      (no @DependsOn in Phase 1 — DbService is BeforeReady and phase
+       ordering handles it automatically per the lifecycle decorator
+       rules; WindowManager dep lands together with the §3.6 broadcast
+       pipeline in Phase 2)
+      onInit(): awaits DanglingCache.initFromDb(), inline-registers the
+                two Phase 1 IPC channels (File_GetDanglingState +
+                File_BatchGetDanglingStates), fires runStartupSweeps()
+                (FS-level + DB-level orphan passes; runs async; does NOT
+                block ready)
 
 Background (fire-and-forget, non-blocking)
 +-- OrphanRefScanner             -- delayed 30s, scan orphan refs
