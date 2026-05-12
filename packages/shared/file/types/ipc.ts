@@ -158,27 +158,37 @@ export type EnsureExternalEntryIpcParams = {
 // ─── IPC Result ───
 
 /**
- * Aggregate result of a batch operation.
+ * Result shape for batch *mutations* on existing entries — `batchTrash`,
+ * `batchRestore`, `batchPermanentDelete`. Each input is a `FileEntryId`, so
+ * both halves of the result are id-keyed.
  *
- * `failed` is a discriminated union: exactly one of `id` / `sourceRef` is
- * present per entry, enforced by the type system so a handler returning a
- * malformed entry (`{ error }` alone, or `{ id, sourceRef, error }`) stops
- * compiling instead of leaking into renderer consumers.
- *
- * - **id-bearing**: the input was an existing FileEntryId (batchTrash,
- *   batchRestore, batchPermanentDelete).
- * - **sourceRef-bearing**: create-side batches that never materialized an
- *   entry — batchCreateInternalEntries carries an opaque caller-provided
- *   index/label; batchEnsureExternalEntries carries the input externalPath.
- *
- * Consumer narrowing (`if (item.id) … else if (item.sourceRef) …`) keeps
- * working — TypeScript narrows the union on the truthy branch.
+ * `succeeded` and `failed` together cover the input set exactly once. Order
+ * within `succeeded` matches the input order; order within `failed` is
+ * insertion order from the underlying loop.
  */
-export interface BatchOperationResult {
+export interface BatchMutationResult {
   succeeded: FileEntryId[]
-  failed: Array<
-    { id: FileEntryId; sourceRef?: never; error: string } | { id?: never; sourceRef: string; error: string }
-  >
+  failed: Array<{ id: FileEntryId; error: string }>
+}
+
+/**
+ * Result shape for batch *creation* of entries — `batchCreateInternalEntries`,
+ * `batchEnsureExternalEntries`. Inputs carry no pre-existing id, so every
+ * entry on both `succeeded` and `failed` is keyed by an opaque `sourceRef`
+ * supplied by the producer:
+ *
+ * - `batchCreateInternalEntries` uses an input-index label (`#0`, `#1`, …).
+ * - `batchEnsureExternalEntries` uses the input `externalPath`.
+ *
+ * `succeeded` items carry both the freshly-created `id` and the originating
+ * `sourceRef`, so callers can correlate created entries back to the input
+ * array without re-deriving from positional ordering (which is brittle when
+ * within-batch dedup collapses two inputs to one row). `failed` items carry
+ * only `sourceRef` because no id was ever materialized.
+ */
+export interface BatchCreateResult {
+  succeeded: Array<{ id: FileEntryId; sourceRef: string }>
+  failed: Array<{ sourceRef: string; error: string }>
 }
 
 // ─── File IPC API ───
@@ -277,7 +287,7 @@ export interface FileIpcApi {
    * Batch version of `createInternalEntry`. Each item produces an independent new entry.
    * @phase 2 — not yet wired
    */
-  batchCreateInternalEntries(items: CreateInternalEntryIpcParams[]): Promise<BatchOperationResult>
+  batchCreateInternalEntries(items: CreateInternalEntryIpcParams[]): Promise<BatchCreateResult>
 
   /**
    * Batch version of `ensureExternalEntry`. Each item is individually upserted
@@ -285,7 +295,7 @@ export interface FileIpcApi {
    *
    * @phase 2 — not yet wired
    */
-  batchEnsureExternalEntries(items: EnsureExternalEntryIpcParams[]): Promise<BatchOperationResult>
+  batchEnsureExternalEntries(items: EnsureExternalEntryIpcParams[]): Promise<BatchCreateResult>
 
   // ─── C. Read / Metadata (accepts FileHandle) ───
   //
@@ -432,17 +442,17 @@ export interface FileIpcApi {
    * Batch trash — internal-origin only; external ids fail like `trash`.
    * @phase 2 — not yet wired
    */
-  batchTrash(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
+  batchTrash(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
   /**
    * Batch restore — internal-origin only; external ids fail like `restore`.
    * @phase 2 — not yet wired
    */
-  batchRestore(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
+  batchRestore(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
   /**
    * Batch permanently delete entries (DB row always removed; physical FS follows origin rules above).
    * @phase 2 — not yet wired
    */
-  batchPermanentDelete(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
+  batchPermanentDelete(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
 
   // ─── F. Rename ───
   //

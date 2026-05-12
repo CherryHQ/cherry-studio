@@ -18,7 +18,7 @@
 import { loggerService } from '@logger'
 import { remove as fsRemove } from '@main/utils/file/fs'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
-import type { BatchOperationResult, FilePath } from '@shared/file/types'
+import type { BatchMutationResult, FilePath } from '@shared/file/types'
 
 import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
@@ -60,16 +60,16 @@ export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): P
 async function aggregate<T>(
   ids: readonly FileEntryId[],
   op: (id: FileEntryId) => Promise<T>
-): Promise<BatchOperationResult> {
+): Promise<BatchMutationResult> {
   const succeeded: FileEntryId[] = []
-  const failed: BatchOperationResult['failed'] = []
+  const failed: BatchMutationResult['failed'] = []
   for (const id of ids) {
     try {
       await op(id)
       succeeded.push(id)
     } catch (err) {
       // Wire format only carries `.message` (string), so the stack is lost in
-      // BatchOperationResult. Side-channel through the logger keeps it
+      // BatchMutationResult. Side-channel through the logger keeps it
       // available for postmortem without changing the consumer-facing shape.
       logger.warn('batch op item failed', { id, err })
       failed.push({ id, error: (err as Error).message })
@@ -78,17 +78,14 @@ async function aggregate<T>(
   return { succeeded, failed }
 }
 
-export function batchTrash(deps: FileManagerDeps, ids: readonly FileEntryId[]): Promise<BatchOperationResult> {
+export function batchTrash(deps: FileManagerDeps, ids: readonly FileEntryId[]): Promise<BatchMutationResult> {
   return aggregate(ids, (id) => trash(deps, id))
 }
 
-export function batchRestore(deps: FileManagerDeps, ids: readonly FileEntryId[]): Promise<BatchOperationResult> {
+export function batchRestore(deps: FileManagerDeps, ids: readonly FileEntryId[]): Promise<BatchMutationResult> {
   return aggregate(ids, (id) => restore(deps, id))
 }
 
-export function batchPermanentDelete(
-  deps: FileManagerDeps,
-  ids: readonly FileEntryId[]
-): Promise<BatchOperationResult> {
+export function batchPermanentDelete(deps: FileManagerDeps, ids: readonly FileEntryId[]): Promise<BatchMutationResult> {
   return aggregate(ids, (id) => permanentDelete(deps, id))
 }

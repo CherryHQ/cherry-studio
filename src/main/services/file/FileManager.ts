@@ -110,7 +110,8 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import type {
-  BatchOperationResult,
+  BatchCreateResult,
+  BatchMutationResult,
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
   FilePath,
@@ -309,14 +310,14 @@ export interface IFileManager {
   ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry>
 
   /** Batch version of `createInternalEntry`. Each item produces an independent new entry. */
-  batchCreateInternalEntries(items: CreateInternalEntryParams[]): Promise<BatchOperationResult>
+  batchCreateInternalEntries(items: CreateInternalEntryParams[]): Promise<BatchCreateResult>
 
   /**
    * Batch version of `ensureExternalEntry`. Within-batch path duplicates are
    * coalesced to a single entry in the result (the second occurrence reuses
    * the just-inserted row).
    */
-  batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchOperationResult>
+  batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchCreateResult>
 
   // ─── Reading ───
 
@@ -431,10 +432,10 @@ export interface IFileManager {
   permanentDelete(id: FileEntryId): Promise<void>
 
   /** Batch internal-only — external ids in the batch will fail with the same error as `trash`. */
-  batchTrash(ids: FileEntryId[]): Promise<BatchOperationResult>
+  batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
   /** Batch internal-only — external ids fail like `restore`. */
-  batchRestore(ids: FileEntryId[]): Promise<BatchOperationResult>
-  batchPermanentDelete(ids: FileEntryId[]): Promise<BatchOperationResult>
+  batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult>
+  batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult>
 
   // ─── 3rd-party Library Escape Hatch ───
 
@@ -656,30 +657,36 @@ export class FileManager extends BaseService {
     return internalCreateInternal(this.deps, params)
   }
 
-  async batchCreateInternalEntries(items: CreateInternalEntryParams[]): Promise<BatchOperationResult> {
-    return aggregateCreate(items, (p) => this.createInternalEntry(p))
+  async batchCreateInternalEntries(items: CreateInternalEntryParams[]): Promise<BatchCreateResult> {
+    return aggregateCreate(
+      items,
+      (_, index) => `#${index}`,
+      (p) => this.createInternalEntry(p)
+    )
   }
 
-  async batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchOperationResult> {
+  async batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchCreateResult> {
     // Within-batch path duplicates resolve to the same entry per the public
     // contract; the second occurrence reuses the just-inserted row. The
     // canonical-path memoization here ensures both items end up in
-    // `succeeded` even though only one DB insert happens.
+    // `succeeded` even though only one DB insert happens — and each carries
+    // its own `sourceRef`, so the caller can still correlate every input.
     const seen = new Map<string, FileEntry>()
-    const succeeded: FileEntryId[] = []
-    const failed: BatchOperationResult['failed'] = []
+    const succeeded: BatchCreateResult['succeeded'] = []
+    const failed: BatchCreateResult['failed'] = []
     for (const params of items) {
+      const sourceRef = params.externalPath
       try {
         const canonical = canonicalizeExternalPath(params.externalPath)
         const cached = seen.get(canonical)
         const entry = cached ?? (await this.ensureExternalEntry(params))
         if (!cached) seen.set(canonical, entry)
-        succeeded.push(entry.id)
+        succeeded.push({ id: entry.id, sourceRef })
       } catch (err) {
         // Wire format only carries `.message`; preserve the stack via the
         // logger side-channel for postmortem.
-        fileManagerLogger.warn('batchEnsureExternalEntries item failed', { sourceRef: params.externalPath, err })
-        failed.push({ sourceRef: params.externalPath, error: (err as Error).message })
+        fileManagerLogger.warn('batchEnsureExternalEntries item failed', { sourceRef, err })
+        failed.push({ sourceRef, error: (err as Error).message })
       }
     }
     return { succeeded, failed }
@@ -740,15 +747,15 @@ export class FileManager extends BaseService {
     return internalPermanentDelete(this.deps, id)
   }
 
-  async batchTrash(ids: FileEntryId[]): Promise<BatchOperationResult> {
+  async batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
     return internalBatchTrash(this.deps, ids)
   }
 
-  async batchRestore(ids: FileEntryId[]): Promise<BatchOperationResult> {
+  async batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult> {
     return internalBatchRestore(this.deps, ids)
   }
 
-  async batchPermanentDelete(ids: FileEntryId[]): Promise<BatchOperationResult> {
+  async batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult> {
     return internalBatchPermanentDelete(this.deps, ids)
   }
 
@@ -820,20 +827,22 @@ export class FileManager extends BaseService {
 
 async function aggregateCreate<P>(
   items: readonly P[],
+  resolveSourceRef: (p: P, index: number) => string,
   op: (p: P) => Promise<FileEntry>
-): Promise<BatchOperationResult> {
-  const succeeded: FileEntryId[] = []
-  const failed: BatchOperationResult['failed'] = []
+): Promise<BatchCreateResult> {
+  const succeeded: BatchCreateResult['succeeded'] = []
+  const failed: BatchCreateResult['failed'] = []
   for (let i = 0; i < items.length; i++) {
+    const sourceRef = resolveSourceRef(items[i], i)
     try {
       const entry = await op(items[i])
-      succeeded.push(entry.id)
+      succeeded.push({ id: entry.id, sourceRef })
     } catch (err) {
-      // No FileEntryId yet (insert never happened); report by input index so
+      // No FileEntryId yet (insert never happened); report by sourceRef so
       // callers can correlate with the original `items` array. Wire format
       // carries `.message`; side-channel the full err for stack preservation.
-      fileManagerLogger.warn('batch create item failed', { sourceRef: `#${i}`, err })
-      failed.push({ sourceRef: `#${i}`, error: (err as Error).message })
+      fileManagerLogger.warn('batch create item failed', { sourceRef, err })
+      failed.push({ sourceRef, error: (err as Error).message })
     }
   }
   return { succeeded, failed }

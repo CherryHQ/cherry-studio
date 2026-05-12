@@ -192,7 +192,7 @@ describe('internal/entry/lifecycle', () => {
     })
 
     it('side-channels the full Error object through logger.warn so the stack is preserved', async () => {
-      // Regression guard for 5bcf03529: BatchOperationResult.failed[].error is
+      // Regression guard for 5bcf03529: BatchMutationResult.failed[].error is
       // a string for IPC serialisation, so the wire format drops the stack.
       // The fix routes the original Error through logger.warn as { id, err };
       // a refactor to logger.warn(..., { id, msg: err.message }) would satisfy
