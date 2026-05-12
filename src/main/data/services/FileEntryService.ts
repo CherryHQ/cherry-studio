@@ -22,7 +22,7 @@ import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import { FileEntrySchema } from '@shared/data/types/file'
-import { and, asc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
 /** Columns a caller may provide on insert (id defaults to a fresh UUID v7 when omitted). */
@@ -59,6 +59,23 @@ export interface FindEntriesQuery {
   readonly offset?: number
 }
 
+export type ListPagedSortBy = 'name' | 'createdAt' | 'updatedAt' | 'size'
+
+export interface ListPagedQuery {
+  readonly origin?: FileEntryOrigin
+  readonly inTrash?: boolean
+  readonly sortBy?: ListPagedSortBy
+  readonly sortOrder?: 'asc' | 'desc'
+  readonly page?: number
+  readonly limit?: number
+}
+
+export interface ListPagedResult {
+  readonly items: FileEntry[]
+  readonly total: number
+  readonly page: number
+}
+
 export interface FileEntryService {
   /** Return the entry, or `null` if not found. Trashed entries are included. */
   findById(id: FileEntryId): Promise<FileEntry | null>
@@ -92,6 +109,21 @@ export interface FileEntryService {
 
   /** Flat listing. Trashed filter defaults to "active only" when `inTrash` is omitted. */
   findMany(query?: FindEntriesQuery): Promise<FileEntry[]>
+
+  /**
+   * Page-and-count list backing `GET /files/entries`. Returns `{ items, total, page }`
+   * matching the DataApi `OffsetPaginationResponse<FileEntry>` shape, doing the
+   * select + count in a single round-trip via `Promise.all`.
+   *
+   * Defaults: `page = 1`, `limit = 50`, `sortBy = 'createdAt'`, `sortOrder = 'asc'`.
+   * Trashed filter defaults to "active only" when `inTrash` is omitted, matching
+   * `findMany`.
+   *
+   * `sortBy: 'size'` is only meaningful within an `origin='internal'` filter
+   * (external rows have `size IS NULL`); see the schema-level JSDoc for the
+   * mixed-origin caveat.
+   */
+  listPaged(query?: ListPagedQuery): Promise<ListPagedResult>
 
   /**
    * Active (non-trashed) entries with zero `file_ref` rows pointing at them.
@@ -198,6 +230,48 @@ class FileEntryServiceImpl implements FileEntryService {
 
     const rows = await queryBuilder
     return rows.map(rowToFileEntry)
+  }
+
+  async listPaged(query: ListPagedQuery = {}): Promise<ListPagedResult> {
+    const conditions: SQL[] = []
+    if (query.origin) {
+      conditions.push(eq(fileEntryTable.origin, query.origin))
+    }
+    if (query.inTrash === true) {
+      conditions.push(isNotNull(fileEntryTable.trashedAt))
+    } else {
+      conditions.push(isNull(fileEntryTable.trashedAt))
+    }
+    const where = and(...conditions)
+
+    const sortColumn = (() => {
+      switch (query.sortBy) {
+        case 'name':
+          return fileEntryTable.name
+        case 'updatedAt':
+          return fileEntryTable.updatedAt
+        case 'size':
+          return fileEntryTable.size
+        default:
+          return fileEntryTable.createdAt
+      }
+    })()
+    const order = query.sortOrder === 'desc' ? desc(sortColumn) : asc(sortColumn)
+
+    const page = query.page ?? 1
+    const pageSize = query.limit ?? 50
+    const offset = (page - 1) * pageSize
+
+    const [rows, totalRow] = await Promise.all([
+      this.getDb().select().from(fileEntryTable).where(where).orderBy(order).limit(pageSize).offset(offset),
+      this.getDb().select({ value: count() }).from(fileEntryTable).where(where)
+    ])
+
+    return {
+      items: rows.map(rowToFileEntry),
+      total: totalRow[0]?.value ?? 0,
+      page
+    }
   }
 
   async findUnreferenced(query: { origin?: FileEntryOrigin } = {}): Promise<FileEntry[]> {

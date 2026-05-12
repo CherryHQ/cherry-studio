@@ -272,6 +272,134 @@ describe('FileEntryService', () => {
     })
   })
 
+  describe('listPaged', () => {
+    async function seed5(): Promise<void> {
+      const now = Date.now()
+      const rows = Array.from({ length: 5 }, (_, i) => ({
+        id: `019606a0-0000-7000-8000-0000000000b${i}`,
+        origin: 'internal' as const,
+        name: `name${i}`,
+        ext: 'txt',
+        size: i + 1,
+        externalPath: null,
+        trashedAt: null,
+        createdAt: now + i,
+        updatedAt: now + i
+      }))
+      await dbh.db.insert(fileEntryTable).values(rows)
+    }
+
+    it('returns { items, total, page } with active-only filtering by default', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-0000000000c0' as FileEntryId,
+          origin: 'internal',
+          name: 'a',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          trashedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000c1' as FileEntryId,
+          origin: 'internal',
+          name: 'b',
+          ext: 'txt',
+          size: 2,
+          externalPath: null,
+          trashedAt: now,
+          createdAt: now,
+          updatedAt: now
+        }
+      ])
+
+      const result = await fileEntryService.listPaged()
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0].name).toBe('a')
+      expect(result.total).toBe(1)
+      expect(result.page).toBe(1)
+    })
+
+    it('paginates with page+limit and reports the true total across pages', async () => {
+      await seed5()
+
+      const page1 = await fileEntryService.listPaged({ page: 1, limit: 2 })
+      const page2 = await fileEntryService.listPaged({ page: 2, limit: 2 })
+      const page3 = await fileEntryService.listPaged({ page: 3, limit: 2 })
+
+      expect(page1.items).toHaveLength(2)
+      expect(page1.total).toBe(5)
+      expect(page2.items).toHaveLength(2)
+      expect(page2.total).toBe(5)
+      expect(page3.items).toHaveLength(1)
+      expect(page3.total).toBe(5)
+      expect(page3.page).toBe(3)
+    })
+
+    it('sorts ascending by createdAt by default; reverses with sortOrder=desc', async () => {
+      await seed5()
+
+      const asc = await fileEntryService.listPaged({})
+      expect(asc.items.map((e) => e.name)).toEqual(['name0', 'name1', 'name2', 'name3', 'name4'])
+
+      const desc = await fileEntryService.listPaged({ sortOrder: 'desc' })
+      expect(desc.items.map((e) => e.name)).toEqual(['name4', 'name3', 'name2', 'name1', 'name0'])
+    })
+
+    it('sortBy=name orders by name lexicographically', async () => {
+      const now = Date.now()
+      // Out-of-order createdAt to ensure sortBy=name is what is being verified
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: '019606a0-0000-7000-8000-0000000000d0' as FileEntryId,
+          origin: 'internal',
+          name: 'charlie',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          trashedAt: null,
+          createdAt: now + 2,
+          updatedAt: now + 2
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000d1' as FileEntryId,
+          origin: 'internal',
+          name: 'alpha',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          trashedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: '019606a0-0000-7000-8000-0000000000d2' as FileEntryId,
+          origin: 'internal',
+          name: 'bravo',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          trashedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        }
+      ])
+
+      const result = await fileEntryService.listPaged({ sortBy: 'name' })
+      expect(result.items.map((e) => e.name)).toEqual(['alpha', 'bravo', 'charlie'])
+    })
+
+    it('returns { items: [], total: 0 } on an empty table', async () => {
+      const result = await fileEntryService.listPaged()
+      expect(result.items).toEqual([])
+      expect(result.total).toBe(0)
+      expect(result.page).toBe(1)
+    })
+  })
+
   describe('create', () => {
     it('inserts an internal row and returns a parsed FileEntry', async () => {
       const id = '019606a0-0000-7000-8000-000000000a01' as FileEntryId

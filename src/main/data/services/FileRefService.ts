@@ -25,7 +25,7 @@ import { application } from '@application'
 import { fileRefTable } from '@data/db/schemas/file'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import { FileRefSchema } from '@shared/data/types/file'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, count, eq, inArray } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 export interface FileRefSourceKey {
@@ -69,6 +69,14 @@ export interface FileRefService {
    * Backs OrphanRefScanner — the only consumer.
    */
   listDistinctSourceIds(sourceType: FileRefSourceType): Promise<string[]>
+
+  /**
+   * Pure-SQL ref-count aggregation for a batch of entry ids — `COUNT(*) … GROUP BY
+   * fileEntryId`, chunked against SQLite's `IN (?, …)` parameter cap. Entries
+   * with no refs are absent from the map; callers should treat missing keys as
+   * zero.
+   */
+  countByEntryIds(ids: readonly FileEntryId[]): Promise<Map<FileEntryId, number>>
 }
 
 /**
@@ -172,6 +180,24 @@ class FileRefServiceImpl implements FileRefService {
       .from(fileRefTable)
       .where(eq(fileRefTable.sourceType, sourceType))
     return rows.map((r) => r.sourceId)
+  }
+
+  async countByEntryIds(ids: readonly FileEntryId[]): Promise<Map<FileEntryId, number>> {
+    const counts = new Map<FileEntryId, number>()
+    if (ids.length === 0) return counts
+    for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
+      const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
+      const rows = await this.getDb()
+        .select({
+          entryId: fileRefTable.fileEntryId,
+          refCount: count()
+        })
+        .from(fileRefTable)
+        .where(inArray(fileRefTable.fileEntryId, chunk))
+        .groupBy(fileRefTable.fileEntryId)
+      for (const r of rows) counts.set(r.entryId, r.refCount)
+    }
+    return counts
   }
 }
 

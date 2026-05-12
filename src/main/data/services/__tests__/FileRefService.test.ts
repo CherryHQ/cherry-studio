@@ -286,4 +286,57 @@ describe('FileRefService', () => {
       expect(await fileRefService.listDistinctSourceIds('temp_session')).toEqual(['in-temp'])
     })
   })
+
+  describe('countByEntryIds', () => {
+    it('returns an empty map for an empty input list', async () => {
+      const result = await fileRefService.countByEntryIds([])
+      expect(result.size).toBe(0)
+    })
+
+    it('counts refs per fileEntryId; entries without refs are absent from the map', async () => {
+      const idA = '019606a0-0000-7000-8000-00000000ee01' as FileEntryId
+      const idB = '019606a0-0000-7000-8000-00000000ee02' as FileEntryId
+      const idC = '019606a0-0000-7000-8000-00000000ee03' as FileEntryId
+      await seedEntry(idA)
+      await seedEntry(idB)
+      await seedEntry(idC)
+
+      const now = Date.now()
+      await dbh.db.insert(fileRefTable).values([
+        {
+          id: uuidv4(),
+          fileEntryId: idA,
+          sourceType: 'temp_session',
+          sourceId: 's1',
+          role: 'pending',
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: uuidv4(),
+          fileEntryId: idA,
+          sourceType: 'temp_session',
+          sourceId: 's2',
+          role: 'pending',
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: uuidv4(),
+          fileEntryId: idB,
+          sourceType: 'temp_session',
+          sourceId: 's1',
+          role: 'pending',
+          createdAt: now,
+          updatedAt: now
+        }
+      ])
+
+      const result = await fileRefService.countByEntryIds([idA, idB, idC])
+      expect(result.get(idA)).toBe(2)
+      expect(result.get(idB)).toBe(1)
+      // idC has no refs — absent from the map; handler treats missing as 0.
+      expect(result.has(idC)).toBe(false)
+    })
+  })
 })
