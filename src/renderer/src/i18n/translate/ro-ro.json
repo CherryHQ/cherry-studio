@@ -6067,6 +6067,7 @@
         "title": "Verbozitate"
       }
     },
+    "parameter_settings": "Setări parametri",
     "plugins": {
       "bunDescription": "Runtime JavaScript folosit de serviciile MCP și de toolchain-urile aferente.",
       "description": "Gestionați instrumentele binare și dependențele de runtime necesare aplicației.",

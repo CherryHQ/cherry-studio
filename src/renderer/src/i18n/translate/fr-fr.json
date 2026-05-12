@@ -6067,6 +6067,7 @@
         "title": "niveau de détail"
       }
     },
+    "parameter_settings": "Réglages des paramètres",
     "plugins": {
       "bunDescription": "Runtime JavaScript utilisé par les services MCP et les chaînes d'outils associées.",
       "description": "Gérez les outils binaires et les dépendances d'exécution requises par l'application.",

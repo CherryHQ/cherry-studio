@@ -6067,6 +6067,7 @@
         "title": "詳細度"
       }
     },
+    "parameter_settings": "パラメータ設定",
     "plugins": {
       "bunDescription": "MCPサービスおよび関連ツールチェーンで使用されるJavaScriptランタイム。",
       "description": "アプリに必要なバイナリツールとランタイム依存関係を管理します。",

@@ -6067,6 +6067,7 @@
         "title": "Tính dài dòng"
       }
     },
+    "parameter_settings": "Cài đặt tham số",
     "plugins": {
       "bunDescription": "Trình thực thi JavaScript được sử dụng bởi các dịch vụ MCP và các công cụ liên quan.",
       "description": "Quản lý các công cụ nhị phân và phụ thuộc runtime cần thiết cho ứng dụng.",

@@ -6128,6 +6128,7 @@
         "title": "详细程度"
       }
     },
+    "parameter_settings": "参数设置",
     "plugins": {
       "bunDescription": "用于 MCP 服务和相关工具链的 JavaScript 运行时。",
       "description": "管理应用运行所需的二进制工具和运行时依赖。",

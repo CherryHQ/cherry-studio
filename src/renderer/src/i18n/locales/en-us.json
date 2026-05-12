@@ -6128,6 +6128,7 @@
         "title": "Verbosity"
       }
     },
+    "parameter_settings": "Parameter Settings",
     "plugins": {
       "bunDescription": "JavaScript runtime used by MCP services and related toolchains.",
       "description": "Manage binary tools and runtime dependencies required by the app.",
