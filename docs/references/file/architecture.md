@@ -240,6 +240,15 @@ Other services in the main process can call the FS primitives (`@main/utils/file
 
 ### 3.3 IPC Method Categories
 
+> **Phase 1 vs Phase 2 wiring.** Only `getDanglingState` and
+> `batchGetDanglingStates` have a registered IPC channel in this PR
+> (see `packages/shared/IpcChannel.ts:258-259`); every other row in
+> the tables below is type-declared on `FileIpcApi` but its channel
+> lands in a Phase 2 PR alongside the first FileManager consumer of
+> that method. The matching `@phase` JSDoc tag on each method in
+> `packages/shared/file/types/ipc.ts` is the source of truth for the
+> wiring status; treat the tables here as the design roadmap.
+
 All operations that can act on any file (FileEntry or arbitrary path) **accept a `FileHandle` tagged union** (`{ kind: 'entry', entryId } | { kind: 'path', path }`). Handlers dispatch by `handle.kind` to FileManager (entry branch) or the FS primitives (path branch).
 
 **Operations that accept FileHandle (entry + path branches unified)**:
