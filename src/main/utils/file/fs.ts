@@ -322,7 +322,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
       // Same rationale as _final: surface non-ENOENT cleanup failures so
       // operators can find the leaked tmp blob; never block destroy on
       // cleanup outcome.
-      bestEffortUnlinkTmp(this.tmp, this.target).finally(() => callback(err))
+      void bestEffortUnlinkTmp(this.tmp, this.target).finally(() => callback(err))
     }
     if (this.underlying.destroyed) {
       cleanup()
