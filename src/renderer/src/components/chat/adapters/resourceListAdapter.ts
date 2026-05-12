@@ -1,12 +1,15 @@
 import type { Topic } from '@renderer/types'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { Assistant } from '@shared/data/types/assistant'
 
-export type ChatResourceKind = 'topic' | 'session'
+export type ChatResourceKind = 'topic' | 'session' | 'assistant'
 
 export type ChatResourceStatus = 'idle' | 'active' | 'streaming' | 'loading' | 'error' | 'disabled'
 
 export interface ChatResourceItem<Meta extends Record<string, unknown> = Record<string, unknown>> {
   id: string
+  name: string
+  description?: string
   kind: ChatResourceKind
   title: string
   subtitle?: string
@@ -54,6 +57,8 @@ export function adaptTopicResource(
 
   return {
     id: topic.id,
+    name: topic.name,
+    description: options.subtitle ?? topic.prompt,
     kind: 'topic',
     title: topic.name,
     subtitle: options.subtitle ?? topic.prompt,
@@ -74,6 +79,8 @@ export function adaptSessionResource(
 
   return {
     id: session.id,
+    name: session.name,
+    description: options.subtitle ?? session.description,
     kind: 'session',
     title: session.name,
     subtitle: options.subtitle ?? session.description,
@@ -90,7 +97,35 @@ export function adaptSessionResource(
   }
 }
 
+export function adaptAssistantResource(
+  assistant: Pick<Assistant, 'id' | 'name' | 'emoji' | 'description' | 'createdAt' | 'updatedAt'>,
+  options: ResourceAdapterOptions = {}
+): ChatResourceItem {
+  const active = options.active ?? false
+  const disabled = options.disabled ?? false
+
+  return {
+    id: assistant.id,
+    name: assistant.name,
+    description: options.subtitle ?? assistant.description,
+    kind: 'assistant',
+    title: assistant.name,
+    subtitle: options.subtitle ?? assistant.description,
+    status: normalizeStatus({ active, disabled, status: options.status }),
+    pinned: options.pinned ?? false,
+    active,
+    disabled,
+    meta: {
+      emoji: assistant.emoji,
+      createdAt: assistant.createdAt,
+      updatedAt: assistant.updatedAt,
+      ...options.meta
+    }
+  }
+}
+
 export const ResourceListAdapter = {
+  fromAssistant: adaptAssistantResource,
   fromTopic: adaptTopicResource,
   fromSession: adaptSessionResource
 }

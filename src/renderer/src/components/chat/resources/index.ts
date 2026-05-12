@@ -16,7 +16,13 @@ export type {
 export { ResourceList, useResourceList } from './ResourceList'
 export {
   AgentResourceList,
+  type AssistantListActionContext,
+  type AssistantListActionHandlers,
+  AssistantListV2,
+  type AssistantListV2Labels,
+  type AssistantListV2Props,
   AssistantResourceList,
+  createAssistantListActionRegistry,
   HistoryResourceList,
   SessionResourceList,
   TopicResourceList

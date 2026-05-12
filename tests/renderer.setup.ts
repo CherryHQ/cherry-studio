@@ -212,6 +212,12 @@ vi.mock('@cherrystudio/ui', () => {
         children
       ),
     ContextMenuSeparator: (props) => React.createElement('div', { ...props, 'data-testid': 'context-menu-separator' }),
+    ContextMenuSub: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'context-menu-sub' }, children),
+    ContextMenuSubTrigger: ({ children, ...props }) =>
+      React.createElement('button', { ...props, type: 'button', 'data-testid': 'context-menu-sub-trigger' }, children),
+    ContextMenuSubContent: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'context-menu-sub-content' }, children),
     ImagePreviewContextMenu: ({ actions = [], children, context, item }) =>
       React.createElement(
         'div',
@@ -502,6 +508,8 @@ vi.mock('@cherrystudio/ui', () => {
           onChange?.(event.target.value === '' ? null : event.target.valueAsNumber)
       }),
     Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
+    EmptyState: ({ children, preset, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'empty-state', 'data-preset': preset }, children),
     HelpTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'help-tooltip' }, children),
     InfoTooltip: ({ children, ...props }) =>

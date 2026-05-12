@@ -14,6 +14,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import { cn } from '@renderer/utils/style'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { ChevronDown, SearchIcon } from 'lucide-react'
 import type { ComponentProps, CSSProperties, ReactNode, Ref } from 'react'
 import { useCallback, useMemo, useReducer, useRef } from 'react'
 
@@ -178,7 +179,10 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         groups.set(group.id, { group, items: [item] })
       }
     }
-    return [...groups.values()]
+    return [...groups.values()].map(({ group, items }) => ({
+      group: { ...group, count: group.count ?? items.length },
+      items
+    }))
   }, [groupBy, viewItems])
 
   const actions = useMemo(
@@ -214,7 +218,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
 
   const context = useMemo<ResourceListContextValue<T>>(
     () => ({
-      state: { ...state, selectedId: selectedIdProp ?? state.selectedId, status },
+      state: { ...state, selectedId: selectedIdProp !== undefined ? selectedIdProp : state.selectedId, status },
       actions,
       meta: {
         variant,
@@ -265,24 +269,96 @@ function Frame({ className, ref, ...props }: FrameProps) {
     <div
       ref={ref}
       data-resource-list-variant={meta.variant}
-      className={cn('flex min-h-0 flex-1 flex-col overflow-hidden bg-sidebar text-foreground', className)}
+      className={cn('flex min-h-0 flex-1 flex-col overflow-hidden bg-sidebar text-sidebar-foreground', className)}
       {...props}
     />
   )
 }
 
 type SearchProps = Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> & {
+  icon?: ReactNode
+  wrapperClassName?: string
   ref?: Ref<HTMLInputElement>
 }
 
-function Search({ className, ref, ...props }: SearchProps) {
+function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProps) {
   const { actions, state } = useResourceList()
+  const searchIcon = icon === undefined ? <SearchIcon size={15} /> : icon
   return (
-    <Input
+    <div className={cn('relative', wrapperClassName)}>
+      {searchIcon && (
+        <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 flex text-muted-foreground">
+          {searchIcon}
+        </span>
+      )}
+      <Input
+        ref={ref}
+        value={state.query}
+        onChange={(event) => actions.setQuery(event.target.value)}
+        className={cn(
+          'h-9 rounded-md border-input bg-background pr-3 text-sm shadow-none placeholder:text-muted-foreground focus-visible:ring-2',
+          searchIcon ? 'pl-8' : 'pl-3',
+          className
+        )}
+        {...props}
+      />
+    </div>
+  )
+}
+
+type HeaderProps = ComponentProps<'div'> & {
+  actions?: ReactNode
+  count?: ReactNode
+  icon?: ReactNode
+  ref?: Ref<HTMLDivElement>
+  title?: ReactNode
+}
+
+function Header({ actions, children, className, count, icon, ref, title, ...props }: HeaderProps) {
+  return (
+    <div
       ref={ref}
-      value={state.query}
-      onChange={(event) => actions.setQuery(event.target.value)}
-      className={cn('h-8 border-border bg-background text-sm', className)}
+      className={cn('flex shrink-0 flex-col gap-3 border-sidebar-border/70 border-b px-3 py-3', className)}
+      {...props}>
+      {(title || actions) && (
+        <div className="flex min-h-7 items-center gap-2">
+          {icon && (
+            <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">{icon}</span>
+          )}
+          <div className="min-w-0 flex flex-1 items-baseline gap-1.5">
+            {title && <span className="truncate font-semibold text-sm leading-5 text-sidebar-foreground">{title}</span>}
+            {count !== undefined && (
+              <span className="shrink-0 text-muted-foreground text-xs tabular-nums">{count}</span>
+            )}
+          </div>
+          {actions && <div className="flex shrink-0 items-center gap-1 text-muted-foreground">{actions}</div>}
+        </div>
+      )}
+      {children}
+    </div>
+  )
+}
+
+type HeaderActionButtonProps = ComponentProps<typeof Button> & {
+  ref?: Ref<HTMLButtonElement>
+}
+
+function HeaderActionButton({
+  className,
+  ref,
+  size = 'icon-sm',
+  variant = 'ghost',
+  ...props
+}: HeaderActionButtonProps) {
+  return (
+    <Button
+      ref={ref}
+      size={size}
+      variant={variant}
+      className={cn(
+        'size-7 shrink-0 text-muted-foreground shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        className
+      )}
       {...props}
     />
   )
@@ -343,9 +419,14 @@ function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
   return (
     <div
       ref={ref}
-      className={cn('px-3 pt-3 pb-1 font-medium text-muted-foreground text-xs uppercase', className)}
+      className={cn(
+        'flex h-6 items-center gap-1.5 px-2 pt-2 pb-1 font-medium text-muted-foreground text-xs',
+        className
+      )}
       {...props}>
-      {group.label}
+      <ChevronDown size={12} className="shrink-0 opacity-70" />
+      <span className="truncate">{group.label}</span>
+      {typeof group.count === 'number' && <span className="ml-auto shrink-0 tabular-nums">{group.count}</span>}
     </div>
   )
 }
@@ -377,9 +458,9 @@ function Item<T extends ResourceListItemBase>({
       data-selected={selected || undefined}
       data-hovered={hovered || undefined}
       className={cn(
-        'group flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-sm outline-none transition-colors',
+        'group flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors',
         'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-        selected && 'bg-sidebar-primary text-sidebar-primary-foreground shadow-xs',
+        selected && 'bg-sidebar-accent text-sidebar-accent-foreground',
         className
       )}
       onClick={(event) => {
@@ -417,7 +498,10 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
       ref={ref}
       autoFocus
       defaultValue={meta.getItemLabel(item)}
-      className={cn('h-7 flex-1 bg-background text-sm', className)}
+      className={cn(
+        'h-7 flex-1 border-none bg-transparent px-0 text-[13px] text-sidebar-foreground/80 shadow-none focus-visible:ring-0',
+        className
+      )}
       onBlur={(event) => actions.commitRename(id, event.currentTarget.value)}
       onKeyDown={(event) => {
         if (event.key === 'Enter') {
@@ -432,15 +516,89 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
   )
 }
 
+type ItemTitleProps = ComponentProps<'span'> & {
+  ref?: Ref<HTMLSpanElement>
+}
+
+function ItemTitle({ className, ref, ...props }: ItemTitleProps) {
+  return (
+    <span
+      ref={ref}
+      className={cn(
+        'min-w-0 flex-1 truncate text-left font-medium text-[13px] text-sidebar-foreground/80 leading-5',
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+type ItemIconProps = ComponentProps<'span'> & {
+  ref?: Ref<HTMLSpanElement>
+}
+
+function ItemIcon({ className, ref, ...props }: ItemIconProps) {
+  return (
+    <span
+      ref={ref}
+      className={cn('flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground', className)}
+      {...props}
+    />
+  )
+}
+
+type ItemActionProps = ComponentProps<'button'> & {
+  ref?: Ref<HTMLButtonElement>
+}
+
+function ItemAction({ className, ref, type = 'button', ...props }: ItemActionProps) {
+  return (
+    <button
+      ref={ref}
+      type={type}
+      className={cn(
+        'flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-colors transition-opacity',
+        'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        'group-hover:opacity-100 group-data-[selected=true]:opacity-100 data-[deleting=true]:opacity-100',
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
 type VirtualItemsProps<T extends ResourceListItemBase> = {
   className?: string
   ref?: Ref<HTMLDivElement>
   renderItem: (item: T, context: ResourceListContextValue<T>) => ReactNode
 }
 
+type ResourceListVirtualRow<T extends ResourceListItemBase> =
+  | { type: 'group'; group: ResourceListGroup }
+  | { type: 'item'; item: T; itemIndex: number }
+
+function buildVirtualRows<T extends ResourceListItemBase>(context: ResourceListContextValue<T>) {
+  const rows: ResourceListVirtualRow<T>[] = []
+  let itemIndex = 0
+
+  for (const group of context.view.groups) {
+    if (group.group.label) {
+      rows.push({ type: 'group', group: group.group })
+    }
+
+    for (const item of group.items) {
+      rows.push({ type: 'item', item, itemIndex })
+      itemIndex += 1
+    }
+  }
+
+  return rows
+}
+
 function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderItem }: VirtualItemsProps<T>) {
   const context = useResourceList<T>()
   const parentRef = useRef<HTMLDivElement>(null)
+  const rows = useMemo(() => buildVirtualRows(context), [context])
   const setScrollRef = useCallback(
     (node: HTMLDivElement | null) => {
       parentRef.current = node
@@ -453,19 +611,22 @@ function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderIt
     [ref]
   )
   const virtualizer = useVirtualizer({
-    count: context.view.items.length,
+    count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: context.meta.estimateItemSize,
+    estimateSize: (index) => {
+      const row = rows[index]
+      return row?.type === 'group' ? 24 : context.meta.estimateItemSize(row?.itemIndex ?? index)
+    },
     overscan: 6
   })
   const virtualItems = virtualizer.getVirtualItems()
 
   return (
-    <div ref={setScrollRef} className={cn('min-h-0 flex-1 overflow-auto px-2 py-1', className)} role="listbox">
+    <div ref={setScrollRef} className={cn('min-h-0 flex-1 overflow-auto px-3 py-2', className)} role="listbox">
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualItems.map((virtualItem) => {
-          const item = context.view.items[virtualItem.index]
-          if (!item) return null
+          const row = rows[virtualItem.index]
+          if (!row) return null
           return (
             <div
               key={virtualItem.key}
@@ -476,7 +637,7 @@ function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderIt
                 minHeight: virtualItem.size,
                 transform: `translateY(${virtualItem.start}px)`
               }}>
-              {renderItem(item, context)}
+              {row.type === 'group' ? <GroupHeader group={row.group} /> : renderItem(row.item, context)}
             </div>
           )
         })}
@@ -516,8 +677,11 @@ type DraggableItemsProps<T extends ResourceListItemBase> = {
   renderItem: (item: T, context: ResourceListContextValue<T>) => ReactNode
 }
 
-function DraggableItems<T extends ResourceListItemBase>({ className, renderItem }: DraggableItemsProps<T>) {
-  const context = useResourceList<T>()
+type VirtualDraggableItemsProps<T extends ResourceListItemBase> = DraggableItemsProps<T> & {
+  ref?: Ref<HTMLDivElement>
+}
+
+function useResourceListDnd<T extends ResourceListItemBase>(context: ResourceListContextValue<T>) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor)
@@ -533,6 +697,7 @@ function DraggableItems<T extends ResourceListItemBase>({ className, renderItem 
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      context.actions.hoverItem(null)
       const activeId = String(event.active.id)
       const overId = event.over?.id ? String(event.over.id) : null
       if (!overId || activeId === overId) return
@@ -540,6 +705,13 @@ function DraggableItems<T extends ResourceListItemBase>({ className, renderItem 
     },
     [context.actions]
   )
+
+  return { sensors, itemIds, handleDragStart, handleDragEnd }
+}
+
+function DraggableItems<T extends ResourceListItemBase>({ className, renderItem }: DraggableItemsProps<T>) {
+  const context = useResourceList<T>()
+  const { sensors, itemIds, handleDragStart, handleDragEnd } = useResourceListDnd(context)
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -555,6 +727,70 @@ function DraggableItems<T extends ResourceListItemBase>({ className, renderItem 
               ))}
             </div>
           ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  )
+}
+
+function VirtualDraggableItems<T extends ResourceListItemBase>({
+  className,
+  ref,
+  renderItem
+}: VirtualDraggableItemsProps<T>) {
+  const context = useResourceList<T>()
+  const parentRef = useRef<HTMLDivElement>(null)
+  const { sensors, itemIds, handleDragStart, handleDragEnd } = useResourceListDnd(context)
+  const rows = useMemo(() => buildVirtualRows(context), [context])
+  const setScrollRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      parentRef.current = node
+      if (typeof ref === 'function') {
+        ref(node)
+      } else if (ref) {
+        ref.current = node
+      }
+    },
+    [ref]
+  )
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (index) => {
+      const row = rows[index]
+      return row?.type === 'group' ? 24 : context.meta.estimateItemSize(row?.itemIndex ?? index)
+    },
+    overscan: 6
+  })
+  const virtualItems = virtualizer.getVirtualItems()
+
+  return (
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+        <div ref={setScrollRef} className={cn('min-h-0 flex-1 overflow-auto px-3 py-2', className)} role="listbox">
+          <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+            {virtualItems.map((virtualItem) => {
+              const row = rows[virtualItem.index]
+              if (!row) return null
+              return (
+                <div
+                  key={virtualItem.key}
+                  data-index={virtualItem.index}
+                  ref={virtualizer.measureElement}
+                  className="absolute top-0 left-0 w-full"
+                  style={{
+                    minHeight: virtualItem.size,
+                    transform: `translateY(${virtualItem.start}px)`
+                  }}>
+                  {row.type === 'group' ? (
+                    <GroupHeader group={row.group} />
+                  ) : (
+                    <SortableResourceItem item={row.item}>{renderItem(row.item, context)}</SortableResourceItem>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       </SortableContext>
     </DndContext>
@@ -619,12 +855,18 @@ function ErrorState({ className, message, ref, children, ...props }: ErrorStateP
 const ResourceList = {
   Provider: ResourceListProvider,
   Frame,
+  Header,
+  HeaderActionButton,
   Search,
   FilterBar,
   GroupHeader,
   VirtualItems,
   DraggableItems,
+  VirtualDraggableItems,
   Item,
+  ItemAction,
+  ItemIcon,
+  ItemTitle,
   RenameField,
   ContextMenu,
   ContextMenuRenameAction,
