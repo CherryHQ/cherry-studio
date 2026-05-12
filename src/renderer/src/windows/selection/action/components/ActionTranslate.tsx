@@ -1,4 +1,3 @@
-import { useChat } from '@ai-sdk/react'
 import { LoadingOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
@@ -6,26 +5,13 @@ import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import db from '@renderer/databases'
-import { useDetectLang, useLanguages } from '@renderer/hooks/translate'
-import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
-import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
-import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
-import ExecutionStreamCollector from '@renderer/pages/home/Messages/ExecutionStreamCollector'
-import MessageContent from '@renderer/pages/home/Messages/MessageContent'
-import { pauseTrace } from '@renderer/services/SpanManagerService'
-import { resolveTranslatePayload } from '@renderer/services/TranslateService'
-import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
+import { useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
+import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { TranslateLanguage } from '@renderer/types'
-import { AssistantMessageStatus } from '@renderer/types/newMessage'
-import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { defaultLanguage } from '@shared/config/constant'
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { Dropdown } from 'antd'
 import { ArrowRight, ChevronDown, CircleHelp, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -34,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 import styled, { createGlobalStyle } from 'styled-components'
 
 import WindowFooter from './WindowFooter'
+
 interface Props {
   action: SelectionActionItem
   scrollToBottom: () => void
@@ -69,18 +56,34 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [showOriginal, setShowOriginal] = useState(false)
   const [initialized, setInitialized] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  // Temporary in-memory topic leased for this translate session. No persisted
-  // assistant is attached — main resolves the model directly from the IPC payload.
-  const { topicId: temporaryTopicId, ready: isTopicReady } = useTemporaryTopic({ enabled: true })
 
-  // Use useRef for values that shouldn't trigger re-renders
+  const [content, setContent] = useState('')
+  const [isPreparing, setIsPreparing] = useState(false)
+  const [completionError, setCompletionError] = useState<string | null>(null)
+
   const targetLangRef = useRef(targetLanguage)
+
+  const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({
+    onUpdate: (text) => {
+      setIsPreparing(false)
+      setContent(text)
+    }
+  })
+
+  const {
+    translate: runTranslate,
+    isTranslating,
+    cancel: cancelTranslate
+  } = useTranslate({
+    loggerContext: 'ActionTranslate',
+    showErrorToast: false,
+    rethrowError: true,
+    onResponse: smoothUpdate
+  })
 
   // It's called only in initialization.
   // It will change target/alter language, so fetchResult will be triggered. Be careful!
   const updateLanguagePair = useCallback(async () => {
-    // Only called is when languages loaded.
-    // It ensure we could get right language from getLanguage.
     if (!isLanguagesLoaded) {
       logger.silly('[updateLanguagePair] Languages are not loaded. Skip.')
       return
@@ -104,125 +107,40 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     }
   }, [getLanguage, isLanguagesLoaded])
 
-  // Initialize values only once
   const initialize = useCallback(async () => {
     if (initialized) {
       logger.silly('[initialize] Already initialized.')
       return
     }
-
-    // Only try to initialize when languages loaded, so updateLanguagePair would not fail.
     if (!isLanguagesLoaded) {
       logger.silly('[initialize] Languages not loaded. Skip initialization.')
       return
     }
-
-    // Edge case
     if (action.selectedText === undefined) {
       logger.error('[initialize] No selected text.')
       return
     }
     logger.silly('[initialize] Start initialization.')
 
-    // Initialize language pair.
-    // It will update targetLangRef, so we could get latest target language in the following code
     await updateLanguagePair()
     logger.silly('[initialize] UpdateLanguagePair completed.')
 
     setInitialized(true)
-  }, [initialized, isLanguagesLoaded, updateLanguagePair])
+  }, [initialized, isLanguagesLoaded, updateLanguagePair, action.selectedText])
 
-  // Try to initialize when:
-  // 1. action.selectedText change (generally will not)
-  // 2. isLanguagesLoaded change (only initialize when languages loaded)
-  // 3. updateLanguagePair change (depend on translateLanguages and isLanguagesLoaded)
   useEffect(() => {
     void initialize()
   }, [initialize])
 
-  const [isPreparing, setIsPreparing] = useState(false)
-  const [completionError, setCompletionError] = useState<string | null>(null)
-
-  const { sendMessage, stop: stopChat } = useChat<CherryUIMessage>({
-    id: temporaryTopicId ?? 'pending-temp',
-    transport: ipcChatTransport,
-    experimental_throttle: 50,
-    onError: (err) => {
-      setIsPreparing(false)
-      setCompletionError(err.message)
-    }
-  })
-
-  // Primary `useChat` is trigger-only — chunks are tagged with the
-  // execution's modelId by Main, so the per-execution collector below
-  // owns the streaming content. One collector per `activeExecutionId`;
-  // we read the streaming assistant message from its internal state.
-  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose, resetExecutionMessages } =
-    useExecutionMessages()
-
-  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutions)
-
-  // Flatten all collectors' assistant messages — in practice there's at
-  // most one (single-model translate), but keep the shape generic in case
-  // the session ever fans out.
-  const latestAssistantUIMsg = useMemo<CherryUIMessage | undefined>(() => {
-    for (const execMessages of Object.values(executionMessagesById)) {
-      for (let i = execMessages.length - 1; i >= 0; i--) {
-        if (execMessages[i].role === 'assistant') return execMessages[i]
-      }
-    }
-    return undefined
-  }, [executionMessagesById])
-
-  useEffect(() => {
-    if (isPending) {
-      setIsPreparing(false)
-      scrollToBottom?.()
-    }
-  }, [isPending, scrollToBottom])
-
-  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(
-    () =>
-      latestAssistantUIMsg ? { [latestAssistantUIMsg.id]: latestAssistantUIMsg.parts as CherryMessagePart[] } : {},
-    [latestAssistantUIMsg]
-  )
-
-  const latestAssistantMessage = useMemo(() => {
-    if (!latestAssistantUIMsg) return null
-    return {
-      id: latestAssistantUIMsg.id,
-      role: 'assistant' as const,
-      assistantId: '',
-      topicId: '',
-      createdAt: '',
-      status: isPending ? AssistantMessageStatus.PROCESSING : AssistantMessageStatus.SUCCESS,
-      blocks: []
-    }
-  }, [latestAssistantUIMsg, isPending])
-
-  const content = useMemo(
-    () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
-    [latestAssistantUIMsg]
-  )
-
-  const isStreaming = isPending
-  const error = completionError
-
-  const clear = useCallback(() => {
-    void stopChat()
-    resetExecutionMessages()
-    setCompletionError(null)
-    setIsPreparing(false)
-  }, [stopChat, resetExecutionMessages])
-
   const fetchResult = useCallback(async () => {
-    if (!isTopicReady || !temporaryTopicId || !action.selectedText || !initialized) return
-    clear()
+    if (!action.selectedText || !initialized) return
+    cancelTranslate()
+    smoothReset('')
+    setContent('')
+    setCompletionError(null)
     setDetectError(null)
 
     let sourceLanguageCode: TranslateLangCode
-
     try {
       sourceLanguageCode = await detectLanguage(action.selectedText)
     } catch (err) {
@@ -235,35 +153,32 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     setDetectedLanguage(detectedLang)
 
     let translateLang: TranslateLanguage
-
     if (sourceLanguageCode === UNKNOWN_LANG_CODE) {
-      logger.debug('Unknown source language. Just use target language.')
       translateLang = targetLanguage
     } else {
-      logger.debug('Detected Language: ', { sourceLanguage: sourceLanguageCode })
       translateLang = sourceLanguageCode === targetLanguage.langCode ? alterLanguage : targetLanguage
     }
-
     setActualTargetLanguage(translateLang)
 
-    const { content } = await resolveTranslatePayload(translateLang, action.selectedText)
-    logger.debug('Run translate action stream')
-
-    setCompletionError(null)
     setIsPreparing(true)
-    // The temp topic has no assistant attached — main reads the translate
-    // model from the `feature.translate.model_id` preference on its end.
-    void sendMessage({ text: content })
+    const translated = await runTranslate(action.selectedText, translateLang).catch((err: Error) => {
+      setCompletionError(err.message)
+      smoothReset('')
+      return undefined
+    })
+    setIsPreparing(false)
+    if (translated) scrollToBottom?.()
   }, [
     action,
-    temporaryTopicId,
-    isTopicReady,
-    alterLanguage,
-    clear,
-    getLanguage,
     initialized,
-    sendMessage,
-    targetLanguage
+    cancelTranslate,
+    detectLanguage,
+    getLanguage,
+    alterLanguage,
+    targetLanguage,
+    runTranslate,
+    scrollToBottom,
+    smoothReset
   ])
 
   useEffect(() => {
@@ -295,10 +210,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       if (!newLang) return
       setActualTargetLanguage(newLang)
 
-      // Update settings: if new target equals current target, keep as is
-      // Otherwise, swap if needed or just update target
       if (newLang.langCode !== targetLanguage.langCode && newLang.langCode !== alterLanguage.langCode) {
-        // New language is different from both, update target
         setTargetLanguage(newLang)
         targetLangRef.current = newLang
         void db.settings.put({ id: 'translate:bidirectional:pair', value: [newLang.langCode, alterLanguage.langCode] })
@@ -326,7 +238,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
                 if (next) handleChangeLanguage(next, alterLanguage)
                 setSettingsOpen(false)
               }}
-              disabled={isStreaming}
+              disabled={isTranslating}
             />
           </SettingsMenuItem>
         )
@@ -347,18 +259,17 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
                 if (next) handleChangeLanguage(targetLanguage, next)
                 setSettingsOpen(false)
               }}
-              disabled={isStreaming}
+              disabled={isTranslating}
             />
           </SettingsMenuItem>
         )
       }
     ],
-    [t, targetLanguage, alterLanguage, isStreaming, getLanguage, handleChangeLanguage]
+    [t, targetLanguage, alterLanguage, isTranslating, getLanguage, handleChangeLanguage]
   )
 
   const handlePause = () => {
-    void stopChat()
-    if (temporaryTopicId) void pauseTrace(temporaryTopicId)
+    cancelTranslate()
   }
 
   const handleRegenerate = () => {
@@ -371,7 +282,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       <Container>
         <MenuContainer>
           <LeftGroup>
-            {/* Detected language display (read-only) */}
             <DetectedLanguageTag>
               {isPreparing ? (
                 <span>{t('translate.detecting')}</span>
@@ -385,7 +295,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
             <ArrowRight size={16} color="var(--color-text-3)" style={{ flexShrink: 0 }} />
 
-            {/* Target language selector */}
             <LanguageSelect
               value={actualTargetLanguage.langCode}
               style={{ minWidth: 100, maxWidth: 160 }}
@@ -393,10 +302,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               size="small"
               optionFilterProp="label"
               onChange={handleDirectTargetChange}
-              disabled={isStreaming}
+              disabled={isTranslating}
             />
 
-            {/* Settings dropdown */}
             <Dropdown
               menu={{
                 items: settingsMenuItems,
@@ -439,31 +347,13 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           </OriginalContent>
         )}
         <Result>
-          {temporaryTopicId &&
-            activeExecutions.map(({ executionId }) => {
-              const execChat = executionChats.get(executionId)
-              if (!execChat) return null
-              return (
-                <ExecutionStreamCollector
-                  key={executionId}
-                  executionId={executionId}
-                  chat={execChat}
-                  onMessagesChange={handleExecutionMessagesChange}
-                  onDispose={handleExecutionDispose}
-                />
-              )
-            })}
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-          {!isPreparing && latestAssistantMessage && (
-            <PartsProvider value={partsMap}>
-              <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
-            </PartsProvider>
-          )}
+          {!isPreparing && content && <ResultContent>{content}</ResultContent>}
         </Result>
-        {(detectError || error) && <ErrorMsg>{detectError || error}</ErrorMsg>}
+        {(detectError || completionError) && <ErrorMsg>{detectError || completionError}</ErrorMsg>}
       </Container>
       <FooterPadding />
-      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
+      <WindowFooter loading={isTranslating} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
     </>
   )
 }
@@ -478,9 +368,12 @@ const Container = styled.div`
 
 const Result = styled.div`
   margin-top: 16px;
+  width: 100%;
+`
+
+const ResultContent = styled.div`
   white-space: pre-wrap;
   word-break: break-word;
-  width: 100%;
 `
 
 const MenuContainer = styled.div`

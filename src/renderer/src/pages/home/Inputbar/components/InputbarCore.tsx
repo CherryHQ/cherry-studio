@@ -6,12 +6,11 @@ import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
+import { useTranslate } from '@renderer/hooks/translate'
 import { useTimer } from '@renderer/hooks/useTimer'
 import PasteService from '@renderer/services/PasteService'
-import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { formatQuotedText } from '@renderer/utils/formats'
 import { isSendMessageKeyPressed } from '@renderer/utils/input'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -141,7 +140,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const quickPanelTriggersEnabled = forceEnableQuickPanelTriggers ?? enableQuickPanelTriggers
 
   const { t } = useTranslation()
-  const [isTranslating, setIsTranslating] = useState(false)
+  // Space-key auto-translate flow: see https://github.com/CherryHQ/cherry-studio/issues/14533
+  const { translate: runTranslate, isTranslating } = useTranslate({ loggerContext: 'InputbarCore' })
 
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const spaceClickTimer = useRef<NodeJS.Timeout | null>(null)
@@ -201,26 +201,14 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   )
 
   const translate = useCallback(async () => {
-    if (isTranslating) {
-      return
-    }
+    if (isTranslating) return
 
-    try {
-      setIsTranslating(true)
-      const translatedText = await translateText(text, targetLanguage)
-      translatedText && setText(translatedText)
+    const translatedText = await runTranslate(text, targetLanguage)
+    if (translatedText) {
+      setText(translatedText)
       setTimeoutTimer('translate', () => resizeTextArea(), 0)
-    } catch (error) {
-      // Mirrors TranslatePage's error flow: suppress user-initiated aborts,
-      // log + toast anything else so the space-key auto-translate never fails silently.
-      if (!isAbortError(error)) {
-        logger.error('Auto-translate (space) failed', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
-      }
-    } finally {
-      setIsTranslating(false)
     }
-  }, [isTranslating, resizeTextArea, setText, setTimeoutTimer, t, targetLanguage, text])
+  }, [isTranslating, resizeTextArea, runTranslate, setText, setTimeoutTimer, targetLanguage, text])
 
   const rootTriggerHandlerRef = useRef<((payload?: unknown) => void) | undefined>(undefined)
 

@@ -1,20 +1,16 @@
 import { SwapOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useTranslate } from '@renderer/hooks/translate'
 import { useDefaultModel } from '@renderer/hooks/useModels'
-import { translateText } from '@renderer/services/TranslateService'
-import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { Select } from 'antd'
 import { isEmpty } from 'lodash'
 import type { FC } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-const logger = loggerService.withContext('TranslateWindow')
 
 interface Props {
   text: string
@@ -25,30 +21,16 @@ const Translate: FC<Props> = ({ text }) => {
   const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.mini_window.target_lang')
   const { translateModel } = useDefaultModel()
   const { t } = useTranslation()
-  const translatingRef = useRef(false)
+  const { translate: runTranslate, isTranslating } = useTranslate({
+    loggerContext: 'TranslateWindow',
+    onResponse: setResult
+  })
 
   const translate = useCallback(async () => {
     if (!text.trim() || !translateModel) return
-
-    if (translatingRef.current) return
-
-    try {
-      translatingRef.current = true
-
-      await translateText(text, targetLanguage, setResult)
-
-      translatingRef.current = false
-    } catch (error) {
-      // User-initiated aborts shouldn't look like failures; anything else gets
-      // the upstream message prefixed so the user sees why it failed.
-      if (!isAbortError(error)) {
-        logger.error('Error fetching result:', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
-      }
-    } finally {
-      translatingRef.current = false
-    }
-  }, [text, targetLanguage, translateModel, t])
+    if (isTranslating) return
+    await runTranslate(text, targetLanguage)
+  }, [text, targetLanguage, translateModel, isTranslating, runTranslate])
 
   useEffect(() => {
     void translate()

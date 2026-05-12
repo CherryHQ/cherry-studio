@@ -6,20 +6,19 @@ import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useTranslateHistory } from '@renderer/hooks/translate'
+import { useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useDetectLang } from '@renderer/hooks/translate/useDetectLang'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useModels } from '@renderer/hooks/useModels'
 import { useOcr } from '@renderer/hooks/useOcr'
+import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, SupportedOcrFile } from '@renderer/types'
 import { isSupportedOcrFile } from '@renderer/types'
-import { getFileExtension, isTextFile, uuid } from '@renderer/utils'
-import { abortCompletion } from '@renderer/utils/abortController'
-import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
+import { getFileExtension, isTextFile } from '@renderer/utils'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import {
   createInputScrollHandler,
@@ -37,7 +36,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
-import { isEmpty, throttle } from 'lodash'
+import { isEmpty } from 'lodash'
 import { History, SlidersHorizontal, Sparkles } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -82,10 +81,20 @@ const TranslatePage: FC = () => {
   const [isBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
   const [enableMarkdown] = usePreference('feature.translate.page.enable_markdown')
 
-  const [translatingState, setTranslatingState] = useCache('translate.translating')
   const [translateInput, setTranslateInput] = useCache('translate.input')
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
+
+  const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
+
+  const {
+    translate: runTranslate,
+    isTranslating,
+    cancel
+  } = useTranslate({
+    loggerContext: 'TranslatePage',
+    onResponse: smoothUpdate
+  })
 
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
   const [copied, setCopied] = useTemporaryValue(false, 2000)
@@ -188,66 +197,43 @@ const TranslatePage: FC = () => {
       actualSourceLanguage: TranslateLangCode,
       actualTargetLanguage: TranslateLangCode
     ): Promise<void> => {
-      if (translatingState.isTranslating) return
+      if (isTranslating) return
 
-      const nextAbortKey = uuid()
-      setTranslatingState({ isTranslating: true, abortKey: nextAbortKey })
-
-      const throttledSetOutput = throttle((content: string) => setTranslateOutput(content), 100)
-
-      try {
-        const translated = await translateText(rawText, actualTargetLanguage, throttledSetOutput, nextAbortKey)
-        throttledSetOutput.cancel()
-        setTranslateOutput(translated)
-
-        window.toast.success(t('translate.complete'))
-        if (autoCopy) {
-          setTimeoutTimer(
-            'auto-copy',
-            async () => {
-              try {
-                await copy(translated)
-              } catch (error) {
-                logger.error('Failed to auto copy translated text', error as Error)
-                window.toast.error(t('translate.error.auto_copy_failed'))
-              }
-            },
-            100
-          )
-        }
-
-        await addHistory({
-          sourceText: rawText,
-          targetText: translated,
-          sourceLanguage: actualSourceLanguage,
-          targetLanguage: actualTargetLanguage
-        })
-      } catch (error) {
-        if (isAbortError(error)) {
-          window.toast.info(t('translate.info.aborted'))
-        } else {
-          logger.error('Failed to translate text', error as Error)
-          window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
-        }
-      } finally {
-        throttledSetOutput.cancel()
-        setTranslatingState({ isTranslating: false, abortKey: null })
+      smoothReset('')
+      const translated = await runTranslate(rawText, actualTargetLanguage)
+      if (!translated) {
+        smoothReset('')
+        return
       }
+      window.toast.success(t('translate.complete'))
+
+      if (autoCopy) {
+        setTimeoutTimer(
+          'auto-copy',
+          async () => {
+            try {
+              await copy(translated)
+            } catch (error) {
+              logger.error('Failed to auto copy translated text', error as Error)
+              window.toast.error(t('translate.error.auto_copy_failed'))
+            }
+          },
+          100
+        )
+      }
+
+      await addHistory({
+        sourceText: rawText,
+        targetText: translated,
+        sourceLanguage: actualSourceLanguage,
+        targetLanguage: actualTargetLanguage
+      })
     },
-    [
-      addHistory,
-      autoCopy,
-      copy,
-      setTimeoutTimer,
-      setTranslateOutput,
-      setTranslatingState,
-      t,
-      translatingState.isTranslating
-    ]
+    [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t]
   )
 
   const onTranslate = useCallback(async () => {
-    if (!translateInput.trim() || !selectedModelId || isDetecting || translatingState.isTranslating) return
+    if (!translateInput.trim() || !selectedModelId || isDetecting || isTranslating) return
 
     let actualSourceLanguage = sourceLanguage
     if (sourceLanguage === 'auto') {
@@ -264,11 +250,6 @@ const TranslatePage: FC = () => {
       }
     } else {
       setDetectedLanguage(null)
-    }
-
-    if (actualSourceLanguage === UNKNOWN_LANG_CODE) {
-      window.toast.error(t('translate.error.detect.unknown'))
-      return
     }
 
     const targetResult = determineTargetLanguage(
@@ -298,30 +279,17 @@ const TranslatePage: FC = () => {
     translate,
     translateInput,
     selectedModelId,
-    translatingState.isTranslating
+    isTranslating
   ])
 
   const onAbort = useCallback(() => {
-    if (translatingState.abortKey) {
-      abortCompletion(translatingState.abortKey)
-      return
-    }
-    logger.warn('Abort requested without active abort key', {
-      isTranslating: translatingState.isTranslating,
-      abortKey: translatingState.abortKey
-    })
-  }, [translatingState.abortKey, translatingState.isTranslating])
-
-  useEffect(() => {
-    return () => {
-      if (!translatingState.abortKey) return
-      abortCompletion(translatingState.abortKey)
-      setTranslatingState({ isTranslating: false, abortKey: null })
-    }
-  }, [setTranslatingState, translatingState.abortKey])
+    if (!isTranslating) return
+    cancel()
+    window.toast.info(t('translate.info.aborted'))
+  }, [cancel, isTranslating, t])
 
   const handleExchange = useCallback(() => {
-    if (sourceLanguage === 'auto' || translatingState.isTranslating || isDetecting) return
+    if (sourceLanguage === 'auto' || isTranslating || isDetecting) return
     void safePersist(setSourceLanguage(targetLanguage), 'translate source language')
     void safePersist(setTargetLanguage(sourceLanguage), 'translate target language')
     setTranslateInputValue(translateOutput)
@@ -337,7 +305,7 @@ const TranslatePage: FC = () => {
     targetLanguage,
     translateInput,
     translateOutput,
-    translatingState.isTranslating
+    isTranslating
   ])
 
   const onHistoryItemClick = useCallback(
@@ -460,7 +428,7 @@ const TranslatePage: FC = () => {
   )
 
   const handleSelectFile = useCallback(async () => {
-    if (selecting || translatingState.isTranslating) return
+    if (selecting || isTranslating) return
     setIsProcessing(true)
     try {
       const [file] = await onSelectFile({ multipleSelections: false })
@@ -474,7 +442,7 @@ const TranslatePage: FC = () => {
       clearFiles()
       setIsProcessing(false)
     }
-  }, [clearFiles, onSelectFile, processFile, selecting, t, translatingState.isTranslating])
+  }, [clearFiles, onSelectFile, processFile, selecting, t, isTranslating])
 
   const getSingleFile = useCallback(
     (files: FileMetadata[] | FileList): FileMetadata | File | null => {
@@ -580,13 +548,9 @@ const TranslatePage: FC = () => {
   )
 
   const couldTranslate =
-    !isEmpty(translateInput) && !!selectedModelId && !translatingState.isTranslating && !isDetecting && !isProcessing
+    !isEmpty(translateInput) && !!selectedModelId && !isTranslating && !isDetecting && !isProcessing
   const couldExchange =
-    sourceLanguage !== 'auto' &&
-    sourceLanguage !== targetLanguage &&
-    !translatingState.isTranslating &&
-    !isDetecting &&
-    !isProcessing
+    sourceLanguage !== 'auto' && sourceLanguage !== targetLanguage && !isTranslating && !isDetecting && !isProcessing
 
   return (
     <div
@@ -692,7 +656,7 @@ const TranslatePage: FC = () => {
             onDrop={onDrop}
             onSelectFile={handleSelectFile}
             onCopy={onCopyInput}
-            disabled={translatingState.isTranslating || isDetecting || isProcessing}
+            disabled={isTranslating || isDetecting || isProcessing}
             selecting={selecting}
             tokenCount={tokenCount}
           />
@@ -701,7 +665,7 @@ const TranslatePage: FC = () => {
             translatedContent={translateOutput}
             renderedMarkdown={renderedMarkdown}
             enableMarkdown={enableMarkdown}
-            translating={translatingState.isTranslating || isDetecting}
+            translating={isTranslating || isDetecting}
             copied={copied}
             couldTranslate={couldTranslate}
             onCopy={onCopyOutput}

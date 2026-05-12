@@ -931,6 +931,10 @@ const api = {
       }): Promise<{ ok: boolean }> => ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
     }
   },
+  translate: {
+    open: (req: { streamId: string; text: string; targetLangCode: string }): Promise<{ streamId: string }> =>
+      ipcRenderer.invoke(IpcChannel.Ai_Translate_Open, req)
+  },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
     start: (): Promise<StartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Start),

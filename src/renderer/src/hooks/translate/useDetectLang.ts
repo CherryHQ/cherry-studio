@@ -15,7 +15,7 @@ import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { franc } from 'franc-min'
 import i18n from 'i18next'
-import { useCallback, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { estimateTokenCount, sliceByTokens } from 'tokenx'
 
 import { useLanguages } from './useTranslateLanguages'
@@ -170,11 +170,11 @@ export const useDetectLang = () => {
   const [method] = usePreference('feature.translate.auto_detection_method')
   const { languages } = useLanguages()
   const { quickModel: sharedQuickModel } = useDefaultModel()
-  const quickModel: Model | undefined = sharedQuickModel ? fromSharedModel(sharedQuickModel) : undefined
+  const quickModel: Model | undefined = useMemo(
+    () => (sharedQuickModel ? fromSharedModel(sharedQuickModel) : undefined),
+    [sharedQuickModel]
+  )
 
-  // One-shot UX surface: useLanguages only toasts on SWR error, but a successful
-  // empty-array response (seeder failure / DB corruption) slips past it. Notify
-  // the user once per session so they don't silently keep getting UNKNOWN.
   const toastedNotReadyRef = useRef(false)
   const toastedEmptyRef = useRef(false)
 

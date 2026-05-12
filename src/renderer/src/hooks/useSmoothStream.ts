@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface UseSmoothStreamOptions {
   onUpdate: (text: string) => void
-  streamDone: boolean
+  /** Optional external control. Omit to let the hook manage it via `update(_, isComplete)`. */
+  streamDone?: boolean
   minDelay?: number
   initialText?: string
 }
@@ -19,11 +20,24 @@ const segmenter = new Intl.Segmenter(languages)
  */
 const POST_STREAM_STEP = 5
 
-export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialText = '' }: UseSmoothStreamOptions) => {
+export const useSmoothStream = ({
+  onUpdate,
+  streamDone: externalStreamDone,
+  minDelay = 10,
+  initialText = ''
+}: UseSmoothStreamOptions) => {
   const chunkQueueRef = useRef<string[]>([])
   const animationFrameRef = useRef<number | null>(null)
   const displayedTextRef = useRef<string>(initialText)
   const lastUpdateTimeRef = useRef<number>(0)
+  const lastAccumulatedRef = useRef<string>(initialText)
+  const [internalStreamDone, setInternalStreamDone] = useState<boolean>(false)
+  const streamDone = externalStreamDone ?? internalStreamDone
+
+  const onUpdateRef = useRef(onUpdate)
+  useEffect(() => {
+    onUpdateRef.current = onUpdate
+  })
 
   const addChunk = useCallback((chunk: string) => {
     const chars = Array.from(segmenter.segment(chunk)).map((s) => s.segment)
@@ -37,9 +51,29 @@ export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialTe
       }
       chunkQueueRef.current = []
       displayedTextRef.current = newText
-      onUpdate(newText)
+      lastAccumulatedRef.current = newText
+      if (externalStreamDone === undefined) setInternalStreamDone(false)
+      onUpdateRef.current(newText)
     },
-    [onUpdate]
+    [externalStreamDone]
+  )
+
+  /**
+   * Accumulated-text-style entry point. Matches the `(text, isComplete)`
+   * shape that `translateText` / `useTranslate` emit. Computes the delta
+   * against the last call and flips `streamDone` on `isComplete=true`.
+   * Only available when no external `streamDone` prop is passed.
+   */
+  const update = useCallback(
+    (accumulated: string, isComplete: boolean) => {
+      const delta = accumulated.slice(lastAccumulatedRef.current.length)
+      if (delta) {
+        lastAccumulatedRef.current = accumulated
+        addChunk(delta)
+      }
+      if (isComplete && externalStreamDone === undefined) setInternalStreamDone(true)
+    },
+    [addChunk, externalStreamDone]
   )
 
   const renderLoop = useCallback(
@@ -49,7 +83,7 @@ export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialTe
         // 如果流已结束，确保显示最终状态并停止循环
         if (streamDone) {
           const finalText = displayedTextRef.current
-          onUpdate(finalText)
+          onUpdateRef.current(finalText)
           return
         }
         // 如果流还没结束但队列空了，等待下一帧
@@ -77,7 +111,7 @@ export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialTe
       displayedTextRef.current += charsToRender.join('')
 
       // 4. 立即更新UI
-      onUpdate(displayedTextRef.current)
+      onUpdateRef.current(displayedTextRef.current)
 
       // 5. 更新队列
       chunkQueueRef.current = chunkQueueRef.current.slice(charsToRenderCount)
@@ -87,7 +121,7 @@ export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialTe
         animationFrameRef.current = requestAnimationFrame(renderLoop)
       }
     },
-    [streamDone, onUpdate, minDelay]
+    [streamDone, minDelay]
   )
 
   useEffect(() => {
@@ -102,5 +136,5 @@ export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialTe
     }
   }, [renderLoop])
 
-  return { addChunk, reset }
+  return { addChunk, reset, update }
 }

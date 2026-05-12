@@ -21,7 +21,6 @@ const translateCoreMock = vi.hoisted(() => ({
   setTimeoutTimer: vi.fn(),
   translateText: vi.fn(),
   determineTargetLanguage: vi.fn(),
-  abortCompletion: vi.fn(),
   isAbortError: vi.fn(),
   formatErrorMessageWithPrefix: vi.fn((_: unknown, prefix: string) => prefix)
 }))
@@ -69,9 +68,13 @@ vi.mock('@renderer/context/CodeStyleProvider', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/translate', () => ({
-  useTranslateHistory: () => ({ add: translateCoreMock.addHistory })
-}))
+vi.mock('@renderer/hooks/translate', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  return {
+    ...actual,
+    useTranslateHistory: () => ({ add: translateCoreMock.addHistory })
+  }
+})
 
 vi.mock('@renderer/hooks/translate/useDetectLang', () => ({
   useDetectLang: () => translateCoreMock.detectLanguage
@@ -144,10 +147,6 @@ vi.mock('@renderer/utils', () => ({
   getFileExtension: () => 'txt',
   isTextFile: fileMock.isTextFile,
   uuid: () => 'abort-key'
-}))
-
-vi.mock('@renderer/utils/abortController', () => ({
-  abortCompletion: translateCoreMock.abortCompletion
 }))
 
 vi.mock('@renderer/utils/error', () => ({
@@ -248,7 +247,6 @@ describe('TranslatePage', () => {
   beforeEach(() => {
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
-    MockUseCacheUtils.setCacheValue('translate.translating', { isTranslating: false, abortKey: null })
     MockUseCacheUtils.setCacheValue('translate.input', '')
     MockUseCacheUtils.setCacheValue('translate.output', '')
     MockUseCacheUtils.setCacheValue('translate.detecting', false)
@@ -279,7 +277,6 @@ describe('TranslatePage', () => {
     translateCoreMock.translateText.mockResolvedValue('translated text')
     translateCoreMock.determineTargetLanguage.mockReset()
     translateCoreMock.determineTargetLanguage.mockReturnValue({ success: true, language: 'zh-cn' })
-    translateCoreMock.abortCompletion.mockReset()
     translateCoreMock.isAbortError.mockReset()
     translateCoreMock.isAbortError.mockReturnValue(false)
     translateCoreMock.formatErrorMessageWithPrefix.mockReset()
@@ -423,7 +420,7 @@ describe('TranslatePage', () => {
     expect(translateCoreMock.translateText).not.toHaveBeenCalled()
   })
 
-  it('shows aborted info and resets translating state when translate throws abort error', async () => {
+  it('silently swallows abort errors thrown by translateText (hook contract)', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn'
@@ -437,11 +434,15 @@ describe('TranslatePage', () => {
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
-    await waitFor(() => expect((window as any).toast.info).toHaveBeenCalledWith('translate.info.aborted'))
-    expect(MockUseCacheUtils.getCacheValue('translate.translating')).toEqual({ isTranslating: false, abortKey: null })
+    await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalledTimes(1))
+    // Abort path is hook-internal: no info toast, no error toast, no success toast.
+    // The user-facing "abort info" toast only fires from `onAbort` (stop button click).
+    expect((window as any).toast.info).not.toHaveBeenCalled()
+    expect((window as any).toast.error).not.toHaveBeenCalled()
+    expect((window as any).toast.success).not.toHaveBeenCalled()
   })
 
-  it('shows failure toast and resets translating state when translate throws non-abort error', async () => {
+  it('shows failure toast (delegated to the hook) when translate throws a non-abort error', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn'
@@ -458,7 +459,40 @@ describe('TranslatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
     await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.error.failed: reason'))
-    expect(MockUseCacheUtils.getCacheValue('translate.translating')).toEqual({ isTranslating: false, abortKey: null })
+    // Hook returned undefined → page-side success path skipped: no success toast, no history.
+    expect((window as any).toast.success).not.toHaveBeenCalled()
+    expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
+  })
+
+  it('clicking stop mid-flight cancels the translation and shows the aborted info toast', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    let resolveTranslate: (value: string) => void = () => {}
+    translateCoreMock.translateText.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolveTranslate = resolve
+      })
+    )
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    rerender(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.stop' }))
+
+    // The hook's `cancel()` runs synchronously: spinner resets and the page
+    // fires the abort-info toast. The underlying translateText promise is
+    // still pending — its eventual result is discarded by the hook.
+    expect((window as any).toast.info).toHaveBeenCalledWith('translate.info.aborted')
+
+    // Drain the pending promise so React doesn't warn about unflushed work.
+    await act(async () => {
+      resolveTranslate('late result')
+    })
   })
 
   it('triggers translate on Cmd/Ctrl+Enter keyboard shortcut', async () => {
@@ -504,33 +538,34 @@ describe('TranslatePage', () => {
     })
   })
 
-  it('aborts in-flight translation and clears translating state on unmount', () => {
-    MockUseCacheUtils.setCacheValue('translate.translating', { isTranslating: true, abortKey: 'abort-key-1' })
-
-    const { unmount } = render(<TranslatePage />)
-    unmount()
-
-    expect(translateCoreMock.abortCompletion).toHaveBeenCalledWith('abort-key-1')
-    expect(MockUseCacheUtils.getCacheValue('translate.translating')).toEqual({ isTranslating: false, abortKey: null })
-  })
-
-  it('logs warning when abort is triggered without abortKey', () => {
+  it('discards a late translate resolution after unmount (hook lifecycle)', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn'
     })
-    MockUseCacheUtils.setCacheValue('translate.translating', { isTranslating: true, abortKey: '' })
-    MockUseCacheUtils.setCacheValue('translate.input', 'hello')
+    let resolveTranslate: (value: string) => void = () => {}
+    translateCoreMock.translateText.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolveTranslate = resolve
+      })
+    )
 
-    render(<TranslatePage />)
+    const { rerender, unmount } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    rerender(<TranslatePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.stop' }))
+    unmount()
 
-    expect(loggerWarnMock).toHaveBeenCalledWith('Abort requested without active abort key', {
-      isTranslating: true,
-      abortKey: ''
+    // Drain the pending promise after unmount. The hook must discard the
+    // late result so neither the success toast nor the history mutation fires.
+    await act(async () => {
+      resolveTranslate('late result')
     })
-    expect(translateCoreMock.abortCompletion).not.toHaveBeenCalled()
+
+    expect((window as any).toast.success).not.toHaveBeenCalled()
+    expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
   })
 
   it('schedules auto-copy after successful translation when auto-copy is enabled', async () => {

@@ -1,102 +1,107 @@
-import { dataApiService } from '@data/DataApiService'
-import { preferenceService } from '@data/PreferenceService'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
-import { isQwenMTModel } from '@renderer/config/models/qwen'
-import type { Model, ReasoningEffortOption } from '@renderer/types'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { t } from 'i18next'
+import { v4 as uuid } from 'uuid'
 
-type TranslateOptions = {
-  reasoningEffort: ReasoningEffortOption
-}
-
-/** Minimal bag for a translate turn — the model to call + the fully-interpolated prompt. */
-export interface TranslatePayload {
-  model: Model
-  content: string
-}
+/** Must stay in sync with main-side prefix (validated in `translateService.open`). */
+const TRANSLATE_STREAM_PREFIX = 'translate:'
 
 /**
- * Resolve the configured translate model + interpolate the translate prompt.
- *
- * Reads `feature.translate.model_id` from v2 Preference and fetches the
- * matching model row via DataApi; throws when either lookup fails. Qwen MT
- * models bypass prompt interpolation (the model handles language pairing
- * itself) — matches the legacy v1 behaviour.
- */
-export async function resolveTranslatePayload(
-  targetLanguage: TranslateLanguage,
-  text: string
-): Promise<TranslatePayload> {
-  const modelId = await preferenceService.get('feature.translate.model_id')
-  if (!modelId || !isUniqueModelId(modelId)) {
-    throw new Error(t('translate.error.not_configured'))
-  }
-  const sharedModel = await dataApiService.get(`/models/${modelId}`).catch(() => undefined)
-  if (!sharedModel) {
-    throw new Error(t('translate.error.not_configured'))
-  }
-  const model = fromSharedModel(sharedModel)
-
-  const content = isQwenMTModel(model)
-    ? text
-    : (await preferenceService.get('feature.translate.model_prompt'))
-        .replaceAll('{{target_language}}', targetLanguage.value)
-        .replaceAll('{{text}}', text)
-
-  return { model, content }
-}
-
-/**
- * Translate text into the target language.
- *
- * Currently non-streaming: legacy `fetchChatCompletion` (renderer-side streaming
- * via Provider SDK) was removed during the ai-service migration to Main IPC.
- * The accumulated-text callback is invoked once on completion so the existing
- * `onResponse(text, isComplete)` contract still works for callers.
- *
- * @param text - The source text to translate
- * @param targetLanguage - Either a {@link TranslateLangCode} (resolved via DataApi) or a {@link TranslateLanguage} object
- * @param onResponse - Invoked once with the final translated text and `isComplete=true`
- * @param _abortKey - Currently unused (legacy streaming-abort path is gone)
- * @param options - Optional settings (e.g. reasoning effort) — currently unused while the IPC `generateText` signature
- *                  doesn't accept per-call assistant settings; preserved for future use without breaking callers.
- * @returns The trimmed translated text
- * @throws {Error} On invalid target language or empty output
+ * Translate `text` to `targetLanguage` via main's `Ai_Translate_Open` IPC.
+ * Per-chunk `onResponse(accumulated, isComplete)` lets the caller pace the
+ * display (see `useSmoothStream`). `signal` aborts via `Ai_Stream_Abort`.
  */
 export const translateText = async (
   text: string,
   targetLanguage: TranslateLangCode | TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void,
-  _abortKey?: string,
-  _options?: TranslateOptions
-) => {
-  if (typeof targetLanguage === 'string') {
-    if (!isTranslateLangCode(targetLanguage) || targetLanguage === 'unknown') {
-      throw new Error(`Invalid target language: ${targetLanguage}`)
+  signal?: AbortSignal
+): Promise<string> => {
+  if (signal?.aborted) {
+    throw new DOMException('Translation aborted before start', 'AbortError')
+  }
+
+  const targetLangCode = typeof targetLanguage === 'string' ? targetLanguage : targetLanguage.langCode
+  if (!isTranslateLangCode(targetLangCode) || targetLangCode === 'unknown') {
+    throw new Error(`Invalid target language: ${targetLangCode}`)
+  }
+
+  const streamId = `${TRANSLATE_STREAM_PREFIX}${uuid()}`
+
+  let accumulated = ''
+  let cleaned = false
+  const unsubscribers: Array<() => void> = []
+
+  let abortListener: (() => void) | undefined
+  const cleanup = () => {
+    if (cleaned) return
+    cleaned = true
+    for (const off of unsubscribers) {
+      try {
+        off()
+      } catch {
+        // listener unsub never throws meaningfully
+      }
     }
-    const langDto = await dataApiService.get(`/translate/languages/${targetLanguage}`)
-    targetLanguage = langDto
+    if (signal && abortListener) signal.removeEventListener('abort', abortListener)
   }
 
-  const { model, content } = await resolveTranslatePayload(targetLanguage, text)
+  if (signal) {
+    abortListener = () => {
+      void window.api.ai.streamAbort({ topicId: streamId }).catch(() => {
+        // Already aborted / stream gone — main drives the final reject via onStreamError.
+      })
+    }
+    signal.addEventListener('abort', abortListener, { once: true })
+  }
 
-  const { text: result } = await window.api.ai.generateText({
-    uniqueModelId: createUniqueModelId(model.provider, model.id) as UniqueModelId,
-    // No persisted assistant for ad-hoc translate calls — main resolves the
-    // model directly via `uniqueModelId`.
-    prompt: content
+  return new Promise<string>((resolve, reject) => {
+    // Subscribe **before** calling main. Main starts the stream synchronously
+    // inside `translate.open`, so the first chunk can land between `open()`'s
+    // resolve and any post-await subscriber registration.
+    unsubscribers.push(
+      window.api.ai.onStreamChunk(({ topicId, chunk }) => {
+        if (topicId !== streamId) return
+        if (
+          chunk &&
+          (chunk as { type?: string }).type === 'text-delta' &&
+          typeof (chunk as { delta?: unknown }).delta === 'string'
+        ) {
+          accumulated += (chunk as { delta: string }).delta
+          onResponse?.(accumulated, false)
+        }
+      })
+    )
+
+    unsubscribers.push(
+      window.api.ai.onStreamDone(({ topicId }) => {
+        if (topicId !== streamId) return
+        const trimmed = accumulated.trim()
+        cleanup()
+        if (!trimmed) {
+          reject(new Error(t('translate.error.empty')))
+          return
+        }
+        onResponse?.(trimmed, true)
+        resolve(trimmed)
+      })
+    )
+
+    unsubscribers.push(
+      window.api.ai.onStreamError(({ topicId, error }) => {
+        if (topicId !== streamId) return
+        cleanup()
+        // Preserve error.name (e.g. 'AbortError') so downstream
+        // `isAbortError(...)` classifies user stops correctly.
+        const err = new Error(error?.message ?? 'Translation stream error')
+        if (error?.name) err.name = error.name
+        reject(err)
+      })
+    )
+
+    window.api.translate.open({ streamId, text, targetLangCode }).catch((openError: unknown) => {
+      cleanup()
+      reject(openError instanceof Error ? openError : new Error(String(openError)))
+    })
   })
-
-  onResponse?.(result, true)
-
-  const trimmedText = result.trim()
-
-  if (!trimmedText) {
-    return Promise.reject(new Error(t('translate.error.empty')))
-  }
-
-  return trimmedText
 }

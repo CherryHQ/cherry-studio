@@ -95,7 +95,7 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
                   {locateMessage && (
                     <Button
                       variant="ghost"
-                      className="absolute top-[5px] right-0 text-[var(--color-text-3)]"
+                      className="absolute top-[5px] right-0 text-(--color-text-3)"
                       onClick={() => locateToMessage(navigate, locateMessage)}>
                       <Forward size={16} />
                     </Button>

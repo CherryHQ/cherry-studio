@@ -461,6 +461,7 @@ export enum IpcChannel {
   Ai_StreamChunk = 'ai:stream-chunk',
   Ai_StreamDone = 'ai:stream-done',
   Ai_StreamError = 'ai:stream-error',
+  Ai_Translate_Open = 'ai:translate:open',
   /** Renderer → Main: send message (AiStreamManager routes to start or steer) */
   Ai_Stream_Open = 'ai:stream:open',
   /** Renderer → Main: subscribe to a topic's stream state */
@@ -469,21 +470,6 @@ export enum IpcChannel {
   Ai_Stream_Detach = 'ai:stream:detach',
   /** Renderer → Main: abort the active generation on a topic */
   Ai_Stream_Abort = 'ai:stream:abort',
-  /**
-   * Renderer → Main: user decided on a `ToolUIPart { state: 'approval-requested' }`.
-   * Payload: `{ approvalId, approved, reason?, updatedInput?, topicId?, anchorId? }`.
-   *
-   * Main routes by what's still alive:
-   *  1. If `ToolApprovalRegistry` has a pending entry for `approvalId`, dispatch
-   *     to unblock the still-running `canUseTool` (Claude-Agent transport).
-   *  2. Otherwise, if `topicId` + `anchorId` are present, apply the decision to
-   *     the DB anchor and dispatch a fresh `continue-conversation` turn (MCP
-   *     transport — original stream already ended at approval-request).
-   *
-   * Renderer never sends the message tree and never relies on
-   * `useChat.transport.sendMessages` to extract decisions out of
-   * `chat.state.messages` — Main is the single writer of approval state.
-   */
   Ai_ToolApproval_Respond = 'ai:tool-approval:respond',
 
   // AI Non-streaming

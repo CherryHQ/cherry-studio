@@ -8,6 +8,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/services/agents/services/channels/ChannelAdapter'
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
+import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
 import { type Assistant } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -226,6 +227,10 @@ export class AiService extends BaseService {
 
     this.ipcHandle(IpcChannel.Ai_ListModels, async (_, request: AiBaseRequest) => {
       return this.listModels(request)
+    })
+
+    this.ipcHandle(IpcChannel.Ai_Translate_Open, async (event, request: TranslateOpenRequest) => {
+      return translateService.open(event.sender, request)
     })
 
     this.ipcHandle(

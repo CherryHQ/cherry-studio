@@ -15,21 +15,18 @@ import {
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/config/registry/messageMenubar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
-import { useLanguages } from '@renderer/hooks/translate'
+import { useLanguages, useTranslate } from '@renderer/hooks/translate'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessage } from '@renderer/hooks/useMessage'
 import { useModelById } from '@renderer/hooks/useModels'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { getMessageTitle } from '@renderer/services/MessagesService'
-import { translateText } from '@renderer/services/TranslateService'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Model, Topic, TranslateLanguage } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
-import { abortCompletion } from '@renderer/utils/abortController'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
-import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -74,17 +71,11 @@ import {
   Upload
 } from 'lucide-react'
 import type { ComponentProps, Dispatch, FC, ReactNode, SetStateAction } from 'react'
-import { Fragment, memo, useCallback, useMemo, useState } from 'react'
+import { Fragment, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from './Blocks'
 import MessageTokens from './MessageTokens'
-
-const createTranslationAbortKey = (messageId: string) => `translation-abort-key:${messageId}`
-
-const abortTranslation = (messageId: string) => {
-  abortCompletion(createTranslationAbortKey(messageId))
-}
 
 interface Props {
   message: Message
@@ -112,6 +103,7 @@ type MessageMenubarButtonContext = {
   enableDeveloperMode: boolean
   handleTraceUserMessage: () => void | Promise<void>
   handleTranslate: (language: TranslateLanguage) => Promise<void>
+  cancelTranslate: () => void
   hasTranslationBlocks: boolean
   isAssistantMessage: boolean
   isBubbleStyle: boolean
@@ -161,7 +153,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const { notesPath } = useNotesSettings()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useTemporaryValue(false, 2000)
-  const translationAbortKey = createTranslationAbortKey(message.id)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const { languages, getLabel: getLanguageLabel } = useLanguages()
   const translateLanguages = languages ?? []
@@ -264,6 +255,14 @@ const MessageMenubar: FC<Props> = (props) => {
     [messageParts]
   )
 
+  const translationUpdaterRef = useRef<((text: string, isComplete?: boolean) => void) | null>(null)
+  const { translate: runTranslate, cancel: cancelTranslate } = useTranslate({
+    loggerContext: 'MessageMenubar',
+    onResponse: useCallback((text: string, isComplete: boolean) => {
+      translationUpdaterRef.current?.(text, isComplete)
+    }, [])
+  })
+
   const handleTranslate = useCallback(
     async (language: TranslateLanguage) => {
       if (isTranslating) return
@@ -271,16 +270,14 @@ const MessageMenubar: FC<Props> = (props) => {
       const translationUpdater = await getTranslationUpdater(language.langCode)
       if (!translationUpdater) return
 
+      translationUpdaterRef.current = translationUpdater
       try {
-        await translateText(mainTextContent, language, translationUpdater, translationAbortKey)
-      } catch (error) {
-        if (!isAbortError(error)) {
-          logger.error('Message translation failed', error as Error)
-          window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
-        }
+        await runTranslate(mainTextContent, language)
+      } finally {
+        translationUpdaterRef.current = null
       }
     },
-    [isTranslating, getTranslationUpdater, mainTextContent, translationAbortKey, t]
+    [isTranslating, getTranslationUpdater, mainTextContent, runTranslate]
   )
 
   const handleTraceUserMessage = useCallback(async () => {
@@ -529,6 +526,7 @@ const MessageMenubar: FC<Props> = (props) => {
     enableDeveloperMode,
     handleTraceUserMessage,
     handleTranslate,
+    cancelTranslate,
     hasTranslationBlocks,
     isAssistantMessage,
     isBubbleStyle,
@@ -697,11 +695,11 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     )
   },
   translate: ({
-    message,
     isUserMessage,
     isTranslating,
     translateLanguages,
     handleTranslate,
+    cancelTranslate,
     hasTranslationBlocks,
     messageParts,
     softHoverBg,
@@ -720,7 +718,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
             className="message-action-button"
             onClick={(e) => {
               e.stopPropagation()
-              abortTranslation(message.id)
+              cancelTranslate()
             }}
             $softHoverBg={softHoverBg}>
             <CirclePause size={15} />
@@ -822,6 +820,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
   },
   delete: (
     {
+      cancelTranslate,
       confirmDeleteMessage,
       deleteMessage,
       message,
@@ -844,7 +843,8 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
     )
 
     const handleDeleteMessage = async () => {
-      abortTranslation(message.id)
+      // Drop any in-flight translation on this message before the parts go away.
+      cancelTranslate()
       await deleteMessage(message.traceId, message.model?.name)
     }
 

@@ -1,5 +1,3 @@
-import { dataApiService } from '@data/DataApiService'
-import { preferenceService } from '@data/PreferenceService'
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,12 +9,17 @@ vi.mock('i18next', () => ({
 import { translateText } from '../TranslateService'
 
 /**
- * `translateText` is non-streaming since the v1 streaming chat-completion path
- * was removed during the Main IPC migration. The current flow:
- *   1. Resolve target language (string → DTO via DataApi, or accept TranslateLanguage)
- *   2. Read `feature.translate.model_id` preference + the model row from DataApi
- *   3. Build the prompt (Qwen MT models skip interpolation)
- *   4. Call `window.api.ai.generateText` once and return the trimmed text
+ * `translateText` is a thin renderer bridge over the main translate IPC.
+ *
+ * Flow under test:
+ *   1. Normalise the target language (DTO → langCode) and validate
+ *   2. Generate a `translate:`-prefixed `streamId`
+ *   3. Subscribe to `onStreamChunk` / `onStreamDone` / `onStreamError` BEFORE
+ *      invoking main (so the first chunk cannot race past the listener)
+ *   4. Call `window.api.translate.open({ streamId, text, targetLangCode })`
+ *   5. Accumulate text-delta chunks, fire `onResponse`, resolve trimmed
+ *      final text on done
+ *   6. Abort via `Ai_Stream_Abort` keyed on `streamId`
  */
 
 const TARGET = {
@@ -27,49 +30,101 @@ const TARGET = {
   updatedAt: '2026-01-01T00:00:00.000Z'
 } as TranslateLanguage
 
-const TRANSLATE_MODEL_ID = 'openai::gpt-4o'
-const TRANSLATE_PROMPT_TEMPLATE = 'Translate the following text to {{target_language}}: {{text}}'
-
 interface MockAiApi {
-  generateText: ReturnType<typeof vi.fn>
+  streamAbort: ReturnType<typeof vi.fn>
+  onStreamChunk: ReturnType<typeof vi.fn>
+  onStreamDone: ReturnType<typeof vi.fn>
+  onStreamError: ReturnType<typeof vi.fn>
+}
+
+interface MockTranslateApi {
+  open: ReturnType<typeof vi.fn>
+}
+
+interface MockListeners {
+  chunk: Array<(data: { topicId: string; chunk: unknown }) => void>
+  done: Array<(data: { topicId: string }) => void>
+  error: Array<(data: { topicId: string; error?: { name?: string; message?: string } }) => void>
+}
+
+function createMocks(): { ai: MockAiApi; translate: MockTranslateApi; listeners: MockListeners } {
+  const listeners: MockListeners = { chunk: [], done: [], error: [] }
+  const ai: MockAiApi = {
+    streamAbort: vi.fn().mockResolvedValue(undefined),
+    onStreamChunk: vi.fn((cb: (data: { topicId: string; chunk: unknown }) => void) => {
+      listeners.chunk.push(cb)
+      return () => {
+        const i = listeners.chunk.indexOf(cb)
+        if (i >= 0) listeners.chunk.splice(i, 1)
+      }
+    }),
+    onStreamDone: vi.fn((cb: (data: { topicId: string }) => void) => {
+      listeners.done.push(cb)
+      return () => {
+        const i = listeners.done.indexOf(cb)
+        if (i >= 0) listeners.done.splice(i, 1)
+      }
+    }),
+    onStreamError: vi.fn((cb: (data: { topicId: string; error?: { name?: string; message?: string } }) => void) => {
+      listeners.error.push(cb)
+      return () => {
+        const i = listeners.error.indexOf(cb)
+        if (i >= 0) listeners.error.splice(i, 1)
+      }
+    })
+  }
+  // Renderer generates `streamId` — echo it back so emit helpers can use it.
+  const translate: MockTranslateApi = {
+    open: vi.fn(async ({ streamId }: { streamId: string }) => ({ streamId }))
+  }
+  return { ai, translate, listeners }
+}
+
+/** Pull the renderer-generated streamId from the latest `translate.open` call. */
+function lastStreamId(translate: MockTranslateApi): string {
+  const calls = translate.open.mock.calls
+  if (calls.length === 0) throw new Error('translate.open has not been called yet')
+  return (calls[calls.length - 1][0] as { streamId: string }).streamId
+}
+
+function emitChunk(listeners: MockListeners, delta: string, topicId: string) {
+  for (const cb of [...listeners.chunk]) {
+    cb({ topicId, chunk: { type: 'text-delta', id: 't1', delta } })
+  }
+}
+
+function emitDone(listeners: MockListeners, topicId: string) {
+  for (const cb of [...listeners.done]) cb({ topicId })
+}
+
+function emitError(listeners: MockListeners, error: { name?: string; message: string }, topicId: string) {
+  for (const cb of [...listeners.error]) cb({ topicId, error })
+}
+
+/** Wait until `translate.open` has resolved — guarantees subscribers are wired. */
+async function waitForOpen(translate: MockTranslateApi) {
+  await vi.waitFor(() => expect(translate.open).toHaveBeenCalledTimes(1))
+  // Microtask flush so the await on `open()` returns and listeners register.
+  await Promise.resolve()
+  await Promise.resolve()
 }
 
 let originalApi: unknown
 let mockAi: MockAiApi
+let mockTranslate: MockTranslateApi
+let mockListeners: MockListeners
 
 beforeEach(() => {
-  vi.mocked(preferenceService.get).mockImplementation(async (key: string) => {
-    if (key === 'feature.translate.model_id') return TRANSLATE_MODEL_ID
-    if (key === 'feature.translate.model_prompt') return TRANSLATE_PROMPT_TEMPLATE
-    return null
-  })
-
-  vi.mocked(dataApiService.get).mockImplementation(async (path: string) => {
-    if (path === `/models/${TRANSLATE_MODEL_ID}`) {
-      // Minimal v2 SharedModel shape — `fromSharedModel` needs `id`, `providerId`, `name`,
-      // `capabilities`. The id deliberately avoids the 'qwen-mt' substring so the
-      // prompt-interpolation branch runs by default.
-      return {
-        id: TRANSLATE_MODEL_ID,
-        providerId: 'openai',
-        name: 'GPT-4o',
-        capabilities: []
-      } as any
-    }
-    if (path === '/translate/languages/en-us') {
-      return TARGET as any
-    }
-    throw new Error(`Unexpected DataApi path in test: ${path}`)
-  })
-
-  mockAi = {
-    generateText: vi.fn().mockResolvedValue({ text: 'Hello world' })
-  }
+  const m = createMocks()
+  mockAi = m.ai
+  mockTranslate = m.translate
+  mockListeners = m.listeners
   originalApi = (window as unknown as { api?: unknown }).api
-  ;(window as unknown as { api: { ai: MockAiApi } }).api = {
+  ;(window as unknown as { api: { ai: MockAiApi; translate: MockTranslateApi } }).api = {
     ...((originalApi ?? {}) as object),
-    ai: mockAi
-  } as { ai: MockAiApi }
+    ai: mockAi,
+    translate: mockTranslate
+  } as { ai: MockAiApi; translate: MockTranslateApi }
 })
 
 afterEach(() => {
@@ -77,124 +132,184 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('translateText', () => {
+describe('translateText (main-driven streaming)', () => {
   describe('happy path', () => {
-    it('returns the trimmed text from window.api.ai.generateText', async () => {
-      mockAi.generateText.mockResolvedValueOnce({ text: '  Hello world  ' })
+    it('passes a translate:-prefixed streamId + text + langCode to main and accumulates chunks', async () => {
+      const promise = translateText('source', TARGET)
+      await waitForOpen(mockTranslate)
 
-      await expect(translateText('source', TARGET)).resolves.toBe('Hello world')
-
-      expect(mockAi.generateText).toHaveBeenCalledTimes(1)
-      expect(mockAi.generateText).toHaveBeenCalledWith({
-        uniqueModelId: TRANSLATE_MODEL_ID,
-        prompt: 'Translate the following text to English: source'
+      expect(mockTranslate.open).toHaveBeenCalledWith({
+        streamId: expect.stringMatching(/^translate:/),
+        text: 'source',
+        targetLangCode: 'en-us'
       })
+
+      const streamId = lastStreamId(mockTranslate)
+      emitChunk(mockListeners, 'Hello ', streamId)
+      emitChunk(mockListeners, 'world', streamId)
+      emitDone(mockListeners, streamId)
+
+      await expect(promise).resolves.toBe('Hello world')
     })
 
-    it('invokes onResponse exactly once with (text, true) on completion', async () => {
+    it('trims trailing whitespace from the final accumulated text', async () => {
+      const promise = translateText('source', TARGET)
+      await waitForOpen(mockTranslate)
+      const streamId = lastStreamId(mockTranslate)
+
+      emitChunk(mockListeners, '  Hello  ', streamId)
+      emitDone(mockListeners, streamId)
+
+      await expect(promise).resolves.toBe('Hello')
+    })
+
+    it('invokes onResponse per chunk and once with isComplete=true on done', async () => {
       const onResponse = vi.fn()
-      mockAi.generateText.mockResolvedValueOnce({ text: 'Hi there' })
+      const promise = translateText('source', TARGET, onResponse)
+      await waitForOpen(mockTranslate)
+      const streamId = lastStreamId(mockTranslate)
 
-      await translateText('source', TARGET, onResponse)
+      emitChunk(mockListeners, 'Hi', streamId)
+      emitChunk(mockListeners, ' there', streamId)
+      emitDone(mockListeners, streamId)
 
-      expect(onResponse).toHaveBeenCalledTimes(1)
-      expect(onResponse).toHaveBeenCalledWith('Hi there', true)
+      await promise
+
+      expect(onResponse).toHaveBeenCalledTimes(3)
+      expect(onResponse).toHaveBeenNthCalledWith(1, 'Hi', false)
+      expect(onResponse).toHaveBeenNthCalledWith(2, 'Hi there', false)
+      expect(onResponse).toHaveBeenNthCalledWith(3, 'Hi there', true)
+    })
+
+    it('ignores chunks routed to a different streamId', async () => {
+      const onResponse = vi.fn()
+      const promise = translateText('source', TARGET, onResponse)
+      await waitForOpen(mockTranslate)
+      const streamId = lastStreamId(mockTranslate)
+
+      emitChunk(mockListeners, 'unrelated', 'other-stream')
+      emitChunk(mockListeners, 'mine', streamId)
+      emitDone(mockListeners, streamId)
+
+      await expect(promise).resolves.toBe('mine')
+      expect(onResponse).toHaveBeenCalledTimes(2)
+      expect(onResponse).toHaveBeenNthCalledWith(1, 'mine', false)
     })
   })
 
-  describe('target language resolution', () => {
-    it('fetches the language DTO when given a string langCode', async () => {
-      await translateText('source', parseTranslateLangCode('en-us'))
+  describe('target language normalisation', () => {
+    it('forwards the lang code to main when given a string', async () => {
+      const promise = translateText('source', parseTranslateLangCode('en-us'))
+      await waitForOpen(mockTranslate)
+      const streamId = lastStreamId(mockTranslate)
+      emitChunk(mockListeners, 'ok', streamId)
+      emitDone(mockListeners, streamId)
+      await promise
 
-      expect(dataApiService.get).toHaveBeenCalledWith('/translate/languages/en-us')
+      expect(mockTranslate.open).toHaveBeenCalledWith({
+        streamId: expect.stringMatching(/^translate:/),
+        text: 'source',
+        targetLangCode: 'en-us'
+      })
     })
 
-    it('throws when given an invalid string langCode without calling generateText', async () => {
+    it('extracts the lang code from a DTO before calling main', async () => {
+      const promise = translateText('source', TARGET)
+      await waitForOpen(mockTranslate)
+      const streamId = lastStreamId(mockTranslate)
+      emitChunk(mockListeners, 'ok', streamId)
+      emitDone(mockListeners, streamId)
+      await promise
+
+      expect(mockTranslate.open).toHaveBeenCalledWith({
+        streamId: expect.stringMatching(/^translate:/),
+        text: 'source',
+        targetLangCode: TARGET.langCode
+      })
+    })
+
+    it('throws when given an invalid string langCode without calling main', async () => {
       await expect(translateText('source', 'not-a-real-code' as any)).rejects.toThrow(
         'Invalid target language: not-a-real-code'
       )
-      expect(mockAi.generateText).not.toHaveBeenCalled()
+      expect(mockTranslate.open).not.toHaveBeenCalled()
     })
 
-    it('throws when given the "unknown" sentinel as target language', async () => {
+    it('throws when given the "unknown" sentinel', async () => {
       await expect(translateText('source', 'unknown' as any)).rejects.toThrow('Invalid target language: unknown')
-      expect(dataApiService.get).not.toHaveBeenCalledWith('/translate/languages/unknown')
-      expect(mockAi.generateText).not.toHaveBeenCalled()
+      expect(mockTranslate.open).not.toHaveBeenCalled()
     })
   })
 
-  describe('not-configured guards', () => {
-    it('throws translate.error.not_configured when the translate model preference is unset', async () => {
-      vi.mocked(preferenceService.get).mockImplementation(async (key: string) => {
-        if (key === 'feature.translate.model_id') return null
-        if (key === 'feature.translate.model_prompt') return TRANSLATE_PROMPT_TEMPLATE
-        return null
-      })
-
+  describe('main-side failure', () => {
+    it('rejects with the main error when translate.open throws (e.g. not configured)', async () => {
+      mockTranslate.open.mockRejectedValueOnce(new Error('t(translate.error.not_configured)'))
       await expect(translateText('source', TARGET)).rejects.toThrow('t(translate.error.not_configured)')
-      expect(mockAi.generateText).not.toHaveBeenCalled()
-    })
-
-    it('throws translate.error.not_configured when the model row is missing', async () => {
-      vi.mocked(dataApiService.get).mockImplementation(async (path: string) => {
-        if (path === `/models/${TRANSLATE_MODEL_ID}`) throw new Error('not found')
-        return null as any
-      })
-
-      await expect(translateText('source', TARGET)).rejects.toThrow('t(translate.error.not_configured)')
-      expect(mockAi.generateText).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('prompt construction', () => {
-    it('interpolates {{target_language}} and {{text}} into the configured prompt', async () => {
-      await translateText('hello', TARGET)
-
-      expect(mockAi.generateText).toHaveBeenCalledWith({
-        uniqueModelId: TRANSLATE_MODEL_ID,
-        prompt: 'Translate the following text to English: hello'
-      })
-    })
-
-    it('skips interpolation for Qwen MT models — sends the raw source text', async () => {
-      const QWEN_MT_ID = 'dashscope::qwen-mt-turbo'
-      vi.mocked(preferenceService.get).mockImplementation(async (key: string) => {
-        if (key === 'feature.translate.model_id') return QWEN_MT_ID
-        if (key === 'feature.translate.model_prompt') return TRANSLATE_PROMPT_TEMPLATE
-        return null
-      })
-      vi.mocked(dataApiService.get).mockImplementation(async (path: string) => {
-        if (path === `/models/${QWEN_MT_ID}`) {
-          return {
-            id: QWEN_MT_ID,
-            providerId: 'dashscope',
-            name: 'Qwen MT Turbo',
-            capabilities: []
-          } as any
-        }
-        throw new Error(`Unexpected DataApi path in test: ${path}`)
-      })
-
-      await translateText('原文', TARGET)
-
-      expect(mockAi.generateText).toHaveBeenCalledWith({
-        uniqueModelId: QWEN_MT_ID,
-        prompt: '原文'
-      })
     })
   })
 
   describe('empty output', () => {
-    it('rejects with translate.error.empty when the model returns an empty string', async () => {
-      mockAi.generateText.mockResolvedValueOnce({ text: '' })
-
-      await expect(translateText('source', TARGET)).rejects.toThrow('t(translate.error.empty)')
+    it('rejects with translate.error.empty when no chunks arrive before done', async () => {
+      const promise = translateText('source', TARGET)
+      await waitForOpen(mockTranslate)
+      emitDone(mockListeners, lastStreamId(mockTranslate))
+      await expect(promise).rejects.toThrow('t(translate.error.empty)')
     })
 
-    it('rejects with translate.error.empty when the model returns whitespace only', async () => {
-      mockAi.generateText.mockResolvedValueOnce({ text: '   \n  ' })
+    it('rejects with translate.error.empty when accumulated text is whitespace only', async () => {
+      const promise = translateText('source', TARGET)
+      await waitForOpen(mockTranslate)
+      const streamId = lastStreamId(mockTranslate)
+      emitChunk(mockListeners, '   \n  ', streamId)
+      emitDone(mockListeners, streamId)
+      await expect(promise).rejects.toThrow('t(translate.error.empty)')
+    })
+  })
 
-      await expect(translateText('source', TARGET)).rejects.toThrow('t(translate.error.empty)')
+  describe('stream errors', () => {
+    it('rejects with the upstream error message', async () => {
+      const promise = translateText('source', TARGET)
+      await waitForOpen(mockTranslate)
+      emitError(mockListeners, { name: 'Error', message: 'upstream boom' }, lastStreamId(mockTranslate))
+
+      await expect(promise).rejects.toThrow('upstream boom')
+    })
+
+    it('preserves AbortError name so callers can classify user-initiated cancels', async () => {
+      const promise = translateText('source', TARGET)
+      await waitForOpen(mockTranslate)
+      emitError(mockListeners, { name: 'AbortError', message: 'stopped by user' }, lastStreamId(mockTranslate))
+
+      const err = await promise.catch((e) => e)
+      expect(err).toBeInstanceOf(Error)
+      expect((err as Error).name).toBe('AbortError')
+    })
+  })
+
+  describe('abort signal', () => {
+    it('calls streamAbort with the streamId when the signal fires mid-stream', async () => {
+      const controller = new AbortController()
+      const promise = translateText('source', TARGET, undefined, controller.signal)
+      await waitForOpen(mockTranslate)
+      const streamId = lastStreamId(mockTranslate)
+
+      emitChunk(mockListeners, 'partial', streamId)
+      controller.abort()
+      // Main would emit an abort-shaped error in response; simulate it here so
+      // the function's reject path completes.
+      emitError(mockListeners, { name: 'AbortError', message: 'aborted' }, streamId)
+
+      await promise.catch(() => undefined)
+
+      expect(mockAi.streamAbort).toHaveBeenCalledWith({ topicId: streamId })
+    })
+
+    it('rejects synchronously when the supplied signal is already aborted', async () => {
+      const controller = new AbortController()
+      controller.abort()
+
+      await expect(translateText('source', TARGET, undefined, controller.signal)).rejects.toThrow()
+      expect(mockTranslate.open).not.toHaveBeenCalled()
     })
   })
 })
