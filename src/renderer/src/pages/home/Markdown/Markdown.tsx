@@ -109,7 +109,12 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     const oldContent = prevContentRef.current || ''
 
     const isDifferentBlock = block.id !== prevBlockIdRef.current
-    const isContentReset = oldContent && newContent && !newContent.startsWith(oldContent)
+    // Treat any non-extension as a reset, including content shrinking back to
+    // empty (e.g. a second translation seeds `content: ''` after the previous
+    // result was already displayed). Without the reset, the smooth-stream's
+    // `displayedTextRef` would carry "stale + new" — chunks would visibly
+    // append onto the previous translation instead of starting fresh.
+    const isContentReset = oldContent.length > 0 && !newContent.startsWith(oldContent)
 
     if (isDifferentBlock || isContentReset) {
       reset(newContent)

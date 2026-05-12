@@ -36,7 +36,7 @@ import PlaceholderBlock from './PlaceholderBlock'
 import ThinkingBlock from './ThinkingBlock'
 import ToolBlockGroup from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
-import { useMessageParts } from './V2Contexts'
+import { useMessageParts, useTranslationOverlayEntry } from './V2Contexts'
 
 const logger = loggerService.withContext('PartsRenderer')
 
@@ -219,8 +219,14 @@ const ErrorPartView = React.memo(function ErrorPartView({
  *
  * Data extraction happens HERE — leaf components receive pure view props only.
  */
-function renderPart(part: CherryMessagePart, partId: string, message: Message, isStreaming: boolean): React.ReactNode {
-  const partType = part.type as string
+function renderPart(
+  part: CherryMessagePart,
+  partId: string,
+  message: Message,
+  isStreaming: boolean,
+  isTranslationOverlayActive: boolean
+): React.ReactNode {
+  const partType = part.type
 
   switch (partType) {
     case 'reasoning': {
@@ -257,12 +263,11 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
     }
 
     case 'data-translation': {
-      const translationData = (part as { data: { content: string } }).data
-      return <TranslationBlock key={partId} id={partId} content={translationData.content} isStreaming={isStreaming} />
+      const blockStreaming = isStreaming || isTranslationOverlayActive
+      return <TranslationBlock key={partId} id={partId} content={part.data.content} isStreaming={blockStreaming} />
     }
 
     case 'text': {
-      const textPart = part as { text?: string }
       const cherryMeta = getCherryMeta(part)
       const citations = cherryMeta?.references
         ? convertReferencesToCitations(cherryMeta.references as ContentReference[])
@@ -274,7 +279,7 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
         <MainTextBlock
           key={partId}
           id={partId}
-          content={textPart.text || ''}
+          content={part.text || ''}
           isStreaming={isStreaming}
           citations={citations}
           citationReferences={citationReferences}
@@ -302,10 +307,6 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
       if (!rawData) return null
       return <MessageVideo key={partId} url={rawData.url} filePath={rawData.filePath} />
     }
-
-    case 'data-citation':
-      // Citation data is embedded in MainTextBlock.citationReferences — no standalone render needed in V2
-      return null
 
     case 'file': {
       const filePart = part as { url?: string; mediaType?: string; filename?: string }
@@ -397,6 +398,12 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
 
   const { isPending: isTopicStreaming } = useTopicStreamStatus(message.topicId)
   const isStreaming = isTopicStreaming && message.status === 'pending'
+  // Translation runs out-of-band of the topic stream — `isStreaming` above
+  // stays false for translation. The overlay map (written by
+  // `useTranslateMessage`) is the source of truth for "this message is
+  // currently being translated", consulted only by the `data-translation`
+  // case below.
+  const isTranslationOverlayActive = useTranslationOverlayEntry(message.id) !== undefined
 
   const grouped = useMemo(() => {
     if (messageParts.length === 0) return []
@@ -471,7 +478,7 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
             const partId = `${message.id}-part-${firstEntry.index}`
             return (
               <AnimatedBlockWrapper key={groupKey} enableAnimation={isStreaming}>
-                {renderPart(firstEntry.part, partId, message, isStreaming)}
+                {renderPart(firstEntry.part, partId, message, isStreaming, isTranslationOverlayActive)}
               </AnimatedBlockWrapper>
             )
           }
@@ -481,7 +488,7 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
 
         // Single part
         const partId = `${message.id}-part-${entry.index}`
-        const rendered = renderPart(entry.part, partId, message, isStreaming)
+        const rendered = renderPart(entry.part, partId, message, isStreaming, isTranslationOverlayActive)
         if (!rendered) return null
 
         return (

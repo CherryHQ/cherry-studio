@@ -23,6 +23,7 @@ import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { useMemo, useRef } from 'react'
 
+import type { TranslationOverlayEntry } from '../Messages/Blocks/V2Contexts'
 import { uiToMessage } from '../uiToMessage'
 
 export interface V2RenderingPipeline {
@@ -33,7 +34,11 @@ export interface V2RenderingPipeline {
   handleExecutionDispose: (executionId: string) => void
 }
 
-export function useV2RenderingPipeline(uiMessages: CherryUIMessage[], topic: Topic): V2RenderingPipeline {
+export function useV2RenderingPipeline(
+  uiMessages: CherryUIMessage[],
+  topic: Topic,
+  translationOverlay: Record<string, TranslationOverlayEntry> = {}
+): V2RenderingPipeline {
   const { assistant, model } = useAssistant(topic.assistantId)
 
   const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
@@ -91,8 +96,23 @@ export function useV2RenderingPipeline(uiMessages: CherryUIMessage[], topic: Top
         next[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
       }
     }
+
+    for (const [messageId, entry] of Object.entries(translationOverlay)) {
+      const existing = next[messageId]
+      if (!existing) continue
+      const baseParts = existing.filter((p) => p.type !== 'data-translation')
+      const translationPart: CherryMessagePart = {
+        type: 'data-translation',
+        data: {
+          content: entry.content,
+          targetLanguage: entry.targetLanguage,
+          ...(entry.sourceLanguage && { sourceLanguage: entry.sourceLanguage })
+        }
+      }
+      next[messageId] = [...baseParts, translationPart]
+    }
     return next
-  }, [uiMessages, executionMessagesById])
+  }, [uiMessages, executionMessagesById, translationOverlay])
 
   return {
     projectedMessages,

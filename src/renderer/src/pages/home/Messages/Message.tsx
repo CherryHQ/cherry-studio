@@ -80,7 +80,7 @@ const MessageItem: FC<Props> = ({
   const [messageStyle] = usePreference('chat.message.style')
   const [showMessageOutline] = usePreference('chat.message.show_outline')
 
-  const { editParts, forkAndResend } = useMessage(message.id, topic)
+  const { editParts, forkAndResend } = useMessage(message.id)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, startEditing, stopEditing } = useMessageEditing()
   const { setTimeoutTimer } = useTimer()

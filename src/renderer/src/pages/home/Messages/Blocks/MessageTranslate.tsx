@@ -15,6 +15,15 @@ interface Props {
 const MessageTranslate: FC<Props> = ({ block }) => {
   const { t } = useTranslation()
 
+  // Render Markdown unconditionally so it mounts at content="" the moment
+  // the overlay seed lands. The smooth-stream pipeline inside Markdown then
+  // typewrites every delta from chunk 1 onward — gating Markdown behind
+  // `!block.content` skipped the typewriter for the first chunk because
+  // `useState(block.content)` captured the chunk-1 text as its initial
+  // state (no `addChunk` ever ran for it). BeatLoader stays as a
+  // co-existing indicator until the first delta arrives.
+  const isAwaitingFirstChunk = !block.content || block.content === t('translate.processing')
+
   return (
     <Fragment>
       <div className="relative mb-2.5">
@@ -23,13 +32,12 @@ const MessageTranslate: FC<Props> = ({ block }) => {
           <Languages size={14} className="text-(--color-text-2)" />
         </div>
       </div>
-      {!block.content || block.content === t('translate.processing') ? (
+      {isAwaitingFirstChunk && (
         <div className="-mt-1.25 mb-1.25 flex h-8 flex-row items-center">
           <BeatLoader color="var(--color-text-1)" size={8} speedMultiplier={0.8} />
         </div>
-      ) : (
-        <Markdown block={block} />
       )}
+      <Markdown block={block} />
     </Fragment>
   )
 }

@@ -132,13 +132,38 @@ describe('translateService.open', () => {
     expect(streamPromptMock).toHaveBeenCalledTimes(1)
     const arg = (
       streamPromptMock.mock.calls as unknown as Array<
-        [{ streamId: string; uniqueModelId: string; prompt: string; listener: { id: string } }]
+        [{ streamId: string; uniqueModelId: string; prompt: string; listener: { id: string } | Array<{ id: string }> }]
       >
     )[0][0]
     expect(arg.streamId).toBe(streamId)
     expect(arg.uniqueModelId).toBe('openai::gpt-4o')
     expect(arg.prompt).toBe('Translate to English: hello')
-    expect(arg.listener.id).toBe(`wc:test:${streamId}`)
+    const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
+    expect(listeners).toHaveLength(1)
+    expect(listeners[0].id).toBe(`wc:test:${streamId}`)
+  })
+
+  it('stacks a PersistenceListener when the request carries a messageId', async () => {
+    const streamId = 'translate:msg-bound'
+    await translateService.open(fakeSender, {
+      streamId,
+      text: 'hello',
+      targetLangCode: 'en-us',
+      messageId: 'msg-42'
+    })
+
+    expect(streamPromptMock).toHaveBeenCalledTimes(1)
+    const arg = (
+      streamPromptMock.mock.calls as unknown as Array<[{ listener: { id: string } | Array<{ id: string }> }]>
+    )[0][0]
+    const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
+    expect(listeners).toHaveLength(2)
+    // Persistence listener is registered FIRST so terminal-event dispatch
+    // (which awaits each listener serially in the manager) finishes the DB
+    // write before `WebContentsListener.onDone` sends `Ai_StreamDone`. The
+    // renderer can then trust the standard done IPC as "safe to refresh".
+    expect(listeners[0].id).toContain('persistence:translation')
+    expect(listeners[1].id).toBe(`wc:test:${streamId}`)
   })
 
   it('rejects a streamId that does not carry the translate prefix', async () => {

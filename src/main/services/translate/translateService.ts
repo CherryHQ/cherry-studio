@@ -25,7 +25,10 @@ import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueMo
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { isQwenMTModel } from '@shared/utils/model'
 
+import { PersistenceListener } from '../../ai/stream-manager/listeners/PersistenceListener'
 import { WebContentsListener } from '../../ai/stream-manager/listeners/WebContentsListener'
+import { TranslationBackend } from '../../ai/stream-manager/persistence/backends/TranslationBackend'
+import type { StreamListener } from '../../ai/stream-manager/types'
 
 const logger = loggerService.withContext('TranslateService')
 
@@ -56,6 +59,20 @@ export interface TranslateOpenRequest {
    * never have to pre-fetch the DTO just to call translate.
    */
   targetLangCode: TranslateLangCode
+  /**
+   * When present, attach a `PersistenceListener` + `TranslationBackend` to
+   * the stream so the final accumulated translation is written onto this
+   * message's `data.parts` as a `data-translation` part. Used by the
+   * MessageMenubar "translate this reply" flow. Omit for orphan callers
+   * (ActionTranslate, TranslatePage) — they keep the chunks-only contract.
+   */
+  messageId?: string
+  /**
+   * Optional source language passed through to the persisted
+   * `data-translation` part. Renderers that already detected the source
+   * (e.g. selection translate) can preserve it on the message row.
+   */
+  sourceLangCode?: TranslateLangCode
 }
 
 export interface TranslateOpenResult {
@@ -85,12 +102,30 @@ export class TranslateService {
     }
     const targetLanguage = await translateLanguageService.getByLangCode(req.targetLangCode)
     const { uniqueModelId, content } = await this.resolveTranslatePayload(req.text, targetLanguage)
-    const listener = new WebContentsListener(sender, req.streamId)
+
+    const listeners: StreamListener[] = []
+    if (req.messageId) {
+      listeners.push(
+        new PersistenceListener({
+          topicId: req.streamId,
+          backend: new TranslationBackend({
+            messageId: req.messageId,
+            targetLanguage: req.targetLangCode,
+            sourceLanguage: req.sourceLangCode
+          })
+        })
+      )
+    }
+    listeners.push(new WebContentsListener(sender, req.streamId))
 
     const streamManager = application.get('AiStreamManager')
-    streamManager.streamPrompt({ streamId: req.streamId, uniqueModelId, prompt: content, listener })
+    streamManager.streamPrompt({ streamId: req.streamId, uniqueModelId, prompt: content, listener: listeners })
 
-    logger.debug('translate stream opened', { streamId: req.streamId, uniqueModelId })
+    logger.debug('translate stream opened', {
+      streamId: req.streamId,
+      uniqueModelId,
+      messageId: req.messageId ?? null
+    })
     return { streamId: req.streamId }
   }
 

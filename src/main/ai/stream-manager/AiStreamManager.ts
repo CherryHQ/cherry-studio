@@ -362,7 +362,7 @@ export class AiStreamManager extends BaseService {
     uniqueModelId: UniqueModelId
     prompt?: string
     messages?: CherryUIMessage[]
-    listener: StreamListener
+    listener: StreamListener | StreamListener[]
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -378,7 +378,7 @@ export class AiStreamManager extends BaseService {
     return this.send({
       topicId: input.streamId,
       models: [{ modelId: input.uniqueModelId, request }],
-      listeners: [input.listener],
+      listeners: Array.isArray(input.listener) ? input.listener : [input.listener],
       lifecycle: promptStreamLifecycle
     })
   }

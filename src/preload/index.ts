@@ -932,8 +932,14 @@ const api = {
     }
   },
   translate: {
-    open: (req: { streamId: string; text: string; targetLangCode: string }): Promise<{ streamId: string }> =>
-      ipcRenderer.invoke(IpcChannel.Ai_Translate_Open, req)
+    open: (req: {
+      streamId: string
+      text: string
+      targetLangCode: string
+      /** Optional — when present, main persists the translation onto this message's parts on stream success. */
+      messageId?: string
+      sourceLangCode?: string
+    }): Promise<{ streamId: string }> => ipcRenderer.invoke(IpcChannel.Ai_Translate_Open, req)
   },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
