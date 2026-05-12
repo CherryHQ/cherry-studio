@@ -1,4 +1,5 @@
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -81,6 +82,21 @@ describe('fileHandlers (DataApi)', () => {
         params: { id: id as FileEntryId }
       } as never)) as { id: string }
       expect(entry.id).toBe(id)
+    })
+
+    it('throws DataApiError(NOT_FOUND) when the id does not exist', async () => {
+      // Regression: prior to the findById + DataApiErrorFactory.notFound fix
+      // this path threw a plain Error, which toDataApiError routed through
+      // internal() → HTTP 500. Renderer-side not-found branching would never
+      // see NOT_FOUND. Pin both the code and the resource shape so a future
+      // "throw a generic error" regression is caught at the schema boundary.
+      const missing = '019606a0-0000-7000-8000-0000000000ff' as FileEntryId
+      const promise = fileHandlers['/files/entries/:id'].GET({ params: { id: missing } } as never)
+      await expect(promise).rejects.toBeInstanceOf(DataApiError)
+      await expect(promise).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'FileEntry', id: missing }
+      })
     })
   })
 

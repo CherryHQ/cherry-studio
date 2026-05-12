@@ -13,6 +13,7 @@ import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { FileSchemas } from '@shared/data/api/schemas/files'
 import { FileEntrySchema, FileRefSchema } from '@shared/data/types/file'
@@ -73,7 +74,9 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
 
   '/files/entries/:id': {
     GET: async ({ params }) => {
-      return fileEntryService.getById(params.id)
+      const entry = await fileEntryService.findById(params.id)
+      if (!entry) throw DataApiErrorFactory.notFound('FileEntry', params.id)
+      return entry
     }
   },
 
