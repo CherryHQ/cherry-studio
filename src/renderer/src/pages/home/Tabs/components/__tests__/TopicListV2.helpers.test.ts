@@ -4,10 +4,26 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildTopicOrderMoves,
+  createTopicDisplayGroupResolver,
   filterTopicsForManageMode,
+  getTopicTimeBucket,
   groupTopicByPinned,
-  moveTopicAfterDrop
+  moveTopicAfterDrop,
+  sortTopicsForDisplayGroups
 } from '../TopicListV2.helpers'
+
+const TOPIC_GROUP_LABELS = {
+  pinned: 'Pinned',
+  time: {
+    today: 'Today',
+    'within-week': 'Within a week',
+    earlier: 'Earlier'
+  }
+}
+
+function localIso(year: number, month: number, day: number, hour = 12) {
+  return new Date(year, month - 1, day, hour).toISOString()
+}
 
 function createTopic(overrides: Partial<Topic> = {}): Topic {
   return {
@@ -63,5 +79,51 @@ describe('TopicListV2 helpers', () => {
       id: 'topics',
       label: 'Topics'
     })
+  })
+
+  it('classifies topic updatedAt values into reusable time buckets', () => {
+    const now = new Date(2026, 4, 12, 12)
+
+    expect(getTopicTimeBucket(localIso(2026, 5, 12, 9), now)).toBe('today')
+    expect(getTopicTimeBucket(localIso(2026, 5, 6, 9), now)).toBe('within-week')
+    expect(getTopicTimeBucket(localIso(2026, 5, 4, 23), now)).toBe('earlier')
+  })
+
+  it('builds time display groups with pinned topics taking precedence', () => {
+    const now = new Date(2026, 4, 12, 12)
+    const groupTopic = createTopicDisplayGroupResolver({ mode: 'time', labels: TOPIC_GROUP_LABELS, now })
+
+    expect(groupTopic(createTopic({ id: 'pinned', pinned: true, updatedAt: localIso(2026, 5, 12, 9) }))).toEqual({
+      id: 'topic:pinned',
+      label: 'Pinned'
+    })
+    expect(groupTopic(createTopic({ id: 'today', updatedAt: localIso(2026, 5, 12, 9) }))).toEqual({
+      id: 'topic:time:today',
+      label: 'Today'
+    })
+    expect(groupTopic(createTopic({ id: 'week', updatedAt: localIso(2026, 5, 6, 9) }))).toEqual({
+      id: 'topic:time:within-week',
+      label: 'Within a week'
+    })
+    expect(groupTopic(createTopic({ id: 'earlier', updatedAt: localIso(2026, 5, 4, 23) }))).toEqual({
+      id: 'topic:time:earlier',
+      label: 'Earlier'
+    })
+  })
+
+  it('keeps the pinned topic layer above time-derived groups with stable order inside each layer', () => {
+    const topics = [
+      createTopic({ id: 'today', updatedAt: localIso(2026, 5, 12, 9) }),
+      createTopic({ id: 'pinned-old', pinned: true, updatedAt: localIso(2026, 5, 4, 23) }),
+      createTopic({ id: 'week', updatedAt: localIso(2026, 5, 6, 9) }),
+      createTopic({ id: 'pinned-new', pinned: true, updatedAt: localIso(2026, 5, 12, 9) })
+    ]
+
+    expect(sortTopicsForDisplayGroups(topics).map((topic) => topic.id)).toEqual([
+      'pinned-old',
+      'pinned-new',
+      'today',
+      'week'
+    ])
   })
 })

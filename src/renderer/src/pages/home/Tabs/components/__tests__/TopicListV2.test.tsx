@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const virtualMocks = vi.hoisted(() => ({
   useVirtualizer: vi.fn((options: { count: number; estimateSize: (index: number) => number }) => ({
@@ -156,6 +156,10 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.display.time') return 'Time'
       if (key === 'chat.topics.display.assistant') return 'Assistant'
       if (key === 'chat.topics.display.tag') return 'Tag'
+      if (key === 'chat.topics.group.today') return 'Today'
+      if (key === 'chat.topics.group.within_week') return 'Within a week'
+      if (key === 'chat.topics.group.earlier') return 'Earlier'
+      if (key === 'chat.topics.group.show_more') return 'Show more topics'
       if (key === 'chat.topics.search.placeholder') return 'Search topics'
       if (key === 'chat.add.topic.title') return 'New Topic'
       if (key === 'common.prompt') return 'Prompt'
@@ -201,6 +205,19 @@ function createRendererTopic(overrides: Partial<Topic> = {}): Topic {
   }
 }
 
+function createTopicPageItems(count: number): ApiTopic[] {
+  return Array.from({ length: count }, (_, index) =>
+    createApiTopic({
+      id: `topic-${index + 1}`,
+      name: `Topic ${index + 1}`,
+      assistantId: 'assistant-1',
+      orderKey: String(index + 1).padStart(3, '0'),
+      createdAt: '2026-01-03T01:00:00.000Z',
+      updatedAt: '2026-01-03T01:00:00.000Z'
+    })
+  )
+}
+
 function renderTopicList() {
   const setActiveTopic = vi.fn()
   const view = render(
@@ -212,6 +229,8 @@ function renderTopicList() {
 describe('TopicListV2', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date(2026, 0, 3, 12))
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'topic.tab.pin_to_top': true,
@@ -274,8 +293,16 @@ describe('TopicListV2', () => {
               name: 'Gamma topic',
               assistantId: 'assistant-2',
               orderKey: 'c',
-              createdAt: '2025-12-31T01:00:00.000Z',
-              updatedAt: '2025-12-31T01:00:00.000Z'
+              createdAt: '2026-01-01T01:00:00.000Z',
+              updatedAt: '2026-01-01T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-d',
+              name: 'Delta archive',
+              assistantId: 'assistant-2',
+              orderKey: 'd',
+              createdAt: '2025-12-20T01:00:00.000Z',
+              updatedAt: '2025-12-20T01:00:00.000Z'
             })
           ]
         }
@@ -291,11 +318,17 @@ describe('TopicListV2', () => {
     })
   })
 
-  it('renders pinned grouping, searches topics, and protects pinned rows from inline delete', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('renders pinned and time groups, searches topics, and protects pinned rows from inline delete', () => {
     const { getByText, setActiveTopic } = renderTopicList()
 
     expect(screen.getByText('Pinned')).toBeInTheDocument()
-    expect(screen.getByText('Topic List')).toBeInTheDocument()
+    expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(screen.getByText('Within a week')).toBeInTheDocument()
+    expect(screen.getByText('Earlier')).toBeInTheDocument()
     expect(screen.getByText('Beta pinned')).toBeInTheDocument()
     expect(getByText('Beta pinned').closest('[data-testid="topic-list-v2-row"]')?.querySelector('button')).toBeNull()
 
@@ -318,11 +351,69 @@ describe('TopicListV2', () => {
     expect(screen.queryByText(/^Prompt:/)).not.toBeInTheDocument()
   })
 
+  it('shows five topics per group and loads five more within that group', () => {
+    mockUseQuery.mockImplementation((path) => {
+      if (path === '/pins') {
+        return {
+          data: [],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return {
+        data: undefined,
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn().mockResolvedValue(undefined),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: createTopicPageItems(11) }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(screen.getByText('Topic 5')).toBeInTheDocument()
+    expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more topics' }))
+
+    expect(screen.getByText('Topic 10')).toBeInTheDocument()
+    expect(screen.queryByText('Topic 11')).not.toBeInTheDocument()
+  })
+
+  it('keeps the pinned group first and lets each group collapse independently', () => {
+    renderTopicList()
+
+    const groupButtons = screen.getAllByRole('button', { expanded: true })
+    expect(groupButtons.map((button) => button.textContent)).toEqual(['Pinned', 'Today', 'Within a week', 'Earlier'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
+
+    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
+    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+  })
+
   it('renders the topic header controls for the UI-only display mode phase', () => {
     renderTopicList()
 
     expect(screen.getByText('Topics')).toBeInTheDocument()
-    expect(screen.getByText('3')).toBeInTheDocument()
+    expect(screen.getByText('4')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Search topics')).toBeInTheDocument()
 
     fireEvent.click(screen.getByLabelText('Display mode'))

@@ -1,6 +1,32 @@
-import type { ResourceListReorderPayload } from '@renderer/components/chat/resources'
+import {
+  composeResourceListGroupResolvers,
+  createPinnedFirstSorter,
+  createPinnedGroupResolver,
+  createTimeGroupResolver,
+  getResourceTimeBucket,
+  type ResourceListGroup,
+  type ResourceListGroupResolver,
+  type ResourceListReorderPayload,
+  type ResourceListTimeBucket,
+  sortByResourceGroupRank
+} from '@renderer/components/chat/resources'
 import type { Topic } from '@renderer/types'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+
+export type TopicDisplayMode = 'time' | 'assistant' | 'tag'
+
+export type TopicListGroupKind = 'pinned' | 'time' | 'assistant' | 'tag' | 'untagged' | 'unassigned'
+
+export type TopicDisplayGroupLabels = {
+  pinned: string
+  time: Record<ResourceListTimeBucket, string>
+}
+
+export type TopicDisplayGroupOptions = {
+  labels: TopicDisplayGroupLabels
+  mode: TopicDisplayMode
+  now?: Date
+}
 
 export type TopicOrderMove = {
   id: string
@@ -73,4 +99,46 @@ export function groupTopicByPinned(topic: Pick<Topic, 'pinned'>, pinnedLabel: st
   }
 
   return { id: 'topics', label: topicLabel }
+}
+
+export function getTopicTimeBucket(updatedAt: string, now?: Date): ResourceListTimeBucket {
+  return getResourceTimeBucket(updatedAt, now)
+}
+
+function withTopicGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): ResourceListGroupResolver<T> {
+  return (item) => {
+    const group = resolver(item)
+    if (!group) return null
+    return { ...group, id: `topic:${group.id}` }
+  }
+}
+
+export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'pinned' | 'updatedAt'>>({
+  labels,
+  mode,
+  now
+}: TopicDisplayGroupOptions): ResourceListGroupResolver<T> {
+  const pinnedResolver = createPinnedGroupResolver<T>({
+    isPinned: (topic) => topic.pinned === true,
+    group: { id: 'pinned', label: labels.pinned } satisfies ResourceListGroup
+  })
+
+  if (mode === 'time') {
+    return withTopicGroupIdPrefix(
+      composeResourceListGroupResolvers(
+        pinnedResolver,
+        createTimeGroupResolver<T>({
+          getTimestamp: (topic) => topic.updatedAt,
+          labels: labels.time,
+          now
+        })
+      )
+    )
+  }
+
+  return withTopicGroupIdPrefix(pinnedResolver)
+}
+
+export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'pinned'>>(topics: readonly T[]): T[] {
+  return sortByResourceGroupRank(topics, createPinnedFirstSorter({ isPinned: (topic) => topic.pinned === true }))
 }

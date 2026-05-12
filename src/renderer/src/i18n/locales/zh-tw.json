@@ -1493,6 +1493,12 @@
       "delete": {
         "shortcut": "按住 {{key}} 可直接刪除"
       },
+      "display": {
+        "assistant": "助手",
+        "tag": "標籤",
+        "time": "時間",
+        "title": "展示方式"
+      },
       "edit": {
         "placeholder": "輸入新名稱",
         "title": "編輯名稱",
@@ -1547,6 +1553,12 @@
         "wait_for_title_naming": "正在產生標題...",
         "word": "匯出為 Word",
         "yuque": "匯出到語雀"
+      },
+      "group": {
+        "earlier": "更早",
+        "show_more": "顯示更多話題",
+        "today": "今天",
+        "within_week": "一週內"
       },
       "list": "話題列表",
       "manage": {
