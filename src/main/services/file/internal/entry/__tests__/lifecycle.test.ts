@@ -162,6 +162,40 @@ describe('internal/entry/lifecycle', () => {
       await permanentDelete(deps, id)
       expect(deps.danglingCache.removeEntry).not.toHaveBeenCalled()
     })
+
+    it('warn-logs a non-ENOENT unlink failure but still removes the DB row (DB-FS convergence)', async () => {
+      // Regression guard: lifecycle.ts:48-57 best-effort unlinks the
+      // internal physical file after the DB row is gone. ENOENT (file
+      // already missing) is the silent-OK case covered by the prior test;
+      // any other errno must `warn`-log so an operator sees the orphan
+      // blob. To produce a non-ENOENT errno without mocking the fs
+      // module (which would also break the makeInternal helper), swap the
+      // physical file for a directory at the same path — `unlink` on a
+      // directory throws EPERM/EISDIR depending on platform, both of
+      // which the lifecycle catch handles identically.
+      const id = await makeInternal()
+      const entry = await fileEntryService.getById(id)
+      const physical = path.join(filesDir, `${id}.${entry.ext}`)
+      const { unlink, mkdir } = await import('node:fs/promises')
+      await unlink(physical)
+      await mkdir(physical)
+      mockLoggerWarn.mockClear()
+
+      await permanentDelete(deps, id)
+
+      // DB row is gone — DB delete is mandatory regardless of FS outcome.
+      expect(await fileEntryService.findById(id)).toBeNull()
+      // The non-ENOENT unlink failure surfaced via logger.warn.
+      const warnCalls = mockLoggerWarn.mock.calls.filter(
+        ([msg]) => typeof msg === 'string' && msg.includes('failed to unlink internal physical file')
+      )
+      expect(warnCalls).toHaveLength(1)
+      expect(warnCalls[0][1]).toMatchObject({ id })
+
+      // Manual cleanup of the directory we swapped in.
+      const { rmdir } = await import('node:fs/promises')
+      await rmdir(physical)
+    })
   })
 
   describe('batch ops', () => {
