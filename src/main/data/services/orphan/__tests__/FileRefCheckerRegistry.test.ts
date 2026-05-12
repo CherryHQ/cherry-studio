@@ -1,6 +1,7 @@
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
@@ -8,20 +9,11 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-// Shared warn spy: runWithBusyRetry routes its retry + retry-exhausted
-// observations through `loggerService.withContext('file/orphan/...').warn`.
-// One vi.fn per process keeps the assertions trivial.
-const mockLoggerWarn = vi.hoisted(() => vi.fn())
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: mockLoggerWarn,
-      error: vi.fn()
-    })
-  }
-}))
+// `@logger` is mocked globally in `tests/main.setup.ts` via the unified
+// MockMainLoggerService singleton. runWithBusyRetry's retry +
+// retry-exhausted observations land on this shared `warn` spy regardless
+// of which `withContext(name)` produced the logger.
+const mockLoggerWarn = mockMainLoggerService.warn
 
 const { createDefaultOrphanCheckerRegistry, knowledgeItemChecker, orphanCheckerRegistry, tempSessionChecker } =
   await import('../FileRefCheckerRegistry')

@@ -5,6 +5,7 @@ import path from 'node:path'
 import type { FilePath } from '@shared/file/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
@@ -12,17 +13,9 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const mockLoggerWarn = vi.hoisted(() => vi.fn())
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: mockLoggerWarn,
-      error: vi.fn()
-    })
-  }
-}))
+// `@logger` is mocked globally in `tests/main.setup.ts` via the unified
+// MockMainLoggerService singleton; warn-call assertions read through its spy.
+const mockLoggerWarn = mockMainLoggerService.warn
 
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
