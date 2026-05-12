@@ -8,7 +8,6 @@ import {
   PopoverTrigger,
   Tooltip
 } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
@@ -235,13 +234,15 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
   const manageState = useTopicManageMode()
   const { isManageMode, selectedIds, searchText, enterManageMode, exitManageMode, toggleSelectTopic } = manageState
   const deferredSearchText = useDeferredValue(searchText)
+  const { isFulfilled: isActiveTopicStreamFulfilled, markSeen: markActiveTopicStreamSeen } = useTopicStreamStatus(
+    activeTopic.id
+  )
 
   useEffect(() => {
-    const key = `topic.stream.seen.${activeTopic.id}` as const
-    if (cacheService.get(key) !== true) {
-      cacheService.set(key, true)
+    if (isActiveTopicStreamFulfilled) {
+      markActiveTopicStreamSeen()
     }
-  }, [activeTopic.id])
+  }, [isActiveTopicStreamFulfilled, markActiveTopicStreamSeen])
 
   const updateTopic = useCallback(
     (topic: Topic) =>
@@ -714,6 +715,8 @@ function TopicRow({
     : isNewlyRenamed(topic.id)
       ? 'animation-reveal'
       : ''
+  const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
+  const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
 
   const row = (
     <ResourceList.Item
@@ -743,7 +746,6 @@ function TopicRow({
 
         onSwitchTopic(topic)
       }}>
-      {!isActive && <TopicStreamIndicator topicId={topic.id} />}
       {isManageMode && (
         <ResourceList.ItemIcon className={cn('mr-0.5', !canSelect && 'opacity-50')}>
           {isSelected ? (
@@ -784,7 +786,9 @@ function TopicRow({
           {topicName}
         </ResourceList.ItemTitle>
       )}
-      {!topic.pinned && (
+      {hasTopicStreamIndicator ? (
+        <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} label={topicName} />
+      ) : !topic.pinned ? (
         <Tooltip
           placement="bottom"
           delay={700}
@@ -805,7 +809,7 @@ function TopicRow({
             {deletingTopicId === topic.id ? <Trash2 size={14} className="text-(--color-error)" /> : <XIcon size={14} />}
           </ResourceList.ItemAction>
         </Tooltip>
-      )}
+      ) : null}
     </ResourceList.Item>
   )
 
@@ -1006,15 +1010,41 @@ function TopicContextMenuContent({
   )
 }
 
-const TopicStreamIndicator = ({ topicId }: { topicId: string }) => {
-  const { isPending, isFulfilled } = useTopicStreamStatus(topicId)
-  if (isPending)
+const TopicStreamIndicator = ({
+  isFulfilled,
+  isPending,
+  label
+}: {
+  isFulfilled: boolean
+  isPending: boolean
+  label: string
+}) => {
+  const dotClassName = cn(
+    'animation-pulse size-[5px] rounded-full',
+    isPending ? 'bg-(--color-status-warning)' : 'bg-(--color-status-success)'
+  )
+
+  if (isPending) {
     return (
-      <span className="animation-pulse absolute left-[3px] top-1/2 size-[5px] -translate-y-1/2 rounded-full bg-(--color-status-warning)" />
+      <span
+        aria-hidden="true"
+        className="flex size-5 shrink-0 items-center justify-center"
+        data-testid="topic-stream-indicator">
+        <span className={dotClassName} />
+      </span>
     )
-  if (isFulfilled)
+  }
+
+  if (isFulfilled) {
     return (
-      <span className="animation-pulse absolute left-[3px] top-1/2 size-[5px] -translate-y-1/2 rounded-full bg-(--color-status-success)" />
+      <ResourceList.ItemAction
+        aria-label={label}
+        className="opacity-100 hover:bg-transparent hover:text-muted-foreground/70 group-hover:opacity-100"
+        data-testid="topic-stream-indicator">
+        <span className={dotClassName} />
+      </ResourceList.ItemAction>
     )
+  }
+
   return null
 }

@@ -81,6 +81,11 @@ const pinMutationMocks = vi.hoisted(() => ({
   deletePin: vi.fn()
 }))
 
+const topicStreamStatusMocks = vi.hoisted(() => ({
+  markSeen: vi.fn(),
+  statuses: new Map<string, { isFulfilled?: boolean; isPending?: boolean }>()
+}))
+
 vi.mock('@renderer/hooks/useTopicDataApi', async () => {
   const actual = await vi.importActual<typeof TopicDataApiModule>('@renderer/hooks/useTopicDataApi')
   return {
@@ -94,7 +99,16 @@ vi.mock('@renderer/hooks/useTopicDataApi', async () => {
 })
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false, isFulfilled: false })
+  useTopicStreamStatus: (topicId: string) => {
+    const status = topicStreamStatusMocks.statuses.get(topicId)
+    return {
+      activeExecutions: [],
+      isFulfilled: status?.isFulfilled ?? false,
+      isPending: status?.isPending ?? false,
+      markSeen: () => topicStreamStatusMocks.markSeen(topicId),
+      status: undefined
+    }
+  }
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
@@ -277,9 +291,16 @@ function renderTopicList() {
   return { ...view, rerenderTopicList: () => view.rerender(renderNode()), setActiveTopic }
 }
 
+function getTopicRow(topicName: string) {
+  const row = screen.getByText(topicName).closest('[data-testid="topic-list-v2-row"]')
+  expect(row).toBeInTheDocument()
+  return row as HTMLElement
+}
+
 describe('TopicListV2', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    topicStreamStatusMocks.statuses.clear()
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date(2026, 0, 3, 12))
     MockUsePreferenceUtils.resetMocks()
@@ -540,6 +561,49 @@ describe('TopicListV2', () => {
     expect(screen.queryByText('2026/01/02 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText('2025/12/31 01:00')).not.toBeInTheDocument()
     expect(screen.queryByText(/^Prompt:/)).not.toBeInTheDocument()
+  })
+
+  it('keeps inactive topic stream indicator in the action slot and opens fulfilled topics', () => {
+    topicStreamStatusMocks.statuses.set('topic-c', { isPending: true })
+    const { rerenderTopicList, setActiveTopic } = renderTopicList()
+
+    let topicRow = getTopicRow('Gamma topic')
+    let indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"] .animation-pulse')
+    expect(indicator).toHaveClass('bg-(--color-status-warning)')
+    expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
+    expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
+
+    topicStreamStatusMocks.statuses.set('topic-c', { isFulfilled: true })
+    rerenderTopicList()
+
+    topicRow = getTopicRow('Gamma topic')
+    indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"] .animation-pulse')
+    expect(indicator).toHaveClass('bg-(--color-status-success)')
+    expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
+
+    fireEvent.click(within(topicRow).getByRole('button', { name: 'Gamma topic' }))
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
+    expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
+
+    topicStreamStatusMocks.statuses.delete('topic-c')
+    rerenderTopicList()
+
+    topicRow = getTopicRow('Gamma topic')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
+    expect(topicRow.querySelector('[data-deleting]')).toBeInTheDocument()
+  })
+
+  it('marks only completed active topic streams as seen', () => {
+    topicStreamStatusMocks.statuses.set('topic-a', { isPending: true })
+    const { rerenderTopicList } = renderTopicList()
+
+    expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
+
+    topicStreamStatusMocks.statuses.set('topic-a', { isFulfilled: true })
+    rerenderTopicList()
+
+    expect(topicStreamStatusMocks.markSeen).toHaveBeenCalledTimes(1)
+    expect(topicStreamStatusMocks.markSeen).toHaveBeenCalledWith('topic-a')
   })
 
   it('shows five topics per group and loads five more within that group', () => {
