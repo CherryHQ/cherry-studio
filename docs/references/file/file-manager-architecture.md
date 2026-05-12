@@ -567,11 +567,11 @@ On conflict, `writeIfUnchanged` throws `StaleVersionError`, and the caller decid
 
 FileManager maintains `Map<FileEntryId, CachedVersion>` internally (LRU, ~2000 entries):
 
-| Trigger | Action |
-|---|---|
-| `write` / `writeIfUnchanged` completes | `set(id, new version)` |
-| Critical path detects external change | `set(id, new version)` |
-| Startup reconcile completes | `clear()` |
+| Trigger | Action | Phase |
+|---|---|---|
+| `write` / `writeIfUnchanged` completes | `set(id, new version)` | Phase 1 (shipped) — see `internal/content/write.ts:42, 68, 83` |
+| Critical path detects external change | `set(id, new version)` | Deferred — paired with the change-detector that would observe "external change" outside the watcher path |
+| Startup reconcile completes | `clear()` | Deferred — no startup reconcile pass exists yet |
 
 **Trust boundary**: the cache only accelerates `getVersion` queries and is not used for critical decisions. `writeIfUnchanged`'s concurrency comparison **must re-stat**; it does not trust the cache.
 
