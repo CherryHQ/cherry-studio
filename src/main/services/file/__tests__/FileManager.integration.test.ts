@@ -416,6 +416,50 @@ describe('FileManager (integration)', () => {
     expect(second).toBe(first)
   })
 
+  it('INT-15a: batchCreateInternalEntries reports succeeded with sourceRef + per-item failed', async () => {
+    // Two valid items + one that fails (invalid base64 data URI). Verify
+    // succeeded carries `{ id, sourceRef }` correlation back to input indices
+    // and failed carries the sourceRef (`#${index}`) for the bad item.
+    const result = await fm.batchCreateInternalEntries([
+      { source: 'bytes', data: new Uint8Array([1]), name: 'a', ext: 'bin' },
+      { source: 'base64', data: 'not-a-data-uri' as never },
+      { source: 'bytes', data: new Uint8Array([2]), name: 'c', ext: 'bin' }
+    ])
+    expect(result.succeeded).toHaveLength(2)
+    expect(result.failed).toHaveLength(1)
+    expect(result.succeeded[0]).toMatchObject({ sourceRef: '#0' })
+    expect(result.succeeded[1]).toMatchObject({ sourceRef: '#2' })
+    expect(result.failed[0].sourceRef).toBe('#1')
+    // The failed item must NOT leave an entry behind.
+    const rows = await dbh.db.select().from(fileEntryTable)
+    expect(rows).toHaveLength(2)
+  })
+
+  it('INT-15b: batchEnsureExternalEntries dedupes within-batch duplicate paths and aggregates per-item failures', async () => {
+    const same = path.join(tmp, 'dedupe.txt')
+    await writeFile(same, 'x')
+    const missing = path.join(tmp, 'no-such-file.txt')
+
+    const result = await fm.batchEnsureExternalEntries([
+      { externalPath: same as never },
+      { externalPath: same as never },
+      { externalPath: missing as never }
+    ])
+    // Two `same`-path inputs collapse to ONE DB row, but BOTH appear in
+    // succeeded with the matching sourceRef so callers can still correlate
+    // each input — that is the dedupe contract the BatchCreateResult split
+    // (I3) was designed to express.
+    expect(result.succeeded).toHaveLength(2)
+    expect(result.succeeded[0].sourceRef).toBe(same)
+    expect(result.succeeded[1].sourceRef).toBe(same)
+    expect(result.succeeded[0].id).toBe(result.succeeded[1].id)
+    expect(result.failed).toHaveLength(1)
+    expect(result.failed[0].sourceRef).toBe(missing)
+    // The DB must contain exactly one external row for `same`.
+    const rows = await dbh.db.select().from(fileEntryTable)
+    expect(rows.filter((r) => r.externalPath === same)).toHaveLength(1)
+  })
+
   it('INT-8: batchGetDanglingStates returns "unknown" for ids that have no entry', async () => {
     const known = '019606a0-0000-7000-8000-00000000ff11' as FileEntryId
     const ghost = '019606a0-0000-7000-8000-00000000ff99' as FileEntryId
