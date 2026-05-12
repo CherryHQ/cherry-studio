@@ -423,4 +423,35 @@ describe('atomicWriteFile (write/sync failure cleans up .tmp-{uuid})', () => {
     const entries = await readdir(tmp)
     expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
   })
+
+  it('on rename failure + unlink EACCES: warn-logs the stranded tmp, function still rejects with rename error', async () => {
+    // Mirrors move()'s cross-device + unlink-failure observability: silent
+    // cleanup hides residue from oncall; warn-log lets them find the
+    // .tmp-{uuid} on disk after the abort.
+    const target = path.join(tmp, 'data.txt')
+    const renameErr = makeErrnoErr('EACCES', 'permission denied')
+    const unlinkErr = makeErrnoErr('EACCES', 'permission denied (unlink)')
+    mockRename.mockRejectedValueOnce(renameErr)
+    mockUnlink.mockRejectedValueOnce(unlinkErr)
+
+    await expect(atomicWriteFile(target as FilePath, 'payload')).rejects.toBe(renameErr)
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining('tmp cleanup failed'),
+      expect.objectContaining({
+        target,
+        code: 'EACCES',
+        err: unlinkErr
+      })
+    )
+  })
+
+  it('on rename failure + unlink ENOENT: silent (tmp already gone is the desired post-state)', async () => {
+    const target = path.join(tmp, 'data.txt')
+    const renameErr = makeErrnoErr('EACCES', 'permission denied')
+    mockRename.mockRejectedValueOnce(renameErr)
+    mockUnlink.mockRejectedValueOnce(makeErrnoErr('ENOENT', 'no such file'))
+
+    await expect(atomicWriteFile(target as FilePath, 'payload')).rejects.toBe(renameErr)
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
 })

@@ -187,6 +187,31 @@ export class PathStaleVersionError extends Error {
 }
 
 /**
+ * Best-effort unlink of an `atomicWriteFile` tmp file after a failure between
+ * open and rename. Mirrors `move()`'s post-failure cleanup contract: ENOENT
+ * is the desired post-state and stays silent; every other errno surfaces a
+ * warn so oncall can find the stranded `.tmp-{uuid}` after the abort.
+ *
+ * Caller still rethrows the *original* error — this helper only exists for
+ * observability and never replaces or wraps the failure cause.
+ */
+async function bestEffortUnlinkTmp(tmp: string, target: string): Promise<void> {
+  try {
+    await unlink(tmp)
+  } catch (unlinkErr) {
+    const code = (unlinkErr as NodeJS.ErrnoException).code
+    if (code !== 'ENOENT') {
+      logger.warn('atomicWriteFile: tmp cleanup failed; tmp file may remain on disk', {
+        tmp,
+        target,
+        code,
+        err: unlinkErr
+      })
+    }
+  }
+}
+
+/**
  * Atomic write: tmp + fsync + rename + fsync(dir).
  *
  * Follows the POSIX atomic flow documented in
@@ -197,10 +222,11 @@ export class PathStaleVersionError extends Error {
  * 4. fsync(dir fd) — flush rename metadata; ignored on Windows
  *
  * Any failure between open and rename (writeFile / sync / rename itself)
- * best-effort unlinks the tmp file before rethrowing. orphanSweep only
- * collects UUID-named files in the entry tree, so a leaked `.tmp-{uuid}`
- * here would persist indefinitely. The target file is never partially
- * written — callers either see the previous content or the new content.
+ * best-effort unlinks the tmp file before rethrowing — non-ENOENT unlink
+ * failures warn-log so the stranded `.tmp-{uuid}` is observable. orphanSweep
+ * only collects UUID-named files in the entry tree, so a silent leak here
+ * would persist indefinitely. The target file is never partially written —
+ * callers either see the previous content or the new content.
  */
 export async function atomicWriteFile(target: FilePath, data: string | Uint8Array): Promise<void> {
   const tmp = tmpNameFor(target)
@@ -211,20 +237,20 @@ export async function atomicWriteFile(target: FilePath, data: string | Uint8Arra
       await tmpHandle.sync()
     } catch (err) {
       await tmpHandle.close().catch(() => undefined)
-      await unlink(tmp).catch(() => undefined)
+      await bestEffortUnlinkTmp(tmp, target)
       throw err
     }
     await tmpHandle.close()
   } catch (err) {
     // tmpHandle.close() above can throw on its own; if it does, the tmp
     // file is still on disk and must be cleaned up here.
-    await unlink(tmp).catch(() => undefined)
+    await bestEffortUnlinkTmp(tmp, target)
     throw err
   }
   try {
     await rename(tmp, target)
   } catch (err) {
-    await unlink(tmp).catch(() => undefined)
+    await bestEffortUnlinkTmp(tmp, target)
     throw err
   }
   await fsyncDirectoryOf(target)
