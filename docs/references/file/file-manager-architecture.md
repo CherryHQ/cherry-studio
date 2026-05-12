@@ -762,45 +762,52 @@ Grouping a stateful class with pure-function primitives would break the primitiv
 
 ### 8.2 API
 
+Shipped surface mirrors `src/main/services/file/watcher/index.ts` —
+a single `onEvent(listener)` subscriber over a normalized event union.
+Earlier drafts proposed seven separate event channels (`onAdd` /
+`onAddDir` / `onUnlink` / `onUnlinkDir` / `onRename` / `onReady` /
+`onError`) with file vs directory split and built-in rename detection;
+the watcher module ships a flat union instead because no current
+consumer needs the dir-event split, and rename detection is deferred
+to the same change that lands the first `onRename` consumer (see §8.3).
+
 ```typescript
-export type IgnoreRule =
-  | { basename: string }    // exact filename match
-  | { glob: string }         // micromatch against absolute path
-  | { regex: RegExp }        // regex against absolute path
+export type WatcherEvent =
+  | { readonly kind: 'add'; readonly path: FilePath }
+  | { readonly kind: 'unlink'; readonly path: FilePath }
+  | { readonly kind: 'change'; readonly path: FilePath }
+  | { readonly kind: 'ready' }
+  | { readonly kind: 'error'; readonly error: Error }
 
-export type AwaitWriteFinishOption =
-  | { enabled: true; stabilityThreshold?: number; pollInterval?: number }
-  | { enabled: false }
+export type WatcherListener = (event: WatcherEvent) => void
 
-export type RenameDetectionOption =
-  | { enabled: true; windowMs?: number }
-  | { enabled: false }
-
-export interface DirectoryWatcherOptions {
-  path: string
-  ignored?: IgnoreRule[]
-  depth?: number
-  emitInitial?: boolean
-  awaitWriteFinish?: AwaitWriteFinishOption   // default enabled, stability=200, poll=100
-  renameDetection?: RenameDetectionOption      // default disabled
+export interface DirectoryWatcher {
+  /** Subscribe to normalized FS events. Returns an unsubscribe function. */
+  onEvent(listener: WatcherListener): () => void
+  /** Stop watching and release OS-level resources. Idempotent. */
+  close(): Promise<void>
 }
 
-export class DirectoryWatcher implements Disposable {
-  readonly onAdd: Event<{ path: string; stat: Stats }>
-  readonly onChange: Event<{ path: string; stat: Stats }>
-  readonly onUnlink: Event<{ path: string }>
-  readonly onAddDir: Event<{ path: string; stat: Stats }>
-  readonly onUnlinkDir: Event<{ path: string }>
-  readonly onRename: Event<{ oldPath: string; newPath: string; stat: Stats }>
-  readonly onReady: Event<void>
-  readonly onError: Event<Error>
-
-  constructor(opts: DirectoryWatcherOptions)
-  start(): Promise<void>
-  stop(): Promise<void>
-  dispose(): void
+export interface CreateDirectoryWatcherOptions {
+  /** Recurse into subdirectories. Default: true. */
+  readonly recursive?: boolean
+  /** Custom ignore predicate. Built-in OS-junk ignores always apply. */
+  readonly ignore?: (path: FilePath) => boolean
+  /** Stability window for `awaitWriteFinish` (ms). Default: 200. Set to 0 to disable. */
+  readonly stabilityThresholdMs?: number
 }
+
+export function createDirectoryWatcher(
+  path: FilePath,
+  opts?: CreateDirectoryWatcherOptions
+): Promise<DirectoryWatcher>
 ```
+
+**Adding new event kinds**: the flat union is additive — extending
+`WatcherEvent` with a new `kind` is non-breaking to existing
+subscribers (they observe and skip), so the dir-split / rename
+channels can be reintroduced without a watcher-rewrite if a real
+consumer surfaces.
 
 ### 8.3 Rename Detection Semantics
 
