@@ -3,6 +3,9 @@ import {
   ContextMenu as UiContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator as UiContextMenuSeparator,
+  ContextMenuSubContent as UiContextMenuSubContent,
+  ContextMenuSubTrigger as UiContextMenuSubTrigger,
   ContextMenuTrigger,
   EmptyState as UiEmptyState,
   Input,
@@ -14,9 +17,9 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import { cn } from '@renderer/utils/style'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronDown, ChevronsDown, SearchIcon } from 'lucide-react'
+import { CalendarDays, ChevronsDown, ChevronsUp, SearchIcon } from 'lucide-react'
 import type { ComponentProps, CSSProperties, ReactNode, Ref } from 'react'
-import { useCallback, useMemo, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 
 import {
   ResourceListContext,
@@ -33,6 +36,36 @@ import {
 } from './ResourceListContext'
 
 const DEFAULT_GROUP_SHOW_MORE_LABEL = 'Show more'
+const DEFAULT_GROUP_COLLAPSE_LABEL = 'Collapse group'
+const SCROLLBAR_AUTO_HIDE_DELAY = 1200
+const SCROLLBAR_FADE_STEP = 140
+const CONTEXT_MENU_CONTENT_CLASS = 'w-[184px] rounded-lg border-border/80 p-1.5 shadow-lg'
+const CONTEXT_MENU_ITEM_CLASS =
+  'h-7 gap-2 rounded-md px-2 text-[12px] font-normal leading-4 text-foreground/80 focus:bg-sidebar-accent focus:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
+const CONTEXT_MENU_SUB_TRIGGER_CLASS =
+  'h-7 gap-2 rounded-md px-2 text-[12px] font-normal leading-4 text-foreground/80 focus:bg-sidebar-accent focus:text-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
+
+type ScrollbarStage = 'active' | 'fade-1' | 'fade-2' | 'fade-3' | 'idle'
+
+const SCROLLBAR_THUMB_CLASS_BY_STAGE: Record<ScrollbarStage, string> = {
+  active:
+    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,var(--color-scrollbar-thumb)_0%,var(--color-scrollbar-thumb)_45%,color-mix(in_srgb,var(--color-scrollbar-thumb)_55%,transparent)_72%,transparent_100%)]',
+  'fade-1':
+    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-scrollbar-thumb)_70%,transparent)_0%,color-mix(in_srgb,var(--color-scrollbar-thumb)_70%,transparent)_45%,color-mix(in_srgb,var(--color-scrollbar-thumb)_35%,transparent)_72%,transparent_100%)]',
+  'fade-2':
+    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-scrollbar-thumb)_40%,transparent)_0%,color-mix(in_srgb,var(--color-scrollbar-thumb)_40%,transparent)_45%,color-mix(in_srgb,var(--color-scrollbar-thumb)_20%,transparent)_72%,transparent_100%)]',
+  'fade-3':
+    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-scrollbar-thumb)_16%,transparent)_0%,color-mix(in_srgb,var(--color-scrollbar-thumb)_16%,transparent)_45%,color-mix(in_srgb,var(--color-scrollbar-thumb)_8%,transparent)_72%,transparent_100%)]',
+  idle: '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,transparent_0%,transparent_50%,transparent_100%)]'
+}
+
+const SCROLLBAR_COLOR_BY_STAGE: Record<ScrollbarStage, string> = {
+  active: 'var(--color-scrollbar-thumb) transparent',
+  'fade-1': 'color-mix(in srgb, var(--color-scrollbar-thumb) 70%, transparent) transparent',
+  'fade-2': 'color-mix(in srgb, var(--color-scrollbar-thumb) 40%, transparent) transparent',
+  'fade-3': 'color-mix(in srgb, var(--color-scrollbar-thumb) 16%, transparent) transparent',
+  idle: 'transparent transparent'
+}
 
 export type {
   ResourceListActionMap,
@@ -65,6 +98,7 @@ type ResourceListProviderProps<T extends ResourceListItemBase> = {
   defaultGroupVisibleCount?: number
   groupLoadStep?: number
   groupShowMoreLabel?: string
+  groupCollapseLabel?: string
   estimateItemSize?: (index: number) => number
   onSelectItem?: (id: string) => void
   onRenameItem?: (id: string, name: string) => void
@@ -81,6 +115,7 @@ type ProviderAction =
   | { type: 'startRename'; id: string }
   | { type: 'cancelRename' }
   | { type: 'showMoreInGroup'; groupId: string; defaultCount: number; step: number }
+  | { type: 'collapseGroupItems'; groupId: string; defaultCount: number }
   | { type: 'toggleGroup'; groupId: string }
   | { type: 'startDrag'; id: string }
   | { type: 'endDrag' }
@@ -112,6 +147,14 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
         }
       }
     }
+    case 'collapseGroupItems':
+      return {
+        ...state,
+        groupVisibleCounts: {
+          ...state.groupVisibleCounts,
+          [action.groupId]: action.defaultCount
+        }
+      }
     case 'toggleGroup': {
       const collapsedGroups = state.collapsedGroups.includes(action.groupId)
         ? state.collapsedGroups.filter((groupId) => groupId !== action.groupId)
@@ -142,7 +185,8 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   defaultGroupVisibleCount = 5,
   groupLoadStep = 5,
   groupShowMoreLabel = DEFAULT_GROUP_SHOW_MORE_LABEL,
-  estimateItemSize = () => 40,
+  groupCollapseLabel = DEFAULT_GROUP_COLLAPSE_LABEL,
+  estimateItemSize = () => 34,
   onSelectItem,
   onRenameItem,
   onOpenContextMenu,
@@ -204,6 +248,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
           totalCount: viewItems.length,
           visibleCount: viewItems.length,
           hasMore: false,
+          canCollapseToDefault: false,
           collapsed: false
         }
       ]
@@ -224,6 +269,8 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       const collapsed = collapsedGroups.has(group.id)
       const configuredVisibleCount = state.groupVisibleCounts[group.id] ?? defaultGroupVisibleCount
       const visibleCount = Math.min(configuredVisibleCount, totalCount)
+      const hasMore = !collapsed && visibleCount < totalCount
+      const canCollapseToDefault = !collapsed && totalCount > defaultGroupVisibleCount && visibleCount >= totalCount
 
       return {
         group: { ...group, count: group.count ?? totalCount },
@@ -231,7 +278,8 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         items: collapsed ? [] : items.slice(0, visibleCount),
         totalCount,
         visibleCount: collapsed ? 0 : visibleCount,
-        hasMore: !collapsed && visibleCount < totalCount,
+        hasMore,
+        canCollapseToDefault,
         collapsed
       }
     })
@@ -267,6 +315,8 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       openContextMenu: (id: string) => onOpenContextMenu?.(id),
       showMoreInGroup: (groupId: string) =>
         dispatch({ type: 'showMoreInGroup', groupId, defaultCount: defaultGroupVisibleCount, step: groupLoadStep }),
+      collapseGroupItems: (groupId: string) =>
+        dispatch({ type: 'collapseGroupItems', groupId, defaultCount: defaultGroupVisibleCount }),
       toggleGroup: (groupId: string) => dispatch({ type: 'toggleGroup', groupId }),
       reorder: (payload: ResourceListReorderPayload) => onReorder?.(payload)
     }),
@@ -287,7 +337,8 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         estimateItemSize,
         defaultGroupVisibleCount,
         groupLoadStep,
-        groupShowMoreLabel
+        groupShowMoreLabel,
+        groupCollapseLabel
       },
       sourceItems: items,
       view: {
@@ -304,6 +355,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       getItemId,
       getItemLabel,
       groupLoadStep,
+      groupCollapseLabel,
       groupShowMoreLabel,
       items,
       selectedIdProp,
@@ -348,11 +400,11 @@ type SearchProps = Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> & {
 
 function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProps) {
   const { actions, state } = useResourceList()
-  const searchIcon = icon === undefined ? <SearchIcon size={15} /> : icon
+  const searchIcon = icon === undefined ? <SearchIcon size={12} /> : icon
   return (
     <div className={cn('relative', wrapperClassName)}>
       {searchIcon && (
-        <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 flex text-muted-foreground">
+        <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 flex text-muted-foreground/45">
           {searchIcon}
         </span>
       )}
@@ -361,8 +413,9 @@ function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProp
         value={state.query}
         onChange={(event) => actions.setQuery(event.target.value)}
         className={cn(
-          'h-9 rounded-md border-input bg-background pr-3 text-sm shadow-none placeholder:text-muted-foreground focus-visible:ring-2',
-          searchIcon ? 'pl-8' : 'pl-3',
+          'h-7 rounded-full border border-sidebar-border/40 bg-background/35 pr-2 text-[10px] text-sidebar-foreground/65 shadow-none transition-colors',
+          'placeholder:text-[10px] placeholder:text-muted-foreground/45 focus-visible:border-sidebar-border/70 focus-visible:ring-0',
+          searchIcon ? 'pl-6' : 'pl-2',
           className
         )}
         {...props}
@@ -381,22 +434,23 @@ type HeaderProps = ComponentProps<'div'> & {
 
 function Header({ actions, children, className, count, icon, ref, title, ...props }: HeaderProps) {
   return (
-    <div
-      ref={ref}
-      className={cn('flex shrink-0 flex-col gap-3 border-sidebar-border/70 border-b px-3 py-3', className)}
-      {...props}>
+    <div ref={ref} className={cn('flex shrink-0 flex-col gap-2.5 px-3 pt-2.5 pb-1.5', className)} {...props}>
       {(title || actions) && (
-        <div className="flex min-h-7 items-center gap-2">
+        <div className="flex h-5 items-center gap-1.5">
           {icon && (
-            <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">{icon}</span>
+            <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground/50">{icon}</span>
           )}
-          <div className="min-w-0 flex flex-1 items-baseline gap-1.5">
-            {title && <span className="truncate font-semibold text-sm leading-5 text-sidebar-foreground">{title}</span>}
+          <div className="min-w-0 flex flex-1 items-baseline gap-1">
+            {title && (
+              <span className="truncate font-medium text-[12px] text-muted-foreground/60 leading-4">{title}</span>
+            )}
             {count !== undefined && (
-              <span className="shrink-0 text-muted-foreground text-xs tabular-nums">{count}</span>
+              <span className="shrink-0 font-medium text-[12px] text-muted-foreground/40 leading-4 tabular-nums">
+                {count}
+              </span>
             )}
           </div>
-          {actions && <div className="flex shrink-0 items-center gap-1 text-muted-foreground">{actions}</div>}
+          {actions && <div className="flex shrink-0 items-center gap-1.5 text-muted-foreground/55">{actions}</div>}
         </div>
       )}
       {children}
@@ -408,22 +462,74 @@ type HeaderActionButtonProps = ComponentProps<typeof Button> & {
   ref?: Ref<HTMLButtonElement>
 }
 
-function HeaderActionButton({
-  className,
-  ref,
-  size = 'icon-sm',
-  variant = 'ghost',
-  ...props
-}: HeaderActionButtonProps) {
+function HeaderActionButton({ className, ref, size, variant = 'ghost', ...props }: HeaderActionButtonProps) {
   return (
     <Button
       ref={ref}
       size={size}
       variant={variant}
       className={cn(
-        'size-7 shrink-0 text-muted-foreground shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        'inline-flex size-5 shrink-0 items-center justify-center p-0 leading-none text-muted-foreground/55 shadow-none hover:bg-transparent hover:text-muted-foreground/75 [&_svg]:block [&_svg]:shrink-0',
         className
       )}
+      {...props}
+    />
+  )
+}
+
+type ListViewportProps = ComponentProps<'div'> & {
+  ref?: Ref<HTMLDivElement>
+}
+
+function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
+  const [stage, setStage] = useState<ScrollbarStage>('idle')
+  const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  const clearScrollingTimeout = useCallback(() => {
+    timeoutRefs.current.forEach(clearTimeout)
+    timeoutRefs.current = []
+  }, [])
+
+  const handleScroll = useCallback(() => {
+    clearScrollingTimeout()
+    setStage('active')
+    timeoutRefs.current = [
+      setTimeout(() => setStage('fade-1'), delay),
+      setTimeout(() => setStage('fade-2'), delay + SCROLLBAR_FADE_STEP),
+      setTimeout(() => setStage('fade-3'), delay + SCROLLBAR_FADE_STEP * 2),
+      setTimeout(() => setStage('idle'), delay + SCROLLBAR_FADE_STEP * 3)
+    ]
+  }, [clearScrollingTimeout, delay])
+
+  useEffect(() => clearScrollingTimeout, [clearScrollingTimeout])
+
+  return { stage, handleScroll }
+}
+
+function ListViewport({ className, onScroll, ref, role, style, ...props }: ListViewportProps) {
+  const { stage, handleScroll } = useAutoHideScrollbar()
+  const isScrolling = stage !== 'idle'
+
+  return (
+    <div
+      ref={ref}
+      data-scrolling={isScrolling ? 'true' : 'false'}
+      role={role}
+      className={cn(
+        'min-h-0 flex-1 overflow-auto px-1.5 py-1.5 [scrollbar-gutter:stable]',
+        '[&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)]',
+        '[&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-150 [&::-webkit-scrollbar-thumb]:ease-out',
+        SCROLLBAR_THUMB_CLASS_BY_STAGE[stage],
+        className
+      )}
+      onScroll={(event) => {
+        handleScroll()
+        onScroll?.(event)
+      }}
+      style={{
+        ...style,
+        scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage]
+      }}
       {...props}
     />
   )
@@ -489,16 +595,18 @@ function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
     <div
       ref={ref}
       className={cn(
-        'flex h-6 items-center gap-1.5 px-2 pt-2 pb-1 font-medium text-muted-foreground text-xs',
+        'flex h-7 items-center gap-1.5 px-1.5 pt-2 pb-1 font-medium text-muted-foreground/70 text-[11px]',
         className
       )}
       {...props}>
       <button
         type="button"
         aria-expanded={!collapsed}
-        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm text-left outline-none hover:text-sidebar-foreground focus-visible:ring-1 focus-visible:ring-ring"
+        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm text-left outline-none hover:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
         onClick={() => actions.toggleGroup(group.id)}>
-        <ChevronDown size={12} className={cn('shrink-0 opacity-70 transition-transform', collapsed && '-rotate-90')} />
+        <span className="flex size-5 shrink-0 items-center justify-center">
+          <CalendarDays size={13} />
+        </span>
         <span className="truncate">{group.label}</span>
       </button>
       {typeof group.count === 'number' && <span className="ml-auto shrink-0 tabular-nums">{group.count}</span>}
@@ -512,19 +620,28 @@ type GroupShowMoreProps = ComponentProps<'div'> & {
 }
 
 function GroupShowMore({ groupId, className, ref, ...props }: GroupShowMoreProps) {
-  const { actions, meta } = useResourceList()
+  const { actions, meta, view } = useResourceList()
+  const viewGroup = view.groups.find((candidate) => candidate.group.id === groupId)
+  const canCollapseToDefault = viewGroup?.canCollapseToDefault === true
+  const label = canCollapseToDefault ? meta.groupCollapseLabel : meta.groupShowMoreLabel
 
   return (
     <div ref={ref} className={cn('flex justify-center px-2 py-1', className)} {...props}>
       <button
         type="button"
-        aria-label={meta.groupShowMoreLabel}
+        aria-label={label}
         className={cn(
           'flex h-6 min-w-10 items-center justify-center rounded-md px-2 text-muted-foreground transition-colors',
           'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
         )}
-        onClick={() => actions.showMoreInGroup(groupId)}>
-        <ChevronsDown size={14} />
+        onClick={() => {
+          if (canCollapseToDefault) {
+            actions.collapseGroupItems(groupId)
+            return
+          }
+          actions.showMoreInGroup(groupId)
+        }}>
+        {canCollapseToDefault ? <ChevronsUp size={14} /> : <ChevronsDown size={14} />}
       </button>
     </div>
   )
@@ -557,7 +674,7 @@ function Item<T extends ResourceListItemBase>({
       data-selected={selected || undefined}
       data-hovered={hovered || undefined}
       className={cn(
-        'group flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors',
+        'group flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1.5 text-sm outline-none transition-colors',
         'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
         selected && 'bg-sidebar-accent text-sidebar-accent-foreground',
         className
@@ -598,7 +715,7 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
       autoFocus
       defaultValue={meta.getItemLabel(item)}
       className={cn(
-        'h-7 flex-1 border-none bg-transparent px-0 text-[13px] text-sidebar-foreground/80 shadow-none focus-visible:ring-0',
+        'h-6 flex-1 border-none bg-transparent px-0 text-[12px] text-sidebar-foreground/70 shadow-none focus-visible:ring-0',
         className
       )}
       onBlur={(event) => actions.commitRename(id, event.currentTarget.value)}
@@ -624,7 +741,7 @@ function ItemTitle({ className, ref, ...props }: ItemTitleProps) {
     <span
       ref={ref}
       className={cn(
-        'min-w-0 flex-1 truncate text-left font-medium text-[13px] text-sidebar-foreground/80 leading-5',
+        'min-w-0 flex-1 truncate text-left font-medium text-[12px] text-sidebar-foreground/70 leading-5',
         className
       )}
       {...props}
@@ -640,7 +757,7 @@ function ItemIcon({ className, ref, ...props }: ItemIconProps) {
   return (
     <span
       ref={ref}
-      className={cn('flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground', className)}
+      className={cn('flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/70', className)}
       {...props}
     />
   )
@@ -656,9 +773,27 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       ref={ref}
       type={type}
       className={cn(
-        'flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-colors transition-opacity',
+        'flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-0 transition-colors transition-opacity',
         'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
         'group-hover:opacity-100 group-data-[selected=true]:opacity-100 data-[deleting=true]:opacity-100',
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+type ItemLeadingActionProps = ItemActionProps
+
+function ItemLeadingAction({ className, ref, type = 'button', ...props }: ItemLeadingActionProps) {
+  return (
+    <button
+      ref={ref}
+      type={type}
+      className={cn(
+        'flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-0 transition-colors transition-opacity',
+        'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        'group-hover:opacity-100 group-data-[selected=true]:opacity-100 data-[active=true]:opacity-100',
         className
       )}
       {...props}
@@ -691,7 +826,7 @@ function buildVirtualRows<T extends ResourceListItemBase>(context: ResourceListC
       itemIndex += 1
     }
 
-    if (group.hasMore) {
+    if (group.hasMore || group.canCollapseToDefault) {
       rows.push({ type: 'group-more', groupId: group.group.id })
     }
   }
@@ -728,7 +863,7 @@ function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderIt
   const virtualItems = virtualizer.getVirtualItems()
 
   return (
-    <div ref={setScrollRef} className={cn('min-h-0 flex-1 overflow-auto px-3 py-2', className)} role="listbox">
+    <ListViewport ref={setScrollRef} className={className} role="listbox">
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualItems.map((virtualItem) => {
           const row = rows[virtualItem.index]
@@ -754,7 +889,7 @@ function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderIt
           )
         })}
       </div>
-    </div>
+    </ListViewport>
   )
 }
 
@@ -762,16 +897,71 @@ type ContextMenuProps<T extends ResourceListItemBase> = {
   item: T
   children: ReactNode
   content: ReactNode
+  contentClassName?: string
 }
 
-function ContextMenu<T extends ResourceListItemBase>({ item, children, content }: ContextMenuProps<T>) {
+function ContextMenu<T extends ResourceListItemBase>({
+  item,
+  children,
+  content,
+  contentClassName
+}: ContextMenuProps<T>) {
   const { actions, meta } = useResourceList<T>()
   return (
     <UiContextMenu onOpenChange={(open) => open && actions.openContextMenu(meta.getItemId(item))}>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent>{content}</ContextMenuContent>
+      <ContextMenuContent className={cn(CONTEXT_MENU_CONTENT_CLASS, contentClassName)}>{content}</ContextMenuContent>
     </UiContextMenu>
   )
+}
+
+type ContextMenuActionProps = ComponentProps<typeof ContextMenuItem> & {
+  icon?: ReactNode
+}
+
+function ContextMenuAction({ children, className, icon, variant, ...props }: ContextMenuActionProps) {
+  return (
+    <ContextMenuItem
+      variant={variant}
+      className={cn(
+        CONTEXT_MENU_ITEM_CLASS,
+        variant === 'destructive' && 'text-destructive focus:bg-destructive/10 focus:text-destructive',
+        className
+      )}
+      {...props}>
+      {icon && (
+        <span
+          className={cn(
+            'flex size-4 shrink-0 items-center justify-center',
+            variant === 'destructive' ? 'text-destructive' : 'text-muted-foreground'
+          )}>
+          {icon}
+        </span>
+      )}
+      <span className="min-w-0 flex-1 truncate text-left">{children}</span>
+    </ContextMenuItem>
+  )
+}
+
+type ContextMenuSubActionProps = ComponentProps<typeof UiContextMenuSubTrigger> & {
+  icon?: ReactNode
+}
+
+function ContextMenuSubAction({ children, className, icon, ...props }: ContextMenuSubActionProps) {
+  return (
+    <UiContextMenuSubTrigger className={cn(CONTEXT_MENU_SUB_TRIGGER_CLASS, className)} {...props}>
+      {icon && <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">{icon}</span>}
+      <span className="min-w-0 flex-1 truncate text-left">{children}</span>
+    </UiContextMenuSubTrigger>
+  )
+}
+
+function ContextMenuSeparator({ className, ...props }: ComponentProps<typeof UiContextMenuSeparator>) {
+  return <UiContextMenuSeparator className={cn('my-1 bg-border/70', className)} {...props} />
+}
+
+function ContextMenuSubContent({ className, ...props }: ComponentProps<typeof UiContextMenuSubContent>) {
+  return <UiContextMenuSubContent className={cn(CONTEXT_MENU_CONTENT_CLASS, className)} {...props} />
 }
 
 type ContextMenuRenameActionProps<T extends ResourceListItemBase> = {
@@ -828,7 +1018,7 @@ function DraggableItems<T extends ResourceListItemBase>({ className, renderItem 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-        <div className={cn('flex min-h-0 flex-1 flex-col gap-1 overflow-auto px-2 py-1', className)}>
+        <ListViewport className={cn('flex flex-col gap-1', className)}>
           {context.view.groups.map((group) => (
             <div key={group.group.id} className="contents">
               <GroupHeader group={group.group} />
@@ -837,10 +1027,10 @@ function DraggableItems<T extends ResourceListItemBase>({ className, renderItem 
                   {renderItem(item, context)}
                 </SortableResourceItem>
               ))}
-              {group.hasMore && <GroupShowMore groupId={group.group.id} />}
+              {(group.hasMore || group.canCollapseToDefault) && <GroupShowMore groupId={group.group.id} />}
             </div>
           ))}
-        </div>
+        </ListViewport>
       </SortableContext>
     </DndContext>
   )
@@ -882,7 +1072,7 @@ function VirtualDraggableItems<T extends ResourceListItemBase>({
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-        <div ref={setScrollRef} className={cn('min-h-0 flex-1 overflow-auto px-3 py-2', className)} role="listbox">
+        <ListViewport ref={setScrollRef} className={className} role="listbox">
           <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
             {virtualItems.map((virtualItem) => {
               const row = rows[virtualItem.index]
@@ -908,7 +1098,7 @@ function VirtualDraggableItems<T extends ResourceListItemBase>({
               )
             })}
           </div>
-        </div>
+        </ListViewport>
       </SortableContext>
     </DndContext>
   )
@@ -984,10 +1174,15 @@ const ResourceList = {
   Item,
   ItemAction,
   ItemIcon,
+  ItemLeadingAction,
   ItemTitle,
   RenameField,
   ContextMenu,
+  ContextMenuAction,
   ContextMenuRenameAction,
+  ContextMenuSeparator,
+  ContextMenuSubAction,
+  ContextMenuSubContent,
   EmptyState,
   LoadingState,
   ErrorState

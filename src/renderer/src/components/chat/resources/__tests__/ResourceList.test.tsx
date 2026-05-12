@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const virtualMocks = vi.hoisted(() => ({
   useVirtualizer: vi.fn((options: { count: number }) => ({
@@ -78,6 +78,10 @@ import {
   SessionResourceList,
   TopicResourceList
 } from '../variants'
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 type TestItem = ResourceListItemBase & {
   kind: 'session' | 'topic'
@@ -303,6 +307,43 @@ describe('ResourceList', () => {
     )
   })
 
+  it('auto-hides the shared list viewport scrollbar after scrolling stops', () => {
+    vi.useFakeTimers()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={ITEMS}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const viewport = screen.getByRole('listbox')
+    expect(viewport).toHaveAttribute('data-scrolling', 'false')
+
+    fireEvent.scroll(viewport)
+    expect(viewport).toHaveAttribute('data-scrolling', 'true')
+
+    act(() => {
+      vi.advanceTimersByTime(1200)
+    })
+
+    expect(viewport).toHaveAttribute('data-scrolling', 'true')
+
+    act(() => {
+      vi.advanceTimersByTime(420)
+    })
+
+    expect(viewport).toHaveAttribute('data-scrolling', 'false')
+  })
+
   it('limits each group to the default visible count and loads the next batch independently', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 12 }, (_, index) => ({
@@ -313,7 +354,11 @@ describe('ResourceList', () => {
     }))
 
     render(
-      <Provider items={items} groupBy={() => ({ id: 'group', label: 'Group' })} groupShowMoreLabel="Show more">
+      <Provider
+        items={items}
+        groupBy={() => ({ id: 'group', label: 'Group' })}
+        groupShowMoreLabel="Show more"
+        groupCollapseLabel="Collapse">
         <ResourceList.Frame>
           <ResourceList.VirtualItems<TestItem>
             renderItem={(item) => (
@@ -336,6 +381,18 @@ describe('ResourceList', () => {
     expect(screen.getByText('Item 10')).toBeInTheDocument()
     expect(screen.queryByText('Item 11')).not.toBeInTheDocument()
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 12 }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+
+    expect(screen.getByText('Item 12')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument()
+    expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 14 }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse' }))
+
+    expect(screen.getByText('Item 5')).toBeInTheDocument()
+    expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
   })
 
   it('collapses grouped rows without losing group counts', () => {
@@ -405,6 +462,30 @@ describe('ResourceList', () => {
     expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
     expect(screen.getByTestId('alpha-icon')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Action Alpha' })).toBeInTheDocument()
+  })
+
+  it('keeps sidebar header and search chrome visually quiet', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={ITEMS}>
+        <ResourceList.Frame>
+          <ResourceList.Header title="Resources" count={ITEMS.length} actions={<ResourceList.HeaderActionButton />}>
+            <ResourceList.Search placeholder="Search resources" />
+          </ResourceList.Header>
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByText('Resources')).toHaveClass('text-muted-foreground/60')
+    expect(screen.getByText(String(ITEMS.length))).toHaveClass('text-muted-foreground/40')
+    expect(screen.getByPlaceholderText('Search resources')).toHaveClass(
+      'rounded-full',
+      'h-7',
+      'border-sidebar-border/40',
+      'placeholder:text-[10px]',
+      'placeholder:text-muted-foreground/45'
+    )
   })
 
   it('exposes explicit business variants without a shared mode prop', () => {
