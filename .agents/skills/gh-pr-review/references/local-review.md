@@ -9,6 +9,7 @@ issues, and lets the user interactively choose which ones to fix.
 |------|---------|
 | `code-checklist.md` | Code review checklist |
 | `doc-checklist.md` | Document review checklist |
+| `cherry-review-guidance.md` | Cherry Studio project-specific review boundaries |
 | `judgment-matrix.md` | Risk levels, worth-fixing criteria, special rules |
 | `checklist-evolution.md` | Checklist update flow and rules |
 
@@ -51,10 +52,12 @@ If diff is empty → show usage examples and exit:
 ## Step 2: Review
 
 Review the diff. Apply `code-checklist.md` to code files,
-`doc-checklist.md` to documentation files. For React component changes, also
-consult `vercel-react-best-practices` skill for detailed performance patterns. When changed lines depend on
-surrounding context, read the relevant sections or related definitions as
-needed. Untracked files have no diff — review their full contents as new code.
+`doc-checklist.md` to documentation files. Apply `cherry-review-guidance.md` to
+code, mixed, Cherry architecture documentation, and project-skill changes. For
+React component changes, also consult `vercel-react-best-practices` skill for
+detailed performance patterns. When changed lines depend on surrounding context,
+read the relevant sections or related definitions as needed. Untracked files
+have no diff — review their full contents as new code.
 
 For each issue found:
 - Provide a code citation (file:line + snippet) from the current tree.

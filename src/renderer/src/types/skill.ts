@@ -146,7 +146,7 @@ export const InstalledSkillSchema = z.object({
   sourceUrl: z.string().nullable(),
   namespace: z.string().nullable(),
   author: z.string().nullable(),
-  tags: z.array(z.string()),
+  sourceTags: z.array(z.string()).default([]),
   contentHash: z.string(),
   isEnabled: z.boolean(),
   createdAt: z.iso.datetime(),

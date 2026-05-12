@@ -223,6 +223,37 @@ Remove the `unregisterIpcHandlers()` method and its call from `onStop()`. BaseSe
 
 **Migration caveat**: Services using `ipcMain.removeAllListeners(channel)` (e.g., CacheService) need careful review — `this.ipcOn()` tracks specific listeners and uses `removeListener()`, not `removeAllListeners()`. If other code also listens on the same channel, this is the correct behavior; if the intent was to remove all listeners, verify the migration won't leave orphans.
 
+### Step 8b: Migrate recurring timers to `registerInterval`
+
+Replace lifecycle-scoped `setInterval()` with `this.registerInterval()` — handles `unref()`, exception isolation, and cleanup via the disposable channel.
+
+```typescript
+// OLD
+private gcInterval: NodeJS.Timeout | null = null
+protected async onStop() {
+  if (this.gcInterval) { clearInterval(this.gcInterval); this.gcInterval = null }
+}
+private startGc() {
+  if (this.gcInterval) return
+  this.gcInterval = setInterval(() => this.gc(), 60_000)
+  this.gcInterval.unref()
+}
+
+// NEW
+private gcInterval: Disposable | null = null
+protected async onStop() {
+  this.gcInterval = null // auto-disposed; null'd so restart re-arms
+}
+private startGc() {
+  if (this.gcInterval) return
+  this.gcInterval = this.registerInterval(() => this.gc(), 60_000)
+}
+```
+
+If the field is never read (e.g., fire-and-forget from `onInit`), drop it entirely.
+
+**Do not migrate**: one-shot `setTimeout` (debounces), connection-scoped heartbeats (Discord/Slack/QQ adapters), activation-scoped timers in `Activatable` services.
+
 ## Before/After Summary
 
 | Aspect         | Before                                      | After                                        |
@@ -235,6 +266,7 @@ Remove the `unregisterIpcHandlers()` method and its call from `onStop()`. BaseSe
 | Ordering       | Manual call order in `index.ts`             | `@ServicePhase` + `@DependsOn` + `@Priority` |
 | Error handling | try/catch in `index.ts`                     | `@ErrorHandling('fail-fast' \| 'graceful')`  |
 | IPC handlers   | Manual `ipcMain.handle()` + `removeHandler()` | `this.ipcHandle()` — auto-cleanup on stop |
+| Recurring timers | Manual `setInterval()` + `clearInterval()` + `unref()` | `this.registerInterval()` — auto-cleanup, auto-unref, exception-isolated |
 
 ### Step 9: Migrate ad-hoc event communication to Emitter/Event
 

@@ -1,8 +1,15 @@
-import { Button } from '@cherrystudio/ui'
+import {
+  Button,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuItemContent,
+  ContextMenuTrigger
+} from '@cherrystudio/ui'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
-import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import type { AssistantPreset } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
@@ -58,14 +65,20 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
     })
   }, [preset])
 
-  const menuItems = [
+  const handleEdit = () => void AssistantSettingsPopup.show({ assistant: preset })
+  const handleCreate = () => void createAssistantFromAgent(preset)
+  const handleManage = () => ManageAssistantPresetsPopup.show()
+  const handleExport = () => void exportPreset()
+  const handleDeletePreset = () => handleDelete(preset)
+
+  const dropdownMenuItems = [
     {
       key: 'edit',
       label: t('assistants.presets.edit.title'),
       icon: <EditIcon size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
-        void AssistantSettingsPopup.show({ assistant: preset })
+        handleEdit()
       }
     },
     {
@@ -74,7 +87,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
       icon: <PlusIcon size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
-        void createAssistantFromAgent(preset)
+        handleCreate()
       }
     },
     {
@@ -83,7 +96,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
       icon: <Settings2 size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
-        ManageAssistantPresetsPopup.show()
+        handleManage()
       }
     },
     {
@@ -92,7 +105,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
       icon: <SquareArrowOutUpRight size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
-        void exportPreset()
+        handleExport()
       }
     },
     {
@@ -102,7 +115,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
       danger: true,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
-        handleDelete(preset)
+        handleDeletePreset()
       }
     }
   ]
@@ -157,7 +170,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
                 {emoji && <HeaderInfoEmoji>{emoji}</HeaderInfoEmoji>}
                 <Dropdown
                   menu={{
-                    items: menuItems
+                    items: dropdownMenuItems
                   }}
                   trigger={['click']}
                   placement="bottomRight">
@@ -180,13 +193,36 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
 
   if (activegroup === '我的') {
     return (
-      <Dropdown
-        menu={{
-          items: menuItems
-        }}
-        trigger={['contextMenu']}>
-        {content}
-      </Dropdown>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{content}</ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={handleEdit}>
+            <ContextMenuItemContent icon={<EditIcon size={14} />}>
+              {t('assistants.presets.edit.title')}
+            </ContextMenuItemContent>
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={handleCreate}>
+            <ContextMenuItemContent icon={<PlusIcon size={14} />}>
+              {t('assistants.presets.add.button')}
+            </ContextMenuItemContent>
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={handleManage}>
+            <ContextMenuItemContent icon={<Settings2 size={14} />}>
+              {t('assistants.presets.manage.title')}
+            </ContextMenuItemContent>
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={handleExport}>
+            <ContextMenuItemContent icon={<SquareArrowOutUpRight size={14} />}>
+              {t('assistants.presets.export.agent')}
+            </ContextMenuItemContent>
+          </ContextMenuItem>
+          <ContextMenuItem variant="destructive" onSelect={handleDeletePreset}>
+            <ContextMenuItemContent icon={<DeleteIcon size={14} className="lucide-custom" />}>
+              {t('common.delete')}
+            </ContextMenuItemContent>
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     )
   }
 

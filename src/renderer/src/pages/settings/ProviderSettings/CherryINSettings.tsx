@@ -1,5 +1,5 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Select } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 
@@ -43,29 +43,24 @@ const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId, apiHost, setA
     [setApiHost, updateProvider]
   )
 
-  const options = useMemo(
-    () =>
-      API_HOST_OPTIONS.map((option) => ({
-        value: option.value,
-        label: (
-          <div className="flex flex-col gap-0.5">
-            <span>{option.labelKey}</span>
-            <span className="text-[var(--color-text-3)] text-xs">{option.description}</span>
-          </div>
-        )
-      })),
-    []
-  )
+  const currentHostLabel = API_HOST_OPTIONS.find((option) => option.value === getCurrentHost)?.value ?? getCurrentHost
 
   return (
-    <Select
-      value={getCurrentHost}
-      onChange={handleHostChange}
-      options={options}
-      style={{ width: '100%', marginTop: 5 }}
-      optionLabelProp="label"
-      labelRender={(option) => option.value}
-    />
+    <Select value={getCurrentHost} onValueChange={handleHostChange}>
+      <SelectTrigger className="mt-1.25 h-9 min-h-9 w-full">
+        <SelectValue>{currentHostLabel}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {API_HOST_OPTIONS.map((option) => (
+          <SelectItem key={option.value} value={option.value} className="py-2">
+            <div className="flex flex-col gap-0.5">
+              <span>{option.labelKey}</span>
+              <span className="text-muted-foreground text-xs">{option.description}</span>
+            </div>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 

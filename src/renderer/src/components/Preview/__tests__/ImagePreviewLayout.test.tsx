@@ -13,15 +13,6 @@ const mocks = vi.hoisted(() => ({
   }))
 }))
 
-// Mock antd components
-vi.mock('antd', () => ({
-  Spin: ({ children, spinning }: any) => (
-    <div data-testid="spin" data-spinning={spinning}>
-      {children}
-    </div>
-  )
-}))
-
 vi.mock('@renderer/components/Icons', () => ({
   LoadingIcon: () => <div data-testid="spinner">Spinner</div>
 }))
@@ -69,14 +60,14 @@ describe('ImagePreviewLayout', () => {
     expect(screen.getByText('Test Content')).toBeInTheDocument()
   })
 
-  it('should show loading state when loading is true', () => {
+  it('should show loading indicator when loading is true', () => {
     render(<ImagePreviewLayout {...defaultProps} loading={true} />)
-    expect(screen.getByTestId('spin')).toHaveAttribute('data-spinning', 'true')
+    expect(screen.getByTestId('spinner')).toBeInTheDocument()
   })
 
-  it('should not show loading state when loading is false', () => {
+  it('should not show loading indicator when loading is false', () => {
     render(<ImagePreviewLayout {...defaultProps} loading={false} />)
-    expect(screen.getByTestId('spin')).toHaveAttribute('data-spinning', 'false')
+    expect(screen.queryByTestId('spinner')).not.toBeInTheDocument()
   })
 
   it('should display error message when error is provided', () => {

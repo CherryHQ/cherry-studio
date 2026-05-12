@@ -245,6 +245,10 @@ export const generateToolEnvironment = ({
         env.OPENCODE_PROVIDER_NAME = providerName
         const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/[-.]/g, '_')}`
         env[envVarKey] = apiKey
+        // opencode's auto-update check can't detect Cherry Studio's bun install,
+        // causing a confusing "Update Available" dialog that always fails.
+        // Cherry Studio manages opencode updates via its own autoUpdateToLatest.
+        env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
       }
       break
   }

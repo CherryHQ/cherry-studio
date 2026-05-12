@@ -12,16 +12,32 @@ import {
   PRESETS_FILE_PROCESSORS
 } from '../data/presets/file-processing'
 import { FILE_TYPE } from '../data/types/file'
+import {
+  FileProcessingArtifactSchema,
+  FileProcessingTaskResultSchema,
+  FileProcessingTaskStartResultSchema,
+  ListAvailableFileProcessorsResultSchema
+} from '../data/types/fileProcessing'
 
 describe('FileProcessorFeatureCapabilitySchema', () => {
-  it('supports multiple input types for a single capability', () => {
+  it('accepts image_to_text with image inputs', () => {
     const result = FileProcessorFeatureCapabilitySchema.safeParse({
-      feature: 'text_extraction',
-      inputs: [FILE_TYPE.IMAGE, FILE_TYPE.DOCUMENT],
+      feature: 'image_to_text',
+      inputs: [FILE_TYPE.IMAGE],
       output: FILE_TYPE.TEXT
     })
 
     expect(result.success).toBe(true)
+  })
+
+  it('rejects document inputs for image_to_text capabilities', () => {
+    const result = FileProcessorFeatureCapabilitySchema.safeParse({
+      feature: 'image_to_text',
+      inputs: [FILE_TYPE.IMAGE, FILE_TYPE.DOCUMENT],
+      output: FILE_TYPE.TEXT
+    })
+
+    expect(result.success).toBe(false)
   })
 })
 
@@ -44,7 +60,7 @@ describe('FileProcessorTemplatesSchema', () => {
       metadata: {},
       capabilities: [
         {
-          feature: 'text_extraction',
+          feature: 'image_to_text',
           inputs: [FILE_TYPE.IMAGE],
           output: FILE_TYPE.TEXT
         }
@@ -60,12 +76,12 @@ describe('FileProcessorTemplatesSchema', () => {
       type: 'api',
       capabilities: [
         {
-          feature: 'text_extraction',
+          feature: 'image_to_text',
           inputs: [FILE_TYPE.IMAGE],
           output: FILE_TYPE.TEXT
         },
         {
-          feature: 'text_extraction',
+          feature: 'image_to_text',
           inputs: [FILE_TYPE.DOCUMENT],
           output: FILE_TYPE.TEXT
         }
@@ -81,7 +97,7 @@ describe('FileProcessorOverrideSchema', () => {
     const result = FileProcessorOverrideSchema.safeParse({
       apiKeys: ['test-key'],
       capabilities: {
-        text_extraction: {
+        image_to_text: {
           apiHost: 'https://example.com',
           modelId: 'model-1'
         }
@@ -94,16 +110,16 @@ describe('FileProcessorOverrideSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('rejects invalid urls', () => {
+  it('accepts custom api host strings', () => {
     const result = FileProcessorOverrideSchema.safeParse({
       capabilities: {
-        markdown_conversion: {
+        document_to_markdown: {
           apiHost: 'not-a-url'
         }
       }
     })
 
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   it('rejects unknown feature overrides', () => {
@@ -117,20 +133,126 @@ describe('FileProcessorOverrideSchema', () => {
 
     expect(result.success).toBe(false)
   })
+})
 
-  it('rejects capability metadata overrides', () => {
-    const result = FileProcessorOverrideSchema.safeParse({
-      capabilities: {
-        markdown_conversion: {
-          metadata: {
-            optionalPayload: {
-              enable_formula: false
-            }
-          }
-        }
-      }
+describe('FileProcessingTaskStartResultSchema', () => {
+  it('requires taskId and feature on task start results', () => {
+    expect(() =>
+      FileProcessingTaskStartResultSchema.parse({
+        status: 'processing',
+        progress: 0,
+        processorId: 'mineru'
+      })
+    ).toThrow()
+  })
+
+  it('accepts valid task start results', () => {
+    const result = FileProcessingTaskStartResultSchema.parse({
+      taskId: 'task-1',
+      feature: 'document_to_markdown',
+      status: 'processing',
+      progress: 0,
+      processorId: 'mineru'
+    })
+
+    expect(result.taskId).toBe('task-1')
+    expect(result.processorId).toBe('mineru')
+  })
+})
+
+describe('ListAvailableFileProcessorsResultSchema', () => {
+  it('accepts known processor ids', () => {
+    expect(() =>
+      ListAvailableFileProcessorsResultSchema.parse({
+        processorIds: ['system', 'ovocr']
+      })
+    ).not.toThrow()
+  })
+
+  it('rejects unknown processor ids', () => {
+    const result = ListAvailableFileProcessorsResultSchema.safeParse({
+      processorIds: ['missing']
     })
 
     expect(result.success).toBe(false)
+  })
+})
+
+describe('FileProcessingArtifactSchema', () => {
+  it('accepts text and markdown file artifacts', () => {
+    expect(FileProcessingArtifactSchema.parse({ kind: 'text', format: 'plain', text: 'hello' })).toEqual({
+      kind: 'text',
+      format: 'plain',
+      text: 'hello'
+    })
+
+    expect(FileProcessingArtifactSchema.parse({ kind: 'file', format: 'markdown', path: '/tmp/output.md' })).toEqual({
+      kind: 'file',
+      format: 'markdown',
+      path: '/tmp/output.md'
+    })
+  })
+})
+
+describe('FileProcessingTaskResultSchema', () => {
+  it('rejects completed results without artifacts', () => {
+    expect(() =>
+      FileProcessingTaskResultSchema.parse({
+        taskId: 'task-1',
+        feature: 'document_to_markdown',
+        status: 'completed',
+        progress: 100,
+        processorId: 'mineru'
+      })
+    ).toThrow()
+  })
+
+  it('rejects failed results without error', () => {
+    expect(() =>
+      FileProcessingTaskResultSchema.parse({
+        taskId: 'task-1',
+        feature: 'document_to_markdown',
+        status: 'failed',
+        progress: 0,
+        processorId: 'mineru'
+      })
+    ).toThrow()
+  })
+
+  it('rejects processing results with completed-only fields', () => {
+    expect(() =>
+      FileProcessingTaskResultSchema.parse({
+        taskId: 'task-1',
+        feature: 'document_to_markdown',
+        status: 'processing',
+        progress: 50,
+        processorId: 'mineru',
+        artifacts: [{ kind: 'file', format: 'markdown', path: '/tmp/output.md' }]
+      })
+    ).toThrow()
+  })
+
+  it('accepts valid completed and cancelled results', () => {
+    const completed = FileProcessingTaskResultSchema.parse({
+      taskId: 'task-1',
+      feature: 'document_to_markdown',
+      status: 'completed',
+      progress: 100,
+      processorId: 'mineru',
+      artifacts: [{ kind: 'file', format: 'markdown', path: '/tmp/output.md' }]
+    })
+
+    expect(completed.status).toBe('completed')
+
+    const cancelled = FileProcessingTaskResultSchema.parse({
+      taskId: 'task-2',
+      feature: 'image_to_text',
+      status: 'cancelled',
+      progress: 10,
+      processorId: 'tesseract',
+      reason: 'cancelled'
+    })
+
+    expect(cancelled.status).toBe('cancelled')
   })
 })

@@ -162,6 +162,8 @@ export interface ListOptions {
   offset?: number
   sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'sortOrder'
   orderBy?: 'asc' | 'desc'
+  /** LIKE %kw% match against name OR description (case-insensitive). */
+  search?: string
 }
 
 // AgentSession entity representing a conversation session with one or more agents
@@ -458,12 +460,15 @@ export const ReplaceSessionRequestSchema = sessionCreatableSchema
 
 export type ReplaceSessionRequest = z.infer<typeof ReplaceSessionRequestSchema>
 
-const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'max'])
+const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max'])
 
 const AgentThinkingConfigSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('enabled'), budgetTokens: z.number().optional() }),
   z.object({ type: z.literal('disabled') }),
-  z.object({ type: z.literal('adaptive') })
+  z.object({
+    type: z.literal('adaptive'),
+    display: z.enum(['omitted', 'summarized']).optional()
+  })
 ])
 
 export type AgentEffort = z.infer<typeof AgentEffortSchema>

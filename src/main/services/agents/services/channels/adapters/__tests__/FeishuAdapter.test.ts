@@ -29,6 +29,8 @@ const mockCardSettings = vi.fn().mockResolvedValue({ code: 0 })
 const mockCardUpdate = vi.fn().mockResolvedValue({ code: 0 })
 const mockElementContent = vi.fn().mockResolvedValue({ code: 0 })
 const mockMessageResourceGet = vi.fn()
+const mockReactionCreate = vi.fn().mockResolvedValue({ code: 0, data: { reaction_id: 'rx-1' } })
+const mockReactionDelete = vi.fn().mockResolvedValue({ code: 0 })
 
 const mockClient = {
   im: {
@@ -38,6 +40,10 @@ const mockClient = {
     },
     messageResource: {
       get: mockMessageResourceGet
+    },
+    messageReaction: {
+      create: mockReactionCreate,
+      delete: mockReactionDelete
     }
   },
   cardkit: {
@@ -85,6 +91,8 @@ describe('FeishuAdapter', () => {
     mockCardUpdate.mockClear().mockResolvedValue({ code: 0 })
     mockElementContent.mockClear().mockResolvedValue({ code: 0 })
     mockMessageResourceGet.mockReset()
+    mockReactionCreate.mockClear().mockResolvedValue({ code: 0, data: { reaction_id: 'rx-1' } })
+    mockReactionDelete.mockClear().mockResolvedValue({ code: 0 })
     mockWsStart.mockClear().mockResolvedValue(undefined)
     capturedEventHandlers = {}
   })
@@ -225,10 +233,122 @@ describe('FeishuAdapter', () => {
     })
   })
 
-  it('sendTypingIndicator() is a no-op (Feishu has no native typing API)', async () => {
+  it('sendTypingIndicator() is a no-op when no user message has been seen', async () => {
     const adapter = createAdapter()
     await adapter.connect()
     await adapter.sendTypingIndicator('oc_123')
+    expect(mockReactionCreate).not.toHaveBeenCalled()
+  })
+
+  async function deliverIncomingTextMessage(messageId = 'msg-in-1', chatId = 'oc_123') {
+    const handler = capturedEventHandlers['im.message.receive_v1']
+    await handler({
+      sender: { sender_id: { open_id: 'ou_user1' } },
+      message: {
+        message_id: messageId,
+        chat_id: chatId,
+        chat_type: 'p2p',
+        message_type: 'text',
+        content: JSON.stringify({ text: 'Hello agent' })
+      }
+    })
+  }
+
+  it('sendTypingIndicator() reacts to the latest user message with INHALE and is idempotent', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await deliverIncomingTextMessage()
+
+    await adapter.sendTypingIndicator('oc_123')
+    await adapter.sendTypingIndicator('oc_123')
+
+    expect(mockReactionCreate).toHaveBeenCalledTimes(1)
+    expect(mockReactionCreate).toHaveBeenCalledWith({
+      path: { message_id: 'msg-in-1' },
+      data: { reaction_type: { emoji_type: 'Typing' } }
+    })
+  })
+
+  it('sendMessage() promotes the typing reaction from INHALE to OK_HAND', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await deliverIncomingTextMessage()
+    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-thinking' } })
+    await adapter.sendTypingIndicator('oc_123')
+
+    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-done' } })
+    await adapter.sendMessage('oc_123', 'reply')
+
+    expect(mockReactionDelete).toHaveBeenCalledWith({
+      path: { message_id: 'msg-in-1', reaction_id: 'rx-thinking' }
+    })
+    expect(mockReactionCreate).toHaveBeenLastCalledWith({
+      path: { message_id: 'msg-in-1' },
+      data: { reaction_type: { emoji_type: 'OK' } }
+    })
+  })
+
+  it('sendMessage() does not add OK_HAND when there was no prior typing reaction', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    // /new style ack — no incoming user message tracked, no typing indicator first
+    await adapter.sendMessage('oc_123', 'New session created.')
+
+    expect(mockReactionCreate).not.toHaveBeenCalled()
+    expect(mockReactionDelete).not.toHaveBeenCalled()
+  })
+
+  it('onStreamError() swaps the reaction to CRY and posts the error to chat', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await deliverIncomingTextMessage()
+    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-thinking' } })
+    await adapter.sendTypingIndicator('oc_123')
+
+    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-error' } })
+    mockImCreate.mockClear()
+    await adapter.onStreamError('oc_123', 'boom')
+
+    expect(mockReactionDelete).toHaveBeenCalledWith({
+      path: { message_id: 'msg-in-1', reaction_id: 'rx-thinking' }
+    })
+    expect(mockReactionCreate).toHaveBeenLastCalledWith({
+      path: { message_id: 'msg-in-1' },
+      data: { reaction_type: { emoji_type: 'CRY' } }
+    })
+    // No streaming controller exists, so the error must be sent as a plain message
+    expect(mockImCreate).toHaveBeenCalledWith({
+      params: { receive_id_type: 'chat_id' },
+      data: {
+        receive_id: 'oc_123',
+        msg_type: 'post',
+        content: expect.stringContaining('boom')
+      }
+    })
+  })
+
+  it('onStreamError() defers to the streaming card when one exists (no extra message)', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await deliverIncomingTextMessage()
+    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-thinking' } })
+    await adapter.sendTypingIndicator('oc_123')
+    await adapter.onTextUpdate('oc_123', 'partial...')
+    await vi.advanceTimersByTimeAsync(500)
+
+    mockImCreate.mockClear()
+    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-error' } })
+
+    await adapter.onStreamError('oc_123', 'boom')
+
+    // The streaming card displays the error; no plain "Error" message should be sent
+    expect(mockImCreate).not.toHaveBeenCalled()
   })
 
   it('handles incoming text messages and emits message event', async () => {

@@ -3,7 +3,6 @@ import { classNames } from '@renderer/utils'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Scan, ZoomIn, ZoomOut } from 'lucide-react'
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import ImageToolButton from './ImageToolButton'
 
@@ -29,20 +28,26 @@ const ImageToolbar = ({ pan, zoom, dialog, className }: ImageToolbarProps) => {
   }, [pan, zoom])
 
   return (
-    <ToolbarWrapper className={classNames('preview-toolbar', className)} role="toolbar" aria-label={t('preview.label')}>
+    <div
+      className={classNames(
+        'preview-toolbar absolute right-[1em] bottom-[1em] z-[5] flex flex-col items-center gap-1 [&_.ant-btn]:leading-[0]',
+        className
+      )}
+      role="toolbar"
+      aria-label={t('preview.label')}>
       {/* Up */}
-      <ActionButtonRow>
-        <Spacer />
+      <div className="flex w-full justify-center gap-1">
+        <div className="flex-1" />
         <ImageToolButton
           tooltip={t('preview.pan_up')}
           icon={<ChevronUp size={'1rem'} />}
           onClick={() => pan(0, -panDistance)}
         />
         <ImageToolButton tooltip={t('preview.dialog')} icon={<Scan size={'1rem'} />} onClick={dialog} />
-      </ActionButtonRow>
+      </div>
 
       {/* Left, Reset, Right */}
-      <ActionButtonRow>
+      <div className="flex w-full justify-center gap-1">
         <ImageToolButton
           tooltip={t('preview.pan_left')}
           icon={<ChevronLeft size={'1rem'} />}
@@ -54,10 +59,10 @@ const ImageToolbar = ({ pan, zoom, dialog, className }: ImageToolbarProps) => {
           icon={<ChevronRight size={'1rem'} />}
           onClick={() => pan(panDistance, 0)}
         />
-      </ActionButtonRow>
+      </div>
 
       {/* Down, Zoom */}
-      <ActionButtonRow>
+      <div className="flex w-full justify-center gap-1">
         <ImageToolButton
           tooltip={t('preview.zoom_out')}
           icon={<ZoomOut size={'1rem'} />}
@@ -73,35 +78,9 @@ const ImageToolbar = ({ pan, zoom, dialog, className }: ImageToolbarProps) => {
           icon={<ZoomIn size={'1rem'} />}
           onClick={() => zoom(zoomDelta)}
         />
-      </ActionButtonRow>
-    </ToolbarWrapper>
+      </div>
+    </div>
   )
 }
-
-const ToolbarWrapper = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: absolute;
-  gap: 4px;
-  right: 1em;
-  bottom: 1em;
-  z-index: 5;
-
-  .ant-btn {
-    line-height: 0;
-  }
-`
-
-const ActionButtonRow = styled.div`
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-  width: 100%;
-`
-
-const Spacer = styled.div`
-  flex: 1;
-`
 
 export default memo(ImageToolbar)

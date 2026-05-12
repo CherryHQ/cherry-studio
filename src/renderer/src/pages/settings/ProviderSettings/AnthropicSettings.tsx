@@ -1,10 +1,9 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { Button } from '@cherrystudio/ui'
+import { Alert, Button, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { Alert, Input, Modal } from 'antd'
+import { Modal } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('AnthropicSettings')
 
@@ -95,7 +94,7 @@ const AnthropicSettings = () => {
     switch (authStatus) {
       case AuthStatus.AUTHENTICATED:
         return (
-          <StartContainer>
+          <div className="mb-2.5">
             <Alert
               type="success"
               message={t('settings.provider.anthropic.authenticated')}
@@ -103,11 +102,11 @@ const AnthropicSettings = () => {
               showIcon
               icon={<ExclamationCircleOutlined />}
             />
-          </StartContainer>
+          </div>
         )
       case AuthStatus.AUTHENTICATING:
         return (
-          <StartContainer>
+          <div className="mb-2.5">
             <Alert
               type="info"
               message={t('settings.provider.anthropic.authenticating')}
@@ -129,11 +128,11 @@ const AnthropicSettings = () => {
                 placeholder={t('settings.provider.anthropic.code_placeholder')}
               />
             </Modal>
-          </StartContainer>
+          </div>
         )
       default:
         return (
-          <StartContainer>
+          <div className="mb-2.5">
             <Alert
               type="info"
               message={t('settings.provider.anthropic.description')}
@@ -146,30 +145,22 @@ const AnthropicSettings = () => {
               showIcon
               icon={<ExclamationCircleOutlined />}
             />
-          </StartContainer>
+          </div>
         )
     }
   }
 
   return (
-    <Container>
+    <div className="pt-2.5">
       <Alert
         type="warning"
         message={t('settings.provider.anthropic.oauth_disabled_warning')}
         showIcon
-        style={{ marginBottom: 10 }}
+        className="mb-2.5"
       />
       {renderAuthContent()}
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  padding-top: 10px;
-`
-
-const StartContainer = styled.div`
-  margin-bottom: 10px;
-`
 
 export default AnthropicSettings

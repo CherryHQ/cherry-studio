@@ -1,6 +1,6 @@
+import { Tooltip } from '@cherrystudio/ui/components/primitives/tooltip'
 import type { LucideIcon } from 'lucide-react'
 
-import { Tooltip } from '../../primitives/tooltip'
 import type { IconTooltipProps } from './types'
 
 export interface BaseIconTooltipProps extends IconTooltipProps {

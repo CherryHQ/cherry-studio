@@ -1,4 +1,15 @@
-import { Button, MenuItem } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  MenuItem,
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@cherrystudio/ui'
 import type { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import {
@@ -15,11 +26,11 @@ import type { Provider, ProviderType } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
 import { isAnthropicSupportedProvider } from '@renderer/utils/provider'
+import { cn } from '@renderer/utils/style'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import type { MenuProps } from 'antd'
-import { Dropdown, Input, Tag } from 'antd'
+import { Input } from 'antd'
 import { Check, Filter, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
-import type { FC } from 'react'
+import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWRImmutable from 'swr/immutable'
@@ -32,6 +43,14 @@ import UrlSchemaInfoPopup from './UrlSchemaInfoPopup'
 const logger = loggerService.withContext('ProviderList')
 
 const BUTTON_WRAPPER_HEIGHT = 50
+
+type ProviderMenuItem = {
+  key: string
+  label: string
+  icon: ReactNode
+  variant?: 'default' | 'destructive'
+  onSelect: () => void | Promise<void>
+}
 
 const getIsOvmsSupported = async (): Promise<boolean> => {
   try {
@@ -215,19 +234,19 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
     setSelectedProvider(provider)
   }
 
-  const getDropdownMenus = (provider: Provider): MenuProps['items'] => {
+  const getProviderMenuItems = (provider: Provider): ProviderMenuItem[] => {
     const noteMenu = {
       label: t('settings.provider.notes.title'),
       key: 'notes',
       icon: <UserPen size={14} />,
-      onClick: () => ModelNotesPopup.show({ provider })
+      onSelect: () => ModelNotesPopup.show({ provider })
     }
 
     const editMenu = {
       label: t('common.edit'),
       key: 'edit',
       icon: <EditIcon size={14} />,
-      async onClick() {
+      async onSelect() {
         const { name, type, logoFile, logo } = await AddProviderPopup.show(provider)
 
         if (name) {
@@ -265,8 +284,8 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
       label: t('common.delete'),
       key: 'delete',
       icon: <DeleteIcon size={14} className="lucide-custom" />,
-      danger: true,
-      async onClick() {
+      variant: 'destructive' as const,
+      async onSelect() {
         window.modal.confirm({
           title: t('settings.provider.delete.title'),
           content: t('settings.provider.delete.content'),
@@ -359,31 +378,26 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
             style={{ borderRadius: 10, height: 35 }}
             prefix={<Search size={14} />}
             suffix={
-              <Dropdown
-                menu={{
-                  items: [
-                    {
-                      label: t('settings.provider.filter.all'),
-                      key: 'all',
-                      icon: agentFilterEnabled ? <CheckPlaceholder /> : <Check size={14} />,
-                      onClick: () => setAgentFilterEnabled(false)
-                    },
-                    {
-                      label: t('settings.provider.filter.agent'),
-                      key: 'agent',
-                      icon: agentFilterEnabled ? <Check size={14} /> : <CheckPlaceholder />,
-                      onClick: () => setAgentFilterEnabled(true)
-                    }
-                  ]
-                }}
-                trigger={['click']}>
-                <div className="flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded-sm">
-                  <Filter
-                    size={14}
-                    className={agentFilterEnabled ? 'text-(--color-primary)' : 'text-(--color-text-3)'}
-                  />
-                </div>
-              </Dropdown>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded-sm">
+                    <Filter
+                      size={14}
+                      className={agentFilterEnabled ? 'text-(--color-primary)' : 'text-(--color-foreground-muted)'}
+                    />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-36 p-1">
+                  <ProviderFilterMenuItem active={!agentFilterEnabled} onClick={() => setAgentFilterEnabled(false)}>
+                    {t('settings.provider.filter.all')}
+                  </ProviderFilterMenuItem>
+                  <ProviderFilterMenuItem active={agentFilterEnabled} onClick={() => setAgentFilterEnabled(true)}>
+                    {t('settings.provider.filter.agent')}
+                  </ProviderFilterMenuItem>
+                </PopoverContent>
+              </Popover>
             }
             onChange={(e) => setSearchText(e.target.value)}
             onKeyDown={(e) => {
@@ -414,41 +428,49 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
           }}
           itemContainerStyle={{ paddingBottom: 5 }}>
           {(provider) => (
-            <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
-              <MenuItem
-                key={provider.id}
-                className="w-full cursor-pointer select-none overflow-hidden rounded-[10px] text-[14px] data-[active=true]:font-semibold"
-                label={getFancyProviderName(provider)}
-                active={provider.id === selectedProvider?.id}
-                onClick={() => setSelectedProvider(provider)}
-                icon={
-                  <div className="flex items-center">
-                    <div className="mr-0.5 flex w-3 cursor-grab items-center justify-center text-(--color-text-3) opacity-0 transition-opacity duration-200 ease-in-out active:cursor-grabbing group-hover:opacity-100">
-                      <GripVertical size={12} />
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <MenuItem
+                  key={provider.id}
+                  className="w-full cursor-pointer select-none overflow-hidden rounded-[10px] text-[14px] data-[active=true]:font-semibold"
+                  label={getFancyProviderName(provider)}
+                  active={provider.id === selectedProvider?.id}
+                  onClick={() => setSelectedProvider(provider)}
+                  icon={
+                    <div className="flex items-center">
+                      <div className="mr-0.5 flex w-3 cursor-grab items-center justify-center text-(--color-foreground-muted) opacity-0 transition-opacity duration-200 ease-in-out active:cursor-grabbing group-hover:opacity-100">
+                        <GripVertical size={12} />
+                      </div>
+                      <ProviderAvatar
+                        style={{
+                          width: 24,
+                          height: 24
+                        }}
+                        provider={provider}
+                        customLogos={providerLogos}
+                      />
                     </div>
-                    <ProviderAvatar
-                      style={{
-                        width: 24,
-                        height: 24
-                      }}
-                      provider={provider}
-                      customLogos={providerLogos}
-                    />
-                  </div>
-                }
-                suffix={
-                  provider.enabled ? (
-                    <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
-                      ON
-                    </Tag>
-                  ) : undefined
-                }
-              />
-            </Dropdown>
+                  }
+                  suffix={
+                    provider.enabled ? (
+                      <Badge className="mr-0 ml-auto border-success/30 bg-success/10 text-success">ON</Badge>
+                    ) : undefined
+                  }
+                />
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                {getProviderMenuItems(provider).map((item) => (
+                  <ContextMenuItem key={item.key} variant={item.variant} onSelect={item.onSelect}>
+                    {item.icon}
+                    {item.label}
+                  </ContextMenuItem>
+                ))}
+              </ContextMenuContent>
+            </ContextMenu>
           )}
         </DraggableVirtualList>
         <div className="flex h-12.5 flex-row items-center justify-center px-2 py-2.5">
-          <Button size="sm" style={{ width: '100%', borderRadius: 10 }} onClick={onAddProvider} disabled={dragging}>
+          <Button size="sm" variant="outline" className="h-8 w-full" onClick={onAddProvider} disabled={dragging}>
             <PlusIcon size={16} />
             {t('button.add')}
           </Button>
@@ -459,6 +481,19 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
   )
 }
 
-const CheckPlaceholder = () => <span className="inline-block h-3.5 w-3.5" />
+const ProviderFilterMenuItem: FC<ComponentPropsWithoutRef<'button'> & { active: boolean }> = ({
+  active,
+  className,
+  children,
+  ...props
+}) => (
+  <button
+    type="button"
+    className={cn('flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent', className)}
+    {...props}>
+    {active ? <Check size={14} /> : <span className="inline-block h-3.5 w-3.5" />}
+    <span className="truncate">{children}</span>
+  </button>
+)
 
 export default ProviderList

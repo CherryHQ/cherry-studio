@@ -1,10 +1,15 @@
 import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import {
+  Button,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  RowFlex,
+  Switch
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import Input from 'antd/es/input/Input'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -73,20 +78,26 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.path')}</SettingRowTitle>
-        <RowFlex className="w-[315px] items-center gap-[5px]">
-          <Input
-            type="text"
-            value={markdownExportPath || ''}
-            readOnly
-            style={{ width: 250 }}
-            placeholder={t('settings.data.markdown_export.path_placeholder')}
-            suffix={
-              markdownExportPath ? (
-                <DeleteOutlined onClick={handleClearPath} style={{ color: 'var(--color-error)', cursor: 'pointer' }} />
-              ) : null
-            }
-          />
-          <Button onClick={handleSelectFolder}>
+        <RowFlex className="w-[315px] items-center gap-1.25">
+          <InputGroup className="h-8 w-[250px]">
+            <InputGroupInput
+              type="text"
+              value={markdownExportPath || ''}
+              readOnly
+              placeholder={t('settings.data.markdown_export.path_placeholder')}
+            />
+            {markdownExportPath && (
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  onClick={handleClearPath}
+                  size="icon-sm"
+                  className="text-destructive hover:text-destructive">
+                  <DeleteOutlined />
+                </InputGroupButton>
+              </InputGroupAddon>
+            )}
+          </InputGroup>
+          <Button onClick={handleSelectFolder} variant="outline" className="h-8">
             <FolderOpenOutlined />
             {t('settings.data.markdown_export.select')}
           </Button>

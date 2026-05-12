@@ -27,7 +27,7 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/assistant': Sparkles,
   '/app/paintings': Palette,
   '/app/translate': Languages,
-  '/app/minapp': Globe,
+  '/app/mini-app': Globe,
   '/app/knowledge': BookOpen,
   '/app/files': Files,
   '/app/code': Code,

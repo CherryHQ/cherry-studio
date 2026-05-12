@@ -118,6 +118,7 @@ export function buildPathRegistry() {
 
     // Files / Notes / Knowledgebase
     'feature.files.data': path.join(appUserDataData, 'Files'),
+    'feature.file_processing.results': path.join(appUserDataData, 'Files', 'file-processing'),
     'feature.notes.data': path.join(appUserDataData, 'Notes'),
     'feature.knowledgebase.data': path.join(appUserDataData, 'KnowledgeBase'),
 

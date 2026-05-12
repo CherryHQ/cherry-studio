@@ -13,46 +13,12 @@ import {
   type FileProcessorOverrides,
   type FileProcessorType
 } from '../preference/preferenceTypes'
-import { FILE_TYPE, FileTypeSchema } from '../types/file'
 
-/**
- * File Processing Presets
- *
- * Templates are read-only metadata about processors.
- * User overrides are stored separately in preferences.
- *
- * i18n: Display names use `processor.${id}.name`
- */
-
-// ============================================================================
-// Type Definitions
-// ============================================================================
-
-/**
- * Processor service type
- */
 export const FileProcessorTypeSchema = z.enum(FILE_PROCESSOR_TYPES)
 
-/**
- * Feature type
- */
 export const FileProcessorFeatureSchema = z.enum(FILE_PROCESSOR_FEATURES)
 
 export const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
-
-/**
- * Input file type schema
- * Reuses the canonical file type definitions shared across the app.
- */
-export const FileProcessorInputSchema = FileTypeSchema.extract([FILE_TYPE.IMAGE, FILE_TYPE.DOCUMENT])
-
-const FileProcessorTextOutputSchema = FileTypeSchema.extract([FILE_TYPE.TEXT])
-
-/**
- * Output content format schema
- * `text` reuses the canonical file type, while `markdown` remains a processing-specific format.
- */
-export const FileProcessorOutputSchema = z.union([FileProcessorTextOutputSchema, z.literal('markdown')])
 
 /**
  * Feature capability definition
@@ -60,35 +26,31 @@ export const FileProcessorOutputSchema = z.union([FileProcessorTextOutputSchema,
  * Each capability binds a feature with its supported inputs, output, and optional API settings.
  */
 
-export const TextExtractionCapabilitySchema = z
+export const ImageToTextCapabilitySchema = z
   .object({
-    feature: z.literal('text_extraction'),
-    inputs: z.array(FileProcessorInputSchema).min(1),
+    feature: z.literal('image_to_text'),
+    inputs: z.array(z.literal('image')).min(1),
     output: z.literal('text'),
-    apiHost: z.url().optional(),
+    apiHost: z.string().optional(),
     modelId: z.string().min(1).optional()
-    // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
-    // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
   })
   .strict()
-export type TextExtractionCapability = z.infer<typeof TextExtractionCapabilitySchema>
+export type ImageToTextCapability = z.infer<typeof ImageToTextCapabilitySchema>
 
-export const MarkdownConversionCapabilitySchema = z
+export const DocumentToMarkdownCapabilitySchema = z
   .object({
-    feature: z.literal('markdown_conversion'),
+    feature: z.literal('document_to_markdown'),
     inputs: z.array(z.literal('document')).min(1),
     output: z.literal('markdown'),
-    apiHost: z.url().optional(),
+    apiHost: z.string().optional(),
     modelId: z.string().min(1).optional()
-    // supportedFormats?: string[] // Whitelist: only these formats supported (uncomment when needed)
-    // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
   })
   .strict()
-export type MarkdownConversionCapability = z.infer<typeof MarkdownConversionCapabilitySchema>
+export type DocumentToMarkdownCapability = z.infer<typeof DocumentToMarkdownCapabilitySchema>
 
 export const FileProcessorFeatureCapabilitySchema = z.discriminatedUnion('feature', [
-  TextExtractionCapabilitySchema,
-  MarkdownConversionCapabilitySchema
+  ImageToTextCapabilitySchema,
+  DocumentToMarkdownCapabilitySchema
 ])
 export type FileProcessorFeatureCapability = z.infer<typeof FileProcessorFeatureCapabilitySchema>
 
@@ -143,24 +105,15 @@ export interface FileProcessorPreset extends FileProcessorPresetConfig {
   id: FileProcessorId
 }
 
-// ============================================================================
-// Override Types (for user customization)
-// ============================================================================
-
 /**
- * Processor-specific configuration
- *
- * Uses a generic Record type without predefined structure.
- * Each processor's configuration is interpreted by UI components based on processor.id.
- *
- * Known options fields:
- * - Tesseract: { langs: string[] }  // Array of enabled language codes
- *
- * Examples:
- * - { langs: ['chi_sim', 'eng'] }        // Tesseract language config
- * - { quality: 'high', timeout: 30000 }  // Other processor config
+ * Processor-specific user override options.
+ * Currently used by system OCR and Tesseract for enabled language codes.
  */
-export const FileProcessorOptionsSchema: z.ZodType<FileProcessorOptions> = z.record(z.string(), z.unknown())
+export const FileProcessorOptionsSchema: z.ZodType<FileProcessorOptions> = z
+  .object({
+    langs: z.array(z.string()).optional()
+  })
+  .strict()
 
 /**
  * Capability override (user customization for a specific feature)
@@ -169,15 +122,15 @@ export const FileProcessorOptionsSchema: z.ZodType<FileProcessorOptions> = z.rec
  */
 export const FileProcessorCapabilityOverrideSchema: z.ZodType<FileProcessorCapabilityOverride> = z
   .object({
-    apiHost: z.url().optional(),
+    apiHost: z.string().optional(),
     modelId: z.string().min(1).optional()
   })
   .strict()
 
 export const FileProcessorCapabilityOverridesSchema: z.ZodType<FileProcessorCapabilityOverrides> = z
   .object({
-    markdown_conversion: FileProcessorCapabilityOverrideSchema.optional(),
-    text_extraction: FileProcessorCapabilityOverrideSchema.optional()
+    document_to_markdown: FileProcessorCapabilityOverrideSchema.optional(),
+    image_to_text: FileProcessorCapabilityOverrideSchema.optional()
   })
   .strict()
 
@@ -217,20 +170,12 @@ export const FileProcessorMergedSchema = FileProcessorTemplateSchema.extend({
 })
 export type FileProcessorMerged = z.infer<typeof FileProcessorMergedSchema>
 
-// ============================================================================
-// Processor Presets
-// ============================================================================
-
-/**
- * Built-in processor presets
- */
 export const FILE_PROCESSOR_PRESET_MAP = {
-  // === Image Processors (former OCR) ===
   tesseract: {
     type: 'builtin',
     capabilities: [
       {
-        feature: 'text_extraction',
+        feature: 'image_to_text',
         inputs: ['image'],
         output: 'text'
       }
@@ -238,20 +183,20 @@ export const FILE_PROCESSOR_PRESET_MAP = {
   },
   system: {
     type: 'builtin',
-    capabilities: [{ feature: 'text_extraction', inputs: ['image'], output: 'text' }]
+    capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
   },
   paddleocr: {
     type: 'api',
     capabilities: [
       {
-        feature: 'text_extraction',
+        feature: 'image_to_text',
         inputs: ['image'],
         output: 'text',
         apiHost: 'https://paddleocr.aistudio-app.com/',
-        modelId: 'PP-OCRv5'
+        modelId: 'PaddleOCR-VL-1.5'
       },
       {
-        feature: 'markdown_conversion',
+        feature: 'document_to_markdown',
         inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://paddleocr.aistudio-app.com/',
@@ -261,18 +206,18 @@ export const FILE_PROCESSOR_PRESET_MAP = {
   },
   ovocr: {
     type: 'builtin',
-    capabilities: [{ feature: 'text_extraction', inputs: ['image'], output: 'text' }]
+    capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
   },
 
-  // === Document Processors (former Preprocess) ===
   mineru: {
     type: 'api',
     capabilities: [
       {
-        feature: 'markdown_conversion',
+        feature: 'document_to_markdown',
         inputs: ['document'],
         output: 'markdown',
-        apiHost: 'https://mineru.net'
+        apiHost: 'https://mineru.net',
+        modelId: 'pipeline'
       }
     ]
   },
@@ -280,10 +225,11 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     type: 'api',
     capabilities: [
       {
-        feature: 'markdown_conversion',
+        feature: 'document_to_markdown',
         inputs: ['document'],
         output: 'markdown',
-        apiHost: 'https://v2.doc2x.noedgeai.com'
+        apiHost: 'https://v2.doc2x.noedgeai.com',
+        modelId: 'v3-2026'
       }
     ]
   },
@@ -291,16 +237,16 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     type: 'api',
     capabilities: [
       {
-        feature: 'text_extraction',
-        inputs: ['image'],
-        output: 'text',
+        feature: 'document_to_markdown',
+        inputs: ['document'],
+        output: 'markdown',
         apiHost: 'https://api.mistral.ai',
         modelId: 'mistral-ocr-latest'
       },
       {
-        feature: 'markdown_conversion',
-        inputs: ['document'],
-        output: 'markdown',
+        feature: 'image_to_text',
+        inputs: ['image'],
+        output: 'text',
         apiHost: 'https://api.mistral.ai',
         modelId: 'mistral-ocr-latest'
       }
@@ -310,7 +256,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     type: 'api',
     capabilities: [
       {
-        feature: 'markdown_conversion',
+        feature: 'document_to_markdown',
         inputs: ['document'],
         output: 'markdown',
         apiHost: 'http://127.0.0.1:8000'

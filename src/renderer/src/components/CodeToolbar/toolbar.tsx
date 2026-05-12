@@ -1,10 +1,8 @@
-import { RowFlex } from '@cherrystudio/ui'
 import { Tooltip } from '@cherrystudio/ui'
 import type { ActionTool } from '@renderer/components/ActionTools'
 import { EllipsisVertical } from 'lucide-react'
 import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import CodeToolButton from './button'
 import { ToolWrapper } from './styles'
@@ -34,8 +32,8 @@ const CodeToolbar = ({ tools }: { tools: ActionTool[] }) => {
   }
 
   return (
-    <StickyWrapper>
-      <ToolbarWrapper className="code-toolbar">
+    <div className="sticky top-7 z-10">
+      <div className="code-toolbar absolute right-2 bottom-[0.3rem] flex h-6 items-center gap-1">
         {/* 有多个快捷工具时通过 more 按钮展示 */}
         {quickToolButtons}
         {quickTools.length > 1 && (
@@ -62,24 +60,9 @@ const CodeToolbar = ({ tools }: { tools: ActionTool[] }) => {
         {coreTools.map((tool) => (
           <CodeToolButton key={tool.id} tool={tool} />
         ))}
-      </ToolbarWrapper>
-    </StickyWrapper>
+      </div>
+    </div>
   )
 }
-
-const StickyWrapper = styled.div`
-  position: sticky;
-  top: 28px;
-  z-index: 10;
-`
-
-const ToolbarWrapper = styled(RowFlex)`
-  position: absolute;
-  align-items: center;
-  bottom: 0.3rem;
-  right: 0.5rem;
-  height: 24px;
-  gap: 4px;
-`
 
 export default memo(CodeToolbar)

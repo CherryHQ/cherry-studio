@@ -1,3 +1,4 @@
+import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   Arrow as RadixArrow,
   Content as RadixContent,
@@ -7,8 +8,6 @@ import {
   Trigger as RadixTrigger
 } from '@radix-ui/react-tooltip'
 import * as React from 'react'
-
-import { cn } from '../../lib/utils'
 
 type Side = 'top' | 'bottom' | 'left' | 'right'
 type Align = 'start' | 'center' | 'end'
@@ -32,8 +31,6 @@ function parsePlacement(placement?: string): { side: Side; align: Align } {
   return mapping[placement ?? 'top'] ?? { side: 'top', align: 'center' }
 }
 
-// --- Compound component exports (for advanced usage) ---
-
 export type TooltipProviderProps = React.ComponentProps<typeof RadixProvider>
 export type TooltipRootProps = React.ComponentProps<typeof RadixRoot>
 export type TooltipTriggerProps = React.ComponentProps<typeof RadixTrigger>
@@ -56,9 +53,11 @@ function TooltipTrigger({ ...props }: TooltipTriggerProps) {
 }
 
 const contentStyles =
-  'z-50 max-w-60 rounded-3xs border border-border bg-background px-4 py-3 text-sm leading-4 text-foreground shadow-[0px_6px_12px_0px_rgba(0,0,0,0.2)] animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2'
+  'z-50 w-fit max-w-80 origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-neutral-900 px-3 py-1.5 text-neutral-50 text-xs leading-relaxed whitespace-normal break-words fade-in-0 zoom-in-95 dark:bg-neutral-100 dark:text-neutral-900 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95'
 
-function TooltipContent({ className, sideOffset = 4, children, ...props }: TooltipContentProps) {
+const arrowStyles = 'z-50 fill-neutral-900 dark:fill-neutral-100'
+
+function TooltipContent({ className, sideOffset = 0, children, ...props }: TooltipContentProps) {
   return (
     <RadixPortal>
       <RadixContent
@@ -67,13 +66,11 @@ function TooltipContent({ className, sideOffset = 4, children, ...props }: Toolt
         className={cn(contentStyles, className)}
         {...props}>
         {children}
-        <RadixArrow className="fill-background [&>path:first-child]:fill-border" />
+        <RadixArrow className={arrowStyles} />
       </RadixContent>
     </RadixPortal>
   )
 }
-
-// --- Backward-compatible flat API (drop-in replacement for HeroUI Tooltip) ---
 
 export interface TooltipProps {
   children?: React.ReactNode
@@ -118,7 +115,7 @@ export const Tooltip = ({
 
   const { side, align } = parsePlacement(placement)
 
-  const controlledProps: Partial<React.ComponentProps<typeof RadixRoot>> = {}
+  const controlledProps: Partial<TooltipRootProps> = {}
   if (isOpen != null) {
     controlledProps.open = isOpen
     controlledProps.onOpenChange = onOpenChange
@@ -127,7 +124,7 @@ export const Tooltip = ({
   }
 
   return (
-    <RadixProvider delayDuration={delay}>
+    <TooltipProvider delayDuration={delay}>
       <RadixRoot delayDuration={delay} {...controlledProps}>
         <RadixTrigger asChild>
           <div className={cn('relative z-10 inline-block', classNames?.placeholder)} onClick={onClick}>
@@ -139,18 +136,16 @@ export const Tooltip = ({
             data-slot="tooltip-content"
             side={side}
             align={align}
-            sideOffset={4}
+            sideOffset={0}
             className={cn(contentStyles, classNames?.content, className)}>
             {tooltipContent}
-            {showArrow && <RadixArrow className="fill-background [&>path:first-child]:fill-border" />}
+            {showArrow && <RadixArrow className={arrowStyles} />}
           </RadixContent>
         </RadixPortal>
       </RadixRoot>
-    </RadixProvider>
+    </TooltipProvider>
   )
 }
-
-// --- NormalTooltip (convenience wrapper using compound components) ---
 
 interface NormalTooltipProps extends TooltipRootProps {
   content: React.ReactNode

@@ -63,7 +63,7 @@ function rowToRuntimeProvider(row: UserProvider): Provider {
     authType,
     apiFeatures,
     settings,
-    isEnabled: row.isEnabled ?? true
+    isEnabled: row.isEnabled
   }
 }
 
@@ -349,7 +349,7 @@ class ProviderService {
         .from(userModelTable)
         .where(eq(userModelTable.providerId, providerId))
 
-      await pinService.purgeForEntities(
+      await pinService.purgeForEntitiesTx(
         tx,
         'model',
         models.map((model) => model.id)

@@ -1,6 +1,39 @@
+import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
 import { searchSkills } from '@renderer/services/SkillSearchService'
-import type { InstalledSkill, SkillSearchResult } from '@types'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import type { InstalledSkill, SkillResult, SkillSearchResult } from '@types'
+import { useCallback, useRef, useState } from 'react'
+
+const logger = loggerService.withContext('useSkills')
+
+function skillErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error ?? 'Unknown error')
+}
+
+function unwrapSkillResult<T>(result: SkillResult<T>): T {
+  if (result.success) return result.data
+  throw new Error(skillErrorMessage(result.error))
+}
+
+function reportSkillMutationError(action: string, error: unknown): string {
+  const message = skillErrorMessage(error)
+  logger.error(`Failed to ${action}`, { error: message })
+  window.toast.error(message)
+  return message
+}
+
+function reportAndRethrowSkillMutationError(action: string, error: unknown): never {
+  reportSkillMutationError(action, error)
+  throw error instanceof Error ? error : new Error(skillErrorMessage(error))
+}
+
+async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalidateCache>): Promise<void> {
+  try {
+    await invalidate('/skills')
+  } catch (error) {
+    logger.warn('Failed to refresh skills cache after IPC mutation', { error })
+  }
+}
 
 /**
  * Hook to manage installed skills.
@@ -11,73 +44,53 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * the global Settings → Skills page) should rely on uninstall only.
  */
 export function useInstalledSkills(agentId?: string) {
-  const [skills, setSkills] = useState<InstalledSkill[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const refresh = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await window.api.skill.list(agentId)
-      if (result.success) {
-        setSkills(result.data)
-      } else {
-        setError('Failed to load installed skills')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setLoading(false)
-    }
-  }, [agentId])
-
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
+  const { data, isLoading, isRefreshing, error, refetch } = useQuery(
+    '/skills',
+    agentId ? { query: { agentId } } : undefined
+  )
+  const invalidate = useInvalidateCache()
 
   const toggle = useCallback(
     async (skillId: string, isEnabled: boolean) => {
       if (!agentId) {
-        // Without an agent context there is nothing to toggle — per-agent
-        // enablement has no target. Callers that want to toggle must scope
-        // to an agent.
+        logger.warn('skill.toggle called without agentId; ignoring', { skillId, isEnabled })
         return false
       }
       try {
-        const result = await window.api.skill.toggle({ skillId, agentId, isEnabled })
-        if (result.success) {
-          const updatedSkill = result.data
-          if (updatedSkill) {
-            setSkills((currentSkills) =>
-              currentSkills.map((skill) => (skill.id === updatedSkill.id ? updatedSkill : skill))
-            )
-          }
-        }
-        return result.success
-      } catch {
-        return false
+        const result = await window.api.skill.toggle({ agentId, skillId, isEnabled })
+        const skill = unwrapSkillResult(result)
+        if (!skill) throw new Error('Skill toggle returned no result')
+        await refreshSkillsBestEffort(invalidate)
+        return skill.isEnabled === isEnabled
+      } catch (error) {
+        reportAndRethrowSkillMutationError('toggle skill', error)
       }
     },
-    [agentId]
+    [agentId, invalidate]
   )
 
   const uninstall = useCallback(
     async (skillId: string) => {
       try {
         const result = await window.api.skill.uninstall(skillId)
-        if (result.success) {
-          await refresh()
-        }
-        return result.success
-      } catch {
-        return false
+        unwrapSkillResult(result)
+        await refreshSkillsBestEffort(invalidate)
+        return true
+      } catch (error) {
+        reportAndRethrowSkillMutationError('uninstall skill', error)
       }
     },
-    [refresh]
+    [invalidate]
   )
 
-  return { skills, loading, error, refresh, toggle, uninstall }
+  return {
+    skills: data ?? [],
+    loading: isLoading || isRefreshing,
+    error: error?.message ?? null,
+    refresh: refetch,
+    toggle,
+    uninstall
+  }
 }
 
 /**
@@ -132,49 +145,55 @@ export function useSkillSearch() {
  */
 export function useSkillInstall() {
   const [installingKey, setInstallingKey] = useState<string | null>(null)
+  const invalidate = useInvalidateCache()
 
   const install = useCallback(
     async (installSource: string): Promise<{ skill: InstalledSkill | null; error?: string }> => {
       setInstallingKey(installSource)
       try {
-        const result = await window.api.skill.install({ installSource })
-        if (result.success) {
-          return { skill: result.data }
-        }
-        const errorMsg = result.error instanceof Error ? result.error.message : String(result.error ?? 'Unknown error')
-        return { skill: null, error: errorMsg }
+        const skill = unwrapSkillResult(await window.api.skill.install({ installSource }))
+        await refreshSkillsBestEffort(invalidate)
+        return { skill }
       } catch (err) {
-        return { skill: null, error: err instanceof Error ? err.message : String(err) }
+        return { skill: null, error: skillErrorMessage(err) }
       } finally {
         setInstallingKey(null)
       }
     },
-    []
+    [invalidate]
   )
 
-  const installFromZip = useCallback(async (zipFilePath: string): Promise<InstalledSkill | null> => {
-    setInstallingKey('zip')
-    try {
-      const result = await window.api.skill.installFromZip({ zipFilePath })
-      return result.success ? result.data : null
-    } catch {
-      return null
-    } finally {
-      setInstallingKey(null)
-    }
-  }, [])
+  const installFromZip = useCallback(
+    async (zipFilePath: string): Promise<InstalledSkill | null> => {
+      setInstallingKey('zip')
+      try {
+        const skill = unwrapSkillResult(await window.api.skill.installFromZip({ zipFilePath }))
+        await refreshSkillsBestEffort(invalidate)
+        return skill
+      } catch (error) {
+        reportAndRethrowSkillMutationError('install skill from zip', error)
+      } finally {
+        setInstallingKey(null)
+      }
+    },
+    [invalidate]
+  )
 
-  const installFromDirectory = useCallback(async (directoryPath: string): Promise<InstalledSkill | null> => {
-    setInstallingKey('directory')
-    try {
-      const result = await window.api.skill.installFromDirectory({ directoryPath })
-      return result.success ? result.data : null
-    } catch {
-      return null
-    } finally {
-      setInstallingKey(null)
-    }
-  }, [])
+  const installFromDirectory = useCallback(
+    async (directoryPath: string): Promise<InstalledSkill | null> => {
+      setInstallingKey('directory')
+      try {
+        const skill = unwrapSkillResult(await window.api.skill.installFromDirectory({ directoryPath }))
+        await refreshSkillsBestEffort(invalidate)
+        return skill
+      } catch (error) {
+        reportAndRethrowSkillMutationError('install skill from directory', error)
+      } finally {
+        setInstallingKey(null)
+      }
+    },
+    [invalidate]
+  )
 
   const isInstalling = useCallback(
     (key?: string) => {

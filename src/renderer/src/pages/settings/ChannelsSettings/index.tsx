@@ -26,15 +26,12 @@ const ChannelsSettings: FC = () => {
                 <MenuItem
                   key={ch.type}
                   label={t(ch.titleKey)}
-                  description={ch.available ? t(ch.description) : t('agent.cherryClaw.channels.comingSoon')}
                   active={selectedType.type === ch.type}
                   onClick={() => setSelectedType(ch)}
                   icon={
-                    iconSrc ? (
-                      <img src={iconSrc} alt={ch.name} className="h-5.5 w-5.5 rounded object-contain" />
-                    ) : undefined
+                    iconSrc ? <img src={iconSrc} alt={ch.name} className="h-5 w-5 rounded object-contain" /> : undefined
                   }
-                  className="rounded-xs font-medium"
+                  className="rounded-lg font-medium"
                 />
               )
             })}

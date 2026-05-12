@@ -1,14 +1,17 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { isLinux, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { getThemeModeLabel } from '@renderer/i18n/label'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { Monitor, Moon, Settings, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { useTabs } from '../../hooks/useTabs'
 import WindowControls from '../WindowControls'
+
+const logger = loggerService.withContext('ShellTabBarActions')
 
 export function useShellTabBarLayout(isDetached: boolean) {
   const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
@@ -31,28 +34,18 @@ export function useShellTabBarLayout(isDetached: boolean) {
 export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolean }) {
   const { t } = useTranslation()
   const { settedTheme, toggleTheme } = useTheme()
-  const { tabs, activeTabId, openTab, updateTab } = useTabs()
   const { hasWindowControls } = useShellTabBarLayout(isDetached)
 
   const ThemeIcon = settedTheme === 'dark' ? Moon : settedTheme === 'light' ? Sun : Monitor
 
-  const handleSettingsClick = () => {
+  const handleSettingsClick = async () => {
     const settingsPath = '/settings/provider'
-    const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
 
-    if (!hasUserTabsInTabBar) {
-      openTab(settingsPath, {
-        forceNew: true,
-        title: getDefaultRouteTitle(settingsPath)
-      })
-      return
-    }
-
-    if (activeTabId) {
-      updateTab(activeTabId, {
-        url: settingsPath,
-        title: getDefaultRouteTitle(settingsPath)
-      })
+    try {
+      await openSettingsWindow(settingsPath)
+    } catch (error) {
+      logger.error('Failed to open settings', error as Error)
+      window.toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
     }
   }
 
@@ -64,19 +57,19 @@ export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolea
             <Tooltip placement="bottom" content={getThemeModeLabel(settedTheme)} delay={800}>
               <button
                 type="button"
+                aria-label={getThemeModeLabel(settedTheme)}
                 onClick={toggleTheme}
                 className="flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
                 <ThemeIcon size={16} strokeWidth={1.8} />
               </button>
             </Tooltip>
-            <Tooltip placement="bottom" content={t('settings.title')} delay={800}>
-              <button
-                type="button"
-                onClick={handleSettingsClick}
-                className="flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
-                <Settings size={16} strokeWidth={1.8} />
-              </button>
-            </Tooltip>
+            <button
+              type="button"
+              aria-label={t('settings.title')}
+              onClick={handleSettingsClick}
+              className="flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
+              <Settings size={16} strokeWidth={1.8} />
+            </button>
           </div>
         </div>
       )}

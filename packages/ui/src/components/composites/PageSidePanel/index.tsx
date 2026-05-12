@@ -11,7 +11,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import { XIcon } from 'lucide-react'
 import * as React from 'react'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useId, useRef } from 'react'
 
 type PageSidePanelPlacement = 'left' | 'right'
 
@@ -49,11 +49,23 @@ function PageSidePanel({
   closeButtonClassName
 }: PageSidePanelProps) {
   const hasHeader = !!header || showCloseButton
+  const headerId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
+  const closedByPointerDownRef = useRef(false)
+
+  const handleClose = useCallback(
+    (event?: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
+      event?.preventDefault()
+      event?.stopPropagation()
+      onClose()
+    },
+    [onClose]
+  )
 
   useEffect(() => {
     if (open) {
+      closedByPointerDownRef.current = false
       triggerRef.current = document.activeElement as HTMLElement | null
       requestAnimationFrame(() => {
         panelRef.current?.focus()
@@ -75,17 +87,18 @@ function PageSidePanel({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             data-slot="page-side-panel-backdrop"
-            className={cn('absolute inset-0 z-40 bg-black/20', backdropClassName)}
-            onClick={onClose}
+            className={cn('absolute inset-0 z-40 bg-black/20 dark:bg-black/60', backdropClassName)}
+            onClick={handleClose}
           />
           <motion.aside
             ref={panelRef}
             key="panel"
             role="dialog"
             aria-modal="true"
+            aria-labelledby={header ? headerId : undefined}
             tabIndex={-1}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') onClose()
+              if (e.key === 'Escape') handleClose(e)
             }}
             initial={{ x: side === 'right' ? '100%' : '-100%' }}
             animate={{ x: 0 }}
@@ -93,7 +106,7 @@ function PageSidePanel({
             transition={{ type: 'spring', damping: 30, stiffness: 350 }}
             data-slot="page-side-panel"
             className={cn(
-              'absolute top-2 bottom-2 z-50 flex w-100 flex-col overflow-hidden rounded-xs border border-border/30 bg-card text-card-foreground shadow-2xl outline-none',
+              'absolute top-2 bottom-2 z-50 flex w-100 flex-col overflow-hidden rounded-md border border-border/30 bg-card text-card-foreground shadow-2xl outline-none',
               side === 'right' ? 'right-2' : 'left-2',
               contentClassName
             )}>
@@ -104,12 +117,27 @@ function PageSidePanel({
                   'flex h-11 shrink-0 items-center justify-between border-border/15 border-b px-4',
                   headerClassName
                 )}>
-                <div className="min-w-0 flex flex-1 items-center">{header}</div>
+                <div id={header ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
+                  {header}
+                </div>
                 {showCloseButton && (
                   <Button
+                    type="button"
                     variant="ghost"
                     size="icon-sm"
-                    onClick={onClose}
+                    onPointerDown={(event) => {
+                      closedByPointerDownRef.current = true
+                      handleClose(event)
+                    }}
+                    onClick={(event) => {
+                      if (closedByPointerDownRef.current) {
+                        closedByPointerDownRef.current = false
+                        event.preventDefault()
+                        event.stopPropagation()
+                        return
+                      }
+                      handleClose(event)
+                    }}
                     aria-label={closeLabel}
                     data-slot="page-side-panel-close"
                     className={cn(

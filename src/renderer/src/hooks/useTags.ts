@@ -1,107 +1,134 @@
-import { createSelector } from '@reduxjs/toolkit'
-import type { RootState } from '@renderer/store'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setTagsOrder, updateTagCollapse } from '@renderer/store/assistants'
-import { flatMap, groupBy, uniq } from 'lodash'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
+import { dataApiService } from '@data/DataApiService'
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { DataApiError, ErrorCode } from '@shared/data/api'
+import type { Tag } from '@shared/data/types/tag'
+import { useCallback } from 'react'
 
-import { useAssistants } from './useAssistant'
+export interface TagListResult {
+  tags: Tag[]
+  isLoading: boolean
+  error?: Error
+  refetch: () => void
+}
 
-// 基础选择器
-const selectAssistantsState = (state: RootState) => state.assistants
-// 记忆化 tagsOrder 选择器（自动处理默认值）--- 这是一个选择器，用于从 store 中获取 tagsOrder 的值。因为之前的tagsOrder是后面新加的，不这样做会报错，所以这里需要处理一下默认值
-const selectTagsOrder = createSelector([selectAssistantsState], (assistants) => assistants.tagsOrder ?? [])
+export interface CreateTagOptions {
+  name: string
+  color?: string | null
+}
 
-const selectCollapsedTags = createSelector([selectAssistantsState], (assistants) => assistants.collapsedTags ?? {})
+export interface UseTagsOptions {
+  getDefaultColor?: () => string
+}
 
-// 定义useTags的返回类型，包含所有标签和获取特定标签的助手函数
-// 为了不增加新的概念，标签直接作为助手的属性，所以这里的标签是指助手的标签属性
-// 但是为了方便管理，增加了一个获取特定标签的助手函数
-export const useTags = () => {
-  const { assistants } = useAssistants()
-  const { t } = useTranslation()
-  const dispatch = useAppDispatch()
-  const savedTagsOrder = useAppSelector(selectTagsOrder)
-  const collapsedTags = useAppSelector(selectCollapsedTags)
+export type EnsureTagInput = string | { name: string; color?: string | null }
 
-  // 计算所有标签
-  const allTags = useMemo(() => {
-    const tags = uniq(flatMap(assistants, (assistant) => assistant.tags || []))
-    if (savedTagsOrder.length > 0) {
-      return [
-        ...savedTagsOrder.filter((tag) => tags.includes(tag)),
-        ...tags.filter((tag) => !savedTagsOrder.includes(tag))
-      ]
-    }
-    return tags
-  }, [assistants, savedTagsOrder])
-
-  const getAssistantsByTag = useCallback(
-    (tag: string) => assistants.filter((assistant) => assistant.tags?.includes(tag)),
-    [assistants]
-  )
-
-  const getGroupedAssistants = useMemo(() => {
-    // 按标签分组，处理多标签的情况
-    const assistantsByTags = flatMap(assistants, (assistant) => {
-      const tags = assistant.tags?.length ? assistant.tags : [t('assistants.tags.untagged')]
-      return tags.map((tag) => ({ tag, assistant }))
-    })
-
-    // 按标签分组并构建结果
-    const grouped = Object.entries(groupBy(assistantsByTags, 'tag')).map(([tag, group]) => ({
-      tag,
-      assistants: group.map((g) => g.assistant)
-    }))
-
-    // 将未标记的组移到最前面
-    const untaggedIndex = grouped.findIndex((g) => g.tag === t('assistants.tags.untagged'))
-    if (untaggedIndex > -1) {
-      const [untagged] = grouped.splice(untaggedIndex, 1)
-      grouped.unshift(untagged)
-    }
-
-    // 根据savedTagsOrder对标签组进行排序
-    if (savedTagsOrder.length > 0) {
-      const untagged = grouped.length > 0 && grouped[0].tag === t('assistants.tags.untagged') ? grouped.shift() : null
-      grouped.sort((a, b) => {
-        const indexA = savedTagsOrder.indexOf(a.tag)
-        const indexB = savedTagsOrder.indexOf(b.tag)
-        if (indexA === -1 && indexB === -1) return 0
-        if (indexA === -1) return 1
-        if (indexB === -1) return -1
-
-        return indexA - indexB
-      })
-      if (untagged) {
-        grouped.unshift(untagged)
-      }
-    }
-
-    return grouped
-  }, [assistants, t, savedTagsOrder])
-
-  const updateTagsOrder = useCallback(
-    (newOrder: string[]) => {
-      dispatch(setTagsOrder(newOrder))
-    },
-    [dispatch]
-  )
-
-  const toggleTagCollapse = useCallback(
-    (tag: string) => {
-      dispatch(updateTagCollapse(tag))
-    },
-    [dispatch]
-  )
+export function useTagList(): TagListResult {
+  const { data, isLoading, error, refetch } = useQuery('/tags')
+  const stableRefetch = useCallback(() => {
+    void refetch()
+  }, [refetch])
 
   return {
-    allTags,
-    getAssistantsByTag,
-    getGroupedAssistants,
-    updateTagsOrder,
-    collapsedTags,
-    toggleTagCollapse
+    tags: Array.isArray(data) ? data : [],
+    isLoading,
+    error,
+    refetch: stableRefetch
   }
+}
+
+/**
+ * Resolve a list of tag names to Tag records, creating any that don't exist yet.
+ *
+ * Lookup order:
+ *   1. Check the cached `useTagList` result (no extra request in the common path).
+ *   2. Missing names -> POST /tags.
+ *   3. If POST fails due to a unique-constraint race, do a one-shot imperative
+ *      GET /tags and retry the lookup before bubbling up.
+ *
+ * Skips empty / whitespace-only names and de-duplicates input.
+ *
+ * `getDefaultColor` lets product surfaces keep their own visual defaulting
+ * policy without making palette constants part of the generic tag data hook.
+ */
+export function useEnsureTags(options: UseTagsOptions = {}) {
+  const { getDefaultColor } = options
+  const { tags: cachedTags } = useTagList()
+  const { trigger: createTrigger } = useMutation('POST', '/tags', {
+    refresh: ['/tags']
+  })
+
+  const createTag = useCallback(
+    ({ name, color }: CreateTagOptions): Promise<Tag> => {
+      const resolvedColor = color ?? getDefaultColor?.()
+      const body = resolvedColor ? { name: name.trim(), color: resolvedColor } : { name: name.trim() }
+      return createTrigger({ body })
+    },
+    [createTrigger, getDefaultColor]
+  )
+
+  const ensureTags = useCallback(
+    async (inputs: EnsureTagInput[]): Promise<Tag[]> => {
+      const cleaned = Array.from(
+        inputs
+          .reduce<Map<string, { name: string; color?: string | null }>>((acc, input) => {
+            const name = typeof input === 'string' ? input.trim() : input.name.trim()
+            if (!name) return acc
+
+            if (!acc.has(name)) {
+              acc.set(name, {
+                name,
+                color: typeof input === 'string' ? undefined : input.color
+              })
+            }
+
+            return acc
+          }, new Map())
+          .values()
+      )
+
+      if (cleaned.length === 0) return []
+
+      const byName = (tags: Tag[]) => new Map(tags.map((t) => [t.name, t] as const))
+
+      const existing = byName(cachedTags)
+      const missing: { name: string; color?: string | null }[] = []
+      const resolved: Tag[] = []
+
+      for (const spec of cleaned) {
+        const hit = existing.get(spec.name)
+        if (hit) resolved.push(hit)
+        else missing.push(spec)
+      }
+
+      if (missing.length === 0) return resolved
+
+      for (const spec of missing) {
+        try {
+          const created = await createTag({
+            name: spec.name,
+            color: spec.color ?? undefined
+          })
+          resolved.push(created)
+        } catch (e) {
+          if (!(e instanceof DataApiError) || e.code !== ErrorCode.CONFLICT) throw e
+
+          // Unique-constraint race: the reactive hook's snapshot won't reflect
+          // the winner's insert until the next render, so pull fresh tags
+          // imperatively for this one-shot lookup.
+          const fresh = await dataApiService.get('/tags')
+          const hit = Array.isArray(fresh) ? fresh.find((t) => t.name === spec.name) : undefined
+          if (hit) {
+            resolved.push(hit)
+          } else {
+            throw e
+          }
+        }
+      }
+
+      return resolved
+    },
+    [cachedTags, createTag]
+  )
+
+  return { ensureTags }
 }

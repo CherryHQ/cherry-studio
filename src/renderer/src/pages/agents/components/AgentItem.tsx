@@ -1,8 +1,15 @@
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuItemContent,
+  ContextMenuTrigger
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
-import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
-import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
+import AgentSettingsPopup from '@renderer/pages/agents/AgentSettings/AgentSettingsPopup'
+import { AgentLabel } from '@renderer/pages/agents/AgentSettings/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'
@@ -42,61 +49,74 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
     e.stopPropagation()
   }, [])
 
-  const menuItems: MenuProps['items'] = useMemo(
+  const handleEdit = useCallback(() => AgentSettingsPopup.show({ agentId: agent.id }), [agent.id])
+
+  const handleDelete = useCallback(() => {
+    window.modal.confirm({
+      title: t('agent.delete.title'),
+      content: t('agent.delete.content'),
+      centered: true,
+      okButtonProps: { danger: true },
+      onOk: () => onDelete(agent)
+    })
+  }, [t, agent, onDelete])
+
+  const dropdownMenuItems: MenuProps['items'] = useMemo(
     () => [
       {
         label: t('common.edit'),
         key: 'edit',
         icon: <EditIcon size={14} />,
-        onClick: () => AgentSettingsPopup.show({ agentId: agent.id })
+        onClick: handleEdit
       },
       {
         label: t('common.delete'),
         key: 'delete',
         icon: <DeleteIcon size={14} className="lucide-custom" />,
         danger: true,
-        onClick: () => {
-          window.modal.confirm({
-            title: t('agent.delete.title'),
-            content: t('agent.delete.content'),
-            centered: true,
-            okButtonProps: { danger: true },
-            onOk: () => onDelete(agent)
-          })
-        }
+        onClick: handleDelete
       }
     ],
-    [t, agent, onDelete]
+    [t, handleEdit, handleDelete]
   )
 
   return (
-    <Dropdown
-      menu={{ items: menuItems }}
-      trigger={['contextMenu']}
-      popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
-      <Container
-        onClick={handlePress}
-        isActive={isActive}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}>
-        <AssistantNameRow className="name" title={agent.name ?? agent.id}>
-          <MarqueeText className="flex min-w-0 flex-1">
-            <AgentLabel agent={agent} hideIcon={assistantIconType === 'none'} />
-          </MarqueeText>
-          {(isActive || isHovered) && (
-            <Dropdown
-              menu={{ items: menuItems }}
-              trigger={['click']}
-              popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
-              <MenuButton onClick={handleMenuButtonClick}>
-                <MoreVertical size={14} className="text-(--color-text-secondary)" />
-              </MenuButton>
-            </Dropdown>
-          )}
-          {!isActive && !isHovered && assistantIconType !== 'none' && <BotIcon />}
-        </AssistantNameRow>
-      </Container>
-    </Dropdown>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <Container
+          onClick={handlePress}
+          isActive={isActive}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}>
+          <AssistantNameRow className="name" title={agent.name ?? agent.id}>
+            <MarqueeText className="flex min-w-0 flex-1">
+              <AgentLabel agent={agent} hideIcon={assistantIconType === 'none'} />
+            </MarqueeText>
+            {(isActive || isHovered) && (
+              <Dropdown
+                menu={{ items: dropdownMenuItems }}
+                trigger={['click']}
+                popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
+                <MenuButton onClick={handleMenuButtonClick}>
+                  <MoreVertical size={14} className="text-foreground-secondary" />
+                </MenuButton>
+              </Dropdown>
+            )}
+            {!isActive && !isHovered && assistantIconType !== 'none' && <BotIcon />}
+          </AssistantNameRow>
+        </Container>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={handleEdit}>
+          <ContextMenuItemContent icon={<EditIcon size={14} />}>{t('common.edit')}</ContextMenuItemContent>
+        </ContextMenuItem>
+        <ContextMenuItem variant="destructive" onSelect={handleDelete}>
+          <ContextMenuItemContent icon={<DeleteIcon size={14} className="lucide-custom" />}>
+            {t('common.delete')}
+          </ContextMenuItemContent>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }
 

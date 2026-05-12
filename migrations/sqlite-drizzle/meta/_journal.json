@@ -140,6 +140,27 @@
       "when": 1777636561235,
       "tag": "0019_parallel_annihilus",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1778063182815,
+      "tag": "0020_known_captain_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1778156840137,
+      "tag": "0021_vengeful_green_goblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1778476119706,
+      "tag": "0022_hot_reptil",
+      "breakpoints": true
     }
   ],
   "version": "7"

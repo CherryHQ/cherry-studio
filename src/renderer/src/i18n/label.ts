@@ -108,6 +108,21 @@ export const getProviderLabel = (id: string): string => {
   return getLabel(providerKeyMap, id)
 }
 
+const fileProcessorKeyMap = {
+  doc2x: 'provider.doc2x',
+  mineru: 'provider.mineru',
+  ovocr: 'provider.ovocr',
+  paddleocr: 'provider.paddleocr',
+  system: 'provider.system',
+  tesseract: 'provider.tesseract',
+  mistral: 'provider.mistral',
+  'open-mineru': 'provider.open-mineru'
+} as const
+
+export const getFileProcessorLabel = (id: string): string => {
+  return getLabel(fileProcessorKeyMap, id)
+}
+
 const backupProgressKeyMap = {
   completed: 'backup.progress.completed',
   compressing: 'backup.progress.compressing',
@@ -149,6 +164,7 @@ const titleKeyMap = {
   home: 'title.home',
   knowledge: 'title.knowledge',
   launchpad: 'title.launchpad',
+  library: 'library.title',
   'mcp-servers': 'title.mcp-servers',
   notes: 'title.notes',
   paintings: 'title.paintings',
@@ -172,25 +188,13 @@ export const getThemeModeLabel = (key: string): string => {
   return getLabel(themeModeKeyMap, key)
 }
 
-// const sidebarIconKeyMap = {
-//   assistants: t('assistants.title'),
-//   store: t('assistants.presets.title'),
-//   paintings: t('paintings.title'),
-//   translate: t('translate.title'),
-//   minapp: t('minapp.title'),
-//   knowledge: t('knowledge.title'),
-//   files: t('files.title'),
-//   code_tools: t('code.title'),
-//   notes: t('notes.title')
-// } as const
-
 const sidebarIconKeyMap = {
   assistants: 'assistants.title',
   agents: 'agent.sidebar_title',
   store: 'assistants.presets.title',
   paintings: 'paintings.title',
   translate: 'translate.title',
-  minapp: 'minapp.title',
+  mini_app: 'miniApp.title',
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
@@ -282,13 +286,13 @@ export const getMcpProviderDescriptionLabel = (key: string): string => {
   return getLabel(mcpProviderDescriptionKeyMap, key)
 }
 
-const miniappsStatusKeyMap = {
-  visible: 'settings.miniapps.visible',
-  disabled: 'settings.miniapps.disabled'
+const miniAppsStatusKeyMap = {
+  visible: 'settings.miniApps.visible',
+  disabled: 'settings.miniApps.disabled'
 } as const
 
-export const getMiniappsStatusLabel = (key: string): string => {
-  return getLabel(miniappsStatusKeyMap, key)
+export const getMiniAppsStatusLabel = (key: string): string => {
+  return getLabel(miniAppsStatusKeyMap, key)
 }
 
 const httpMessageKeyMap = {

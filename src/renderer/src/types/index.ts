@@ -12,14 +12,12 @@ import type { LanguageModelV3Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
-export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import type { CSSProperties } from 'react'
-
 export * from './file'
 export * from './note'
+export type { LanguageVarious, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
-import type { TranslateLanguageCode } from '@shared/data/preference/preferenceTypes'
 import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 import * as z from 'zod'
 
 import type { StreamTextParams } from './aiCoreTypes'
@@ -91,7 +89,7 @@ export type TranslateAssistant = Assistant & {
 }
 
 export const isTranslateAssistant = (assistant: Assistant): assistant is TranslateAssistant => {
-  return (assistant.model && assistant.targetLanguage && typeof assistant.content === 'string') !== undefined
+  return Boolean(assistant.model && assistant.targetLanguage && typeof assistant.content === 'string')
 }
 
 // export type AssistantsSortType = 'tags' | 'list'
@@ -128,6 +126,7 @@ const ThinkModelTypes = [
   'gemini3_flash',
   'gemini3_pro',
   'gemini3_1_pro',
+  'gemma4_hosted',
   'qwen',
   'qwen_thinking',
   'doubao',
@@ -517,27 +516,6 @@ export interface PaintingsState {
   ppio_edit: PpioPainting[]
 }
 
-export type MinAppType = {
-  id: string
-  name: string
-  /** i18n key for translatable names */
-  nameKey?: string
-  /** Regions where this app is available. If includes 'Global', shown to international users. */
-  supportedRegions?: MinAppRegion[]
-  logo?: string
-  url: string
-  bordered?: boolean
-  background?: string
-  style?: CSSProperties
-  addTime?: string
-  type?: 'Custom' | 'Default' // Added the 'type' property
-}
-
-/** Region types for miniapps visibility */
-export type MinAppRegion = 'CN' | 'Global'
-
-export type MinAppRegionFilter = 'auto' | MinAppRegion
-
 export enum ThemeMode {
   light = 'light',
   dark = 'dark',
@@ -642,34 +620,6 @@ export type GenerateImageResponse = {
   images: string[]
 }
 
-export type { TranslateLanguageCode }
-
-// langCode应当能够唯一确认一种语言
-export type TranslateLanguage = {
-  value: string
-  langCode: TranslateLanguageCode
-  label: () => string
-  emoji: string
-}
-
-export interface TranslateHistory {
-  id: string
-  sourceText: string
-  targetText: string
-  sourceLanguage: TranslateLanguageCode
-  targetLanguage: TranslateLanguageCode
-  createdAt: string
-  /** 收藏状态 */
-  star?: boolean
-}
-
-export type CustomTranslateLanguage = {
-  id: string
-  langCode: TranslateLanguageCode
-  value: string
-  emoji: string
-}
-
 export const AutoDetectionMethods = {
   franc: 'franc',
   llm: 'llm',
@@ -681,20 +631,6 @@ export type AutoDetectionMethod = keyof typeof AutoDetectionMethods
 export const isAutoDetectionMethod = (method: string): method is AutoDetectionMethod => {
   return Object.hasOwn(AutoDetectionMethods, method)
 }
-
-// by fullex @ data refactor
-// export type SidebarIcon =
-//   | 'assistants'
-//   | 'agents'
-//   | 'store'
-//   | 'paintings'
-//   | 'translate'
-//   | 'minapp'
-//   | 'knowledge'
-//   | 'files'
-//   | 'code_tools'
-//   | 'notes'
-// | 'openclaw'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]
@@ -711,7 +647,9 @@ export const WebSearchProviderIds = {
   exa: 'exa',
   'exa-mcp': 'exa-mcp',
   bocha: 'bocha',
-  querit: 'querit'
+  querit: 'querit',
+  fetch: 'fetch',
+  jina: 'jina'
 } as const
 
 export type WebSearchProviderId = keyof typeof WebSearchProviderIds

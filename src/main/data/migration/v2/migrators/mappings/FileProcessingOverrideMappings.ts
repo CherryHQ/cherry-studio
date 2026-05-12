@@ -46,14 +46,13 @@ function ensureCapability(
   return nextCapability
 }
 
-function mergeOptions(override: FileProcessorOverride, options: Record<string, unknown>) {
-  if (Object.keys(options).length === 0) {
+function setLanguageOptions(override: FileProcessorOverride, langs: string[]) {
+  if (langs.length === 0) {
     return
   }
 
   override.options = {
-    ...(isRecord(override.options) ? override.options : {}),
-    ...options
+    langs
   }
 }
 
@@ -69,13 +68,35 @@ function addApiKey(override: FileProcessorOverride, apiKey: unknown) {
 }
 
 function getPresetCapability(processorId: FileProcessorId, feature: FileProcessorFeature) {
-  const processor = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === processorId)
+  const processor = PRESETS_FILE_PROCESSORS.find((item) => item.id === processorId)
   const capability = processor?.capabilities.find((item) => item.feature === feature)
 
   return {
     apiHost: capability && 'apiHost' in capability ? capability.apiHost : undefined,
     modelId: capability && 'modelId' in capability ? capability.modelId : undefined
   }
+}
+
+function resolvePreprocessFeature(processorId: FileProcessorId): FileProcessorFeature {
+  const processor = PRESETS_FILE_PROCESSORS.find((item) => item.id === processorId)
+
+  if (!processor) {
+    throw new Error(`File processor not found: ${processorId}`)
+  }
+
+  if (processor.capabilities.some((capability) => capability.feature === 'document_to_markdown')) {
+    return 'document_to_markdown'
+  }
+
+  return 'image_to_text'
+}
+
+function resolvePreprocessFeatures(processorId: FileProcessorId): FileProcessorFeature[] {
+  if (processorId === 'mistral') {
+    return ['document_to_markdown', 'image_to_text']
+  }
+
+  return [resolvePreprocessFeature(processorId)]
 }
 
 function setCapabilityApiHost(
@@ -136,35 +157,6 @@ function normalizeLangs(value: unknown, providerId: FileProcessorId): string[] {
     .map(([lang]) => lang)
 }
 
-function pruneEmptyOverrides(overrides: FileProcessorOverrides) {
-  for (const [processorId, override] of Object.entries(overrides)) {
-    if (override.apiKeys?.length === 0) {
-      delete override.apiKeys
-    }
-
-    if (override.capabilities) {
-      for (const feature of Object.keys(override.capabilities) as FileProcessorFeature[]) {
-        const capability = override.capabilities[feature]
-        if (!capability || Object.keys(capability).length === 0) {
-          delete override.capabilities[feature]
-        }
-      }
-
-      if (Object.keys(override.capabilities).length === 0) {
-        delete override.capabilities
-      }
-    }
-
-    if (isRecord(override.options) && Object.keys(override.options).length === 0) {
-      delete override.options
-    }
-
-    if (Object.keys(override).length === 0) {
-      delete overrides[processorId as FileProcessorId]
-    }
-  }
-}
-
 function mergePreprocessProvider(overrides: FileProcessorOverrides, provider: unknown) {
   if (!isRecord(provider)) {
     return
@@ -179,21 +171,19 @@ function mergePreprocessProvider(overrides: FileProcessorOverrides, provider: un
   }
 
   const override = ensureOverride(overrides, providerId)
-  const features: FileProcessorFeature[] =
-    providerId === 'mistral' ? ['markdown_conversion', 'text_extraction'] : ['markdown_conversion']
+  const features = resolvePreprocessFeatures(providerId)
 
   addApiKey(override, provider.apiKey)
 
   if (providerId !== 'paddleocr') {
-    features.forEach((feature) => {
+    for (const feature of features) {
       setCapabilityApiHost(override, providerId, feature, provider.apiHost)
       setCapabilityModelId(override, providerId, feature, provider.model)
-    })
+    }
   }
 
-  if (isRecord(provider.options)) {
-    mergeOptions(override, provider.options)
-  }
+  const langs = isRecord(provider.options) ? normalizeLangs(provider.options.langs, providerId) : []
+  setLanguageOptions(override, langs)
 }
 
 function mergeOcrProvider(overrides: FileProcessorOverrides, provider: unknown) {
@@ -218,24 +208,70 @@ function mergeOcrProvider(overrides: FileProcessorOverrides, provider: unknown) 
 
   addApiKey(override, config.accessToken)
   if (providerId !== 'paddleocr') {
-    setCapabilityApiHost(override, providerId, 'text_extraction', config.apiUrl)
+    setCapabilityApiHost(override, providerId, 'image_to_text', config.apiUrl)
   }
 
   const langs = normalizeLangs(config.langs, providerId)
-  if (langs.length > 0) {
-    mergeOptions(override, { langs })
-  }
+  setLanguageOptions(override, langs)
 
   if (isRecord(config.api)) {
     addApiKey(override, config.api.apiKey)
     if (providerId !== 'paddleocr') {
-      setCapabilityApiHost(override, providerId, 'text_extraction', config.api.apiHost)
-    }
-
-    if (isNonEmptyString(config.api.apiVersion)) {
-      mergeOptions(override, { apiVersion: config.api.apiVersion })
+      setCapabilityApiHost(override, providerId, 'image_to_text', config.api.apiHost)
     }
   }
+}
+
+function normalizeOverride(override: FileProcessorOverride): FileProcessorOverride | undefined {
+  const apiKeys = override.apiKeys ? Array.from(new Set(override.apiKeys.filter((item) => item !== ''))) : undefined
+  const capabilitiesEntries = override.capabilities
+    ? (
+        Object.entries(override.capabilities) as Array<
+          [FileProcessorFeature, NonNullable<FileProcessorOverride['capabilities']>[FileProcessorFeature]]
+        >
+      )
+        .map(([feature, capability]) => {
+          const nextCapability = {
+            ...(capability?.apiHost !== undefined && capability.apiHost !== '' ? { apiHost: capability.apiHost } : {}),
+            ...(capability?.modelId !== undefined && capability.modelId !== '' ? { modelId: capability.modelId } : {})
+          }
+
+          return [feature, Object.keys(nextCapability).length > 0 ? nextCapability : undefined] as const
+        })
+        .filter(
+          (entry): entry is readonly [FileProcessorFeature, FileProcessorCapabilityOverride] => entry[1] !== undefined
+        )
+    : undefined
+  const options = override.options?.langs?.length ? { langs: override.options.langs } : undefined
+
+  if (!apiKeys?.length && !capabilitiesEntries?.length && !options) {
+    return undefined
+  }
+
+  return {
+    ...(apiKeys?.length ? { apiKeys } : {}),
+    ...(capabilitiesEntries?.length ? { capabilities: Object.fromEntries(capabilitiesEntries) } : {}),
+    ...(options ? { options } : {})
+  }
+}
+
+function normalizeOverrides(overrides: FileProcessorOverrides): FileProcessorOverrides {
+  const nextOverrides: FileProcessorOverrides = {}
+
+  for (const [processorId, override] of Object.entries(overrides) as Array<
+    [FileProcessorId, FileProcessorOverride | undefined]
+  >) {
+    if (!override) {
+      continue
+    }
+
+    const next = normalizeOverride(override)
+    if (next) {
+      nextOverrides[processorId] = next
+    }
+  }
+
+  return nextOverrides
 }
 
 export function mergeFileProcessingOverrides(sources: {
@@ -252,9 +288,7 @@ export function mergeFileProcessingOverrides(sources: {
     sources.ocrProviders.forEach((provider) => mergeOcrProvider(overrides, provider))
   }
 
-  pruneEmptyOverrides(overrides)
-
   return {
-    'feature.file_processing.overrides': overrides
+    'feature.file_processing.overrides': normalizeOverrides(overrides)
   }
 }
