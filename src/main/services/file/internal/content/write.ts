@@ -34,13 +34,25 @@ export async function write(deps: FileManagerDeps, id: FileEntryId, data: string
   const entry = await deps.fileEntryService.getById(id)
   const physical = resolvePhysicalPath(entry)
   await atomicWriteFile(physical, data)
-  const s = await fsStat(physical)
-  const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
-  if (entry.origin === 'internal') {
-    await deps.fileEntryService.update(id, { size: version.size })
+  // The atomic write committed; everything below is post-commit metadata
+  // sync. A failure here (EIO on re-stat, SQLITE_BUSY on update, entry
+  // deleted concurrently between read and update, …) silently desyncs
+  // `file_entry.size` and the cached `FileVersion` from disk. Mirror
+  // `createWriteStream`'s `WRITE_STREAM_DB_DESYNC` pattern — surface
+  // the desync at `error` with a stable code, then rethrow so the
+  // awaiting caller still sees the failure.
+  try {
+    const s = await fsStat(physical)
+    const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
+    if (entry.origin === 'internal') {
+      await deps.fileEntryService.update(id, { size: version.size })
+    }
+    deps.versionCache.set(id, version)
+    return version
+  } catch (err) {
+    logger.error('write: post-commit metadata sync failed', { code: 'WRITE_DB_DESYNC', id, err })
+    throw err
   }
-  deps.versionCache.set(id, version)
-  return version
 }
 
 export async function writeIfUnchanged(
@@ -62,11 +74,20 @@ export async function writeIfUnchanged(
     }
     throw err
   }
-  if (entry.origin === 'internal') {
-    await deps.fileEntryService.update(id, { size: next.size })
+  // Same post-commit metadata-sync wrap as `write` above — a desync here
+  // means the FS write succeeded but the DB / cache lag, so the
+  // observability layer must distinguish this from "the write itself
+  // failed".
+  try {
+    if (entry.origin === 'internal') {
+      await deps.fileEntryService.update(id, { size: next.size })
+    }
+    deps.versionCache.set(id, next)
+    return next
+  } catch (err) {
+    logger.error('writeIfUnchanged: post-commit metadata sync failed', { code: 'WRITE_DB_DESYNC', id, err })
+    throw err
   }
-  deps.versionCache.set(id, next)
-  return next
 }
 
 export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId): Promise<AtomicWriteStream> {

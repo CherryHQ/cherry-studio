@@ -120,6 +120,35 @@ describe('internal/content/write', () => {
       expect(refreshed.origin).toBe('external')
       expect(refreshed).not.toHaveProperty('size')
     })
+
+    it('logs WRITE_DB_DESYNC and rethrows when post-commit metadata sync fails', async () => {
+      // Regression: previously the post-commit `fsStat` / `update({size})` /
+      // `versionCache.set` ran unprotected. A SQLITE_BUSY or `update` reject
+      // surfaced to the caller as-is, with no log distinguishing
+      // "FS already committed but DB lags" from "write itself failed". This
+      // mirrors the createWriteStream WRITE_STREAM_DB_DESYNC contract.
+      const e = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([0x01]),
+        name: 'desync',
+        ext: 'bin'
+      })
+      const updateErr = new Error('SQLITE_BUSY: database is locked')
+      vi.spyOn(fileEntryService, 'update').mockRejectedValueOnce(updateErr)
+      mockLoggerError.mockClear()
+
+      await expect(write(deps, e.id, new Uint8Array([0xaa, 0xbb, 0xcc]))).rejects.toBe(updateErr)
+
+      // FS write actually committed before the DB sync failed.
+      const physical = path.join(filesDir, `${e.id}.bin`)
+      const onDisk = await readFile(physical)
+      expect(Array.from(onDisk)).toEqual([0xaa, 0xbb, 0xcc])
+
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        'write: post-commit metadata sync failed',
+        expect.objectContaining({ code: 'WRITE_DB_DESYNC', id: e.id, err: updateErr })
+      )
+    })
   })
 
   describe('writeIfUnchanged', () => {
