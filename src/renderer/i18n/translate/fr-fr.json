@@ -693,17 +693,6 @@
         "xhigh": "Très élevée",
         "xhigh_description": "Raisonnement de très haut niveau"
       },
-      "regular_phrases": {
-        "add": "Добавить фразу",
-        "contentLabel": "Содержание",
-        "contentPlaceholder": "Введите содержание фразы. Поддерживаются переменные, после этого нажмите Tab для быстрого перехода к переменной и изменения её значения. Например:\\n Планируй маршрут из ${from} в ${to}, а затем отправь его на ${email}.",
-        "delete": "Удалить фразу",
-        "deleteConfirm": "Вы уверены, что хотите удалить эту фразу?",
-        "edit": "Редактировать фразу",
-        "title": "Популярные фразы",
-        "titleLabel": "Заголовок",
-        "titlePlaceholder": "Введите заголовок"
-      },
       "tool_use_mode": {
         "function": "Fonction",
         "label": "Mode d'appel des outils",
@@ -819,7 +808,6 @@
       },
       "new_session": "Nouvelle Session {{Command}}",
       "new_topic": "Nouveau sujet {{Command}}",
-      "paste_text_file_confirm": "Coller dans la zone de saisie ?",
       "pause": "Pause",
       "placeholder": "Entrez votre message ici...",
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
@@ -1311,7 +1299,6 @@
     "none": "Aucun",
     "off": "Désactivé",
     "on": "Marche",
-    "open": "Ouvrir",
     "open_in": "Ouvrir dans {{name}}",
     "paste": "Coller",
     "powered_by": "Propulsé par",
@@ -1333,7 +1320,6 @@
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",
     "sessions": "Sessions",
-    "settings": "Paramètres",
     "sort": {
       "pinyin": {
         "asc": "Сортировать по пиньинь в порядке возрастания",
@@ -1606,91 +1592,27 @@
     "add": {
       "title": "Ajouter une base de connaissances"
     },
-    "add_directory": "Ajouter un répertoire",
-    "add_file": "Ajouter un fichier",
-    "add_note": "Ajouter une note",
-    "add_sitemap": "Plan du site",
-    "add_url": "Ajouter une URL",
-    "add_video": "Ajouter une vidéo",
-    "chunk_overlap": "Chevauchement de blocs",
-    "chunk_overlap_placeholder": "Valeur par défaut (ne pas modifier)",
-    "chunk_overlap_tooltip": "Quantité de contenu redondant entre les blocs de texte adjacents pour maintenir la continuité contextuelle et améliorer le traitement des longs textes par le modèle",
-    "chunk_size": "Taille de bloc",
-    "chunk_size_change_warning": "Les modifications de taille de bloc et de chevauchement ne s'appliquent qu'aux nouveaux contenus ajoutés",
-    "chunk_size_placeholder": "Valeur par défaut (ne pas modifier)",
-    "chunk_size_tooltip": "Taille des segments de document, ne doit pas dépasser la limite de contexte du modèle",
-    "delete_confirm": "Êtes-vous sûr de vouloir supprimer cette base de connaissances ?",
     "dimensions": "Размерность встраивания",
     "dimensions_auto_set": "Réglage automatique des dimensions d'incorporation",
     "dimensions_size_placeholder": " Taille de dimension d'incorporation, ex. 1024",
-    "dimensions_size_tooltip": "Размерность встраивания. Чем больше значение, тем выше размерность, но тем больше токенов требуется",
-    "directories": "Répertoires",
-    "document_count": "Nombre de fragments de documents demandés",
-    "document_count_default": "Par défaut",
-    "document_count_help": "Plus vous demandez de fragments de documents, plus d'informations sont fournies, mais plus de jetons sont consommés",
     "drag_file": "Glissez-déposez un fichier ici",
-    "edit_remark": "Modifier la remarque",
-    "edit_remark_placeholder": "Entrez le contenu de la remarque",
     "embedding_model": "Modèle d'intégration",
     "embedding_model_required": "Le modèle d'intégration de la base de connaissances est obligatoire",
     "empty": "Aucune base de connaissances pour le moment",
     "error": {
       "failed_to_create": "Erreur lors de la création de la base de connaissances",
       "failed_to_edit": "Erreur lors de la modification de la base de connaissances",
-      "model_invalid": "Aucun modèle sélectionné ou modèle supprimé",
-      "video": {
-        "local_file_missing": "Le fichier vidéo n'existe pas."
-      }
+      "model_invalid": "Aucun modèle sélectionné ou modèle supprimé"
     },
     "file_hint": "Format supporté : {{file_types}}",
-    "migrate": {
-      "button": {
-        "text": "Migrer"
-      },
-      "confirm": {
-        "content": "Des modifications ont été détectées dans le modèle d'intégration ou les dimensions, ce qui empêche la sauvegarde de la configuration. Vous pouvez exécuter la migration pour éviter la perte de données. La migration de la base de connaissances ne supprime pas la base de connaissances précédente, mais crée une copie et traite tous les éléments de la base de connaissances, ce qui peut consommer beaucoup de jetons. Veuillez agir avec prudence.",
-        "ok": "Commencer la migration",
-        "title": "Migration de la base de connaissances"
-      },
-      "error": {
-        "failed": "Erreur lors de la migration"
-      },
-      "source_dimensions": "Dimensions source",
-      "source_model": "Modèle source",
-      "target_dimensions": "Dimensions cible",
-      "target_model": "Modèle cible"
-    },
     "name_required": "Le nom de la base de connaissances est obligatoire",
-    "notes": "Notes",
     "provider_not_found": "Le fournisseur du modèle de la base de connaissances a été perdu, cette base de connaissances ne sera plus supportée, veuillez en créer une nouvelle",
-    "rename": "Renommer",
     "search": "Rechercher dans la base de connaissances",
     "search_placeholder": "Entrez votre requête",
-    "settings": {
-      "title": "Paramètres de la base de connaissances"
-    },
-    "sitemap_added": "ajouté avec succès",
-    "sitemap_placeholder": "Entrez l'URL du plan du site",
-    "sitemaps": "Sites web",
-    "source": "Source",
-    "status_completed": "Terminé",
-    "status_embedding_completed": "Intégration terminée",
     "status_embedding_failed": "Échec de l'intégration",
-    "status_failed": "Échec",
-    "status_new": "Ajouté",
-    "status_pending": "En attente",
-    "status_preprocess_completed": "Prétraitement terminé",
     "status_preprocess_failed": "Échec du prétraitement",
-    "status_processing": "En cours de traitement",
     "subtitle_file": "Fichier de sous-titres",
-    "threshold": "Seuil de similarité",
-    "threshold_placeholder": "Non défini",
-    "threshold_tooltip": "Utilisé pour mesurer la pertinence entre la question de l'utilisateur et le contenu de la base de connaissances (0-1)",
     "title": "Base de connaissances",
-    "url_added": "URL ajoutée",
-    "url_placeholder": "Entrez l'URL, plusieurs URLs séparées par des sauts de ligne",
-    "urls": "URLs",
-    "videos": "vidéo",
     "videos_file": "Fichier vidéo"
   },
   "languages": {
@@ -1717,8 +1639,7 @@
     "vietnamese": "Vietnamien"
   },
   "launchpad": {
-    "apps": "Applications",
-    "minapps": "Mini-applications"
+    "apps": "Applications"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -1790,7 +1711,6 @@
     },
     "empty_url": "Impossible de télécharger l'image, il est possible que le prompt contienne du contenu sensible ou des mots interdits",
     "error": {
-      "chunk_overlap_too_large": "Le chevauchement de segment ne peut pas dépasser la taille du segment",
       "copy": "Échec de la copie",
       "dimension_too_large": "Les dimensions du contenu sont trop grandes",
       "enter": {
@@ -2028,63 +1948,6 @@
       "partial_failure": "{{count}} résultats de recherche, certaines recherches ont échoué"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Ajouter au tableau de bord",
-    "add_to_sidebar": "Ajouter à la barre latérale",
-    "popup": {
-      "close": "Закрыть мини-программу",
-      "devtools": "Инструменты разработчика",
-      "goBack": "Reculer",
-      "goForward": "Avancer",
-      "minimize": "Свернуть мини-программу",
-      "openExternal": "Открыть в браузере",
-      "open_link_external_off": "Текущий: открывать ссылки в окне по умолчанию",
-      "open_link_external_on": "Текущий: открывать ссылки в браузере",
-      "refresh": "Обновить",
-      "rightclick_copyurl": "Скопировать URL через правую кнопку мыши"
-    },
-    "remove_from_launchpad": "Supprimer du tableau de bord",
-    "remove_from_sidebar": "Supprimer de la barre latérale",
-    "sidebar": {
-      "close": {
-        "title": "Fermer"
-      },
-      "closeall": {
-        "title": "Закрыть все"
-      },
-      "hide": {
-        "title": "Cacher"
-      },
-      "remove_custom": {
-        "title": "Supprimer l'application personnalisée"
-      }
-    },
-    "title": "Mini-programme"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Baidu AI Search",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "MiniMax Agent CN",
-    "minimax-global": "MiniMax Agent",
-    "nami-ai": "Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "models": {
     "action": {
       "pin": "[to be translated]:Pin this model",
@@ -2094,8 +1957,6 @@
     "all": "Tout",
     "custom_parameters": "Paramètres personnalisés",
     "edit": "Éditer le modèle",
-    "embedding_model": "Modèle d'incrustation",
-    "embedding_model_tooltip": "Cliquez sur le bouton Gérer dans Paramètres -> Services de modèles pour ajouter",
     "filter": {
       "by_tag": "Filtrer par étiquette"
     },
@@ -2124,8 +1985,6 @@
       "million_tokens": "Un million de jetons",
       "output": "Prix de sortie"
     },
-    "rerank_model": "Modèle de réordonnancement",
-    "rerank_model_tooltip": "Cliquez sur le bouton Gérer dans Paramètres -> Services de modèles pour ajouter",
     "search": {
       "placeholder": "Rechercher un modèle...",
       "tooltip": "Rechercher un modèle"
@@ -2279,7 +2138,6 @@
       "provider": {
         "cannot_remove_builtin": "Impossible de supprimer le fournisseur intégré",
         "existing": "Le fournisseur existe déjà",
-        "get_providers": "Échec de l'obtention des fournisseurs disponibles",
         "not_found": "Le fournisseur OCR n'existe pas"
       },
       "unknown": "Une erreur s'est produite lors du processus OCR"
@@ -2740,9 +2598,6 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "alert": {
-      "google_login": "Remarque : Si vous recevez un message d'alerte Google indiquant que le navigateur n'est pas fiable lors de la connexion, veuillez d'abord vous connecter à votre compte via l'application intégrée Google dans la liste des mini-programmes, puis utilisez la connexion Google dans d'autres mini-programmes"
-    },
     "clipboard": {
       "empty": "Presse-papiers vide"
     },
@@ -3082,7 +2937,6 @@
         },
         "title": "Activer"
       },
-      "experimental": "Fonction expérimentale",
       "filter_modal": {
         "title": "Liste de sélection des applications",
         "user_tips": {
@@ -3112,7 +2966,6 @@
           },
           "test": "Test",
           "url": {
-            "hint": "Utilisez {{queryString}} pour représenter le terme de recherche",
             "invalid_format": "Veuillez entrer une URL valide commençant par http:// ou https://",
             "label": "URL de recherche personnalisée",
             "missing_placeholder": "L'URL doit contenir le paramètre {{queryString}}",
@@ -3275,14 +3128,12 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Basculer automatiquement vers les sujets",
-      "title": "Paramètres avancés"
+      "auto_switch_to_topics": "Basculer automatiquement vers les sujets"
     },
     "assistant": {
       "icon": {
         "type": {
           "emoji": "Emoji",
-          "label": "Type d'icône du modèle",
           "model": "Icône de modèle",
           "none": "Ne pas afficher"
         }
@@ -3370,15 +3221,6 @@
         "select_title": "Modifier le répertoire des données de l'application",
         "stop_quit_app_reason": "L'application est actuellement en train de migrer les données et ne peut pas être fermée"
       },
-      "app_knowledge": {
-        "button": {
-          "delete": "Supprimer le fichier"
-        },
-        "label": "Fichier de base de connaissances",
-        "remove_all": "Supprimer les fichiers de la base de connaissances",
-        "remove_all_confirm": "La suppression des fichiers de la base de connaissances libérera de l'espace de stockage, mais ne supprimera pas les données vectorisées de la base de connaissances. Après la suppression, vous ne pourrez plus ouvrir les fichiers sources. Souhaitez-vous continuer ?",
-        "remove_all_success": "Fichiers supprimés avec succès"
-      },
       "app_logs": {
         "button": "Ouvrir les journaux",
         "label": "Journaux de l'application"
@@ -3401,8 +3243,7 @@
         "basic": "Paramètres de base",
         "cloud_storage": "Paramètres de sauvegarde cloud",
         "export_settings": "Paramètres d'exportation",
-        "import_settings": "Importer les paramètres",
-        "third_party": "Connexion tierce"
+        "import_settings": "Importer les paramètres"
       },
       "export_menu": {
         "docx": "Exporter au format Word",
@@ -3658,7 +3499,6 @@
       "obsidian": {
         "default_vault": "Référentiel Obsidian par défaut",
         "default_vault_fetch_error": "Échec de la récupération du référentiel Obsidian",
-        "default_vault_loading": "Récupération du référentiel Obsidian en cours...",
         "default_vault_no_vaults": "Aucun référentiel Obsidian trouvé",
         "default_vault_placeholder": "Veuillez sélectionner un référentiel Obsidian par défaut",
         "title": "Configuration d'Obsidian"
@@ -3696,7 +3536,6 @@
           "placeholder": "https://s3.example.com"
         },
         "manager": {
-          "close": "Fermer",
           "columns": {
             "actions": "Actions",
             "fileName": "Nom du fichier",
@@ -3913,9 +3752,6 @@
       "title": "Mode Développeur"
     },
     "display": {
-      "assistant": {
-        "title": "Paramètres de l'assistant"
-      },
       "custom": {
         "css": {
           "cherrycss": "Obtenir depuis cherrycss.com",
@@ -3930,29 +3766,8 @@
         "select": "Sélectionner la police",
         "title": "Paramètres de police"
       },
-      "navbar": {
-        "position": {
-          "label": "Position de la barre de navigation",
-          "left": "Gauche",
-          "top": "Haut"
-        },
-        "title": "Paramètres de la barre de navigation"
-      },
-      "sidebar": {
-        "chat": {
-          "hiddenMessage": "L'assistant est une fonction de base et ne peut pas être masquée"
-        },
-        "disabled": "Icônes masquées",
-        "empty": "Glissez les fonctions à masquer ici",
-        "title": "Paramètres de la barre latérale",
-        "visible": "Icônes affichées"
-      },
-      "title": "Paramètres d'affichage",
       "topic": {
         "title": "Paramètres de sujet"
-      },
-      "zoom": {
-        "title": "Paramètres de zoom"
       }
     },
     "font_size": {
@@ -3972,7 +3787,6 @@
       },
       "emoji_picker": "Sélectionneur d'émoticônes",
       "image_upload": "Téléchargement d'images",
-      "label": "Paramètres généraux",
       "reset": {
         "title": "Réinitialiser les données"
       },
@@ -4086,7 +3900,6 @@
       "deleteServer": "Удалить сервер",
       "deleteServerConfirm": "Вы уверены, что хотите удалить этот сервер?",
       "deleteSuccess": "Serveur supprimé avec succès",
-      "dependenciesInstalling": "Installation des dépendances en cours...",
       "description": "Description",
       "discover": "Découvrir",
       "editJson": "Modifier le JSON",
@@ -4101,7 +3914,6 @@
       "headersTooltip": "Пользовательские заголовки HTTP-запроса",
       "install": "Installer",
       "installError": "Échec de l'installation des dépendances",
-      "installHelp": "Получить помощь по установке",
       "installSuccess": "Dépendances installées avec succès",
       "jsonFormatError": "Erreur de format JSON",
       "jsonModeHint": "Modifier la représentation JSON de la configuration des serveurs MCP. Assurez-vous que le format est correct avant de sauvegarder.",
@@ -4112,7 +3924,6 @@
       "longRunning": "Mode d'exécution prolongée",
       "longRunningTooltip": "Une fois activé, le serveur prend en charge les tâches de longue durée, réinitialise le minuteur de temporisation à la réception des notifications de progression, et prolonge le délai d'expiration maximal à 10 minutes.",
       "marketplaces": "Places de marché",
-      "missingDependencies": "Manquantes, veuillez les installer pour continuer",
       "more": {
         "awesome": "Liste sélectionnée de serveurs MCP",
         "composio": "Outils de développement Composio MCP",
@@ -4283,57 +4094,6 @@
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif"
     },
-    "miniapps": {
-      "cache_change_notice": "Les modifications prendront effet après l'ajout ou la suppression d'applications ouvertes jusqu'à atteindre la valeur définie",
-      "cache_description": "Définir le nombre maximum d'applications pouvant rester actives simultanément",
-      "cache_title": "Nombre de caches d'applications",
-      "custom": {
-        "conflicting_ids": "Конфликтующие ID с ID по умолчанию: {{ids}}",
-        "duplicate_ids": "Обнаружены повторяющиеся ID: {{ids}}",
-        "edit_title": "Редактировать пользовательское приложение",
-        "id": "ID",
-        "id_error": "Поле ID обязательно для заполнения.",
-        "id_placeholder": "Введите ID",
-        "logo": "Логотип",
-        "logo_file": "Загрузить файл логотипа",
-        "logo_upload_button": "Загрузить",
-        "logo_upload_error": "Не удалось загрузить логотип.",
-        "logo_upload_label": "Загрузить логотип",
-        "logo_upload_success": "Логотип успешно загружен.",
-        "logo_url": "URL логотипа",
-        "logo_url_label": "URL логотипа",
-        "logo_url_placeholder": "Введите URL логотипа",
-        "name": "Имя",
-        "name_error": "Поле Имя обязательно для заполнения.",
-        "name_placeholder": "Введите имя",
-        "remove_error": "Не удалось удалить пользовательское приложение.",
-        "remove_success": "Пользовательское приложение успешно удалено.",
-        "save": "Сохранить",
-        "save_error": "Не удалось сохранить пользовательское приложение.",
-        "save_success": "Пользовательское приложение успешно сохранено.",
-        "title": "Пользовательское приложение",
-        "url": "URL",
-        "url_error": "Поле URL обязательно для заполнения.",
-        "url_placeholder": "Введите URL"
-      },
-      "disabled": "Applications masquées",
-      "display_title": "Paramètres d'affichage des applications",
-      "empty": "Faites glisser vers ici les applications que vous souhaitez masquer",
-      "open_link_external": {
-        "title": "Ouvrir un nouveau lien dans une fenêtre du navigateur"
-      },
-      "region": {
-        "auto": "Détection automatique",
-        "cn": "Chine",
-        "description": "La filtration des mini-programmes non pris en charge selon la région n'est pas disponible",
-        "global": "mondial",
-        "title": "Filtrage par zone de la mini-application"
-      },
-      "reset_tooltip": "Réinitialiser aux valeurs par défaut",
-      "sidebar_description": "Définir si les applications actives doivent s'afficher dans la barre latérale",
-      "sidebar_title": "Affichage des applications actives dans la barre latérale",
-      "visible": "Applications visibles"
-    },
     "model": "Modèle par défaut",
     "models": {
       "add": {
@@ -4426,7 +4186,6 @@
       },
       "translate_model": "Modèle de traduction",
       "translate_model_description": "Modèle utilisé pour le service de traduction",
-      "translate_model_prompt_message": "Entrez le mot-clé du modèle de traduction",
       "use_assistant": "Utiliser l'assistant",
       "use_model": "Modèle par défaut"
     },
@@ -4745,23 +4504,8 @@
       "select": "Выбрать",
       "title": "Быстрое меню"
     },
-    "quickPhrase": {
-      "add": "Добавить фразу",
-      "assistant": "Фразы помощника",
-      "contentLabel": "Содержание",
-      "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, после этого нажмите Tab, чтобы быстро перейти к переменной для редактирования. Например: \\n Запланируй маршрут от ${from} до ${to}, а затем отправь его на ${email}.",
-      "delete": "Удалить фразу",
-      "deleteConfirm": "После удаления фразы её невозможно восстановить. Продолжить?",
-      "edit": "Редактировать фразу",
-      "global": "Глобальные фразы",
-      "locationLabel": "Добавить местоположение",
-      "title": "Быстрые фразы",
-      "titleLabel": "Заголовок",
-      "titlePlaceholder": "Введите заголовок фразы"
-    },
     "scheduledTasks": {
       "noAgents": "Aucun agent trouvé. Créez d'abord un agent pour ajouter des tâches planifiées.",
-      "noAgentsTip": "Conseil : vous pouvez également demander à votre agent de créer des tâches planifiées via le chat.",
       "noTasks": "Aucune tâche planifiée. Cliquez sur « + Ajouter » pour en créer une pour un agent.",
       "selectTask": "Sélectionnez une tâche pour afficher les détails",
       "title": "Tâches planifiées"
@@ -4849,50 +4593,6 @@
     },
     "title": "Paramètres",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Langues prises en charge"
-        },
-        "error": {
-          "not_system": "L'OCR système prend uniquement en charge Windows et MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "Ce fournisseur n'existe pas"
-          },
-          "system": {
-            "no_need_configure": "MacOS ne nécessite aucune configuration"
-          },
-          "title": "Image"
-        },
-        "image_provider": "Fournisseur de service OCR",
-        "paddleocr": {
-          "aistudio_access_token": "Jeton d’accès de la communauté AI Studio",
-          "api_url": "URL de l’API",
-          "api_url_label": "Obtenir le jeton d’accès et l’URL de l’API"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Dépendre de Windows pour fournir des services, vous devez télécharger des packs linguistiques dans le système afin de prendre en charge les langues concernées."
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "Lisez la documentation pour connaître les langues personnalisées prises en charge"
-        },
-        "title": "Service OCR"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Jeton d’accès à la communauté AI Studio",
-          "api_url": "URL de l’API",
-          "api_url_label": "Obtenir le jeton d’accès et l’URL de l’API",
-          "paddleocr_url_label": "Site officiel de PaddleOCR"
-        },
-        "provider": "fournisseur de services de prétraitement de documents",
-        "provider_placeholder": "Choisissez un prestataire de traitement de documents",
-        "title": "Prétraitement des documents",
-        "tooltip": "Configurer un fournisseur de prétraitement de documents ou OCR dans Paramètres -> Outils. Le prétraitement des documents améliore efficacement la précision de recherche pour les documents à format complexe ou les versions scannées, tandis que l'OCR permet uniquement d'extraire le texte contenu dans les images ou les PDF scannés."
-      },
       "websearch": {
         "api_key_required": {
           "ok": "Configurer"
@@ -4980,13 +4680,10 @@
           },
           "update": "Échec de la mise à jour",
           "value": {
-            "empty": "Le nom de la langue ne peut pas être vide",
-            "too_long": "Le nom de la langue est trop long"
+            "empty": "Le nom de la langue ne peut pas être vide"
           }
         },
         "langCode": {
-          "help": "[2~3 lettres minuscules]-[2~3 lettres minuscules] au format [langue+zone]",
-          "label": "code de langue",
           "placeholder": "fr-fr"
         },
         "success": {
@@ -4994,14 +4691,7 @@
           "delete": "Suppression réussie",
           "update": "Mise à jour réussie"
         },
-        "table": {
-          "action": {
-            "title": "Opération"
-          }
-        },
         "value": {
-          "help": "1 à 32 caractères",
-          "label": "Nom de la langue",
           "placeholder": "français"
         }
       },
@@ -5010,8 +4700,7 @@
     },
     "tray": {
       "onclose": "Minimiser dans la barre d'état système lors de la fermeture",
-      "show": "Afficher l'icône dans la barre d'état système",
-      "title": "Barre d'état système"
+      "show": "Afficher l'icône dans la barre d'état système"
     },
     "use_system_title_bar": {
       "confirm": {
@@ -5026,7 +4715,6 @@
   },
   "tab": {
     "close": "Fermer l'onglet",
-    "moveToFirst": "Déplacer vers le premier",
     "new": "Nouvel onglet",
     "pin": "Épingler l'onglet",
     "unpin": "Détacher l'onglet"
@@ -5109,15 +4797,12 @@
       "chat_qwen_mt": "Les modèles Qwen MT ne peuvent pas être utilisés dans les conversations, veuillez vous rendre sur la page de traduction.",
       "detect": {
         "qwen_mt": "Le modèle QwenMT ne peut pas être utilisé pour la détection de langues",
-        "unknown": "Langue inconnue détectée",
-        "update_setting": "Échec du paramétrage"
+        "unknown": "Langue inconnue détectée"
       },
       "empty": "Le résultat de la traduction est un contenu vide",
       "failed": "échec de la traduction",
-      "invalid_source": "Langue source invalide",
       "not_configured": "le modèle de traduction n'est pas configuré",
-      "not_supported": "Langue non prise en charge {{language}}",
-      "unknown": "Une erreur inconnue s'est produite lors de la traduction"
+      "not_supported": "Langue non prise en charge {{language}}"
     },
     "exchange": {
       "label": "Échanger la langue source et la langue cible"
@@ -5140,9 +4825,6 @@
       "error": {
         "delete": "Échec de la suppression",
         "save": "Échec de la sauvegarde de l'historique des traductions"
-      },
-      "search": {
-        "placeholder": "Rechercher l'historique des traductions"
       },
       "title": "Historique des traductions"
     },
@@ -5174,10 +4856,7 @@
       "title": "Paramètres de traduction"
     },
     "stop": "Arrêter la traduction",
-    "title": "traduction",
-    "tooltip": {
-      "newline": "saut de ligne"
-    }
+    "title": "traduction"
   },
   "tray": {
     "quit": "Quitter",

@@ -693,17 +693,6 @@
         "xhigh": "Extra Alta",
         "xhigh_description": "Raciocínio de altíssimo nível"
       },
-      "regular_phrases": {
-        "add": "Adicionar Frase",
-        "contentLabel": "Conteúdo",
-        "contentPlaceholder": "Por favor, insira o conteúdo da frase. Há suporte para o uso de variáveis, e em seguida você pode pressionar a tecla Tab para localizar rapidamente a variável e editá-la. Por exemplo:\\n Planeie uma rota de ${from} para ${to} e depois envie para ${email}.",
-        "delete": "Excluir Frase",
-        "deleteConfirm": "Tem certeza de que deseja excluir esta frase?",
-        "edit": "Editar Frase",
-        "title": "Frases Comuns",
-        "titleLabel": "Título",
-        "titlePlaceholder": "Digite o título"
-      },
       "tool_use_mode": {
         "function": "Função",
         "label": "Modo de uso da ferramenta",
@@ -819,7 +808,6 @@
       },
       "new_session": "Nova Sessão {{Command}}",
       "new_topic": "Novo tópico {{Command}}",
-      "paste_text_file_confirm": "Colar na caixa de entrada?",
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
       "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
@@ -1311,7 +1299,6 @@
     "none": "Nenhum",
     "off": "Desligado",
     "on": "Ligado",
-    "open": "Abrir",
     "open_in": "Abrir em {{name}}",
     "paste": "Colar",
     "powered_by": "Desenvolvido por",
@@ -1333,7 +1320,6 @@
     "selectedItems": "{{count}} itens selecionados",
     "selectedMessages": "{{count}} mensagens selecionadas",
     "sessions": "Sessões",
-    "settings": "Configurações",
     "sort": {
       "pinyin": {
         "asc": "Ordenar por Pinyin em ordem crescente",
@@ -1606,91 +1592,27 @@
     "add": {
       "title": "Adicionar Base de Conhecimento"
     },
-    "add_directory": "Adicionar diretório",
-    "add_file": "Adicionar arquivo",
-    "add_note": "Adicionar nota",
-    "add_sitemap": "Adicionar mapa do site",
-    "add_url": "Adicionar URL",
-    "add_video": "Adicionar vídeo",
-    "chunk_overlap": "Sobreposição de bloco",
-    "chunk_overlap_placeholder": "Valor padrão (não recomendado alterar)",
-    "chunk_overlap_tooltip": "Quantidade de conteúdo repetido entre blocos de texto adjacentes, garantindo que os blocos de texto divididos ainda tenham conexões de contexto, melhorando o desempenho geral do modelo em textos longos",
-    "chunk_size": "Tamanho do bloco",
-    "chunk_size_change_warning": "A alteração do tamanho do bloco e da sobreposição de bloco é válida apenas para novos conteúdos adicionados",
-    "chunk_size_placeholder": "Valor padrão (não recomendado alterar)",
-    "chunk_size_tooltip": "Dividir o documento em blocos, o tamanho de cada bloco, que não pode exceder o limite de contexto do modelo",
-    "delete_confirm": "Tem certeza de que deseja excluir este repositório de conhecimento?",
     "dimensions": "Dimensão de incorporação",
     "dimensions_auto_set": "Definição automática de dimensões de incorporação",
     "dimensions_size_placeholder": " Tamanho da dimensão de incorporação, ex. 1024",
-    "dimensions_size_tooltip": "Tamanho da dimensão de incorporação, quanto maior o valor, maior a dimensão de incorporação, mas também maior o consumo de tokens",
-    "directories": "Diretórios",
-    "document_count": "Número de fragmentos de documentos solicitados",
-    "document_count_default": "Padrão",
-    "document_count_help": "Quanto mais fragmentos de documentos solicitados, mais informações são incluídas, mas mais tokens são consumidos",
     "drag_file": "Arraste o arquivo aqui",
-    "edit_remark": "Editar observação",
-    "edit_remark_placeholder": "Digite o conteúdo da observação",
     "embedding_model": "Modelo de incorporação",
     "embedding_model_required": "O modelo de incorporação da base de conhecimento é obrigatório",
     "empty": "Sem repositório de conhecimento",
     "error": {
       "failed_to_create": "Falha ao criar o repositório de conhecimento",
       "failed_to_edit": "Falha ao editar o repositório de conhecimento",
-      "model_invalid": "Modelo não selecionado ou eliminado",
-      "video": {
-        "local_file_missing": "O ficheiro de vídeo não existe."
-      }
+      "model_invalid": "Modelo não selecionado ou eliminado"
     },
     "file_hint": "Formatos suportados: {{file_types}}",
-    "migrate": {
-      "button": {
-        "text": "Migrar"
-      },
-      "confirm": {
-        "content": "Foram detectadas alterações no modelo de incorporação ou dimensões, o que impede a gravação da configuração. Você pode executar a migração para evitar a perda de dados. A migração do repositório de conhecimento não exclui o repositório de conhecimento anterior, mas cria uma cópia e processa todos os itens do repositório de conhecimento, o que pode consumir muitos tokens. Por favor, agir com cuidado.",
-        "ok": "Iniciar migração",
-        "title": "Migração do repositório de conhecimento"
-      },
-      "error": {
-        "failed": "Falha na migração"
-      },
-      "source_dimensions": "Dimensões de origem",
-      "source_model": "Modelo de origem",
-      "target_dimensions": "Dimensões de destino",
-      "target_model": "Modelo de destino"
-    },
     "name_required": "O nome da base de conhecimento é obrigatório",
-    "notes": "Notas",
     "provider_not_found": "O provedor do modelo do repositório de conhecimento foi perdido, este repositório de conhecimento não será mais suportado, por favor, crie um novo repositório de conhecimento",
-    "rename": "Renomear",
     "search": "Pesquisar repositório de conhecimento",
     "search_placeholder": "Digite o conteúdo da consulta",
-    "settings": {
-      "title": "Configurações do Banco de Conhecimento"
-    },
-    "sitemap_added": "Adicionado com sucesso",
-    "sitemap_placeholder": "Digite a URL do mapa do site",
-    "sitemaps": "Sites",
-    "source": "Fonte",
-    "status_completed": "Concluído",
-    "status_embedding_completed": "Incorporação concluída",
     "status_embedding_failed": "Falha na incorporação",
-    "status_failed": "Falhou",
-    "status_new": "Adicionado",
-    "status_pending": "Pendente",
-    "status_preprocess_completed": "Pré-processamento concluído",
     "status_preprocess_failed": "Falha no pré-processamento",
-    "status_processing": "Processando",
     "subtitle_file": "arquivo de legenda",
-    "threshold": "Limite de correspondência",
-    "threshold_placeholder": "Não definido",
-    "threshold_tooltip": "Usado para medir a relevância entre a pergunta do usuário e o conteúdo do repositório de conhecimento (0-1)",
     "title": "Repositório de conhecimento",
-    "url_added": "URL adicionada",
-    "url_placeholder": "Digite a URL, várias URLs separadas por enter",
-    "urls": "URLs",
-    "videos": "vídeo",
     "videos_file": "Arquivo de vídeo"
   },
   "languages": {
@@ -1717,8 +1639,7 @@
     "vietnamese": "Vietnamita"
   },
   "launchpad": {
-    "apps": "Aplicativos",
-    "minapps": "Miniaplicativos"
+    "apps": "Aplicativos"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -1790,7 +1711,6 @@
     },
     "empty_url": "Não foi possível baixar a imagem, possivelmente porque o prompt contém conteúdo sensível ou palavras proibidas",
     "error": {
-      "chunk_overlap_too_large": "A sobreposição de fragmentos não pode ser maior que o tamanho do fragmento",
       "copy": "Falha ao copiar",
       "dimension_too_large": "Dimensão do conteúdo muito grande",
       "enter": {
@@ -2028,63 +1948,6 @@
       "partial_failure": "{{count}} resultados da pesquisa, algumas pesquisas falharam"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Adicionar ao Painel de Inicialização",
-    "add_to_sidebar": "Adicionar à Barra Lateral",
-    "popup": {
-      "close": "Fechar aplicativo",
-      "devtools": "Ferramentas de Desenvolvedor",
-      "goBack": "Voltar",
-      "goForward": "Avançar",
-      "minimize": "Minimizar aplicativo",
-      "openExternal": "Abrir no navegador",
-      "open_link_external_off": "Atual: Abrir links em janela padrão",
-      "open_link_external_on": "Atual: Abrir links no navegador",
-      "refresh": "Atualizar",
-      "rightclick_copyurl": "Copiar URL com botão direito"
-    },
-    "remove_from_launchpad": "Remover do Painel de Inicialização",
-    "remove_from_sidebar": "Remover da Barra Lateral",
-    "sidebar": {
-      "close": {
-        "title": "Fechar"
-      },
-      "closeall": {
-        "title": "Fechar Tudo"
-      },
-      "hide": {
-        "title": "Ocultar"
-      },
-      "remove_custom": {
-        "title": "Excluir aplicativo personalizado"
-      }
-    },
-    "title": "Pequeno aplicativo"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Baidu AI Search",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "MiniMax Agent CN",
-    "minimax-global": "MiniMax Agent",
-    "nami-ai": "Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "models": {
     "action": {
       "pin": "[to be translated]:Pin this model",
@@ -2094,8 +1957,6 @@
     "all": "Todos",
     "custom_parameters": "Parâmetros personalizados",
     "edit": "Editar modelo",
-    "embedding_model": "Modelo de inscrição",
-    "embedding_model_tooltip": "Clique no botão Gerenciar em Configurações -> Serviço de modelos para adicionar",
     "filter": {
       "by_tag": "Filtrar por etiqueta"
     },
@@ -2124,8 +1985,6 @@
       "million_tokens": "Um milhão de tokens",
       "output": "Preço de saída"
     },
-    "rerank_model": "Modelo de reclassificação",
-    "rerank_model_tooltip": "Clique no botão Gerenciar em Configurações -> Serviço de modelos para adicionar",
     "search": {
       "placeholder": "Procurar modelo...",
       "tooltip": "Procurar modelo"
@@ -2279,7 +2138,6 @@
       "provider": {
         "cannot_remove_builtin": "Não é possível excluir o provedor integrado",
         "existing": "O provedor já existe",
-        "get_providers": "Falha ao obter provedores disponíveis",
         "not_found": "O provedor OCR não existe"
       },
       "unknown": "O processo OCR apresentou um erro"
@@ -2740,9 +2598,6 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "alert": {
-      "google_login": "Aviso: Caso encontre a mensagem do Google \"navegador não confiável\" ao fazer login, faça primeiro o login da conta no mini programa do Google na lista de mini programas, e depois use o login do Google em outros mini programas"
-    },
     "clipboard": {
       "empty": "A área de transferência está vazia"
     },
@@ -3082,7 +2937,6 @@
         },
         "title": "Ativar"
       },
-      "experimental": "Funcionalidade experimental",
       "filter_modal": {
         "title": "Lista de Seleção de Aplicativos",
         "user_tips": {
@@ -3112,7 +2966,6 @@
           },
           "test": "Teste",
           "url": {
-            "hint": "Use {{queryString}} para representar o termo de pesquisa",
             "invalid_format": "Por favor, insira um URL válido que comece com http:// ou https://",
             "label": "URL de pesquisa personalizada",
             "missing_placeholder": "O URL deve conter o marcador de posição {{queryString}}",
@@ -3275,14 +3128,12 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Alternar automaticamente para tópicos",
-      "title": "Configurações avançadas"
+      "auto_switch_to_topics": "Alternar automaticamente para tópicos"
     },
     "assistant": {
       "icon": {
         "type": {
           "emoji": "Emoji",
-          "label": "Tipo de ícone do modelo",
           "model": "Ícone do modelo",
           "none": "Não mostrar"
         }
@@ -3370,15 +3221,6 @@
         "select_title": "Alterar Diretório de Dados do Aplicativo",
         "stop_quit_app_reason": "O aplicativo está atualmente migrando dados e não pode ser encerrado"
       },
-      "app_knowledge": {
-        "button": {
-          "delete": "Excluir arquivo"
-        },
-        "label": "Arquivo de base de conhecimento",
-        "remove_all": "Excluir arquivos da base de conhecimento",
-        "remove_all_confirm": "A exclusão dos arquivos da base de conhecimento reduzirá o uso do espaço de armazenamento, mas não excluirá os dados vetoriais da base de conhecimento. Após a exclusão, os arquivos originais não poderão ser abertos. Deseja excluir?",
-        "remove_all_success": "Arquivo excluído com sucesso"
-      },
       "app_logs": {
         "button": "Abrir logs",
         "label": "Logs do aplicativo"
@@ -3401,8 +3243,7 @@
         "basic": "Configurações Básicas",
         "cloud_storage": "Configurações de Armazenamento em Nuvem",
         "export_settings": "Configurações de Exportação",
-        "import_settings": "Importar Configurações",
-        "third_party": "Conexões de Terceiros"
+        "import_settings": "Importar Configurações"
       },
       "export_menu": {
         "docx": "Exportar como Word",
@@ -3658,7 +3499,6 @@
       "obsidian": {
         "default_vault": "Repositório Obsidian padrão",
         "default_vault_fetch_error": "Falha ao obter o repositório Obsidian",
-        "default_vault_loading": "Obtendo repositório Obsidian...",
         "default_vault_no_vaults": "Nenhum repositório Obsidian encontrado",
         "default_vault_placeholder": "Selecione o repositório Obsidian padrão",
         "title": "Configuração do Obsidian"
@@ -3696,7 +3536,6 @@
           "placeholder": "https://s3.example.com"
         },
         "manager": {
-          "close": "Fechar",
           "columns": {
             "actions": "Ações",
             "fileName": "Nome do arquivo",
@@ -3913,9 +3752,6 @@
       "title": "Modo de Desenvolvedor"
     },
     "display": {
-      "assistant": {
-        "title": "Configurações do assistente"
-      },
       "custom": {
         "css": {
           "cherrycss": "Obter do cherrycss.com",
@@ -3930,29 +3766,8 @@
         "select": "Selecionar fonte",
         "title": "Configuração de fonte"
       },
-      "navbar": {
-        "position": {
-          "label": "Posição da Barra de Navegação",
-          "left": "Esquerda",
-          "top": "Superior"
-        },
-        "title": "Configurações da Barra de Navegação"
-      },
-      "sidebar": {
-        "chat": {
-          "hiddenMessage": "O assistente é uma funcionalidade básica e não pode ser ocultada"
-        },
-        "disabled": "Ícones ocultos",
-        "empty": "Arraste as funcionalidades que deseja ocultar da esquerda para cá",
-        "title": "Configurações de barra lateral",
-        "visible": "Ícones visíveis"
-      },
-      "title": "Configurações de exibição",
       "topic": {
         "title": "Configurações de tópico"
-      },
-      "zoom": {
-        "title": "Configurações de zoom"
       }
     },
     "font_size": {
@@ -3972,7 +3787,6 @@
       },
       "emoji_picker": "Seletor de emojis",
       "image_upload": "Carregar imagem",
-      "label": "Configurações gerais",
       "reset": {
         "title": "Redefinir dados"
       },
@@ -4086,7 +3900,6 @@
       "deleteServer": "Excluir Servidor",
       "deleteServerConfirm": "Tem certeza de que deseja excluir este servidor?",
       "deleteSuccess": "Servidor excluído com sucesso",
-      "dependenciesInstalling": "Instalando dependências...",
       "description": "Descrição",
       "discover": "Descobrir",
       "editJson": "Editar JSON",
@@ -4101,7 +3914,6 @@
       "headersTooltip": "Cabeçalhos HTTP personalizados para as requisições",
       "install": "Instalar",
       "installError": "Falha ao instalar dependências",
-      "installHelp": "Obter Ajuda com a Instalação",
       "installSuccess": "Dependências instaladas com sucesso",
       "jsonFormatError": "Erro de formatação JSON",
       "jsonModeHint": "Edite a representação JSON da configuração do servidor MCP. Certifique-se de que o formato está correto antes de salvar.",
@@ -4112,7 +3924,6 @@
       "longRunning": "Modo de execução prolongada",
       "longRunningTooltip": "Quando ativado, o servidor suporta tarefas de longa duração, redefinindo o temporizador de tempo limite ao receber notificações de progresso e estendendo o tempo máximo de tempo limite para 10 minutos.",
       "marketplaces": "Mercados",
-      "missingDependencies": "Ausente, instale para continuar",
       "more": {
         "awesome": "Lista selecionada de servidores MCP",
         "composio": "Ferramentas de desenvolvimento MCP Composio",
@@ -4283,57 +4094,6 @@
       "title": "Configurações de mensagem",
       "use_serif_font": "Usar fonte serif"
     },
-    "miniapps": {
-      "cache_change_notice": "As alterações entrarão em vigor após a abertura ou remoção dos mini aplicativos até atingir o número definido",
-      "cache_description": "Defina o número máximo de mini aplicativos que permanecerão ativos simultaneamente",
-      "cache_title": "Quantidade de Mini Aplicativos no Cache",
-      "custom": {
-        "conflicting_ids": "Conflito com IDs padrão: {{ids}}",
-        "duplicate_ids": "IDs duplicadas encontradas: {{ids}}",
-        "edit_title": "Editar Aplicativo Personalizado",
-        "id": "ID",
-        "id_error": "A ID é obrigatória.",
-        "id_placeholder": "Digite a ID",
-        "logo": "Logo",
-        "logo_file": "Enviar Arquivo da Logo",
-        "logo_upload_button": "Enviar",
-        "logo_upload_error": "Falha no envio da Logo.",
-        "logo_upload_label": "Enviar Logo",
-        "logo_upload_success": "Logo enviada com sucesso.",
-        "logo_url": "URL da Logo",
-        "logo_url_label": "URL da Logo",
-        "logo_url_placeholder": "Digite a URL da Logo",
-        "name": "Nome",
-        "name_error": "O nome é obrigatório.",
-        "name_placeholder": "Digite o nome",
-        "remove_error": "Falha ao excluir o aplicativo personalizado.",
-        "remove_success": "Aplicativo personalizado excluído com sucesso.",
-        "save": "Salvar",
-        "save_error": "Falha ao salvar o aplicativo personalizado.",
-        "save_success": "Aplicativo personalizado salvo com sucesso.",
-        "title": "Aplicativo Personalizado",
-        "url": "URL",
-        "url_error": "A URL é obrigatória.",
-        "url_placeholder": "Digite a URL"
-      },
-      "disabled": "Mini Aplicativos Ocultos",
-      "display_title": "Configurações de Exibição dos Mini Aplicativos",
-      "empty": "Arraste para cá os mini aplicativos que deseja ocultar",
-      "open_link_external": {
-        "title": "Abrir link em nova janela do navegador"
-      },
-      "region": {
-        "auto": "Detecção automática",
-        "cn": "China",
-        "description": "A filtragem de mini programas não suportados com base na região não é suportada",
-        "global": "global",
-        "title": "Filtro de área do mini programa"
-      },
-      "reset_tooltip": "Redefinir para os valores padrão",
-      "sidebar_description": "Defina se os mini aplicativos ativos serão exibidos na barra lateral",
-      "sidebar_title": "Exibição de Mini Aplicativos Ativos na Barra Lateral",
-      "visible": "Mini Aplicativos Visíveis"
-    },
     "model": "Modelo padrão",
     "models": {
       "add": {
@@ -4426,7 +4186,6 @@
       },
       "translate_model": "Modelo de tradução",
       "translate_model_description": "Modelo usado para serviços de tradução",
-      "translate_model_prompt_message": "Digite o prompt do modelo de tradução",
       "use_assistant": "Usar Assistente",
       "use_model": "Modelo Padrão"
     },
@@ -4745,23 +4504,8 @@
       "select": "Selecionar",
       "title": "Menu de Atalho"
     },
-    "quickPhrase": {
-      "add": "Adicionar Frase",
-      "assistant": "Frase do Assistente",
-      "contentLabel": "Conteúdo",
-      "contentPlaceholder": "Por favor, insira o conteúdo da frase. É permitido usar variáveis, e em seguida pressionar a tecla Tab para localizar rapidamente as variáveis e editá-las. Por exemplo:\\nPlaneje uma rota de ${from} para ${to} e envie para ${email}.",
-      "delete": "Excluir Frase",
-      "deleteConfirm": "A frase excluída não poderá ser recuperada. Deseja continuar?",
-      "edit": "Editar Frase",
-      "global": "Frase Global",
-      "locationLabel": "Adicionar Localização",
-      "title": "Frases Rápidas",
-      "titleLabel": "Título",
-      "titlePlaceholder": "Por favor, insira o título da frase"
-    },
     "scheduledTasks": {
       "noAgents": "Nenhum agente encontrado. Crie um agente primeiro para adicionar tarefas agendadas.",
-      "noAgentsTip": "Dica: Você também pode pedir ao seu agente para criar tarefas agendadas via chat.",
       "noTasks": "Nenhuma tarefa agendada. Clique em \"+ Adicionar\" para criar uma para um agente.",
       "selectTask": "Selecione uma tarefa para ver os detalhes",
       "title": "Tarefas Agendadas"
@@ -4849,50 +4593,6 @@
     },
     "title": "Configurações",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Idiomas suportados"
-        },
-        "error": {
-          "not_system": "O OCR do sistema suporta apenas Windows e MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "O provedor não existe"
-          },
-          "system": {
-            "no_need_configure": "MacOS não requer configuração"
-          },
-          "title": "Imagem"
-        },
-        "image_provider": "Provedor de serviços OCR",
-        "paddleocr": {
-          "aistudio_access_token": "Token de acesso da comunidade AI Studio",
-          "api_url": "URL da API",
-          "api_url_label": "Obter Token de Acesso e URL da API"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Dependendo do Windows para fornecer serviços, você precisa baixar pacotes de idiomas no sistema para dar suporte aos idiomas relevantes."
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "Leia a documentação para saber quais idiomas personalizados são suportados"
-        },
-        "title": "Serviço OCR"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Token de acesso da Comunidade AI Studio",
-          "api_url": "URL da API",
-          "api_url_label": "Obter Token de Acesso e URL da API",
-          "paddleocr_url_label": "Site Oficial do PaddleOCR"
-        },
-        "provider": "prestador de serviços de pré-processamento de documentos",
-        "provider_placeholder": "Escolha um fornecedor de pré-processamento de documentos",
-        "title": "Pré-processamento de documentos",
-        "tooltip": "Configure o provedor de pré-processamento de documentos ou OCR em Configurações -> Ferramentas. O pré-processamento de documentos pode melhorar significativamente a eficácia da busca em documentos com formatos complexos ou versões escaneadas. O OCR só consegue reconhecer texto em imagens ou PDFs escaneados."
-      },
       "websearch": {
         "api_key_required": {
           "ok": "Configurar"
@@ -4980,13 +4680,10 @@
           },
           "update": "Falha ao atualizar",
           "value": {
-            "empty": "O nome do idioma não pode estar vazio",
-            "too_long": "O nome do idioma é muito longo"
+            "empty": "O nome do idioma não pode estar vazio"
           }
         },
         "langCode": {
-          "help": "[linguagem+região] no formato, [2~3 letras minúsculas]-[2~3 letras minúsculas]",
-          "label": "código do idioma",
           "placeholder": "pt-pt"
         },
         "success": {
@@ -4994,14 +4691,7 @@
           "delete": "Eliminação bem-sucedida",
           "update": "Atualização bem-sucedida"
         },
-        "table": {
-          "action": {
-            "title": "Operação"
-          }
-        },
         "value": {
-          "help": "1~32 caracteres",
-          "label": "Nome do idioma",
           "placeholder": "Português"
         }
       },
@@ -5010,8 +4700,7 @@
     },
     "tray": {
       "onclose": "Minimizar para bandeja ao fechar",
-      "show": "Mostrar ícone de bandeja",
-      "title": "Tray"
+      "show": "Mostrar ícone de bandeja"
     },
     "use_system_title_bar": {
       "confirm": {
@@ -5026,7 +4715,6 @@
   },
   "tab": {
     "close": "Fechar Aba",
-    "moveToFirst": "Mover para o Primeiro",
     "new": "Nova Aba",
     "pin": "Fixar Aba",
     "unpin": "Desafixar Aba"
@@ -5109,15 +4797,12 @@
       "chat_qwen_mt": "Modelos Qwen MT não estão disponíveis para uso em conversas. Por favor, vá para a página de tradução.",
       "detect": {
         "qwen_mt": "O modelo QwenMT não pode ser usado para detecção de idioma",
-        "unknown": "Idioma desconhecido detectado",
-        "update_setting": "Falha na configuração"
+        "unknown": "Idioma desconhecido detectado"
       },
       "empty": "Resultado da tradução está vazio",
       "failed": "Tradução falhou",
-      "invalid_source": "Idioma de origem inválido",
       "not_configured": "Modelo de tradução não configurado",
-      "not_supported": "Idioma não suportado {{language}}",
-      "unknown": "Ocorreu um erro desconhecido durante a tradução"
+      "not_supported": "Idioma não suportado {{language}}"
     },
     "exchange": {
       "label": "Trocar idioma de origem e idioma de destino"
@@ -5140,9 +4825,6 @@
       "error": {
         "delete": "Falha ao excluir",
         "save": "Falha ao guardar o histórico de traduções"
-      },
-      "search": {
-        "placeholder": "Pesquisar histórico de tradução"
       },
       "title": "Histórico de Tradução"
     },
@@ -5174,10 +4856,7 @@
       "title": "Configurações de Tradução"
     },
     "stop": "Parar Tradução",
-    "title": "Tradução",
-    "tooltip": {
-      "newline": "Quebra de linha"
-    }
+    "title": "Tradução"
   },
   "tray": {
     "quit": "Sair",

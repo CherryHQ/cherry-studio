@@ -693,17 +693,6 @@
         "xhigh": "超高",
         "xhigh_description": "超高度な推論"
       },
-      "regular_phrases": {
-        "add": "プロンプトを追加",
-        "contentLabel": "内容",
-        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
-        "delete": "プロンプトを削除",
-        "deleteConfirm": "このプロンプトを削除してもよろしいですか？",
-        "edit": "プロンプトを編集",
-        "title": "定型プロンプト",
-        "titleLabel": "タイトル",
-        "titlePlaceholder": "タイトルを入力"
-      },
       "tool_use_mode": {
         "function": "関数",
         "label": "工具調用方式",
@@ -819,7 +808,6 @@
       },
       "new_session": "新しいセッション {{Command}}",
       "new_topic": "新しいトピック {{Command}}",
-      "paste_text_file_confirm": "入力欄に貼り付けますか？",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
@@ -1311,7 +1299,6 @@
     "none": "無",
     "off": "オフ",
     "on": "オン",
-    "open": "開く",
     "open_in": "{{name}}で開く",
     "paste": "貼り付け",
     "powered_by": "搭載",
@@ -1333,7 +1320,6 @@
     "selectedItems": "{{count}}件の項目を選択しました",
     "selectedMessages": "{{count}}件のメッセージを選択しました",
     "sessions": "セッション",
-    "settings": "設定",
     "sort": {
       "pinyin": {
         "asc": "ピンインで昇順ソート",
@@ -1606,91 +1592,27 @@
     "add": {
       "title": "ナレッジベースを追加"
     },
-    "add_directory": "ディレクトリを追加",
-    "add_file": "ファイルを追加",
-    "add_note": "ノートを追加",
-    "add_sitemap": "サイトマップを追加",
-    "add_url": "URLを追加",
-    "add_video": "動画を追加",
-    "chunk_overlap": "チャンクの重なり",
-    "chunk_overlap_placeholder": "デフォルト（変更しないでください）",
-    "chunk_overlap_tooltip": "隣接するチャンク間の重複内容量。チャンク間のコンテキスト関連性を確保し、長文テキストの処理効果を向上させます。",
-    "chunk_size": "チャンクサイズ",
-    "chunk_size_change_warning": "チャンクサイズと重複サイズの変更は、新しく追加された内容にのみ適用されます",
-    "chunk_size_placeholder": "デフォルト（変更しないでください）",
-    "chunk_size_tooltip": "ドキュメントを分割し、各チャンクのサイズ。モデルのコンテキスト制限を超えないようにしてください。",
-    "delete_confirm": "このナレッジベースを削除してもよろしいですか？",
     "dimensions": "埋め込み次元",
     "dimensions_auto_set": "埋め込み次元を自動設定",
     "dimensions_size_placeholder": "次元数を設定しない場合は空欄のままにしてください",
-    "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど消費するトークンも増えます。空欄の場合はdimensionsパラメータを渡しません。",
-    "directories": "ディレクトリ",
-    "document_count": "要求されたドキュメント分段数",
-    "document_count_default": "デフォルト",
-    "document_count_help": "要求されたドキュメント分段数が多いほど、付随する情報が多くなりますが、トークンの消費量も増加します",
     "drag_file": "ファイルをここにドラッグ",
-    "edit_remark": "備考を編集",
-    "edit_remark_placeholder": "備考内容を入力してください",
     "embedding_model": "埋め込みモデル",
     "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
     "empty": "ナレッジベースが見つかりません",
     "error": {
       "failed_to_create": "ナレッジベースの作成に失敗しました",
       "failed_to_edit": "ナレッジベースの編集に失敗しました",
-      "model_invalid": "モデルが選択されていません",
-      "video": {
-        "local_file_missing": "動画ファイルが見つかりません"
-      }
+      "model_invalid": "モデルが選択されていません"
     },
     "file_hint": "{{file_types}} 形式をサポート",
-    "migrate": {
-      "button": {
-        "text": "移行"
-      },
-      "confirm": {
-        "content": "埋め込みモデルまたは次元に変更が検出されました。設定を直接保存することはできませんが、移行を実行できます。ナレッジベースの移行では古いナレッジベースは削除されず、代わりにコピーを作成してすべてのエントリを再処理します。大量のトークンを消費する可能性があるため、慎重に操作してください。",
-        "ok": "移行を開始",
-        "title": "ナレッジベースの移行"
-      },
-      "error": {
-        "failed": "移行が失敗しました"
-      },
-      "source_dimensions": "ソース次元",
-      "source_model": "ソースモデル",
-      "target_dimensions": "ターゲット次元",
-      "target_model": "ターゲットモデル"
-    },
     "name_required": "ナレッジベース名は必須です",
-    "notes": "ノート",
     "provider_not_found": "プロバイダーが見つかりません",
-    "rename": "名前を変更",
     "search": "ナレッジベースを検索",
     "search_placeholder": "検索するテキストを入力",
-    "settings": {
-      "title": "ナレッジベース設定"
-    },
-    "sitemap_added": "追加成功",
-    "sitemap_placeholder": "サイトマップURLを入力",
-    "sitemaps": "サイトマップ",
-    "source": "ソース",
-    "status_completed": "完了",
-    "status_embedding_completed": "埋め込み完了",
     "status_embedding_failed": "埋め込み失敗",
-    "status_failed": "失敗",
-    "status_new": "追加済み",
-    "status_pending": "保留中",
-    "status_preprocess_completed": "前処理完了",
     "status_preprocess_failed": "前処理に失敗しました",
-    "status_processing": "処理中",
     "subtitle_file": "字幕ファイル",
-    "threshold": "マッチング度閾値",
-    "threshold_placeholder": "未設置",
-    "threshold_tooltip": "ユーザーの質問と知識ベースの内容の関連性を評価するためのしきい値（0-1）",
     "title": "ナレッジベース",
-    "url_added": "URLが追加されました",
-    "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-    "urls": "URL",
-    "videos": "動画",
     "videos_file": "動画ファイル"
   },
   "languages": {
@@ -1717,8 +1639,7 @@
     "vietnamese": "ベトナム語"
   },
   "launchpad": {
-    "apps": "アプリ",
-    "minapps": "アプリ"
+    "apps": "アプリ"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -1790,7 +1711,6 @@
     },
     "empty_url": "画像をダウンロードできません。プロンプトに不適切なコンテンツや禁止用語が含まれている可能性があります",
     "error": {
-      "chunk_overlap_too_large": "チャンクのオーバーラップがチャンクサイズより大きくなることはできません",
       "copy": "複製に失敗しました",
       "dimension_too_large": "内容のサイズが大きすぎます",
       "enter": {
@@ -2028,63 +1948,6 @@
       "partial_failure": "{{count}}件の検索結果、一部の検索に失敗しました"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "スタート画面に追加",
-    "add_to_sidebar": "サイドバーに追加",
-    "popup": {
-      "close": "ミニアプリを閉じる",
-      "devtools": "開発者ツール",
-      "goBack": "戻る",
-      "goForward": "進む",
-      "minimize": "ミニアプリを最小化",
-      "openExternal": "ブラウザで開く",
-      "open_link_external_off": "現在：デフォルトのウィンドウで開く",
-      "open_link_external_on": "現在：ブラウザで開く",
-      "refresh": "更新",
-      "rightclick_copyurl": "右クリックでURLをコピー"
-    },
-    "remove_from_launchpad": "スタート画面から削除",
-    "remove_from_sidebar": "サイドバーから削除",
-    "sidebar": {
-      "close": {
-        "title": "閉じる"
-      },
-      "closeall": {
-        "title": "すべて閉じる"
-      },
-      "hide": {
-        "title": "非表示"
-      },
-      "remove_custom": {
-        "title": "カスタムアプリを削除"
-      }
-    },
-    "title": "ミニアプリ"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "百小應",
-    "baidu-ai-search": "百度AI検索",
-    "chatglm": "ChatGLM",
-    "dangbei": "当贝AI",
-    "doubao": "豆包",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "MiniMax Agent CN",
-    "minimax-global": "MiniMax Agent",
-    "nami-ai": "Nami AI",
-    "qwen": "通義千問",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "騰訊元宝",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "万知",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "小藝",
-    "zhihu": "知乎直答"
-  },
   "models": {
     "action": {
       "pin": "[to be translated]:Pin this model",
@@ -2094,8 +1957,6 @@
     "all": "すべて",
     "custom_parameters": "カスタムパラメータ",
     "edit": "モデルを編集",
-    "embedding_model": "埋め込み模型",
-    "embedding_model_tooltip": "設定->モデルサービス->管理で追加",
     "filter": {
       "by_tag": "タグでフィルター"
     },
@@ -2124,8 +1985,6 @@
       "million_tokens": "百万トークン",
       "output": "出力価格"
     },
-    "rerank_model": "再順序付けモデル",
-    "rerank_model_tooltip": "設定->モデルサービスに移動し、管理ボタンをクリックして追加します。",
     "search": {
       "placeholder": "モデルを検索...",
       "tooltip": "モデルを検索"
@@ -2279,7 +2138,6 @@
       "provider": {
         "cannot_remove_builtin": "組み込みプロバイダーは削除できません",
         "existing": "プロバイダーはすでに存在します",
-        "get_providers": "利用可能なプロバイダーの取得に失敗しました",
         "not_found": "OCRプロバイダーが存在しません"
       },
       "unknown": "OCR処理中にエラーが発生しました"
@@ -2740,9 +2598,6 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "alert": {
-      "google_login": "ヒント：Googleログイン時に「信頼できないブラウザ」というメッセージが表示された場合は、先にミニアプリリストのGoogleミニアプリでアカウントログインを完了してから、他のミニアプリでGoogleログインを使用してください"
-    },
     "clipboard": {
       "empty": "クリップボードが空です"
     },
@@ -3082,7 +2937,6 @@
         },
         "title": "有効化"
       },
-      "experimental": "実験的機能",
       "filter_modal": {
         "title": "アプリケーションフィルターリスト",
         "user_tips": {
@@ -3112,7 +2966,6 @@
           },
           "test": "テスト",
           "url": {
-            "hint": "{{queryString}}で検索語を表す",
             "invalid_format": "http:// または https:// で始まるURLを入力",
             "label": "検索URL",
             "missing_placeholder": "{{queryString}}を含めてください",
@@ -3275,14 +3128,12 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "トピックに自動的に切り替える",
-      "title": "詳細設定"
+      "auto_switch_to_topics": "トピックに自動的に切り替える"
     },
     "assistant": {
       "icon": {
         "type": {
           "emoji": "Emoji アイコン",
-          "label": "モデルアイコンタイプ",
           "model": "モデルアイコン",
           "none": "表示しない"
         }
@@ -3370,15 +3221,6 @@
         "select_title": "アプリデータディレクトリの変更",
         "stop_quit_app_reason": "アプリは現在データを移行しているため、終了できません"
       },
-      "app_knowledge": {
-        "button": {
-          "delete": "ファイルを削除"
-        },
-        "label": "知識ベースファイル",
-        "remove_all": "ナレッジベースファイルを削除",
-        "remove_all_confirm": "ナレッジベースファイルを削除すると、ナレッジベース自体は削除されません。これにより、ストレージ容量を節約できます。続行しますか？",
-        "remove_all_success": "ファイル削除成功"
-      },
       "app_logs": {
         "button": "ログを開く",
         "label": "アプリログ"
@@ -3401,8 +3243,7 @@
         "basic": "基本データ設定",
         "cloud_storage": "クラウドバックアップ設定",
         "export_settings": "エクスポート設定",
-        "import_settings": "設定のインポート",
-        "third_party": "サードパーティー連携"
+        "import_settings": "設定のインポート"
       },
       "export_menu": {
         "docx": "Wordとしてエクスポート",
@@ -3658,7 +3499,6 @@
       "obsidian": {
         "default_vault": "デフォルトの Obsidian 保管庫",
         "default_vault_fetch_error": "Obsidian 保管庫の取得に失敗しました",
-        "default_vault_loading": "Obsidian 保管庫を取得中...",
         "default_vault_no_vaults": "Obsidian 保管庫が見つかりません",
         "default_vault_placeholder": "デフォルトの Obsidian 保管庫を選択してください",
         "title": "Obsidian 設定"
@@ -3696,7 +3536,6 @@
           "placeholder": "https://s3.example.com"
         },
         "manager": {
-          "close": "閉じる",
           "columns": {
             "actions": "操作",
             "fileName": "ファイル名",
@@ -3913,9 +3752,6 @@
       "title": "開発者モード"
     },
     "display": {
-      "assistant": {
-        "title": "アシスタント設定"
-      },
       "custom": {
         "css": {
           "cherrycss": "cherrycss.comから取得",
@@ -3930,29 +3766,8 @@
         "select": "フォントを選択",
         "title": "フォント設定"
       },
-      "navbar": {
-        "position": {
-          "label": "ナビゲーションバー位置",
-          "left": "左",
-          "top": "上"
-        },
-        "title": "ナビゲーションバー設定"
-      },
-      "sidebar": {
-        "chat": {
-          "hiddenMessage": "アシスタントは基本的な機能であり、非表示はサポートされていません"
-        },
-        "disabled": "アイコンを非表示",
-        "empty": "非表示にする機能を左側からここにドラッグ",
-        "title": "サイドバー設定",
-        "visible": "アイコンを表示"
-      },
-      "title": "表示設定",
       "topic": {
         "title": "トピック設定"
-      },
-      "zoom": {
-        "title": "ズーム設定"
       }
     },
     "font_size": {
@@ -3972,7 +3787,6 @@
       },
       "emoji_picker": "絵文字ピッカー",
       "image_upload": "画像アップロード",
-      "label": "一般設定",
       "reset": {
         "title": "データをリセット"
       },
@@ -4086,7 +3900,6 @@
       "deleteServer": "サーバーを削除",
       "deleteServerConfirm": "このサーバーを削除してもよろしいですか？",
       "deleteSuccess": "サーバーが正常に削除されました",
-      "dependenciesInstalling": "依存関係をインストール中...",
       "description": "説明",
       "discover": "発見",
       "editJson": "JSONを編集",
@@ -4101,7 +3914,6 @@
       "headersTooltip": "HTTP リクエストのカスタムヘッダー",
       "install": "インストール",
       "installError": "依存関係のインストールに失敗しました",
-      "installHelp": "インストールヘルプを取得",
       "installSuccess": "依存関係のインストールに成功しました",
       "jsonFormatError": "JSONフォーマットエラー",
       "jsonModeHint": "MCPサーバー設定のJSON表現を編集します。保存する前に、フォーマットが正しいことを確認してください。",
@@ -4112,7 +3924,6 @@
       "longRunning": "長時間運行モード",
       "longRunningTooltip": "このオプションを有効にすると、サーバーは長時間のタスクをサポートします。進行状況通知を受信すると、タイムアウトがリセットされ、最大実行時間が10分に延長されます。",
       "marketplaces": "マーケットプレイス",
-      "missingDependencies": "が不足しています。続行するにはインストールしてください。",
       "more": {
         "awesome": "厳選された MCP サーバーリスト",
         "composio": "Composio MCP 開発ツール",
@@ -4283,57 +4094,6 @@
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
     },
-    "miniapps": {
-      "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
-      "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
-      "cache_title": "ミニアプリのキャッシュ数",
-      "custom": {
-        "conflicting_ids": "デフォルトアプリとIDが競合しています: {{ids}}",
-        "duplicate_ids": "重複するIDが見つかりました: {{ids}}",
-        "edit_title": "カスタムミニアプリの編集",
-        "id": "ID",
-        "id_error": "IDは必須項目です。",
-        "id_placeholder": "IDを入力してください",
-        "logo": "ロゴ",
-        "logo_file": "ロゴファイルをアップロード",
-        "logo_upload_button": "アップロード",
-        "logo_upload_error": "ロゴのアップロードに失敗しました。",
-        "logo_upload_label": "ロゴをアップロード",
-        "logo_upload_success": "ロゴのアップロードに成功しました。",
-        "logo_url": "ロゴURL",
-        "logo_url_label": "ロゴURL",
-        "logo_url_placeholder": "ロゴURLを入力してください",
-        "name": "名前",
-        "name_error": "名前は必須項目です。",
-        "name_placeholder": "名前を入力してください",
-        "remove_error": "カスタムミニアプリの削除に失敗しました。",
-        "remove_success": "カスタムミニアプリの削除に成功しました。",
-        "save": "保存",
-        "save_error": "カスタムミニアプリの保存に失敗しました。",
-        "save_success": "カスタムミニアプリの保存に成功しました。",
-        "title": "カスタムミニアプリ",
-        "url": "URL",
-        "url_error": "URLは必須項目です。",
-        "url_placeholder": "URLを入力してください"
-      },
-      "disabled": "非表示のミニアプリ",
-      "display_title": "ミニアプリ表示設定",
-      "empty": "非表示にするミニアプリを左側からここにドラッグしてください",
-      "open_link_external": {
-        "title": "新視窗のリンクをブラウザで開く"
-      },
-      "region": {
-        "auto": "自動検出",
-        "cn": "中国",
-        "description": "地域に基づいてサポートされていないミニアプリをフィルタリングします",
-        "global": "世界中",
-        "title": "ミニアプリ地域絞り込み"
-      },
-      "reset_tooltip": "デフォルト値にリセット",
-      "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
-      "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
-      "visible": "表示するミニアプリ"
-    },
     "model": "デフォルトモデル",
     "models": {
       "add": {
@@ -4426,7 +4186,6 @@
       },
       "translate_model": "翻訳モデル",
       "translate_model_description": "翻訳サービスに使用されるモデル",
-      "translate_model_prompt_message": "翻訳モデルのプロンプトを入力してください",
       "use_assistant": "アシスタントの活用",
       "use_model": "デフォルトモデル"
     },
@@ -4745,23 +4504,8 @@
       "select": "選択",
       "title": "クイックメニュー"
     },
-    "quickPhrase": {
-      "add": "フレーズを追加",
-      "assistant": "アシスタントプロンプト",
-      "contentLabel": "内容",
-      "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
-      "delete": "フレーズを削除",
-      "deleteConfirm": "削除後は復元できません。続行しますか？",
-      "edit": "フレーズを編集",
-      "global": "グローバルクイックフレーズ",
-      "locationLabel": "追加場所",
-      "title": "クイックフレーズ",
-      "titleLabel": "タイトル",
-      "titlePlaceholder": "フレーズのタイトルを入力してください"
-    },
     "scheduledTasks": {
       "noAgents": "エージェントが見つかりません。スケジュールされたタスクを追加するには、まずエージェントを作成してください。",
-      "noAgentsTip": "ヒント: チャットでエージェントにスケジュールされたタスクを作成してもらうこともできます。",
       "noTasks": "スケジュールされたタスクはありません。「＋追加」をクリックしてエージェント用のタスクを作成してください。",
       "selectTask": "タスクを選択して詳細を表示",
       "title": "スケジュールされたタスク"
@@ -4849,50 +4593,6 @@
     },
     "title": "設定",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "サポートされている言語"
-        },
-        "error": {
-          "not_system": "システムOCRはWindowsとMacOSのみをサポートしています"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "該提供者は存在しません"
-          },
-          "system": {
-            "no_need_configure": "MacOS は設定不要"
-          },
-          "title": "画像"
-        },
-        "image_provider": "OCRサービスプロバイダー",
-        "paddleocr": {
-          "aistudio_access_token": "AI Studio Community のアクセス・トークン",
-          "api_url": "API URL",
-          "api_url_label": "アクセストークンとAPI URLを取得する"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Windows が提供するサービスに依存しており、関連する言語をサポートするには、システムで言語パックをダウンロードする必要があります。"
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "ドキュメントを読んで、どのカスタム言語がサポートされているかを確認してください。"
-        },
-        "title": "OCRサービス"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "AI Studioコミュニティのアクセストークン",
-          "api_url": "API URL",
-          "api_url_label": "アクセストークンとAPI URLを取得する",
-          "paddleocr_url_label": "PaddleOCR 公式ウェブサイト"
-        },
-        "provider": "プレプロセスプロバイダー",
-        "provider_placeholder": "前処理プロバイダーを選択してください",
-        "title": "前処理",
-        "tooltip": "設定 → ツールで、ドキュメント前処理サービスプロバイダーを設定します。ドキュメント前処理は、複雑な形式のドキュメントやスキャンされたドキュメントの検索性能を効果的に向上させます。"
-      },
       "websearch": {
         "api_key_required": {
           "ok": "設定"
@@ -4980,13 +4680,10 @@
           },
           "update": "更新に失敗しました",
           "value": {
-            "empty": "言語名は空にできません",
-            "too_long": "言語名が長すぎます"
+            "empty": "言語名は空にできません"
           }
         },
         "langCode": {
-          "help": "[2~3文字の小文字]-[2~3文字の小文字]の形式の[言語+地域]",
-          "label": "言語コード",
           "placeholder": "ja-jp"
         },
         "success": {
@@ -4994,14 +4691,7 @@
           "delete": "削除が成功しました",
           "update": "更新成功"
         },
-        "table": {
-          "action": {
-            "title": "操作"
-          }
-        },
         "value": {
-          "help": "1〜32文字",
-          "label": "言語名",
           "placeholder": "日本語"
         }
       },
@@ -5010,8 +4700,7 @@
     },
     "tray": {
       "onclose": "閉じるときにトレイに最小化",
-      "show": "トレイアイコンを表示",
-      "title": "トレイ"
+      "show": "トレイアイコンを表示"
     },
     "use_system_title_bar": {
       "confirm": {
@@ -5026,7 +4715,6 @@
   },
   "tab": {
     "close": "タブを閉じる",
-    "moveToFirst": "先頭へ移動",
     "new": "新しいタブ",
     "pin": "タブをピン留め",
     "unpin": "タブを固定解除"
@@ -5109,15 +4797,12 @@
       "chat_qwen_mt": "Qwen MT モデルは対話で使用できません。翻訳ページに移動してください",
       "detect": {
         "qwen_mt": "QwenMTモデルは言語検出に使用できません",
-        "unknown": "検出された言語は不明です",
-        "update_setting": "設定に失敗しました"
+        "unknown": "検出された言語は不明です"
       },
       "empty": "翻訳結果が空の内容です",
       "failed": "翻訳に失敗しました",
-      "invalid_source": "無効なソース言語",
       "not_configured": "翻訳モデルが設定されていません",
-      "not_supported": "サポートされていない言語 {{language}}",
-      "unknown": "翻訳中に不明なエラーが発生しました"
+      "not_supported": "サポートされていない言語 {{language}}"
     },
     "exchange": {
       "label": "入力言語と出力言語を入れ替える"
@@ -5140,9 +4825,6 @@
       "error": {
         "delete": "削除に失敗しました",
         "save": "保存翻訳履歴に失敗しました"
-      },
-      "search": {
-        "placeholder": "翻訳履歴を検索する"
       },
       "title": "翻訳履歴"
     },
@@ -5174,10 +4856,7 @@
       "title": "翻訳設定"
     },
     "stop": "翻訳を停止",
-    "title": "翻訳",
-    "tooltip": {
-      "newline": "改行"
-    }
+    "title": "翻訳"
   },
   "tray": {
     "quit": "終了",
