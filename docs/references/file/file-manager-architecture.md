@@ -928,14 +928,21 @@ protected override async onInit(): Promise<void> {
   // a dangling query, so a renderer cannot race the first call.
   await this.deps.danglingCache.initFromDb()
 
-  // Phase 1 wires only the two Dangling read channels via this.ipcHandle.
-  // Other File_* channels land in Phase 2 next to their FileManager method.
-  this.ipcHandle(IpcChannel.File_GetDanglingState, (_e, params) => this.getDanglingState(params))
-  this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params) => this.batchGetDanglingStates(params))
+  // IPC handlers extracted into a private helper — onInit stays a narrow
+  // three-step sequence (init → register → sweep). Phase 2 channels land
+  // next to these two without bloating the lifecycle method.
+  this.registerIpcHandlers()
 
   // 🔑 not awaited → ready signal is not blocked.
   // Inner branches each catch and log; the outer call cannot throw.
   void this.runStartupSweeps()
+}
+
+private registerIpcHandlers(): void {
+  // Phase 1 wires only the two Dangling read channels.
+  // Other File_* channels land in Phase 2 next to their FileManager method.
+  this.ipcHandle(IpcChannel.File_GetDanglingState, (_e, params) => this.getDanglingState(params))
+  this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params) => this.batchGetDanglingStates(params))
 }
 
 async runStartupSweeps(): Promise<void> {
@@ -958,7 +965,7 @@ async runStartupSweeps(): Promise<void> {
 - Failure doesn't affect service availability (just residual orphans; rescanned on next startup)
 - `danglingCache.initFromDb()` is awaited because subsequent IPC handlers must see the reverse index populated; the FS-level sweep and the DB-level sweep are not on that hot path and are deferred to the unawaited `runStartupSweeps()` call.
 
-**A note on `initVersionCache` / `registerIpcHandlers`**: earlier drafts of this section bundled a synchronous `initVersionCache()` call and grouped IPC registration behind a single `registerIpcHandlers()` helper. Neither survived implementation. Version cache is per-FileManager-instance and constructs at field-init time (no boot step); IPC channels are wired inline via `this.ipcHandle(...)` so each channel sits next to the method it dispatches — easier to grep, easier to extend per Phase 2 cut-over. Treat the snippet above as the binding shape.
+**A note on `initVersionCache`**: an earlier draft of this section bundled a synchronous `initVersionCache()` call into `onInit`. It didn't survive implementation — version cache is per-FileManager-instance and constructs at field-init time (no boot step), so there is no separate init call to make. `registerIpcHandlers()` *did* survive (see snippet above) and is the convention used across lifecycle services for the same reason it surfaces in [lifecycle-migration-guide.md](../lifecycle/lifecycle-migration-guide.md): keeps `onInit` a narrow init→register→sweep sequence and gives a single spot for Phase 2 channels to land.
 
 ### 10.2 Scan Strategy
 

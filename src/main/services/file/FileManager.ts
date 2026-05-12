@@ -511,11 +511,21 @@ export class FileManager extends BaseService {
 
   protected override async onInit(): Promise<void> {
     await this.deps.danglingCache.initFromDb()
+    this.registerIpcHandlers()
+    void this.runStartupSweeps()
+  }
+
+  /**
+   * Register the Phase 1 File_* IPC handlers. Kept as a dedicated helper so
+   * `onInit` stays a narrow three-step sequence (init → register → sweep) and
+   * Phase 2 channels land next to these two without bloating the lifecycle
+   * method.
+   */
+  private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.File_GetDanglingState, (_e, params: { id: FileEntryId }) => this.getDanglingState(params))
     this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params: { ids: FileEntryId[] }) =>
       this.batchGetDanglingStates(params)
     )
-    void this.runStartupSweeps()
   }
 
   /**
