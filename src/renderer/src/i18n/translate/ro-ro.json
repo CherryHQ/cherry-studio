@@ -693,17 +693,6 @@
         "xhigh": "Extra ridicat",
         "xhigh_description": "Raționament de nivel extra ridicat"
       },
-      "regular_phrases": {
-        "add": "Adaugă expresie",
-        "contentLabel": "Conținut",
-        "contentPlaceholder": "Te rugăm să introduci conținutul expresiei; poți folosi variabile și poți apăsa Tab pentru a localiza rapid variabila de modificat. De exemplu: \nAjută-mă să planific o rută de la ${from} până la ${to} și trimite-o la ${email}.",
-        "delete": "Șterge expresia",
-        "deleteConfirm": "Ești sigur că vrei să ștergi această expresie?",
-        "edit": "Editează expresia",
-        "title": "Expresie uzuală",
-        "titleLabel": "Titlu",
-        "titlePlaceholder": "Introdu titlul"
-      },
       "tool_use_mode": {
         "function": "Funcție",
         "label": "Mod utilizare instrumente",
@@ -819,7 +808,6 @@
       },
       "new_session": "Sesiune nouă {{Command}}",
       "new_topic": "Subiect nou {{Command}}",
-      "paste_text_file_confirm": "Lipești în bara de introducere?",
       "pause": "Pauză",
       "placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",
       "placeholder_without_triggers": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite",
@@ -1311,7 +1299,6 @@
     "none": "Nimic",
     "off": "Oprit",
     "on": "Pornit",
-    "open": "Deschide",
     "open_in": "Deschide în {{name}}",
     "paste": "Lipește",
     "powered_by": "Cu tehnologia",
@@ -1333,7 +1320,6 @@
     "selectedItems": "{{count}} elemente selectate",
     "selectedMessages": "{{count}} mesaje selectate",
     "sessions": "Sesiuni",
-    "settings": "Setări",
     "sort": {
       "pinyin": {
         "asc": "Sortează după Pinyin (A-Z)",
@@ -1606,91 +1592,27 @@
     "add": {
       "title": "Adaugă bază de cunoștințe"
     },
-    "add_directory": "Adaugă director",
-    "add_file": "Adaugă fișier",
-    "add_note": "Adaugă notă",
-    "add_sitemap": "Hartă site",
-    "add_url": "Adaugă URL",
-    "add_video": "Adaugă video",
-    "chunk_overlap": "Suprapunere fragmente",
-    "chunk_overlap_placeholder": "Implicit (nu se recomandă modificarea)",
-    "chunk_overlap_tooltip": "Cantitatea de conținut duplicat între fragmentele adiacente, asigurând că fragmentele sunt încă legate contextual, îmbunătățind efectul general al procesării textului lung",
-    "chunk_size": "Dimensiune fragment",
-    "chunk_size_change_warning": "Modificările dimensiunii fragmentului și ale suprapunerii se aplică doar conținutului nou",
-    "chunk_size_placeholder": "Implicit (nu se recomandă modificarea)",
-    "chunk_size_tooltip": "Împarte documentele în fragmente; dimensiunea fiecărui fragment nu trebuie să depășească limita de context a modelului",
-    "delete_confirm": "Ești sigur că vrei să ștergi această bază de cunoștințe?",
     "dimensions": "Dimensiune embedding",
     "dimensions_auto_set": "Setează automat dimensiunile embedding",
     "dimensions_size_placeholder": "Lasă gol pentru a nu transmite dimensiuni",
-    "dimensions_size_tooltip": "Dimensiunea embedding; cu cât valoarea este mai mare, cu atât se vor consuma mai mulți tokeni. Lasă gol pentru a nu transmite parametrul dimensions.",
-    "directories": "Directoare",
-    "document_count": "Fragmente de document solicitate",
-    "document_count_default": "Implicit",
-    "document_count_help": "Cu cât sunt solicitate mai multe fragmente de document, cu atât sunt incluse mai multe informații, dar se consumă mai mulți tokeni",
     "drag_file": "Trage fișierul aici",
-    "edit_remark": "Editează observația",
-    "edit_remark_placeholder": "Te rugăm să introduci conținutul observației",
     "embedding_model": "Model embedding",
     "embedding_model_required": "Modelul de embedding pentru baza de cunoștințe este necesar",
     "empty": "Nu a fost găsită nicio bază de cunoștințe",
     "error": {
       "failed_to_create": "Crearea bazei de cunoștințe a eșuat",
       "failed_to_edit": "Editarea bazei de cunoștințe a eșuat",
-      "model_invalid": "Niciun model selectat",
-      "video": {
-        "local_file_missing": "Fișierul video nu a fost găsit"
-      }
+      "model_invalid": "Niciun model selectat"
     },
     "file_hint": "Acceptă {{file_types}}",
-    "migrate": {
-      "button": {
-        "text": "Migrează"
-      },
-      "confirm": {
-        "content": "S-au detectat modificări în modelul sau dimensiunea de embedding; configurarea nu poate fi salvată direct. Migrarea bazei de cunoștințe nu va șterge baza existentă, ci va crea o copie și apoi va reprocesa toate intrările, ceea ce poate consuma un număr mare de tokeni. Te rugăm să procedezi cu precauție.",
-        "ok": "Începe migrarea",
-        "title": "Migrare bază de cunoștințe"
-      },
-      "error": {
-        "failed": "Migrarea a eșuat"
-      },
-      "source_dimensions": "Dimensiuni sursă",
-      "source_model": "Model sursă",
-      "target_dimensions": "Dimensiuni țintă",
-      "target_model": "Model țintă"
-    },
     "name_required": "Numele bazei de cunoștințe este obligatoriu",
-    "notes": "Note",
     "provider_not_found": "Furnizorul nu a fost găsit",
-    "rename": "Redenumește",
     "search": "Caută în baza de cunoștințe",
     "search_placeholder": "Introdu text pentru căutare",
-    "settings": {
-      "title": "Setări bază de cunoștințe"
-    },
-    "sitemap_added": "Adăugat cu succes",
-    "sitemap_placeholder": "Introdu URL-ul sitemap-ului",
-    "sitemaps": "Site-uri web",
-    "source": "Sursă",
-    "status_completed": "Finalizat",
-    "status_embedding_completed": "Embedding finalizat",
     "status_embedding_failed": "Embedding eșuat",
-    "status_failed": "Eșuat",
-    "status_new": "Adăugat",
-    "status_pending": "În așteptare",
-    "status_preprocess_completed": "Preprocesare finalizată",
     "status_preprocess_failed": "Preprocesare eșuată",
-    "status_processing": "În procesare",
     "subtitle_file": "fișier subtitrare",
-    "threshold": "Prag de potrivire",
-    "threshold_placeholder": "Nesetat",
-    "threshold_tooltip": "Folosit pentru a evalua relevanța dintre întrebarea utilizatorului și conținutul din baza de cunoștințe (0-1)",
     "title": "Bază de cunoștințe",
-    "url_added": "URL adăugat",
-    "url_placeholder": "Introdu URL-ul; separă mai multe URL-uri prin Enter",
-    "urls": "URL-uri",
-    "videos": "video",
     "videos_file": "fișier video"
   },
   "languages": {
@@ -1717,8 +1639,7 @@
     "vietnamese": "Vietnameză"
   },
   "launchpad": {
-    "apps": "Aplicații",
-    "minapps": "Mini-aplicații"
+    "apps": "Aplicații"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -1790,7 +1711,6 @@
     },
     "empty_url": "Nu s-a putut descărca imaginea, posibil din cauza promptului care conține conținut sensibil sau cuvinte interzise",
     "error": {
-      "chunk_overlap_too_large": "Suprapunerea fragmentelor nu poate fi mai mare decât dimensiunea fragmentului",
       "copy": "Copiere eșuată",
       "dimension_too_large": "Dimensiunea conținutului este prea mare",
       "enter": {
@@ -2028,63 +1948,6 @@
       "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Adaugă în Launchpad",
-    "add_to_sidebar": "Adaugă în bara laterală",
-    "popup": {
-      "close": "Închide MinApp",
-      "devtools": "Instrumente dezvoltator",
-      "goBack": "Mergi înapoi",
-      "goForward": "Mergi înainte",
-      "minimize": "Minimizează MinApp",
-      "openExternal": "Deschide în browser",
-      "open_link_external_off": "Curent: Deschide linkurile în fereastra implicită",
-      "open_link_external_on": "Curent: Deschide linkurile în browser",
-      "refresh": "Reîmprospătează",
-      "rightclick_copyurl": "Clic dreapta pentru a copia URL-ul"
-    },
-    "remove_from_launchpad": "Elimină din Launchpad",
-    "remove_from_sidebar": "Elimină din bara laterală",
-    "sidebar": {
-      "close": {
-        "title": "Închide"
-      },
-      "closeall": {
-        "title": "Închide tot"
-      },
-      "hide": {
-        "title": "Ascunde"
-      },
-      "remove_custom": {
-        "title": "Șterge aplicația personalizată"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Baidu AI Search",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "MINIMAX",
-    "ima": "acum",
-    "metaso": "Metaso",
-    "minimax-agent": "Agent Minimax CN",
-    "minimax-global": "Agent Minimax",
-    "nami-ai": "Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "models": {
     "action": {
       "pin": "[to be translated]:Pin this model",
@@ -2094,8 +1957,6 @@
     "all": "Toate",
     "custom_parameters": "Parametri personalizați",
     "edit": "Editează modelul",
-    "embedding_model": "Model embedding",
-    "embedding_model_tooltip": "Adaugă în Setări->Furnizor Model->Gestionează",
     "filter": {
       "by_tag": "Filtrează după etichetă"
     },
@@ -2124,8 +1985,6 @@
       "million_tokens": "M Tokeni",
       "output": "Preț ieșire"
     },
-    "rerank_model": "Reranker",
-    "rerank_model_tooltip": "Fă clic pe butonul Gestionează din Setări -> Servicii Model pentru a adăuga.",
     "search": {
       "placeholder": "Caută modele...",
       "tooltip": "Caută modele"
@@ -2279,7 +2138,6 @@
       "provider": {
         "cannot_remove_builtin": "Nu se poate șterge furnizorul integrat",
         "existing": "Furnizorul există deja",
-        "get_providers": "Nu s-au putut obține furnizorii disponibili",
         "not_found": "Furnizorul OCR nu există"
       },
       "unknown": "A apărut o eroare în timpul procesului OCR"
@@ -2740,9 +2598,6 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "alert": {
-      "google_login": "Sfat: Dacă vezi un mesaj 'browser not trusted' când te conectezi la Google, te rugăm să te conectezi mai întâi prin mini-aplicația Google din lista de mini-aplicații, apoi să folosești autentificarea Google în alte mini-aplicații"
-    },
     "clipboard": {
       "empty": "Clipboardul este gol"
     },
@@ -3082,7 +2937,6 @@
         },
         "title": "Activează"
       },
-      "experimental": "Funcții experimentale",
       "filter_modal": {
         "title": "Listă filtrare aplicații",
         "user_tips": {
@@ -3112,7 +2966,6 @@
           },
           "test": "Test",
           "url": {
-            "hint": "Folosește {{queryString}} pentru a reprezenta termenul de căutare",
             "invalid_format": "Te rugăm să introduci un URL valid care începe cu http:// sau https://",
             "label": "URL căutare personalizată",
             "missing_placeholder": "URL-ul trebuie să conțină substituentul {{queryString}}",
@@ -3275,14 +3128,12 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Comutare automată la subiect",
-      "title": "Setări avansate"
+      "auto_switch_to_topics": "Comutare automată la subiect"
     },
     "assistant": {
       "icon": {
         "type": {
           "emoji": "Pictogramă Emoji",
-          "label": "Tip pictogramă model",
           "model": "Pictogramă model",
           "none": "Ascunde"
         }
@@ -3370,15 +3221,6 @@
         "select_title": "Schimbă directorul de date al aplicației",
         "stop_quit_app_reason": "Aplicația migrează datele momentan și nu poate fi închisă"
       },
-      "app_knowledge": {
-        "button": {
-          "delete": "Șterge fișierul"
-        },
-        "label": "Fișiere bază de cunoștințe",
-        "remove_all": "Elimină fișierele bazei de cunoștințe",
-        "remove_all_confirm": "Ștergerea fișierelor bazei de cunoștințe va reduce spațiul de stocare ocupat, dar nu va șterge datele vectoriale ale bazei de cunoștințe; după ștergere, fișierul sursă nu va mai putea fi deschis. Continui?",
-        "remove_all_success": "Fișiere eliminate cu succes"
-      },
       "app_logs": {
         "button": "Deschide jurnalele",
         "label": "Jurnale aplicație"
@@ -3401,8 +3243,7 @@
         "basic": "Setări date de bază",
         "cloud_storage": "Setări backup în cloud",
         "export_settings": "Setări export",
-        "import_settings": "Setări import",
-        "third_party": "Conexiuni terțe"
+        "import_settings": "Setări import"
       },
       "export_menu": {
         "docx": "Exportă ca Word",
@@ -3658,7 +3499,6 @@
       "obsidian": {
         "default_vault": "Seif Obsidian implicit",
         "default_vault_fetch_error": "Nu s-a putut prelua seiful Obsidian",
-        "default_vault_loading": "Se încarcă seiful Obsidian...",
         "default_vault_no_vaults": "Nu s-au găsit seifuri Obsidian",
         "default_vault_placeholder": "Te rugăm să selectezi seiful Obsidian implicit",
         "title": "Configurare Obsidian"
@@ -3696,7 +3536,6 @@
           "placeholder": "https://s3.example.com"
         },
         "manager": {
-          "close": "Închide",
           "columns": {
             "actions": "Acțiuni",
             "fileName": "Nume fișier",
@@ -3913,9 +3752,6 @@
       "title": "Mod dezvoltator"
     },
     "display": {
-      "assistant": {
-        "title": "Setări asistent"
-      },
       "custom": {
         "css": {
           "cherrycss": "Obține de la cherrycss.com",
@@ -3930,29 +3766,8 @@
         "select": "Selectează font",
         "title": "Setări font"
       },
-      "navbar": {
-        "position": {
-          "label": "Poziție bară de navigare",
-          "left": "Stânga",
-          "top": "Sus"
-        },
-        "title": "Setări bară de navigare"
-      },
-      "sidebar": {
-        "chat": {
-          "hiddenMessage": "Asistenții sunt funcții de bază, nu se acceptă ascunderea"
-        },
-        "disabled": "Ascunde pictograme",
-        "empty": "Trage funcția ascunsă din partea stângă aici",
-        "title": "Setări bară laterală",
-        "visible": "Afișează pictograme"
-      },
-      "title": "Setări afișare",
       "topic": {
         "title": "Setări subiect"
-      },
-      "zoom": {
-        "title": "Setări zoom"
       }
     },
     "font_size": {
@@ -3972,7 +3787,6 @@
       },
       "emoji_picker": "Selector emoji",
       "image_upload": "Încărcare imagine",
-      "label": "Setări generale",
       "reset": {
         "title": "Resetare date"
       },
@@ -4086,7 +3900,6 @@
       "deleteServer": "Șterge serverul",
       "deleteServerConfirm": "Ești sigur că vrei să ștergi acest server?",
       "deleteSuccess": "Server șters cu succes",
-      "dependenciesInstalling": "Se instalează dependențele...",
       "description": "Descriere",
       "discover": "Descoperă",
       "editJson": "Editează JSON",
@@ -4101,7 +3914,6 @@
       "headersTooltip": "Headere personalizate pentru cereri HTTP",
       "install": "Instalează",
       "installError": "Instalarea dependențelor a eșuat",
-      "installHelp": "Obține ajutor pentru instalare",
       "installSuccess": "Dependențe instalate cu succes",
       "jsonFormatError": "Eroare formatare JSON",
       "jsonModeHint": "Editează reprezentarea JSON a configurației serverului MCP. Te rugăm să te asiguri că formatul este corect înainte de salvare.",
@@ -4112,7 +3924,6 @@
       "longRunning": "Mod rulare lungă",
       "longRunningTooltip": "Când este activat, serverul acceptă sarcini de lungă durată. La primirea notificărilor de progres, timpul de expirare va fi resetat, iar timpul maxim de execuție va fi extins la 10 minute.",
       "marketplaces": "Piețe",
-      "missingDependencies": "Lipsește, te rugăm să îl instalezi pentru a continua.",
       "more": {
         "awesome": "Listă curatoriată servere MCP",
         "composio": "Instrumente dezvoltare MCP Composio",
@@ -4283,57 +4094,6 @@
       "title": "Setări mesaje",
       "use_serif_font": "Folosește font serif"
     },
-    "miniapps": {
-      "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise atinge valoarea setată",
-      "cache_description": "Setează numărul maxim de mini-aplicații active de păstrat în memorie",
-      "cache_title": "Limită cache mini-aplicații",
-      "custom": {
-        "conflicting_ids": "ID-uri conflictuale cu aplicațiile implicite: {{ids}}",
-        "duplicate_ids": "ID-uri duplicate găsite: {{ids}}",
-        "edit_title": "Editează mini-aplicație personalizată",
-        "id": "ID",
-        "id_error": "ID-ul este obligatoriu.",
-        "id_placeholder": "Introdu ID",
-        "logo": "Logo",
-        "logo_file": "Încarcă fișier logo",
-        "logo_upload_button": "Încarcă",
-        "logo_upload_error": "Încărcarea logo-ului a eșuat.",
-        "logo_upload_label": "Încarcă logo",
-        "logo_upload_success": "Logo încărcat cu succes.",
-        "logo_url": "URL logo",
-        "logo_url_label": "URL logo",
-        "logo_url_placeholder": "Introdu URL logo",
-        "name": "Nume",
-        "name_error": "Numele este obligatoriu.",
-        "name_placeholder": "Introdu nume",
-        "remove_error": "Eliminarea mini-aplicației personalizate a eșuat.",
-        "remove_success": "Mini-aplicația personalizată a fost eliminată cu succes.",
-        "save": "Salvează",
-        "save_error": "Salvarea mini-aplicației personalizate a eșuat.",
-        "save_success": "Mini-aplicația personalizată a fost salvată cu succes.",
-        "title": "Personalizat",
-        "url": "URL",
-        "url_error": "URL-ul este obligatoriu.",
-        "url_placeholder": "Introdu URL"
-      },
-      "disabled": "Mini-aplicații ascunse",
-      "display_title": "Setări afișare mini-aplicații",
-      "empty": "Trage mini-aplicațiile din stânga pentru a le ascunde",
-      "open_link_external": {
-        "title": "Deschide în browser linkurile care deschid ferestre noi"
-      },
-      "region": {
-        "auto": "Detectare automată",
-        "cn": "China",
-        "description": "Filtrarea aplicațiilor mini care nu sunt acceptate în funcție de regiunea în care vă aflați",
-        "global": "global",
-        "title": "Filtru zonă aplicație miniatură"
-      },
-      "reset_tooltip": "Resetează la implicit",
-      "sidebar_description": "Afișează mini-aplicațiile active în bara laterală",
-      "sidebar_title": "Afișare mini-aplicații active în bara laterală",
-      "visible": "Mini-aplicații vizibile"
-    },
     "model": "Model implicit",
     "models": {
       "add": {
@@ -4426,7 +4186,6 @@
       },
       "translate_model": "Model traducere",
       "translate_model_description": "Model folosit pentru serviciul de traducere",
-      "translate_model_prompt_message": "Te rugăm să introduci promptul modelului de traducere",
       "use_assistant": "Folosește asistent",
       "use_model": "Model implicit"
     },
@@ -4745,23 +4504,8 @@
       "select": "Selectează",
       "title": "Meniu rapid"
     },
-    "quickPhrase": {
-      "add": "Adaugă expresie",
-      "assistant": "Expresii asistent",
-      "contentLabel": "Conținut",
-      "contentPlaceholder": "Te rugăm să introduci conținutul expresiei, poți folosi variabile și poți apăsa Tab pentru a localiza rapid variabila de modificat. De exemplu: \nAjută-mă să planific o rută de la ${from} la ${to} și trimite-o la ${email}.",
-      "delete": "Șterge expresia",
-      "deleteConfirm": "Expresia nu poate fi recuperată după ștergere, continui?",
-      "edit": "Editează expresia",
-      "global": "Expresii globale",
-      "locationLabel": "Adaugă locație",
-      "title": "Expresii rapide",
-      "titleLabel": "Titlu",
-      "titlePlaceholder": "Te rugăm să introduci titlul expresiei"
-    },
     "scheduledTasks": {
       "noAgents": "Niciun agent găsit. Creează mai întâi un agent pentru a adăuga sarcini programate.",
-      "noAgentsTip": "Sfat: Îți poți ruga, de asemenea, agentul să creeze sarcini programate prin chat.",
       "noTasks": "Nu există sarcini programate. Faceți clic pe „+ Adăugați” pentru a crea una pentru un agent.",
       "selectTask": "Selectați o sarcină pentru a vizualiza detaliile",
       "title": "Sarcini programate"
@@ -4849,50 +4593,6 @@
     },
     "title": "Setări",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Limbi acceptate"
-        },
-        "error": {
-          "not_system": "OCR-ul de sistem acceptă doar Windows și MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "Furnizorul nu există"
-          },
-          "system": {
-            "no_need_configure": "MacOS nu necesită configurare"
-          },
-          "title": "Imagine"
-        },
-        "image_provider": "Furnizor serviciu OCR",
-        "paddleocr": {
-          "aistudio_access_token": "Token de acces Comunitatea AI Studio",
-          "api_url": "URL API",
-          "api_url_label": "Obțineți token-ul de acces și URL-ul API"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Dependent de Windows pentru a furniza servicii, trebuie să descarci pachete lingvistice în sistem pentru a suporta limbile relevante."
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "Citește documentația pentru a afla ce limbi personalizate sunt acceptate"
-        },
-        "title": "Serviciu OCR"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Token de acces al Comunității AI Studio",
-          "api_url": "URL API",
-          "api_url_label": "Obțineți token-ul de acces și URL-ul API",
-          "paddleocr_url_label": "Site-ul oficial PaddleOCR"
-        },
-        "provider": "Furnizor procesare documente",
-        "provider_placeholder": "Alege un furnizor de procesare documente",
-        "title": "Procesare documente",
-        "tooltip": "În Setări -> Instrumente, setează un furnizor de servicii de procesare a documentelor. Procesarea documentelor poate îmbunătăți eficient performanța de recuperare a documentelor cu format complex și a documentelor scanate."
-      },
       "websearch": {
         "api_key_required": {
           "ok": "Configurează"
@@ -4980,13 +4680,10 @@
           },
           "update": "Actualizarea a eșuat",
           "value": {
-            "empty": "Numele limbii este obligatoriu",
-            "too_long": "Numele limbii este prea lung"
+            "empty": "Numele limbii este obligatoriu"
           }
         },
         "langCode": {
-          "help": "Format [limbă+regiune], [2-3 litere mici]-[2-3 litere mici]",
-          "label": "Cod limbă",
           "placeholder": "en-us"
         },
         "success": {
@@ -4994,14 +4691,7 @@
           "delete": "Ștearsă cu succes",
           "update": "Actualizată cu succes"
         },
-        "table": {
-          "action": {
-            "title": "Acțiuni"
-          }
-        },
         "value": {
-          "help": "1~32 caractere",
-          "label": "Nume limbă",
           "placeholder": "Engleză"
         }
       },
@@ -5010,8 +4700,7 @@
     },
     "tray": {
       "onclose": "Minimizează în zona de notificare la închidere",
-      "show": "Afișează pictograma în zona de notificare",
-      "title": "Zonă de notificare"
+      "show": "Afișează pictograma în zona de notificare"
     },
     "use_system_title_bar": {
       "confirm": {
@@ -5026,7 +4715,6 @@
   },
   "tab": {
     "close": "Închide fila",
-    "moveToFirst": "Mută la început",
     "new": "Filă nouă",
     "pin": "Fixează fila",
     "unpin": "Anulați fixarea filei"
@@ -5109,15 +4797,12 @@
       "chat_qwen_mt": "Modelul Qwen MT nu poate fi folosit în chat. Te rugăm să mergi la pagina de traducere.",
       "detect": {
         "qwen_mt": "Modelul QwenMT nu poate fi folosit pentru detectarea limbii",
-        "unknown": "Limbă necunoscută detectată",
-        "update_setting": "Setarea a eșuat"
+        "unknown": "Limbă necunoscută detectată"
       },
       "empty": "Rezultatul traducerii este un conținut gol",
       "failed": "Traducerea a eșuat",
-      "invalid_source": "Limbă sursă invalidă",
       "not_configured": "Modelul de traducere nu este configurat",
-      "not_supported": "Limbă neacceptată {{language}}",
-      "unknown": "A apărut o eroare necunoscută în timpul traducerii"
+      "not_supported": "Limbă neacceptată {{language}}"
     },
     "exchange": {
       "label": "Schimbă limbile sursă și țintă"
@@ -5140,9 +4825,6 @@
       "error": {
         "delete": "Ștergerea a eșuat",
         "save": "Salvarea istoricului traducerilor a eșuat"
-      },
-      "search": {
-        "placeholder": "Caută în istoricul traducerilor"
       },
       "title": "Istoric traduceri"
     },
@@ -5174,10 +4856,7 @@
       "title": "Setări traducere"
     },
     "stop": "Oprește traducerea",
-    "title": "Traducere",
-    "tooltip": {
-      "newline": "Linie nouă"
-    }
+    "title": "Traducere"
   },
   "tray": {
     "quit": "Ieșire",

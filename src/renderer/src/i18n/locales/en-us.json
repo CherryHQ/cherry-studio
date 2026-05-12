@@ -693,17 +693,6 @@
         "xhigh": "Extra High",
         "xhigh_description": "Extra high level reasoning"
       },
-      "regular_phrases": {
-        "add": "Add Phrase",
-        "contentLabel": "Content",
-        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
-        "delete": "Delete Phrase",
-        "deleteConfirm": "Are you sure to delete this phrase?",
-        "edit": "Edit Phrase",
-        "title": "Regular Phrase",
-        "titleLabel": "Title",
-        "titlePlaceholder": "Enter title"
-      },
       "tool_use_mode": {
         "function": "Function",
         "label": "Tool Use Mode",
@@ -819,7 +808,6 @@
       },
       "new_session": "New Session {{Command}}",
       "new_topic": "New Topic {{Command}}",
-      "paste_text_file_confirm": "Paste into input bar?",
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
@@ -1311,7 +1299,6 @@
     "none": "None",
     "off": "Off",
     "on": "On",
-    "open": "Open",
     "open_in": "Open in {{name}}",
     "paste": "Paste",
     "powered_by": "Powered by ",
@@ -1333,7 +1320,6 @@
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
     "sessions": "Sessions",
-    "settings": "Settings",
     "sort": {
       "pinyin": {
         "asc": "Sort by Pinyin (A-Z)",
@@ -1606,91 +1592,27 @@
     "add": {
       "title": "Add Knowledge Base"
     },
-    "add_directory": "Add Directory",
-    "add_file": "Add File",
-    "add_note": "Add Note",
-    "add_sitemap": "Website Map",
-    "add_url": "Add URL",
-    "add_video": "Add video",
-    "chunk_overlap": "Chunk Overlap",
-    "chunk_overlap_placeholder": "Default (not recommended to change)",
-    "chunk_overlap_tooltip": "The amount of duplicate content between adjacent chunks, ensuring that the chunks are still contextually related, improving the overall effect of processing long text",
-    "chunk_size": "Chunk Size",
-    "chunk_size_change_warning": "Chunk size and overlap size changes only apply to new content",
-    "chunk_size_placeholder": "Default (not recommended to change)",
-    "chunk_size_tooltip": "Split documents into chunks, each chunk size, not exceeding model context limit",
-    "delete_confirm": "Are you sure you want to delete this knowledge base?",
     "dimensions": "Embedding dimension",
     "dimensions_auto_set": "Auto-set embedding dimensions",
     "dimensions_size_placeholder": "Leave empty to not pass dimensions",
-    "dimensions_size_tooltip": "Embedding dimension size, the larger the value, the more tokens will be consumed. Leave empty to not pass dimensions parameter.",
-    "directories": "Directories",
-    "document_count": "Requested Document Chunks",
-    "document_count_default": "Default",
-    "document_count_help": "The more document chunks requested, the more information is included, but the more tokens are consumed",
     "drag_file": "Drag file here",
-    "edit_remark": "Edit Remark",
-    "edit_remark_placeholder": "Please enter remark content",
     "embedding_model": "Embedding Model",
     "embedding_model_required": "Knowledge Base Embedding Model is required",
     "empty": "No knowledge base found",
     "error": {
       "failed_to_create": "Knowledge base creation failed",
       "failed_to_edit": "Knowledge base editing failed",
-      "model_invalid": "No model selected",
-      "video": {
-        "local_file_missing": "Video file not found"
-      }
+      "model_invalid": "No model selected"
     },
     "file_hint": "Support {{file_types}}",
-    "migrate": {
-      "button": {
-        "text": "Migrate"
-      },
-      "confirm": {
-        "content": "Detected changes in embedding model or dimension, cannot save configuration directly. Knowledge base migration will not delete the existing knowledge base, but will create a copy and then reprocess all knowledge base entries, which may consume a large number of tokens, please proceed with caution.",
-        "ok": "Start Migration",
-        "title": "Knowledge Base Migration"
-      },
-      "error": {
-        "failed": "Migration failed"
-      },
-      "source_dimensions": "Source Dimensions",
-      "source_model": "Source Model",
-      "target_dimensions": "Target Dimensions",
-      "target_model": "Target Model"
-    },
     "name_required": "Knowledge Base Name is required",
-    "notes": "Notes",
     "provider_not_found": "Provider not found",
-    "rename": "Rename",
     "search": "Search knowledge base",
     "search_placeholder": "Enter text to search",
-    "settings": {
-      "title": "Knowledge Base Settings"
-    },
-    "sitemap_added": "Added successfully",
-    "sitemap_placeholder": "Enter Website Map URL",
-    "sitemaps": "Websites",
-    "source": "Source",
-    "status_completed": "Completed",
-    "status_embedding_completed": "Embedding Completed",
     "status_embedding_failed": "Embedding Failed",
-    "status_failed": "Failed",
-    "status_new": "Added",
-    "status_pending": "Pending",
-    "status_preprocess_completed": "Preprocessing Completed",
     "status_preprocess_failed": "Preprocessing Failed",
-    "status_processing": "Processing",
     "subtitle_file": "subtitle file",
-    "threshold": "Matching threshold",
-    "threshold_placeholder": "Not set",
-    "threshold_tooltip": "Used to evaluate the relevance between the user's question and the content in the knowledge base (0-1)",
     "title": "Knowledge Base",
-    "url_added": "URL added",
-    "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-    "urls": "URLs",
-    "videos": "video",
     "videos_file": "video file"
   },
   "languages": {
@@ -1717,8 +1639,7 @@
     "vietnamese": "Vietnamese"
   },
   "launchpad": {
-    "apps": "Apps",
-    "minapps": "Minapps"
+    "apps": "Apps"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -1790,7 +1711,6 @@
     },
     "empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
     "error": {
-      "chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
       "copy": "Copy failed",
       "dimension_too_large": "Content size is too large",
       "enter": {
@@ -2028,63 +1948,6 @@
       "partial_failure": "{{count}} search result(s), some searches failed"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Add to Launchpad",
-    "add_to_sidebar": "Add to Sidebar",
-    "popup": {
-      "close": "Close MinApp",
-      "devtools": "Developer Tools",
-      "goBack": "Go Back",
-      "goForward": "Go Forward",
-      "minimize": "Minimize MinApp",
-      "openExternal": "Open in Browser",
-      "open_link_external_off": "Current: Open links in default window",
-      "open_link_external_on": "Current: Open links in browser",
-      "refresh": "Refresh",
-      "rightclick_copyurl": "Right-click to copy URL"
-    },
-    "remove_from_launchpad": "Remove from Launchpad",
-    "remove_from_sidebar": "Remove from Sidebar",
-    "sidebar": {
-      "close": {
-        "title": "Close"
-      },
-      "closeall": {
-        "title": "Close All"
-      },
-      "hide": {
-        "title": "Hide"
-      },
-      "remove_custom": {
-        "title": "Delete Custom App"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Baidu AI Search",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Minimax Agent CN",
-    "minimax-global": "Minimax Agent",
-    "nami-ai": "Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "models": {
     "action": {
       "pin": "Pin this model",
@@ -2094,8 +1957,6 @@
     "all": "All",
     "custom_parameters": "Custom Parameters",
     "edit": "Edit Model",
-    "embedding_model": "Embedding Model",
-    "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
     "filter": {
       "by_tag": "Filter by tag"
     },
@@ -2124,8 +1985,6 @@
       "million_tokens": "M Tokens",
       "output": "Output Price"
     },
-    "rerank_model": "Reranker",
-    "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add.",
     "search": {
       "placeholder": "Search models...",
       "tooltip": "Search models"
@@ -2279,7 +2138,6 @@
       "provider": {
         "cannot_remove_builtin": "Cannot delete built-in provider",
         "existing": "The provider already exists",
-        "get_providers": "Failed to get available providers",
         "not_found": "OCR provider does not exist"
       },
       "unknown": "An error occurred during the OCR process"
@@ -2740,9 +2598,6 @@
     "zhipu": "BigModel"
   },
   "quickAssistant": {
-    "alert": {
-      "google_login": "Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
-    },
     "clipboard": {
       "empty": "Clipboard is empty"
     },
@@ -3082,7 +2937,6 @@
         },
         "title": "Enable"
       },
-      "experimental": "Experimental Features",
       "filter_modal": {
         "title": "Application Filter List",
         "user_tips": {
@@ -3112,7 +2966,6 @@
           },
           "test": "Test",
           "url": {
-            "hint": "Use {{queryString}} to represent the search term",
             "invalid_format": "Please enter a valid URL starting with http:// or https://",
             "label": "Custom Search URL",
             "missing_placeholder": "URL must contain {{queryString}} placeholder",
@@ -3275,14 +3128,12 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Auto switch to topic",
-      "title": "Advanced Settings"
+      "auto_switch_to_topics": "Auto switch to topic"
     },
     "assistant": {
       "icon": {
         "type": {
           "emoji": "Emoji Icon",
-          "label": "Model Icon Type",
           "model": "Model Icon",
           "none": "Hide"
         }
@@ -3370,15 +3221,6 @@
         "select_title": "Change App Data Directory",
         "stop_quit_app_reason": "The app is currently migrating data and cannot be exited"
       },
-      "app_knowledge": {
-        "button": {
-          "delete": "Delete File"
-        },
-        "label": "Knowledge Base Files",
-        "remove_all": "Remove Knowledge Base Files",
-        "remove_all_confirm": "Deleting knowledge base files will reduce the storage space occupied, but will not delete the knowledge base vector data, after deletion, the source file will no longer be able to be opened. Continue?",
-        "remove_all_success": "Files removed successfully"
-      },
       "app_logs": {
         "button": "Open Logs",
         "label": "App Logs"
@@ -3401,8 +3243,7 @@
         "basic": "Basic Data Settings",
         "cloud_storage": "Cloud Backup Settings",
         "export_settings": "Export Settings",
-        "import_settings": "Import Settings",
-        "third_party": "Third-party Connections"
+        "import_settings": "Import Settings"
       },
       "export_menu": {
         "docx": "Export as Word",
@@ -3658,7 +3499,6 @@
       "obsidian": {
         "default_vault": "Default Obsidian Vault",
         "default_vault_fetch_error": "Failed to fetch Obsidian vault",
-        "default_vault_loading": "Loading Obsidian vault...",
         "default_vault_no_vaults": "No Obsidian vaults found",
         "default_vault_placeholder": "Please select the default Obsidian vault",
         "title": "Obsidian Configuration"
@@ -3696,7 +3536,6 @@
           "placeholder": "https://s3.example.com"
         },
         "manager": {
-          "close": "Close",
           "columns": {
             "actions": "Actions",
             "fileName": "File Name",
@@ -3913,9 +3752,6 @@
       "title": "Developer Mode"
     },
     "display": {
-      "assistant": {
-        "title": "Assistant Settings"
-      },
       "custom": {
         "css": {
           "cherrycss": "Get from cherrycss.com",
@@ -3930,29 +3766,8 @@
         "select": "Select Font",
         "title": "Font Settings"
       },
-      "navbar": {
-        "position": {
-          "label": "Navbar Position",
-          "left": "Left",
-          "top": "Top"
-        },
-        "title": "Navbar Settings"
-      },
-      "sidebar": {
-        "chat": {
-          "hiddenMessage": "Assistants are basic functions, not supported for hiding"
-        },
-        "disabled": "Hide icons",
-        "empty": "Drag the hidden feature from the left side here",
-        "title": "Sidebar Settings",
-        "visible": "Show icons"
-      },
-      "title": "Display Settings",
       "topic": {
         "title": "Topic Settings"
-      },
-      "zoom": {
-        "title": "Zoom Settings"
       }
     },
     "font_size": {
@@ -3972,7 +3787,6 @@
       },
       "emoji_picker": "Emoji Picker",
       "image_upload": "Image Upload",
-      "label": "General Settings",
       "reset": {
         "title": "Data Reset"
       },
@@ -4086,7 +3900,6 @@
       "deleteServer": "Delete Server",
       "deleteServerConfirm": "Are you sure you want to delete this server?",
       "deleteSuccess": "Server deleted successfully",
-      "dependenciesInstalling": "Installing dependencies...",
       "description": "Description",
       "discover": "Discover",
       "editJson": "Edit JSON",
@@ -4101,7 +3914,6 @@
       "headersTooltip": "Custom headers for HTTP requests",
       "install": "Install",
       "installError": "Failed to install dependencies",
-      "installHelp": "Get Installation Help",
       "installSuccess": "Dependencies installed successfully",
       "jsonFormatError": "JSON formatting error",
       "jsonModeHint": "Edit the JSON representation of the MCP server configuration. Please ensure the format is correct before saving.",
@@ -4112,7 +3924,6 @@
       "longRunning": "Long Running Mode",
       "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
       "marketplaces": "Marketplaces",
-      "missingDependencies": "is Missing, please install it to continue.",
       "more": {
         "awesome": "Curated MCP Server List",
         "composio": "Composio MCP Development Tools",
@@ -4283,57 +4094,6 @@
       "title": "Message Settings",
       "use_serif_font": "Use serif font"
     },
-    "miniapps": {
-      "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",
-      "cache_description": "Set the maximum number of active mini apps to keep in memory",
-      "cache_title": "Mini App Cache Limit",
-      "custom": {
-        "conflicting_ids": "Conflicting IDs with default apps: {{ids}}",
-        "duplicate_ids": "Duplicate IDs found: {{ids}}",
-        "edit_title": "Edit Custom Mini App",
-        "id": "ID",
-        "id_error": "ID is required.",
-        "id_placeholder": "Enter ID",
-        "logo": "Logo",
-        "logo_file": "Upload Logo File",
-        "logo_upload_button": "Upload",
-        "logo_upload_error": "Failed to upload logo.",
-        "logo_upload_label": "Upload Logo",
-        "logo_upload_success": "Logo uploaded successfully.",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "Enter logo URL",
-        "name": "Name",
-        "name_error": "Name is required.",
-        "name_placeholder": "Enter name",
-        "remove_error": "Failed to remove custom mini app.",
-        "remove_success": "Custom mini app removed successfully.",
-        "save": "Save",
-        "save_error": "Failed to save custom mini app.",
-        "save_success": "Custom mini app saved successfully.",
-        "title": "Custom",
-        "url": "URL",
-        "url_error": "URL is required.",
-        "url_placeholder": "Enter URL"
-      },
-      "disabled": "Hidden Mini Apps",
-      "display_title": "Mini App Display Settings",
-      "empty": "Drag mini apps from the left to hide them",
-      "open_link_external": {
-        "title": "Open new-window links in browser"
-      },
-      "region": {
-        "auto": "Auto detect",
-        "cn": "China",
-        "description": "Filtering unsupported mini-programs based on the region",
-        "global": "Global",
-        "title": "Mini Program filter"
-      },
-      "reset_tooltip": "Reset to default",
-      "sidebar_description": "Show active mini apps in the sidebar",
-      "sidebar_title": "Sidebar Active Mini Apps Display",
-      "visible": "Visible Mini Apps"
-    },
     "model": "Default Model",
     "models": {
       "add": {
@@ -4426,7 +4186,6 @@
       },
       "translate_model": "Translate Model",
       "translate_model_description": "Model used for translation service",
-      "translate_model_prompt_message": "Please enter the translate model prompt",
       "use_assistant": "Use Assistant",
       "use_model": "Default Model"
     },
@@ -4745,23 +4504,8 @@
       "select": "Select",
       "title": "Quick Menu"
     },
-    "quickPhrase": {
-      "add": "Add Phrase",
-      "assistant": "Assistant Phrases",
-      "contentLabel": "Content",
-      "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
-      "delete": "Delete Phrase",
-      "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
-      "edit": "Edit Phrase",
-      "global": "Global Phrases",
-      "locationLabel": "Add Location",
-      "title": "Quick Phrases",
-      "titleLabel": "Title",
-      "titlePlaceholder": "Please enter phrase title"
-    },
     "scheduledTasks": {
       "noAgents": "Scheduled tasks require agents with Soul Mode or Bypass Permissions enabled. Update an agent's settings to get started.",
-      "noAgentsTip": "Tip: You can also ask your agent to create scheduled tasks via chat.",
       "noTasks": "No scheduled tasks. Click \"+ Add\" to create one for an agent.",
       "selectTask": "Select a task to view details",
       "title": "Scheduled Tasks"
@@ -4849,50 +4593,6 @@
     },
     "title": "Settings",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Supported languages"
-        },
-        "error": {
-          "not_system": "System OCR only supports Windows and MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "The provider does not exist"
-          },
-          "system": {
-            "no_need_configure": "MacOS requires no configuration"
-          },
-          "title": "Image"
-        },
-        "image_provider": "OCR service provider",
-        "paddleocr": {
-          "aistudio_access_token": "Access token of AI Studio Community",
-          "api_url": "API URL",
-          "api_url_label": "Obtain Access Token and API URL"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Dependent on Windows to provide services, you need to download language packs in the system to support the relevant languages."
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "Read the documentation to learn which custom languages are supported"
-        },
-        "title": "OCR service"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Access token of AI Studio Community",
-          "api_url": "API URL",
-          "api_url_label": "Obtain Access Token and API URL",
-          "paddleocr_url_label": "PaddleOCR Official Website"
-        },
-        "provider": "Document Processing Provider",
-        "provider_placeholder": "Choose a document processing provider",
-        "title": "Document Processing",
-        "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
-      },
       "websearch": {
         "api_key_required": {
           "ok": "Configure"
@@ -4980,13 +4680,10 @@
           },
           "update": "Update failed",
           "value": {
-            "empty": "Language name cannot be empty",
-            "too_long": "Language name is too long"
+            "empty": "Language name cannot be empty"
           }
         },
         "langCode": {
-          "help": "[language+region] format, [2-3 lowercase letters]-[2-3 lowercase letters]",
-          "label": "Language code",
           "placeholder": "en-us"
         },
         "success": {
@@ -4994,14 +4691,7 @@
           "delete": "Deleted successfully",
           "update": "Update successful"
         },
-        "table": {
-          "action": {
-            "title": "Operation"
-          }
-        },
         "value": {
-          "help": "1~32 characters",
-          "label": "Language name",
           "placeholder": "English"
         }
       },
@@ -5010,8 +4700,7 @@
     },
     "tray": {
       "onclose": "Minimize to Tray on Close",
-      "show": "Show Tray Icon",
-      "title": "Tray"
+      "show": "Show Tray Icon"
     },
     "use_system_title_bar": {
       "confirm": {
@@ -5026,7 +4715,6 @@
   },
   "tab": {
     "close": "Close Tab",
-    "moveToFirst": "Move to First",
     "new": "New Tab",
     "pin": "Pin Tab",
     "unpin": "Unpin Tab"
@@ -5109,15 +4797,12 @@
       "chat_qwen_mt": "Qwen MT model cannot be used in chat. Please go to the translation page.",
       "detect": {
         "qwen_mt": "QwenMT model cannot be used for language detection",
-        "unknown": "Unknown language detected",
-        "update_setting": "Setting failed"
+        "unknown": "Unknown language detected"
       },
       "empty": "The translation result is empty content",
       "failed": "Translation failed",
-      "invalid_source": "Invalid source language",
       "not_configured": "Translation model is not configured",
-      "not_supported": "Unsupported language {{language}}",
-      "unknown": "An unknown error occurred during translation"
+      "not_supported": "Unsupported language {{language}}"
     },
     "exchange": {
       "label": "Swap the source and target languages"
@@ -5140,9 +4825,6 @@
       "error": {
         "delete": "Deletion failed",
         "save": "Failed to save translation history"
-      },
-      "search": {
-        "placeholder": "Search translation history"
       },
       "title": "Translation History"
     },
@@ -5174,10 +4856,7 @@
       "title": "Translation Settings"
     },
     "stop": "Stop Translation",
-    "title": "Translation",
-    "tooltip": {
-      "newline": "Newline"
-    }
+    "title": "Translation"
   },
   "tray": {
     "quit": "Quit",

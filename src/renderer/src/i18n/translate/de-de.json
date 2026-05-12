@@ -693,17 +693,6 @@
         "xhigh": "Extra hoch",
         "xhigh_description": "Extra hohes Denkvermögen"
       },
-      "regular_phrases": {
-        "add": "Phrase hinzufügen",
-        "contentLabel": "Inhalt",
-        "contentPlaceholder": "Bitte geben Sie den Phraseninhalt ein. Sie können Variablen verwenden und dann die Tab-Taste drücken, um schnell zu Variablen zu navigieren und sie zu ändern. Zum Beispiel:\nPlanen Sie mir eine Route von ${from} nach ${to} und senden Sie sie an ${email}",
-        "delete": "Phrase löschen",
-        "deleteConfirm": "Möchten Sie diese Phrase wirklich löschen?",
-        "edit": "Phrase bearbeiten",
-        "title": "Häufig verwendete Phrasen",
-        "titleLabel": "Titel",
-        "titlePlaceholder": "Titel eingeben"
-      },
       "tool_use_mode": {
         "function": "Funktion",
         "label": "Tool-Aufrufmethode",
@@ -819,7 +808,6 @@
       },
       "new_session": "Neue Sitzung {{Command}}",
       "new_topic": "Neues Thema {{Command}}",
-      "paste_text_file_confirm": "In Eingabefeld einfügen?",
       "pause": "Pause",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
@@ -1311,7 +1299,6 @@
     "none": "Keine",
     "off": "Aus",
     "on": "An",
-    "open": "Öffnen",
     "open_in": "In {{name}} öffnen",
     "paste": "Einfügen",
     "powered_by": "Bereitgestellt von",
@@ -1333,7 +1320,6 @@
     "selectedItems": "{{count}} Elemente ausgewählt",
     "selectedMessages": "{{count}} Nachrichten ausgewählt",
     "sessions": "Sitzungen",
-    "settings": "Einstellungen",
     "sort": {
       "pinyin": {
         "asc": "Pinyin aufsteigend",
@@ -1606,91 +1592,27 @@
     "add": {
       "title": "Wissensdatenbank hinzufügen"
     },
-    "add_directory": "Verzeichnis hinzufügen",
-    "add_file": "Datei hinzufügen",
-    "add_note": "Notiz hinzufügen",
-    "add_sitemap": "Sitemap",
-    "add_url": "URL hinzufügen",
-    "add_video": "Video hinzufügen",
-    "chunk_overlap": "Überlappungsgröße",
-    "chunk_overlap_placeholder": "Standardwert (Änderung nicht empfohlen)",
-    "chunk_overlap_tooltip": "Menge an wiederholtem Inhalt zwischen benachbarten Textblöcken, um den Kontext nach der Segmentierung aufrechtzuerhalten und die Gesamtleistung des Modells bei langen Texten zu verbessern",
-    "chunk_size": "Segmentgröße",
-    "chunk_size_change_warning": "Änderungen an Segmentgröße und Überlappungsgröße gelten nur für neu hinzugefügte Inhalte",
-    "chunk_size_placeholder": "Standardwert (Änderung nicht empfohlen)",
-    "chunk_size_tooltip": "Größe jedes Segments beim Aufteilen von Dokumenten, darf das Modellkontextlimit nicht überschreiten",
-    "delete_confirm": "Möchten Sie diese Wissensdatenbank wirklich löschen?",
     "dimensions": "Embedding-Dimensionen",
     "dimensions_auto_set": "Embedding-Dimensionen automatisch setzen",
     "dimensions_size_placeholder": "Leer lassen, um nicht zu setzen",
-    "dimensions_size_tooltip": "Embedding-Dimensionsgröße. Höhere Werte verbrauchen mehr Token. Leer lassen, um den dimensions-Parameter nicht zu übergeben.",
-    "directories": "Verzeichnisse",
-    "document_count": "Anzahl angeforderter Dokumentfragmente",
-    "document_count_default": "Standard",
-    "document_count_help": "Mehr Dokumentfragmente bedeuten mehr Informationen, aber auch höheren Token-Verbrauch",
     "drag_file": "Datei hierher ziehen",
-    "edit_remark": "Bemerkung bearbeiten",
-    "edit_remark_placeholder": "Bitte Bemerkung eingeben",
     "embedding_model": "Embedding-Modell",
     "embedding_model_required": "Embedding-Modell für Wissensdatenbank ist erforderlich",
     "empty": "Keine Wissensdatenbanken vorhanden",
     "error": {
       "failed_to_create": "Wissensdatenbank erstellen fehlgeschlagen",
       "failed_to_edit": "Wissensdatenbank bearbeiten fehlgeschlagen",
-      "model_invalid": "Kein Modell ausgewählt",
-      "video": {
-        "local_file_missing": "Videodatei existiert nicht"
-      }
+      "model_invalid": "Kein Modell ausgewählt"
     },
     "file_hint": "{{file_types}}-Formate werden unterstützt",
-    "migrate": {
-      "button": {
-        "text": "Migrieren"
-      },
-      "confirm": {
-        "content": "Änderungen am Embedding-Modell oder den Dimensionen erkannt. Konfiguration kann nicht direkt gespeichert werden. Migration kann durchgeführt werden. Die Migration löscht die alte Wissensdatenbank nicht, sondern erstellt eine Kopie und verarbeitet alle Einträge neu. Dies kann viele Tokens verbrauchen. Bitte mit Vorsicht fortfahren.",
-        "ok": "Migration starten",
-        "title": "Wissensdatenbank-Migration"
-      },
-      "error": {
-        "failed": "Migration fehlgeschlagen"
-      },
-      "source_dimensions": "Quell-Dimensionen",
-      "source_model": "Quellmodell",
-      "target_dimensions": "Ziel-Dimensionen",
-      "target_model": "Zielmodell"
-    },
     "name_required": "Wissensdatenbankname ist erforderlich",
-    "notes": "Notizen",
     "provider_not_found": "Anbieter nicht gefunden",
-    "rename": "Umbenennen",
     "search": "Wissensdatenbank durchsuchen",
     "search_placeholder": "Suchanfrage eingeben",
-    "settings": {
-      "title": "Wissensdatenbank-Einstellungen"
-    },
-    "sitemap_added": "Erfolgreich hinzugefügt",
-    "sitemap_placeholder": "Bitte Sitemap-URL eingeben",
-    "sitemaps": "Websites",
-    "source": "Quelle",
-    "status_completed": "Abgeschlossen",
-    "status_embedding_completed": "Embedding abgeschlossen",
     "status_embedding_failed": "Embedding fehlgeschlagen",
-    "status_failed": "Fehlgeschlagen",
-    "status_new": "Hinzugefügt",
-    "status_pending": "Wartend",
-    "status_preprocess_completed": "Vorverarbeitung abgeschlossen",
     "status_preprocess_failed": "Vorverarbeitung fehlgeschlagen",
-    "status_processing": "In Bearbeitung",
     "subtitle_file": "Untertiteldatei",
-    "threshold": "Übereinstimmungsschwelle",
-    "threshold_placeholder": "Nicht gesetzt",
-    "threshold_tooltip": "Misst die Relevanz zwischen Benutzerfrage und Wissensdatenbankinhalt (0-1)",
     "title": "Wissensdatenbank",
-    "url_added": "URL hinzugefügt",
-    "url_placeholder": "Bitte URL eingeben, mehrere URLs mit Enter trennen",
-    "urls": "URLs",
-    "videos": "Videos",
     "videos_file": "Videodatei"
   },
   "languages": {
@@ -1717,8 +1639,7 @@
     "vietnamese": "Vietnamesisch"
   },
   "launchpad": {
-    "apps": "Apps",
-    "minapps": "Mini-Apps"
+    "apps": "Apps"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -1790,7 +1711,6 @@
     },
     "empty_url": "Bild konnte nicht heruntergeladen werden. Möglicherweise enthält der Prompt sensible Inhalte oder verbotene Wörter",
     "error": {
-      "chunk_overlap_too_large": "Segmentüberlappung darf nicht größer als Segmentgröße sein",
       "copy": "Kopieren fehlgeschlagen",
       "dimension_too_large": "Inhaltsgröße zu groß",
       "enter": {
@@ -2028,63 +1948,6 @@
       "partial_failure": "{{count}} Suchergebnisse, einige Suchvorgänge sind fehlgeschlagen"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Zu Launchpad hinzufügen",
-    "add_to_sidebar": "Zur Seitenleiste hinzufügen",
-    "popup": {
-      "close": "Mini-App schließen",
-      "devtools": "Entwicklertools",
-      "goBack": "Zurück",
-      "goForward": "Vorwärts",
-      "minimize": "Mini-App minimieren",
-      "openExternal": "In Browser öffnen",
-      "open_link_external_off": "Aktuell: Links im Standardfenster öffnen",
-      "open_link_external_on": "Aktuell: Links im Browser öffnen",
-      "refresh": "Aktualisieren",
-      "rightclick_copyurl": "Rechtsklick zum Kopieren der URL"
-    },
-    "remove_from_launchpad": "Aus Launchpad entfernen",
-    "remove_from_sidebar": "Aus Seitenleiste entfernen",
-    "sidebar": {
-      "close": {
-        "title": "Schließen"
-      },
-      "closeall": {
-        "title": "Alle schließen"
-      },
-      "hide": {
-        "title": "Ausblenden"
-      },
-      "remove_custom": {
-        "title": "Benutzerdefinierte App entfernen"
-      }
-    },
-    "title": "Mini-Apps"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baixiaoying",
-    "baidu-ai-search": "Baidu AI Suche",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei AI",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso AI-Suche",
-    "minimax-agent": "MiniMax Agent CN",
-    "minimax-global": "MiniMax Agent",
-    "nami-ai": "Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "StepFun AI",
-    "tencent-yuanbao": "Tencent Yuanbao",
-    "tiangong-ai": "Tiangong AI",
-    "wanzhi": "Wanzhi",
-    "wenxin": "Wenxin Yiyan",
-    "wps-copilot": "WPS Lingxi",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu Zhida"
-  },
   "models": {
     "action": {
       "pin": "[to be translated]:Pin this model",
@@ -2094,8 +1957,6 @@
     "all": "Alle",
     "custom_parameters": "Benutzerdefinierte Parameter",
     "edit": "Modell bearbeiten",
-    "embedding_model": "Embedding-Modell",
-    "embedding_model_tooltip": "In Einstellungen -> Modelldienste auf Verwalten klicken zum Hinzufügen",
     "filter": {
       "by_tag": "Nach Tag filtern"
     },
@@ -2124,8 +1985,6 @@
       "million_tokens": "Million Token",
       "output": "Ausgabepreis"
     },
-    "rerank_model": "Rerank-Modell",
-    "rerank_model_tooltip": "In Einstellungen -> Modelldienste auf Verwalten klicken zum Hinzufügen",
     "search": {
       "placeholder": "Modelle durchsuchen...",
       "tooltip": "Modelle durchsuchen"
@@ -2279,7 +2138,6 @@
       "provider": {
         "cannot_remove_builtin": "Eingebauter Anbieter kann nicht entfernt werden",
         "existing": "Anbieter existiert bereits",
-        "get_providers": "Failed to obtain available providers",
         "not_found": "OCR-Anbieter nicht gefunden"
       },
       "unknown": "Fehler während OCR-Prozess"
@@ -2740,9 +2598,6 @@
     "zhipu": "Zhipu AI"
   },
   "quickAssistant": {
-    "alert": {
-      "google_login": "Hinweis: Falls Sie beim Google-Login die Meldung \"Nicht vertrauenswürdiger Browser\" erhalten, melden Sie sich bitte zuerst in der Google Mini-App in der Mini-App-Liste an, bevor Sie Google-Login in anderen Mini-Apps verwenden"
-    },
     "clipboard": {
       "empty": "Zwischenablage ist leer"
     },
@@ -3082,7 +2937,6 @@
         },
         "title": "Aktivieren"
       },
-      "experimental": "Experimentelle Funktionen",
       "filter_modal": {
         "title": "App-Filterliste anwenden",
         "user_tips": {
@@ -3112,7 +2966,6 @@
           },
           "test": "Test",
           "url": {
-            "hint": "{{queryString}} für Suchbegriff verwenden",
             "invalid_format": "Bitte eine gültige URL eingeben, die mit http:// oder https:// beginnt",
             "label": "Benutzerdefinierte Such-URL",
             "missing_placeholder": "URL muss den Platzhalter {{queryString}} enthalten",
@@ -3275,14 +3128,12 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Automatisch zu Themenansicht wechseln",
-      "title": "Erweiterte Einstellungen"
+      "auto_switch_to_topics": "Automatisch zu Themenansicht wechseln"
     },
     "assistant": {
       "icon": {
         "type": {
           "emoji": "Emoji",
-          "label": "Modellsymboltyp",
           "model": "Modellsymbol",
           "none": "Nicht anzeigen"
         }
@@ -3370,15 +3221,6 @@
         "select_title": "Anwendungsdatenverzeichnis ändern",
         "stop_quit_app_reason": "Anwendung migriert gerade Daten, kann nicht beendet werden"
       },
-      "app_knowledge": {
-        "button": {
-          "delete": "Datei löschen"
-        },
-        "label": "Wissensdatenbank-Dateien",
-        "remove_all": "Wissensdatenbank-Dateien löschen",
-        "remove_all_confirm": "Löschen von Wissensdatenbank-Dateien spart Speicher, löscht aber keine Vektordaten. Quelldateien können danach nicht mehr geöffnet werden. Löschen?",
-        "remove_all_success": "Datei erfolgreich gelöscht"
-      },
       "app_logs": {
         "button": "Protokoll öffnen",
         "label": "Anwendungsprotokolle"
@@ -3401,8 +3243,7 @@
         "basic": "Grundlegende Dateneinstellungen",
         "cloud_storage": "Cloud-Backup-Einstellungen",
         "export_settings": "Export-Einstellungen",
-        "import_settings": "Importeinstellungen",
-        "third_party": "Drittanbieter-Verbindungen"
+        "import_settings": "Importeinstellungen"
       },
       "export_menu": {
         "docx": "Als Word exportieren",
@@ -3658,7 +3499,6 @@
       "obsidian": {
         "default_vault": "Standard-Obsidian-Tresor",
         "default_vault_fetch_error": "Obsidian-Tresor abrufen fehlgeschlagen",
-        "default_vault_loading": "Obsidian-Tresor wird abgerufen...",
         "default_vault_no_vaults": "Kein Obsidian-Tresor gefunden",
         "default_vault_placeholder": "Bitte Standard-Obsidian-Tresor auswählen",
         "title": "Obsidian-Konfiguration"
@@ -3696,7 +3536,6 @@
           "placeholder": "https://s3.example.com"
         },
         "manager": {
-          "close": "Schließen",
           "columns": {
             "actions": "Aktionen",
             "fileName": "Dateiname",
@@ -3913,9 +3752,6 @@
       "title": "Entwicklermodus"
     },
     "display": {
-      "assistant": {
-        "title": "Assistenten-Einstellungen"
-      },
       "custom": {
         "css": {
           "cherrycss": "Von cherrycss.com beziehen",
@@ -3930,29 +3766,8 @@
         "select": "Schriftart auswählen",
         "title": "Schriftart-Einstellungen"
       },
-      "navbar": {
-        "position": {
-          "label": "Navigationsleistenposition",
-          "left": "Links",
-          "top": "Oben"
-        },
-        "title": "Navigationsleisten-Einstellungen"
-      },
-      "sidebar": {
-        "chat": {
-          "hiddenMessage": "Assistent ist Basisfunktion, kann nicht ausgeblendet werden"
-        },
-        "disabled": "Ausgeblendete Symbole",
-        "empty": "Funktionen die ausgeblendet werden sollen von links hierher ziehen",
-        "title": "Seitenleisten-Einstellungen",
-        "visible": "Angezeigte Symbole"
-      },
-      "title": "Anzeigeeinstellungen",
       "topic": {
         "title": "Themen-Einstellungen"
-      },
-      "zoom": {
-        "title": "Zoom-Einstellungen"
       }
     },
     "font_size": {
@@ -3972,7 +3787,6 @@
       },
       "emoji_picker": "Emoji-Auswahl",
       "image_upload": "Bild-Upload",
-      "label": "Allgemeine Einstellungen",
       "reset": {
         "title": "Daten zurücksetzen"
       },
@@ -4086,7 +3900,6 @@
       "deleteServer": "Server löschen",
       "deleteServerConfirm": "Diesen Server wirklich löschen?",
       "deleteSuccess": "Server erfolgreich gelöscht",
-      "dependenciesInstalling": "Abhängigkeiten werden installiert...",
       "description": "Beschreibung",
       "discover": "Entdecken",
       "editJson": "JSON bearbeiten",
@@ -4101,7 +3914,6 @@
       "headersTooltip": "Benutzerdefinierte Request-Header für HTTP-Anfragen",
       "install": "Installieren",
       "installError": "Installation der Abhängigkeiten fehlgeschlagen",
-      "installHelp": "Installationshilfe abrufen",
       "installSuccess": "Abhängigkeiten erfolgreich installiert",
       "jsonFormatError": "JSON-Formatierungsfehler",
       "jsonModeHint": "JSON-Darstellung der MCP-Server-Konfiguration. Bitte sicherstellen, dass das Format korrekt ist, bevor gespeichert wird",
@@ -4112,7 +3924,6 @@
       "longRunning": "Lang laufender Modus",
       "longRunningTooltip": "Nach Aktivierung unterstützt der Server lange Aufgaben. Wenn ein Fortschrittsbenachrichtigung empfangen wird, wird der Timeout-Timer zurückgesetzt und die maximale Timeout-Zeit auf 10 Minuten verlängert",
       "marketplaces": "Marktplätze",
-      "missingDependencies": "Abhängigkeiten fehlen, bitte installieren Sie sie, um fortzufahren",
       "more": {
         "awesome": "Kuratierte MCP-Serverliste",
         "composio": "Composio MCP-Entwicklungstool",
@@ -4283,57 +4094,6 @@
       "title": "Nachrichteneinstellungen",
       "use_serif_font": "Serifenschrift verwenden"
     },
-    "miniapps": {
-      "cache_change_notice": "Änderung wird wirksam wenn Anzahl geöffneter Mini-Apps auf festgelegten Wert angepasst wird",
-      "cache_description": "Maximale Anzahl gleichzeitig aktiver Mini-Apps festlegen",
-      "cache_title": "Anzahl gecachter Mini-Apps",
-      "custom": {
-        "conflicting_ids": "Konflikt mit Standard-App-ID: {{ids}}",
-        "duplicate_ids": "Duplizierte ID gefunden: {{ids}}",
-        "edit_title": "Benutzerdefinierte Mini-App bearbeiten",
-        "id": "ID",
-        "id_error": "ID ist Pflichtfeld",
-        "id_placeholder": "Bitte ID eingeben",
-        "logo": "Logo",
-        "logo_file": "Logo-Datei hochladen",
-        "logo_upload_button": "Hochladen",
-        "logo_upload_error": "Logo-Upload fehlgeschlagen",
-        "logo_upload_label": "Logo hochladen",
-        "logo_upload_success": "Logo erfolgreich hochgeladen",
-        "logo_url": "Logo-URL",
-        "logo_url_label": "Logo-URL",
-        "logo_url_placeholder": "Bitte Logo-URL eingeben",
-        "name": "Name",
-        "name_error": "Name ist Pflichtfeld",
-        "name_placeholder": "Bitte Namen eingeben",
-        "remove_error": "Löschen der benutzerdefinierten Mini-App fehlgeschlagen",
-        "remove_success": "Benutzerdefinierte Mini-App erfolgreich gelöscht",
-        "save": "Speichern",
-        "save_error": "Benutzerdefinierte Mini-App-Speicherung fehlgeschlagen",
-        "save_success": "Benutzerdefinierte Mini-App erfolgreich gespeichert",
-        "title": "Benutzerdefiniert",
-        "url": "URL",
-        "url_error": "URL ist Pflichtfeld",
-        "url_placeholder": "Bitte URL eingeben"
-      },
-      "disabled": "Ausgeblendete Mini-Apps",
-      "display_title": "Mini-App-Anzeigeeinstellungen",
-      "empty": "Mini-Apps die ausgeblendet werden sollen von links hierher ziehen",
-      "open_link_external": {
-        "title": "Neue Fensterlinks im Browser öffnen"
-      },
-      "region": {
-        "auto": "Automatische Erkennung",
-        "cn": "China",
-        "description": "Nach Region gefilterte Mini-Programme werden nicht unterstützt",
-        "global": "global",
-        "title": "Bereichsfilterung für Mini-Programme"
-      },
-      "reset_tooltip": "Zurücksetzen auf Standardwert",
-      "sidebar_description": "Festlegen ob Seitenleiste aktive Mini-Apps anzeigt",
-      "sidebar_title": "Einstellungen für aktive Mini-Apps in Seitenleiste",
-      "visible": "Angezeigte Mini-Apps"
-    },
     "model": "Standardmodell",
     "models": {
       "add": {
@@ -4426,7 +4186,6 @@
       },
       "translate_model": "Übersetzungsmodell",
       "translate_model_description": "Modell für Übersetzungsdienst",
-      "translate_model_prompt_message": "Bitte Übersetzungsmodell-Prompt eingeben",
       "use_assistant": "Assistent verwenden",
       "use_model": "Standardmodell"
     },
@@ -4745,23 +4504,8 @@
       "select": "Auswählen",
       "title": "Schnellmenü"
     },
-    "quickPhrase": {
-      "add": "Phrase hinzufügen",
-      "assistant": "Assistenten-Phrasen",
-      "contentLabel": "Inhalt",
-      "contentPlaceholder": "Bitte Phrase-Inhalt eingeben, unterstützt Variablenverwendung, dann Tab-Taste zum schnellen Navigieren zu Variablen für Bearbeitung. Z.B.:\nPlanen Sie eine Route von ${from} nach ${to} und senden Sie sie an ${email}",
-      "delete": "Phrase löschen",
-      "deleteConfirm": "Gelöschte Phrase kann nicht wiederhergestellt werden. Fortfahren?",
-      "edit": "Phrase bearbeiten",
-      "global": "Globale Phrasen",
-      "locationLabel": "Position hinzufügen",
-      "title": "Schnellphrasen",
-      "titleLabel": "Titel",
-      "titlePlaceholder": "Bitte Phrasentitel eingeben"
-    },
     "scheduledTasks": {
       "noAgents": "Keine Agenten gefunden. Erstellen Sie zuerst einen Agenten, um geplante Aufgaben hinzuzufügen.",
-      "noAgentsTip": "Tipp: Sie können Ihren Agenten auch bitten, per Chat geplante Aufgaben zu erstellen.",
       "noTasks": "Keine geplanten Aufgaben. Klicken Sie auf „+ Hinzufügen“, um eine für einen Agenten zu erstellen.",
       "selectTask": "Wählen Sie eine Aufgabe aus, um Details anzuzeigen",
       "title": "Geplante Aufgaben"
@@ -4849,50 +4593,6 @@
     },
     "title": "Einstellungen",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "Unterstützte Sprachen"
-        },
-        "error": {
-          "not_system": "System OCR unterstützt nur Windows und MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "Der Anbieter wurde nicht gefunden"
-          },
-          "system": {
-            "no_need_configure": "MacOS nicht konfigurieren"
-          },
-          "title": "Bild"
-        },
-        "image_provider": "OCR-Anbieter",
-        "paddleocr": {
-          "aistudio_access_token": "StarRiver Community Access Token",
-          "api_url": "API-URL",
-          "api_url_label": "Zugriffstoken und API-URL abrufen"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "Abhängig von Windows, müssen Sie Sprachpakete im System herunterladen, um die entsprechenden Sprachen zu unterstützen."
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "Lesen Sie die Dokumentation, um zu erfahren, welche benutzerdefinierten Sprachen unterstützt werden"
-        },
-        "title": "OCR-Dienst"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "Zugriffstoken der AI Studio Community",
-          "api_url": "API-URL",
-          "api_url_label": "Zugriffstoken und API-URL abrufen",
-          "paddleocr_url_label": "Offizielle Website von PaddleOCR"
-        },
-        "provider": "Dokumentverarbeitungsanbieter",
-        "provider_placeholder": "Einen Dokumentverarbeitungsanbieter auswählen",
-        "title": "Dokumentverarbeitung",
-        "tooltip": "Setzen Sie den Dokumentverarbeitungsanbieter in den Einstellungen -> Tools, um die Suche nach komplexen Formatdokumenten und gescannten Dokumenten zu verbessern"
-      },
       "websearch": {
         "api_key_required": {
           "ok": "Konfigurieren"
@@ -4980,13 +4680,10 @@
           },
           "update": "Aktualisierung fehlgeschlagen",
           "value": {
-            "empty": "Sprachname darf nicht leer sein",
-            "too_long": "Sprachname zu lang"
+            "empty": "Sprachname darf nicht leer sein"
           }
         },
         "langCode": {
-          "help": "Format: [Sprache+Region], z. B. de-de",
-          "label": "Sprachcode",
           "placeholder": "de-de"
         },
         "success": {
@@ -4994,14 +4691,7 @@
           "delete": "Erfolgreich gelöscht",
           "update": "Erfolgreich aktualisiert"
         },
-        "table": {
-          "action": {
-            "title": "Aktionen"
-          }
-        },
         "value": {
-          "help": "1-32 Zeichen",
-          "label": "Sprachname",
           "placeholder": "Chinesisch"
         }
       },
@@ -5010,8 +4700,7 @@
     },
     "tray": {
       "onclose": "Bei Schließen ins Tray minimieren",
-      "show": "Tray-Symbol anzeigen",
-      "title": "Tray"
+      "show": "Tray-Symbol anzeigen"
     },
     "use_system_title_bar": {
       "confirm": {
@@ -5026,7 +4715,6 @@
   },
   "tab": {
     "close": "Tab schließen",
-    "moveToFirst": "Zum Anfang verschieben",
     "new": "Neuer Tab",
     "pin": "Tab anheften",
     "unpin": "Tab lösen"
@@ -5109,15 +4797,12 @@
       "chat_qwen_mt": "Qwen MT-Modell kann nicht in der Konversation verwendet werden, bitte gehen Sie zur Übersetzungsseite",
       "detect": {
         "qwen_mt": "QwenMT-Modell kann nicht für die Spracherkennung verwendet werden",
-        "unknown": "Unbekannte Sprache erkannt",
-        "update_setting": "Einstellung fehlgeschlagen"
+        "unknown": "Unbekannte Sprache erkannt"
       },
       "empty": "Übersetzungsergebnis ist leer",
       "failed": "Übersetzung fehlgeschlagen",
-      "invalid_source": "Ungültige Quellsprache",
       "not_configured": "Übersetzungsmodell nicht konfiguriert",
-      "not_supported": "Sprache {{language}} wird nicht unterstützt",
-      "unknown": "Unbekannter Fehler während Übersetzung"
+      "not_supported": "Sprache {{language}} wird nicht unterstützt"
     },
     "exchange": {
       "label": "Quell- und Zielsprache tauschen"
@@ -5140,9 +4825,6 @@
       "error": {
         "delete": "Löschen fehlgeschlagen",
         "save": "Speichern der Übersetzungshistorie fehlgeschlagen"
-      },
-      "search": {
-        "placeholder": "Übersetzungshistorie durchsuchen"
       },
       "title": "Übersetzungsverlauf"
     },
@@ -5174,10 +4856,7 @@
       "title": "Übersetzungseinstellungen"
     },
     "stop": "Übersetzung stoppen",
-    "title": "Übersetzen",
-    "tooltip": {
-      "newline": "Zeilenumbruch"
-    }
+    "title": "Übersetzen"
   },
   "tray": {
     "quit": "Beenden",

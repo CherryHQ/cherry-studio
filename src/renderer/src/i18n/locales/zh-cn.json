@@ -693,17 +693,6 @@
         "xhigh": "穷究",
         "xhigh_description": "超高强度推理"
       },
-      "regular_phrases": {
-        "add": "添加短语",
-        "contentLabel": "内容",
-        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
-        "delete": "删除短语",
-        "deleteConfirm": "确定要删除这个短语吗？",
-        "edit": "编辑短语",
-        "title": "常用短语",
-        "titleLabel": "标题",
-        "titlePlaceholder": "输入标题"
-      },
       "tool_use_mode": {
         "function": "函数",
         "label": "工具调用方式",
@@ -819,7 +808,6 @@
       },
       "new_session": "新会话 {{Command}}",
       "new_topic": "新话题 {{Command}}",
-      "paste_text_file_confirm": "粘贴到输入框？",
       "pause": "暂停",
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择模型， / 选择工具",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
@@ -1311,7 +1299,6 @@
     "none": "无",
     "off": "关闭",
     "on": "启用",
-    "open": "打开",
     "open_in": "在 {{name}} 中打开",
     "paste": "粘贴",
     "powered_by": "由 ",
@@ -1333,7 +1320,6 @@
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
     "sessions": "会话",
-    "settings": "设置",
     "sort": {
       "pinyin": {
         "asc": "按拼音升序",
@@ -1606,91 +1592,27 @@
     "add": {
       "title": "添加知识库"
     },
-    "add_directory": "添加目录",
-    "add_file": "添加文件",
-    "add_note": "添加笔记",
-    "add_sitemap": "站点地图",
-    "add_url": "添加网址",
-    "add_video": "添加视频",
-    "chunk_overlap": "重叠大小",
-    "chunk_overlap_placeholder": "默认值（不建议修改）",
-    "chunk_overlap_tooltip": "相邻文本块之间重复的内容量，确保分段后的文本块之间仍然有上下文联系，提升模型处理长文本的整体效果",
-    "chunk_size": "分段大小",
-    "chunk_size_change_warning": "分段大小和重叠大小修改只针对新添加的内容有效",
-    "chunk_size_placeholder": "默认值（不建议修改）",
-    "chunk_size_tooltip": "将文档切割分段，每段的大小，不能超过模型上下文限制",
-    "delete_confirm": "确定要删除此知识库吗？",
     "dimensions": "嵌入维度",
     "dimensions_auto_set": "自动设置嵌入维度",
     "dimensions_size_placeholder": "留空表示不设置",
-    "dimensions_size_tooltip": "嵌入维度大小，数值越大消耗的 Token 也越多。留空则不传递 dimensions 参数。",
-    "directories": "目录",
-    "document_count": "请求文档片段数量",
-    "document_count_default": "默认",
-    "document_count_help": "请求文档片段数量越多，附带的信息越多，但需要消耗的 Token 也越多",
     "drag_file": "拖拽文件到这里",
-    "edit_remark": "修改备注",
-    "edit_remark_placeholder": "请输入备注内容",
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
     "error": {
       "failed_to_create": "知识库创建失败",
       "failed_to_edit": "知识库编辑失败",
-      "model_invalid": "未选择模型",
-      "video": {
-        "local_file_missing": "视频文件不存在"
-      }
+      "model_invalid": "未选择模型"
     },
     "file_hint": "支持 {{file_types}} 格式",
-    "migrate": {
-      "button": {
-        "text": "迁移"
-      },
-      "confirm": {
-        "content": "检测到嵌入模型或维度有变更，无法直接保存配置，可以执行迁移。知识库迁移不会删除旧知识库，而是创建一个副本之后重新处理所有知识库条目，可能消耗大量 tokens，请谨慎操作。",
-        "ok": "开始迁移",
-        "title": "知识库迁移"
-      },
-      "error": {
-        "failed": "迁移失败"
-      },
-      "source_dimensions": "源维度",
-      "source_model": "源模型",
-      "target_dimensions": "目标维度",
-      "target_model": "目标模型"
-    },
     "name_required": "知识库名称为必填项",
-    "notes": "笔记",
     "provider_not_found": "未找到服务商",
-    "rename": "重命名",
     "search": "搜索知识库",
     "search_placeholder": "输入查询内容",
-    "settings": {
-      "title": "知识库设置"
-    },
-    "sitemap_added": "添加成功",
-    "sitemap_placeholder": "请输入站点地图 URL",
-    "sitemaps": "网站",
-    "source": "来源",
-    "status_completed": "已完成",
-    "status_embedding_completed": "嵌入完成",
     "status_embedding_failed": "嵌入失败",
-    "status_failed": "失败",
-    "status_new": "已添加",
-    "status_pending": "等待中",
-    "status_preprocess_completed": "预处理完成",
     "status_preprocess_failed": "预处理失败",
-    "status_processing": "处理中",
     "subtitle_file": "字幕文件",
-    "threshold": "匹配度阈值",
-    "threshold_placeholder": "未设置",
-    "threshold_tooltip": "用于衡量用户问题与知识库内容之间的相关性（0-1）",
     "title": "知识库",
-    "url_added": "网址已添加",
-    "url_placeholder": "请输入网址, 多个网址用回车分隔",
-    "urls": "网址",
-    "videos": "视频",
     "videos_file": "视频文件"
   },
   "languages": {
@@ -1717,8 +1639,7 @@
     "vietnamese": "越南文"
   },
   "launchpad": {
-    "apps": "应用",
-    "minapps": "小程序"
+    "apps": "应用"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -1790,7 +1711,6 @@
     },
     "empty_url": "无法下载图片，可能是提示词包含敏感内容或违禁词汇",
     "error": {
-      "chunk_overlap_too_large": "分段重叠不能大于分段大小",
       "copy": "复制失败",
       "dimension_too_large": "内容尺寸过大",
       "enter": {
@@ -2028,63 +1948,6 @@
       "partial_failure": "{{count}} 个搜索结果，部分搜索失败"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "添加到启动台",
-    "add_to_sidebar": "添加到侧边栏",
-    "popup": {
-      "close": "关闭小程序",
-      "devtools": "开发者工具",
-      "goBack": "后退",
-      "goForward": "前进",
-      "minimize": "最小化小程序",
-      "openExternal": "在浏览器中打开",
-      "open_link_external_off": "当前：使用默认窗口打开链接",
-      "open_link_external_on": "当前：在浏览器中打开链接",
-      "refresh": "刷新",
-      "rightclick_copyurl": "右键复制 URL"
-    },
-    "remove_from_launchpad": "从启动台移除",
-    "remove_from_sidebar": "从侧边栏移除",
-    "sidebar": {
-      "close": {
-        "title": "关闭"
-      },
-      "closeall": {
-        "title": "关闭所有"
-      },
-      "hide": {
-        "title": "隐藏"
-      },
-      "remove_custom": {
-        "title": "删除自定义应用"
-      }
-    },
-    "title": "小程序"
-  },
-  "minapps": {
-    "ant-ling": "蚂蚁百灵",
-    "baichuan": "百小应",
-    "baidu-ai-search": "百度AI搜索",
-    "chatglm": "智谱清言",
-    "dangbei": "当贝AI",
-    "doubao": "豆包",
-    "hailuo": "海螺",
-    "ima": "ima",
-    "metaso": "秘塔AI搜索",
-    "minimax-agent": "MiniMax Agent",
-    "minimax-global": "MiniMax Agent 海外版",
-    "nami-ai": "纳米AI",
-    "qwen": "通义千问",
-    "sensechat": "商量",
-    "stepfun": "阶跃AI",
-    "tencent-yuanbao": "腾讯元宝",
-    "tiangong-ai": "天工AI",
-    "wanzhi": "万知",
-    "wenxin": "文心一言",
-    "wps-copilot": "WPS灵犀",
-    "xiaoyi": "小艺",
-    "zhihu": "知乎直答"
-  },
   "models": {
     "action": {
       "pin": "置顶此模型",
@@ -2094,8 +1957,6 @@
     "all": "全部",
     "custom_parameters": "自定义参数",
     "edit": "编辑模型",
-    "embedding_model": "嵌入模型",
-    "embedding_model_tooltip": "在设置 -> 模型服务中点击管理按钮添加",
     "filter": {
       "by_tag": "按标签筛选"
     },
@@ -2124,8 +1985,6 @@
       "million_tokens": "百万 Token",
       "output": "输出价格"
     },
-    "rerank_model": "重排模型",
-    "rerank_model_tooltip": "在设置 -> 模型服务中点击管理按钮添加",
     "search": {
       "placeholder": "搜索模型...",
       "tooltip": "搜索模型"
@@ -2279,7 +2138,6 @@
       "provider": {
         "cannot_remove_builtin": "不能删除内置提供商",
         "existing": "提供商已存在",
-        "get_providers": "获取可用提供商失败",
         "not_found": "OCR 提供商不存在"
       },
       "unknown": "OCR 过程发生错误"
@@ -2740,9 +2598,6 @@
     "zhipu": "智谱开放平台"
   },
   "quickAssistant": {
-    "alert": {
-      "google_login": "提示：如遇到Google登录提示\"不受信任的浏览器\"，请先在小程序列表中的Google小程序中完成账号登录，再在其它小程序使用Google登录"
-    },
     "clipboard": {
       "empty": "剪贴板为空"
     },
@@ -3082,7 +2937,6 @@
         },
         "title": "启用"
       },
-      "experimental": "实验性功能",
       "filter_modal": {
         "title": "应用筛选名单",
         "user_tips": {
@@ -3112,7 +2966,6 @@
           },
           "test": "测试",
           "url": {
-            "hint": "用 {{queryString}} 代表搜索词",
             "invalid_format": "请输入以 http:// 或 https:// 开头的有效 URL",
             "label": "自定义搜索 URL",
             "missing_placeholder": "URL 必须包含 {{queryString}} 占位符",
@@ -3275,14 +3128,12 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "自动切换到话题",
-      "title": "高级设置"
+      "auto_switch_to_topics": "自动切换到话题"
     },
     "assistant": {
       "icon": {
         "type": {
           "emoji": "Emoji 表情",
-          "label": "模型图标类型",
           "model": "模型图标",
           "none": "不显示"
         }
@@ -3370,15 +3221,6 @@
         "select_title": "更改应用数据目录",
         "stop_quit_app_reason": "应用目前在迁移数据，不能退出"
       },
-      "app_knowledge": {
-        "button": {
-          "delete": "删除文件"
-        },
-        "label": "知识库文件",
-        "remove_all": "删除知识库文件",
-        "remove_all_confirm": "删除知识库文件可以减少存储空间占用，但不会删除知识库向量化数据，删除之后将无法打开源文件，是否删除？",
-        "remove_all_success": "文件删除成功"
-      },
       "app_logs": {
         "button": "打开日志",
         "label": "应用日志"
@@ -3401,8 +3243,7 @@
         "basic": "基础数据设置",
         "cloud_storage": "云备份设置",
         "export_settings": "导出设置",
-        "import_settings": "导入设置",
-        "third_party": "第三方连接"
+        "import_settings": "导入设置"
       },
       "export_menu": {
         "docx": "导出为 Word",
@@ -3658,7 +3499,6 @@
       "obsidian": {
         "default_vault": "默认 Obsidian 仓库",
         "default_vault_fetch_error": "获取 Obsidian 仓库失败",
-        "default_vault_loading": "正在获取 Obsidian 仓库...",
         "default_vault_no_vaults": "未找到 Obsidian 仓库",
         "default_vault_placeholder": "请选择默认 Obsidian 仓库",
         "title": "Obsidian 配置"
@@ -3696,7 +3536,6 @@
           "placeholder": "https://s3.example.com"
         },
         "manager": {
-          "close": "关闭",
           "columns": {
             "actions": "操作",
             "fileName": "文件名",
@@ -3913,9 +3752,6 @@
       "title": "开发者模式"
     },
     "display": {
-      "assistant": {
-        "title": "助手设置"
-      },
       "custom": {
         "css": {
           "cherrycss": "从 cherrycss.com 获取",
@@ -3930,29 +3766,8 @@
         "select": "选择字体",
         "title": "字体设置"
       },
-      "navbar": {
-        "position": {
-          "label": "导航栏位置",
-          "left": "左侧",
-          "top": "顶部"
-        },
-        "title": "导航栏设置"
-      },
-      "sidebar": {
-        "chat": {
-          "hiddenMessage": "助手是基础功能，不支持隐藏"
-        },
-        "disabled": "隐藏的图标",
-        "empty": "把要隐藏的功能从左侧拖拽到这里",
-        "title": "侧边栏设置",
-        "visible": "显示的图标"
-      },
-      "title": "显示设置",
       "topic": {
         "title": "话题设置"
-      },
-      "zoom": {
-        "title": "缩放设置"
       }
     },
     "font_size": {
@@ -3972,7 +3787,6 @@
       },
       "emoji_picker": "表情选择器",
       "image_upload": "图片上传",
-      "label": "常规设置",
       "reset": {
         "title": "重置数据"
       },
@@ -4086,7 +3900,6 @@
       "deleteServer": "删除服务器",
       "deleteServerConfirm": "确定要删除此服务器吗？",
       "deleteSuccess": "服务器删除成功",
-      "dependenciesInstalling": "正在安装依赖项...",
       "description": "描述",
       "discover": "发现",
       "editJson": "编辑 JSON",
@@ -4101,7 +3914,6 @@
       "headersTooltip": "HTTP 请求的自定义请求头",
       "install": "安装",
       "installError": "安装依赖项失败",
-      "installHelp": "获取安装帮助",
       "installSuccess": "依赖项安装成功",
       "jsonFormatError": "JSON 格式化错误",
       "jsonModeHint": "编辑 MCP 服务器配置的 JSON 表示。保存前请确保格式正确",
@@ -4112,7 +3924,6 @@
       "longRunning": "长时间运行模式",
       "longRunningTooltip": "启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
       "marketplaces": "市场",
-      "missingDependencies": "缺失，请安装它以继续",
       "more": {
         "awesome": "精选的 MCP 服务器列表",
         "composio": "Composio MCP 开发工具",
@@ -4283,57 +4094,6 @@
       "title": "消息设置",
       "use_serif_font": "使用衬线字体"
     },
-    "miniapps": {
-      "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
-      "cache_description": "设置同时保持活跃状态的小程序最大数量",
-      "cache_title": "小程序缓存数量",
-      "custom": {
-        "conflicting_ids": "与默认应用 ID 冲突: {{ids}}",
-        "duplicate_ids": "发现重复的 ID: {{ids}}",
-        "edit_title": "编辑自定义小程序",
-        "id": "ID",
-        "id_error": "ID 是必填项",
-        "id_placeholder": "请输入 ID",
-        "logo": "Logo",
-        "logo_file": "上传 Logo 文件",
-        "logo_upload_button": "上传",
-        "logo_upload_error": "Logo 上传失败",
-        "logo_upload_label": "上传 Logo",
-        "logo_upload_success": "Logo 上传成功",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "请输入 Logo URL",
-        "name": "名称",
-        "name_error": "名称是必填项",
-        "name_placeholder": "请输入名称",
-        "remove_error": "自定义小程序删除失败",
-        "remove_success": "自定义小程序删除成功",
-        "save": "保存",
-        "save_error": "自定义小程序保存失败",
-        "save_success": "自定义小程序保存成功",
-        "title": "自定义",
-        "url": "URL",
-        "url_error": "URL 是必填项",
-        "url_placeholder": "请输入 URL"
-      },
-      "disabled": "隐藏的小程序",
-      "display_title": "小程序显示设置",
-      "empty": "把要隐藏的小程序从左侧拖拽到这里",
-      "open_link_external": {
-        "title": "在浏览器中打开新窗口链接"
-      },
-      "region": {
-        "auto": "自动检测",
-        "cn": "中国",
-        "description": "根据所在地区过滤不支持的小程序",
-        "global": "全球",
-        "title": "小程序区域筛选"
-      },
-      "reset_tooltip": "重置为默认值",
-      "sidebar_description": "设置侧边栏是否显示活跃的小程序",
-      "sidebar_title": "侧边栏活跃小程序显示设置",
-      "visible": "显示的小程序"
-    },
     "model": "默认模型",
     "models": {
       "add": {
@@ -4426,7 +4186,6 @@
       },
       "translate_model": "翻译模型",
       "translate_model_description": "翻译服务使用的模型",
-      "translate_model_prompt_message": "请输入翻译模型提示词",
       "use_assistant": "使用助手",
       "use_model": "默认模型"
     },
@@ -4745,23 +4504,8 @@
       "select": "选择",
       "title": "快捷菜单"
     },
-    "quickPhrase": {
-      "add": "添加短语",
-      "assistant": "助手短语",
-      "contentLabel": "内容",
-      "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
-      "delete": "删除短语",
-      "deleteConfirm": "删除短语后将无法恢复，是否继续？",
-      "edit": "编辑短语",
-      "global": "全局短语",
-      "locationLabel": "添加位置",
-      "title": "快捷短语",
-      "titleLabel": "标题",
-      "titlePlaceholder": "请输入短语标题"
-    },
     "scheduledTasks": {
       "noAgents": "定时任务需要开启灵魂模式或无权限模式的 Agent 才能运行。请先在 Agent 设置中启用。",
-      "noAgentsTip": "提示：你也可以直接在对话中让 Agent 创建定时任务。",
       "noTasks": "暂无定时任务。点击「+ 添加」为某个 Agent 创建任务。",
       "selectTask": "选择一个任务以查看详情",
       "title": "定时任务"
@@ -4849,50 +4593,6 @@
     },
     "title": "设置",
     "tool": {
-      "ocr": {
-        "common": {
-          "langs": "支持的语言"
-        },
-        "error": {
-          "not_system": "系统 OCR 仅支持 Windows 与 MacOS"
-        },
-        "image": {
-          "error": {
-            "provider_not_found": "该提供商不存在"
-          },
-          "system": {
-            "no_need_configure": "MacOS 无需配置"
-          },
-          "title": "图片"
-        },
-        "image_provider": "OCR 服务提供商",
-        "paddleocr": {
-          "aistudio_access_token": "星河社区访问令牌",
-          "api_url": "API URL",
-          "api_url_label": "获取访问令牌及API URL"
-        },
-        "system": {
-          "win": {
-            "langs_tooltip": "依赖 Windows 提供服务，您需要在系统中下载语言包来支持相关语言。"
-          }
-        },
-        "tesseract": {
-          "langs_tooltip": "阅读文档以了解哪些自定义语言是受支持的"
-        },
-        "title": "OCR 服务"
-      },
-      "preprocess": {
-        "paddleocr": {
-          "aistudio_access_token": "星河社区访问令牌",
-          "api_url": "API URL",
-          "api_url_label": "获取访问令牌及API URL",
-          "paddleocr_url_label": "PaddleOCR 官网"
-        },
-        "provider": "文档处理服务商",
-        "provider_placeholder": "选择一个文档处理服务商",
-        "title": "文档处理",
-        "tooltip": "在设置 -> 工具中设置文档处理服务商，文档处理可以有效提升复杂格式文档与扫描版文档的检索效果"
-      },
       "websearch": {
         "api_key_required": {
           "ok": "去配置"
@@ -4980,13 +4680,10 @@
           },
           "update": "更新失败",
           "value": {
-            "empty": "语言名不能为空",
-            "too_long": "语言名过长"
+            "empty": "语言名不能为空"
           }
         },
         "langCode": {
-          "help": "[语言+区域]的格式，[2~3位小写字母]-[2~3位小写字母]",
-          "label": "语言代码",
           "placeholder": "zh-cn"
         },
         "success": {
@@ -4994,14 +4691,7 @@
           "delete": "删除成功",
           "update": "更新成功"
         },
-        "table": {
-          "action": {
-            "title": "操作"
-          }
-        },
         "value": {
-          "help": "1~32个字符",
-          "label": "语言名称",
           "placeholder": "中文"
         }
       },
@@ -5010,8 +4700,7 @@
     },
     "tray": {
       "onclose": "关闭时最小化到托盘",
-      "show": "显示托盘图标",
-      "title": "托盘"
+      "show": "显示托盘图标"
     },
     "use_system_title_bar": {
       "confirm": {
@@ -5026,7 +4715,6 @@
   },
   "tab": {
     "close": "关闭标签页",
-    "moveToFirst": "移到最左侧",
     "new": "新标签页",
     "pin": "固定标签页",
     "unpin": "取消固定"
@@ -5109,15 +4797,12 @@
       "chat_qwen_mt": "Qwen MT 模型不可在对话中使用，请转至翻译页面",
       "detect": {
         "qwen_mt": "QwenMT模型不能用于语言检测",
-        "unknown": "检测到未知语言",
-        "update_setting": "设置失败"
+        "unknown": "检测到未知语言"
       },
       "empty": "翻译结果为空内容",
       "failed": "翻译失败",
-      "invalid_source": "无效的源语言",
       "not_configured": "翻译模型未配置",
-      "not_supported": "不支持的语言 {{language}}",
-      "unknown": "翻译过程中遇到未知错误"
+      "not_supported": "不支持的语言 {{language}}"
     },
     "exchange": {
       "label": "交换源语言与目标语言"
@@ -5140,9 +4825,6 @@
       "error": {
         "delete": "删除失败",
         "save": "保存翻译历史失败"
-      },
-      "search": {
-        "placeholder": "搜索翻译历史"
       },
       "title": "翻译历史"
     },
@@ -5174,10 +4856,7 @@
       "title": "翻译设置"
     },
     "stop": "停止翻译",
-    "title": "翻译",
-    "tooltip": {
-      "newline": "换行"
-    }
+    "title": "翻译"
   },
   "tray": {
     "quit": "退出",
