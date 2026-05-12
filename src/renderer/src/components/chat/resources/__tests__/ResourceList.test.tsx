@@ -303,6 +303,77 @@ describe('ResourceList', () => {
     )
   })
 
+  it('limits each group to the default visible count and loads the next batch independently', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items = Array.from({ length: 12 }, (_, index) => ({
+      id: `item-${index + 1}`,
+      name: `Item ${index + 1}`,
+      kind: 'session' as const,
+      updatedAt: index
+    }))
+
+    render(
+      <Provider items={items} groupBy={() => ({ id: 'group', label: 'Group' })} groupShowMoreLabel="Show more">
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByText('Item 5')).toBeInTheDocument()
+    expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+    expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 7 }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+
+    expect(screen.getByText('Item 10')).toBeInTheDocument()
+    expect(screen.queryByText('Item 11')).not.toBeInTheDocument()
+    expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 12 }))
+  })
+
+  it('collapses grouped rows without losing group counts', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items = Array.from({ length: 6 }, (_, index) => ({
+      id: `topic-${index + 1}`,
+      name: `Topic ${index + 1}`,
+      kind: 'topic' as const,
+      updatedAt: index
+    }))
+
+    render(
+      <Provider items={items} groupBy={() => ({ id: 'topics', label: 'Topics' })} groupShowMoreLabel="Show more">
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Topics' }))
+
+    expect(screen.getByText('6')).toBeInTheDocument()
+    expect(screen.queryByText('Topic 1')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
+    expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 1 }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Topics' }))
+
+    expect(screen.getByText('Topic 1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+  })
+
   it('provides shared header, search, and item presentation parts', () => {
     const Provider = ResourceList.Provider<TestItem>
 

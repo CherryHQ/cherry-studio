@@ -43,7 +43,8 @@ export type ResourceListState = {
   selectedId: string | null
   hoveredId: string | null
   renamingId: string | null
-  expandedGroups: string[]
+  collapsedGroups: string[]
+  groupVisibleCounts: Record<string, number>
   draggingId: string | null
   status: ResourceListStatus
 }
@@ -59,6 +60,8 @@ export type ResourceListActionMap = {
   commitRename: (id: string, name: string) => void
   cancelRename: () => void
   openContextMenu: (id: string) => void
+  showMoreInGroup: (groupId: string) => void
+  toggleGroup: (groupId: string) => void
   reorder: (payload: ResourceListReorderPayload) => void
 }
 
@@ -70,15 +73,24 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]
   estimateItemSize: (index: number) => number
+  defaultGroupVisibleCount: number
+  groupLoadStep: number
+  groupShowMoreLabel?: string
 }
 
 export type ResourceListViewGroup<T extends ResourceListItemBase> = {
   group: ResourceListGroup
+  allItems: T[]
   items: T[]
+  totalCount: number
+  visibleCount: number
+  hasMore: boolean
+  collapsed: boolean
 }
 
 export type ResourceListView<T extends ResourceListItemBase> = {
   items: T[]
+  visibleItems: T[]
   groups: ResourceListViewGroup<T>[]
 }
 
