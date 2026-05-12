@@ -35,6 +35,32 @@ const logger = loggerService.withContext('DataApi:ProviderService')
 
 type NewUserProviderInput = Omit<NewUserProvider, 'orderKey'>
 
+function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
+  const key = entry.key.trim()
+  if (!key) {
+    throw DataApiErrorFactory.validation({ key: ['API key cannot be empty'] })
+  }
+
+  return {
+    id: entry.id,
+    key,
+    ...(entry.label ? { label: entry.label } : {}),
+    isEnabled: entry.isEnabled
+  }
+}
+
+function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
+  const seenKeys = new Set<string>()
+  return apiKeys.map((entry) => {
+    const normalized = normalizeApiKeyEntry(entry)
+    if (seenKeys.has(normalized.key)) {
+      throw DataApiErrorFactory.conflict('API key already exists', 'API key')
+    }
+    seenKeys.add(normalized.key)
+    return normalized
+  })
+}
+
 /**
  * Convert database row to Provider entity
  */
@@ -80,6 +106,32 @@ function rowToRuntimeProvider(row: UserProvider): Provider {
 }
 
 class ProviderService {
+  private apiKeyMutationQueues = new Map<string, Promise<void>>()
+
+  private async runApiKeyMutation<T>(providerId: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.apiKeyMutationQueues.get(providerId) ?? Promise.resolve()
+    let release!: () => void
+    const current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const queued = previous.then(
+      () => current,
+      () => current
+    )
+
+    this.apiKeyMutationQueues.set(providerId, queued)
+
+    try {
+      await previous.catch(() => undefined)
+      return await operation()
+    } finally {
+      release()
+      if (this.apiKeyMutationQueues.get(providerId) === queued) {
+        this.apiKeyMutationQueues.delete(providerId)
+      }
+    }
+  }
+
   private rethrowOrderError(error: unknown): never {
     if (
       error instanceof DataApiError &&
@@ -299,59 +351,79 @@ class ProviderService {
    * Returns the updated Provider.
    */
   async addApiKey(providerId: string, key: string, label?: string): Promise<Provider> {
-    const db = application.get('DbService').getDb()
-    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+    const { provider, added } = await this.runApiKeyMutation(providerId, async () => {
+      const db = application.get('DbService').getDb()
+      return await db.transaction(async (tx) => {
+        const [row] = await tx
+          .select()
+          .from(userProviderTable)
+          .where(eq(userProviderTable.providerId, providerId))
+          .limit(1)
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
+        if (!row) {
+          throw DataApiErrorFactory.notFound('Provider', providerId)
+        }
 
-    const existingKeys = row.apiKeys ?? []
+        const existingKeys = row.apiKeys ?? []
 
-    // Skip if key value already exists
-    if (existingKeys.some((k) => k.key === key)) {
+        // Skip if key value already exists
+        if (existingKeys.some((k) => k.key === key)) {
+          return { provider: rowToRuntimeProvider(row), added: false }
+        }
+
+        const newEntry = {
+          id: uuidv4(),
+          key,
+          ...(label ? { label } : {}),
+          isEnabled: true
+        }
+
+        const updatedKeys = [...existingKeys, newEntry]
+
+        const [updated] = await tx
+          .update(userProviderTable)
+          .set({ apiKeys: updatedKeys })
+          .where(eq(userProviderTable.providerId, providerId))
+          .returning()
+
+        return { provider: rowToRuntimeProvider(updated), added: true }
+      })
+    })
+
+    if (added) {
+      logger.info('Added API key to provider', { providerId })
+    } else {
       logger.info('API key already exists, skipping', { providerId })
-      return rowToRuntimeProvider(row)
     }
 
-    const newEntry = {
-      id: uuidv4(),
-      key,
-      ...(label ? { label } : {}),
-      isEnabled: true
-    }
-
-    const updatedKeys = [...existingKeys, newEntry]
-
-    const [updated] = await db
-      .update(userProviderTable)
-      .set({ apiKeys: updatedKeys })
-      .where(eq(userProviderTable.providerId, providerId))
-      .returning()
-
-    logger.info('Added API key to provider', { providerId })
-
-    return rowToRuntimeProvider(updated)
+    return provider
   }
 
   /**
    * Replace the full API key list via the dedicated API-key resource.
    */
   async replaceApiKeys(providerId: string, apiKeys: ApiKeyEntry[]): Promise<Provider> {
-    const db = application.get('DbService').getDb()
-    const [row] = await db
-      .update(userProviderTable)
-      .set({ apiKeys })
-      .where(eq(userProviderTable.providerId, providerId))
-      .returning()
+    const normalizedApiKeys = normalizeApiKeyEntries(apiKeys)
+    const provider = await this.runApiKeyMutation(providerId, async () => {
+      const db = application.get('DbService').getDb()
+      return await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(userProviderTable)
+          .set({ apiKeys: normalizedApiKeys })
+          .where(eq(userProviderTable.providerId, providerId))
+          .returning()
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
+        if (!row) {
+          throw DataApiErrorFactory.notFound('Provider', providerId)
+        }
 
-    logger.info('Replaced provider API keys', { providerId, count: apiKeys.length })
+        return rowToRuntimeProvider(row)
+      })
+    })
 
-    return rowToRuntimeProvider(row)
+    logger.info('Replaced provider API keys', { providerId, count: normalizedApiKeys.length })
+
+    return provider
   }
 
   /**
@@ -366,89 +438,109 @@ class ProviderService {
       isEnabled?: boolean
     }
   ): Promise<Provider> {
-    const db = application.get('DbService').getDb()
-    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+    const provider = await this.runApiKeyMutation(providerId, async () => {
+      const db = application.get('DbService').getDb()
+      return await db.transaction(async (tx) => {
+        const [row] = await tx
+          .select()
+          .from(userProviderTable)
+          .where(eq(userProviderTable.providerId, providerId))
+          .limit(1)
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
-
-    const existingKeys = row.apiKeys ?? []
-    const keyIndex = existingKeys.findIndex((entry) => entry.id === keyId)
-
-    if (keyIndex === -1) {
-      throw DataApiErrorFactory.notFound('API key', keyId)
-    }
-
-    const nextKeyValue = updates.key?.trim()
-    if (updates.key !== undefined && !nextKeyValue) {
-      throw DataApiErrorFactory.validation({ key: ['API key cannot be empty'] })
-    }
-
-    if (nextKeyValue && existingKeys.some((entry, index) => index !== keyIndex && entry.key === nextKeyValue)) {
-      throw DataApiErrorFactory.conflict('API key already exists', 'API key')
-    }
-
-    const updatedKeys = existingKeys.map((entry, index) => {
-      if (index !== keyIndex) {
-        return entry
-      }
-
-      const updatedEntry = {
-        ...entry,
-        ...(updates.isEnabled !== undefined ? { isEnabled: updates.isEnabled } : {}),
-        ...(nextKeyValue ? { key: nextKeyValue } : {})
-      }
-
-      if (updates.label !== undefined) {
-        if (updates.label) {
-          updatedEntry.label = updates.label
-        } else {
-          delete updatedEntry.label
+        if (!row) {
+          throw DataApiErrorFactory.notFound('Provider', providerId)
         }
-      }
 
-      return updatedEntry
+        const existingKeys = row.apiKeys ?? []
+        const keyIndex = existingKeys.findIndex((entry) => entry.id === keyId)
+
+        if (keyIndex === -1) {
+          throw DataApiErrorFactory.notFound('API key', keyId)
+        }
+
+        const nextKeyValue = updates.key?.trim()
+        if (updates.key !== undefined && !nextKeyValue) {
+          throw DataApiErrorFactory.validation({ key: ['API key cannot be empty'] })
+        }
+
+        if (nextKeyValue && existingKeys.some((entry, index) => index !== keyIndex && entry.key === nextKeyValue)) {
+          throw DataApiErrorFactory.conflict('API key already exists', 'API key')
+        }
+
+        const updatedKeys = existingKeys.map((entry, index) => {
+          if (index !== keyIndex) {
+            return entry
+          }
+
+          const updatedEntry = {
+            ...entry,
+            ...(updates.isEnabled !== undefined ? { isEnabled: updates.isEnabled } : {}),
+            ...(nextKeyValue ? { key: nextKeyValue } : {})
+          }
+
+          if (updates.label !== undefined) {
+            if (updates.label) {
+              updatedEntry.label = updates.label
+            } else {
+              delete updatedEntry.label
+            }
+          }
+
+          return updatedEntry
+        })
+
+        const [updated] = await tx
+          .update(userProviderTable)
+          .set({ apiKeys: updatedKeys })
+          .where(eq(userProviderTable.providerId, providerId))
+          .returning()
+
+        return rowToRuntimeProvider(updated)
+      })
     })
-
-    const [updated] = await db
-      .update(userProviderTable)
-      .set({ apiKeys: updatedKeys })
-      .where(eq(userProviderTable.providerId, providerId))
-      .returning()
 
     logger.info('Updated API key', { providerId, keyId, changes: Object.keys(updates) })
 
-    return rowToRuntimeProvider(updated)
+    return provider
   }
 
   /**
    * Delete an API key by key ID and return updated provider.
    */
   async deleteApiKey(providerId: string, keyId: string): Promise<Provider> {
-    const db = application.get('DbService').getDb()
-    const [row] = await db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1)
+    const provider = await this.runApiKeyMutation(providerId, async () => {
+      const db = application.get('DbService').getDb()
+      return await db.transaction(async (tx) => {
+        const [row] = await tx
+          .select()
+          .from(userProviderTable)
+          .where(eq(userProviderTable.providerId, providerId))
+          .limit(1)
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
+        if (!row) {
+          throw DataApiErrorFactory.notFound('Provider', providerId)
+        }
 
-    const existingKeys = row.apiKeys ?? []
-    const updatedKeys = existingKeys.filter((entry) => entry.id !== keyId)
+        const existingKeys = row.apiKeys ?? []
+        const updatedKeys = existingKeys.filter((entry) => entry.id !== keyId)
 
-    if (updatedKeys.length === existingKeys.length) {
-      throw DataApiErrorFactory.notFound('API key', keyId)
-    }
+        if (updatedKeys.length === existingKeys.length) {
+          throw DataApiErrorFactory.notFound('API key', keyId)
+        }
 
-    const [updated] = await db
-      .update(userProviderTable)
-      .set({ apiKeys: updatedKeys })
-      .where(eq(userProviderTable.providerId, providerId))
-      .returning()
+        const [updated] = await tx
+          .update(userProviderTable)
+          .set({ apiKeys: updatedKeys })
+          .where(eq(userProviderTable.providerId, providerId))
+          .returning()
+
+        return rowToRuntimeProvider(updated)
+      })
+    })
 
     logger.info('Deleted API key from provider', { providerId, keyId })
 
-    return rowToRuntimeProvider(updated)
+    return provider
   }
 
   /**

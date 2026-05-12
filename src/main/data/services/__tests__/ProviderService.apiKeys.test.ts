@@ -54,6 +54,19 @@ describe('ProviderService API keys', () => {
     expect(keys.filter((entry) => entry.key === 'sk-new')).toHaveLength(1)
   })
 
+  it('preserves all API keys added by concurrent calls', async () => {
+    await seedProvider()
+
+    await Promise.all([
+      providerService.addApiKey('openai', 'sk-oauth-a', 'OAuth'),
+      providerService.addApiKey('openai', 'sk-oauth-b', 'OAuth'),
+      providerService.addApiKey('openai', 'sk-oauth-c', 'OAuth')
+    ])
+
+    const keys = await readApiKeys()
+    expect(keys.map((entry) => entry.key)).toEqual(['sk-a', 'sk-b', 'sk-c', 'sk-oauth-a', 'sk-oauth-b', 'sk-oauth-c'])
+  })
+
   it('merges preset description and websites into the runtime provider read', async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai-work',
@@ -99,6 +112,19 @@ describe('ProviderService API keys', () => {
     })
   })
 
+  it('preserves independent fields changed by concurrent API key updates', async () => {
+    await seedProvider()
+
+    await Promise.all([
+      providerService.updateApiKey('openai', 'key-a', { label: 'Updated A' }),
+      providerService.updateApiKey('openai', 'key-b', { isEnabled: false })
+    ])
+
+    const keys = await readApiKeys()
+    expect(keys.find((entry) => entry.id === 'key-a')).toMatchObject({ label: 'Updated A', isEnabled: true })
+    expect(keys.find((entry) => entry.id === 'key-b')).toMatchObject({ label: 'B', isEnabled: false })
+  })
+
   it('deletes API keys by id and persists the updated list', async () => {
     await seedProvider()
 
@@ -107,6 +133,18 @@ describe('ProviderService API keys', () => {
     expect(updated.apiKeys.map((entry) => entry.id)).toEqual(['key-a', 'key-c'])
     const storedKeys = await readApiKeys()
     expect(storedKeys.map((entry) => entry.id)).toEqual(['key-a', 'key-c'])
+  })
+
+  it('applies concurrent API key deletes without restoring removed entries', async () => {
+    await seedProvider()
+
+    await Promise.all([
+      providerService.deleteApiKey('openai', 'key-a'),
+      providerService.deleteApiKey('openai', 'key-b')
+    ])
+
+    const keys = await readApiKeys()
+    expect(keys.map((entry) => entry.id)).toEqual(['key-c'])
   })
 
   it('allows deleting the last API key', async () => {
@@ -136,7 +174,7 @@ describe('ProviderService API keys', () => {
     await seedProvider()
 
     const replacement = [
-      { id: 'key-new', key: 'sk-new', label: 'New label', isEnabled: true },
+      { id: 'key-new', key: ' sk-new ', label: 'New label', isEnabled: true },
       { id: 'key-disabled', key: 'sk-disabled', isEnabled: false }
     ]
     const updated = await providerService.replaceApiKeys('openai', replacement)
@@ -147,6 +185,34 @@ describe('ProviderService API keys', () => {
       { id: 'key-disabled', isEnabled: false }
     ])
     const storedKeys = await readApiKeys()
-    expect(storedKeys).toEqual(replacement)
+    expect(storedKeys).toEqual([
+      { id: 'key-new', key: 'sk-new', label: 'New label', isEnabled: true },
+      { id: 'key-disabled', key: 'sk-disabled', isEnabled: false }
+    ])
+  })
+
+  it('rejects invalid replacement API key entries before persisting', async () => {
+    await seedProvider()
+
+    await expect(
+      providerService.replaceApiKeys('openai', [{ id: 'key-empty', key: '   ', isEnabled: true }])
+    ).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR
+    })
+
+    await expect(
+      providerService.replaceApiKeys('openai', [
+        { id: 'key-a', key: 'sk-duplicate', isEnabled: true },
+        { id: 'key-b', key: ' sk-duplicate ', isEnabled: false }
+      ])
+    ).rejects.toMatchObject({
+      code: ErrorCode.CONFLICT
+    })
+
+    expect(await readApiKeys()).toEqual([
+      { id: 'key-a', key: 'sk-a', label: 'A', isEnabled: true },
+      { id: 'key-b', key: 'sk-b', label: 'B', isEnabled: true },
+      { id: 'key-c', key: 'sk-c', label: 'C', isEnabled: false }
+    ])
   })
 })
