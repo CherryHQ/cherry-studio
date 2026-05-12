@@ -3,18 +3,21 @@ import {
   isGemini3Model,
   isGeminiModel,
   isGPT5SeriesReasoningModel,
-  isOpenAIWebSearchModel
+  isOpenAIWebSearchModel,
+  isWebSearchModel
 } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
-import { getWebSearchProviderLogo, webSearchProviderRequiresApiKey } from '@renderer/config/webSearchProviders'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useDefaultWebSearchProvider, useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
+import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
+import { getWebSearchProviderLogo } from '@renderer/pages/settings/WebSearchSettings/utils/webSearchProviderMeta'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
+import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import { checkWebSearchAvailability } from '@shared/data/utils/webSearchPreferences'
+import { useNavigate } from '@tanstack/react-router'
 import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
 import type { FC } from 'react'
@@ -25,24 +28,36 @@ interface Props {
   assistantId: string
 }
 
+// Mirrors WebSearchProviderSetting.tsx: api-type providers (except fetch /
+// searxng / exa-mcp) authenticate via API key. searxng uses basic auth and
+// fetch / exa-mcp need neither.
+const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean =>
+  id !== 'fetch' && id !== 'searxng' && id !== 'exa-mcp'
+
 const WebSearchButton: FC<Props> = ({ assistantId }) => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const { setTimeoutTimer } = useTimer()
-  const { provider: defaultProvider } = useDefaultWebSearchProvider()
-  const { providers } = useWebSearchProviders()
+  const { defaultSearchKeywordsProvider } = useWebSearchProviders()
   const v1Model = useMemo(() => (model ? fromSharedModel(model) : undefined), [model])
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
+  const hasBuiltinWebSearch = v1Model ? isWebSearchModel(v1Model) : false
 
   const activeProviderId = useMemo(() => {
-    if (defaultProvider && checkWebSearchAvailability(defaultProvider, webSearchProviderRequiresApiKey)) {
-      return defaultProvider.id
+    if (
+      defaultSearchKeywordsProvider &&
+      checkWebSearchAvailability(defaultSearchKeywordsProvider, webSearchProviderRequiresApiKey)
+    ) {
+      return defaultSearchKeywordsProvider.id
     }
-    return providers.find((p) => checkWebSearchAvailability(p, webSearchProviderRequiresApiKey))?.id
-  }, [defaultProvider, providers])
+    return undefined
+  }, [defaultSearchKeywordsProvider])
 
-  const providerLogo = activeProviderId ? getWebSearchProviderLogo(activeProviderId) : undefined
+  // When the model has built-in web search, the toggle just flips the
+  // assistant flag — no external provider is invoked, so don't show its logo.
+  const providerLogo = !hasBuiltinWebSearch && activeProviderId ? getWebSearchProviderLogo(activeProviderId) : undefined
 
   const onClick = useCallback(() => {
     if (!assistant || !v1Model) {
@@ -51,6 +66,18 @@ const WebSearchButton: FC<Props> = ({ assistantId }) => {
     }
     if (enableWebSearch) {
       void updateAssistant({ settings: { enableWebSearch: false } })
+      return
+    }
+
+    // Built-in web search bypasses the external-provider requirement; the
+    // toggle simply flips the assistant flag and the model handles search.
+    if (!hasBuiltinWebSearch && !activeProviderId) {
+      window.modal.confirm({
+        centered: true,
+        title: t('settings.tool.websearch.search_provider'),
+        content: t('settings.tool.websearch.search_provider_placeholder'),
+        onOk: () => navigate({ to: '/settings/websearch' })
+      })
       return
     }
 
@@ -79,7 +106,17 @@ const WebSearchButton: FC<Props> = ({ assistantId }) => {
     }
 
     setTimeoutTimer('enableWebSearch', () => updateAssistant({ settings: { enableWebSearch: true } }), 0)
-  }, [assistant, enableWebSearch, setTimeoutTimer, t, updateAssistant, v1Model])
+  }, [
+    activeProviderId,
+    assistant,
+    enableWebSearch,
+    hasBuiltinWebSearch,
+    navigate,
+    setTimeoutTimer,
+    t,
+    updateAssistant,
+    v1Model
+  ])
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
 

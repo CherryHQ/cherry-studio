@@ -11,7 +11,7 @@ import type {
   WebSearchProviderOverride,
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
-import { findWebSearchCapability, PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
+import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 
 export type WebSearchAvailability = boolean | 'unknown'
@@ -21,11 +21,8 @@ export const WEB_SEARCH_PREFERENCE_KEYS = {
   excludeDomains: 'chat.web_search.exclude_domains',
   maxResults: 'chat.web_search.max_results',
   providerOverrides: 'chat.web_search.provider_overrides',
-  searchWithTime: 'chat.web_search.search_with_time',
-  subscribeSources: 'chat.web_search.subscribe_sources',
   compressionMethod: 'chat.web_search.compression.method',
-  cutoffLimit: 'chat.web_search.compression.cutoff_limit',
-  cutoffUnit: 'chat.web_search.compression.cutoff_unit'
+  cutoffLimit: 'chat.web_search.compression.cutoff_limit'
 } as const
 
 export type WebSearchPreferenceKeyAlias = keyof typeof WEB_SEARCH_PREFERENCE_KEYS
@@ -121,7 +118,7 @@ export function buildWebSearchProviderOverrides(providers: ResolvedWebSearchProv
     const preset = PRESETS_WEB_SEARCH_PROVIDERS.find((p) => p.id === provider.id)
     const capabilityOverrides: WebSearchProviderOverride['capabilities'] = {}
     for (const cap of provider.capabilities) {
-      const presetHost = preset ? (findWebSearchCapability(preset, cap.feature)?.apiHost?.trim() ?? '') : ''
+      const presetHost = preset?.capabilities.find((item) => item.feature === cap.feature)?.apiHost?.trim() ?? ''
       const currentHost = cap.apiHost?.trim() ?? ''
       if (currentHost !== presetHost) {
         capabilityOverrides[cap.feature] = { apiHost: currentHost }

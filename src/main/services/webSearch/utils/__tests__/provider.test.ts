@@ -1,9 +1,9 @@
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it } from 'vitest'
 
 import { ApiKeyRotationState, resolveProviderApiHost } from '../provider'
 
-function createProvider(overrides: Partial<ResolvedWebSearchProvider>): ResolvedWebSearchProvider {
+function createProvider(overrides: Partial<WebSearchProvider>): WebSearchProvider {
   return {
     id: 'tavily',
     name: 'Tavily',

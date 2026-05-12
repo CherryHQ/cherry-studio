@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-05-11T09:27:10.809Z
+ * Generated at: 2026-05-11T09:55:37.835Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -723,20 +723,12 @@ export const REDUX_STORE_MAPPINGS = {
   ],
   websearch: [
     {
-      originalKey: 'searchWithTime',
-      targetKey: 'chat.web_search.search_with_time'
-    },
-    {
       originalKey: 'maxResults',
       targetKey: 'chat.web_search.max_results'
     },
     {
       originalKey: 'excludeDomains',
       targetKey: 'chat.web_search.exclude_domains'
-    },
-    {
-      originalKey: 'subscribeSources',
-      targetKey: 'chat.web_search.subscribe_sources'
     }
   ],
   ocr: [

@@ -948,6 +948,10 @@
         },
         "file_filter": "JSON 檔案",
         "select_file": "選擇檔案",
+        "subscribe": {
+          "title": "助手訂閱",
+          "url_placeholder": "訂閱網址"
+        },
         "title": "從外部匯入",
         "type": {
           "file": "檔案",
@@ -6662,6 +6666,7 @@
         "apikey": "API 金鑰",
         "blacklist": "黑名單",
         "blacklist_description": "以下網站不會出現在搜尋結果中",
+        "blacklist_invalid_entries": "以下黑名單項目無效：{{entries}}",
         "blacklist_tooltip": "請使用以下格式 (換行符號分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "檢查",
         "check_failed": "驗證失敗",
@@ -6687,7 +6692,12 @@
         },
         "content_limit": "內容長度限制",
         "content_limit_tooltip": "限制搜尋結果的內容長度；超過限制的內容將被截斷。",
-        "default_provider": "預設搜尋引擎",
+        "default_provider": "預設搜尋供應商",
+        "errors": {
+          "save_failed": "儲存失敗",
+          "zhipu_sync_failed": "智譜 API 金鑰同步到 Web Search 失敗，請重新儲存金鑰或檢查 Web Search 設定。"
+        },
+        "fetch_urls_provider": "預設 URL 擷取供應商",
         "free": "免費",
         "is_default": "預設",
         "local_provider": {
@@ -6699,27 +6709,24 @@
         "no_provider_selected": "請選擇搜尋供應商後再檢查",
         "overwrite": "覆蓋搜尋服務",
         "overwrite_tooltip": "強制使用搜尋服務而不是 LLM",
+        "provider_description": {
+          "bocha": "面向 AI 場景的中文搜尋 API，提供即時網頁與結構化結果。",
+          "exa": "為 AI 應用設計的神經搜尋 API，擅長語意檢索高品質網頁。",
+          "exa_mcp": "透過 Exa MCP Server 將 Exa 搜尋能力暴露給智能體工具呼叫。",
+          "fetch": "內建 URL 擷取供應商，用於從指定 URL 擷取網頁內容，適合補全搜尋結果正文。",
+          "jina": "Jina Reader 搜尋與閱讀介面，用於檢索並提取網頁正文。",
+          "querit": "面向 AI 應用的搜尋服務，提供可接入的網頁檢索結果。",
+          "searxng": "可自架的免費網際網路元搜尋引擎，聚合多個搜尋來源。",
+          "tavily": "專為 LLM 優化的搜尋引擎。",
+          "zhipu": "智譜 GLM Web Search，提供聯網搜尋與即時資訊檢索。"
+        },
         "search_max_result": {
           "label": "搜尋結果個數",
           "tooltip": "未開啟搜尋結果壓縮的情況下，數量過大可能會消耗過多 tokens"
         },
         "search_provider": "搜尋供應商",
         "search_provider_placeholder": "選擇一個搜尋供應商",
-        "search_with_time": "搜尋包含日期",
         "set_as_default": "設為預設",
-        "subscribe": "黑名單訂閱",
-        "subscribe_add": "新增訂閱",
-        "subscribe_add_failed": "訂閱來源新增失敗",
-        "subscribe_add_success": "訂閱來源新增成功！",
-        "subscribe_delete": "刪除",
-        "subscribe_name": {
-          "label": "替代名稱",
-          "placeholder": "下載的訂閱來源沒有名稱時使用的替代名稱。"
-        },
-        "subscribe_update": "更新",
-        "subscribe_update_failed": "訂閱來源更新失敗",
-        "subscribe_update_success": "訂閱來源更新成功",
-        "subscribe_url": "訂閱網址",
         "tavily": {
           "api_key": {
             "label": "Tavily API 金鑰",

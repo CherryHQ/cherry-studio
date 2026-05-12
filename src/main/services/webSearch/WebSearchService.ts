@@ -2,9 +2,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { TraceMethod } from '@mcp-trace/trace-core'
-import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
+import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type {
-  ResolvedWebSearchProvider,
   WebSearchCheckProviderRequest,
   WebSearchCheckProviderResponse,
   WebSearchExecutionConfig,
@@ -26,7 +25,7 @@ import { ApiKeyRotationState } from './utils/provider'
 const logger = loggerService.withContext('MainWebSearchService')
 
 type RunCapabilityRequest = {
-  providerId?: ResolvedWebSearchProvider['id']
+  providerId?: WebSearchProvider['id']
   capability: WebSearchCapability
   inputs: string[]
 }
@@ -34,7 +33,7 @@ type RunCapabilityRequest = {
 type PreparedWebSearchContext = {
   inputs: string[]
   runtimeConfig: WebSearchExecutionConfig
-  provider: ResolvedWebSearchProvider
+  provider: WebSearchProvider
   providerDriver: WebSearchProviderDriver
   capability: WebSearchCapability
 }

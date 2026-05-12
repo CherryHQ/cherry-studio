@@ -948,6 +948,10 @@
         },
         "file_filter": "JSON Files",
         "select_file": "Select File",
+        "subscribe": {
+          "title": "Agent Subscription",
+          "url_placeholder": "Subscription URL"
+        },
         "title": "Import from External",
         "type": {
           "file": "File",
@@ -6662,6 +6666,7 @@
         "apikey": "API key",
         "blacklist": "Blacklist",
         "blacklist_description": "Results from the following websites will not appear in search results",
+        "blacklist_invalid_entries": "Invalid blacklist entries: {{entries}}",
         "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
         "check": "Check",
         "check_failed": "Verification failed",
@@ -6688,6 +6693,11 @@
         "content_limit": "Content length limit",
         "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
         "default_provider": "Default Provider",
+        "errors": {
+          "save_failed": "Save failed",
+          "zhipu_sync_failed": "Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
+        },
+        "fetch_urls_provider": "Default URL fetch provider",
         "free": "Free",
         "is_default": "Default",
         "local_provider": {
@@ -6699,27 +6709,24 @@
         "no_provider_selected": "Please select a search service provider before checking.",
         "overwrite": "Override search service",
         "overwrite_tooltip": "Force use search service instead of LLM",
+        "provider_description": {
+          "bocha": "Chinese AI search API with real-time web and structured results.",
+          "exa": "Neural search API for AI apps, tuned for semantic web retrieval.",
+          "exa_mcp": "Expose Exa search to agents through the Exa MCP Server.",
+          "fetch": "Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
+          "jina": "Jina Reader search and read APIs for retrieving clean web content.",
+          "querit": "Search service for AI apps with web retrieval results.",
+          "searxng": "Self-hostable free internet metasearch engine across many sources.",
+          "tavily": "Search engine optimized for LLMs.",
+          "zhipu": "Zhipu GLM Web Search for live web retrieval and current information."
+        },
         "search_max_result": {
           "label": "Number of search results",
           "tooltip": "When search result compression is disabled, the number of results may be too large, which may lead to insufficient tokens"
         },
         "search_provider": "Search service provider",
         "search_provider_placeholder": "Choose a search service provider.",
-        "search_with_time": "Search with dates included",
         "set_as_default": "Set as Default",
-        "subscribe": "Blacklist Subscription",
-        "subscribe_add": "Add Subscription",
-        "subscribe_add_failed": "Failed to add feed source",
-        "subscribe_add_success": "Subscription feed added successfully!",
-        "subscribe_delete": "Delete",
-        "subscribe_name": {
-          "label": "Alternative name",
-          "placeholder": "Alternative name used when the downloaded subscription feed has no name."
-        },
-        "subscribe_update": "Update",
-        "subscribe_update_failed": "Subscription source update failed",
-        "subscribe_update_success": "Subscription source updated successfully",
-        "subscribe_url": "Subscription Url",
         "tavily": {
           "api_key": {
             "label": "Tavily API Key",

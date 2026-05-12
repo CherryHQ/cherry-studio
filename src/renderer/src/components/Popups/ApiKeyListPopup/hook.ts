@@ -6,7 +6,6 @@ import type { ApiKeyConnectivity, ApiKeyWithStatus } from '@renderer/types/healt
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,20 +37,13 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
     [updateProvider]
   )
 
-  // 解析 keyString 为数组. Wrap the join in useMemo so identity is stable
-  // across renders for web-search providers — otherwise the downstream
-  // `keys` memo's dep `providerKeyString` would be a fresh string every
-  // render and the memo would never short-circuit.
-  const providerKeyString = useMemo(
-    () => (isWebSearchProvider(provider) ? provider.apiKeys.join(',') : provider.apiKey),
-    [provider]
-  )
+  // 解析 keyString 为数组.
   const keys = useMemo(() => {
-    if (!providerKeyString) return []
-    const formattedApiKeys = formatApiKeys(providerKeyString)
+    if (!provider.apiKey) return []
+    const formattedApiKeys = formatApiKeys(provider.apiKey)
     const keys = splitApiKeyString(formattedApiKeys)
     return Array.from(new Set(keys))
-  }, [providerKeyString])
+  }, [provider.apiKey])
 
   // 合并基本数据和连通性状态
   const keysWithStatus = useMemo((): ApiKeyWithStatus[] => {
@@ -205,15 +197,8 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
         const startTime = Date.now()
         if (isLlmProvider(provider) && model) {
           await checkApi({ ...provider, apiKey: keyToCheck }, model)
-        } else if (isWebSearchProvider(provider)) {
-          const result = await window.api.webSearch.checkProvider({
-            provider: { ...provider, apiKeys: [keyToCheck] }
-          })
-          if (!result.valid) {
-            throw new Error(result.error ?? 'check failed')
-          }
         } else {
-          // 不处理预处理供应商
+          // 不处理预处理供应商\\
         }
         const latency = Date.now() - startTime
 
@@ -283,10 +268,6 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
 
 export function isLlmProvider(provider: ApiProvider): provider is Provider {
   return 'models' in provider
-}
-
-export function isWebSearchProvider(provider: ApiProvider): provider is ResolvedWebSearchProvider {
-  return 'apiKeys' in provider && 'capabilities' in provider
 }
 
 export function isPreprocessProvider(provider: ApiProvider): provider is PreprocessProvider {

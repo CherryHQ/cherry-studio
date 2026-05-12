@@ -1,27 +1,24 @@
-import { InfoTooltip, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
+import { InfoTooltip, Input } from '@cherrystudio/ui'
+import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
 import { useTranslation } from 'react-i18next'
+
+import { useWebSearchPersist } from '../../hooks/useWebSearchPersist'
 
 const INPUT_BOX_WIDTH = '200px'
 
 const CutoffSettings = () => {
   const { t } = useTranslation()
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
+  const persist = useWebSearchPersist()
 
   const handleCutoffLimitChange = (value: number | null) => {
-    void updateCompressionConfig({ cutoffLimit: value || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT })
+    void persist(
+      () => updateCompressionConfig({ cutoffLimit: value || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT }),
+      'Failed to save web search cutoff limit'
+    )
   }
-
-  const handleCutoffUnitChange = (unit: 'char' | 'token') => {
-    void updateCompressionConfig({ cutoffUnit: unit })
-  }
-
-  const unitOptions = [
-    { value: 'char', label: t('settings.tool.websearch.compression.cutoff.unit.char') },
-    { value: 'token', label: t('settings.tool.websearch.compression.cutoff.unit.token') }
-  ]
 
   return (
     <SettingRow className="py-2">
@@ -39,7 +36,6 @@ const CutoffSettings = () => {
       </SettingRowTitle>
       <div className="flex" style={{ width: INPUT_BOX_WIDTH }}>
         <Input
-          className="max-w-[60%] rounded-r-none border-r-0 focus-visible:z-10"
           placeholder={t('settings.tool.websearch.compression.cutoff.limit.placeholder')}
           value={compressionConfig?.cutoffLimit === undefined ? '' : compressionConfig.cutoffLimit}
           onChange={(e) => {
@@ -51,20 +47,6 @@ const CutoffSettings = () => {
             }
           }}
         />
-        <Select
-          value={compressionConfig?.cutoffUnit || 'char'}
-          onValueChange={(value) => handleCutoffUnitChange(value as 'char' | 'token')}>
-          <SelectTrigger className="min-w-[40%] rounded-l-none">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {unitOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
     </SettingRow>
   )
