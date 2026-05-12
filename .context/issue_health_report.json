@@ -1,33 +1,33 @@
 {
-  "generated_at": "2026-05-10T00:00:00Z",
-  "report_date": "2026-05-10",
+  "generated_at": "2026-05-12T17:30:00Z",
+  "report_date": "2026-05-12",
   "repository": "CherryHQ/cherry-studio",
   "health_summary": {
-    "total_open": 839,
+    "total_open": 869,
     "health_buckets": {
       "Active": {
-        "definition": "Updated within last 7 days",
-        "count": 189,
-        "note": "From 200-issue sample (most recently updated). Likely close to actual Active count since pages 1-2 cover May 2–10."
+        "definition": "Updated within last 30 days (>2026-04-12)",
+        "count": 565,
+        "pct": 65.0
       },
       "Aging": {
-        "definition": "Updated 7–30 days ago",
-        "count": 11,
-        "note": "From 200-issue sample. Real count likely higher (remaining pages cover Apr 10 – May 2)."
+        "definition": "Updated 30–120 days ago (2026-01-12..2026-04-11)",
+        "count": 296,
+        "pct": 34.1
       },
       "Stale": {
-        "definition": "Updated 30–90 days ago",
-        "count_estimated": "~300–400",
-        "note": "Not directly counted. Issues from pages 3–7 likely fall here (updated Feb 10 – Apr 10)."
+        "definition": "Updated 120–180 days ago (2025-11-12..2026-01-11)",
+        "count": 1,
+        "pct": 0.1
       },
       "Zombie": {
-        "definition": "Updated >90 days ago (before Feb 9, 2026)",
-        "count_estimated": "~239–339",
-        "note": "Not directly counted. Oldest issues fall here."
+        "definition": "Not updated in >180 days (<2025-11-12)",
+        "count": 2,
+        "pct": 0.2
       }
     },
     "inactive_label_count": 114,
-    "inactive_label_note": "GitHub 'inactive' label applied automatically; 69 of 200 sampled issues carry it."
+    "inactive_label_note": "GitHub 'inactive' label applied automatically"
   },
   "label_health": {
     "top_open_labels_sample": [
@@ -69,17 +69,19 @@
   },
   "unlabeled": {
     "total": 79,
-    "pct_of_total": 9.4,
+    "pct_of_total": 9.1,
     "status": "OK — under 10% unlabeled"
   },
   "bug_triage": {
-    "total_open_bugs": 114,
-    "pct_of_total": 13.6,
+    "total_open_bugs": 116,
+    "pct_of_total": 13.3,
     "notable_clusters": [
       "OpenClaw version/update prompt bugs (#13727, #14122, #13655) — 3 issues, possibly same root cause",
       "MCP tool result processing (#13292)",
       "Agent oversized message context-length error (#11688)",
-      "File read regression (#12079)"
+      "File read regression (#12079)",
+      "CherryIN balance not refreshing after recharge (#15022) — NEW today",
+      "Google/CherryIN includeServerSideToolInvocations payload error (#15047) — NEW today"
     ]
   },
   "p_priority_issues": [
@@ -88,7 +90,23 @@
       "number": 14899,
       "title": "[Feature]: Unified Notification Center",
       "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "milestone": "v2.4.0",
       "updated": "2026-05-07T05:52:49Z"
+    },
+    {
+      "priority": "P1",
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": ["P1", "Models"],
+      "updated": "2026-03-19T14:22:09Z"
+    },
+    {
+      "priority": "P1",
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI Resource not found — defaults to responses API",
+      "labels": ["P1", "Models"],
+      "assignee": "DeJeune",
+      "updated": "2026-03-05T08:47:59Z"
     }
   ],
   "p2_issues_count": 4,
@@ -96,7 +114,9 @@
   "recommendations": [
     "Investigate and consolidate the 3 OpenClaw update-prompt bug reports (#13727, #14122, #13655) — likely same underlying issue",
     "Triage Agent oversized-message context-length error (#11688) — affects AI core reliability",
-    "79 unlabeled issues (9.4%) — acceptable but worth a weekly triage pass",
-    "~639 issues not in recent activity window — consider a Zombie triage initiative for issues older than 90 days"
+    "2 zombie issues (>180d no activity) — consider closing if no longer reproducible",
+    "P1 #13608 and #13193 are in closed milestones but still open — re-milestone or close",
+    "79 unlabeled issues (9.1%) — acceptable but worth a weekly triage pass",
+    "296 aging issues (30-120d) represent a significant backlog to prioritize"
   ]
 }

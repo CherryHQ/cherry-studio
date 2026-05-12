@@ -1,55 +1,98 @@
 {
-  "generated_at": "2026-05-10T00:00:00Z",
-  "report_date": "2026-05-10",
+  "generated_at": "2026-05-12T17:30:00Z",
+  "report_date": "2026-05-12",
   "repository": "CherryHQ/cherry-studio",
   "branch": "v2",
   "branch_policy": "All new features, refactoring, and optimizations. New features blocked until current feature set is fully refactored.",
   "pr_stats": {
-    "v2_open_prs": 37,
-    "v2_merged_last_30d": 39,
-    "v2_closed_total_fetched": 100,
-    "main_open_prs": 62,
-    "note": "v2_closed_total_fetched covers the 100 most recently closed v2 PRs. Actual historical total is higher."
+    "v2_open_prs": 65,
+    "v2_merged_last_30d": 46,
+    "main_open_prs": 224,
+    "draft_prs_all": 48,
+    "note": "v2 open PRs increased from 37 (2026-05-10) to 65 (2026-05-12)"
   },
+  "active_milestones": [
+    {
+      "title": "v2.4.0",
+      "number": 64,
+      "open_issues": 3,
+      "closed_issues": 0,
+      "url": "https://github.com/CherryHQ/cherry-studio/milestone/64"
+    },
+    {
+      "title": "v2.3.0",
+      "number": 68,
+      "open_issues": 10,
+      "closed_issues": 0,
+      "url": "https://github.com/CherryHQ/cherry-studio/milestone/68"
+    },
+    {
+      "title": "v1.9.6",
+      "number": 69,
+      "open_issues": 8,
+      "closed_issues": 0,
+      "url": "https://github.com/CherryHQ/cherry-studio/milestone/69",
+      "note": "main branch hotfix milestone"
+    }
+  ],
   "open_v2_prs": [
-    {"number": 14982, "title": "docs(gh-pr-review): add Cherry-specific review guidance", "author": "DeJeune", "created": "2026-05-10T16:03:25Z", "age_days": 0, "category": "docs"},
-    {"number": 14970, "title": "feat(agents): add optional PowerShell tool for Windows agent sessions", "author": "AloneAtWar", "created": "2026-05-09T19:24:41Z", "age_days": 1, "category": "feat"},
-    {"number": 14968, "title": "refactor(miniapp): migrate from antd/styled-components to Tailwind + @cherrystudio/ui", "author": "chengcheng84", "created": "2026-05-09T15:04:40Z", "age_days": 1, "category": "refactor"},
-    {"number": 14943, "title": "feat(app-shell): open chat by default", "author": "kangfenmao", "created": "2026-05-08T14:01:15Z", "age_days": 2, "category": "feat"},
-    {"number": 14911, "title": "refactor(ai-service): consolidate AI runtime to main process", "author": "DeJeune", "created": "2026-05-07T11:05:01Z", "age_days": 3, "category": "refactor"},
-    {"number": 14886, "title": "fix(mcp-service): sanitize MCP call arguments to avoid unhashable type", "author": "404-Page-Found", "created": "2026-05-07T02:11:19Z", "age_days": 3, "category": "fix"},
-    {"number": 14864, "title": "feat: pin chat session name to prevent auto-renames", "author": "LWWZH", "created": "2026-05-06T11:03:58Z", "age_days": 4, "category": "feat"},
-    {"number": 14862, "title": "chore(style-reminders): add Tailwind canonical checks", "author": "kangfenmao", "created": "2026-05-06T08:50:51Z", "age_days": 4, "category": "chore"},
-    {"number": 14858, "title": "feat(i18n): add unused key cleaner", "author": "kangfenmao", "created": "2026-05-06T07:47:03Z", "age_days": 4, "category": "feat"},
-    {"number": 14788, "title": "feat: add Duplicate Topic feature", "author": "LWWZH", "created": "2026-05-02T09:16:55Z", "age_days": 8, "category": "feat"},
-    {"number": 14760, "title": "fix(chat-layout): restore chat composer sizing and anchor messages to bottom", "author": "ousugo", "created": "2026-04-30T22:05:46Z", "age_days": 10, "category": "fix"},
-    {"number": 14734, "title": "feat(v2): knowledge ui migration", "author": "eeee0717", "created": "2026-04-30T02:27:50Z", "age_days": 10, "category": "feat"},
-    {"number": 14728, "title": "feat(provider): support Responses API endpoint for Volcengine provider", "author": "Saigut", "created": "2026-04-29T16:40:28Z", "age_days": 11, "category": "feat"},
-    {"number": 14631, "title": "Refactor provider settings with v2 data layer and UI", "author": "jidan745le", "created": "2026-04-26T16:22:56Z", "age_days": 14, "category": "refactor"},
-    {"number": 14562, "title": "fix(code-tools): improve dark mode visibility", "author": "Raymond8196", "created": "2026-04-24T10:02:33Z", "age_days": 16, "category": "fix"},
-    {"number": 14351, "title": "refactor(translate): rebuild translate page on @cherrystudio/ui", "author": "zhangjiadi225", "created": "2026-04-17T13:28:56Z", "age_days": 23, "category": "refactor"},
-    {"number": 14313, "title": "feat(data): migrate paintings to v2 data architecture", "author": "jidan745le", "created": "2026-04-16T11:44:41Z", "age_days": 24, "category": "feat", "flag": "long-running"},
-    {"number": 13451, "title": "feat(file): Add schema and foundation for new file module", "author": "EurFelux", "created": "2026-03-14T06:13:45Z", "age_days": 57, "category": "feat", "flag": "long-running"},
-    {"number": 12060, "title": "feat: context menu", "author": "DeJeune", "created": "2025-12-21T11:04:10Z", "age_days": 140, "category": "feat", "flag": "long-running"},
-    {"number": 10090, "title": "[WIP] feat: terminal", "author": "EurFelux", "created": "2025-09-10T14:38:38Z", "age_days": 242, "category": "feat", "flag": "WIP — very long-running"}
+    {"number": 15045, "title": "feat(agent): AI SDK Agent Runtime", "author": "DeJeune", "created": "2026-05-12T13:16:22Z", "age_days": 0, "draft": true, "milestone": "v2.4.0"},
+    {"number": 15026, "title": "refactor(selector): align model and resource selector styles", "author": "zhangjiadi225", "created": "2026-05-12T06:38:46Z", "age_days": 0, "draft": true},
+    {"number": 14982, "title": "docs(gh-pr-review): add Cherry-specific review guidance", "author": "DeJeune", "created": "2026-05-10T16:03:25Z", "age_days": 2, "category": "docs"},
+    {"number": 14970, "title": "feat(agents): add optional PowerShell tool for Windows agent sessions", "author": "AloneAtWar", "created": "2026-05-09T19:24:41Z", "age_days": 3},
+    {"number": 14968, "title": "refactor(miniapp): migrate from antd/styled-components to Tailwind + @cherrystudio/ui", "author": "chengcheng84", "created": "2026-05-09T15:04:40Z", "age_days": 3},
+    {"number": 14943, "title": "feat(app-shell): open chat by default", "author": "kangfenmao", "created": "2026-05-08T14:01:15Z", "age_days": 4},
+    {"number": 14911, "title": "refactor(ai-service): consolidate AI runtime to main process", "author": "DeJeune", "created": "2026-05-07T11:05:01Z", "age_days": 5},
+    {"number": 14886, "title": "fix(mcp-service): sanitize MCP call arguments to avoid unhashable type", "author": "404-Page-Found", "created": "2026-05-07T02:11:19Z", "age_days": 5},
+    {"number": 14864, "title": "feat: pin chat session name to prevent auto-renames", "author": "LWWZH", "created": "2026-05-06T11:03:58Z", "age_days": 6},
+    {"number": 14734, "title": "feat(v2): knowledge ui migration", "author": "eeee0717", "created": "2026-04-30T02:27:50Z", "age_days": 12},
+    {"number": 14631, "title": "Refactor provider settings with v2 data layer and UI", "author": "jidan745le", "created": "2026-04-26T16:22:56Z", "age_days": 16},
+    {"number": 14313, "title": "feat(data): migrate paintings to v2 data architecture", "author": "jidan745le", "created": "2026-04-16T11:44:41Z", "age_days": 26, "flag": "long-running"},
+    {"number": 13451, "title": "feat(file): Add schema and foundation for new file module", "author": "EurFelux", "created": "2026-03-14T06:13:45Z", "age_days": 59, "flag": "long-running"},
+    {"number": 12060, "title": "feat: context menu", "author": "DeJeune", "created": "2025-12-21T11:04:10Z", "age_days": 142, "flag": "long-running"},
+    {"number": 10090, "title": "[WIP] feat: terminal", "author": "EurFelux", "created": "2025-09-10T14:38:38Z", "age_days": 244, "flag": "WIP — very long-running"}
   ],
   "active_contributors_v2": [
     "kangfenmao", "DeJeune", "jidan745le", "LWWZH", "EurFelux",
-    "eeee0717", "chengcheng84", "AloneAtWar", "zhangjiadi225"
+    "eeee0717", "chengcheng84", "AloneAtWar", "zhangjiadi225", "vaayne"
   ],
   "v2_refactor_areas_in_progress": [
     "Data architecture — paintings (PR #14313)",
     "Provider settings UI (PR #14631)",
     "Knowledge UI migration (PR #14734)",
-    "Translate page (@cherrystudio/ui, PR #14351)",
     "MiniApp — Tailwind migration (PR #14968)",
     "AI service consolidation to main process (PR #14911)",
-    "App shell / chat layout (PR #14943, #14760)"
+    "App shell / chat layout (PR #14943)",
+    "Selector style unification (PR #15026)",
+    "Agent runtime — AI SDK (PR #15045)"
   ],
   "long_running_pr_alerts": [
-    {"number": 10090, "title": "[WIP] feat: terminal", "age_days": 242, "author": "EurFelux"},
-    {"number": 12060, "title": "feat: context menu", "age_days": 140, "author": "DeJeune"},
-    {"number": 13451, "title": "feat(file): Add schema and foundation for new file module", "age_days": 57, "author": "EurFelux"},
-    {"number": 14313, "title": "feat(data): migrate paintings to v2 data architecture", "age_days": 24, "author": "jidan745le"}
+    {"number": 10090, "title": "[WIP] feat: terminal", "age_days": 244, "author": "EurFelux"},
+    {"number": 12060, "title": "feat: context menu", "age_days": 142, "author": "DeJeune"},
+    {"number": 13451, "title": "feat(file): Add schema and foundation for new file module", "age_days": 59, "author": "EurFelux"},
+    {"number": 14313, "title": "feat(data): migrate paintings to v2 data architecture", "age_days": 26, "author": "jidan745le"}
+  ],
+  "v2_feature_pipeline": [
+    {
+      "number": 14899,
+      "title": "Unified Notification Center",
+      "labels": ["P1", "Planned", "feature", "UI/UX"],
+      "milestone": "v2.4.0",
+      "status": "planned"
+    },
+    {
+      "number": 14910,
+      "title": "PII Redaction via Local Models",
+      "labels": ["feature", "UI/UX"],
+      "milestone": "v2.3.0",
+      "status": "open"
+    },
+    {
+      "number": 15044,
+      "title": "Add CLI Plugin Support",
+      "author": "vaayne",
+      "status": "open",
+      "assignee": "vaayne"
+    }
   ]
 }

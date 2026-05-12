@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-10T00:00:00Z",
-  "report_date": "2026-05-10",
+  "generated_at": "2026-05-12T17:30:00Z",
+  "report_date": "2026-05-12",
   "repository": "CherryHQ/cherry-studio",
   "status": "partial",
   "note": "GitHub Discussions are not accessible via the available MCP tools (list_issues / search_issues do not cover Discussions). The gh CLI is also unavailable in this environment. This file reflects what can be inferred from issue labels tagged 'discussion'.",
@@ -16,6 +16,26 @@
     "Show and tell",
     "Announcements"
   ],
-  "action_needed": "To enable full discussion analytics, configure gh CLI access or add a Discussions-capable GraphQL MCP endpoint. The GraphQL query used in the task spec requires: repository.discussions(first:100, orderBy:{field:UPDATED_AT, direction:DESC})",
+  "issue_cross_references": [
+    {
+      "issue": 14899,
+      "title": "Unified Notification Center",
+      "related_issues": ["#13918", "#14447"],
+      "category": "Feature Request"
+    },
+    {
+      "issue": 15022,
+      "title": "CherryIN Balance Shows $0.00 After Recharge",
+      "related_issues": ["#15016", "#15019"],
+      "category": "Bug"
+    },
+    {
+      "issue": 14910,
+      "title": "PII Redaction via Local Models",
+      "related_issues": ["#14895"],
+      "category": "Feature Request"
+    }
+  ],
+  "action_needed": "To enable full discussion analytics, configure gh CLI access or add a Discussions-capable GraphQL MCP endpoint.",
   "workaround_query": "gh api graphql -f query='{ repository(owner: \"CherryHQ\", name: \"cherry-studio\") { discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title category { name } author { login } createdAt updatedAt upvoteCount comments { totalCount } answer { author { login } createdAt } } } } }'"
 }

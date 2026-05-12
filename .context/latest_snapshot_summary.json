@@ -1,12 +1,14 @@
 {
-  "generated_at": "2026-05-10T00:00:00Z",
-  "data_as_of": "2026-05-10",
+  "generated_at": "2026-05-12T17:30:00Z",
+  "data_as_of": "2026-05-12",
   "repository": "CherryHQ/cherry-studio",
   "open_issues": {
-    "total": 839,
-    "bug_label": 114,
+    "total": 869,
+    "bug_label": 116,
+    "feature_label": 125,
     "no_label": 79,
-    "no_label_pct": 9.4,
+    "no_label_pct": 9.1,
+    "p1_count": 3,
     "top_labels": [
       {"label": "inactive", "count": "~290 (est.)"},
       {"label": "UI/UX", "count": "~252 (est.)"},
@@ -19,25 +21,30 @@
       {"label": "feature", "count": "~50 (est.)"},
       {"label": "Data", "count": "~50 (est.)"}
     ],
-    "note": "Label counts are extrapolated from 200-issue sample (most recently updated). Raw counts from sample: inactive=69, UI/UX=60, Models=54, Assistant=30."
+    "note": "Label counts are extrapolated from 200-issue sample (most recently updated)."
   },
   "closed_issues_30d": {
     "total": 379,
-    "note": "Issues closed between 2026-04-10 and 2026-05-10"
+    "note": "Issues closed between 2026-04-12 and 2026-05-12"
   },
   "open_prs": {
-    "total": 100,
+    "total": 295,
     "by_base": {
-      "main": 62,
-      "v2": 37,
-      "other": 1
+      "main": 224,
+      "v2": 65,
+      "other": 6
     },
+    "draft_total": 48,
     "stale_prs_gt14d": [
-      {"number": 14313, "title": "feat(data): migrate paintings to v2 data architecture", "base": "v2", "days_old": 24},
-      {"number": 12060, "title": "feat: context menu", "base": "v2", "days_old": 140},
-      {"number": 13451, "title": "feat(file): Add schema and foundation for new file module", "base": "v2", "days_old": 57},
-      {"number": 10090, "title": "[WIP] feat: terminal", "base": "v2", "days_old": 242}
+      {"number": 14313, "title": "feat(data): migrate paintings to v2 data architecture", "base": "v2", "days_old": 26},
+      {"number": 12060, "title": "feat: context menu", "base": "v2", "days_old": 142},
+      {"number": 13451, "title": "feat(file): Add schema and foundation for new file module", "base": "v2", "days_old": 59},
+      {"number": 10090, "title": "[WIP] feat: terminal", "base": "v2", "days_old": 244}
     ]
+  },
+  "v2_prs": {
+    "open": 65,
+    "merged_last_30d": 46
   },
   "branch_strategy": {
     "main_status": "CODE FREEZE — hotfix/* only",
@@ -49,7 +56,25 @@
       "number": 14899,
       "title": "[Feature]: Unified Notification Center",
       "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "created_at": "2026-05-07T05:01:00Z",
       "updated": "2026-05-07T05:52:49Z",
+      "milestone": "v2.4.0",
+      "priority": "P1"
+    },
+    {
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": ["P1", "Models"],
+      "created_at": "2026-03-18T14:34:38Z",
+      "milestone": "v1.8.1 (closed)",
+      "priority": "P1"
+    },
+    {
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI Resource not found — defaults to responses API instead of chat/completions",
+      "labels": ["P1", "Models"],
+      "created_at": "2026-03-04T05:07:40Z",
+      "assignee": "DeJeune",
       "priority": "P1"
     },
     {
@@ -57,13 +82,6 @@
       "title": "[Bug]: npm-installed OpenClaw triggers spurious update prompt",
       "labels": ["BUG", "inactive", "OpenClaw"],
       "updated": "2026-05-10T01:05:16Z",
-      "priority": "P1-Bug"
-    },
-    {
-      "number": 14122,
-      "title": "[Bug]: OpenClaw needs to be updated — misleading prompt",
-      "labels": ["BUG", "inactive", "OpenClaw"],
-      "updated": "2026-05-10T01:04:22Z",
       "priority": "P1-Bug"
     },
     {
@@ -79,32 +97,48 @@
       "labels": ["BUG", "Models"],
       "updated": "2026-05-05T16:47:25Z",
       "priority": "P1-Bug"
+    }
+  ],
+  "new_today": [
+    {
+      "number": 15047,
+      "title": "[Bug]: Invalid JSON payload — includeServerSideToolInvocations (Google/CherryIN)",
+      "type": "Bug",
+      "created_at": "2026-05-12T17:14:24Z"
     },
     {
-      "number": 12645,
-      "title": "[Bug]: There is a problem with the # at the end of the API address",
-      "labels": ["BUG", "Models", "inactive"],
-      "updated": "2026-05-09T00:59:52Z",
-      "priority": "P1-Bug"
+      "number": 15045,
+      "title": "feat(agent): AI SDK Agent Runtime",
+      "type": "PR",
+      "created_at": "2026-05-12T13:16:22Z",
+      "author": "DeJeune"
     },
     {
-      "number": 13655,
-      "title": "[Bug]: Incorrect OpenClaw version message",
-      "labels": ["BUG", "inactive", "OpenClaw"],
-      "updated": "2026-05-09T00:59:46Z",
-      "priority": "P1-Bug"
+      "number": 15044,
+      "title": "[Feature] Add CLI Plugin Support",
+      "type": "Feature",
+      "created_at": "2026-05-12T11:57:27Z",
+      "author": "vaayne"
     },
     {
-      "number": 12079,
-      "title": "[Bug]: cherry-studio cannot read the file since today",
-      "labels": ["BUG", "inactive"],
-      "updated": "2026-05-07T01:00:36Z",
-      "priority": "P1-Bug"
+      "number": 15026,
+      "title": "refactor(selector): align model and resource selector styles",
+      "type": "PR (v2)",
+      "created_at": "2026-05-12T06:38:46Z",
+      "author": "zhangjiadi225"
+    },
+    {
+      "number": 15022,
+      "title": "[Bug]: CherryIN Balance Shows $0.00 After Successful Recharge",
+      "type": "Bug",
+      "created_at": "2026-05-12T06:32:21Z",
+      "assignee": "DeJeune",
+      "milestone": "v1.9.6"
     }
   ],
   "meta": {
-    "data_sources": ["GitHub MCP API", "list_issues (pages 1-2)", "search_issues (bug, no-label, closed-30d)", "list_pull_requests (open, v2-open, v2-closed)"],
-    "sample_coverage": "200 of 839 open issues analyzed in detail (most recently updated)",
-    "note": "gh CLI unavailable; data collected via GitHub MCP tools. Discussions API not available via MCP."
+    "data_sources": ["GitHub MCP API (mcp__github__list_issues, search_issues, list_pull_requests, search_pull_requests)"],
+    "sample_coverage": "Total counts via search_issues total_count; 100-issue detailed samples per page",
+    "note": "gh CLI unavailable; data collected via GitHub MCP tools. Discussions API not available via MCP list/search tools."
   }
 }
