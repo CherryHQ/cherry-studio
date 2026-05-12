@@ -71,7 +71,9 @@ import { ResourceList, useResourceList } from '../ResourceList'
 import type { ResourceListItemBase } from '../ResourceListContext'
 import {
   AgentResourceList,
+  AssistantListV2,
   AssistantResourceList,
+  createAssistantListActionRegistry,
   HistoryResourceList,
   SessionResourceList,
   TopicResourceList
@@ -239,6 +241,101 @@ describe('ResourceList', () => {
     expect(onReorder).toHaveBeenCalledWith({ activeId: 'alpha', overId: 'gamma', position: 'after' })
   })
 
+  it('combines virtualization and drag reorder for large resource lists', () => {
+    const onReorder = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={ITEMS} onReorder={onReorder}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualDraggableItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+    expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        count: ITEMS.length,
+        overscan: 6
+      })
+    )
+
+    dndMocks.onDragEnd?.({ active: { id: 'beta' }, over: { id: 'alpha' } })
+    expect(onReorder).toHaveBeenCalledWith({ activeId: 'beta', overId: 'alpha', position: 'after' })
+  })
+
+  it('renders grouped virtual rows with group counts', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) =>
+          item.pinned ? { id: 'pinned', label: 'Pinned', count: 2 } : { id: 'regular', label: 'Regular', count: 1 }
+        }>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByText('Pinned')).toBeInTheDocument()
+    expect(screen.getByText('Regular')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(screen.getByText('1')).toBeInTheDocument()
+    expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        count: ITEMS.length + 2
+      })
+    )
+  })
+
+  it('provides shared header, search, and item presentation parts', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={ITEMS}>
+        <ResourceList.Frame>
+          <ResourceList.Header
+            title="Resources"
+            count={ITEMS.length}
+            actions={<ResourceList.HeaderActionButton aria-label="Filter" />}>
+            <ResourceList.Search placeholder="Search resources" />
+          </ResourceList.Header>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <ResourceList.ItemIcon data-testid={`${item.id}-icon`} />
+                <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
+                <ResourceList.ItemAction aria-label={`Action ${item.name}`} />
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByText('Resources')).toBeInTheDocument()
+    expect(screen.getByText(String(ITEMS.length))).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Search resources')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
+    expect(screen.getByTestId('alpha-icon')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Action Alpha' })).toBeInTheDocument()
+  })
+
   it('exposes explicit business variants without a shared mode prop', () => {
     const variants = [
       ['session', SessionResourceList],
@@ -264,5 +361,94 @@ describe('ResourceList', () => {
       expect(within(screen.getByTestId(`resource-list-${name}`)).getByText(`${name} item`)).toBeInTheDocument()
       unmount()
     }
+  })
+
+  it('builds assistant list menu actions without putting business logic in ResourceList', async () => {
+    const handlers = {
+      onSelect: vi.fn(),
+      onTogglePin: vi.fn(),
+      onEdit: vi.fn(),
+      onDelete: vi.fn()
+    }
+    const registry = createAssistantListActionRegistry<TestItem>(handlers, {
+      select: 'Select',
+      pin: 'Pin',
+      unpin: 'Unpin',
+      edit: 'Edit',
+      delete: 'Delete'
+    })
+    const item = ITEMS[0]
+    const context = {
+      item,
+      pinned: true,
+      selected: false,
+      canPin: true,
+      canEdit: true,
+      canDelete: false
+    }
+
+    expect(registry.resolve(context, 'menu')).toMatchObject([
+      { id: 'assistant.select', label: 'Select' },
+      { id: 'assistant.pin', label: 'Unpin' },
+      { id: 'assistant.edit', label: 'Edit' },
+      {
+        id: 'assistant.delete',
+        label: 'Delete',
+        danger: true,
+        availability: { enabled: false }
+      }
+    ])
+
+    await expect(registry.execute('assistant.pin', context)).resolves.toBe(true)
+    expect(handlers.onTogglePin).toHaveBeenCalledWith(item)
+  })
+
+  it('renders AssistantListV2 with search, pinned groups, sort, virtualization, and menu callbacks', () => {
+    const handlers = {
+      onSelect: vi.fn(),
+      onTogglePin: vi.fn(),
+      onEdit: vi.fn(),
+      onDelete: vi.fn()
+    }
+    const assistants = [
+      { id: 'assistant-a', name: 'Alpha assistant', pinned: false, updatedAt: 1 },
+      { id: 'assistant-b', name: 'Beta pinned', pinned: true, updatedAt: 3 },
+      { id: 'assistant-c', name: 'Gamma assistant', pinned: false, updatedAt: 2 }
+    ]
+
+    render(
+      <AssistantListV2
+        items={assistants}
+        selectedId="assistant-a"
+        handlers={handlers}
+        labels={{
+          searchPlaceholder: 'Search assistants',
+          pinnedGroup: 'Pinned',
+          assistantsGroup: 'Assistants',
+          recentSort: 'Recent',
+          nameSort: 'Name',
+          select: 'Select',
+          pin: 'Pin',
+          unpin: 'Unpin',
+          edit: 'Edit',
+          delete: 'Delete'
+        }}
+      />
+    )
+
+    expect(screen.getByText('Pinned')).toBeInTheDocument()
+    expect(screen.getByText('Assistants')).toBeInTheDocument()
+    expect(screen.getByText('Beta pinned')).toBeInTheDocument()
+    expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ overscan: 6 }))
+
+    fireEvent.click(screen.getByText('Gamma assistant'))
+    expect(handlers.onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'assistant-c' }))
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Unpin' })[0])
+    expect(handlers.onTogglePin).toHaveBeenCalledWith(expect.objectContaining({ id: 'assistant-b' }))
+
+    fireEvent.change(screen.getByPlaceholderText('Search assistants'), { target: { value: 'gamma' } })
+    expect(screen.queryByText('Alpha assistant')).not.toBeInTheDocument()
+    expect(screen.getByText('Gamma assistant')).toBeInTheDocument()
   })
 })

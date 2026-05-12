@@ -11,6 +11,7 @@ export type ResourceListStatus = 'idle' | 'loading' | 'error' | 'empty'
 export type ResourceListGroup = {
   id: string
   label: string
+  count?: number
 }
 
 export type ResourceListSortOption<T extends ResourceListItemBase> = {
