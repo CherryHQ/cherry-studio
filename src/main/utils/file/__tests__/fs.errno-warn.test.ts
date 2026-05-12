@@ -66,7 +66,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 // MockMainLoggerService; warn assertions read through the singleton's spy.
 const mockLoggerWarn = mockMainLoggerService.warn
 
-const { atomicWriteFile, isSameFile, move: fsMove } = await import('../fs')
+const { atomicWriteFile, createAtomicWriteStream, isSameFile, move: fsMove } = await import('../fs')
 
 function makeErrnoErr(code: string, message = code): NodeJS.ErrnoException {
   return Object.assign(new Error(message), { code }) as NodeJS.ErrnoException
@@ -445,6 +445,99 @@ describe('atomicWriteFile (write/sync failure cleans up .tmp-{uuid})', () => {
     mockUnlink.mockRejectedValueOnce(makeErrnoErr('ENOENT', 'no such file'))
 
     await expect(atomicWriteFile(target as FilePath, 'payload')).rejects.toBe(renameErr)
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
+})
+
+describe('createAtomicWriteStream (tmp leak observability)', () => {
+  // Regression guard for the streaming sibling of atomicWriteFile. Earlier
+  // _final / _destroy paths used a bare `.catch(() => undefined)` for tmp
+  // cleanup, which silently leaked `.tmp-<uuid>` blobs on EACCES / EBUSY /
+  // EPERM. Now both paths route through `bestEffortUnlinkTmp` and warn-log
+  // non-ENOENT failures so the stranded blob is observable.
+  let tmp: string
+  let actualRename: typeof NodeFsPromises.rename
+  let actualUnlink: typeof NodeFsPromises.unlink
+  let actualOpen: typeof NodeFsPromises.open
+
+  beforeEach(async () => {
+    const actual = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
+    actualRename = actual.rename
+    actualUnlink = actual.unlink
+    actualOpen = actual.open
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-stream-leak-'))
+    mockOpen.mockReset()
+    mockRename.mockReset()
+    mockUnlink.mockReset()
+    mockLoggerWarn.mockClear()
+    mockOpen.mockImplementation((p, flags) => actualOpen(p as string, flags as never))
+    mockRename.mockImplementation((...args) => actualRename(...(args as [string, string])))
+    mockUnlink.mockImplementation((p) => actualUnlink(p as string))
+  })
+
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+    vi.restoreAllMocks()
+  })
+
+  async function consumeStream(stream: NodeJS.WritableStream, payload: string): Promise<Error | null> {
+    return new Promise<Error | null>((resolve) => {
+      stream.once('error', (err) => resolve(err))
+      stream.once('finish', () => resolve(null))
+      stream.end(payload)
+    })
+  }
+
+  it('_final: rename failure leaves no .tmp- residue, no warn on clean unlink', async () => {
+    const target = path.join(tmp, 'data.txt')
+    const renameErr = makeErrnoErr('EACCES', 'permission denied')
+    mockRename.mockRejectedValueOnce(renameErr)
+
+    const stream = createAtomicWriteStream(target as FilePath)
+    const err = await consumeStream(stream, 'payload')
+
+    expect(err).toBe(renameErr)
+    // Real unlink ran via passthrough → tmp blob removed.
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
+
+  it('_final: rename failure + unlink EACCES warn-logs the stranded tmp', async () => {
+    const target = path.join(tmp, 'data.txt')
+    const renameErr = makeErrnoErr('EACCES', 'permission denied')
+    const unlinkErr = makeErrnoErr('EACCES', 'permission denied (unlink)')
+    mockRename.mockRejectedValueOnce(renameErr)
+    mockUnlink.mockRejectedValueOnce(unlinkErr)
+
+    const stream = createAtomicWriteStream(target as FilePath)
+    const err = await consumeStream(stream, 'payload')
+
+    expect(err).toBe(renameErr)
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining('tmp cleanup failed'),
+      expect.objectContaining({
+        target,
+        code: 'EACCES',
+        err: unlinkErr
+      })
+    )
+  })
+
+  it('_destroy (pre-commit abort): cleanup runs, no .tmp- residue, no warn on clean unlink', async () => {
+    const target = path.join(tmp, 'data.txt')
+
+    const stream = createAtomicWriteStream(target as FilePath)
+    stream.write('partial')
+    // Force the destroy path BEFORE _final runs. This exercises the
+    // _destroy branch where `committed === false`.
+    await new Promise<void>((resolve) => {
+      stream.once('close', () => resolve())
+      stream.destroy()
+    })
+
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
     expect(mockLoggerWarn).not.toHaveBeenCalled()
   })
 })

@@ -302,7 +302,12 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
         this.committed = true
         callback()
       } catch (err) {
-        await unlink(this.tmp).catch(() => undefined)
+        // Mirror the atomicWriteFile contract: tmp cleanup is best-effort
+        // and warn-logs non-ENOENT errors so a stranded `.tmp-<uuid>` is
+        // observable. A bare `.catch(() => undefined)` here would silently
+        // leak the tmp blob under EACCES/EBUSY/EPERM until orphanSweep
+        // collects it >5min later (or never, if persistent).
+        await bestEffortUnlinkTmp(this.tmp, this.target)
         callback(err as Error)
       }
     })
@@ -314,9 +319,10 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
       return
     }
     const cleanup = () => {
-      unlink(this.tmp)
-        .catch(() => undefined)
-        .finally(() => callback(err))
+      // Same rationale as _final: surface non-ENOENT cleanup failures so
+      // operators can find the leaked tmp blob; never block destroy on
+      // cleanup outcome.
+      bestEffortUnlinkTmp(this.tmp, this.target).finally(() => callback(err))
     }
     if (this.underlying.destroyed) {
       cleanup()
