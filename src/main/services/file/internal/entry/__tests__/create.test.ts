@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -103,6 +104,80 @@ describe('internal/entry/create.createInternal', () => {
       const { readdir } = await import('node:fs/promises')
       const remaining = await readdir(filesDir)
       expect(remaining).toEqual([])
+    })
+  })
+
+  describe('source: url', () => {
+    let server: Server
+    let baseUrl: string
+    let routes: Map<string, { status: number; body: Buffer; type?: string }>
+
+    beforeEach(async () => {
+      routes = new Map()
+      const http = await import('node:http')
+      server = http.createServer((req, res) => {
+        const route = routes.get(req.url ?? '/')
+        if (!route) {
+          res.statusCode = 404
+          res.end('not found')
+          return
+        }
+        res.statusCode = route.status
+        if (route.type) res.setHeader('Content-Type', route.type)
+        res.end(route.body)
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const addr = server.address() as { port: number }
+      baseUrl = `http://127.0.0.1:${addr.port}`
+    })
+
+    afterEach(async () => {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    })
+
+    it('downloads to storage and derives name + ext from the URL path basename', async () => {
+      routes.set('/photos/sunset.png', { status: 200, body: Buffer.from([0x89, 0x50, 0x4e, 0x47]) })
+      const entry = await createInternal(deps, { source: 'url', url: `${baseUrl}/photos/sunset.png` as never })
+      expect(entry.name).toBe('sunset')
+      expect(entry.ext).toBe('png')
+      expect(entry.size).toBe(4)
+      // Verify the downloaded bytes ended up at the expected storage path.
+      const physical = path.join(filesDir, `${entry.id}.png`)
+      const buf = await readFile(physical)
+      expect(Array.from(buf)).toEqual([0x89, 0x50, 0x4e, 0x47])
+    })
+
+    it('derives ext=null when the URL path has no recognisable extension', async () => {
+      routes.set('/no-extension-here', { status: 200, body: Buffer.from('hi') })
+      const entry = await createInternal(deps, { source: 'url', url: `${baseUrl}/no-extension-here` as never })
+      expect(entry.name).toBe('no-extension-here')
+      expect(entry.ext).toBeNull()
+    })
+
+    it('strips only the final dot segment when the path contains multiple dots', async () => {
+      // urlTail keeps the part before the LAST dot as the name; extWithoutDot
+      // takes only the final segment as ext. So `foo.bar.baz` → name `foo.bar`, ext `baz`.
+      routes.set('/foo.bar.baz', { status: 200, body: Buffer.from('hi') })
+      const entry = await createInternal(deps, { source: 'url', url: `${baseUrl}/foo.bar.baz` as never })
+      expect(entry.name).toBe('foo.bar')
+      expect(entry.ext).toBe('baz')
+    })
+
+    it('falls back to hostname when the URL path is empty', async () => {
+      // URL like `http://example.com/` has pathname '/', whose split('/').pop()
+      // is the empty string — urlTail then falls through to u.hostname.
+      routes.set('/', { status: 200, body: Buffer.from('hi') })
+      const entry = await createInternal(deps, { source: 'url', url: `${baseUrl}/` as never })
+      expect(entry.name).toBe('127.0.0.1')
+      expect(entry.ext).toBeNull()
+    })
+
+    it('propagates the download error and writes no DB row when the server returns non-2xx', async () => {
+      routes.set('/missing', { status: 404, body: Buffer.from('gone') })
+      await expect(createInternal(deps, { source: 'url', url: `${baseUrl}/missing` as never })).rejects.toThrow()
+      // No DB row should have been inserted.
+      const all = await dbh.db.select().from((await import('@data/db/schemas/file')).fileEntryTable)
+      expect(all).toHaveLength(0)
     })
   })
 
