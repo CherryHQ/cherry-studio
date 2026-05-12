@@ -384,6 +384,20 @@ export async function atomicWriteIfUnchanged(
     if (actualHash !== expectedContentHash) {
       throw new PathStaleVersionError(target, expected, current)
     }
+  } else if (ambiguousMtime) {
+    // FAT32 / SMB / NFS report mtime at second precision. When both
+    // observed and expected mtimes land exactly on a second boundary
+    // AND size matches, the OCC compare can't distinguish "no change
+    // since expected" from "a different edit happened within the same
+    // second and produced a same-size payload". Without `expectedContentHash`
+    // there is no remaining tiebreaker — we proceed with the write but
+    // warn-log so a lost-edit breadcrumb exists. Callers in collaboration
+    // contexts (multi-app, cloud-synced volumes) should pass
+    // `expectedContentHash` to close this window.
+    logger.warn(
+      'atomicWriteIfUnchanged: second-precision mtime ambiguity without contentHash; possible same-second concurrent overwrite',
+      { target }
+    )
   }
   await atomicWriteFile(target, data)
   const s2 = await fsStat(target)
