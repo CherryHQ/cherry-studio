@@ -22,6 +22,37 @@ describe('sanitizeFilename', () => {
   it('replaces all forbidden characters in a string of only-forbidden chars', () => {
     expect(sanitizeFilename('///')).toBe('___')
   })
+
+  it('replaces Windows reserved-name prefixes while preserving the trailing dot+ext', () => {
+    expect(sanitizeFilename('CON.txt')).toBe('_.txt')
+    expect(sanitizeFilename('PRN')).toBe('_')
+    expect(sanitizeFilename('COM1.log')).toBe('_.log')
+  })
+
+  it('trims trailing whitespace and dots (Windows convention)', () => {
+    expect(sanitizeFilename('hello.')).toBe('hello')
+    expect(sanitizeFilename('hello  ')).toBe('hello')
+    expect(sanitizeFilename('hello. .')).toBe('hello')
+  })
+
+  it('truncates to 255 characters', () => {
+    const long = 'a'.repeat(300)
+    const result = sanitizeFilename(long)
+    expect(result.length).toBe(255)
+  })
+
+  it('returns "untitled" when every character was sanitised away', () => {
+    expect(sanitizeFilename('...')).toBe('untitled')
+    expect(sanitizeFilename('   ')).toBe('untitled')
+  })
+
+  it('returns the empty string for empty input (distinct from the all-sanitised case)', () => {
+    expect(sanitizeFilename('')).toBe('')
+  })
+
+  it('replaces ASCII control characters (0x00-0x1f)', () => {
+    expect(sanitizeFilename('foo\x01bar\x1fbaz')).toBe('foo_bar_baz')
+  })
 })
 
 describe('validateFileName', () => {
