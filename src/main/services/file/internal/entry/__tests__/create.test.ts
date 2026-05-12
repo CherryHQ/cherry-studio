@@ -86,6 +86,24 @@ describe('internal/entry/create.createInternal', () => {
       expect(found.id).toBe(entry.id)
       expect(found.size).toBe(1)
     })
+
+    it('unlinks the physical blob when the DB insert throws (DB-FS convergence guard)', async () => {
+      // Drive fileEntryService.create to fail AFTER the physical file is
+      // written but BEFORE the DB row commits. Without the bestEffortCleanup
+      // call in createInternal, the orphan blob would persist until the next
+      // startup file sweep — the regression this test pins.
+      const insertErr = new Error('UNIQUE constraint failed: file_entry.id')
+      const spy = vi.spyOn(fileEntryService, 'create').mockRejectedValueOnce(insertErr)
+      await expect(
+        createInternal(deps, { source: 'bytes', data: new Uint8Array([1, 2, 3]), name: 'rollback-doc', ext: 'bin' })
+      ).rejects.toBe(insertErr)
+      spy.mockRestore()
+
+      // No file should remain in filesDir — the cleanup unlinked it.
+      const { readdir } = await import('node:fs/promises')
+      const remaining = await readdir(filesDir)
+      expect(remaining).toEqual([])
+    })
   })
 
   describe('source: base64', () => {
