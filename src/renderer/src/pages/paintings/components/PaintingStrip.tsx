@@ -38,7 +38,7 @@ const PaintingStripItem: FC<{
         className="absolute inset-0 z-0"
         aria-label={selectLabel}
         onClick={() => onSelect(painting)}>
-        <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-[var(--painting-radius-item)]">
+        <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-(--painting-radius-item)">
           {previewFile ? (
             <img src={FileManager.getFileUrl(previewFile)} alt="" className="h-full w-full object-cover" />
           ) : loading ? (
@@ -54,7 +54,7 @@ const PaintingStripItem: FC<{
       {selected && (
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0 z-10 rounded-[var(--painting-radius-item)] ring-2 ring-muted-foreground/55 ring-inset"
+          className="pointer-events-none absolute inset-0 z-10 rounded-(--painting-radius-item) ring-2 ring-muted-foreground/55 ring-inset"
         />
       )}
 

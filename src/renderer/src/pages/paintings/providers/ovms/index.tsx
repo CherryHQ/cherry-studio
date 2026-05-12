@@ -14,7 +14,7 @@ export function OvmsHeaderActions({ t }: { t: TFunction }) {
   return (
     <SettingHelpLink target="_blank" href="https://docs.openvino.ai/2025/model-server/ovms_demos_image_generation.html">
       {t('paintings.learn_more')}
-      {Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null}
+      {Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null}
     </SettingHelpLink>
   )
 }

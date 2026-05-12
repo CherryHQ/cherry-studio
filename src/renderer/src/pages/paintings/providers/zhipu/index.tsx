@@ -18,7 +18,7 @@ export function ZhipuHeaderActions({ t }: { t: TFunction }) {
       <SettingHelpLink target="_blank" href={COURSE_URL}>
         {t('paintings.paint_course')}
       </SettingHelpLink>
-      {Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null}
+      {Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null}
     </>
   )
 }

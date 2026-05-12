@@ -74,7 +74,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
             variant="ghost"
             size="sm"
             className={cn(
-              'h-auto w-full max-w-none justify-between gap-2 rounded-[var(--painting-radius-track)] border border-border/50 bg-[var(--painting-control-bg)] px-2.5 py-[6px] text-muted-foreground text-xs shadow-none hover:bg-[var(--painting-control-bg-hover)] hover:text-foreground',
+              'h-auto w-full max-w-none justify-between gap-2 rounded-(--painting-radius-track) border border-border/50 bg-(--painting-control-bg) px-2.5 py-1.5 text-muted-foreground text-xs shadow-none hover:bg-(--painting-control-bg-hover) hover:text-foreground',
               className
             )}>
             <span className="flex min-w-0 items-center gap-2">

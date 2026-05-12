@@ -40,7 +40,7 @@ export default function SelectField({
 
   return (
     <Select disabled={disabled} value={value} onValueChange={(nextValue) => onChange({ [fieldKey]: nextValue })}>
-      <SelectTrigger className="h-auto w-full justify-between gap-2 rounded-[var(--painting-radius-track)] bg-[var(--painting-control-bg)] px-2.5 py-[6px] text-xs hover:bg-[var(--painting-control-bg-hover)]">
+      <SelectTrigger className="h-auto w-full justify-between gap-2 rounded-(--painting-radius-track) bg-(--painting-control-bg) px-2.5 py-1.5 text-xs hover:bg-(--painting-control-bg-hover)">
         <SelectValue placeholder={item.title ? translate(item.title) : fieldKey} />
       </SelectTrigger>
       <SelectContent>

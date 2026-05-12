@@ -42,7 +42,7 @@ function renderEditSetting(paintingId: string, patchPainting: NewApiSettingProps
     <div className="mt-1">
       <PaintingSectionTitle className="mt-0 mb-3">{t('paintings.input_image')}</PaintingSectionTitle>
       <div className="flex flex-col gap-2">
-        <label className="flex min-h-[60px] cursor-pointer items-center justify-center gap-2 rounded-md border border-border border-dashed bg-muted/20 hover:bg-muted/30">
+        <label className="flex min-h-15 cursor-pointer items-center justify-center gap-2 rounded-md border border-border border-dashed bg-muted/20 hover:bg-muted/30">
           <input
             type="file"
             accept="image/png,image/jpeg,image/gif"
