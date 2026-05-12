@@ -1554,6 +1554,12 @@
         "word": "导出为 Word",
         "yuque": "导出到语雀"
       },
+      "group": {
+        "earlier": "更早",
+        "show_more": "显示更多话题",
+        "today": "今天",
+        "within_week": "一周内"
+      },
       "list": "话题列表",
       "manage": {
         "clear_selection": "取消选择",

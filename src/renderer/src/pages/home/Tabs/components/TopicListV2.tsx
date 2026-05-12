@@ -78,9 +78,10 @@ import { useTranslation } from 'react-i18next'
 
 import {
   buildTopicOrderMoves,
+  createTopicDisplayGroupResolver,
   filterTopicsForManageMode,
-  groupTopicByPinned,
-  moveTopicAfterDrop
+  moveTopicAfterDrop,
+  sortTopicsForDisplayGroups
 } from './TopicListV2.helpers'
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 
@@ -110,11 +111,12 @@ type ExportMenuOptions = Record<
 type TopicDisplayPreviewMode = 'time' | 'assistant' | 'tag'
 
 const TOPIC_DISPLAY_OPTIONS: TopicDisplayPreviewMode[] = ['time', 'assistant', 'tag']
+const TOPIC_DISPLAY_MODE: TopicDisplayPreviewMode = 'time'
 
 function TopicDisplayModeMenu() {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const mode: TopicDisplayPreviewMode = 'time'
+  const mode = TOPIC_DISPLAY_MODE
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -154,7 +156,6 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
   const { updateTopic: patchTopic, deleteTopic: deleteTopicById, refreshTopics } = useTopicMutations()
-  const [pinTopicsToTop] = usePreference('topic.tab.pin_to_top')
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [topicPosition, setTopicPosition] = usePreference('topic.position')
   const [renamingTopics] = useCache('topic.renaming')
@@ -306,14 +307,14 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
           await dataApiService.post('/pins', { body: { entityType: 'topic', entityId: topic.id } })
         }
         await refreshTopics()
-        if (pinTopicsToTop) {
+        if (!topic.pinned) {
           setTimeout(() => listRef.current?.scrollTo({ top: 0, behavior: 'smooth' }), 50)
         }
       } catch (err) {
         logger.error('Failed to toggle topic pin', { topicId: topic.id, err })
       }
     },
-    [pinByTopicId, pinTopicsToTop, refreshTopics]
+    [pinByTopicId, refreshTopics]
   )
 
   const handleDeleteTopicFromMenu = useCallback(
@@ -375,19 +376,31 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
     [t, updateTopic]
   )
 
-  const sortedTopics = useMemo(() => {
-    if (!pinTopicsToTop) return topics
-    return sortTopicsForDisplay(topics)
-  }, [pinTopicsToTop, topics])
+  const groupedTopics = useMemo(() => sortTopicsForDisplayGroups(topics), [topics])
 
   const filteredTopics = useMemo(
-    () => filterTopicsForManageMode(sortedTopics, deferredSearchText, isManageMode),
-    [deferredSearchText, isManageMode, sortedTopics]
+    () => filterTopicsForManageMode(groupedTopics, deferredSearchText, isManageMode),
+    [deferredSearchText, groupedTopics, isManageMode]
   )
 
   const listStatus = error ? 'error' : isLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const singlealone = topicPosition === 'right' && position === 'right'
   const canDragTopics = !isManageMode
+  const topicGroupBy = useMemo(
+    () =>
+      createTopicDisplayGroupResolver<Topic>({
+        mode: TOPIC_DISPLAY_MODE,
+        labels: {
+          pinned: t('selector.common.pinned_title'),
+          time: {
+            today: t('chat.topics.group.today'),
+            'within-week': t('chat.topics.group.within_week'),
+            earlier: t('chat.topics.group.earlier')
+          }
+        }
+      }),
+    [t]
+  )
 
   return (
     <>
@@ -396,14 +409,10 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
         status={listStatus}
         selectedId={isManageMode ? null : activeTopic?.id}
         estimateItemSize={() => 40}
-        groupBy={
-          pinTopicsToTop
-            ? (topic) => {
-                // TODO(topic-display-mode): replace pinned/topic grouping with time, assistant, and tag display groups.
-                return groupTopicByPinned(topic, t('selector.common.pinned_title'), t('chat.topics.list'))
-              }
-            : undefined
-        }
+        groupBy={topicGroupBy}
+        defaultGroupVisibleCount={5}
+        groupLoadStep={5}
+        groupShowMoreLabel={t('chat.topics.group.show_more')}
         onRenameItem={handleRenameTopic}
         onReorder={canDragTopics ? handleReorder : undefined}>
         <ResourceList.Header
@@ -471,14 +480,6 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
       />
     </>
   )
-}
-
-function sortTopicsForDisplay(topics: readonly Topic[]): Topic[] {
-  return [...topics].sort((a, b) => {
-    if (a.pinned && !b.pinned) return -1
-    if (!a.pinned && b.pinned) return 1
-    return 0
-  })
 }
 
 interface TopicListBodyProps {

@@ -1554,6 +1554,12 @@
         "word": "Export as Word",
         "yuque": "Export to Yuque"
       },
+      "group": {
+        "earlier": "Earlier",
+        "show_more": "Show more topics",
+        "today": "Today",
+        "within_week": "Within a week"
+      },
       "list": "Topic List",
       "manage": {
         "clear_selection": "Clear Selection",
