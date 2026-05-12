@@ -130,8 +130,8 @@
       "defaultValue": [],
       "status": "classified",
       "description": "Hidden sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"
-    },{
-
+    },
+    {
       "targetKey": "chat.default_model_id",
       "type": "string",
       "defaultValue": null,
@@ -144,6 +144,13 @@
       "defaultValue": null,
       "status": "classified",
       "description": "Topic naming model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "topic.tab.display_mode",
+      "type": "PreferenceTypes.TopicDisplayMode",
+      "defaultValue": "time",
+      "status": "classified",
+      "description": "Topic sidebar display grouping mode"
     },
     {
       "targetKey": "feature.quick_assistant.model_id",

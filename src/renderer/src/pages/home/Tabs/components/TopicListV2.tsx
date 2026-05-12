@@ -20,11 +20,13 @@ import {
   useResourceList,
   useResourceListPinnedState
 } from '@renderer/components/chat/resources'
+import EmojiIcon from '@renderer/components/EmojiIcon'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
+import { useAssistantsApi } from '@renderer/hooks/useAssistantDataApi'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@renderer/hooks/useTopic'
@@ -44,6 +46,7 @@ import {
   topicToMarkdown
 } from '@renderer/utils/export'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
@@ -78,8 +81,14 @@ import {
   buildTopicOrderMoves,
   createTopicDisplayGroupResolver,
   filterTopicsForManageMode,
+  getAssistantIdFromTopicGroupId,
   moveTopicAfterDrop,
-  sortTopicsForDisplayGroups
+  sortTopicsForDisplayGroups,
+  TOPIC_DEFAULT_ASSISTANT_GROUP_ID,
+  TOPIC_PINNED_GROUP_ID,
+  TOPIC_TODAY_GROUP_ID,
+  TOPIC_UNKNOWN_ASSISTANT_GROUP_ID,
+  type TopicDisplayMode
 } from './TopicListV2.helpers'
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 
@@ -106,16 +115,18 @@ type ExportMenuOptions = Record<
   boolean
 >
 
-type TopicDisplayPreviewMode = 'time' | 'assistant'
+const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
+const DEFAULT_ASSISTANT_GROUP_EMOJI = '😀'
 
-const TOPIC_DISPLAY_OPTIONS: TopicDisplayPreviewMode[] = ['time', 'assistant']
-const TOPIC_DISPLAY_MODE: TopicDisplayPreviewMode = 'time'
-const TOPIC_TODAY_GROUP_ID = 'topic:time:today'
-
-function TopicDisplayModeMenu() {
+function TopicDisplayModeMenu({
+  mode,
+  onChange
+}: {
+  mode: TopicDisplayMode
+  onChange: (mode: TopicDisplayMode) => void
+}) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const mode = TOPIC_DISPLAY_MODE
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -145,7 +156,7 @@ function TopicDisplayModeMenu() {
               suffix={mode === option ? <Check size={11} /> : null}
               className="h-6 gap-1.5 rounded-md px-1.5 py-0 text-[11px] font-normal text-muted-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground [&_svg]:size-3"
               onClick={() => {
-                // TODO(topic-display-mode): wire persisted display-mode selection and derived groups in the logic phase.
+                onChange(option)
                 setOpen(false)
               }}
             />
@@ -162,6 +173,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
   const { notesPath } = useNotesSettings()
   const { updateTopic: patchTopic, deleteTopic: deleteTopicById, refreshTopics } = useTopicMutations()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [topicPosition] = usePreference('topic.position')
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
@@ -192,6 +204,13 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
   })
   const { isPinned: isTopicPinned, togglePinned: toggleTopicPinned } = topicPinState
   const { topics: apiTopics, isLoading, error } = useAllTopics({ loadAll: true })
+  const displayMode = topicDisplayMode ?? 'time'
+  const isAssistantDisplayMode = displayMode === 'assistant'
+  const {
+    assistants,
+    isLoading: isAssistantsLoading,
+    error: assistantsError
+  } = useAssistantsApi({ enabled: isAssistantDisplayMode })
   const visibleTopicsRef = useRef<readonly Topic[]>([])
   const listRef = useRef<HTMLDivElement>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
@@ -204,6 +223,12 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
         return { ...topic, pinned: isTopicPinned(apiTopic.id) }
       }),
     [apiTopics, isTopicPinned]
+  )
+
+  const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
+  const assistantRankById = useMemo(
+    () => new Map(assistants.map((assistant, index) => [assistant.id, index])),
+    [assistants]
   )
 
   const manageState = useTopicManageMode()
@@ -387,20 +412,31 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
     [t, updateTopic]
   )
 
-  const groupedTopics = useMemo(() => sortTopicsForDisplayGroups(topics, groupNow), [groupNow, topics])
+  const groupedTopics = useMemo(
+    () =>
+      sortTopicsForDisplayGroups(topics, {
+        assistantRankById,
+        mode: displayMode,
+        now: groupNow
+      }),
+    [assistantRankById, displayMode, groupNow, topics]
+  )
 
   const filteredTopics = useMemo(
     () => filterTopicsForManageMode(groupedTopics, deferredSearchText, isManageMode),
     [deferredSearchText, groupedTopics, isManageMode]
   )
 
-  const listStatus = error ? 'error' : isLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
+  const listError = error || (isAssistantDisplayMode ? assistantsError : undefined)
+  const listLoading = isLoading || (isAssistantDisplayMode && isAssistantsLoading)
+  const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const singlealone = topicPosition === 'right' && position === 'right'
-  const canDragTopics = !isManageMode
+  const canDragTopics = !isManageMode && displayMode === 'time'
   const topicGroupBy = useMemo(
     () =>
       createTopicDisplayGroupResolver<Topic>({
-        mode: TOPIC_DISPLAY_MODE,
+        assistantById,
+        mode: displayMode,
         labels: {
           pinned: t('selector.common.pinned_title'),
           time: {
@@ -408,17 +444,30 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
             yesterday: t('chat.topics.group.yesterday'),
             'this-week': t('chat.topics.group.this_week'),
             earlier: t('chat.topics.group.earlier')
+          },
+          assistant: {
+            default: t('chat.default.name'),
+            unknown: t('chat.topics.group.unknown_assistant')
           }
         },
         now: groupNow
       }),
-    [groupNow, t]
+    [assistantById, displayMode, groupNow, t]
   )
 
   const getGroupHeaderAction = useCallback(
     (group: { id: string }) => {
-      if (TOPIC_DISPLAY_MODE !== 'time' || group.id !== TOPIC_TODAY_GROUP_ID) {
-        return null
+      let payload: { assistantId: string | null } | undefined
+
+      if (displayMode === 'time') {
+        if (group.id !== TOPIC_TODAY_GROUP_ID) return null
+      } else if (group.id === TOPIC_DEFAULT_ASSISTANT_GROUP_ID) {
+        payload = { assistantId: null }
+      } else {
+        const assistantId = getAssistantIdFromTopicGroupId(group.id)
+        if (!assistantId || !assistantById.has(assistantId)) return null
+
+        payload = { assistantId }
       }
 
       return (
@@ -426,13 +475,53 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
           <ResourceList.HeaderActionButton
             type="button"
             aria-label={t('chat.add.topic.title')}
-            onClick={() => void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+            onClick={() =>
+              payload === undefined
+                ? void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)
+                : void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC, payload)
+            }>
             <Plus size={12} className="block" />
           </ResourceList.HeaderActionButton>
         </Tooltip>
       )
     },
-    [t]
+    [assistantById, displayMode, t]
+  )
+
+  const getGroupHeaderIcon = useCallback(
+    (group: { id: string }) => {
+      if (group.id === TOPIC_PINNED_GROUP_ID) {
+        return null
+      }
+
+      if (displayMode !== 'assistant') {
+        return undefined
+      }
+
+      if (group.id === TOPIC_DEFAULT_ASSISTANT_GROUP_ID) {
+        return <EmojiIcon emoji={DEFAULT_ASSISTANT_GROUP_EMOJI} size={14} fontSize={10} className="mr-0" />
+      }
+
+      if (group.id === TOPIC_UNKNOWN_ASSISTANT_GROUP_ID) {
+        return <Sparkles size={13} />
+      }
+
+      const assistantId = getAssistantIdFromTopicGroupId(group.id)
+      const assistant = assistantId ? assistantById.get(assistantId) : undefined
+      if (!assistant) {
+        return <Sparkles size={13} />
+      }
+
+      return (
+        <EmojiIcon
+          emoji={assistant.emoji || getLeadingEmoji(assistant.name)}
+          size={14}
+          fontSize={10}
+          className="mr-0"
+        />
+      )
+    },
+    [assistantById, displayMode]
   )
 
   return (
@@ -446,6 +535,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
         defaultGroupVisibleCount={5}
         groupLoadStep={5}
         getGroupHeaderAction={getGroupHeaderAction}
+        getGroupHeaderIcon={getGroupHeaderIcon}
         groupShowMoreLabel={t('chat.topics.group.show_more')}
         groupCollapseLabel={t('chat.topics.group.collapse')}
         onRenameItem={handleRenameTopic}
@@ -456,7 +546,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
           count={topics.length}
           actions={
             <>
-              <TopicDisplayModeMenu />
+              <TopicDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setTopicDisplayMode(nextMode)} />
               <Tooltip title={t('chat.add.topic.title')} delay={500}>
                 <ResourceList.HeaderActionButton
                   type="button"

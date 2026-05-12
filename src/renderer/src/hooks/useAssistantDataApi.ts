@@ -34,8 +34,9 @@ const ASSISTANTS_REFRESH_KEYS: ConcreteApiPaths[] = ['/assistants', '/assistants
  * (matches the schema's hard cap). Paginated UI would need a different
  * consumer.
  */
-export function useAssistantsApi() {
+export function useAssistantsApi(options: { enabled?: boolean } = {}) {
   const { data, isLoading, error, refetch, mutate } = useQuery('/assistants', {
+    enabled: options.enabled ?? true,
     query: { limit: ASSISTANTS_LIST_LIMIT }
   })
 

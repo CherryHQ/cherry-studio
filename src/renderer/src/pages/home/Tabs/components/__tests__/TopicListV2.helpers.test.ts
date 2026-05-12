@@ -9,7 +9,9 @@ import {
   getTopicTimeBucket,
   groupTopicByPinned,
   moveTopicAfterDrop,
-  sortTopicsForDisplayGroups
+  sortTopicsForDisplayGroups,
+  TOPIC_DEFAULT_ASSISTANT_GROUP_ID,
+  TOPIC_UNKNOWN_ASSISTANT_GROUP_ID
 } from '../TopicListV2.helpers'
 
 const TOPIC_GROUP_LABELS = {
@@ -19,6 +21,10 @@ const TOPIC_GROUP_LABELS = {
     yesterday: 'Yesterday',
     'this-week': 'This week',
     earlier: 'Earlier'
+  },
+  assistant: {
+    default: 'Default Assistant',
+    unknown: 'Unknown Assistant'
   }
 }
 
@@ -126,11 +132,60 @@ describe('TopicListV2 helpers', () => {
       createTopic({ id: 'pinned-new', pinned: true, updatedAt: localIso(2026, 5, 15, 9) })
     ]
 
-    expect(sortTopicsForDisplayGroups(topics, now).map((topic) => topic.id)).toEqual([
+    expect(sortTopicsForDisplayGroups(topics, { mode: 'time', now }).map((topic) => topic.id)).toEqual([
       'pinned-old',
       'pinned-new',
       'today',
       'week'
     ])
+  })
+
+  it('builds assistant display groups with pinned/default/known/unknown buckets', () => {
+    const groupTopic = createTopicDisplayGroupResolver({
+      assistantById: new Map([
+        ['assistant-1', { id: 'assistant-1', name: 'Research' }],
+        ['assistant-2', { id: 'assistant-2', name: 'Writing' }]
+      ]),
+      labels: TOPIC_GROUP_LABELS,
+      mode: 'assistant'
+    })
+
+    expect(groupTopic(createTopic({ id: 'pinned', pinned: true, assistantId: undefined }))).toEqual({
+      id: 'topic:pinned',
+      label: 'Pinned'
+    })
+    expect(groupTopic(createTopic({ id: 'default', assistantId: undefined }))).toEqual({
+      id: TOPIC_DEFAULT_ASSISTANT_GROUP_ID,
+      label: 'Default Assistant'
+    })
+    expect(groupTopic(createTopic({ id: 'known', assistantId: 'assistant-2' }))).toEqual({
+      id: 'topic:assistant:assistant-2',
+      label: 'Writing'
+    })
+    expect(groupTopic(createTopic({ id: 'unknown', assistantId: 'missing-assistant' }))).toEqual({
+      id: TOPIC_UNKNOWN_ASSISTANT_GROUP_ID,
+      label: 'Unknown Assistant'
+    })
+  })
+
+  it('sorts assistant display groups by pinned, default, assistant rank, then unknown while preserving group order', () => {
+    const topics = [
+      createTopic({ id: 'assistant-b-1', assistantId: 'assistant-b' }),
+      createTopic({ id: 'unknown-1', assistantId: 'missing-assistant' }),
+      createTopic({ id: 'default-1', assistantId: undefined }),
+      createTopic({ id: 'assistant-a-1', assistantId: 'assistant-a' }),
+      createTopic({ id: 'pinned-1', assistantId: 'missing-assistant', pinned: true }),
+      createTopic({ id: 'assistant-b-2', assistantId: 'assistant-b' })
+    ]
+
+    expect(
+      sortTopicsForDisplayGroups(topics, {
+        assistantRankById: new Map([
+          ['assistant-a', 0],
+          ['assistant-b', 1]
+        ]),
+        mode: 'assistant'
+      }).map((topic) => topic.id)
+    ).toEqual(['pinned-1', 'default-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'unknown-1'])
   })
 })

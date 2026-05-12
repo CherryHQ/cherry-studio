@@ -78,6 +78,8 @@ export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Comm
 
 export type AssistantTabSortType = 'tags' | 'list'
 
+export type TopicDisplayMode = 'time' | 'assistant'
+
 export type SidebarIcon =
   | 'assistants'
   | 'agents'

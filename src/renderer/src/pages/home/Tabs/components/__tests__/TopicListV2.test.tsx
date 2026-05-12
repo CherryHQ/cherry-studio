@@ -164,6 +164,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.group.yesterday') return 'Yesterday'
       if (key === 'chat.topics.group.this_week') return 'This week'
       if (key === 'chat.topics.group.earlier') return 'Earlier'
+      if (key === 'chat.topics.group.unknown_assistant') return 'Unknown Assistant'
       if (key === 'chat.topics.group.show_more') return 'Show more topics'
       if (key === 'chat.topics.group.collapse') return 'Collapse topics'
       if (key === 'chat.topics.search.placeholder') return 'Search topics'
@@ -191,6 +192,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
       if (key === 'common.delete') return 'Delete'
       if (key === 'chat.add.topic.title') return 'New Topic'
+      if (key === 'chat.default.name') return 'Default Assistant'
       if (key === 'common.prompt') return 'Prompt'
       if (key === 'settings.topic.position.label') return 'Topic position'
       if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
@@ -282,6 +284,7 @@ describe('TopicListV2', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'topic.tab.pin_to_top': true,
+      'topic.tab.display_mode': 'time',
       'topic.tab.show_time': false,
       'topic.position': 'left',
       'data.export.menus.docx': true,
@@ -311,6 +314,34 @@ describe('TopicListV2', () => {
       if (path === '/pins') {
         return {
           data: [{ id: 'pin-topic-b', entityId: 'topic-b', entityType: 'topic' }],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      if (path === '/assistants') {
+        return {
+          data: {
+            items: [
+              {
+                id: 'assistant-1',
+                name: 'Alpha Assistant',
+                emoji: '🧪',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z'
+              },
+              {
+                id: 'assistant-2',
+                name: 'Beta Assistant',
+                emoji: '✍️',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z'
+              }
+            ],
+            total: 2
+          },
           isLoading: false,
           isRefreshing: false,
           error: undefined,
@@ -383,6 +414,7 @@ describe('TopicListV2', () => {
       reset: vi.fn(),
       mutate: vi.fn()
     })
+    dndMocks.onDragEnd = undefined
   })
 
   afterEach(() => {
@@ -581,7 +613,7 @@ describe('TopicListV2', () => {
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
   })
 
-  it('renders the topic header controls for the UI-only display mode phase', () => {
+  it('renders the topic header controls and persists display mode selection', () => {
     renderTopicList()
 
     expect(screen.getByText('Topics')).toBeInTheDocument()
@@ -595,14 +627,19 @@ describe('TopicListV2', () => {
     expect(screen.getByRole('button', { name: 'Time' })).toHaveClass('h-6', 'text-[11px]', 'font-normal')
     expect(screen.getByRole('button', { name: 'Time' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Assistant' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
+
+    fireEvent.click(screen.getByLabelText('Display mode'))
+    fireEvent.click(screen.getByRole('button', { name: 'Time' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
   })
 
   it('adds a new topic when clicking the new-topic header action', () => {
     renderTopicList()
 
-    const header = screen.getByText('Topics').closest('div')
-    expect(header).toBeInTheDocument()
-    fireEvent.click(within(header as HTMLElement).getByRole('button', { name: 'New Topic' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'New Topic' })[0])
 
     expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC)
   })
@@ -645,15 +682,137 @@ describe('TopicListV2', () => {
     })
   })
 
-  it('keeps display mode logic as a TODO and does not fetch assistant or tag data yet', () => {
+  it('renders assistant groups and creates topics with the selected assistant payload', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseQuery.mockImplementation((path) => {
+      if (path === '/pins') {
+        return {
+          data: [{ id: 'pin-topic-b', entityId: 'topic-b', entityType: 'topic' }],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      if (path === '/assistants') {
+        return {
+          data: {
+            items: [
+              {
+                id: 'assistant-1',
+                name: 'Alpha Assistant',
+                emoji: '🧪',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z'
+              },
+              {
+                id: 'assistant-2',
+                name: 'Beta Assistant',
+                emoji: '✍️',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z'
+              }
+            ],
+            total: 2
+          },
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return {
+        data: undefined,
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn().mockResolvedValue(undefined),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-a',
+              name: 'Known alpha',
+              assistantId: 'assistant-1',
+              orderKey: 'a'
+            }),
+            createApiTopic({
+              id: 'topic-b',
+              name: 'Pinned unknown',
+              assistantId: 'missing-assistant',
+              orderKey: 'b'
+            }),
+            createApiTopic({
+              id: 'topic-c',
+              name: 'Default topic',
+              assistantId: undefined,
+              orderKey: 'c'
+            }),
+            createApiTopic({
+              id: 'topic-d',
+              name: 'Known beta',
+              assistantId: 'assistant-2',
+              orderKey: 'd'
+            }),
+            createApiTopic({
+              id: 'topic-e',
+              name: 'Unknown topic',
+              assistantId: 'missing-assistant',
+              orderKey: 'e'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
     renderTopicList()
 
-    fireEvent.click(screen.getByLabelText('Display mode'))
-    fireEvent.click(screen.getByRole('button', { name: 'Assistant' }))
+    expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Default Assistant' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Unknown Assistant' })).toBeInTheDocument()
 
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBeNull()
-    expect(mockUseQuery).not.toHaveBeenCalledWith('/assistants', expect.anything())
-    expect(mockUseQuery).not.toHaveBeenCalledWith('/tags')
-    expect(dataApiService.get).not.toHaveBeenCalledWith(expect.stringContaining('/tags/entities/topic/'))
+    const defaultHeader = screen.getByRole('button', { name: 'Default Assistant' }).closest('div')
+    expect(defaultHeader).toBeInTheDocument()
+    fireEvent.click(within(defaultHeader as HTMLElement).getByRole('button', { name: 'New Topic' }))
+    expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC, { assistantId: null })
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    expect(assistantHeader).toBeInTheDocument()
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'New Topic' }))
+    expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC, { assistantId: 'assistant-1' })
+
+    for (const groupName of ['Pinned', 'Unknown Assistant'] as const) {
+      const header = screen.getByRole('button', { name: groupName }).closest('div')
+      expect(header).toBeInTheDocument()
+      expect(within(header as HTMLElement).queryByRole('button', { name: 'New Topic' })).not.toBeInTheDocument()
+    }
+  })
+
+  it('disables drag reorder when grouped by assistant', () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList()
+
+    expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
+    dndMocks.onDragEnd?.({ active: { id: 'topic-a' }, over: { id: 'topic-c' } })
+
+    expect(patchSpy).not.toHaveBeenCalled()
   })
 })

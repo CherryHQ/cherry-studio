@@ -96,6 +96,7 @@ type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getItemId?: (item: T) => string
   getItemLabel?: (item: T) => string
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
+  getGroupHeaderIcon?: (group: ResourceListGroup) => ReactNode
   defaultGroupVisibleCount?: number
   groupLoadStep?: number
   groupShowMoreLabel?: string
@@ -184,6 +185,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   getItemId = (item) => item.id,
   getItemLabel = (item) => item.name,
   getGroupHeaderAction,
+  getGroupHeaderIcon,
   defaultGroupVisibleCount = 5,
   groupLoadStep = 5,
   groupShowMoreLabel = DEFAULT_GROUP_SHOW_MORE_LABEL,
@@ -335,6 +337,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         getItemLabel,
         groups: viewGroups.map((group) => group.group),
         getGroupHeaderAction,
+        getGroupHeaderIcon,
         sortOptions,
         filterOptions,
         estimateItemSize,
@@ -358,6 +361,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       getItemId,
       getItemLabel,
       getGroupHeaderAction,
+      getGroupHeaderIcon,
       groupLoadStep,
       groupCollapseLabel,
       groupShowMoreLabel,
@@ -594,6 +598,8 @@ function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
   const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
   const collapsed = viewGroup?.collapsed ?? false
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
+  const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group)
+  const groupHeaderIcon = customGroupHeaderIcon === undefined ? <CalendarDays size={13} /> : customGroupHeaderIcon
 
   if (!group.label) return null
   return (
@@ -609,9 +615,11 @@ function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
         aria-expanded={!collapsed}
         className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm text-left outline-none hover:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
         onClick={() => actions.toggleGroup(group.id)}>
-        <span className="flex size-5 shrink-0 items-center justify-center">
-          <CalendarDays size={13} />
-        </span>
+        {groupHeaderIcon && (
+          <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center">
+            {groupHeaderIcon}
+          </span>
+        )}
         <span className="truncate">{group.label}</span>
       </button>
       {groupHeaderAction && <div className="ml-auto flex shrink-0 items-center">{groupHeaderAction}</div>}

@@ -307,6 +307,30 @@ describe('ResourceList', () => {
     )
   })
 
+  it('allows callers to replace the default group header icon', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderIcon={(group) => <span data-testid={`${group.id}-icon`}>#</span>}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByTestId('session-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('topic-icon')).toBeInTheDocument()
+  })
+
   it('auto-hides the shared list viewport scrollbar after scrolling stops', () => {
     vi.useFakeTimers()
     const Provider = ResourceList.Provider<TestItem>
