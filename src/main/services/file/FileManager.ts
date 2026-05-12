@@ -123,6 +123,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
+import { FileEntryIdSchema } from '@shared/data/types/file'
 import type {
   BatchCreateResult,
   BatchMutationResult,
@@ -134,6 +135,7 @@ import type {
 } from '@shared/file/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import mime from 'mime'
+import * as z from 'zod'
 
 import { danglingCache } from './danglingCache'
 import { hash as internalHash } from './internal/content/hash'
@@ -174,6 +176,21 @@ const fileManagerLogger = loggerService.withContext('FileManager')
 // Re-exported under shorter names for Main callers.
 export type CreateInternalEntryParams = CreateInternalEntryIpcParams
 export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
+
+// ─── File IPC input schemas (Phase 1 wired channels only) ───
+
+/**
+ * Maximum number of entry ids a single `File_BatchGetDanglingStates` call may
+ * carry. Mirrors `REF_COUNTS_MAX_ENTRY_IDS` from the DataApi side — the batch
+ * still fans out one `findById` per id, so the renderer-side cap protects the
+ * event loop and connection pool from runaway requests.
+ */
+export const FILE_BATCH_DANGLING_MAX_IDS = 500
+
+export const GetDanglingStateIpcSchema = z.strictObject({ id: FileEntryIdSchema })
+export const BatchGetDanglingStatesIpcSchema = z.strictObject({
+  ids: z.array(FileEntryIdSchema).max(FILE_BATCH_DANGLING_MAX_IDS)
+})
 
 // ─── Version types ───
 
@@ -520,11 +537,18 @@ export class FileManager extends BaseService {
    * `onInit` stays a narrow three-step sequence (init → register → sweep) and
    * Phase 2 channels land next to these two without bloating the lifecycle
    * method.
+   *
+   * Every handler Zod-parses its `params` before delegating, matching the
+   * DataApi handler discipline (`b8709c964` / `2437c1104`). Without this the
+   * batch fan-out is unbounded: a 100k-id `Promise.all` over `findById`
+   * would saturate the event loop and the DB connection pool.
    */
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.File_GetDanglingState, (_e, params: { id: FileEntryId }) => this.getDanglingState(params))
-    this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params: { ids: FileEntryId[] }) =>
-      this.batchGetDanglingStates(params)
+    this.ipcHandle(IpcChannel.File_GetDanglingState, (_e, params: unknown) =>
+      this.getDanglingState(GetDanglingStateIpcSchema.parse(params))
+    )
+    this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params: unknown) =>
+      this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
     )
   }
 
