@@ -630,7 +630,15 @@ All soft deletes are implemented via the `trashedAt` timestamp, without physical
 
 **permanentDelete on external**: DB row is removed; the user's file at `externalPath` is **never** modified — Cherry only owns the reference, not the content. This is the only safe contract: silently deleting user files from inside the app would violate the "best-effort external reference" semantics (§1.0.2 in `architecture.md`). Users who actually want the underlying file gone do so through their OS file manager.
 
-### 6.2 Auto Expiry
+### 6.2 Auto Expiry (deferred — lands in Phase 2)
+
+> **Status**: design only. Phase 1 ships no expiry timer service, no
+> Preferences key, and no `WHERE trashedAt < now() - retentionMs` query.
+> Trashed entries persist until the user runs an explicit
+> `permanentDelete` (or the startup orphan sweep collects an
+> already-deleted entry's residual blob). The 30-day window below is
+> the **proposed** retention; the actual default and configurability
+> land with the timer service.
 
 By default trashed entries are cleaned up after 30 days (lifecycle service timer); the user may configure the days or disable it in Preferences.
 
