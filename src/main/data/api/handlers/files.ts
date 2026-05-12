@@ -15,7 +15,6 @@
 
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
-import { DataApiErrorFactory } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   type FileSchemas,
@@ -36,9 +35,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/entries/:id': {
     GET: async ({ params }) => {
       const id = FileEntryIdSchema.parse(params.id)
-      const entry = await fileEntryService.findById(id)
-      if (!entry) throw DataApiErrorFactory.notFound('FileEntry', id)
-      return entry
+      return fileEntryService.getById(id)
     }
   },
 

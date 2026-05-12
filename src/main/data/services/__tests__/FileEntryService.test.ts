@@ -1,4 +1,5 @@
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -45,10 +46,19 @@ describe('FileEntryService', () => {
       expect(result).toBeNull()
     })
 
-    it('getById throws for missing id', async () => {
-      await expect(fileEntryService.getById('019606a0-0000-7000-8000-9999fffffffe' as FileEntryId)).rejects.toThrow(
-        /not found/i
-      )
+    it('getById throws a typed DataApiError(NOT_FOUND) for missing id', async () => {
+      // Regression: prior to the DataApiErrorFactory.notFound fix, this path
+      // threw a plain Error which the IPC adapter routed through internal() →
+      // HTTP 500. Renderer-side `error.code === ErrorCode.NOT_FOUND` branches
+      // never matched. Pin both the class and the typed code so a future
+      // "throw a generic error" regression is caught at the service boundary.
+      const missing = '019606a0-0000-7000-8000-9999fffffffe' as FileEntryId
+      const promise = fileEntryService.getById(missing)
+      await expect(promise).rejects.toBeInstanceOf(DataApiError)
+      await expect(promise).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'FileEntry', id: missing }
+      })
     })
 
     it('returns trashed internal entries (filtering is caller responsibility)', async () => {

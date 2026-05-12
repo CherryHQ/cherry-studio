@@ -20,6 +20,7 @@
 
 import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import { FileEntrySchema } from '@shared/data/types/file'
 import { and, asc, count, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
@@ -176,7 +177,7 @@ class FileEntryServiceImpl implements FileEntryService {
   async getById(id: FileEntryId): Promise<FileEntry> {
     const entry = await this.findById(id)
     if (!entry) {
-      throw new Error(`FileEntry not found: ${id}`)
+      throw DataApiErrorFactory.notFound('FileEntry', id)
     }
     return entry
   }
@@ -321,7 +322,7 @@ class FileEntryServiceImpl implements FileEntryService {
     if (values.trashedAt !== undefined) updates.trashedAt = values.trashedAt
     const rows = await this.getDb().update(fileEntryTable).set(updates).where(eq(fileEntryTable.id, id)).returning()
     if (rows.length === 0) {
-      throw new Error(`FileEntry not found: ${id}`)
+      throw DataApiErrorFactory.notFound('FileEntry', id)
     }
     return rowToFileEntry(rows[0])
   }
@@ -338,7 +339,7 @@ class FileEntryServiceImpl implements FileEntryService {
       .where(eq(fileEntryTable.id, id))
       .returning()
     if (rows.length === 0) {
-      throw new Error(`FileEntry not found: ${id}`)
+      throw DataApiErrorFactory.notFound('FileEntry', id)
     }
     return rowToFileEntry(rows[0])
   }
