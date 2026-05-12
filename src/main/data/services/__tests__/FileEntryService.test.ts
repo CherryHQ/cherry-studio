@@ -373,6 +373,48 @@ describe('FileEntryService', () => {
     })
   })
 
+  describe('listAllIds', () => {
+    // listAllIds backs the Phase 1b.4 startup disk scan, which decides which
+    // on-disk UUID files are orphaned (no DB row, regardless of trashed
+    // state). The implementation is one query — the regressions worth
+    // catching are misclassifying trashed rows as deleted (trashedAt filter
+    // creeping in) or returning an array shape.
+
+    it('returns an empty Set on an empty table', async () => {
+      const ids = await fileEntryService.listAllIds()
+      expect(ids).toBeInstanceOf(Set)
+      expect(ids.size).toBe(0)
+    })
+
+    it('includes both active and trashed rows', async () => {
+      const active = '019606a0-0000-7000-8000-000000000e01' as FileEntryId
+      const trashed = '019606a0-0000-7000-8000-000000000e02' as FileEntryId
+      await fileEntryService.create({
+        id: active,
+        origin: 'internal',
+        name: 'a',
+        ext: 'txt',
+        size: 1,
+        externalPath: null
+      })
+      await fileEntryService.create({
+        id: trashed,
+        origin: 'internal',
+        name: 't',
+        ext: 'txt',
+        size: 1,
+        externalPath: null,
+        trashedAt: Date.now()
+      })
+
+      const ids = await fileEntryService.listAllIds()
+      expect(ids).toBeInstanceOf(Set)
+      expect(ids.has(active)).toBe(true)
+      expect(ids.has(trashed)).toBe(true)
+      expect(ids.size).toBe(2)
+    })
+  })
+
   describe('setExternalPathAndName', () => {
     // setExternalPathAndName is the only sanctioned mutation site for
     // FileEntry.externalPath (per the interface JSDoc) and the atomic core of
