@@ -78,14 +78,19 @@ export const REF_COUNTS_MAX_ENTRY_IDS = 500
 
 // ─── Query schemas ───
 
-export const ListFilesQuerySchema = z.strictObject({
-  origin: FileEntryOriginSchema.optional(),
-  inTrash: z.boolean().optional(),
-  sortBy: z.enum(['name', 'createdAt', 'updatedAt', 'size']).optional(),
-  sortOrder: z.enum(['asc', 'desc']).optional(),
-  page: z.int().positive().default(LIST_FILES_DEFAULT_PAGE),
-  limit: z.int().positive().max(LIST_FILES_MAX_LIMIT).default(LIST_FILES_DEFAULT_LIMIT)
-})
+export const ListFilesQuerySchema = z
+  .strictObject({
+    origin: FileEntryOriginSchema.optional(),
+    inTrash: z.boolean().optional(),
+    sortBy: z.enum(['name', 'createdAt', 'updatedAt', 'size']).optional(),
+    sortOrder: z.enum(['asc', 'desc']).optional(),
+    page: z.int().positive().default(LIST_FILES_DEFAULT_PAGE),
+    limit: z.int().positive().max(LIST_FILES_MAX_LIMIT).default(LIST_FILES_DEFAULT_LIMIT)
+  })
+  .refine(
+    (q) => !(q.inTrash === true && q.origin === 'external'),
+    'inTrash=true is incompatible with origin=external — external entries cannot be trashed (DB CHECK fe_external_no_trash)'
+  )
 export type ListFilesQueryParams = z.input<typeof ListFilesQuerySchema>
 export type ListFilesQuery = z.output<typeof ListFilesQuerySchema>
 
