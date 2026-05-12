@@ -24,6 +24,32 @@ import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('internal/entry/create')
 
+/**
+ * Mirror of `fs.ts:bestEffortUnlinkTmp` for createInternal's two cleanup
+ * sites: ENOENT is the desired post-state and stays silent, every other
+ * errno surfaces a `warn` so oncall can find a stranded blob after the
+ * abort. The original error is rethrown by the caller; this helper only
+ * exists for observability.
+ *
+ * Replaces the previous `.catch(() => undefined)` pattern, which silenced
+ * EACCES / EBUSY / EIO equally with ENOENT — exactly the class of failure
+ * `fs.errno-warn.test.ts` was built to guard against.
+ */
+async function bestEffortCleanup(physical: FilePath, context: string): Promise<void> {
+  try {
+    await fsRemove(physical)
+  } catch (cleanupErr) {
+    const code = (cleanupErr as NodeJS.ErrnoException).code
+    if (code !== 'ENOENT') {
+      logger.warn(`${context}: cleanup unlink failed; physical blob may remain on disk`, {
+        physical,
+        code,
+        err: cleanupErr
+      })
+    }
+  }
+}
+
 interface NormalisedSource {
   name: string
   ext: string | null
@@ -112,7 +138,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
   try {
     stats = await fsStat(physical)
   } catch (err) {
-    await fsRemove(physical).catch(() => undefined)
+    await bestEffortCleanup(physical, 'createInternal:stat-failed')
     throw err
   }
   try {
@@ -126,7 +152,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
     })
   } catch (err) {
     logger.warn('createInternal: DB insert failed; unlinking physical file', { id, err })
-    await fsRemove(physical).catch(() => undefined)
+    await bestEffortCleanup(physical, 'createInternal:db-insert-failed')
     throw err
   }
 }
