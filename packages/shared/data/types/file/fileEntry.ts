@@ -4,40 +4,49 @@
  * Zod schemas for runtime validation of FileEntry records.
  * FileEntry is a flat list of Cherry-managed files (no tree structure).
  *
- * Every entry has an `origin`:
+ * `FileEntry` is a **discriminated union on `origin`**: each variant declares
+ * only the fields it owns, so consumers narrow naturally on `origin` instead
+ * of dancing around nullable columns. The DB row layer keeps every column
+ * physically (see "DB row vs Business Object" below).
+ *
  * - `internal`: Cherry owns the content, stored at `{userData}/Data/Files/{id}.{ext}`.
  *   `name` / `ext` / `size` are authoritative truth (kept in sync by atomic writes).
  * - `external`: Cherry only references a user-provided path (`externalPath`).
  *   `name` / `ext` are pure projections of `externalPath` (basename / extname) —
- *   stable as long as the reference itself is stable. `size` is **not stored**
- *   for external entries (`null`); consumers needing a live value call File IPC
- *   `getMetadata(id)` which runs `fs.stat` on demand.
+ *   stable as long as the reference itself is stable. The BO has **no `size`
+ *   field** for external entries (consumers needing a live value call File IPC
+ *   `getMetadata(id)`, which runs `fs.stat` on demand; see rationale below).
  *
  * Timestamps are numbers (ms epoch) matching DB integer storage.
  * For file reference types, see `./ref/`.
  *
- * ## Invariants
+ * ## Field presence per variant
  *
- * | Field         | origin='internal'      | origin='external'                              |
- * |---------------|------------------------|------------------------------------------------|
- * | `name`        | SoT (user renamable)   | derived from `externalPath` basename (stable)  |
- * | `ext`         | SoT                    | derived from `externalPath` extname (stable)   |
- * | `size`        | SoT (bytes, ≥ 0)       | **always `null`** — live value via `getMetadata`|
- * | `externalPath`| null                   | non-null absolute path                         |
- * | `trashedAt`   | nullable               | **always null** (external cannot be trashed)   |
+ * | Field         | origin='internal'                  | origin='external'                              |
+ * |---------------|------------------------------------|------------------------------------------------|
+ * | `name`        | SoT (user renamable)               | derived from `externalPath` basename (stable)  |
+ * | `ext`         | SoT                                | derived from `externalPath` extname (stable)   |
+ * | `size`        | SoT (bytes, ≥ 0)                   | **absent** — live value via `getMetadata`      |
+ * | `externalPath`| **absent**                         | non-null absolute path (canonical)             |
+ * | `trashedAt`   | optional (present iff trashed)     | **absent** (external cannot be trashed)        |
  *
- * ## Why `size` is null for external
+ * "Absent" means the field is not declared on that variant's schema at all —
+ * `entry.size` is a type error on the external arm, not `null` you have to
+ * defend against. The DB still carries every column (see "DB row vs Business
+ * Object"), but those `null`s are stripped at the BO boundary.
+ *
+ * ## Why external has no `size`
  *
  * External files can change outside Cherry at any time (user edits, another app
  * overwrites, the file gets moved). Storing a snapshot here would create two
  * classes of bugs: (a) callers silently consuming stale values, (b) "refresh"
- * operations that merely move the staleness window. Making `size` unavailable
- * at the DB layer forces consumers to make the freshness tradeoff explicit —
- * either they don't need it, or they call `getMetadata` for a live `fs.stat`.
- * `name` / `ext` stay on the row because they are pure projections of
- * `externalPath` (which is the SoT) and therefore cannot drift while the entry
- * exists; the cost of recomputing `path.basename` on every row is not worth
- * the denormalization saving.
+ * operations that merely move the staleness window. Dropping `size` from the
+ * external BO forces consumers to make the freshness tradeoff explicit — either
+ * they don't need it, or they call `getMetadata` for a live `fs.stat`. `name` /
+ * `ext` stay on the variant because they are pure projections of `externalPath`
+ * (which is the SoT) and therefore cannot drift while the entry exists; the
+ * cost of recomputing `path.basename` on every row is not worth the
+ * denormalization saving.
  *
  * ## Type safety: Zod brand on FileEntry
  *
@@ -77,9 +86,10 @@
  *                         (update in place via rename / write)
  * ```
  *
- * - Active:   `trashedAt = null` (the only legal state for external; enforced
- *             by both Zod `z.null()` on `ExternalEntrySchema.trashedAt` and the
- *             DB `fe_external_no_trash` CHECK)
+ * - Active:   `trashedAt` is absent — on `InternalEntrySchema` it's `optional`
+ *             so omitted means live; `ExternalEntrySchema` doesn't declare the
+ *             field at all and the DB `fe_external_no_trash` CHECK enforces it
+ *             at the row layer
  * - Trashed:  `trashedAt = <ms epoch>` (internal-only)
  * - permanentDelete on internal: unlink FS file + delete DB row
  * - permanentDelete on external: **DB row only** — the physical file is left
