@@ -15,7 +15,7 @@
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import type { AiStreamRequest } from '../../types/requests'
 import { PersistenceListener } from '../listeners/PersistenceListener'
@@ -58,16 +58,17 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
 
     const { assistantId, defaultModelId } = await resolveAssistantModelId(topic.assistantId)
 
-    // Multi-model isn't supported: TemporaryChatService forbids non-zero siblingsGroupId.
-    // Temporary chats are "quick assistant / selection action" scenarios — @mentions
-    // are ignored here intentionally, using the assistant default model only.
+    let resolveWith: UniqueModelId[] | undefined
     if (req.mentionedModelIds?.length) {
-      logger.warn('Ignoring mentionedModelIds for temporary chat — single-model only', {
-        topicId: req.topicId,
-        mentioned: req.mentionedModelIds
-      })
+      if (req.mentionedModelIds.length > 1) {
+        logger.warn('Temporary chat received multiple mentionedModelIds — only the first is used', {
+          topicId: req.topicId,
+          mentioned: req.mentionedModelIds
+        })
+      }
+      resolveWith = [req.mentionedModelIds[0]]
     }
-    const models = await resolveModels(undefined, defaultModelId)
+    const models = await resolveModels(resolveWith, defaultModelId)
     const model = models[0]
     const { modelId: rawModelId, providerId } = parseUniqueModelId(model.id)
     const modelSnapshot = {

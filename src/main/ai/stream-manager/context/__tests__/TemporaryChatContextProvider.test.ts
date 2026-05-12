@@ -131,6 +131,46 @@ describe('TemporaryChatContextProvider', () => {
     expect(prepared.models[0].request.assistantId).toBeUndefined()
   })
 
+  it('honours a single mentionedModelId — pins that model instead of the default preference', async () => {
+    getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
+    getByKeyMock.mockReset()
+    getByKeyMock.mockImplementation(async (providerId: string, modelId: string) => ({
+      id: `${providerId}::${modelId}`,
+      providerId,
+      apiModelId: modelId,
+      name: `${providerId}/${modelId}`
+    }))
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({ mentionedModelIds: ['anthropic::claude-sonnet-4-5'] })
+    )
+
+    expect(getByKeyMock).toHaveBeenCalledWith('anthropic', 'claude-sonnet-4-5')
+    expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet-4-5')
+  })
+
+  it('warns and uses only the first when multiple mentionedModelIds are supplied (single-execution constraint)', async () => {
+    getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
+    getByKeyMock.mockReset()
+    getByKeyMock.mockImplementation(async (providerId: string, modelId: string) => ({
+      id: `${providerId}::${modelId}`,
+      providerId,
+      apiModelId: modelId,
+      name: `${providerId}/${modelId}`
+    }))
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({ mentionedModelIds: ['anthropic::claude-sonnet-4-5', 'openai::gpt-4o'] })
+    )
+
+    // Only the first one is materialised.
+    expect(getByKeyMock).toHaveBeenCalledTimes(1)
+    expect(getByKeyMock).toHaveBeenCalledWith('anthropic', 'claude-sonnet-4-5')
+    expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet-4-5')
+  })
+
   it('appends the user message, then returns a PreparedDispatch with a TemporaryChatBackend listener', async () => {
     const subscriber = makeSubscriber()
 
@@ -167,16 +207,5 @@ describe('TemporaryChatContextProvider', () => {
     expect(request.messages![0].role).toBe('user')
     // No pre-allocated messageId: AI SDK generates it for the streaming UIMessage
     expect(request.messageId).toBeUndefined()
-  })
-
-  it('ignores mentionedModelIds — temp chats are single-model only', async () => {
-    const prepared = await provider.prepareDispatch(
-      makeSubscriber(),
-      openReq({ mentionedModelIds: ['openai::gpt-4o', 'anthropic::claude-sonnet'] })
-    )
-
-    // Only the assistant default model was resolved, single execution planned.
-    expect(getByKeyMock).toHaveBeenCalledTimes(1)
-    expect(prepared.models).toHaveLength(1)
   })
 })

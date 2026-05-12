@@ -4,26 +4,26 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
-  ActiveExecution,
   AiStreamAbortRequest,
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
-  AiStreamOpenRequest,
-  TopicStreamStatus
+  AiStreamOpenRequest
 } from '@shared/ai/transport'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
-import { readUIMessageStream, type UIMessageChunk } from 'ai'
+import { type UIMessageChunk } from 'ai'
 
 import { PendingMessageQueue } from '../agent/loop/PendingMessageQueue'
 import type { AiStreamRequest } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest } from './context'
+import { createChatStreamLifecycle, promptStreamLifecycle, type StreamLifecycle } from './lifecycle'
 import { WebContentsListener } from './listeners/WebContentsListener'
+import { pipeStreamLoop } from './pipeStreamLoop'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -87,6 +87,13 @@ export interface SendInput {
   userMessage?: Message
   /** Shared group id across executions so parallel responses render as siblings. */
   siblingsGroupId?: number
+  /**
+   * Strategy controlling chat-vs-ad-hoc differential behaviour around
+   * status broadcast, attach gating, and terminal cleanup timing.
+   * Defaults to `manager.chatLifecycle` (the common case); `streamPrompt`
+   * passes `promptStreamLifecycle` explicitly.
+   */
+  lifecycle?: StreamLifecycle
 }
 
 /** Result of `AiStreamManager.send`. */
@@ -181,6 +188,12 @@ function errorFromStreamChunk(errorText: string): SerializedError {
 export class AiStreamManager extends BaseService {
   private readonly activeStreams = new Map<string, ActiveStream>()
   private readonly config: AiStreamManagerConfig
+  /**
+   * Chat-stream lifecycle (cross-window status broadcast + grace-period
+   * reconnect). Constructed once with the manager's grace-period config and
+   * exposed so `dispatchStreamRequest` can pass it through `send()`.
+   */
+  readonly chatLifecycle: StreamLifecycle
 
   /**
    * The lifecycle container invokes this with no arguments (falling back
@@ -192,6 +205,7 @@ export class AiStreamManager extends BaseService {
   constructor(config: Partial<AiStreamManagerConfig> = {}) {
     super()
     this.config = { ...DEFAULT_CONFIG, ...config }
+    this.chatLifecycle = createChatStreamLifecycle(this.config.gracePeriodMs)
   }
 
   protected async onInit(): Promise<void> {
@@ -312,19 +326,61 @@ export class AiStreamManager extends BaseService {
       // Start in `pending` — the pre-first-chunk window. `onChunk` flips
       // this to `streaming` as soon as any execution produces content.
       status: 'pending',
-      isMultiModel
+      isMultiModel,
+      lifecycle: input.lifecycle ?? this.chatLifecycle
     }
     this.activeStreams.set(input.topicId, stream)
-    // The `'pending'` delta is the single "a new ActiveStream just
-    // appeared on this topic" signal — consumers that need to attach
-    // (e.g. `useChatWithHistory.resumeActiveStream`) subscribe to it
-    // instead of a separate `Ai_StreamStarted` channel.
-    this.broadcastTopicStatus(input.topicId, 'pending')
+    // Lifecycle owns the "a new ActiveStream just appeared" signal — chat
+    // broadcasts to SharedCache so `useChatWithHistory.resumeActiveStream`
+    // can attach; prompt streams stay silent.
+    stream.lifecycle.onCreated(stream)
 
     return {
       mode: 'started',
       executionIds: input.models.map((m) => m.modelId)
     }
+  }
+
+  /**
+   * Ad-hoc one-shot prompt stream — for main-internal callers (TranslateService,
+   * future topic-naming, summarisation, model-health probes…). Bypasses the
+   * chat dispatcher entirely; the caller supplies a `WebContentsListener`
+   * (or any other `StreamListener`) to receive chunks and terminal events.
+   *
+   * `streamId` is the synthetic `topicId` under which the stream is
+   * registered. Renderer subscribers consuming `Ai_StreamChunk/Done/Error`
+   * filter by this same id. The synthetic `trigger: 'submit-message'` is a
+   * type-conforming placeholder — `AiService.streamText` does not branch on
+   * trigger, and the dispatcher (which does) is bypassed.
+   *
+   * `promptStreamLifecycle` skips SharedCache broadcast + 30 s grace period
+   * + attach support, so the stream evicts immediately at terminal and
+   * leaves no phantom topic-status entries behind.
+   */
+  streamPrompt(input: {
+    streamId: string
+    uniqueModelId: UniqueModelId
+    prompt?: string
+    messages?: CherryUIMessage[]
+    listener: StreamListener
+  }): SendResult {
+    const messages: CherryUIMessage[] =
+      input.messages && input.messages.length > 0
+        ? input.messages
+        : [{ id: 'prompt-user', role: 'user', parts: [{ type: 'text', text: input.prompt ?? '' }] }]
+
+    const request: AiStreamRequest = {
+      chatId: input.streamId,
+      trigger: 'submit-message',
+      uniqueModelId: input.uniqueModelId,
+      messages
+    }
+    return this.send({
+      topicId: input.streamId,
+      models: [{ modelId: input.uniqueModelId, request }],
+      listeners: [input.listener],
+      lifecycle: promptStreamLifecycle
+    })
   }
 
   /**
@@ -410,7 +466,7 @@ export class AiStreamManager extends BaseService {
     // distinguish "waiting for the provider" from "content is flowing".
     if (stream.status === 'pending') {
       stream.status = 'streaming'
-      this.broadcastTopicStatus(topicId, 'streaming')
+      stream.lifecycle.onPromotedToStreaming(stream)
     }
 
     // Intentionally chunk-shape-agnostic: the manager only observes the
@@ -478,10 +534,7 @@ export class AiStreamManager extends BaseService {
 
     await this.broadcastExecutionDone(stream, exec, isTopicDone)
 
-    if (isTopicDone) {
-      this.broadcastTopicStatus(topicId, stream.status)
-      this.scheduleCleanup(topicId)
-    }
+    if (isTopicDone) this.runTerminalLifecycle(stream)
   }
 
   async onExecutionPaused(topicId: string, modelId: UniqueModelId): Promise<void> {
@@ -497,10 +550,7 @@ export class AiStreamManager extends BaseService {
 
     await this.broadcastExecutionPaused(stream, exec, isTopicDone)
 
-    if (isTopicDone) {
-      this.broadcastTopicStatus(topicId, stream.status)
-      this.scheduleCleanup(topicId)
-    }
+    if (isTopicDone) this.runTerminalLifecycle(stream)
   }
 
   /** Called when one execution errors. */
@@ -528,10 +578,22 @@ export class AiStreamManager extends BaseService {
     }
     await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
 
-    if (isTopicDone) {
-      this.broadcastTopicStatus(topicId, stream.status)
-      this.scheduleCleanup(topicId)
-    }
+    if (isTopicDone) this.runTerminalLifecycle(stream)
+  }
+
+  /**
+   * Single funnel for terminal lifecycle: notify the strategy, then let it
+   * choose when to evict (chat defers 30 s, prompt evicts immediately).
+   * `evict` runs the same eviction the grace-period timer would — clears
+   * the cleanup timer (if any) and removes the entry from `activeStreams`.
+   */
+  private runTerminalLifecycle(stream: ActiveStream): void {
+    stream.lifecycle.onTerminal(stream)
+    stream.lifecycle.cleanup(stream, () => {
+      if (this.activeStreams.get(stream.topicId) === stream) {
+        this.activeStreams.delete(stream.topicId)
+      }
+    })
   }
 
   // ── Public: inspection snapshot ───────────────────────────────────
@@ -577,6 +639,10 @@ export class AiStreamManager extends BaseService {
   attach(sender: Electron.WebContents, req: AiStreamAttachRequest): AiStreamAttachResponse {
     const stream = this.activeStreams.get(req.topicId)
     if (!stream) return { status: 'not-found' }
+    // Prompt-stream lifecycle returns false here — re-attach is meaningless
+    // for one-shot ad-hoc streams, and the listener was already consumed by
+    // the original caller.
+    if (!stream.lifecycle.canAttach(stream)) return { status: 'not-found' }
 
     if (stream.status === 'done' || stream.status === 'aborted') {
       // Map per-execution finalMessages so multi-model topics can rebuild
@@ -635,49 +701,6 @@ export class AiStreamManager extends BaseService {
 
   detach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {
     this.removeListener(req.topicId, `wc:${sender.id}:${req.topicId}`)
-  }
-
-  /**
-   * Publish a topic-level status transition to the SharedCache. Every
-   * renderer window receives the update via the existing `Cache_Sync`
-   * fan-out and reacts via `useSharedCache('topic.stream.statuses.${topicId}')`.
-   * Callers are responsible for updating `stream.status` first so the
-   * published value reflects the committed state.
-   *
-   * Writing to SharedCache reuses the generic cache-sync plumbing —
-   * single source of truth in Main, auto-bootstrap on fresh renderer
-   * mounts via `Cache_GetAllShared`, and no hand-rolled subscriber
-   * tracking.
-   *
-   * The grace-period cleanup does NOT delete the shared entry — a
-   * `'done'` / `'aborted'` / `'error'` value lingers until each window
-   * flips its local `topic.stream.seen.${topicId}` flag, mirroring the
-   * pre-refactor "fulfilled indicator sticks until the user sees it"
-   * behaviour.
-   */
-  private broadcastTopicStatus(topicId: string, status: TopicStreamStatus): void {
-    const activeExecutions = this.collectActiveExecutions(topicId)
-    const cacheService = application.get('CacheService')
-    cacheService.setShared(`topic.stream.statuses.${topicId}` as const, { status, activeExecutions })
-  }
-
-  /**
-   * Executions still in their non-terminal phase (`exec.status ===
-   * 'streaming'`, which is set at launch and cleared by `done` / `error`
-   * / `aborted`). Returns `[]` when the topic is absent from
-   * `activeStreams` or when every execution has hit a terminal state.
-   * Each entry pairs the executionId (UniqueModelId) with the assistant
-   * row this execution writes to (`anchorMessageId`), so the renderer can
-   * seed its `Chat` instance directly by id.
-   */
-  private collectActiveExecutions(topicId: string): ActiveExecution[] {
-    const stream = this.activeStreams.get(topicId)
-    if (!stream) return []
-    const out: ActiveExecution[] = []
-    for (const [modelId, exec] of stream.executions) {
-      if (exec.status === 'streaming') out.push({ executionId: modelId, anchorMessageId: exec.anchorMessageId })
-    }
-    return out
   }
 
   // ── Internal helpers ──────────────────────────────────────────────
@@ -783,16 +806,6 @@ export class AiStreamManager extends BaseService {
     const timeoutMs = request.requestOptions?.timeout ?? DEFAULT_TIMEOUT
     const stream = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
 
-    const [forBroadcast, forAccum] = stream.tee()
-    const broadcastReader = forBroadcast.getReader()
-
-    // Background accumulator: keeps `exec.finalMessage` live. Every UIMessage
-    // that `readUIMessageStream` yields is the "current cumulative message";
-    // the accumulator writes the latest snapshot straight onto the execution.
-    // Errors here are swallowed — by the time the accumulator errors, the
-    // broadcast path has already decided the terminal status, and whatever
-    // accumulated up to the last successful yield is preserved in
-    // `exec.finalMessage`.
     // For `continue-conversation` (resuming after a tool-approval response),
     // the chunks merge into the existing anchor assistant message — they
     // reference toolCallIds and parts that already live on that message.
@@ -803,100 +816,41 @@ export class AiStreamManager extends BaseService {
     const lastIncoming = request.messages?.at(-1)
     const accumulatorSeed: CherryUIMessage | undefined =
       lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined
-    const accumulator = this.accumulateFinalMessage(forAccum, exec, accumulatorSeed).catch(() => {})
 
-    const onAbort = () => {
-      void broadcastReader.cancel(signal.reason).catch(() => {})
-    }
-    if (signal.aborted) onAbort()
-    else signal.addEventListener('abort', onAbort, { once: true })
-
-    let streamErrorText: string | undefined
-
-    try {
-      while (true) {
-        const { done, value } = await broadcastReader.read()
-        if (done) break
-        if (value.type === 'error') streamErrorText ??= value.errorText
-        this.onChunk(topicId, modelId, value)
+    // Chunk-pipe is owned by the shared `pipeStreamLoop` primitive — same
+    // primitive that ad-hoc prompt streams use (see `AiService.runPromptStream`).
+    // Chat's per-chunk concerns (ring buffer, status promotion, multi-model
+    // demux, listener fan-out) all live inside `this.onChunk`.
+    const result = await pipeStreamLoop(stream, signal, {
+      onChunk: (chunk) => this.onChunk(topicId, modelId, chunk),
+      accumulatorSeed,
+      onAccumulatedSnapshot: (msg) => {
+        exec.finalMessage = msg
       }
+    })
 
-      // Close the completion timestamp *before* draining the accumulator —
-      // the provider's stream has already ended; accumulator drain is
-      // purely internal bookkeeping and shouldn't inflate TTFT-style stats.
-      exec.timings.completedAt = performance.now()
+    exec.timings.completedAt = result.broadcastCompletedAt
 
-      // Let the accumulator drain any chunks still queued behind the
-      // broadcast reader, so `exec.finalMessage` reflects the latest
-      // yield before we fire the terminal event.
-      await accumulator
-
-      if (signal.aborted && exec.status === 'aborted') {
-        await this.onExecutionPaused(topicId, modelId)
-      } else if (streamErrorText !== undefined) {
-        await this.onExecutionError(topicId, modelId, errorFromStreamChunk(streamErrorText))
-      } else {
-        await this.onExecutionDone(topicId, modelId)
-      }
-    } catch (err) {
-      // Even on error we wait for the accumulator — it may have processed a
-      // few more chunks before the stream errored. `exec.finalMessage` will
-      // be whatever it managed to capture (possibly undefined if the stream
-      // errored before yielding anything).
-      exec.timings.completedAt ??= performance.now()
-      await accumulator
-
+    if (result.threw !== undefined) {
       if (signal.aborted) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {
-        logger.error('Execution loop error', { topicId, modelId, err })
+        logger.error('Execution loop error', { topicId, modelId, err: result.threw })
       }
       const serialized =
-        streamErrorText !== undefined && !signal.aborted ? errorFromStreamChunk(streamErrorText) : serializeError(err)
+        result.streamErrorText !== undefined && !signal.aborted
+          ? errorFromStreamChunk(result.streamErrorText)
+          : serializeError(result.threw)
       await this.onExecutionError(topicId, modelId, serialized)
-    } finally {
-      signal.removeEventListener('abort', onAbort)
-      broadcastReader.releaseLock()
+      return
     }
-  }
 
-  /**
-   * Drive AI SDK's `readUIMessageStream` and write each yielded snapshot
-   * onto `exec.finalMessage`, so the field is always "latest accumulated"
-   * rather than being set once at the very end.
-   *
-   * Observes `exec.abortController.signal` to cancel its own reader —
-   * cancelling the upstream chunkStream directly does not work once
-   * `readUIMessageStream` has locked it.
-   */
-  private async accumulateFinalMessage(
-    chunkStream: ReadableStream<UIMessageChunk>,
-    exec: StreamExecution,
-    seed?: CherryUIMessage
-  ): Promise<void> {
-    const signal = exec.abortController.signal
-    // `readUIMessageStream<CherryUIMessage>` does the narrowing from wide
-    // `UIMessageChunk` input to `CherryUIMessage` output — that is the single
-    // point where transport-level width meets Cherry-level shape. Upstream
-    // (execution loop, AiService) stay on the wide AI SDK type so an unexpected
-    // `data-*` variant from a provider / MCP tool can't be silently cast.
-    const uiStream = readUIMessageStream<CherryUIMessage>({ stream: chunkStream, message: seed })
-    const reader = uiStream.getReader()
-    const onAbort = () => {
-      void reader.cancel(signal.reason).catch(() => {})
-    }
-    if (signal.aborted) onAbort()
-    else signal.addEventListener('abort', onAbort, { once: true })
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        exec.finalMessage = value
-      }
-    } finally {
-      signal.removeEventListener('abort', onAbort)
-      reader.releaseLock()
+    if (signal.aborted && exec.status === 'aborted') {
+      await this.onExecutionPaused(topicId, modelId)
+    } else if (result.streamErrorText !== undefined) {
+      await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText))
+    } else {
+      await this.onExecutionDone(topicId, modelId)
     }
   }
 
@@ -988,25 +942,6 @@ export class AiStreamManager extends BaseService {
     if (allAborted) return 'aborted'
     if (hasError) return 'error'
     return 'done'
-  }
-
-  /**
-   * After a stream reaches a terminal state, keep it in `activeStreams` for
-   * `gracePeriodMs` so late reconnects can still retrieve `finalMessage` via
-   * `attach`, then delete the entry. No status broadcast is emitted — cache
-   * mirrors retain the last terminal value until a local consumer evicts it,
-   * and `getTopicStatuses()` simply stops reporting this topic once it's
-   * removed, so freshly mounted observers start clean.
-   */
-  private scheduleCleanup(topicId: string): void {
-    const stream = this.activeStreams.get(topicId)
-    if (!stream) return
-    stream.expiresAt = Date.now() + this.config.gracePeriodMs
-    stream.cleanupTimer = setTimeout(() => {
-      if (this.activeStreams.get(topicId) === stream) {
-        this.activeStreams.delete(topicId)
-      }
-    }, this.config.gracePeriodMs)
   }
 
   /**

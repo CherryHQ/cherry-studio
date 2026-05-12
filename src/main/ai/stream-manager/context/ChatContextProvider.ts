@@ -21,6 +21,7 @@ import type { Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { AiStreamRequest } from '../../types/requests'
+import type { StreamLifecycle } from '../lifecycle/StreamLifecycle'
 import type { StreamListener } from '../types'
 import type { MainDispatchRequest } from './dispatch'
 
@@ -50,6 +51,13 @@ export interface PreparedDispatch {
    * the response schema stays backwards compatible.
    */
   isMultiModel: boolean
+  /**
+   * Strategy controlling chat-vs-ad-hoc differential behaviour (status
+   * broadcast, attach gating, terminal cleanup). Omit to use the
+   * manager's default `chatLifecycle`; `PromptStreamContextProvider`
+   * passes `promptStreamLifecycle`.
+   */
+  lifecycle?: StreamLifecycle
 }
 
 /**

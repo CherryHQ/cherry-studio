@@ -6,6 +6,7 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
 import type { PendingMessageQueue } from '../agent/loop/PendingMessageQueue'
+import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 // Note: `StreamTarget` was removed after AiStreamManager took over the
 // per-execution loop directly from AiService. Chunk forwarding is now
 // internal to the manager; external consumers subscribe via the
@@ -279,9 +280,14 @@ export interface ActiveStream {
    */
   isMultiModel: boolean
 
-  /** Grace-period expiry timestamp (ms since epoch). After this point the cleanup timer fires. */
+  /**
+   * Strategy that owns every chat-vs-ad-hoc differential behaviour
+   */
+  lifecycle: StreamLifecycle
+
+  /** Grace-period expiry timestamp (ms since epoch). Written by `lifecycle.cleanup` if it defers eviction. */
   expiresAt?: number
-  /** Timer handle set by `scheduleCleanup`, so `evictStream` can cancel it. */
+  /** Timer handle set by `lifecycle.cleanup` (chat) so `evictStream` can cancel it. */
   cleanupTimer?: ReturnType<typeof setTimeout>
 }
 
