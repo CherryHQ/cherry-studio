@@ -61,7 +61,7 @@ export interface FileEntryRefCount {
   refCount: number
 }
 
-export interface FileSchemas {
+export type FileSchemas = {
   // ─── Entry Queries (pure SQL, fixed shape) ───
 
   /**
