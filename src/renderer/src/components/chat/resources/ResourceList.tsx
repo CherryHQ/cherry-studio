@@ -14,7 +14,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import { cn } from '@renderer/utils/style'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronDown, SearchIcon } from 'lucide-react'
+import { ChevronDown, ChevronsDown, SearchIcon } from 'lucide-react'
 import type { ComponentProps, CSSProperties, ReactNode, Ref } from 'react'
 import { useCallback, useMemo, useReducer, useRef } from 'react'
 
@@ -31,6 +31,8 @@ import {
   type ResourceListVariantContext,
   useResourceList
 } from './ResourceListContext'
+
+const DEFAULT_GROUP_SHOW_MORE_LABEL = 'Show more'
 
 export type {
   ResourceListActionMap,
@@ -60,6 +62,9 @@ type ResourceListProviderProps<T extends ResourceListItemBase> = {
   groupBy?: (item: T) => ResourceListGroup | null
   getItemId?: (item: T) => string
   getItemLabel?: (item: T) => string
+  defaultGroupVisibleCount?: number
+  groupLoadStep?: number
+  groupShowMoreLabel?: string
   estimateItemSize?: (index: number) => number
   onSelectItem?: (id: string) => void
   onRenameItem?: (id: string, name: string) => void
@@ -75,6 +80,8 @@ type ProviderAction =
   | { type: 'hoverItem'; id: string | null }
   | { type: 'startRename'; id: string }
   | { type: 'cancelRename' }
+  | { type: 'showMoreInGroup'; groupId: string; defaultCount: number; step: number }
+  | { type: 'toggleGroup'; groupId: string }
   | { type: 'startDrag'; id: string }
   | { type: 'endDrag' }
   | { type: 'setStatus'; status: ResourceListStatus }
@@ -95,6 +102,22 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
       return { ...state, renamingId: action.id }
     case 'cancelRename':
       return { ...state, renamingId: null }
+    case 'showMoreInGroup': {
+      const current = state.groupVisibleCounts[action.groupId] ?? action.defaultCount
+      return {
+        ...state,
+        groupVisibleCounts: {
+          ...state.groupVisibleCounts,
+          [action.groupId]: current + action.step
+        }
+      }
+    }
+    case 'toggleGroup': {
+      const collapsedGroups = state.collapsedGroups.includes(action.groupId)
+        ? state.collapsedGroups.filter((groupId) => groupId !== action.groupId)
+        : [...state.collapsedGroups, action.groupId]
+      return { ...state, collapsedGroups }
+    }
     case 'startDrag':
       return { ...state, draggingId: action.id }
     case 'endDrag':
@@ -116,6 +139,9 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   groupBy,
   getItemId = (item) => item.id,
   getItemLabel = (item) => item.name,
+  defaultGroupVisibleCount = 5,
+  groupLoadStep = 5,
+  groupShowMoreLabel = DEFAULT_GROUP_SHOW_MORE_LABEL,
   estimateItemSize = () => 40,
   onSelectItem,
   onRenameItem,
@@ -129,7 +155,8 @@ function ResourceListProvider<T extends ResourceListItemBase>({
     selectedId: selectedIdProp ?? null,
     hoveredId: null,
     renamingId: null,
-    expandedGroups: [],
+    collapsedGroups: [],
+    groupVisibleCounts: {},
     draggingId: null,
     status
   })
@@ -165,8 +192,21 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   }, [activeFilters, filterById, getItemLabel, items, sortById, state.query, state.sort])
 
   const viewGroups = useMemo(() => {
+    const collapsedGroups = new Set(state.collapsedGroups)
+
     if (!groupBy) {
-      return [{ group: { id: 'all', label: '' }, items: viewItems }]
+      const group = { id: 'all', label: '' }
+      return [
+        {
+          group,
+          allItems: viewItems,
+          items: viewItems,
+          totalCount: viewItems.length,
+          visibleCount: viewItems.length,
+          hasMore: false,
+          collapsed: false
+        }
+      ]
     }
 
     const groups = new Map<string, { group: ResourceListGroup; items: T[] }>()
@@ -179,11 +219,25 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         groups.set(group.id, { group, items: [item] })
       }
     }
-    return [...groups.values()].map(({ group, items }) => ({
-      group: { ...group, count: group.count ?? items.length },
-      items
-    }))
-  }, [groupBy, viewItems])
+    return [...groups.values()].map(({ group, items }) => {
+      const totalCount = items.length
+      const collapsed = collapsedGroups.has(group.id)
+      const configuredVisibleCount = state.groupVisibleCounts[group.id] ?? defaultGroupVisibleCount
+      const visibleCount = Math.min(configuredVisibleCount, totalCount)
+
+      return {
+        group: { ...group, count: group.count ?? totalCount },
+        allItems: items,
+        items: collapsed ? [] : items.slice(0, visibleCount),
+        totalCount,
+        visibleCount: collapsed ? 0 : visibleCount,
+        hasMore: !collapsed && visibleCount < totalCount,
+        collapsed
+      }
+    })
+  }, [defaultGroupVisibleCount, groupBy, state.collapsedGroups, state.groupVisibleCounts, viewItems])
+
+  const visibleItems = useMemo(() => viewGroups.flatMap((group) => group.items), [viewGroups])
 
   const actions = useMemo(
     () => ({
@@ -211,9 +265,12 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       },
       cancelRename: () => dispatch({ type: 'cancelRename' }),
       openContextMenu: (id: string) => onOpenContextMenu?.(id),
+      showMoreInGroup: (groupId: string) =>
+        dispatch({ type: 'showMoreInGroup', groupId, defaultCount: defaultGroupVisibleCount, step: groupLoadStep }),
+      toggleGroup: (groupId: string) => dispatch({ type: 'toggleGroup', groupId }),
       reorder: (payload: ResourceListReorderPayload) => onReorder?.(payload)
     }),
-    [onOpenContextMenu, onRenameItem, onReorder, onSelectItem, state.filters]
+    [defaultGroupVisibleCount, groupLoadStep, onOpenContextMenu, onRenameItem, onReorder, onSelectItem, state.filters]
   )
 
   const context = useMemo<ResourceListContextValue<T>>(
@@ -227,26 +284,34 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         groups: viewGroups.map((group) => group.group),
         sortOptions,
         filterOptions,
-        estimateItemSize
+        estimateItemSize,
+        defaultGroupVisibleCount,
+        groupLoadStep,
+        groupShowMoreLabel
       },
       sourceItems: items,
       view: {
         items: viewItems,
+        visibleItems,
         groups: viewGroups
       }
     }),
     [
       actions,
+      defaultGroupVisibleCount,
       estimateItemSize,
       filterOptions,
       getItemId,
       getItemLabel,
+      groupLoadStep,
+      groupShowMoreLabel,
       items,
       selectedIdProp,
       sortOptions,
       state,
       status,
       variant,
+      visibleItems,
       viewGroups,
       viewItems
     ]
@@ -415,6 +480,10 @@ type GroupHeaderProps = ComponentProps<'div'> & {
 }
 
 function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
+  const { actions, view } = useResourceList()
+  const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
+  const collapsed = viewGroup?.collapsed ?? false
+
   if (!group.label) return null
   return (
     <div
@@ -424,9 +493,39 @@ function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
         className
       )}
       {...props}>
-      <ChevronDown size={12} className="shrink-0 opacity-70" />
-      <span className="truncate">{group.label}</span>
+      <button
+        type="button"
+        aria-expanded={!collapsed}
+        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm text-left outline-none hover:text-sidebar-foreground focus-visible:ring-1 focus-visible:ring-ring"
+        onClick={() => actions.toggleGroup(group.id)}>
+        <ChevronDown size={12} className={cn('shrink-0 opacity-70 transition-transform', collapsed && '-rotate-90')} />
+        <span className="truncate">{group.label}</span>
+      </button>
       {typeof group.count === 'number' && <span className="ml-auto shrink-0 tabular-nums">{group.count}</span>}
+    </div>
+  )
+}
+
+type GroupShowMoreProps = ComponentProps<'div'> & {
+  groupId: string
+  ref?: Ref<HTMLDivElement>
+}
+
+function GroupShowMore({ groupId, className, ref, ...props }: GroupShowMoreProps) {
+  const { actions, meta } = useResourceList()
+
+  return (
+    <div ref={ref} className={cn('flex justify-center px-2 py-1', className)} {...props}>
+      <button
+        type="button"
+        aria-label={meta.groupShowMoreLabel}
+        className={cn(
+          'flex h-6 min-w-10 items-center justify-center rounded-md px-2 text-muted-foreground transition-colors',
+          'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+        )}
+        onClick={() => actions.showMoreInGroup(groupId)}>
+        <ChevronsDown size={14} />
+      </button>
     </div>
   )
 }
@@ -575,6 +674,7 @@ type VirtualItemsProps<T extends ResourceListItemBase> = {
 
 type ResourceListVirtualRow<T extends ResourceListItemBase> =
   | { type: 'group'; group: ResourceListGroup }
+  | { type: 'group-more'; groupId: string }
   | { type: 'item'; item: T; itemIndex: number }
 
 function buildVirtualRows<T extends ResourceListItemBase>(context: ResourceListContextValue<T>) {
@@ -589,6 +689,10 @@ function buildVirtualRows<T extends ResourceListItemBase>(context: ResourceListC
     for (const item of group.items) {
       rows.push({ type: 'item', item, itemIndex })
       itemIndex += 1
+    }
+
+    if (group.hasMore) {
+      rows.push({ type: 'group-more', groupId: group.group.id })
     }
   }
 
@@ -615,7 +719,9 @@ function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderIt
     getScrollElement: () => parentRef.current,
     estimateSize: (index) => {
       const row = rows[index]
-      return row?.type === 'group' ? 24 : context.meta.estimateItemSize(row?.itemIndex ?? index)
+      if (row?.type === 'group') return 24
+      if (row?.type === 'group-more') return 32
+      return context.meta.estimateItemSize(row?.itemIndex ?? index)
     },
     overscan: 6
   })
@@ -637,7 +743,13 @@ function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderIt
                 minHeight: virtualItem.size,
                 transform: `translateY(${virtualItem.start}px)`
               }}>
-              {row.type === 'group' ? <GroupHeader group={row.group} /> : renderItem(row.item, context)}
+              {row.type === 'group' ? (
+                <GroupHeader group={row.group} />
+              ) : row.type === 'group-more' ? (
+                <GroupShowMore groupId={row.groupId} />
+              ) : (
+                renderItem(row.item, context)
+              )}
             </div>
           )
         })}
@@ -686,7 +798,7 @@ function useResourceListDnd<T extends ResourceListItemBase>(context: ResourceLis
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor)
   )
-  const itemIds = context.view.items.map((item) => context.meta.getItemId(item))
+  const itemIds = context.view.visibleItems.map((item) => context.meta.getItemId(item))
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
@@ -725,6 +837,7 @@ function DraggableItems<T extends ResourceListItemBase>({ className, renderItem 
                   {renderItem(item, context)}
                 </SortableResourceItem>
               ))}
+              {group.hasMore && <GroupShowMore groupId={group.group.id} />}
             </div>
           ))}
         </div>
@@ -758,7 +871,9 @@ function VirtualDraggableItems<T extends ResourceListItemBase>({
     getScrollElement: () => parentRef.current,
     estimateSize: (index) => {
       const row = rows[index]
-      return row?.type === 'group' ? 24 : context.meta.estimateItemSize(row?.itemIndex ?? index)
+      if (row?.type === 'group') return 24
+      if (row?.type === 'group-more') return 32
+      return context.meta.estimateItemSize(row?.itemIndex ?? index)
     },
     overscan: 6
   })
@@ -784,6 +899,8 @@ function VirtualDraggableItems<T extends ResourceListItemBase>({
                   }}>
                   {row.type === 'group' ? (
                     <GroupHeader group={row.group} />
+                  ) : row.type === 'group-more' ? (
+                    <GroupShowMore groupId={row.groupId} />
                   ) : (
                     <SortableResourceItem item={row.item}>{renderItem(row.item, context)}</SortableResourceItem>
                   )}
@@ -860,6 +977,7 @@ const ResourceList = {
   Search,
   FilterBar,
   GroupHeader,
+  GroupShowMore,
   VirtualItems,
   DraggableItems,
   VirtualDraggableItems,

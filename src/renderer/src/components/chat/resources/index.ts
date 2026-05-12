@@ -14,6 +14,15 @@ export type {
   ResourceListViewGroup
 } from './ResourceList'
 export { ResourceList, useResourceList } from './ResourceList'
+export type { ResourceListGroupResolver, ResourceListTimeBucket } from './resourceListGrouping'
+export {
+  composeResourceListGroupResolvers,
+  createPinnedFirstSorter,
+  createPinnedGroupResolver,
+  createTimeGroupResolver,
+  getResourceTimeBucket,
+  sortByResourceGroupRank
+} from './resourceListGrouping'
 export {
   AgentResourceList,
   type AssistantListActionContext,
