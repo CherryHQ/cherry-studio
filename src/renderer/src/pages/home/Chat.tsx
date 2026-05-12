@@ -1,6 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ChatAppShell, type ChatPanePosition } from '@renderer/components/chat'
+import { ChatAppShell, type ChatPanePosition, OverlayHost } from '@renderer/components/chat'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -118,37 +118,39 @@ const Chat: FC<Props> = (props) => {
         '[navbar-position=top]_&:rounded-tl-[10px] [navbar-position=top]_&:rounded-bl-[10px]'
       ])}>
       <QuickPanelProvider>
-        <V2ChatContent
-          key={props.activeTopic.id}
-          topic={props.activeTopic}
-          setActiveTopic={props.setActiveTopic}
-          mainHeight={mainHeight}
-          onPersistTemporaryTopic={props.onPersistTemporaryTopic}
-          renderFrame={({ main, bottomComposer, overlay }) => (
-            <ChatAppShell
-              pane={props.pane}
-              paneOpen={props.paneOpen}
-              panePosition={props.panePosition}
-              topBar={<ChatNavbar assistantId={props.activeTopic.assistantId} topicId={props.activeTopic.id} />}
-              main={main}
-              bottomComposer={bottomComposer}
-              overlay={
+        <ChatAppShell
+          pane={props.pane}
+          paneOpen={props.paneOpen}
+          panePosition={props.panePosition}
+          topBar={<ChatNavbar assistantId={props.activeTopic.assistantId} topicId={props.activeTopic.id} />}
+          centerContent={
+            <V2ChatContent
+              key={props.activeTopic.id}
+              topic={props.activeTopic}
+              setActiveTopic={props.setActiveTopic}
+              mainHeight={mainHeight}
+              onPersistTemporaryTopic={props.onPersistTemporaryTopic}
+              renderFrame={({ main, bottomComposer, overlay }) => (
                 <>
-                  {overlay}
-                  <ContentSearch
-                    ref={contentSearchRef}
-                    searchTarget={mainRef as React.RefObject<HTMLElement>}
-                    filter={contentSearchFilter}
-                    includeUser={filterIncludeUser}
-                    onIncludeUserChange={userOutlinedItemClickHandler}
-                  />
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
+                  {bottomComposer}
+                  <OverlayHost>
+                    {overlay}
+                    <ContentSearch
+                      ref={contentSearchRef}
+                      searchTarget={mainRef as React.RefObject<HTMLElement>}
+                      filter={contentSearchFilter}
+                      includeUser={filterIncludeUser}
+                      onIncludeUserChange={userOutlinedItemClickHandler}
+                    />
+                  </OverlayHost>
                 </>
-              }
-              centerId="chat-main"
-              centerRef={mainRef}
-              centerClassName="transform-[translateZ(0)] relative justify-between"
+              )}
             />
-          )}
+          }
+          centerId="chat-main"
+          centerRef={mainRef}
+          centerClassName="transform-[translateZ(0)] relative justify-between"
         />
       </QuickPanelProvider>
     </div>
