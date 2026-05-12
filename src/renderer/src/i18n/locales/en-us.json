@@ -1407,6 +1407,7 @@
             "save_failed": "Failed to save topic, please check knowledge base configuration"
           },
           "loading": "Analyzing topic content...",
+          "menu_title": "Save to Knowledge Base",
           "select": {
             "content": {
               "label": "Select content types to save",
@@ -1555,6 +1556,7 @@
         "yuque": "Export to Yuque"
       },
       "group": {
+        "collapse": "Collapse topics",
         "earlier": "Earlier",
         "show_more": "Show more topics",
         "today": "Today",
