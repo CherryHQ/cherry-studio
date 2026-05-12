@@ -26,10 +26,17 @@ import { PartsProvider, RefreshProvider } from './Messages/Blocks'
 import ExecutionStreamCollector from './Messages/ExecutionStreamCollector'
 import Messages from './Messages/Messages'
 
+export interface V2ChatContentFrameSlots {
+  main: ReactNode
+  bottomComposer?: ReactNode
+  overlay?: ReactNode
+}
+
 interface Props {
   topic: Topic
   setActiveTopic: (topic: Topic) => void
   mainHeight: string
+  renderFrame?: (slots: V2ChatContentFrameSlots) => ReactNode
   /**
    * If the active topic is a freshly-leased temporary one, this callback
    * migrates it into SQLite (with the same id) before the first message
@@ -60,7 +67,7 @@ interface Props {
  * `ExecutionStreamCollector`s and are overlaid into the partsMap by
  * the rendering pipeline.
  */
-const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, onPersistTemporaryTopic }) => {
+const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, renderFrame, onPersistTemporaryTopic }) => {
   const { t } = useTranslation()
   const [hasPersistedTemporaryTopic, setHasPersistedTemporaryTopic] = useState(false)
   useEffect(() => setHasPersistedTemporaryTopic(false), [topic.id])
@@ -77,13 +84,21 @@ const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, onPersist
   } = useTopicMessagesV2(topic.id, { enabled: !isFreshTemporaryTopic })
 
   if (isHistoryLoading) {
+    const main = (
+      <div className="flex h-full flex-1 flex-col items-center justify-center">
+        <div className="text-foreground-secondary text-sm">{t('common.loading')}</div>
+      </div>
+    )
+
+    if (renderFrame) {
+      return renderFrame({ main })
+    }
+
     return (
       <div
         className="flex flex-1 flex-col items-center justify-center"
         style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-        <div className="text-sm" style={{ color: 'var(--color-text-3)' }}>
-          {t('common.loading')}
-        </div>
+        {main}
       </div>
     )
   }
@@ -93,6 +108,7 @@ const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, onPersist
       topic={topic}
       setActiveTopic={setActiveTopic}
       mainHeight={mainHeight}
+      renderFrame={renderFrame}
       onPersistTemporaryTopic={onPersistTemporaryTopic}
       isFreshTemporaryTopic={isFreshTemporaryTopic}
       onTemporaryTopicPersisted={() => setHasPersistedTemporaryTopic(true)}
@@ -131,6 +147,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   topic,
   setActiveTopic,
   mainHeight,
+  renderFrame,
   onPersistTemporaryTopic,
   isFreshTemporaryTopic,
   onTemporaryTopicPersisted,
@@ -257,61 +274,81 @@ const V2ChatContentInner: FC<InnerProps> = ({
           <PartsProvider value={mergedPartsMap}>
             <ToolApprovalProvider value={respondToToolApproval}>
               <ChatContextBridge topic={topic}>
-                <div
-                  className="flex flex-1 flex-col justify-between"
-                  style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                  {/*
-                   * Two coupled guards on the per-execution chunk collector:
-                   *
-                   * 1. Mount only after SWR's `uiMessages` ends with an
-                   *    in-flight assistant. Collector's `useChat` seeds AI
-                   *    SDK's `createStreamingUIMessageState` from
-                   *    `initialMessages.at(-1)`; AI SDK reuses that object as
-                   *    the streaming `state.message` and a `start` chunk only
-                   *    overwrites its `id`, leaving the original `parts`
-                   *    array in place. If we mount while last is still the
-                   *    OLD assistant being replaced, new chunks append onto
-                   *    that array — the bubble renders "old content + new
-                   *    stream" once SWR finally flips active to the new
-                   *    placeholder.
-                   *
-                   * 2. Re-key on the in-flight assistant id so subsequent
-                   *    regenerates for the same model REMOUNT the collector.
-                   *    Without this, React reuses the existing `useChat`
-                   *    instance whose `state.messages` already carries the
-                   *    previous turn's assistant; the next regenerate seeds
-                   *    from THAT, accumulating pollution turn over turn.
-                   *
-                   * The collector cannot self-correct: it sees `resume: true`
-                   * only, never the `regenerate` trigger driving the turn.
-                   */}
-                  {(() => {
-                    const last = uiMessages.at(-1)
-                    if (last?.role !== 'assistant') return null
-                    return activeExecutions.map(({ executionId }) => {
-                      const chat = executionChats.get(executionId)
-                      if (!chat) return null
-                      return (
-                        <ExecutionStreamCollector
-                          key={`${executionId}:${last.id}`}
-                          executionId={executionId}
-                          chat={chat}
-                          onMessagesChange={handleExecutionMessagesChange}
-                          onDispose={handleExecutionDispose}
-                        />
-                      )
-                    })
-                  })()}
+                {(overlay) => {
+                  const main = (
+                    <>
+                      {/*
+                       * Two coupled guards on the per-execution chunk collector:
+                       *
+                       * 1. Mount only after SWR's `uiMessages` ends with an
+                       *    in-flight assistant. Collector's `useChat` seeds AI
+                       *    SDK's `createStreamingUIMessageState` from
+                       *    `initialMessages.at(-1)`; AI SDK reuses that object as
+                       *    the streaming `state.message` and a `start` chunk only
+                       *    overwrites its `id`, leaving the original `parts`
+                       *    array in place. If we mount while last is still the
+                       *    OLD assistant being replaced, new chunks append onto
+                       *    that array — the bubble renders "old content + new
+                       *    stream" once SWR finally flips active to the new
+                       *    placeholder.
+                       *
+                       * 2. Re-key on the in-flight assistant id so subsequent
+                       *    regenerates for the same model REMOUNT the collector.
+                       *    Without this, React reuses the existing `useChat`
+                       *    instance whose `state.messages` already carries the
+                       *    previous turn's assistant; the next regenerate seeds
+                       *    from THAT, accumulating pollution turn over turn.
+                       *
+                       * The collector cannot self-correct: it sees `resume: true`
+                       * only, never the `regenerate` trigger driving the turn.
+                       */}
+                      {(() => {
+                        const last = uiMessages.at(-1)
+                        if (last?.role !== 'assistant') return null
+                        return activeExecutions.map(({ executionId }) => {
+                          const chat = executionChats.get(executionId)
+                          if (!chat) return null
+                          return (
+                            <ExecutionStreamCollector
+                              key={`${executionId}:${last.id}`}
+                              executionId={executionId}
+                              chat={chat}
+                              onMessagesChange={handleExecutionMessagesChange}
+                              onDispose={handleExecutionDispose}
+                            />
+                          )
+                        })
+                      })()}
 
-                  <Messages
-                    key={topic.id}
-                    topic={topic}
-                    messages={projectedMessages}
-                    loadOlder={loadOlder}
-                    hasOlder={hasOlder}
-                  />
-                  <Inputbar topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
-                </div>
+                      <Messages
+                        key={topic.id}
+                        topic={topic}
+                        messages={projectedMessages}
+                        loadOlder={loadOlder}
+                        hasOlder={hasOlder}
+                      />
+                    </>
+                  )
+                  const bottomComposer = (
+                    <Inputbar topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
+                  )
+
+                  if (renderFrame) {
+                    return renderFrame({ main, bottomComposer, overlay })
+                  }
+
+                  return (
+                    <>
+                      <div
+                        className="flex flex-1 flex-col justify-between"
+                        style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+                        {main}
+                        {bottomComposer}
+                      </div>
+                      {overlay}
+                    </>
+                  )
+                }}
               </ChatContextBridge>
             </ToolApprovalProvider>
           </PartsProvider>
@@ -326,12 +363,11 @@ const V2ChatContentInner: FC<InnerProps> = ({
  * `useChatContextProvider` can read those contexts. Multi-select
  * floating popup mounts here because it depends on the chat context.
  */
-const ChatContextBridge: FC<{ topic: Topic; children: ReactNode }> = ({ topic, children }) => {
+const ChatContextBridge: FC<{ topic: Topic; children: (overlay: ReactNode) => ReactNode }> = ({ topic, children }) => {
   const chatContextValue = useChatContextProvider(topic)
   return (
     <ChatContextProvider value={chatContextValue}>
-      {children}
-      {chatContextValue.isMultiSelectMode && <MultiSelectActionPopup topic={topic} />}
+      {children(chatContextValue.isMultiSelectMode ? <MultiSelectActionPopup topic={topic} /> : null)}
     </ChatContextProvider>
   )
 }

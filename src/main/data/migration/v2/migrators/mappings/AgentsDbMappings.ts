@@ -120,7 +120,6 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       notNullCol('mcps', "'[]'"),
       notNullCol('allowed_tools', "'[]'"),
       notNullCol('configuration', "'{}'"),
-      notNullCol('order_key', "''"),
       {
         name: 'deleted_at',
         expr: "CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END",

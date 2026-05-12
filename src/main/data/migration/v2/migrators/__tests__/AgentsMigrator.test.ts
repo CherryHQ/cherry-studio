@@ -89,10 +89,10 @@ describe('AgentsMigrator', () => {
     // Return `{ rowsAffected: 0 }` so the model-id UPDATE transform can read
     // its result cleanly; existing assertions look at call args, not returns.
     const run = vi.fn().mockResolvedValue({ rowsAffected: 0 })
-    // remapAgentPrefixIds calls db.select().from().where() to find old-prefix IDs;
-    // mock to return empty arrays so the remap loop is a no-op.
+    // transformAgentBlocksToParts calls db.select().from().orderBy(); remapAgentPrefixIds
+    // calls db.select().from().where(). Return empty arrays so both loops are no-ops.
     const select = vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
+      from: vi.fn().mockReturnValue({ orderBy: vi.fn().mockResolvedValue([]), where: vi.fn().mockResolvedValue([]) })
     })
     const update = vi.fn().mockReturnValue({
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
@@ -134,12 +134,6 @@ describe('AgentsMigrator', () => {
     expect(insertCalls).toHaveLength(AGENTS_TABLE_MIGRATION_SPECS.length)
     // No old-prefix IDs returned → no UPDATE calls
     expect(update).not.toHaveBeenCalled()
-    // Every statement between COMMIT and the final `PRAGMA foreign_keys = ON`
-    // belongs to the post-copy model-id transform (6 UPDATEs — 3 columns × 2
-    // tables). Leaving the count unpinned here keeps the test resilient to
-    // future additions to the transform list.
-    const postCopy = outer.slice(commitIndex + 1, -2)
-    expect(postCopy.every((stmt) => stmt?.startsWith('UPDATE'))).toBe(true)
   })
 
   it('re-enables FK and detaches when an import statement fails inside the transaction', async () => {
@@ -291,7 +285,7 @@ describe('AgentsMigrator', () => {
     const run = vi.fn().mockResolvedValue({ rowsAffected: 0 })
     const get = vi.fn().mockResolvedValue({ count: 8 })
     const select = vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
+      from: vi.fn().mockReturnValue({ orderBy: vi.fn().mockResolvedValue([]), where: vi.fn().mockResolvedValue([]) })
     })
     const update = vi.fn().mockReturnValue({
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })

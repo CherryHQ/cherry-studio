@@ -39,7 +39,7 @@ describe('AgentsDbMappings', () => {
 
     expect(statements[0]).toBe("ATTACH DATABASE '/tmp/agent''s.db' AS agents_legacy")
     expect(statements).toContain(
-      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, order_key, deleted_at, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
+      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, deleted_at, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
     )
     expect(statements.at(-1)).toBe('DETACH DATABASE agents_legacy')
   })
@@ -69,7 +69,7 @@ describe('AgentsDbMappings', () => {
 
     // deleted_at absent from source → skipped in INSERT (resolveColumnSelection returns null)
     expect(statements).toContain(
-      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, order_key, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, '' AS order_key, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
+      `INSERT INTO agent (id, type, name, description, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, instructions, ${userModelLookup('model')}, ${userModelLookup('plan_model')}, ${userModelLookup('small_model')}, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents`
     )
     expect(statements.some((statement) => statement.includes('agents_legacy.skills'))).toBe(false)
   })
@@ -359,7 +359,7 @@ describe('AgentsDbMappings', () => {
     expect(agentInsert).toContain("COALESCE(mcps, '[]') AS mcps")
     expect(agentInsert).toContain("COALESCE(allowed_tools, '[]') AS allowed_tools")
     expect(agentInsert).toContain("COALESCE(configuration, '{}') AS configuration")
-    expect(agentInsert).toContain("'' AS order_key")
+    expect(agentInsert).not.toContain('order_key')
 
     const sessionInsert = find('agent_session')
     expect(sessionInsert).toContain("COALESCE(description, '') AS description")
@@ -394,8 +394,7 @@ describe('AgentsDbMappings', () => {
         description: { defaultExpr: "''" },
         mcps: { defaultExpr: "'[]'" },
         allowed_tools: { defaultExpr: "'[]'" },
-        configuration: { defaultExpr: "'{}'" },
-        order_key: { defaultExpr: "''" }
+        configuration: { defaultExpr: "'{}'" }
       },
       agent_session: {
         description: { defaultExpr: "''" },

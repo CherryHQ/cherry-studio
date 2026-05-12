@@ -125,11 +125,11 @@ export class AgentsMigrator extends BaseMigrator {
       // intermediate sentinel state (`order_key=''` or v1 `blocks: [...]`).
       //
       // Order:
-      //   1. backfillAgentOrderKeys — joins `agents_legacy.{agents,sessions}`,
+      //   1. backfillAgentSessionOrderKeys — joins `agents_legacy.sessions`,
       //      so MUST run while ATTACH is live and BEFORE remap rewrites ids.
       //   2. transformAgentBlocksToParts — no ordering constraint with remap;
       //      operates on `content` JSON, ids unchanged.
-      await backfillAgentOrderKeys(ctx.db)
+      await backfillAgentSessionOrderKeys(ctx.db)
       await transformAgentBlocksToParts(ctx.db)
 
       await ctx.db.run(sql.raw('COMMIT'))
@@ -396,31 +396,15 @@ export async function transformAgentBlocksToParts(db: DbType): Promise<BlocksToP
 }
 
 /**
- * Replace `''` placeholder orderKeys (set by INSERT...SELECT) with real
+ * Replace `''` placeholder session orderKeys (set by INSERT...SELECT) with real
  * fractional-indexing keys, ordered by the source `sort_order`. Joins target
- * rows to `agents_legacy.{agents,sessions}` so this MUST run while the source
- * DB is attached AND before remapAgentPrefixIds rewrites target ids.
+ * rows to `agents_legacy.sessions` so this MUST run while the source DB is
+ * attached AND before remapAgentPrefixIds rewrites target ids.
  *
  * Sessions are scoped per agentId.
  */
-export async function backfillAgentOrderKeys(db: DbType): Promise<void> {
+export async function backfillAgentSessionOrderKeys(db: DbType): Promise<void> {
   type Row = { id: string }
-
-  const agents = (await db.all(
-    sql.raw(
-      `SELECT a.id AS id FROM agent a
-       LEFT JOIN agents_legacy.agents s ON a.id = s.id
-       WHERE a.order_key = ''
-       ORDER BY COALESCE(s.sort_order, 0) ASC, a.id ASC`
-    )
-  )) as Row[]
-  if (agents.length > 0) {
-    const keys = generateOrderKeySequence(agents.length)
-    for (let i = 0; i < agents.length; i++) {
-      await db.run(sql`UPDATE agent SET order_key = ${keys[i]} WHERE id = ${agents[i].id}`)
-    }
-    logger.info(`Backfilled ${agents.length} agent order keys`)
-  }
 
   const sessions = (await db.all(
     sql.raw(

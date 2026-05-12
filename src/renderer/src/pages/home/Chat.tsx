@@ -1,6 +1,6 @@
-import { RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ChatAppShell, type ChatPanePosition } from '@renderer/components/chat'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -11,14 +11,12 @@ import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { AnimatePresence, motion } from 'motion/react'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import React, { useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
 import ChatNavbar from './components/ChatNavBar'
-import Tabs from './Tabs'
 import V2ChatContent from './V2ChatContent'
 
 const logger = loggerService.withContext('Chat')
@@ -26,6 +24,9 @@ const logger = loggerService.withContext('Chat')
 interface Props {
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
+  pane?: ReactNode
+  paneOpen?: boolean
+  panePosition?: ChatPanePosition
   /**
    * Called by V2ChatContent before the first message of a freshly-leased
    * temporary topic is sent. HomePage owns the lease so it also owns the
@@ -38,9 +39,7 @@ interface Props {
 const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
   const { t } = useTranslation()
-  const [topicPosition] = usePreference('topic.position')
   const [messageStyle] = usePreference('chat.message.style')
-  const [showTopics] = usePreference('topic.tab.show')
   const [isTopNavbar] = usePreference('ui.navbar.position')
 
   const mainRef = React.useRef<HTMLDivElement>(null)
@@ -71,7 +70,7 @@ const Chat: FC<Props> = (props) => {
       title: t('chat.topics.edit.title'),
       message: '',
       defaultValue: topic.name || '',
-      extraNode: <div style={{ color: 'var(--color-text-3)', marginTop: 8 }}>{t('chat.topics.edit.title_tip')}</div>
+      extraNode: <div className="mt-2 text-foreground-secondary">{t('chat.topics.edit.title_tip')}</div>
     })
     if (name && topic.name !== name) {
       await patchTopic(topic.id, { name, isNameManuallyEdited: true })
@@ -118,51 +117,40 @@ const Chat: FC<Props> = (props) => {
         '[navbar-position=top]_&:bg-(--color-background)',
         '[navbar-position=top]_&:rounded-tl-[10px] [navbar-position=top]_&:rounded-bl-[10px]'
       ])}>
-      <RowFlex>
-        <motion.div
-          layout
-          transition={{ duration: 0.3, ease: 'easeInOut' }}
-          style={{ flex: 1, display: 'flex', minWidth: 0, overflow: 'hidden' }}>
-          <div
-            ref={mainRef}
-            id="chat-main"
-            className="transform-[translateZ(0)] relative flex flex-1 flex-col justify-between"
-            style={{ height: mainHeight, width: '100%' }}>
-            <QuickPanelProvider>
-              <ChatNavbar assistantId={props.activeTopic.assistantId} topicId={props.activeTopic.id} />
-              <V2ChatContent
-                key={props.activeTopic.id}
-                topic={props.activeTopic}
-                setActiveTopic={props.setActiveTopic}
-                mainHeight={mainHeight}
-                onPersistTemporaryTopic={props.onPersistTemporaryTopic}
-              />
-              <ContentSearch
-                ref={contentSearchRef}
-                searchTarget={mainRef as React.RefObject<HTMLElement>}
-                filter={contentSearchFilter}
-                includeUser={filterIncludeUser}
-                onIncludeUserChange={userOutlinedItemClickHandler}
-              />
-            </QuickPanelProvider>
-          </div>
-        </motion.div>
-        <AnimatePresence initial={false}>
-          {topicPosition === 'right' && showTopics && (
-            <motion.div
-              key="right-tabs"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'var(--assistants-width)', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{
-                overflow: 'hidden'
-              }}>
-              <Tabs activeTopic={props.activeTopic} setActiveTopic={props.setActiveTopic} position="right" />
-            </motion.div>
+      <QuickPanelProvider>
+        <V2ChatContent
+          key={props.activeTopic.id}
+          topic={props.activeTopic}
+          setActiveTopic={props.setActiveTopic}
+          mainHeight={mainHeight}
+          onPersistTemporaryTopic={props.onPersistTemporaryTopic}
+          renderFrame={({ main, bottomComposer, overlay }) => (
+            <ChatAppShell
+              pane={props.pane}
+              paneOpen={props.paneOpen}
+              panePosition={props.panePosition}
+              topBar={<ChatNavbar assistantId={props.activeTopic.assistantId} topicId={props.activeTopic.id} />}
+              main={main}
+              bottomComposer={bottomComposer}
+              overlay={
+                <>
+                  {overlay}
+                  <ContentSearch
+                    ref={contentSearchRef}
+                    searchTarget={mainRef as React.RefObject<HTMLElement>}
+                    filter={contentSearchFilter}
+                    includeUser={filterIncludeUser}
+                    onIncludeUserChange={userOutlinedItemClickHandler}
+                  />
+                </>
+              }
+              centerId="chat-main"
+              centerRef={mainRef}
+              centerClassName="transform-[translateZ(0)] relative justify-between"
+            />
           )}
-        </AnimatePresence>
-      </RowFlex>
+        />
+      </QuickPanelProvider>
     </div>
   )
 }

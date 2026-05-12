@@ -6,7 +6,6 @@ import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/Qu
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAgent } from '@renderer/hooks/agents/useAgentDataApi'
 import { useSession } from '@renderer/hooks/agents/useSessionDataApi'
-import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
@@ -105,7 +104,7 @@ const AgentSessionInputbar = ({
       createdAt: now,
       updatedAt: now
     } satisfies Assistant
-  }, [session, agent, agentId, sessionModel])
+  }, [session, agent, agentId, sessionModel, t])
 
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
@@ -209,7 +208,6 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
     setCustomHeight
   } = useTextareaResize({ maxHeight: 500, minHeight: 30 })
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const { apiServerConfig, apiServerRunning } = useApiServer()
 
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -365,7 +363,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
     }
   }, [config.enableQuickPanel, toolsRegistry])
 
-  const sendDisabled = (inputEmpty && files.length === 0) || !apiServerConfig.enabled || !apiServerRunning
+  const sendDisabled = inputEmpty && files.length === 0
 
   const isStreaming = isStreamingFromProp
 
@@ -451,7 +449,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
         )}
       </ToolbarGroup>
     ),
-    [config.showTools, scope, assistant, toolsSession]
+    [config.showTools, scope, assistant, model, toolsSession]
   )
   const placeholderText = useMemo(() => {
     if (isSoulModeEnabled(agentBase?.configuration)) {

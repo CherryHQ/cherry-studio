@@ -1,4 +1,4 @@
-import { usePreference } from '@data/hooks/usePreference'
+import { ChatAppShell, type ChatPanePosition, LoadingState } from '@renderer/components/chat'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgentDataApi'
@@ -15,9 +15,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
-import { Loader2 } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
-import type { PropsWithChildren } from 'react'
+import type { PropsWithChildren, ReactNode } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,12 +27,16 @@ import { uiToMessage } from '../home/uiToMessage'
 import AgentChatNavbar from './components/AgentChatNavbar'
 import AgentSessionInputbar from './components/AgentSessionInputbar'
 import AgentSessionMessages from './components/AgentSessionMessages'
-import Sessions from './components/Sessions'
 
-const AgentChat = () => {
+interface AgentChatProps {
+  pane?: ReactNode
+  paneOpen?: boolean
+  panePosition?: ChatPanePosition
+}
+
+const AgentChat = ({ pane, paneOpen, panePosition }: AgentChatProps) => {
   const { t } = useTranslation()
-  const { messageNavigation, messageStyle, topicPosition } = useSettings()
-  const [showTopics] = usePreference('topic.tab.show')
+  const { messageNavigation, messageStyle } = useSettings()
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
 
   const { session: activeSession, isLoading: isSessionLoading } = useActiveSession()
@@ -43,23 +45,33 @@ const AgentChat = () => {
 
   const isInitializing = isAgentsLoading || isSessionLoading || (activeSession && isAgentLoading) || !agents
 
-  const showRightSessions = topicPosition === 'right' && showTopics && !!activeSession
-
   if (isInitializing) {
     return (
-      <Container className="flex flex-1 flex-col items-center justify-center">
-        <Loader2 className="size-6 animate-spin text-(--color-text-3)" />
-      </Container>
+      <AgentChatFrame
+        pane={pane}
+        paneOpen={paneOpen}
+        panePosition={panePosition}
+        main={
+          <div className="flex h-full flex-1 flex-col items-center justify-center">
+            <LoadingState />
+          </div>
+        }
+      />
     )
   }
 
   if (!activeSession) {
     return (
-      <Container className="flex flex-1 flex-col justify-between">
-        <div className="flex h-full w-full items-center justify-center">
-          <WarningAlert message={t('chat.alerts.create_session')} />
-        </div>
-      </Container>
+      <AgentChatFrame
+        pane={pane}
+        paneOpen={paneOpen}
+        panePosition={panePosition}
+        main={
+          <div className="flex h-full w-full items-center justify-center">
+            <WarningAlert message={t('chat.alerts.create_session')} />
+          </div>
+        }
+      />
     )
   }
 
@@ -67,20 +79,27 @@ const AgentChat = () => {
   // must reattach to another agent (UX TBD) or delete the session.
   if (!activeSession.agentId) {
     return (
-      <Container className="flex flex-1 flex-col justify-between">
-        <div className="flex h-full w-full items-center justify-center">
-          <WarningAlert message={t('agent.session.orphan.message', 'This session’s agent has been deleted')} />
-        </div>
-      </Container>
+      <AgentChatFrame
+        pane={pane}
+        paneOpen={paneOpen}
+        panePosition={panePosition}
+        main={
+          <div className="flex h-full w-full items-center justify-center">
+            <WarningAlert message={t('agent.session.orphan.message', 'This session’s agent has been deleted')} />
+          </div>
+        }
+      />
     )
   }
 
   return (
     <AgentChatInner
+      pane={pane}
+      paneOpen={paneOpen}
+      panePosition={panePosition}
       agentId={activeSession.agentId}
       sessionId={activeSession.id}
       activeAgent={activeAgent}
-      showRightSessions={showRightSessions}
       messageNavigation={messageNavigation}
       messageStyle={messageStyle}
       isMultiSelectMode={isMultiSelectMode}
@@ -91,20 +110,24 @@ const AgentChat = () => {
 // ── Inner: mounted only when agentId + sessionId are resolved ──
 
 interface InnerProps {
+  pane?: ReactNode
+  paneOpen?: boolean
+  panePosition?: ChatPanePosition
   agentId: string
   sessionId: string
   activeAgent: GetAgentResponse | undefined
-  showRightSessions: boolean
   messageNavigation: string
   messageStyle: string
   isMultiSelectMode: boolean
 }
 
 const AgentChatInner = ({
+  pane,
+  paneOpen,
+  panePosition,
   agentId,
   sessionId,
   activeAgent,
-  showRightSessions,
   messageNavigation,
   messageStyle,
   isMultiSelectMode
@@ -166,73 +189,96 @@ const AgentChatInner = ({
   const { isPending } = useTopicStreamStatus(sessionTopicId)
 
   return (
-    <Container className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}>
-      <QuickPanelProvider>
-        <div className="flex min-w-0 flex-1 flex-col">
+    <AgentChatFrame
+      className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}
+      pane={pane}
+      paneOpen={paneOpen}
+      panePosition={panePosition}
+      topBar={
+        activeAgent && (
           <div className="flex h-fit w-full min-w-0">
-            {activeAgent && <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} />}
+            <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} />
           </div>
+        )
+      }
+      main={
+        <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
+          {chat.activeExecutions.map(({ executionId }) => {
+            const execChat = executionChats.get(executionId)
+            if (!execChat) return null
+            return (
+              <ExecutionStreamCollector
+                key={executionId}
+                executionId={executionId}
+                chat={execChat}
+                onMessagesChange={handleExecutionMessagesChange}
+                onDispose={handleExecutionDispose}
+              />
+            )
+          })}
 
-          <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-            {chat.activeExecutions.map(({ executionId }) => {
-              const execChat = executionChats.get(executionId)
-              if (!execChat) return null
-              return (
-                <ExecutionStreamCollector
-                  key={executionId}
-                  executionId={executionId}
-                  chat={execChat}
-                  onMessagesChange={handleExecutionMessagesChange}
-                  onDispose={handleExecutionDispose}
-                />
-              )
-            })}
-
-            <AgentSessionMessages
-              agentId={agentId}
-              sessionId={sessionId}
-              adaptedMessages={projectedMessages}
-              partsMap={mergedPartsMap}
-              isLoading={isLoading}
-              hasOlder={hasOlder}
-              loadOlder={loadOlder}
-            />
-            <div className="mt-auto px-4.5 pb-2">
-              <NarrowLayout>
-                <PinnedTodoPanel messages={projectedMessages} partsMap={mergedPartsMap} />
-              </NarrowLayout>
-            </div>
-            {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-          </div>
-
-          <AgentSessionInputbar
+          <AgentSessionMessages
             agentId={agentId}
             sessionId={sessionId}
-            sendMessage={chat.sendMessage}
-            stop={chat.stop}
-            isStreaming={isPending}
+            adaptedMessages={projectedMessages}
+            partsMap={mergedPartsMap}
+            isLoading={isLoading}
+            hasOlder={hasOlder}
+            loadOlder={loadOlder}
           />
+          <div className="mt-auto px-4.5 pb-2">
+            <NarrowLayout>
+              <PinnedTodoPanel messages={projectedMessages} partsMap={mergedPartsMap} />
+            </NarrowLayout>
+          </div>
+          {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
         </div>
-      </QuickPanelProvider>
-
-      <AnimatePresence initial={false}>
-        {showRightSessions && (
-          <motion.div
-            key="right-sessions"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 'var(--assistants-width)', opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="overflow-hidden">
-            <div className="flex h-full w-(--assistants-width) flex-col overflow-hidden">
-              <Sessions />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </Container>
+      }
+      bottomComposer={
+        <AgentSessionInputbar
+          agentId={agentId}
+          sessionId={sessionId}
+          sendMessage={chat.sendMessage}
+          stop={chat.stop}
+          isStreaming={isPending}
+        />
+      }
+    />
   )
 }
+
+interface AgentChatFrameProps {
+  pane?: ReactNode
+  paneOpen?: boolean
+  panePosition?: ChatPanePosition
+  topBar?: ReactNode
+  main: ReactNode
+  bottomComposer?: ReactNode
+  className?: string
+}
+
+const AgentChatFrame = ({
+  pane,
+  paneOpen,
+  panePosition,
+  topBar,
+  main,
+  bottomComposer,
+  className
+}: AgentChatFrameProps) => (
+  <Container className={className}>
+    <QuickPanelProvider>
+      <ChatAppShell
+        pane={pane}
+        paneOpen={paneOpen}
+        panePosition={panePosition}
+        topBar={topBar}
+        main={main}
+        bottomComposer={bottomComposer}
+      />
+    </QuickPanelProvider>
+  </Container>
+)
 
 const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
   const { isTopNavbar } = useNavbarPosition()

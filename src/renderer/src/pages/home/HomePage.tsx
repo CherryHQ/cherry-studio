@@ -1,6 +1,5 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
@@ -11,7 +10,6 @@ import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
@@ -143,37 +141,26 @@ const HomePage: FC = () => {
     return <Container id="home-page" />
   }
 
+  const panePosition = topicPosition === 'right' ? 'right' : 'left'
+
   return (
     <Container id="home-page">
       {isLeftNavbar && <Navbar position="left" />}
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
-        <AnimatePresence initial={false}>
-          {showSidebar && (
-            <ErrorBoundary>
-              <motion.div
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 'var(--assistants-width)', opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                style={{ overflow: 'hidden' }}>
-                <HomeTabs activeTopic={activeTopic} setActiveTopic={setActiveTopic} position="left" />
-              </motion.div>
-            </ErrorBoundary>
-          )}
-        </AnimatePresence>
-        <ErrorBoundary>
-          <Chat
-            activeTopic={activeTopic}
-            setActiveTopic={setActiveTopic}
-            // Wire the persist callback only while the temp lease is the
-            // currently-active topic. If the user clicks a sidebar topic
-            // before sending, the active id no longer matches the lease and
-            // the next send won't accidentally persist an empty lease.
-            onPersistTemporaryTopic={
-              tempTopicId && activeTopic.id === tempTopicId ? persistTemporaryTopicAndRefresh : undefined
-            }
-          />
-        </ErrorBoundary>
+        <Chat
+          activeTopic={activeTopic}
+          setActiveTopic={setActiveTopic}
+          pane={<HomeTabs activeTopic={activeTopic} setActiveTopic={setActiveTopic} position={panePosition} />}
+          paneOpen={showSidebar}
+          panePosition={panePosition}
+          // Wire the persist callback only while the temp lease is the
+          // currently-active topic. If the user clicks a sidebar topic
+          // before sending, the active id no longer matches the lease and
+          // the next send won't accidentally persist an empty lease.
+          onPersistTemporaryTopic={
+            tempTopicId && activeTopic.id === tempTopicId ? persistTemporaryTopicAndRefresh : undefined
+          }
+        />
       </ContentContainer>
     </Container>
   )

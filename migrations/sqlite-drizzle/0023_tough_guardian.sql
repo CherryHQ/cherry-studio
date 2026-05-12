@@ -1,4 +1,5 @@
 PRAGMA foreign_keys=OFF;--> statement-breakpoint
+ALTER TABLE `agent_session` ADD `order_key` text DEFAULT '' NOT NULL;--> statement-breakpoint
 CREATE TABLE `__new_agent_session` (
 	`id` text PRIMARY KEY NOT NULL,
 	`agent_id` text,
