@@ -295,6 +295,38 @@ export class StaleVersionError extends Error {
 
 // ─── IFileManager ───
 
+/**
+ * Public surface of `FileManager` for Main-side business services and the
+ * future Phase 2 IPC layer. The class below declares `implements IFileManager`
+ * so a method declared here but missing on the class (or mis-typed) is a
+ * compile error.
+ *
+ * ## What's in vs. out of this interface
+ *
+ * **In** — methods consumers should hold against:
+ *   - Entry lifecycle (`createInternalEntry`, `ensureExternalEntry`,
+ *     `trash`/`restore`/`permanentDelete`, batch variants)
+ *   - Content (`read`/`write`/`writeIfUnchanged`/`createReadStream`/
+ *     `createWriteStream`/`createAtomicWriteStream`/`copy`/`rename`)
+ *   - Metadata / version / hash / URL / physical path resolution
+ *   - DanglingCache surface (`getDanglingState` /
+ *     `batchGetDanglingStates` / `subscribeDangling`)
+ *   - Orphan report (`getOrphanReport`)
+ *   - 3rd-party escape hatch (`withTempCopy`), `open` / `showInFolder`
+ *
+ * **Out** — kept on the class but **not** in the interface:
+ *   - DB-pass-through queries (`getById` / `findById` / `findByExternalPath`).
+ *     These are convenience accessors for tests and a few internal sites; the
+ *     authoritative read surface is `fileEntryService` directly. Adding them
+ *     to the interface would expose persistence concerns business code
+ *     should not depend on.
+ *   - Lifecycle internals (`runStartupSweeps`). Public on the class so tests
+ *     can `await` it, but not a binding consumer-facing contract.
+ *
+ * If a new "consumer-facing" method lands on the class, add it to this
+ * interface in the same PR; the `implements` clause will fail the build
+ * otherwise.
+ */
 export interface IFileManager {
   // ─── Entry Creation ───
   //
@@ -468,6 +500,51 @@ export interface IFileManager {
   batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult>
   batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult>
 
+  // ─── Stream ───
+
+  /** Read a file as a Node Readable stream. ENOENT on external propagates and flips DanglingCache. */
+  createReadStream(id: FileEntryId): Promise<Readable>
+
+  /**
+   * Backwards-compatible alias for `createWriteStream` — accepts a
+   * `FileEntryId` and returns the same atomic stream. Prefer
+   * `createWriteStream` in new code.
+   */
+  createAtomicWriteStream(id: FileEntryId): Promise<AtomicWriteStream>
+
+  // ─── Path / URL resolution ───
+
+  /** Resolve an entry to its `file://` URL with the danger-file safety wrap. */
+  getUrl(id: FileEntryId): Promise<FileURLString>
+
+  /** Resolve an entry to its absolute filesystem path. */
+  getPhysicalPath(id: FileEntryId): Promise<FilePath>
+
+  // ─── Dangling state ───
+
+  /** Resolve the current `DanglingState` for an entry. Hot path; see `DanglingCache.check`. */
+  getDanglingState(params: { id: FileEntryId }): Promise<DanglingState>
+
+  /** Batch form of `getDanglingState` keyed by id. */
+  batchGetDanglingStates(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, DanglingState>>
+
+  /**
+   * Subscribe to dangling-state transitions for a single entry. Pre-cursor to
+   * the §3.6 broadcast pipeline; for now a Main-process consumer surface.
+   * Returns an unsubscribe function. Same-state observations are silent;
+   * only genuine `'present' ↔ 'missing'` transitions fire the listener.
+   */
+  subscribeDangling(params: { id: FileEntryId }, listener: (state: 'present' | 'missing') => void): () => void
+
+  // ─── Orphan report (cleanup UI) ───
+
+  /**
+   * Snapshot of the last DB-level orphan sweep. `outcome` discriminator
+   * distinguishes `'unknown'` (no sweep yet), `'completed'`, `'partial'`,
+   * and `'failed'` so the renderer cannot read a failed run as healthy zero.
+   */
+  getOrphanReport(): OrphanReport
+
   // ─── 3rd-party Library Escape Hatch ───
 
   /**
@@ -503,7 +580,7 @@ export interface IFileManager {
  */
 @Injectable('FileManager')
 @ServicePhase(Phase.WhenReady)
-export class FileManager extends BaseService {
+export class FileManager extends BaseService implements IFileManager {
   // Per-instance VersionCache so each `new FileManager()` (e.g. in tests) gets
   // a fresh cache — file-manager-architecture.md §1.6.1 / §12 mandate this is
   // a class private field, not a module singleton, for test-isolation reasons.
