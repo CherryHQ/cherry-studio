@@ -35,7 +35,7 @@
  */
 
 import type * as NodeFsPromises from 'node:fs/promises'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -335,5 +335,92 @@ describe('fsyncDirectoryOf (end-to-end warn observability via atomicWriteFile)',
 
     expect(await readFile(target, 'utf-8')).toBe('payload')
     expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
+})
+
+describe('atomicWriteFile (write/sync failure cleans up .tmp-{uuid})', () => {
+  // The rename-failure path already unlinks the tmp (covered in fs.test.ts). The
+  // pre-rename steps — writeFile + sync — historically lacked their own cleanup,
+  // so ENOSPC/EIO between open and rename leaked a `.tmp-{uuid}` file that
+  // orphanSweep never collected (it only purges UUID-named files in the entry
+  // tree, not arbitrary `.tmp-` residue elsewhere on disk).
+  let tmp: string
+  let actualOpen: typeof NodeFsPromises.open
+  let actualRename: typeof NodeFsPromises.rename
+  let actualUnlink: typeof NodeFsPromises.unlink
+
+  beforeEach(async () => {
+    const actual = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
+    actualOpen = actual.open
+    actualRename = actual.rename
+    actualUnlink = actual.unlink
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-atomicwrite-leak-'))
+    mockOpen.mockReset()
+    mockRename.mockReset()
+    mockUnlink.mockReset()
+    mockLoggerWarn.mockClear()
+    mockOpen.mockImplementation((p, flags) => actualOpen(p as string, flags as never))
+    mockRename.mockImplementation((...args) => actualRename(...(args as [string, string])))
+    mockUnlink.mockImplementation((p) => actualUnlink(p as string))
+  })
+
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+    vi.restoreAllMocks()
+  })
+
+  /**
+   * Wrap the real FileHandle returned by `open` so one method (e.g. `writeFile`
+   * or `sync`) throws the supplied error while the rest still hit the underlying
+   * fd. `Reflect.get` + `bind(target)` keeps `this` pointing at the real handle
+   * so internal slots (`[symbol.fd]`) resolve — a fresh plain object would lose
+   * the binding and `close()` would explode.
+   */
+  function failingHandle(real: Awaited<ReturnType<typeof actualOpen>>, failOn: 'writeFile' | 'sync', err: Error) {
+    return new Proxy(real, {
+      get(target, prop) {
+        if (prop === failOn) {
+          return async () => {
+            throw err
+          }
+        }
+        const v = Reflect.get(target, prop)
+        return typeof v === 'function' ? v.bind(target) : v
+      }
+    })
+  }
+
+  it('on writeFile failure (ENOSPC): rejects with the write error and leaves no .tmp- residue', async () => {
+    const target = path.join(tmp, 'data.txt')
+    const writeErr = makeErrnoErr('ENOSPC', 'no space left on device')
+    mockOpen.mockImplementation(async (p, flags) => {
+      const real = await actualOpen(p as string, flags as never)
+      if (typeof p === 'string' && p.startsWith(target + '.tmp-')) {
+        return failingHandle(real, 'writeFile', writeErr)
+      }
+      return real
+    })
+
+    await expect(atomicWriteFile(target as FilePath, 'payload')).rejects.toBe(writeErr)
+
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+  })
+
+  it('on sync failure (EIO): rejects with the sync error and leaves no .tmp- residue', async () => {
+    const target = path.join(tmp, 'data.txt')
+    const syncErr = makeErrnoErr('EIO', 'I/O error')
+    mockOpen.mockImplementation(async (p, flags) => {
+      const real = await actualOpen(p as string, flags as never)
+      if (typeof p === 'string' && p.startsWith(target + '.tmp-')) {
+        return failingHandle(real, 'sync', syncErr)
+      }
+      return real
+    })
+
+    await expect(atomicWriteFile(target as FilePath, 'payload')).rejects.toBe(syncErr)
+
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
   })
 })

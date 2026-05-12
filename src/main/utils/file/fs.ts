@@ -196,18 +196,30 @@ export class PathStaleVersionError extends Error {
  * 3. rename(tmp, target) — atomic replacement on POSIX
  * 4. fsync(dir fd) — flush rename metadata; ignored on Windows
  *
- * On rename failure the tmp file is best-effort unlinked before the error
- * is rethrown. The target file is therefore never partially written —
- * callers either see the previous content or the new content.
+ * Any failure between open and rename (writeFile / sync / rename itself)
+ * best-effort unlinks the tmp file before rethrowing. orphanSweep only
+ * collects UUID-named files in the entry tree, so a leaked `.tmp-{uuid}`
+ * here would persist indefinitely. The target file is never partially
+ * written — callers either see the previous content or the new content.
  */
 export async function atomicWriteFile(target: FilePath, data: string | Uint8Array): Promise<void> {
   const tmp = tmpNameFor(target)
   const tmpHandle = await fsOpen(tmp, 'w')
   try {
-    await tmpHandle.writeFile(data)
-    await tmpHandle.sync()
-  } finally {
+    try {
+      await tmpHandle.writeFile(data)
+      await tmpHandle.sync()
+    } catch (err) {
+      await tmpHandle.close().catch(() => undefined)
+      await unlink(tmp).catch(() => undefined)
+      throw err
+    }
     await tmpHandle.close()
+  } catch (err) {
+    // tmpHandle.close() above can throw on its own; if it does, the tmp
+    // file is still on disk and must be cleaned up here.
+    await unlink(tmp).catch(() => undefined)
+    throw err
   }
   try {
     await rename(tmp, target)
