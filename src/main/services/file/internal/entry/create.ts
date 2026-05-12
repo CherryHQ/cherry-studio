@@ -173,7 +173,12 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // a later strict-equality check like `path.basename(canonical) === entry.name`
   // would silently diverge. Same risk for trailing-separator / `..`
   // noise in the raw input.
-  await fsStat(canonical)
+  // `CanonicalExternalPath` brand satisfies the absolute-path shape, so it
+  // can flow into `FilePath`-typed APIs at the service boundary (per the
+  // brand JSDoc's "service-boundary upcast" exception). S5 (a follow-up
+  // commit in this PR series) will replace this cast with the round-trip
+  // intersection brand once the schema-side `refine` lands.
+  await fsStat(canonical as unknown as FilePath)
   // Peer detection is a `SELECT` against the same DB connection that the
   // upcoming `create()` writes through. If this query fails (transient lock,
   // connection drop), the subsequent INSERT would fail at the same boundary
@@ -186,7 +191,13 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
       peerIds: peers.map((p) => p.id)
     })
   }
-  const name = params.name ?? defaultNameFromPath(canonical)
+  // `name` and `ext` are pure projections of `canonical` — derived here,
+  // not accepted from callers. Doc-stated invariant: "external `name` is a
+  // pure projection of `externalPath`" (file-manager-architecture §1.5 +
+  // architecture §3.3) is now enforced by the IPC type lacking a `name`
+  // override field. Phase 2 consumers that want a different display name
+  // must `rename` after `ensureExternalEntry` returns.
+  const name = defaultNameFromPath(canonical)
   const ext = extWithoutDot(canonical)
   const inserted = await deps.fileEntryService.create({
     origin: 'external',

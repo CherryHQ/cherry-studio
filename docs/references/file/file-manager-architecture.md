@@ -256,26 +256,31 @@ export async function ensureExternalEntry(
 
 ```typescript
 // FileManager.ts (illustrative — see src/main/services/file/FileManager.ts for the authoritative wiring)
+@Injectable('FileManager')
+@ServicePhase(Phase.WhenReady)
 export class FileManager extends BaseService implements IFileManager {
-  private readonly versionCache = createVersionCacheImpl(2000)
+  private readonly _versionCache = createVersionCacheImpl(2000)
   private readonly deps: FileManagerDeps = {
     fileEntryService,
     fileRefService,
     danglingCache,
-    versionCache: this.versionCache,
+    versionCache: this._versionCache,
     orphanRegistry: orphanCheckerRegistry
   }
 
-  // public API: thin delegates; naming strictly aligned with semantics (create = new, ensure = upsert)
-  createInternalEntry(params) { return entryCreate.createInternalEntry(this.deps, params) }
-  ensureExternalEntry(params) { return entryCreate.ensureExternalEntry(this.deps, params) }
-  read(id, opts?) { return contentRead.readByEntry(this.deps, id, opts) }
-  trash(id) { return entryLifecycle.trash(this.deps, id) }
+  // Public API: thin delegates. Internal modules export entry-flavoured
+  // functions directly (no `*ByEntry` suffix — see §1.6.5); `*ByPath`
+  // siblings exist only on the path branch and are NOT exposed here.
+  createInternalEntry(params) { return createInternal(this.deps, params) }
+  ensureExternalEntry(params) { return ensureExternal(this.deps, params) }
+  read(id, opts?) { return read(this.deps, id, opts) }
+  trash(id) { return trash(this.deps, id) }
   // ... one line per method
 
   protected async onInit() {
+    await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
-    void orphanSweep.run(this.deps) // fire-and-forget
+    void this.runStartupSweeps() // fire-and-forget
   }
 }
 ```
@@ -292,12 +297,20 @@ export class FileManager extends BaseService implements IFileManager {
 
 ```typescript
 // internal/content/read.ts
-export async function readByEntry(deps, entryId, opts): Promise<ReadResult<T>>    // serves FileManager public API
-export async function readByPath(deps, path, opts): Promise<ReadResult<T>>         // serves the path-handle branch of IPC handler
+export async function read(deps, entryId, opts): Promise<ReadResult<T>>           // serves FileManager public API (entry-flavoured)
+export async function readByPath(deps, path, opts): Promise<ReadResult<T>>        // serves the path-handle branch of the IPC handler
 // future: export async function readVirtual(deps, handle, opts)
 ```
 
-`*ByEntry` flows through FileManager's public methods; `*ByPath` (and future `*Virtual`) **do not** go through FileManager's public methods—they serve the path-handle branch of the IPC handler only.
+**Naming convention** (per the shipped exports): entry-flavoured variants
+use the **bare verb** (`read`, `createInternal`, `ensureExternal`, `trash`,
+`copy`, `rename`, …); path-flavoured siblings carry the `*ByPath` suffix.
+The bare entry variant is what `FileManager`'s public method delegates to;
+`*ByPath` (and future `*Virtual`) **do not** flow through FileManager's
+public methods — they serve the path-handle branch of the IPC handler
+only. The previous draft of this section used a `*ByEntry` suffix on the
+entry variants, but no shipped export follows that pattern; the docs are
+updated to match the code, not the other way around.
 
 **Unified style for dispatch helper**: to prevent "every IPC method writing its own if-else" noise, FileManager provides a small internal helper:
 
@@ -1242,15 +1255,23 @@ private async doStatAndUpdate(
 Business modules **need not be directly aware of DanglingCache**. All watchers must be created via the `createDirectoryWatcher()` factory, which hooks things up internally:
 
 ```typescript
-// src/main/services/file/watcher/factory.ts
-export function createDirectoryWatcher(opts: DirectoryWatcherOptions): DirectoryWatcher {
-  const watcher = new DirectoryWatcher(opts)
-  watcher.onAdd(({ path }) => danglingCache.onFsEvent(path, 'present'))
-  watcher.onUnlink(({ path }) => danglingCache.onFsEvent(path, 'missing'))
-  // Optional: rename event updates both sides
-  watcher.onRename(({ oldPath, newPath }) => {
-    danglingCache.onFsEvent(oldPath, 'missing')
-    danglingCache.onFsEvent(newPath, 'present')
+// src/main/services/file/watcher/index.ts
+export function createDirectoryWatcher(
+  root: FilePath,
+  opts?: CreateDirectoryWatcherOptions
+): DirectoryWatcher {
+  const watcher = new DirectoryWatcher(root, opts)
+  watcher.onEvent((event) => {
+    // WatcherEvent is a discriminated union; see §8.2 for the shipped shape.
+    switch (event.type) {
+      case 'add':
+      case 'change':
+        danglingCache.onFsEvent(event.path, 'present')
+        break
+      case 'unlink':
+        danglingCache.onFsEvent(event.path, 'missing')
+        break
+    }
   })
   return watcher
 }

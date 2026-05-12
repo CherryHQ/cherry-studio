@@ -33,10 +33,18 @@
  *
  * At the IPC boundary, the renderer speaks `FileHandle` (a tagged union whose
  * variants select the *reference form* — `FileEntryHandle` routes through the
- * entry system, `FilePathHandle` hits `@main/utils/file/*` directly). Dispatching on
- * `handle.kind` is treated as the IPC adapter's legitimate responsibility
- * (translating request shape), not business orchestration. The IPC adapter
- * uses the private `dispatchHandle` helper:
+ * entry system, `FilePathHandle` hits `@main/utils/file/*` directly). The
+ * design plan is for the IPC adapter to dispatch on `handle.kind` via a
+ * `dispatchHandle` helper, with the dispatch logic treated as the adapter's
+ * legitimate responsibility (translating request shape), not business
+ * orchestration.
+ *
+ * **Phase 1 status — deferred**: `dispatchHandle` lives in
+ * `internal/dispatch.ts` and is referenced only by its own unit tests; no
+ * shipped IPC handler imports it yet. The two wired Phase 1 channels
+ * (`File_GetDanglingState` / `File_BatchGetDanglingStates`) accept
+ * `FileEntryId` directly. When Phase 2 channels that take `FileHandle`
+ * land, they will route through `dispatchHandle`:
  *
  * - `{ kind: 'entry', entryId }` → the corresponding FileManager public
  *   method (e.g. `this.read(entryId, opts)`)

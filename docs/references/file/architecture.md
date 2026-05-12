@@ -812,7 +812,8 @@ To avoid the governance pitfall of "added a sourceType but forgot to wire up som
 - **Push** (step 3): OrphanRefScanner acts as a safety net, periodically scanning `file_ref` to find rows with non-existent sourceIds and removing them. **Compile-time Record closure** ensures no sourceType is missed.
 - **There is no per-sourceType `onSourceDeleted` hook**: the cleanup logic of `cleanupBySource` is identical across all sourceTypes (delete rows matching `(sourceType, sourceId)`). Business-specific cleanup (e.g., rebuilding vectors when a knowledge base is deleted) belongs to the business service's own delete flow and should not be coupled to the ref system.
 
-Reference implementation (`tempSession` ships as the template):
+Reference implementation (Phase 1 ships **two** checkers — `temp_session`
+and `knowledge_item` — both following the same shape):
 
 ```typescript
 // src/main/data/services/orphan/FileRefCheckerRegistry.ts
@@ -821,6 +822,10 @@ export const fileRefCheckers: Record<FileRefSourceType, SourceTypeChecker> = {
   temp_session: {
     sourceType: 'temp_session',
     checkExists: async () => new Set()  // temp has no persistent source; treat everything as "deleted"
+  },
+  knowledge_item: {
+    sourceType: 'knowledge_item',
+    checkExists: async (ids) => /* SELECT existing knowledge_item ids; returns Set */
   },
   // If you miss a key here after adding a new sourceType, TypeScript fails to compile
 }
@@ -895,16 +900,23 @@ WhenReady (after app.whenReady(), Electron API available)
        ordering handles it automatically per the lifecycle decorator
        rules; WindowManager dep lands together with the §3.6 broadcast
        pipeline in Phase 2)
-      onInit(): awaits DanglingCache.initFromDb(), inline-registers the
-                two Phase 1 IPC channels (File_GetDanglingState +
-                File_BatchGetDanglingStates), fires runStartupSweeps()
-                (FS-level + DB-level orphan passes; runs async; does NOT
-                block ready)
+      onInit(): awaits DanglingCache.initFromDb(), calls
+                this.registerIpcHandlers() (the dedicated helper wires
+                File_GetDanglingState + File_BatchGetDanglingStates),
+                fires void runStartupSweeps() (FS-level + DB-level
+                orphan passes; runs async; does NOT block ready)
 
 Background (fire-and-forget, non-blocking)
-+-- OrphanRefScanner             -- delayed 30s, scan orphan refs
-+-- FileManager.runOrphanSweep   -- started in onInit, cleans internal UUID
-                                    files not in DB + *.tmp-<uuid> residues
++-- FileManager.runStartupSweeps -- started fire-and-forget from onInit,
+                                    runs two concurrent passes:
+                                    • runStartupFileSweep:  cleans orphan UUID
+                                                            files + *.tmp-<uuid>
+                                                            residues
+                                    • runDbSweep (uses an internal
+                                      OrphanRefScanner class — NOT a separate
+                                      lifecycle service, NOT delayed 30s):
+                                      DB-level orphan-ref + orphan-entry scan
+                                      per §7 Layer 3
 
 Singletons / Primitives (no lifecycle):
 +-- @main/utils/file/*            -- sole FS owner, stateless pure functions
@@ -931,15 +943,17 @@ Data Repositories (not lifecycle, managed by DataApiService):
                           |
                           v     WhenReady
                      FileManager.onInit():
-                       1. register IPC handlers
-                       2. initialize version cache LRU
-                       3. init DanglingCache reverse index from DB
+                       1. await DanglingCache.initFromDb()
                           (SELECT id, externalPath FROM file_entry
                            WHERE origin='external'
                            — external rows are never trashed by invariant)
-                       4. subscribe to own mutation Events + DanglingCache
-                          events, wire to windowManager.broadcast (§3.6)
-                       5. fire void this.runOrphanSweep()  ◄── not awaited
+                       2. this.registerIpcHandlers()
+                          (wires File_GetDanglingState +
+                           File_BatchGetDanglingStates;
+                           other File_* channels land in Phase 2)
+                       3. fire void this.runStartupSweeps()  ◄── not awaited
+                          (version cache constructs at field-init time;
+                           §3.6 broadcast wiring is deferred to Phase 2)
                                    │
                           (ready signal emitted immediately; ready not blocked)
                           │                            │
@@ -947,8 +961,11 @@ Data Repositories (not lifecycle, managed by DataApiService):
                       onAllReady()                 (background in parallel)
                           │                   orphan sweep:
                           ▼                     UUID files not in DB → unlink
-                 OrphanRefScanner.start          *.tmp-<uuidv7> → unlink
-                 (delayed 30s)
+                 runDbSweep (in-process,         *.tmp-<uuid> → unlink
+                 fired from runStartupSweeps;     (uuid here is v4 from
+                 no separate scheduling)          node:crypto.randomUUID;
+                                                  orphan sweep regex is
+                                                  version-agnostic)
 ```
 
 **Key**: `runOrphanSweep()` starts with `void` rather than `await`, so `onInit` returns immediately and the service becomes ready immediately. DanglingCache reverse index initialization is a **synchronous DB query** that should be fast (external entries are usually <10000 rows), so no additional signal mechanism is introduced.

@@ -151,8 +151,6 @@ export type CreateInternalEntryIpcParams =
  */
 export type EnsureExternalEntryIpcParams = {
   externalPath: FilePath
-  /** Optional display-name override. Defaults to `path.basename(externalPath)`. */
-  name?: string
 }
 
 // ─── IPC Result ───
