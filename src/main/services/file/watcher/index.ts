@@ -120,11 +120,25 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
    * mirror presence transitions into DanglingCache. `change` is intentionally
    * not mirrored — the file is still present; only mtime drift, which the
    * cache doesn't track.
+   *
+   * The cache feed is keyed by canonical (NFC) path because `DanglingCache`'s
+   * reverse index is populated by `ensureExternalEntry` → `canonicalizeExternalPath`
+   * (NFC). chokidar emits whatever the OS hands it; on macOS APFS that is NFD
+   * for CJK / accented filenames migrated from HFS+ (or written by tools like
+   * `rsync -E` that preserve the source encoding). Without normalizing here
+   * the `path → entryIds` lookup misses and the cache stays stale. The
+   * outbound `emitter.fire(ev)` keeps the raw OS path so external subscribers
+   * (e.g. opening the file with the same string chokidar saw) stay coherent
+   * with what the FS actually has — only the DanglingCache leg gets the NFC
+   * form, since it is the only leg that compares against canonical keys.
    */
   private handle(ev: Extract<WatcherEvent, { path: FilePath }>): void {
     if (this.closed) return
-    if (ev.kind === 'add') danglingCache.onFsEvent(ev.path, 'present', 'watcher')
-    else if (ev.kind === 'unlink') danglingCache.onFsEvent(ev.path, 'missing', 'watcher')
+    if (ev.kind === 'add' || ev.kind === 'unlink') {
+      const canonical = ev.path.normalize('NFC') as FilePath
+      const presence = ev.kind === 'add' ? 'present' : 'missing'
+      danglingCache.onFsEvent(canonical, presence, 'watcher')
+    }
     this.emitter.fire(ev)
   }
 

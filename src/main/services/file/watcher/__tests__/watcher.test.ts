@@ -146,6 +146,57 @@ describe('createDirectoryWatcher', () => {
     await w.close()
   })
 
+  // Reverse-direction skip from the NFD test in entry/create.test.ts:
+  // chokidar emits whatever the OS hands it. On macOS APFS / Windows NTFS the
+  // FS normalizes to NFC at storage time, so even a file we name with NFD
+  // bytes gets surfaced as NFC and the case under test (chokidar firing NFD)
+  // can't be set up locally. On Linux ext4, filenames are opaque bytes —
+  // writeFile preserves the NFD encoding verbatim, chokidar surfaces it as
+  // NFD, which is exactly the scenario the production fix targets (a CJK
+  // file migrated from HFS+ via `rsync -E` arrives in NFD on macOS users'
+  // disks; we use Linux to *reproduce* that byte pattern under test).
+  it.runIf(process.platform === 'linux')(
+    'normalizes NFD chokidar paths to NFC before feeding DanglingCache (linux-reproducible regression)',
+    async () => {
+      const nfd = 'qu\u0065\u0301.txt' // q, u, e, combining acute -> NFD
+      const nfc = 'qu\u00E9.txt' // q, u, e-precomposed -> NFC
+      expect(nfd).not.toBe(nfc) // byte-distinct strings reaching us at runtime
+
+      const writtenPath = path.join(dir, nfd) as FilePath
+      const canonicalPath = path.join(dir, nfc) as FilePath
+
+      // DanglingCache's reverse index is populated by `ensureExternalEntry` →
+      // `canonicalizeExternalPath` which already lands NFC. Mirror that here.
+      danglingCache.addEntry('e-w-nfd' as FileEntryId, canonicalPath)
+
+      const w = createDirectoryWatcher(dir as FilePath, { stabilityThresholdMs: 0 })
+      await waitForReady(w)
+      await writeFile(writtenPath, 'hello')
+      // The emitted event still carries the raw OS path (NFD) — the cache leg
+      // alone is normalized, so external subscribers see what the FS sees.
+      const ev = await waitForEvent(w, (e) => e.kind === 'add' && e.path?.endsWith('.txt'))
+      if (ev.kind !== 'add') throw new Error('expected add event')
+      expect(ev.path).toBe(writtenPath)
+
+      // The cache lookup uses NFC keys; without the NFC-normalize step in
+      // `handle()` this would miss and the cache would stay 'unknown'.
+      expect(
+        await danglingCache.check({
+          id: 'e-w-nfd' as FileEntryId,
+          origin: 'external',
+          externalPath: canonicalPath,
+          name: 'qué',
+          ext: 'txt',
+          size: null,
+          trashedAt: null,
+          createdAt: 0,
+          updatedAt: 0
+        } as never)
+      ).toBe('present')
+      await w.close()
+    }
+  )
+
   it('close() is idempotent and stops further event delivery', async () => {
     const w = createDirectoryWatcher(dir as FilePath, { stabilityThresholdMs: 0 })
     await waitForReady(w)
