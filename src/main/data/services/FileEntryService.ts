@@ -201,6 +201,11 @@ class FileEntryServiceImpl implements FileEntryService {
           sql`lower(${fileEntryTable.externalPath}) = lower(${canonicalPath})`
         )
       )
+      // Deterministic ordering for the duplicate-suspect warn log so the
+      // first row in the list is stable across runs (helpful for snapshot
+      // tests and for the surviving-row selection in any future FileMigrator
+      // dedupe pass).
+      .orderBy(asc(fileEntryTable.createdAt), asc(fileEntryTable.id))
     return rows.map(rowToFileEntry)
   }
 

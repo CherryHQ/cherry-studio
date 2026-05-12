@@ -25,7 +25,7 @@ import { application } from '@application'
 import { fileRefTable } from '@data/db/schemas/file'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import { FileRefSchema } from '@shared/data/types/file'
-import { and, count, eq, inArray } from 'drizzle-orm'
+import { and, asc, count, eq, inArray } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 export interface FileRefSourceKey {
@@ -99,7 +99,16 @@ class FileRefServiceImpl implements FileRefService {
   }
 
   async findByEntryId(fileEntryId: FileEntryId): Promise<FileRef[]> {
-    const rows = await this.getDb().select().from(fileRefTable).where(eq(fileRefTable.fileEntryId, fileEntryId))
+    const rows = await this.getDb()
+      .select()
+      .from(fileRefTable)
+      .where(eq(fileRefTable.fileEntryId, fileEntryId))
+      // Deterministic order so paginated / diff'd callers get stable results;
+      // SQLite returns rows in arbitrary order without ORDER BY, which makes
+      // tests flaky on rebuilds and observation noise indistinguishable from
+      // real change. Tiebreaker on `id` keeps duplicate-createdAt batches
+      // ordered consistently.
+      .orderBy(asc(fileRefTable.createdAt), asc(fileRefTable.id))
     return rows.map(rowToFileRef)
   }
 
@@ -108,6 +117,7 @@ class FileRefServiceImpl implements FileRefService {
       .select()
       .from(fileRefTable)
       .where(and(eq(fileRefTable.sourceType, source.sourceType), eq(fileRefTable.sourceId, source.sourceId)))
+      .orderBy(asc(fileRefTable.createdAt), asc(fileRefTable.id))
     return rows.map(rowToFileRef)
   }
 
