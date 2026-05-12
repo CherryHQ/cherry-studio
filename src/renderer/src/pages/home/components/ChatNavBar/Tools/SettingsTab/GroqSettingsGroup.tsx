@@ -1,3 +1,4 @@
+import { HelpTooltip } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
@@ -5,8 +6,6 @@ import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import type { GroqServiceTier, ServiceTier } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
-import { Tooltip } from 'antd'
-import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -58,9 +57,7 @@ const GroqSettingsGroup: FC<Props> = ({ SettingGroup, SettingRowTitleSmall }) =>
         <SettingRow>
           <SettingRowTitleSmall>
             {t('settings.openai.service_tier.title')}{' '}
-            <Tooltip title={t('settings.openai.service_tier.tip')}>
-              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-            </Tooltip>
+            <HelpTooltip content={t('settings.openai.service_tier.tip')} iconProps={{ className: 'ml-1' }} />
           </SettingRowTitleSmall>
           <Selector
             value={toOptionValue(serviceTierMode)}

@@ -1,3 +1,4 @@
+import { HelpTooltip } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import { getModelSupportedVerbosity } from '@renderer/config/models'
 import { SettingRow } from '@renderer/pages/settings'
@@ -7,8 +8,6 @@ import { setOpenAIVerbosity } from '@renderer/store/settings'
 import type { Model } from '@renderer/types'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { OpenAIVerbosity } from '@shared/types/aiSdk'
-import { Tooltip } from 'antd'
-import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -76,9 +75,7 @@ const VerbositySetting: FC<Props> = ({ model, SettingRowTitleSmall }) => {
     <SettingRow>
       <SettingRowTitleSmall>
         {t('settings.openai.verbosity.title')}{' '}
-        <Tooltip title={t('settings.openai.verbosity.tip')}>
-          <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-        </Tooltip>
+        <HelpTooltip content={t('settings.openai.verbosity.tip')} iconProps={{ className: 'ml-1' }} />
       </SettingRowTitleSmall>
       <Selector
         value={toOptionValue(verbosity)}
