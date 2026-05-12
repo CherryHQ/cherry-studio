@@ -37,6 +37,7 @@ function modelRow(providerId: string, modelId: string, values: Partial<NewUserMo
     id: createUniqueModelId(providerId, modelId),
     providerId,
     modelId,
+    name: modelId,
     capabilities: [],
     supportsStreaming: true,
     isEnabled: true,
@@ -691,20 +692,13 @@ describe('ModelService.getNamesByUniqueIdsTx', () => {
     expect(result.get(uid)).toBe('GPT-4o')
   })
 
-  it('omits rows with null or empty name (no synthetic blank label)', async () => {
+  it('omits rows with empty name (no synthetic blank label)', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-    const uidNull = createUniqueModelId('openai', 'gpt-null')
     const uidEmpty = createUniqueModelId('openai', 'gpt-empty')
-    await dbh.db
-      .insert(userModelTable)
-      .values([
-        modelRow('openai', 'gpt-null', { id: uidNull, name: null }),
-        modelRow('openai', 'gpt-empty', { id: uidEmpty, name: '' })
-      ])
+    await dbh.db.insert(userModelTable).values([modelRow('openai', 'gpt-empty', { id: uidEmpty, name: '' })])
 
-    const result = await modelService.getNamesByUniqueIdsTx(dbh.db, [uidNull, uidEmpty])
+    const result = await modelService.getNamesByUniqueIdsTx(dbh.db, [uidEmpty])
 
-    expect(result.has(uidNull)).toBe(false)
     expect(result.has(uidEmpty)).toBe(false)
   })
 

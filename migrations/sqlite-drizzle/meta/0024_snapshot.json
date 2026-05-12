@@ -2801,7 +2801,7 @@
           "name": "name",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "description": {
@@ -2822,7 +2822,7 @@
           "name": "capabilities",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "input_modalities": {
@@ -2878,8 +2878,9 @@
           "name": "supports_streaming",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
         },
         "reasoning": {
           "name": "reasoning",
@@ -2926,13 +2927,12 @@
           "autoincrement": false,
           "default": false
         },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": 0
+          "notNull": true,
+          "autoincrement": false
         },
         "notes": {
           "name": "notes",
@@ -2974,9 +2974,9 @@
           "columns": ["provider_id", "is_enabled"],
           "isUnique": false
         },
-        "user_model_provider_sort_idx": {
-          "name": "user_model_provider_sort_idx",
-          "columns": ["provider_id", "sort_order"],
+        "user_model_provider_id_order_key_idx": {
+          "name": "user_model_provider_id_order_key_idx",
+          "columns": ["provider_id", "order_key"],
           "isUnique": false
         },
         "user_model_provider_model_unique": {

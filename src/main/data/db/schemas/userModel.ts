@@ -82,7 +82,7 @@ export const userModelTable = sqliteTable(
     presetModelId: text(),
 
     /** Display name (override or complete) */
-    name: text(),
+    name: text().notNull(),
 
     /** Description */
     description: text(),

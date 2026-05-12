@@ -175,7 +175,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     providerId: dto.providerId,
     modelId: dto.modelId,
     presetModelId: null,
-    name: dto.name ?? null,
+    name: dto.name ?? dto.modelId,
     description: dto.description ?? null,
     group: dto.group ?? null,
     capabilities: (dto.capabilities ?? []) as ModelCapability[],
@@ -237,7 +237,7 @@ function rowToRuntimeModel(row: UserModel): Model {
     providerId: row.providerId,
     apiModelId: row.modelId,
     presetModelId: row.presetModelId,
-    name: row.name ?? '',
+    name: row.name,
     description: row.description ?? undefined,
     group: row.group ?? undefined,
     capabilities: row.capabilities,
@@ -271,7 +271,7 @@ class ModelService {
         registryData?.reasoningFormatTypes,
         registryData?.defaultChatEndpoint
       )
-      const merged = applyUserOverlay(baseline, dtoValues)
+      const merged = applyUserOverlay(baseline, { ...dtoValues, name: dto.name ?? null })
 
       return mergedModelToNewUserModel(dto.providerId, dto.modelId, presetModel.id, merged)
     }

@@ -400,7 +400,7 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<Ne
     providerId,
     modelId: legacy.id,
     presetModelId: normalizeModelId(legacy.id),
-    name: legacy.name ?? null,
+    name: legacy.name ?? legacy.id,
     description: legacy.description ?? null,
     group: legacy.group ?? null,
     capabilities: mapCapabilities(legacy.capabilities),

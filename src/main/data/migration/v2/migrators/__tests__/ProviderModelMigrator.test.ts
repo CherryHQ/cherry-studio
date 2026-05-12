@@ -119,6 +119,29 @@ describe('ProviderModelMigrator', () => {
       expect(result.warnings).toBeDefined()
       expect(result.warnings?.some((w) => w.includes('duplicate'))).toBe(true)
     })
+
+    it('returns an error ID when preparation fails', async () => {
+      const cause = new Error('redux state unreadable')
+      const migrationContext = {
+        sources: {
+          reduxState: {
+            getCategory: vi.fn(() => {
+              throw cause
+            })
+          },
+          dexieSettings: {
+            get: vi.fn()
+          }
+        },
+        db: dbh.db
+      } as unknown as MigrationContext
+
+      const result = await migrator.prepare(migrationContext)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('provider_model_prepare_failed')
+      expect(result.error).toContain('Provider/model preparation failed')
+    })
   })
 
   describe('execute', () => {
@@ -339,6 +362,7 @@ describe('ProviderModelMigrator', () => {
         id: createUniqueModelId('openai', 'gpt-4o'),
         providerId: 'other',
         modelId: 'conflicting-row',
+        name: 'Conflicting row',
         capabilities: [],
         supportsStreaming: true,
         isEnabled: true,
@@ -357,12 +381,31 @@ describe('ProviderModelMigrator', () => {
       const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(false)
+      expect(result.error).toContain('provider_model_execute_failed')
       expect(result.error).toBeDefined()
       const openaiProviders = await dbh.db
         .select()
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, 'openai'))
       expect(openaiProviders).toEqual([])
+    })
+  })
+
+  describe('validate', () => {
+    it('returns an error ID when validation throws', async () => {
+      const cause = new Error('count query failed')
+      const migrationContext = createContext({
+        select: vi.fn(() => {
+          throw cause
+        })
+      } as unknown as MigrationContext['db'])
+
+      const result = await migrator.validate(migrationContext)
+
+      expect(result.success).toBe(false)
+      expect(result.errors[0].key).toBe('provider_model_validate_failed')
+      expect(result.errors[0].message).toContain('provider_model_validate_failed')
+      expect(result.errors[0].message).toContain('Provider/model validation failed')
     })
   })
 

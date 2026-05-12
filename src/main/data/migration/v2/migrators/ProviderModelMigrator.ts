@@ -35,7 +35,26 @@ const logger = loggerService.withContext('ProviderModelMigrator')
 
 const BATCH_SIZE = 100
 
+const PROVIDER_MODEL_MIGRATION_ERROR_IDS = {
+  prepare: 'provider_model_prepare_failed',
+  execute: 'provider_model_execute_failed',
+  validate: 'provider_model_validate_failed'
+} as const
+
 type NewUserProviderInput = Omit<NewUserProvider, 'orderKey'>
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error))
+}
+
+function createPhaseError(message: string, cause: unknown): Error {
+  const causeError = toError(cause)
+  return new Error(`${message}: ${causeError.message}`, { cause: causeError })
+}
+
+function formatPhaseError(errorId: string, error: Error): string {
+  return `${errorId}: ${error.message}`
+}
 
 interface LlmState {
   providers?: LegacyProvider[]
@@ -289,11 +308,12 @@ export class ProviderModelMigrator extends BaseMigrator {
         warnings: warnings.length > 0 ? warnings : undefined
       }
     } catch (error) {
-      logger.error('Preparation failed', error as Error)
+      const phaseError = createPhaseError('Provider/model preparation failed', error)
+      logger.error('Preparation failed', phaseError)
       return {
         success: false,
         itemCount: 0,
-        error: `provider_model_prepare_failed: ${error instanceof Error ? error.message : String(error)}`
+        error: formatPhaseError(PROVIDER_MODEL_MIGRATION_ERROR_IDS.prepare, phaseError)
       }
     }
   }
@@ -362,11 +382,15 @@ export class ProviderModelMigrator extends BaseMigrator {
         processedCount: processedProviders
       }
     } catch (error) {
-      logger.error('Execute failed', error as Error)
+      const phaseError = createPhaseError(
+        `Provider/model execution failed after ${processedProviders} provider(s)`,
+        error
+      )
+      logger.error('Execute failed', phaseError)
       return {
         success: false,
         processedCount: processedProviders,
-        error: error instanceof Error ? error.message : String(error)
+        error: formatPhaseError(PROVIDER_MODEL_MIGRATION_ERROR_IDS.execute, phaseError)
       }
     }
   }
@@ -428,10 +452,16 @@ export class ProviderModelMigrator extends BaseMigrator {
         }
       }
     } catch (error) {
-      logger.error('Validation failed', error as Error)
+      const phaseError = createPhaseError('Provider/model validation failed', error)
+      logger.error('Validation failed', phaseError)
       return {
         success: false,
-        errors: [{ key: 'validation', message: error instanceof Error ? error.message : String(error) }],
+        errors: [
+          {
+            key: PROVIDER_MODEL_MIGRATION_ERROR_IDS.validate,
+            message: formatPhaseError(PROVIDER_MODEL_MIGRATION_ERROR_IDS.validate, phaseError)
+          }
+        ],
         stats: {
           sourceCount: this.providers.length,
           targetCount: 0,
