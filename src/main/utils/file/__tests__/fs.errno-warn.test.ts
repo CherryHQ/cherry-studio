@@ -40,13 +40,13 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { FilePath } from '@shared/file/types'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockRename = vi.hoisted(() => vi.fn())
 const mockUnlink = vi.hoisted(() => vi.fn())
 const mockStat = vi.hoisted(() => vi.fn())
 const mockOpen = vi.hoisted(() => vi.fn())
-const mockLoggerWarn = vi.hoisted(() => vi.fn())
 
 // Partial mock: only `rename`, `unlink`, `stat`, `open` are spied; everything
 // else (readFile, writeFile, fsRm, mkdir, …) falls through to the real
@@ -62,16 +62,9 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   }
 })
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: mockLoggerWarn,
-      error: vi.fn()
-    })
-  }
-}))
+// `@logger` is mocked globally in `tests/main.setup.ts` via the unified
+// MockMainLoggerService; warn assertions read through the singleton's spy.
+const mockLoggerWarn = mockMainLoggerService.warn
 
 const { atomicWriteFile, isSameFile, move: fsMove } = await import('../fs')
 
