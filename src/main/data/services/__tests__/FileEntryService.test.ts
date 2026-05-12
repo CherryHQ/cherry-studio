@@ -135,22 +135,56 @@ describe('FileEntryService', () => {
   })
 
   describe('findCaseInsensitivePeers', () => {
-    it('returns rows with case-insensitive matches including the byte-exact one', async () => {
+    it('finds an existing peer for a case-different canonical lookup (single peer — DB enforces uniqueness)', async () => {
+      // The functional unique index `fe_external_path_lower_unique_idx` on
+      // `lower(externalPath)` makes "two rows that case-collide" an
+      // unrepresentable DB state, so this method returns at most one peer
+      // in practice. Method shape stays array-returning for forward-compat
+      // and to keep the call site stable when callers iterate.
       const now = Date.now()
-      await dbh.db.insert(fileEntryTable).values([
-        {
-          id: '019606a0-0000-7000-8000-000000000020' as FileEntryId,
-          origin: 'external',
-          name: 'a',
-          ext: 'txt',
-          size: null,
-          externalPath: '/Users/me/A.TXT',
-          trashedAt: null,
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: '019606a0-0000-7000-8000-000000000021' as FileEntryId,
+      await dbh.db.insert(fileEntryTable).values({
+        id: '019606a0-0000-7000-8000-000000000020' as FileEntryId,
+        origin: 'external',
+        name: 'a',
+        ext: 'txt',
+        size: null,
+        externalPath: '/Users/me/A.TXT',
+        trashedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+
+      const peers = await fileEntryService.findCaseInsensitivePeers('/Users/me/a.txt' as CanonicalExternalPath)
+      expect(peers).toHaveLength(1)
+      expect(peers[0]?.id).toBe('019606a0-0000-7000-8000-000000000020')
+    })
+
+    it('returns empty array when no rows match', async () => {
+      const peers = await fileEntryService.findCaseInsensitivePeers('/zzz/none.txt' as CanonicalExternalPath)
+      expect(peers).toEqual([])
+    })
+
+    it('rejects a second insert that case-collides with an existing row (DB unique constraint)', async () => {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values({
+        id: '019606a0-0000-7000-8000-000000000022' as FileEntryId,
+        origin: 'external',
+        name: 'a',
+        ext: 'txt',
+        size: null,
+        externalPath: '/Users/me/A.TXT',
+        trashedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      // libsql / drizzle wraps the SQLite SQLITE_CONSTRAINT_UNIQUE error in a
+      // `Failed query: ...` envelope with the original sqlite error message
+      // moved to `.cause`. Match on the envelope (stable across drizzle
+      // versions) plus the underlying cause's UNIQUE marker.
+      let caught: unknown
+      try {
+        await dbh.db.insert(fileEntryTable).values({
+          id: '019606a0-0000-7000-8000-000000000023' as FileEntryId,
           origin: 'external',
           name: 'a',
           ext: 'txt',
@@ -159,16 +193,14 @@ describe('FileEntryService', () => {
           trashedAt: null,
           createdAt: now,
           updatedAt: now
-        }
-      ])
-
-      const peers = await fileEntryService.findCaseInsensitivePeers('/Users/me/a.txt' as CanonicalExternalPath)
-      expect(peers).toHaveLength(2)
-    })
-
-    it('returns empty array when no rows match', async () => {
-      const peers = await fileEntryService.findCaseInsensitivePeers('/zzz/none.txt' as CanonicalExternalPath)
-      expect(peers).toEqual([])
+        })
+      } catch (err) {
+        caught = err
+      }
+      expect(caught).toBeInstanceOf(Error)
+      const causeMsg = (caught as Error & { cause?: { message?: string } }).cause?.message ?? ''
+      const envelope = (caught as Error).message
+      expect(causeMsg + envelope).toMatch(/UNIQUE|fe_external_path_lower_unique_idx/i)
     })
   })
 

@@ -16,7 +16,8 @@ CREATE TABLE `file_entry` (
 --> statement-breakpoint
 CREATE INDEX `fe_trashed_at_idx` ON `file_entry` (`trashed_at`);--> statement-breakpoint
 CREATE INDEX `fe_created_at_idx` ON `file_entry` (`created_at`);--> statement-breakpoint
-CREATE UNIQUE INDEX `fe_external_path_unique_idx` ON `file_entry` (`external_path`);--> statement-breakpoint
+CREATE UNIQUE INDEX `fe_external_path_lower_unique_idx` ON `file_entry` (lower("external_path"));--> statement-breakpoint
+CREATE INDEX `fe_external_path_idx` ON `file_entry` (`external_path`);--> statement-breakpoint
 CREATE TABLE `file_ref` (
 	`id` text PRIMARY KEY NOT NULL,
 	`file_entry_id` text NOT NULL,

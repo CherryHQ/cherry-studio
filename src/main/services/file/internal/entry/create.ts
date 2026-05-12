@@ -10,6 +10,8 @@
  * create flow.
  */
 
+import { realpath } from 'node:fs/promises'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
@@ -180,17 +182,51 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // canonicalize pipeline already enforces the absolute-shape gate that
   // `FilePath` represents at the type level.
   await fsStat(canonical as unknown as FilePath)
-  // Peer detection is a `SELECT` against the same DB connection that the
-  // upcoming `create()` writes through. If this query fails (transient lock,
-  // connection drop), the subsequent INSERT would fail at the same boundary
-  // with a more diagnosable stack — wrapping in try/catch here only hides
-  // the real error one stack frame earlier. Let it propagate.
+  // Case-insensitive peer lookup is index-backed via the
+  // `fe_external_path_lower_unique_idx` functional UNIQUE on `lower(externalPath)`.
+  // The same index hard-rejects an INSERT that would collide with an existing
+  // peer's lowercased form, so we MUST resolve the collision at the
+  // application layer before attempting the INSERT — otherwise a legitimate
+  // distinct-file reference on a case-sensitive filesystem (Linux ext4 /
+  // case-sensitive APFS volume) would surface as an opaque SQLITE_CONSTRAINT.
+  //
+  // Disambiguation strategy: `fs.realpath`. On case-insensitive filesystems
+  // (macOS APFS default, Windows NTFS default) the FS itself folds case,
+  // so `realpath('/foo/A.txt')` and `realpath('/foo/a.txt')` return the same
+  // on-disk canonical string → same logical file, reuse the existing peer.
+  // On case-sensitive filesystems the two paths resolve to distinct strings
+  // (or one ENOENTs) → genuine distinct files, throw with peer info so the
+  // caller can decide (rename / surface to user). This is the `fs.realpath`
+  // upgrade pre-announced in `canonicalizeExternalPath`'s JSDoc.
+  //
+  // SELECT failure (transient DB lock, connection drop) propagates; the
+  // subsequent INSERT would fail at the same boundary with a more
+  // diagnosable stack, so wrapping in try/catch here only hides the real
+  // error one stack frame earlier.
   const peers = await deps.fileEntryService.findCaseInsensitivePeers(canonical)
   if (peers.length > 0) {
-    logger.warn('ensureExternal: case-insensitive duplicate-suspect peers detected', {
-      path: canonical,
-      peerIds: peers.map((p) => p.id)
-    })
+    const reusable = await resolveCaseCollisionPeer(canonical as FilePath, peers)
+    if (reusable) {
+      logger.info('ensureExternal: reusing case-collision peer (fs.realpath confirmed same FS entry)', {
+        newPath: canonical,
+        peerId: reusable.id,
+        peerPath: (reusable as { externalPath: string }).externalPath
+      })
+      return reusable
+    }
+    // No peer is the same FS entity. On a case-sensitive filesystem these
+    // are legitimately distinct files, but the DB unique constraint forbids
+    // the insert. Throw with full peer detail so the caller can act
+    // (rename one of the colliding paths, or surface the conflict to the
+    // user). This is a deliberate departure from the previous "warn-only"
+    // contract — the application-layer hard guarantee on lowered-path
+    // uniqueness is what option (c) brings.
+    throw new Error(
+      `ensureExternal: case-collision with existing entries — fs.realpath confirms different FS entities. ` +
+        `New: ${canonical}; conflicting peers: ${peers
+          .map((p) => `${p.id}=${(p as { externalPath: string }).externalPath}`)
+          .join(', ')}`
+    )
   }
   // `name` and `ext` are pure projections of `canonical` — derived here,
   // not accepted from callers. Doc-stated invariant: "external `name` is a
@@ -220,4 +256,45 @@ function defaultNameFromPath(p: string): string {
   const base = p.split(/[\\/]/).pop() ?? p
   const dot = base.lastIndexOf('.')
   return dot > 0 ? base.slice(0, dot) : base
+}
+
+/**
+ * For an `ensureExternal` call whose canonical path matches one or more
+ * existing peers case-insensitively, find the peer (if any) that refers to
+ * the same on-disk file by comparing `fs.realpath` outputs.
+ *
+ * `fs.realpath` is the platform-correct probe for "are these two paths the
+ * same FS entity": on case-insensitive filesystems it folds case to the
+ * on-disk canonical form, so two case-different inputs return identical
+ * strings; on case-sensitive filesystems each input resolves to its own
+ * exact path. Symlinks are resolved through both, which is the right
+ * semantic for "same logical file".
+ *
+ * A peer whose `externalPath` no longer exists on disk (`ENOENT` /
+ * `ENOTDIR`) cannot be FS-disambiguated, so it does NOT win the reuse
+ * race — the caller will throw and the user can resolve the conflict
+ * (e.g. by permanentDeleting the dangling row first). Any other realpath
+ * error propagates so transient permission / IO failures surface clearly.
+ *
+ * Returns the matching peer, or `null` when no peer is the same FS entity.
+ */
+async function resolveCaseCollisionPeer(newCanonical: FilePath, peers: FileEntry[]): Promise<FileEntry | null> {
+  // The caller's `fsStat(newCanonical)` already succeeded a moment ago, so a
+  // realpath failure here means the file was raced away or a symlink target
+  // became unreachable between calls. We let the error propagate unchanged
+  // so the caller sees the real FS errno rather than a confusing "no peer
+  // matched" rejection later.
+  const newReal = await realpath(newCanonical)
+  for (const peer of peers) {
+    if (peer.origin !== 'external') continue
+    try {
+      const peerReal = await realpath(peer.externalPath)
+      if (peerReal === newReal) return peer
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      if (code === 'ENOENT' || code === 'ENOTDIR') continue
+      throw err
+    }
+  }
+  return null
 }

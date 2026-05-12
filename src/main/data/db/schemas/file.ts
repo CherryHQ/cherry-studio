@@ -64,11 +64,31 @@ export const fileEntryTable = sqliteTable(
   (t) => [
     index('fe_trashed_at_idx').on(t.trashedAt),
     index('fe_created_at_idx').on(t.createdAt),
-    // Global unique on externalPath. Internal rows (externalPath = null) are
-    // exempt — SQLite treats multiple NULLs as distinct in a UNIQUE index.
-    // This makes `ensureExternalEntry` a pure upsert keyed by path, with no
-    // ambiguity from historical duplicates. Doubles as the lookup index.
-    uniqueIndex('fe_external_path_unique_idx').on(t.externalPath),
+    // Case-insensitive uniqueness for `externalPath`. SQLite indexes
+    // expressions verbatim, so this index covers both the uniqueness
+    // invariant ("no two external rows whose canonical paths agree under
+    // case folding") AND the case-insensitive lookup path
+    // (`WHERE lower(externalPath) = lower(?)`) that backs
+    // `findCaseInsensitivePeers`. Internal rows (`externalPath = NULL`)
+    // are exempt: SQLite treats multiple NULLs as distinct in a UNIQUE
+    // index.
+    //
+    // Semantic note: on case-insensitive filesystems (macOS APFS default,
+    // Windows NTFS default) `/foo/A.txt` and `/foo/a.txt` *are* the same
+    // file, and this index correctly forbids a second entry. On
+    // case-sensitive filesystems (Linux ext4, case-sensitive APFS volumes)
+    // those are two different files — `ensureExternalEntry` resolves the
+    // disambiguation at the application layer via `fs.realpath` before
+    // any insert is attempted, so the DB constraint never fires
+    // user-visibly on legitimate distinct-file references. See
+    // `file-manager-architecture.md §1.2 Duplicate-entry detection on
+    // insert`.
+    uniqueIndex('fe_external_path_lower_unique_idx').on(sql`lower(${t.externalPath})`),
+    // Plain index on the raw `externalPath` column backs byte-exact lookups
+    // (`findByExternalPath`, rename re-finds, path-resolution call sites).
+    // Without this the functional unique index alone cannot serve
+    // `WHERE externalPath = ?` — SQLite would fall back to a seq scan.
+    index('fe_external_path_idx').on(t.externalPath),
     // Origin must be 'internal' or 'external'
     check('fe_origin_check', sql`${t.origin} IN ('internal', 'external')`),
     // externalPath must be non-null iff origin='external'

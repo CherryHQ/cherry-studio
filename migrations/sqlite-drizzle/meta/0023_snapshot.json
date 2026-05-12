@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e2d81046-63e8-4d50-8309-9f045691ab8b",
+  "id": "610862f0-c521-44d9-8605-322c9e8df50a",
   "prevId": "73a57fc7-c92c-48b3-a151-04bb07faf9f3",
   "tables": {
     "agent": {
@@ -1367,10 +1367,15 @@
           "columns": ["created_at"],
           "isUnique": false
         },
-        "fe_external_path_unique_idx": {
-          "name": "fe_external_path_unique_idx",
-          "columns": ["external_path"],
+        "fe_external_path_lower_unique_idx": {
+          "name": "fe_external_path_lower_unique_idx",
+          "columns": ["lower(\"external_path\")"],
           "isUnique": true
+        },
+        "fe_external_path_idx": {
+          "name": "fe_external_path_idx",
+          "columns": ["external_path"],
+          "isUnique": false
         }
       },
       "foreignKeys": {},
@@ -3308,6 +3313,14 @@
     "columns": {}
   },
   "internal": {
-    "indexes": {}
+    "indexes": {
+      "fe_external_path_lower_unique_idx": {
+        "columns": {
+          "lower(\"external_path\")": {
+            "isExpression": true
+          }
+        }
+      }
+    }
   }
 }

@@ -231,6 +231,78 @@ describe('internal/entry/create.createInternal', () => {
     })
   })
 
+  describe('ensureExternal case-collision policy (M2: functional unique index + fs.realpath)', () => {
+    // Background: `fe_external_path_lower_unique_idx` enforces case-insensitive
+    // uniqueness on `externalPath` at the DB layer. Application-side, the
+    // collision is disambiguated up front via `fs.realpath` so we never
+    // attempt an INSERT we know will fail with SQLITE_CONSTRAINT.
+    //
+    // Two FS classes exercise different branches: macOS APFS / Windows NTFS
+    // (case-insensitive default) where `A.txt` and `a.txt` resolve to the
+    // same on-disk entry, vs Linux ext4 (case-sensitive) where they are
+    // genuinely different files.
+
+    it.skipIf(process.platform === 'linux')(
+      'reuses the peer when fs.realpath confirms case-different paths are the same FS entity (macOS/win case-insensitive default)',
+      async () => {
+        const upper = path.join(tmp, 'COLLIDE.txt')
+        const lower = path.join(tmp, 'collide.txt')
+        // On a case-insensitive FS the single writeFile produces a file whose
+        // on-disk canonical case is whatever the FS recorded (typically
+        // mirrors the first write). Both inputs resolve to that same on-disk
+        // form via fs.realpath, so the second ensureExternal hits the byte-
+        // exact miss, finds the first as a case-insensitive peer, realpaths
+        // both to the same string, and returns the existing entry.
+        await writeFile(upper, 'x')
+        const first = await ensureExternal(deps, { externalPath: upper as FilePath })
+        const second = await ensureExternal(deps, { externalPath: lower as FilePath })
+        expect(second.id).toBe(first.id)
+      }
+    )
+
+    it.runIf(process.platform === 'linux')(
+      'throws when two case-different paths refer to genuinely distinct files (linux ext4 case-sensitive)',
+      async () => {
+        const upper = path.join(tmp, 'COLLIDE.txt')
+        const lower = path.join(tmp, 'collide.txt')
+        await writeFile(upper, 'A')
+        await writeFile(lower, 'a')
+        await ensureExternal(deps, { externalPath: upper as FilePath })
+        await expect(ensureExternal(deps, { externalPath: lower as FilePath })).rejects.toThrow(/case-collision/i)
+      }
+    )
+
+    it.runIf(process.platform === 'linux')(
+      'throws when the case-collision peer is dangling (linux-only — case-insensitive FS would fold the peer onto the real file)',
+      async () => {
+        // Insert a phantom external row directly: its externalPath does NOT
+        // exist on disk, so realpath ENOENTs and no FS-entity reuse is
+        // possible. On case-insensitive filesystems (macOS APFS default,
+        // NTFS default) the FS folds the peer's case-different path onto
+        // the existing on-disk file's inode, so realpath succeeds and the
+        // "dangling" scenario is unreachable — only Linux ext4 (and
+        // case-sensitive APFS volumes, which the runner doesn't have)
+        // expose it.
+        const { fileEntryTable } = await import('@data/db/schemas/file')
+        const realFile = path.join(tmp, 'real.txt')
+        await writeFile(realFile, 'x')
+        const phantomCaseDifferent = path.join(tmp, 'REAL.txt') // not on disk
+        await dbh.db.insert(fileEntryTable).values({
+          id: '019606a0-0000-7000-8000-aaaaaaaaaaaa',
+          origin: 'external',
+          name: 'REAL',
+          ext: 'txt',
+          size: null,
+          externalPath: phantomCaseDifferent,
+          trashedAt: null,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        })
+        await expect(ensureExternal(deps, { externalPath: realFile as FilePath })).rejects.toThrow(/case-collision/i)
+      }
+    )
+  })
+
   describe('ensureExternal canonical derivation', () => {
     // Skip on linux: ext4 stores filenames as opaque bytes (no NFC/NFD
     // equivalence), so a file written under an NFD name is genuinely a

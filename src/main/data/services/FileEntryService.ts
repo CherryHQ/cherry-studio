@@ -95,16 +95,27 @@ export interface FileEntryService {
 
   /**
    * Return external entries whose `externalPath` matches `canonicalPath`
-   * case-insensitively. Byte-exact matches are included; callers that only
-   * want "suspect duplicates" (e.g. `ensureExternalEntry` on insert) should
-   * filter the byte-exact self-match from the result.
+   * case-insensitively (`lower(externalPath) = lower(canonicalPath)`).
+   * Byte-exact matches are included; callers that only want "case-different
+   * peers" should filter the byte-exact self-match from the result.
    *
-   * Intended for the duplicate-suspect `warn` logging contract in
+   * Backed by the functional unique index `fe_external_path_lower_unique_idx`
+   * (`lower(external_path)`) — SQLite expression-matches the WHERE clause
+   * against the index, so this lookup is O(log N) and runs the same plan
+   * regardless of `file_entry` table size. The size-threshold gate that the
+   * earlier "best-effort warn-only" contract recommended is no longer needed
+   * and has been removed from the architecture doc.
+   *
+   * Returns at most one row in practice: the same functional unique index
+   * makes "two rows that case-collide" an unrepresentable DB state. The
+   * array return shape is preserved for forward-compat with possible future
+   * relaxations (e.g. a trashed-aware variant), and so call sites that
+   * iterate stay stable.
+   *
+   * The application-layer reuse / reject decision for a case-collision peer
+   * lives in `ensureExternalEntry` (`fs.realpath` resolves whether the two
+   * case-different paths are the same FS entity); see
    * `file-manager-architecture.md §1.2 Duplicate-entry detection on insert`.
-   * Best-effort: callers are free to skip invoking this method when the
-   * `file_entry` table size exceeds a sensible threshold (the service itself
-   * does not gate on size — separation of concerns keeps the repository
-   * dumb).
    */
   findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): Promise<FileEntry[]>
 

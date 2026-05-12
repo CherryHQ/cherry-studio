@@ -78,16 +78,27 @@ describe('fileEntryTable — CHECK constraints', () => {
   })
 })
 
-describe('fileEntryTable — global unique index on externalPath', () => {
+describe('fileEntryTable — functional unique index on lower(externalPath)', () => {
   const dbh = setupTestDatabase()
 
-  it('rejects two external entries with the same externalPath', async () => {
+  it('rejects two external entries with byte-identical externalPath', async () => {
     const sharedPath = '/Users/me/shared.pdf'
     await dbh.db.insert(fileEntryTable).values(baseExternal(sharedPath))
     await expect(dbh.db.insert(fileEntryTable).values(baseExternal(sharedPath))).rejects.toThrow()
   })
 
-  it('does not constrain internal entries (externalPath is null — SQLite NULLs are distinct)', async () => {
+  it('rejects two external entries that case-collide under lower() — the functional unique index', async () => {
+    // `fe_external_path_lower_unique_idx` is `UNIQUE(lower(externalPath))`.
+    // On a case-sensitive FS `/Users/me/A.PDF` and `/Users/me/a.pdf` would
+    // be distinct on-disk files, but the DB still forbids the second entry
+    // — the application layer (`ensureExternalEntry`) is responsible for
+    // resolving the FS-level reuse-or-throw decision via `fs.realpath`
+    // before the INSERT.
+    await dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/A.PDF'))
+    await expect(dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/a.pdf'))).rejects.toThrow()
+  })
+
+  it('does not constrain internal entries (externalPath is null — SQLite NULLs are distinct in UNIQUE indexes, including functional ones)', async () => {
     await dbh.db.insert(fileEntryTable).values(baseInternal())
     await expect(dbh.db.insert(fileEntryTable).values(baseInternal())).resolves.not.toThrow()
   })

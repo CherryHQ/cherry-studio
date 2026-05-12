@@ -46,9 +46,16 @@ The `origin` field of each FileEntry defines **content ownership**:
 | `internal` | `{userData}/Data/Files/{id}.{ext}` | Fully owned by Cherry | Read-write |
 | `external` | Absolute path pointed to by `externalPath` | Owned by user, referenced by Cherry | **Changeable by explicit user action** (write / rename / permanentDelete apply, delegated to the FS primitives); Cherry does no automatic/watcher-driven modifications; **does not track external rename/move**—external changes cause the entry to naturally go dangling |
 
-**Path uniqueness**: at most one entry can exist for the same `externalPath` **in a non-trashed state**. Implemented via SQLite partial unique index: `UNIQUE(externalPath) WHERE origin='external' AND trashedAt IS NULL`.
+**Path uniqueness**: at most one entry can exist whose `externalPath` agrees with another under case folding. Implemented via SQLite **functional unique index**:
 
-**Canonical invariant of `externalPath`**: SQLite performs **byte-level** comparison on the `externalPath` field and cannot detect `FILE.pdf` ≡ `file.pdf` (case-insensitive FS) or NFC ≡ NFD (Unicode). Therefore, `externalPath` **must** be normalized via `canonicalizeExternalPath(raw)` before persistence—this is an application-layer invariant, with `ensureExternalEntry` and `fileEntryService.findByExternalPath` as mandatory call sites.
+```sql
+CREATE UNIQUE INDEX fe_external_path_lower_unique_idx
+  ON file_entry (lower(external_path));
+```
+
+`fe_external_path_idx` (plain index on the raw `external_path`) backs byte-exact lookups (`findByExternalPath`, rename re-finds, path-resolution call sites). The functional index simultaneously serves the case-insensitive lookup path (`WHERE lower(externalPath) = lower(?)`) used by `findCaseInsensitivePeers` and enforces the uniqueness invariant — `ensureExternalEntry` MUST resolve case-collisions at the application layer before INSERT (see "Duplicate-entry detection on insert" below) because a DB-level rejection would otherwise surface as an opaque `SQLITE_CONSTRAINT`. Internal rows (`externalPath = NULL`) are exempt — SQLite treats multiple NULLs as distinct in a UNIQUE index.
+
+**Canonical invariant of `externalPath`**: SQLite performs **byte-level** comparison on the raw `externalPath` column and cannot natively detect NFC ≡ NFD (Unicode). The functional index above handles case folding via `lower()` but does **not** apply Unicode normalization, so `externalPath` **must** be normalized via `canonicalizeExternalPath(raw)` before persistence—this is an application-layer invariant, with `ensureExternalEntry` and `fileEntryService.findByExternalPath` as mandatory call sites.
 
 **Compile-time enforcement via `CanonicalExternalPath` brand**: `canonicalizeExternalPath()` returns a branded `CanonicalExternalPath` (TS phantom type, zero runtime cost; see `packages/shared/data/types/file/fileEntry.ts`). Every DB read/write surface that filters by `externalPath` — today `findByExternalPath`, and any future DataApi endpoint or repository method — MUST accept this type, not a plain `string`. The type system then guarantees callers routed their input through the normalization function, eliminating the "forgot to canonicalize" class of bug that would silently miss all matches.
 
@@ -67,8 +74,8 @@ The `origin` field of each FileEntry defines **content ownership**:
 - Trailing separator trimming
 
 **Intentionally omitted** (deferred until concrete user feedback warrants the cost):
-- `fs.realpath` for case-insensitive FS dedup (requires async FS IO + file existence precondition)
-- Symlink target merging
+- `fs.realpath` as a step *inside* `canonicalizeExternalPath` itself (would require async FS IO at every canonicalization call site and a file-existence precondition). `fs.realpath` IS used on the `ensureExternalEntry` collision path described below — that is a per-collision probe, not a per-canonicalize step.
+- Symlink target merging at canonicalize time
 - Windows 8.3 short-name resolution
 
 See the JSDoc for `canonicalizeExternalPath` in `src/main/services/file/utils/pathResolver.ts` for the detailed contract.
@@ -99,28 +106,43 @@ When a rule change additionally collapses previously-distinct strings to the sam
 
 #### Duplicate-entry detection on insert
 
-To give operational visibility for the deliberately-omitted case-insensitive dedup (and other edge cases where the same physical file enters Cherry under two distinct canonical forms), `ensureExternalEntry`'s insert branch MUST perform a best-effort case-insensitive scan of existing external rows before completing the insert:
+Case-insensitive uniqueness on `externalPath` is enforced at **both layers**: the functional UNIQUE index `fe_external_path_lower_unique_idx` (DB) and `ensureExternalEntry`'s pre-INSERT collision check (application). The two-layer scheme keeps the DB-level guarantee unbreakable while letting the application disambiguate the FS-correct interpretation case-by-case.
 
 ```typescript
 // Inside ensureExternalEntry, AFTER canonicalize, AFTER findByExternalPath miss,
-// BEFORE actually inserting:
-const suspects = await fileEntryService.findCaseInsensitivePeers(canonicalPath)
-if (suspects.length > 0) {
-  logger.warn('External entry duplicate suspect on insert', {
-    canonicalPath,
-    existingIds: suspects.map(s => s.id),
-    existingPaths: suspects.map(s => s.externalPath),
-  })
+// AFTER fs.stat verifies the new path exists, BEFORE INSERT:
+const peers = await fileEntryService.findCaseInsensitivePeers(canonicalPath)
+if (peers.length > 0) {
+  // `fs.realpath` is the platform-correct probe for "are these the same FS
+  // entity": on case-insensitive volumes (macOS APFS default, Windows NTFS
+  // default) the FS folds case to its on-disk canonical form, so two case-
+  // different inputs resolve to the same string. On case-sensitive volumes
+  // (Linux ext4, case-sensitive APFS) they resolve to distinct strings.
+  const reusable = await resolveCaseCollisionPeer(canonicalPath, peers)
+  if (reusable) return reusable // same FS entity → reuse existing entry
+  // No peer is the same FS entity. The DB unique constraint will reject the
+  // INSERT, but we throw early with a descriptive error and full peer detail
+  // so the caller can decide (rename one of the colliding paths, or surface
+  // the conflict to the user) instead of seeing an opaque SQLITE_CONSTRAINT.
+  throw new Error(`ensureExternal: case-collision with existing entries…`)
 }
-// proceed with insert regardless — this is surveillance, not enforcement.
+// No peers → safe to INSERT; DB unique constraint is now a redundant safety net.
 ```
 
-**Scope constraints**:
-- Runs only on the **insert** branch, never on the reuse / update / read branches.
-- The scan is best-effort: when the `file_entry` table exceeds a size threshold (e.g. 10k external rows) the scan is skipped silently rather than slowing down the hot path. The heuristic is operational support, not a correctness contract.
-- Logs at `warn` level only — the insert itself proceeds unconditionally. Blocking the insert would contradict the "best-effort external reference" semantic ([architecture.md §1.0.2](./architecture.md#102-best-effort-semantics-for-external)).
+**Behavioral matrix** (`/foo/A.txt` already an entry; user invokes `ensureExternalEntry('/foo/a.txt')`):
 
-This is the observability layer that makes the future `fs.realpath` upgrade decision **data-driven**: if `warn` records accumulate in production logs, the upgrade path in `canonicalizeExternalPath`'s JSDoc becomes the scheduled fix. If they don't, the deferral is retrospectively validated.
+| Filesystem class | `fs.realpath('/foo/A.txt')` | `fs.realpath('/foo/a.txt')` | Outcome |
+|---|---|---|---|
+| Case-insensitive (macOS APFS default, NTFS default) | `/foo/A.txt` | `/foo/A.txt` (FS folds) | Same string → **reuse existing entry** |
+| Case-sensitive (Linux ext4, case-sensitive APFS) | `/foo/A.txt` | `/foo/a.txt` | Distinct strings → **throw `case-collision`** |
+| Dangling peer (`/foo/A.txt` missing on disk) | `ENOENT` | `/foo/a.txt` | Cannot disambiguate → **throw `case-collision`** (caller must `permanentDelete` the dangling row first) |
+
+**Scope**:
+- Runs only on the **insert** branch; reuse / update / read branches never invoke peer detection.
+- The lookup is O(log N) (index-backed), so the previous "best-effort, skip above 10k rows" heuristic is **removed** — `findCaseInsensitivePeers` now runs unconditionally regardless of table size.
+- The `fs.realpath` call resolves symlinks too, which is the right semantic for "same logical file"; symlink targets are intentionally NOT canonicalized at storage time (see "Intentionally omitted" above), so two symlinks pointing at the same target each get their own entry, but a case-different reference to one of those entries reuses it.
+
+This subsumes the `fs.realpath` upgrade that earlier revisions of this section described as "deferred until user feedback" — the same probe is applied at exactly the moment it matters (collision resolution) without paying the FS IO cost on every canonicalize call.
 
 Invariants:
 
