@@ -110,6 +110,15 @@ export type CreateInternalEntryIpcParams =
  * rows carry no stored `size` (always `null`); live values come from
  * `getMetadata`. External entries cannot be trashed, so no "restore" branch
  * is possible.
+ *
+ * **Main handler MUST call `canonicalizeExternalPath()` on `externalPath`
+ * before any DB lookup.** The renderer cannot produce a
+ * `CanonicalExternalPath` brand, so this IPC boundary stays raw `FilePath`
+ * by necessity — canonicalization is a main-process responsibility that
+ * has to happen at every consumer site (see `FileManager.ensureExternalEntry`,
+ * `FileManager.rename`, `internal/entry/rename.ts`, `internal/entry/create.ts`).
+ * Skipping it silently misses entries on case-insensitive filesystems and
+ * after symlink resolution.
  */
 export type EnsureExternalEntryIpcParams = {
   externalPath: FilePath
@@ -150,6 +159,13 @@ export interface BatchOperationResult {
  * for all file operations that may affect the filesystem.
  *
  * DataApi handles read-only entry queries; all writes go through this interface.
+ *
+ * **Phase 1 scope**: only `File_GetDanglingState` and
+ * `File_BatchGetDanglingStates` are wired in `IpcChannel.ts`. The rest of
+ * this interface is a declarative contract — each remaining method's IPC
+ * channel lands in Phase 2 alongside its first FileManager consumer, per
+ * the file-manager RFC. A casual reader seeing a large interface should
+ * not assume the corresponding channels exist somewhere yet.
  */
 export interface FileIpcApi {
   // ─── A. File Selection / Dialogs ───
