@@ -63,6 +63,7 @@ import {
   NotebookPen,
   PinIcon,
   PinOffIcon,
+  Plus,
   Sparkles,
   Square,
   Trash2,
@@ -105,10 +106,11 @@ type ExportMenuOptions = Record<
   boolean
 >
 
-type TopicDisplayPreviewMode = 'time' | 'assistant' | 'tag'
+type TopicDisplayPreviewMode = 'time' | 'assistant'
 
-const TOPIC_DISPLAY_OPTIONS: TopicDisplayPreviewMode[] = ['time', 'assistant', 'tag']
+const TOPIC_DISPLAY_OPTIONS: TopicDisplayPreviewMode[] = ['time', 'assistant']
 const TOPIC_DISPLAY_MODE: TopicDisplayPreviewMode = 'time'
+const TOPIC_TODAY_GROUP_ID = 'topic:time:today'
 
 function TopicDisplayModeMenu() {
   const { t } = useTranslation()
@@ -411,6 +413,26 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
     [groupNow, t]
   )
 
+  const getGroupHeaderAction = useCallback(
+    (group: { id: string }) => {
+      if (TOPIC_DISPLAY_MODE !== 'time' || group.id !== TOPIC_TODAY_GROUP_ID) {
+        return null
+      }
+
+      return (
+        <Tooltip title={t('chat.add.topic.title')} delay={500}>
+          <ResourceList.HeaderActionButton
+            type="button"
+            aria-label={t('chat.add.topic.title')}
+            onClick={() => void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+            <Plus size={12} className="block" />
+          </ResourceList.HeaderActionButton>
+        </Tooltip>
+      )
+    },
+    [t]
+  )
+
   return (
     <>
       <TopicResourceList<Topic>
@@ -421,6 +443,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
         groupBy={topicGroupBy}
         defaultGroupVisibleCount={5}
         groupLoadStep={5}
+        getGroupHeaderAction={getGroupHeaderAction}
         groupShowMoreLabel={t('chat.topics.group.show_more')}
         groupCollapseLabel={t('chat.topics.group.collapse')}
         onRenameItem={handleRenameTopic}
@@ -432,6 +455,14 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
           actions={
             <>
               <TopicDisplayModeMenu />
+              <Tooltip title={t('chat.add.topic.title')} delay={500}>
+                <ResourceList.HeaderActionButton
+                  type="button"
+                  aria-label={t('chat.add.topic.title')}
+                  onClick={() => void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+                  <Plus size={12} className="block" />
+                </ResourceList.HeaderActionButton>
+              </Tooltip>
               <Tooltip title={t('chat.topics.manage.title')} delay={500}>
                 <ResourceList.HeaderActionButton
                   type="button"

@@ -95,6 +95,7 @@ type ResourceListProviderProps<T extends ResourceListItemBase> = {
   groupBy?: (item: T) => ResourceListGroup | null
   getItemId?: (item: T) => string
   getItemLabel?: (item: T) => string
+  getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
   defaultGroupVisibleCount?: number
   groupLoadStep?: number
   groupShowMoreLabel?: string
@@ -182,6 +183,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   groupBy,
   getItemId = (item) => item.id,
   getItemLabel = (item) => item.name,
+  getGroupHeaderAction,
   defaultGroupVisibleCount = 5,
   groupLoadStep = 5,
   groupShowMoreLabel = DEFAULT_GROUP_SHOW_MORE_LABEL,
@@ -332,6 +334,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         getItemId,
         getItemLabel,
         groups: viewGroups.map((group) => group.group),
+        getGroupHeaderAction,
         sortOptions,
         filterOptions,
         estimateItemSize,
@@ -354,6 +357,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       filterOptions,
       getItemId,
       getItemLabel,
+      getGroupHeaderAction,
       groupLoadStep,
       groupCollapseLabel,
       groupShowMoreLabel,
@@ -586,9 +590,10 @@ type GroupHeaderProps = ComponentProps<'div'> & {
 }
 
 function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
-  const { actions, view } = useResourceList()
+  const { actions, meta, view } = useResourceList()
   const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
   const collapsed = viewGroup?.collapsed ?? false
+  const groupHeaderAction = meta.getGroupHeaderAction?.(group)
 
   if (!group.label) return null
   return (
@@ -609,6 +614,7 @@ function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
         </span>
         <span className="truncate">{group.label}</span>
       </button>
+      {groupHeaderAction && <div className="ml-auto flex shrink-0 items-center">{groupHeaderAction}</div>}
     </div>
   )
 }

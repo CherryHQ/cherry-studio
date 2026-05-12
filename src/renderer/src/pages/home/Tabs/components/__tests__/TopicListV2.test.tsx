@@ -160,7 +160,6 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.display.title') return 'Display mode'
       if (key === 'chat.topics.display.time') return 'Time'
       if (key === 'chat.topics.display.assistant') return 'Assistant'
-      if (key === 'chat.topics.display.tag') return 'Tag'
       if (key === 'chat.topics.group.today') return 'Today'
       if (key === 'chat.topics.group.yesterday') return 'Yesterday'
       if (key === 'chat.topics.group.this_week') return 'This week'
@@ -202,6 +201,7 @@ vi.mock('react-i18next', () => ({
 
 import { dataApiService } from '@data/DataApiService'
 import type * as TopicDataApiModule from '@renderer/hooks/useTopicDataApi'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import type { Pin } from '@shared/data/types/pin'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
@@ -595,7 +595,37 @@ describe('TopicListV2', () => {
     expect(screen.getByRole('button', { name: 'Time' })).toHaveClass('h-6', 'text-[11px]', 'font-normal')
     expect(screen.getByRole('button', { name: 'Time' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Tag' })).toBeInTheDocument()
+  })
+
+  it('adds a new topic when clicking the new-topic header action', () => {
+    renderTopicList()
+
+    const header = screen.getByText('Topics').closest('div')
+    expect(header).toBeInTheDocument()
+    fireEvent.click(within(header as HTMLElement).getByRole('button', { name: 'New Topic' }))
+
+    expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC)
+  })
+
+  it('renders group create action only on the today group when grouped by time', () => {
+    renderTopicList()
+
+    const todayHeader = screen.getByRole('button', { name: 'Today' }).closest('div')
+    expect(todayHeader).toBeInTheDocument()
+
+    const todayCreateButton = within(todayHeader as HTMLElement).getByRole('button', { name: 'New Topic' })
+    fireEvent.click(todayCreateButton)
+
+    expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC)
+
+    const otherGroups = ['Pinned', 'Yesterday', 'This week', 'Earlier'] as const
+    for (const groupName of otherGroups) {
+      const header = screen.getByRole('button', { name: groupName }).closest('div')
+      expect(header).toBeInTheDocument()
+      expect(within(header as HTMLElement).queryByRole('button', { name: 'New Topic' })).not.toBeInTheDocument()
+    }
+
+    expect(EventEmitter.emit).toHaveBeenCalledTimes(1)
   })
 
   it('sends fractional order patch through ResourceList drag payload', () => {

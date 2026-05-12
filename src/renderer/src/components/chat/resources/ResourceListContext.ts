@@ -1,4 +1,4 @@
-import { createContext, use } from 'react'
+import { createContext, type ReactNode, use } from 'react'
 
 export type ResourceListItemBase = {
   id: string
@@ -71,6 +71,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getItemId: (item: T) => string
   getItemLabel: (item: T) => string
   groups: ResourceListGroup[]
+  getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]
   estimateItemSize: (index: number) => number
