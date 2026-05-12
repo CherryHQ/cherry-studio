@@ -101,10 +101,16 @@ export function isDangerExt(ext: string | null): boolean {
 /**
  * Cross-platform dirname on a plain string — no `node:path` dependency, so it
  * works in renderer bundles. Treats both `/` and `\` as separators.
+ *
+ * `sepIdx === 0` is the POSIX-root case (`/payload.exe`): degrade to `'/'` so
+ * the safety wrap in `toSafeFileUrl` still strips the filename. Returning the
+ * original string here would defeat the entire danger-ext policy.
  */
 function dirnameSimple(absolutePath: string): string {
   const sepIdx = Math.max(absolutePath.lastIndexOf('/'), absolutePath.lastIndexOf('\\'))
-  return sepIdx > 0 ? absolutePath.slice(0, sepIdx) : absolutePath
+  if (sepIdx > 0) return absolutePath.slice(0, sepIdx)
+  if (sepIdx === 0) return '/'
+  return absolutePath
 }
 
 /**

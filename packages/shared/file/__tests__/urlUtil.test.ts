@@ -74,4 +74,14 @@ describe('toSafeFileUrl', () => {
     // legacy IPC paths. The dirname should still pick the right cut point.
     expect(toSafeFileUrl('/a/b\\c.exe' as FilePath, 'exe')).toBe('file:///a/b')
   })
+
+  it('wraps root-level dangerous files (POSIX / Windows drive root)', () => {
+    // Regression: when a dangerous file sits directly under the filesystem
+    // root, the wrap must still degrade to the parent directory. Returning
+    // the original path here would defeat the entire safety contract — the
+    // renderer would end up with `file:///payload.exe`, which `<embed>` /
+    // `<img src>` can hand to OS file associations.
+    expect(toSafeFileUrl('/payload.exe' as FilePath, 'exe')).toBe('file:///')
+    expect(toSafeFileUrl('C:\\payload.exe' as FilePath, 'exe')).toBe('file:///C:')
+  })
 })
