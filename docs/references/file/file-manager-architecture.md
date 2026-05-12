@@ -905,31 +905,35 @@ interface IFileUploadService {
 
 ### 10.1 Positioning
 
-Startup orphan sweep is triggered by FileManager in `onInit()` as **fire-and-forget**:
+Startup orphan sweep is triggered by FileManager in `onInit()` as **fire-and-forget**. The real `onInit` shape — kept narrow per `BaseService` discipline — is:
 
 ```typescript
-protected override onInit(): void {
-  this.registerIpcHandlers()
-  this.initVersionCache()
+protected override async onInit(): Promise<void> {
+  // DanglingCache reverse index built from DB before any IPC accepts
+  // a dangling query, so a renderer cannot race the first call.
+  await this.deps.danglingCache.initFromDb()
 
-  // DanglingCache reverse index built synchronously from DB
-  danglingCache.initFromDb()
+  // Phase 1 wires only the two Dangling read channels via this.ipcHandle.
+  // Other File_* channels land in Phase 2 next to their FileManager method.
+  this.ipcHandle(IpcChannel.File_GetDanglingState, (_e, params) => this.getDanglingState(params))
+  this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params) => this.batchGetDanglingStates(params))
 
-  // 🔑 not awaited → ready signal is not blocked
-  void this.runOrphanSweep().catch((err) => {
-    logger.error('Orphan sweep failed', err)
-  })
+  // 🔑 not awaited → ready signal is not blocked.
+  // Inner branches each catch and log; the outer call cannot throw.
+  void this.runStartupSweeps()
 }
 
-private async runOrphanSweep(): Promise<void> {
-  // 1. Snapshot file_entry.id set via a single SELECT (see §10.2)
-  // 2. Enumerate {userData}/Data/Files/* via readdir
-  // 3. Build the deletion plan:
-  //      UUID v7 file  AND not in snapshot AND mtime > 5min → unlink
-  //      *.tmp-<uuidv7> file                AND mtime > 5min → unlink
-  //    (heuristic rationale and FS prerequisites: see §10.3)
-  // 4. Evaluate the safety threshold before executing (see §10.4)
-  // 5. Execute unlinks and emit a structured observability record (see §10.5)
+async runStartupSweeps(): Promise<void> {
+  // Two concurrent passes:
+  //   1. FS-level file sweep (§10): scan {userData}/Data/Files/* for
+  //      orphans not present in the file_entry snapshot.
+  //   2. DB-level orphan-ref / entry sweep (§7 Layer 3): scan file_ref
+  //      against business sourceType checkers and report unreferenced
+  //      entries.
+  // Each branch settles independently with its own error capture; this
+  // method is exposed (not private) so tests / explicit callers can
+  // `await` deterministically. Runtime invocation from `onInit` above
+  // is fire-and-forget.
 }
 ```
 
@@ -937,6 +941,9 @@ private async runOrphanSweep(): Promise<void> {
 - Orphan sweep typically completes <500ms; fire-and-forget doesn't consume startup time
 - Runs in parallel with other services' `onInit()`; business services can depend on FileManager immediately
 - Failure doesn't affect service availability (just residual orphans; rescanned on next startup)
+- `danglingCache.initFromDb()` is awaited because subsequent IPC handlers must see the reverse index populated; the FS-level sweep and the DB-level sweep are not on that hot path and are deferred to the unawaited `runStartupSweeps()` call.
+
+**A note on `initVersionCache` / `registerIpcHandlers`**: earlier drafts of this section bundled a synchronous `initVersionCache()` call and grouped IPC registration behind a single `registerIpcHandlers()` helper. Neither survived implementation. Version cache is per-FileManager-instance and constructs at field-init time (no boot step); IPC channels are wired inline via `this.ipcHandle(...)` so each channel sits next to the method it dispatches — easier to grep, easier to extend per Phase 2 cut-over. Treat the snippet above as the binding shape.
 
 ### 10.2 Scan Strategy
 
