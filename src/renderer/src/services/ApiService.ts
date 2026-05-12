@@ -331,8 +331,15 @@ async function collectImagesFromMessages(userMessage: Message, assistantMessage?
     const assistantImageBlocks = findImageBlocks(assistantMessage)
     for (const block of assistantImageBlocks) {
       if (block.file) {
-        const { data } = await window.api.file.base64Image(block.file.name)
-        images.push(data)
+        try {
+          const { data } = await window.api.file.base64Image(block.file.name)
+          images.push(data)
+        } catch (error) {
+          logger.error('Failed to load assistant image file, image will be excluded:', {
+            fileName: block.file.name,
+            error: error as Error
+          })
+        }
       } else if (block.url) {
         images.push(block.url)
       }
