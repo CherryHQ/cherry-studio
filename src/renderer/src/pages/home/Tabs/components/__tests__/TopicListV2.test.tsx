@@ -752,21 +752,15 @@ describe('TopicListV2', () => {
     expect(EventEmitter.emit).toHaveBeenCalledTimes(1)
   })
 
-  it('sends fractional order patch through ResourceList drag payload', () => {
+  it('does not enable drag reorder in time mode', () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
 
     renderTopicList()
+
+    expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
     dndMocks.onDragEnd?.({ active: { id: 'topic-a' }, over: { id: 'topic-c' } })
 
-    expect(patchSpy).toHaveBeenCalledWith('/topics/order:batch', {
-      body: {
-        moves: [
-          { id: 'topic-e', anchor: { after: 'topic-b' } },
-          { id: 'topic-c', anchor: { after: 'topic-e' } },
-          { id: 'topic-a', anchor: { after: 'topic-c' } }
-        ]
-      }
-    })
+    expect(patchSpy).not.toHaveBeenCalled()
   })
 
   it('renders assistant groups and creates topics with the selected assistant payload', () => {

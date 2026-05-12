@@ -14,7 +14,6 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { loggerService } from '@logger'
 import {
   ResourceList,
-  type ResourceListReorderPayload,
   TopicResourceList,
   useResourceList,
   useResourceListPinnedState
@@ -81,7 +80,6 @@ import {
   createTopicDisplayGroupResolver,
   filterTopicsForManageMode,
   getAssistantIdFromTopicGroupId,
-  moveTopicAfterDrop,
   sortTopicsForDisplayGroups,
   TOPIC_DEFAULT_ASSISTANT_GROUP_ID,
   TOPIC_PINNED_GROUP_ID,
@@ -280,14 +278,6 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
     [refreshTopics, topics]
   )
 
-  const handleReorder = useCallback(
-    (payload: ResourceListReorderPayload) => {
-      const sourceTopics = visibleTopicsRef.current.length > 0 ? visibleTopicsRef.current : topics
-      void applyTopicOrder(moveTopicAfterDrop(sourceTopics, payload))
-    },
-    [applyTopicOrder, topics]
-  )
-
   const handleRenameTopic = useCallback(
     (topicId: string, name: string) => {
       const topic = topics.find((candidate) => candidate.id === topicId)
@@ -433,7 +423,6 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
   const listLoading = isLoading || (isAssistantDisplayMode && isAssistantsLoading)
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const singlealone = topicPosition === 'right' && position === 'right'
-  const canDragTopics = !isManageMode && displayMode === 'time'
   const topicGroupBy = useMemo(
     () =>
       createTopicDisplayGroupResolver<Topic>({
@@ -547,8 +536,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
         groupShowMoreLabel={t('chat.topics.group.show_more')}
         groupCollapseLabel={t('chat.topics.group.collapse')}
         onRenameItem={handleRenameTopic}
-        onCollapsedGroupIdsChange={handleCollapsedTopicGroupIdsChange}
-        onReorder={canDragTopics ? handleReorder : undefined}>
+        onCollapsedGroupIdsChange={handleCollapsedTopicGroupIdsChange}>
         <ResourceList.Header
           icon={<Clock3 size={12} />}
           title={t('chat.topics.title')}
@@ -607,7 +595,6 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
           toggleSelectTopic={toggleSelectTopic}
           topicsLength={topics.length}
           visibleTopicsRef={visibleTopicsRef}
-          canDragTopics={canDragTopics}
         />
       </TopicResourceList>
 
@@ -625,7 +612,6 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
 
 interface TopicListBodyProps {
   activeTopic: Topic
-  canDragTopics: boolean
   deletingTopicId: string | null
   exportMenuOptions: ExportMenuOptions
   isManageMode: boolean
@@ -669,10 +655,6 @@ function TopicListBody(props: TopicListBodyProps) {
 
   if (props.isManageMode) {
     return <ResourceList.VirtualItems ref={props.listRef} className="pb-[76px]" renderItem={renderItem} />
-  }
-
-  if (props.canDragTopics) {
-    return <ResourceList.VirtualDraggableItems ref={props.listRef} className="pb-3" renderItem={renderItem} />
   }
 
   return <ResourceList.VirtualItems ref={props.listRef} className="pb-3" renderItem={renderItem} />
