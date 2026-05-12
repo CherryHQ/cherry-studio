@@ -127,11 +127,7 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     sources: {
       compressionConfig: { source: 'redux', category: 'websearch', key: 'compressionConfig' }
     },
-    targetKeys: [
-      'chat.web_search.compression.method',
-      'chat.web_search.compression.cutoff_limit',
-      'chat.web_search.compression.cutoff_unit'
-    ],
+    targetKeys: ['chat.web_search.compression.method', 'chat.web_search.compression.cutoff_limit'],
     transform: flattenCompressionConfig
   },
 

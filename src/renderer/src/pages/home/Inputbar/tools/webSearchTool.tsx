@@ -1,4 +1,3 @@
-import { isMandatoryWebSearchModel } from '@renderer/config/models'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 
 import WebSearchButton from './components/WebSearchButton'
@@ -15,12 +14,11 @@ const webSearchTool = defineTool({
   label: (t) => t('chat.input.web_search.label'),
 
   visibleInScopes: [TopicType.Chat],
-  condition: ({ model }) => !isMandatoryWebSearchModel(model),
 
   render: function WebSearchToolRender(context) {
-    const { assistant, quickPanelController } = context
+    const { assistant } = context
 
-    return <WebSearchButton quickPanelController={quickPanelController} assistantId={assistant.id} />
+    return <WebSearchButton assistantId={assistant.id} />
   },
   quickPanelManager: WebSearchQuickPanelManager
 })
