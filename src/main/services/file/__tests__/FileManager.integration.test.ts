@@ -382,6 +382,7 @@ describe('FileManager (integration)', () => {
 
     // The entry — now without any ref — appears in getOrphanReport().
     const report = fm.getOrphanReport()
+    expect(report.outcome).toBe('completed')
     expect(report.orphanRefsByType.temp_session).toBe(1)
     expect(report.orphanEntriesByOrigin.internal ?? 0).toBeGreaterThanOrEqual(1)
     // lastRunAt should reflect the actual sweep completion, not the read time.
@@ -389,11 +390,14 @@ describe('FileManager (integration)', () => {
     expect(typeof report.lastRunAt).toBe('number')
   })
 
-  it('INT-13: getOrphanReport returns empty default with lastRunAt=null before any sweep', () => {
+  it('INT-13: getOrphanReport returns outcome="unknown" before any sweep settles', () => {
     // The fresh fm built in beforeEach has not run a sweep yet — verify
-    // the empty-default shape is correct.
+    // the empty-default shape carries an explicit `'unknown'` outcome so
+    // the renderer can distinguish "no data yet" from "all clean", which
+    // would otherwise look identical (counts all zero).
     const report = fm.getOrphanReport()
     expect(report).toEqual({
+      outcome: 'unknown',
       orphanRefsByType: {},
       orphanRefsTotal: 0,
       orphanEntriesByOrigin: {},

@@ -169,20 +169,59 @@ type DbSweepOutcome =
 
 export type DbSweepReport = DbSweepStats & DbSweepOutcome
 
-/**
- * Public shape consumed by `FileManager.getOrphanReport()` and the future
- * cleanup-UI consumer. Keeps the wire surface narrower than the full
- * `DbSweepReport` (e.g. omits `scanDurationMs`) while adding the run
- * timestamp the UI actually needs ("last scanned at HH:MM").
- */
-export interface OrphanReport {
+/** Counts shared across every OrphanReport variant — the "what was seen" portion. */
+interface OrphanReportCounts {
   readonly orphanRefsByType: Partial<Record<FileRefSourceType, number>>
   readonly orphanRefsTotal: number
   readonly orphanEntriesByOrigin: Partial<Record<FileEntryOrigin, number>>
   readonly orphanEntriesTotal: number
-  /** ms epoch when the producing sweep settled; null before the first sweep. */
-  readonly lastRunAt: number | null
 }
+
+/**
+ * Public shape consumed by `FileManager.getOrphanReport()` and the future
+ * cleanup-UI consumer. Keeps the wire surface narrower than the full
+ * `DbSweepReport` (e.g. omits `scanDurationMs`) while preserving the
+ * `outcome` discriminator so a `partial` / `failed` run is distinguishable
+ * from a clean `completed` run with zero orphans.
+ *
+ * Discriminated on `outcome` (mirrors `DbSweepOutcome`):
+ *
+ * - `'unknown'` — no sweep has settled yet. `lastRunAt: null`. Counts are
+ *   all zero by definition; UI should treat this as "no data" rather than
+ *   "all clean".
+ * - `'completed'` — sweep ran end-to-end. Counts are authoritative.
+ * - `'partial'` — at least one per-sourceType checker threw; `errorsByType`
+ *   identifies which. Counts cover the sourceTypes that did report; UI
+ *   should surface the partial state so users don't read zero-orphans as
+ *   a healthy signal.
+ * - `'failed'` — the sweep collapsed before per-type aggregation. Counts
+ *   are all zero (and meaningless); `errorMessage` carries the cause.
+ *
+ * Without the `outcome` discriminator, a `failed` run reaches the renderer
+ * as `{ orphanRefsTotal: 0, …, lastRunAt }` — indistinguishable from a
+ * happy zero, and a polling cleanup dashboard would render "all clear"
+ * while sourceType checkers were silently crashing. The discriminator
+ * forces the caller to acknowledge the state.
+ */
+export type OrphanReport =
+  | (OrphanReportCounts & {
+      readonly outcome: 'unknown'
+      readonly lastRunAt: null
+    })
+  | (OrphanReportCounts & {
+      readonly outcome: 'completed'
+      readonly lastRunAt: number
+    })
+  | (OrphanReportCounts & {
+      readonly outcome: 'partial'
+      readonly errorsByType: Partial<Record<FileRefSourceType, string>>
+      readonly lastRunAt: number
+    })
+  | (OrphanReportCounts & {
+      readonly outcome: 'failed'
+      readonly errorMessage: string
+      readonly lastRunAt: number
+    })
 
 /**
  * Run both DB-level passes (orphan refs + orphan-entry report) and emit a

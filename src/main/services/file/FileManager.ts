@@ -551,6 +551,7 @@ export class FileManager extends BaseService {
   getOrphanReport(): OrphanReport {
     if (!this.lastDbSweepReport) {
       return {
+        outcome: 'unknown',
         orphanRefsByType: {},
         orphanRefsTotal: 0,
         orphanEntriesByOrigin: {},
@@ -558,12 +559,33 @@ export class FileManager extends BaseService {
         lastRunAt: null
       }
     }
-    return {
+    const counts = {
       orphanRefsByType: this.lastDbSweepReport.orphanRefsByType,
       orphanRefsTotal: this.lastDbSweepReport.orphanRefsTotal,
       orphanEntriesByOrigin: this.lastDbSweepReport.orphanEntriesByOrigin,
-      orphanEntriesTotal: this.lastDbSweepReport.orphanEntriesTotal,
-      lastRunAt: this.lastDbSweepRanAt
+      orphanEntriesTotal: this.lastDbSweepReport.orphanEntriesTotal
+    }
+    // lastDbSweepRanAt is non-null once lastDbSweepReport is populated
+    // (set in lockstep in runStartupSweeps); narrow for the non-'unknown'
+    // variants which require number.
+    const lastRunAt = this.lastDbSweepRanAt ?? Date.now()
+    switch (this.lastDbSweepReport.outcome) {
+      case 'completed':
+        return { ...counts, outcome: 'completed', lastRunAt }
+      case 'partial':
+        return {
+          ...counts,
+          outcome: 'partial',
+          errorsByType: this.lastDbSweepReport.errorsByType,
+          lastRunAt
+        }
+      case 'failed':
+        return {
+          ...counts,
+          outcome: 'failed',
+          errorMessage: this.lastDbSweepReport.errorMessage,
+          lastRunAt
+        }
     }
   }
 
