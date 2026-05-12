@@ -160,36 +160,67 @@ export interface BatchOperationResult {
  *
  * DataApi handles read-only entry queries; all writes go through this interface.
  *
- * **Phase 1 scope**: only `File_GetDanglingState` and
- * `File_BatchGetDanglingStates` are wired in `IpcChannel.ts`. The rest of
- * this interface is a declarative contract — each remaining method's IPC
- * channel lands in Phase 2 alongside its first FileManager consumer, per
- * the file-manager RFC. A casual reader seeing a large interface should
- * not assume the corresponding channels exist somewhere yet.
+ * ## Wiring status — read this before calling
+ *
+ * Every method below carries a `@phase` JSDoc tag declaring whether its
+ * underlying IPC channel is registered in this PR (Phase 1) or planned to
+ * land in a follow-up (Phase 2). Renderer code calling a `@phase 2` method
+ * will type-check but fail at runtime because the channel does not exist.
+ *
+ * | Phase 1 — wired in `IpcChannel.ts` | Phase 2 — type-only declaration |
+ * |---|---|
+ * | `getDanglingState`, `batchGetDanglingStates` | everything else |
+ *
+ * Phase 2 method shapes are *design drafts*; signatures may shift when each
+ * channel actually lands alongside its first FileManager consumer. Treat
+ * them as a roadmap, not a frozen contract.
+ *
+ * Grep `@phase 2` to enumerate Phase 2 surface; grep `@phase 1` for what is
+ * already callable today.
  */
 export interface FileIpcApi {
   // ─── A. File Selection / Dialogs ───
+  //
+  // Section status: all `@phase 2` — none of these dialogs has an IPC channel
+  // yet. Renderer code that needs file selection in Phase 1 must use the
+  // existing legacy `IpcChannel.File_Select` surface.
 
-  /** Open file picker dialog (single file) */
+  /**
+   * Open file picker dialog (single file)
+   * @phase 2 — not yet wired
+   */
   select(options: {
     directory?: never
     multiple?: false
     filters?: FileFilter[]
     title?: string
   }): Promise<string | null>
-  /** Open file picker dialog (multiple files) */
+  /**
+   * Open file picker dialog (multiple files)
+   * @phase 2 — not yet wired
+   */
   select(options: { directory?: never; multiple: true; filters?: FileFilter[]; title?: string }): Promise<string[]>
-  /** Open folder picker dialog (single folder only) */
+  /**
+   * Open folder picker dialog (single folder only)
+   * @phase 2 — not yet wired
+   */
   select(options: { directory: true; title?: string }): Promise<string | null>
-  /** Open save dialog and write content to the selected path */
+  /**
+   * Open save dialog and write content to the selected path
+   * @phase 2 — not yet wired
+   */
   save(options: { content: string | Uint8Array; defaultPath?: string; filters?: FileFilter[] }): Promise<string | null>
 
   // ─── B. Entry Creation ───
+  //
+  // Section status: all `@phase 2`.
 
   /**
    * Create a new Cherry-owned (internal) FileEntry. Always inserts a fresh
    * row with a new UUID. No conflict / upsert semantics — call as many times
    * as needed, each invocation produces an independent entry.
+   *
+   * @phase 2 — not yet wired
    */
   createInternalEntry(params: CreateInternalEntryIpcParams): Promise<FileEntry>
 
@@ -208,25 +239,43 @@ export interface FileIpcApi {
    * `UNIQUE(externalPath)` (internal rows are `null` and exempt) enforces the
    * invariant; `fe_external_no_trash` forbids trashed external rows so no
    * "restore" branch exists.
+   *
+   * @phase 2 — not yet wired
    */
   ensureExternalEntry(params: EnsureExternalEntryIpcParams): Promise<FileEntry>
 
-  /** Batch version of `createInternalEntry`. Each item produces an independent new entry. */
+  /**
+   * Batch version of `createInternalEntry`. Each item produces an independent new entry.
+   * @phase 2 — not yet wired
+   */
   batchCreateInternalEntries(items: CreateInternalEntryIpcParams[]): Promise<BatchOperationResult>
 
   /**
    * Batch version of `ensureExternalEntry`. Each item is individually upserted
    * by path. Within-batch path duplicates are coalesced to a single entry.
+   *
+   * @phase 2 — not yet wired
    */
   batchEnsureExternalEntries(items: EnsureExternalEntryIpcParams[]): Promise<BatchOperationResult>
 
   // ─── C. Read / Metadata (accepts FileHandle) ───
+  //
+  // Section status: all `@phase 2`.
 
-  /** Read content as text */
+  /**
+   * Read content as text
+   * @phase 2 — not yet wired
+   */
   read(handle: FileHandle, options?: { encoding?: 'text'; detectEncoding?: boolean }): Promise<ReadResult<string>>
-  /** Read content as base64 */
+  /**
+   * Read content as base64
+   * @phase 2 — not yet wired
+   */
   read(handle: FileHandle, options: { encoding: 'base64' }): Promise<ReadResult<string>>
-  /** Read content as binary */
+  /**
+   * Read content as binary
+   * @phase 2 — not yet wired
+   */
   read(handle: FileHandle, options: { encoding: 'binary' }): Promise<ReadResult<Uint8Array>>
 
   /**
@@ -238,6 +287,8 @@ export interface FileIpcApi {
    * row's `size` by construction (atomic writes keep DB and FS in sync).
    *
    * Side effect: updates DanglingCache based on stat outcome (external only).
+   *
+   * @phase 2 — not yet wired
    */
   getMetadata(handle: FileHandle): Promise<PhysicalFileMetadata>
 
@@ -261,18 +312,31 @@ export interface FileIpcApi {
    * The result map contains every input id exactly once. Ids that refer to
    * non-existent FileEntry rows (already deleted, never existed) cause the
    * whole batch to throw — this is a caller bug, not a per-id failure.
+   *
+   * @phase 2 — not yet wired
    */
   batchGetMetadata(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, PhysicalFileMetadata | null>>
 
-  /** Get lightweight FileVersion (live `fs.stat`-backed). */
+  /**
+   * Get lightweight FileVersion (live `fs.stat`-backed).
+   * @phase 2 — not yet wired
+   */
   getVersion(handle: FileHandle): Promise<FileVersion>
 
-  /** Compute xxhash-h64 of file content. */
+  /**
+   * Compute xxhash-h64 of file content.
+   * @phase 2 — not yet wired
+   */
   getContentHash(handle: FileHandle): Promise<string>
 
   // ─── D. Write (accepts FileHandle; both branches land in ops' atomic write) ───
+  //
+  // Section status: all `@phase 2`.
 
-  /** Unconditional atomic write. */
+  /**
+   * Unconditional atomic write.
+   * @phase 2 — not yet wired
+   */
   write(handle: FileHandle, data: string | Uint8Array): Promise<FileVersion>
 
   /**
@@ -282,6 +346,8 @@ export interface FileIpcApi {
    * second-precision filesystems (FAT32 / SMB / NFS) where the observed mtime
    * truncates to whole seconds — see `FileVersion` JSDoc for the full
    * fallback contract.
+   *
+   * @phase 2 — not yet wired
    */
   writeIfUnchanged(
     handle: FileHandle,
@@ -291,17 +357,23 @@ export interface FileIpcApi {
   ): Promise<FileVersion>
 
   // ─── E. Trash / Delete ───
+  //
+  // Section status: all `@phase 2`.
 
   /**
    * Move entry to Trash (soft delete via trashedAt). Internal-origin entries only.
    * Passing an external-origin entry id throws: external entries cannot be trashed
    * (`fe_external_no_trash` CHECK).
+   *
+   * @phase 2 — not yet wired
    */
   trash(params: { id: FileEntryId }): Promise<void>
 
   /**
    * Restore entry from Trash. Internal-origin entries only — external entries
    * are never trashed, so passing one throws.
+   *
+   * @phase 2 — not yet wired
    */
   restore(params: { id: FileEntryId }): Promise<FileEntry>
 
@@ -322,17 +394,30 @@ export interface FileIpcApi {
    * into a button. Failing to differentiate results in either (a) user
    * expects disk deletion and files a bug report, or (b) user avoids the
    * action fearing data loss and accumulates dangling library entries.
+   *
+   * @phase 2 — not yet wired
    */
   permanentDelete(handle: FileHandle): Promise<void>
 
-  /** Batch trash — internal-origin only; external ids fail like `trash`. */
+  /**
+   * Batch trash — internal-origin only; external ids fail like `trash`.
+   * @phase 2 — not yet wired
+   */
   batchTrash(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
-  /** Batch restore — internal-origin only; external ids fail like `restore`. */
+  /**
+   * Batch restore — internal-origin only; external ids fail like `restore`.
+   * @phase 2 — not yet wired
+   */
   batchRestore(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
-  /** Batch permanently delete entries (DB row always removed; physical FS follows origin rules above). */
+  /**
+   * Batch permanently delete entries (DB row always removed; physical FS follows origin rules above).
+   * @phase 2 — not yet wired
+   */
   batchPermanentDelete(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
 
   // ─── F. Rename ───
+  //
+  // Section status: all `@phase 2`.
 
   /**
    * Rename a file.
@@ -341,30 +426,52 @@ export interface FileIpcApi {
    *   internal-origin entries only the DB name changes.
    * - Path handle: `newTarget` is a full new absolute path. Equivalent to
    *   `fs.rename(path, newTarget)`.
+   *
+   * @phase 2 — not yet wired
    */
   rename(handle: FileHandle, newTarget: string): Promise<FileEntry | void>
 
   // ─── G. Copy ───
+  //
+  // Section status: all `@phase 2`.
 
   /**
    * Copy content into a new internal-origin entry.
    * Source can be either handle variant (and for the entry variant, either origin).
+   *
+   * @phase 2 — not yet wired
    */
   copy(params: { source: FileHandle; newName?: string }): Promise<FileEntry>
 
   // ─── H. System Operations (accepts FileHandle) ───
+  //
+  // Section status: all `@phase 2`.
 
-  /** Open file/directory with the system default application */
+  /**
+   * Open file/directory with the system default application
+   * @phase 2 — not yet wired
+   */
   open(handle: FileHandle): Promise<void>
-  /** Reveal file/directory in the system file manager */
+  /**
+   * Reveal file/directory in the system file manager
+   * @phase 2 — not yet wired
+   */
   showInFolder(handle: FileHandle): Promise<void>
 
   // ─── I. Directory Listing (arbitrary path) ───
+  //
+  // Section status: all `@phase 2`.
 
-  /** List contents of an arbitrary directory. */
+  /**
+   * List contents of an arbitrary directory.
+   * @phase 2 — not yet wired
+   */
   listDirectory(dirPath: FilePath, options?: DirectoryListOptions): Promise<string[]>
 
-  /** Check if a directory is non-empty. */
+  /**
+   * Check if a directory is non-empty.
+   * @phase 2 — not yet wired
+   */
   isNotEmptyDir(dirPath: FilePath): Promise<boolean>
 
   // ─── J. Entry Enrichment (FileEntryId only; FS / main-side compute) ───
@@ -381,6 +488,9 @@ export interface FileIpcApi {
   // Each method has a single-item and a batch form. Prefer the batch form when
   // rendering lists — it gives the handler room to parallelize and amortize
   // cache lookups, and keeps the per-call IPC overhead O(1).
+  //
+  // Section status: dangling pair is `@phase 1` (wired); physical-path pair
+  // is `@phase 2`.
 
   /**
    * Query the presence state of an external-origin entry (via file_module's
@@ -399,12 +509,16 @@ export interface FileIpcApi {
    * For user-triggered refresh of a specific entry, invalidate the presence
    * query directly (a refetch re-runs this IPC, which repopulates the cache
    * via a cold `fs.stat`).
+   *
+   * @phase 1 — wired in `IpcChannel.File_GetDanglingState`
    */
   getDanglingState(params: { id: FileEntryId }): Promise<DanglingState>
 
   /**
    * Batch form of `getDanglingState`. Each requested id appears in the result
    * map. Unknown ids map to `'unknown'`.
+   *
+   * @phase 1 — wired in `IpcChannel.File_BatchGetDanglingStates`
    */
   batchGetDanglingStates(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, DanglingState>>
 
@@ -430,12 +544,16 @@ export interface FileIpcApi {
    *
    * Enforced **by convention** (code review gate); the type system cannot
    * prevent a renderer from misusing a `FilePath` string.
+   *
+   * @phase 2 — not yet wired
    */
   getPhysicalPath(params: { id: FileEntryId }): Promise<FilePath>
 
   /**
    * Batch form of `getPhysicalPath`. Each requested id appears in the result
    * map. Unknown ids are omitted.
+   *
+   * @phase 2 — not yet wired
    */
   batchGetPhysicalPaths(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, FilePath>>
 }
