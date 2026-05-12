@@ -464,7 +464,7 @@ export const SessionMessageIdParamSchema = z.object({
 
 // Query validation schemas
 export const PaginationQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  limit: z.coerce.number().int().min(1).max(1000).optional().default(20),
   offset: z.coerce.number().int().min(0).optional().default(0),
   status: z.enum(['idle', 'running', 'completed', 'failed', 'stopped']).optional()
 })
@@ -495,12 +495,15 @@ export const ReplaceSessionRequestSchema = sessionCreatableSchema
 
 export type ReplaceSessionRequest = z.infer<typeof ReplaceSessionRequestSchema>
 
-const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'max'])
+const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max'])
 
 const AgentThinkingConfigSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('enabled'), budgetTokens: z.number().optional() }),
   z.object({ type: z.literal('disabled') }),
-  z.object({ type: z.literal('adaptive') })
+  z.object({
+    type: z.literal('adaptive'),
+    display: z.enum(['omitted', 'summarized']).optional()
+  })
 ])
 
 export type AgentEffort = z.infer<typeof AgentEffortSchema>
