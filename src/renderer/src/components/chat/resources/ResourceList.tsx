@@ -97,6 +97,7 @@ type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getItemLabel?: (item: T) => string
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
   getGroupHeaderIcon?: (group: ResourceListGroup) => ReactNode
+  collapsedGroupIds?: readonly string[]
   defaultGroupVisibleCount?: number
   groupLoadStep?: number
   groupShowMoreLabel?: string
@@ -106,6 +107,7 @@ type ResourceListProviderProps<T extends ResourceListItemBase> = {
   onRenameItem?: (id: string, name: string) => void
   onOpenContextMenu?: (id: string) => void
   onReorder?: (payload: ResourceListReorderPayload) => void
+  onCollapsedGroupIdsChange?: (groupIds: string[]) => void
 }
 
 type ProviderAction =
@@ -186,6 +188,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   getItemLabel = (item) => item.name,
   getGroupHeaderAction,
   getGroupHeaderIcon,
+  collapsedGroupIds,
   defaultGroupVisibleCount = 5,
   groupLoadStep = 5,
   groupShowMoreLabel = DEFAULT_GROUP_SHOW_MORE_LABEL,
@@ -194,7 +197,8 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   onSelectItem,
   onRenameItem,
   onOpenContextMenu,
-  onReorder
+  onReorder,
+  onCollapsedGroupIdsChange
 }: ResourceListProviderProps<T>) {
   const [state, dispatch] = useReducer(reducer, {
     query: '',
@@ -212,6 +216,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   const activeFilters = useMemo(() => new Set(state.filters), [state.filters])
   const filterById = useMemo(() => new Map(filterOptions.map((option) => [option.id, option])), [filterOptions])
   const sortById = useMemo(() => new Map(sortOptions.map((option) => [option.id, option])), [sortOptions])
+  const effectiveCollapsedGroupIds = collapsedGroupIds ?? state.collapsedGroups
 
   const viewItems = useMemo(() => {
     const normalizedQuery = state.query.trim().toLowerCase()
@@ -240,7 +245,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   }, [activeFilters, filterById, getItemLabel, items, sortById, state.query, state.sort])
 
   const viewGroups = useMemo(() => {
-    const collapsedGroups = new Set(state.collapsedGroups)
+    const collapsedGroups = new Set(effectiveCollapsedGroupIds)
 
     if (!groupBy) {
       const group = { id: 'all', label: '' }
@@ -287,7 +292,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         collapsed
       }
     })
-  }, [defaultGroupVisibleCount, groupBy, state.collapsedGroups, state.groupVisibleCounts, viewItems])
+  }, [defaultGroupVisibleCount, effectiveCollapsedGroupIds, groupBy, state.groupVisibleCounts, viewItems])
 
   const visibleItems = useMemo(() => viewGroups.flatMap((group) => group.items), [viewGroups])
 
@@ -321,15 +326,41 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         dispatch({ type: 'showMoreInGroup', groupId, defaultCount: defaultGroupVisibleCount, step: groupLoadStep }),
       collapseGroupItems: (groupId: string) =>
         dispatch({ type: 'collapseGroupItems', groupId, defaultCount: defaultGroupVisibleCount }),
-      toggleGroup: (groupId: string) => dispatch({ type: 'toggleGroup', groupId }),
+      toggleGroup: (groupId: string) => {
+        if (collapsedGroupIds) {
+          const nextCollapsedGroupIds = effectiveCollapsedGroupIds.includes(groupId)
+            ? effectiveCollapsedGroupIds.filter((collapsedGroupId) => collapsedGroupId !== groupId)
+            : [...effectiveCollapsedGroupIds, groupId]
+          onCollapsedGroupIdsChange?.(nextCollapsedGroupIds)
+          return
+        }
+
+        dispatch({ type: 'toggleGroup', groupId })
+      },
       reorder: (payload: ResourceListReorderPayload) => onReorder?.(payload)
     }),
-    [defaultGroupVisibleCount, groupLoadStep, onOpenContextMenu, onRenameItem, onReorder, onSelectItem, state.filters]
+    [
+      collapsedGroupIds,
+      defaultGroupVisibleCount,
+      effectiveCollapsedGroupIds,
+      groupLoadStep,
+      onCollapsedGroupIdsChange,
+      onOpenContextMenu,
+      onRenameItem,
+      onReorder,
+      onSelectItem,
+      state.filters
+    ]
   )
 
   const context = useMemo<ResourceListContextValue<T>>(
     () => ({
-      state: { ...state, selectedId: selectedIdProp !== undefined ? selectedIdProp : state.selectedId, status },
+      state: {
+        ...state,
+        collapsedGroups: [...effectiveCollapsedGroupIds],
+        selectedId: selectedIdProp !== undefined ? selectedIdProp : state.selectedId,
+        status
+      },
       actions,
       meta: {
         variant,
@@ -356,6 +387,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
     [
       actions,
       defaultGroupVisibleCount,
+      effectiveCollapsedGroupIds,
       estimateItemSize,
       filterOptions,
       getItemId,

@@ -455,6 +455,66 @@ describe('ResourceList', () => {
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
   })
 
+  it('supports controlled collapsed group ids', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items = Array.from({ length: 2 }, (_, index) => ({
+      id: `topic-${index + 1}`,
+      name: `Topic ${index + 1}`,
+      kind: 'topic' as const,
+      updatedAt: index
+    }))
+    let collapsedGroupIds = ['topics']
+    const onCollapsedGroupIdsChange = vi.fn((nextIds: string[]) => {
+      collapsedGroupIds = nextIds
+    })
+
+    const view = render(
+      <Provider
+        items={items}
+        groupBy={() => ({ id: 'topics', label: 'Topics' })}
+        collapsedGroupIds={collapsedGroupIds}
+        onCollapsedGroupIdsChange={onCollapsedGroupIdsChange}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByRole('button', { name: 'Topics' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Topic 1')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Topics' }))
+
+    expect(onCollapsedGroupIdsChange).toHaveBeenCalledWith([])
+
+    view.rerender(
+      <Provider
+        items={items}
+        groupBy={() => ({ id: 'topics', label: 'Topics' })}
+        collapsedGroupIds={collapsedGroupIds}
+        onCollapsedGroupIdsChange={onCollapsedGroupIdsChange}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByRole('button', { name: 'Topics' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Topic 1')).toBeInTheDocument()
+  })
+
   it('provides shared header, search, and item presentation parts', () => {
     const Provider = ResourceList.Provider<TestItem>
 

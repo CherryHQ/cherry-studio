@@ -174,6 +174,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
   const { updateTopic: patchTopic, deleteTopic: deleteTopicById, refreshTopics } = useTopicMutations()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [collapsedTopicGroupIds, setCollapsedTopicGroupIds] = usePreference('topic.tab.collapsed_group_ids')
   const [topicPosition] = usePreference('topic.position')
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
@@ -524,6 +525,11 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
     [assistantById, displayMode]
   )
 
+  const handleCollapsedTopicGroupIdsChange = useCallback(
+    (nextGroupIds: string[]) => void setCollapsedTopicGroupIds(nextGroupIds),
+    [setCollapsedTopicGroupIds]
+  )
+
   return (
     <>
       <TopicResourceList<Topic>
@@ -532,6 +538,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
         selectedId={isManageMode ? null : activeTopic?.id}
         estimateItemSize={() => 34}
         groupBy={topicGroupBy}
+        collapsedGroupIds={collapsedTopicGroupIds}
         defaultGroupVisibleCount={5}
         groupLoadStep={5}
         getGroupHeaderAction={getGroupHeaderAction}
@@ -539,6 +546,7 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
         groupShowMoreLabel={t('chat.topics.group.show_more')}
         groupCollapseLabel={t('chat.topics.group.collapse')}
         onRenameItem={handleRenameTopic}
+        onCollapsedGroupIdsChange={handleCollapsedTopicGroupIdsChange}
         onReorder={canDragTopics ? handleReorder : undefined}>
         <ResourceList.Header
           icon={<Clock3 size={12} />}
@@ -1002,11 +1010,11 @@ const TopicStreamIndicator = ({ topicId }: { topicId: string }) => {
   const { isPending, isFulfilled } = useTopicStreamStatus(topicId)
   if (isPending)
     return (
-      <span className="animation-pulse absolute top-[15px] left-[3px] size-[5px] rounded-full bg-(--color-status-warning)" />
+      <span className="animation-pulse absolute left-[3px] top-1/2 size-[5px] -translate-y-1/2 rounded-full bg-(--color-status-warning)" />
     )
   if (isFulfilled)
     return (
-      <span className="animation-pulse absolute top-[15px] left-[3px] size-[5px] rounded-full bg-(--color-status-success)" />
+      <span className="animation-pulse absolute left-[3px] top-1/2 size-[5px] -translate-y-1/2 rounded-full bg-(--color-status-success)" />
     )
   return null
 }

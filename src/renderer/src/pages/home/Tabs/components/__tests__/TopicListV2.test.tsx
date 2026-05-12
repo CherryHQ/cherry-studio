@@ -270,10 +270,11 @@ function createTopicPin(overrides: Partial<Pin> = {}): Pin {
 
 function renderTopicList() {
   const setActiveTopic = vi.fn()
-  const view = render(
+  const renderNode = () => (
     <TopicListV2 activeTopic={createRendererTopic()} setActiveTopic={setActiveTopic} position="left" />
   )
-  return { ...view, setActiveTopic }
+  const view = render(renderNode())
+  return { ...view, rerenderTopicList: () => view.rerender(renderNode()), setActiveTopic }
 }
 
 describe('TopicListV2', () => {
@@ -285,6 +286,7 @@ describe('TopicListV2', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'topic.tab.pin_to_top': true,
       'topic.tab.display_mode': 'time',
+      'topic.tab.collapsed_group_ids': [],
       'topic.tab.show_time': false,
       'topic.position': 'left',
       'data.export.menus.docx': true,
@@ -475,7 +477,7 @@ describe('TopicListV2', () => {
   it('moves a topic into the pinned group immediately after pinning without refreshing topics', async () => {
     pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
 
-    const { getByText } = renderTopicList()
+    const { getByText, rerenderTopicList } = renderTopicList()
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     expect(screen.queryByText('Alpha topic')).toBeInTheDocument()
 
@@ -487,6 +489,7 @@ describe('TopicListV2', () => {
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
+    rerenderTopicList()
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
   })
 
@@ -595,7 +598,7 @@ describe('TopicListV2', () => {
   })
 
   it('keeps the pinned group first and lets each group collapse independently', () => {
-    renderTopicList()
+    const { rerenderTopicList } = renderTopicList()
 
     const groupButtons = screen.getAllByRole('button', { expanded: true })
     expect(groupButtons.map((button) => button.textContent)).toEqual([
@@ -607,10 +610,30 @@ describe('TopicListV2', () => {
     ])
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
+    rerenderTopicList()
 
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+  })
+
+  it('restores and persists collapsed topic groups from preference', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, ['topic:time:today'])
+
+    const { rerenderTopicList } = renderTopicList()
+
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+    expect(screen.getByText('Beta pinned')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Today' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([])
+    rerenderTopicList()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([
+      'topic:pinned'
+    ])
   })
 
   it('renders the topic header controls and persists display mode selection', () => {
@@ -802,6 +825,25 @@ describe('TopicListV2', () => {
       expect(header).toBeInTheDocument()
       expect(within(header as HTMLElement).queryByRole('button', { name: 'New Topic' })).not.toBeInTheDocument()
     }
+  })
+
+  it('persists assistant group collapse state without affecting time groups', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'topic.tab.display_mode': 'assistant',
+      'topic.tab.collapsed_group_ids': ['topic:time:today', 'topic:assistant:assistant-1']
+    })
+
+    renderTopicList()
+
+    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Gamma topic')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([
+      'topic:time:today'
+    ])
   })
 
   it('disables drag reorder when grouped by assistant', () => {

@@ -153,6 +153,13 @@
       "description": "Topic sidebar display grouping mode"
     },
     {
+      "targetKey": "topic.tab.collapsed_group_ids",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Collapsed topic sidebar group ids"
+    },
+    {
       "targetKey": "feature.quick_assistant.model_id",
       "type": "string",
       "defaultValue": null,
