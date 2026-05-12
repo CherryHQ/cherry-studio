@@ -1,26 +1,30 @@
 diff --git a/src/web-loader.cjs b/src/web-loader.cjs
-index 51a8dcee44e545f559d373658e45b25998b6339f..fa342718f7a773f5b1f4ccdac09a12cdf5e99ee7 100644
+index 51a8dcee44e545f559d373658e45b25998b6339f..b8a1e2f3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9 100644
 --- a/src/web-loader.cjs
 +++ b/src/web-loader.cjs
-@@ -27,7 +27,7 @@ class WebLoader extends embedjs_interfaces_1.BaseLoader {
+@@ -27,7 +27,8 @@ class WebLoader extends embedjs_interfaces_1.BaseLoader {
              const text = (0, html_to_text_1.convert)(data, {
                  wordwrap: false,
                  preserveNewlines: false,
 -            }).replace(/(?:https?|ftp):\/\/[\n\S]+/g, '');
 +            });
++            const cleanedText = this.isUrl ? text.replace(/(?:https?|ftp):\/\/[\n\S]+/g, '') : text;
              const tuncatedObjectString = this.isUrl ? undefined : (0, embedjs_utils_1.truncateCenterString)(this.urlOrContent, 50);
-             const chunks = await chunker.splitText((0, embedjs_utils_1.cleanString)(text));
+-            const chunks = await chunker.splitText((0, embedjs_utils_1.cleanString)(text));
++            const chunks = await chunker.splitText((0, embedjs_utils_1.cleanString)(cleanedText));
              for (const chunk of chunks) {
 diff --git a/src/web-loader.js b/src/web-loader.js
-index b0e964ceffe741c37ef78037ce2eead44326ace6..c4bb724bf12f68fdce563034dc0ebc6a598e43d0 100644
+index b0e964ceffe741c37ef78037ce2eead44326ace6..a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 100644
 --- a/src/web-loader.js
 +++ b/src/web-loader.js
-@@ -23,7 +23,7 @@ export class WebLoader extends BaseLoader {
+@@ -23,7 +23,8 @@ export class WebLoader extends BaseLoader {
              const text = convert(data, {
                  wordwrap: false,
                  preserveNewlines: false,
 -            }).replace(/(?:https?|ftp):\/\/[\n\S]+/g, '');
 +            });
++            const cleanedText = this.isUrl ? text.replace(/(?:https?|ftp):\/\/[\n\S]+/g, '') : text;
              const tuncatedObjectString = this.isUrl ? undefined : truncateCenterString(this.urlOrContent, 50);
-             const chunks = await chunker.splitText(cleanString(text));
+-            const chunks = await chunker.splitText(cleanString(text));
++            const chunks = await chunker.splitText(cleanString(cleanedText));
              for (const chunk of chunks) {
