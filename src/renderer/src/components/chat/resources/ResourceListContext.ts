@@ -61,6 +61,7 @@ export type ResourceListActionMap = {
   cancelRename: () => void
   openContextMenu: (id: string) => void
   showMoreInGroup: (groupId: string) => void
+  collapseGroupItems: (groupId: string) => void
   toggleGroup: (groupId: string) => void
   reorder: (payload: ResourceListReorderPayload) => void
 }
@@ -76,6 +77,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   defaultGroupVisibleCount: number
   groupLoadStep: number
   groupShowMoreLabel?: string
+  groupCollapseLabel?: string
 }
 
 export type ResourceListViewGroup<T extends ResourceListItemBase> = {
@@ -85,6 +87,7 @@ export type ResourceListViewGroup<T extends ResourceListItemBase> = {
   totalCount: number
   visibleCount: number
   hasMore: boolean
+  canCollapseToDefault: boolean
   collapsed: boolean
 }
 
