@@ -1,21 +1,34 @@
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } from 'react'
+import type {
+  ButtonHTMLAttributes,
+  CSSProperties,
+  HTMLAttributes,
+  InputHTMLAttributes,
+  ReactNode,
+  RefObject
+} from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ModelSelector } from '../ModelSelector'
-import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
+import { ModelSelector } from '../model/ModelSelector'
+import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../model/types'
 
-const { mockUseModelSelectorData, mockNavigate, mockScrollToIndex, mockLoggerError, mockVirtualListSizes } = vi.hoisted(
-  () => ({
-    mockUseModelSelectorData: vi.fn(),
-    mockNavigate: vi.fn(),
-    mockScrollToIndex: vi.fn(),
-    mockLoggerError: vi.fn(),
-    mockVirtualListSizes: [] as number[]
-  })
-)
+const {
+  mockUseModelSelectorData,
+  mockNavigate,
+  mockScrollToIndex,
+  mockLoggerError,
+  mockVirtualListSizes,
+  mockAvailablePopoverHeight
+} = vi.hoisted(() => ({
+  mockUseModelSelectorData: vi.fn(),
+  mockNavigate: vi.fn(),
+  mockScrollToIndex: vi.fn(),
+  mockLoggerError: vi.fn(),
+  mockVirtualListSizes: [] as number[],
+  mockAvailablePopoverHeight: { value: undefined as number | undefined }
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -73,14 +86,36 @@ vi.mock('@cherrystudio/ui', () => {
     Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     PopoverContent: ({
       children,
+      style,
       ...props
-    }: HTMLAttributes<HTMLDivElement> & { side?: string; align?: string; sideOffset?: number }) => {
-      const { side, align, sideOffset, ...contentProps } = props
+    }: HTMLAttributes<HTMLDivElement> & {
+      side?: string
+      align?: string
+      sideOffset?: number
+      onInteractOutside?: unknown
+      onOpenAutoFocus?: unknown
+    }) => {
+      const { side, align, sideOffset, onInteractOutside, onOpenAutoFocus, ...contentProps } = props
       void side
       void align
       void sideOffset
+      void onInteractOutside
+      void onOpenAutoFocus
 
-      return <div {...contentProps}>{children}</div>
+      return (
+        <div
+          {...contentProps}
+          style={{
+            ...(mockAvailablePopoverHeight.value
+              ? ({
+                  '--radix-popover-content-available-height': `${mockAvailablePopoverHeight.value}px`
+                } as CSSProperties)
+              : {}),
+            ...style
+          }}>
+          {children}
+        </div>
+      )
     },
     PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
     Switch: ({
@@ -131,7 +166,7 @@ vi.mock('@renderer/components/VirtualList', async () => {
   }
 })
 
-vi.mock('../useModelSelectorData', () => ({
+vi.mock('../model/useModelSelectorData', () => ({
   useModelSelectorData: (...args: unknown[]) => mockUseModelSelectorData(...args)
 }))
 
@@ -216,6 +251,23 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
   }
 }
 
+function mockSelectorChromeHeight(height: number) {
+  return vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const isChrome = this.hasAttribute('data-selector-shell-chrome')
+    return {
+      x: 0,
+      y: 0,
+      width: 320,
+      height: isChrome ? height : 0,
+      top: 0,
+      right: 320,
+      bottom: isChrome ? height : 0,
+      left: 0,
+      toJSON: () => {}
+    }
+  })
+}
+
 describe('ModelSelector', () => {
   beforeEach(() => {
     mockUseModelSelectorData.mockReset()
@@ -223,6 +275,7 @@ describe('ModelSelector', () => {
     mockScrollToIndex.mockReset()
     mockLoggerError.mockReset()
     mockVirtualListSizes.length = 0
+    mockAvailablePopoverHeight.value = undefined
     mockNavigate.mockResolvedValue(undefined)
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
@@ -251,6 +304,39 @@ describe('ModelSelector', () => {
       modelId: 'openai::gpt-4'
     })
     expect(togglePin).toHaveBeenCalledWith('openai::gpt-4')
+  })
+
+  it('uses the model selector row styling and pinned action color', () => {
+    const pinnedItem = makeModelItem('openai::gpt-4' as UniqueModelId, { isPinned: true, isSelected: true })
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [pinnedItem],
+        modelItems: [pinnedItem],
+        resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId]
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    const option = screen.getByTestId('model-selector-item-openai::gpt-4')
+    const row = option.closest('[data-model-selector-row]')
+    expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'py-1.5', 'bg-primary/10')
+    expect(screen.getByLabelText('models.action.unpin')).toHaveClass('text-primary!')
+  })
+
+  it('uses the theme color on the row action when the model row is selected', () => {
+    const selectedItem = makeModelItem('openai::gpt-4' as UniqueModelId, { isSelected: true })
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [selectedItem],
+        modelItems: [selectedItem],
+        resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId]
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(screen.getByLabelText('models.action.pin')).toHaveClass('text-primary!')
   })
 
   it('keeps keyboard focus stable when multi-select value changes while open', async () => {
@@ -336,5 +422,29 @@ describe('ModelSelector', () => {
     )
 
     expect(mockVirtualListSizes.at(-1)).toBe(8 * 36)
+  })
+
+  it('clamps the visible model list height to the available popover space', async () => {
+    mockAvailablePopoverHeight.value = 160
+    mockSelectorChromeHeight(52)
+    const items = Array.from({ length: 10 }, (_, index) => makeModelItem(`openai::model-${index}` as UniqueModelId))
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: items,
+        modelItems: items
+      })
+    )
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        listVisibleCount={8}
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(mockVirtualListSizes.at(-1)).toBe(108))
   })
 })

@@ -3,14 +3,16 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { openTabMock, refetchPinsMock, tabsContextMock, togglePinMock, usePinsMock, useQueryMock } = vi.hoisted(() => ({
-  openTabMock: vi.fn(),
-  refetchPinsMock: vi.fn(),
-  tabsContextMock: vi.fn(),
-  togglePinMock: vi.fn(),
-  usePinsMock: vi.fn(),
-  useQueryMock: vi.fn()
-}))
+const { navigateMock, openTabMock, refetchPinsMock, tabsContextMock, togglePinMock, usePinsMock, useQueryMock } =
+  vi.hoisted(() => ({
+    navigateMock: vi.fn(),
+    openTabMock: vi.fn(),
+    refetchPinsMock: vi.fn(),
+    tabsContextMock: vi.fn(),
+    togglePinMock: vi.fn(),
+    usePinsMock: vi.fn(),
+    useQueryMock: vi.fn()
+  }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
@@ -39,19 +41,15 @@ vi.mock('react-i18next', async (importOriginal) => {
           'selector.agent.create_new': 'Create agent',
           'selector.agent.empty_text': 'No agents',
           'selector.agent.search_placeholder': 'Search agents',
-          'selector.common.edit': 'Edit',
           'selector.common.pin': 'Pin',
           'selector.common.pinned_title': 'Pinned',
-          'selector.common.sort.asc': 'Oldest',
-          'selector.common.sort.desc': 'Newest',
-          'selector.common.sort_label': 'Sort',
           'selector.common.unpin': 'Unpin'
         })[key] ?? key
     })
   }
 })
 
-import { AgentSelector, type AgentSelectorItem } from '../AgentSelector'
+import { AgentSelector, type AgentSelectorItem } from '../resource/AgentSelector'
 
 const ALPHA_AGENT_ID = '44444444-4444-4444-8444-444444444444'
 const BETA_AGENT_ID = '55555555-5555-4555-8555-555555555555'
@@ -102,6 +100,7 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  window.navigate = navigateMock as typeof window.navigate
   tabsContextMock.mockReturnValue({
     openTab: openTabMock
   })
@@ -146,6 +145,10 @@ describe('AgentSelector', () => {
     expect(useQueryMock).toHaveBeenCalledWith('/agents', { query: { limit: 500 } })
     expect(screen.getByRole('option', { name: /Alpha Agent/ })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Beta Agent/ })).toBeInTheDocument()
+    const options = screen.getAllByRole('option')
+    expect(options[0]).toHaveTextContent('Alpha Agent')
+    expect(options[1]).toHaveTextContent('Beta Agent')
+    expect(screen.queryByRole('button', { pressed: false })).not.toBeInTheDocument()
   })
 
   it('fires onChange with the selected agent id', () => {
@@ -178,15 +181,21 @@ describe('AgentSelector', () => {
     })
   })
 
-  it('renders without tab context and hides library navigation actions', () => {
+  it('renders without tab context and opens the agent create flow through global navigation', async () => {
     tabsContextMock.mockReturnValue(null)
 
     renderSelector()
     openPopover()
 
     expect(screen.getByRole('option', { name: /Alpha Agent/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Create agent' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Create agent' }))
+
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/app/library',
+        search: { resourceType: 'agent', action: 'create' }
+      })
+    )
   })
 
   it('uses the agent pin hook and renders pinned agents in the pinned section', () => {
@@ -208,19 +217,6 @@ describe('AgentSelector', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Unpin' }))
     expect(togglePinMock).toHaveBeenCalledWith(ALPHA_AGENT_ID)
-  })
-
-  it('navigates to the resource library agent editor from the row edit action', async () => {
-    renderSelector()
-    openPopover()
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
-
-    await waitFor(() =>
-      expect(openTabMock).toHaveBeenCalledWith(`/app/library?resourceType=agent&action=edit&id=${BETA_AGENT_ID}`, {
-        forceNew: true
-      })
-    )
   })
 
   it('navigates to the resource library agent create flow from the footer action', async () => {

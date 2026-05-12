@@ -1,38 +1,19 @@
-import {
-  Avatar,
-  AvatarFallback,
-  Button,
-  Checkbox,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Switch,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isDev } from '@renderer/config/constant'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
 import { first } from 'lodash'
-import { Pin, Search, Settings2 } from 'lucide-react'
-import {
-  isValidElement,
-  startTransition,
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
+import { Pin, Settings2 } from 'lucide-react'
+import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { SelectorShell } from '../shell/SelectorShell'
 import { matchesModelTag, MODEL_SELECTOR_TAGS } from './filters'
 import { FreeTrialModelTag } from './FreeTrialModelTag'
+import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { ModelTagChip } from './ModelTagChip'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
 import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps } from './types'
@@ -166,89 +147,71 @@ function ModelRow({
   const providerName = getProviderDisplayName(item.provider)
   const isCherryAi = item.provider.id === 'cherryai'
 
-  return (
-    <div
-      role="option"
+  const leading = icon ? (
+    <icon.Avatar size={20} />
+  ) : (
+    <Avatar size="sm">
+      <AvatarFallback>{first(item.model.name) || 'M'}</AvatarFallback>
+    </Avatar>
+  )
+
+  const checkbox = showCheckbox ? (
+    <Checkbox
+      checked={item.isSelected}
       tabIndex={-1}
-      aria-selected={item.isSelected}
-      className={cn(
-        'group relative flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-xs transition-colors',
-        item.isSelected && 'bg-primary/10 text-foreground',
-        !item.isSelected && isFocused && 'bg-accent/60',
-        !item.isSelected && !isFocused && 'text-foreground hover:bg-accent/60'
-      )}
-      data-testid={`model-selector-item-${item.modelId}`}
-      onClick={() => onSelect(item)}>
-      {!showCheckbox && item.isSelected && (
-        <span
-          aria-hidden="true"
-          className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-4xs bg-primary/40"
-        />
-      )}
-      {showCheckbox && (
-        <Checkbox
-          checked={item.isSelected}
-          tabIndex={-1}
-          aria-hidden="true"
-          className="pointer-events-none"
-          data-testid={`model-selector-checkbox-${item.modelId}`}
-        />
-      )}
-      {/* 左侧：图标 + 名称 */}
-      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-        {icon ? (
-          <icon.Avatar size={20} />
-        ) : (
-          <Avatar size="sm">
-            <AvatarFallback>{first(item.model.name) || 'M'}</AvatarFallback>
-          </Avatar>
-        )}
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <span className="truncate">{item.model.name}</span>
-          {item.showIdentifier && item.modelIdentifier !== item.model.name && (
-            <span className="max-w-[45%] truncate font-mono text-muted-foreground text-xs" title={item.modelIdentifier}>
-              {item.modelIdentifier}
-            </span>
-          )}
-          {item.isPinned && <span className="shrink-0 truncate text-muted-foreground text-xs">| {providerName}</span>}
-          {isCherryAi && (
-            <FreeTrialModelTag model={item.model} showLabel={false} onBeforeNavigate={onNavigateBeforeTrial} />
-          )}
-        </div>
+      aria-hidden="true"
+      className="pointer-events-none"
+      data-testid={`model-selector-checkbox-${item.modelId}`}
+    />
+  ) : null
+
+  const trailing =
+    rowTags.length > 0 ? (
+      <div className="ml-2 flex h-4 max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+        {rowTags.map((tag) => (
+          <ModelTagChip
+            key={`${item.key}-${tag}`}
+            tag={tag}
+            size={ROW_TAG_SIZE}
+            showLabel={false}
+            showTooltip
+            className="h-full items-center"
+          />
+        ))}
       </div>
-      {/* 右侧：tags — 容器固定 h-4，所有 tag h-full + items-center，消除 SVG/iconfont/纯文字渲染高度差 */}
-      {rowTags.length > 0 && (
-        <div className="ml-2 flex h-4 max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
-          {rowTags.map((tag) => (
-            <ModelTagChip
-              key={`${item.key}-${tag}`}
-              tag={tag}
-              size={ROW_TAG_SIZE}
-              showLabel={false}
-              showTooltip
-              className="h-full items-center"
-            />
-          ))}
-        </div>
+    ) : null
+
+  return (
+    <ModelSelectorRow
+      selected={item.isSelected}
+      focused={isFocused}
+      showSelectedIndicator={!showCheckbox && item.isSelected}
+      checkbox={checkbox}
+      leading={leading}
+      trailing={trailing}
+      actions={
+        <ModelSelectorRowActionButton
+          disabled={isPinActionDisabled}
+          aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
+          pinned={item.isPinned}
+          selected={item.isSelected}
+          onClick={() => onPin(item.modelId)}>
+          <Pin className="size-3" />
+        </ModelSelectorRowActionButton>
+      }
+      onSelect={() => onSelect(item)}
+      optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
+      <span className="truncate">{item.model.name}</span>
+      {item.showIdentifier && item.modelIdentifier !== item.model.name && (
+        <span className="max-w-[45%] truncate font-mono text-muted-foreground text-xs" title={item.modelIdentifier}>
+          {item.modelIdentifier}
+        </span>
       )}
-      {/* Pin 按钮 — 悬浮/置顶时显示 */}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        disabled={isPinActionDisabled}
-        aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
-        className={cn(
-          'ml-1 size-5 shrink-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60',
-          item.isPinned && '-rotate-45 text-primary opacity-100'
-        )}
-        onClick={(event) => {
-          event.stopPropagation()
-          onPin(item.modelId)
-        }}>
-        <Pin className="size-3" />
-      </Button>
-    </div>
+      {item.isPinned && <span className="shrink-0 truncate text-muted-foreground text-xs">| {providerName}</span>}
+      {isCherryAi && (
+        <FreeTrialModelTag model={item.model} showLabel={false} onBeforeNavigate={onNavigateBeforeTrial} />
+      )}
+    </ModelSelectorRow>
   )
 }
 
@@ -316,7 +279,6 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const open = openProp ?? internalOpen
   const multiSelectMode = multiple ? (multiSelectModeProp ?? internalMultiSelectMode) : false
-  const triggerNode = isValidElement(trigger) ? trigger : <span>{trigger}</span>
 
   const setOpen = useCallback(
     (nextOpen: boolean) => {
@@ -631,40 +593,25 @@ export function ModelSelector(props: ModelSelectorProps) {
   )
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>{triggerNode}</PopoverTrigger>
-      <PopoverContent
-        side={side}
-        align={align}
-        sideOffset={sideOffset}
-        className={cn('max-h-140 w-90 overflow-hidden rounded-2xs p-0 py-1', contentClassName)}
-        data-testid="model-selector-content">
-        <div className="flex items-center gap-2 border-border/60 border-b px-3 py-2.5">
-          <Search className="pointer-events-none size-3.25 shrink-0 text-muted-foreground/50" />
-          <Input
-            ref={inputRef}
-            value={searchText}
-            autoFocus
-            spellCheck={false}
-            placeholder={t('models.search.placeholder')}
-            className={cn(
-              'h-auto flex-1 border-0 bg-transparent p-0 shadow-none transition-none',
-              'text-xs md:text-xs',
-              'focus-visible:border-transparent focus-visible:ring-0',
-              'placeholder:text-muted-foreground/40'
-            )}
-            data-testid="model-selector-search"
-            onChange={(event) => setSearchText(event.target.value)}
-            onKeyDown={(event) => {
-              if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'].includes(event.key)) {
-                event.preventDefault()
-              }
-            }}
-          />
-        </div>
-
-        {showTagFilter && availableTags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 border-border/60 border-b px-3 py-2">
+    <SelectorShell
+      trigger={trigger}
+      open={open}
+      onOpenChange={setOpen}
+      search={{
+        inputRef,
+        value: searchText,
+        onChange: setSearchText,
+        placeholder: t('models.search.placeholder'),
+        dataTestId: 'model-selector-search',
+        onKeyDown: (event) => {
+          if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'].includes(event.key)) {
+            event.preventDefault()
+          }
+        }
+      }}
+      filterContent={
+        showTagFilter && availableTags.length > 0 ? (
+          <>
             <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
             {availableTags.map((tag) => (
               <ModelTagChip
@@ -677,29 +624,35 @@ export function ModelSelector(props: ModelSelectorProps) {
                 className="transition-colors"
               />
             ))}
-          </div>
-        )}
+          </>
+        ) : undefined
+      }
+      multiSelect={
+        multiple
+          ? {
+              label: t('models.multi_select.label'),
+              checked: multiSelectMode,
+              onCheckedChange: handleMultiSelectModeChange,
+              dataTestId: 'model-selector-multi-select-switch',
+              rowTestId: 'model-selector-multi-select-row'
+            }
+          : undefined
+      }
+      side={side}
+      align={align}
+      sideOffset={sideOffset}
+      contentClassName={contentClassName}
+      data-testid="model-selector-content">
+      {({ availableListHeight }) => {
+        const visibleListHeight =
+          availableListHeight === undefined ? listHeight : Math.min(listHeight, availableListHeight)
 
-        {multiple && (
-          <div
-            className="flex items-center justify-between gap-3 border-border/60 border-b px-3 py-2"
-            data-testid="model-selector-multi-select-row">
-            <span className="min-w-0 truncate text-[10px] text-muted-foreground">{t('models.multi_select.label')}</span>
-            <Switch
-              checked={multiSelectMode}
-              size="sm"
-              data-testid="model-selector-multi-select-switch"
-              onCheckedChange={handleMultiSelectModeChange}
-            />
-          </div>
-        )}
-
-        {listItems.length > 0 ? (
+        return listItems.length > 0 ? (
           <div className="px-1 py-1" role="listbox" aria-multiselectable={multiple && multiSelectMode}>
             <DynamicVirtualList
               ref={listRef}
               list={listItems}
-              size={listHeight}
+              size={visibleListHeight}
               estimateSize={() => ITEM_HEIGHT}
               getItemKey={(index) => listItems[index].key}
               isSticky={(index) => listItems[index].type === 'group'}
@@ -715,8 +668,8 @@ export function ModelSelector(props: ModelSelectorProps) {
             data-testid="model-selector-empty">
             {t('models.no_matches')}
           </div>
-        )}
-      </PopoverContent>
-    </Popover>
+        )
+      }}
+    </SelectorShell>
   )
 }

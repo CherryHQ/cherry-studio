@@ -17,8 +17,7 @@ export {
 export {
   ResourceSelectorShell,
   type ResourceSelectorShellItem,
-  type ResourceSelectorShellItemActionSlotProps,
   type ResourceSelectorShellLabels,
   type ResourceSelectorShellProps,
-  type ResourceSelectorShellSortOption
+  type ResourceSelectorShellTag
 } from './ResourceSelectorShell'

@@ -75,7 +75,7 @@ vi.mock('@renderer/hooks/useModels', () => ({
   useModels: () => ({ models, isLoading: false })
 }))
 
-vi.mock('@renderer/components/ModelSelector', () => ({
+vi.mock('@renderer/components/Selector', () => ({
   ModelSelector: ({ trigger, onSelect }: { trigger: ReactNode; onSelect: (modelId: string | undefined) => void }) => (
     <div>
       <div data-testid="model-selector-trigger">{trigger}</div>

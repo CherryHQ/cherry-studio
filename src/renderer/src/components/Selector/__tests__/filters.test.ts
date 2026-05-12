@@ -8,7 +8,7 @@
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { matchesModelTag, MODEL_SELECTOR_TAGS } from '../filters'
+import { matchesModelTag, MODEL_SELECTOR_TAGS } from '../model/filters'
 
 function makeModel(overrides: Partial<Model> = {}): Model {
   return {

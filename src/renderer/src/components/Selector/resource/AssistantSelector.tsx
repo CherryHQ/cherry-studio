@@ -2,24 +2,23 @@ import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
-import {
-  buildLibraryCreateSearch,
-  buildLibraryEditSearch,
-  buildLibraryRouteUrl
-} from '@renderer/pages/library/routeSearch'
+import { buildLibraryCreateSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { type ReactElement, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
-import { useCreatedAtSort } from './useCreatedAtSort'
+import {
+  ResourceSelectorShell,
+  type ResourceSelectorShellItem,
+  type ResourceSelectorShellTag
+} from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AssistantSelector')
 
 /**
  * Row shape the selector operates on — derived from the Assistant DTO. `selectionType: 'item'`
- * returns values of this shape (not the raw Assistant) so the selector never leaks DB columns
- * the caller didn't ask about. Sort metadata (e.g. createdAt) is tracked side-band in this file;
- * user tag names may be present so the selector can filter by assistant tags.
+ * returns values of this shape (not the raw Assistant) so the selector never leaks DB columns the
+ * caller didn't ask about. User tag names may be present so the selector can filter by assistant
+ * tags.
  */
 export type AssistantSelectorItem = ResourceSelectorShellItem
 
@@ -81,6 +80,19 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   } = usePins('assistant')
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
+  const openLibraryRoute = useCallback(
+    (search: ReturnType<typeof buildLibraryCreateSearch>) => {
+      const url = buildLibraryRouteUrl(search)
+      if (openTab) {
+        openTab(url, { forceNew: true })
+        return
+      }
+
+      void window.navigate({ to: '/app/library', search })
+    },
+    [openTab]
+  )
+
   const items: AssistantSelectorItem[] = useMemo(
     () =>
       (data?.items ?? []).map((a) => ({
@@ -93,12 +105,18 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [data]
   )
 
-  const tags = useMemo(
-    () => Array.from(new Set(items.flatMap((item) => item.tags ?? []))).sort((a, b) => a.localeCompare(b, 'zh')),
-    [items]
-  )
+  const tags = useMemo<ResourceSelectorShellTag[]>(() => {
+    const byName = new Map<string, string | undefined>()
+    for (const assistant of data?.items ?? []) {
+      for (const tag of assistant.tags ?? []) {
+        if (!byName.has(tag.name)) {
+          byName.set(tag.name, tag.color ?? undefined)
+        }
+      }
+    }
 
-  const sortOptions = useCreatedAtSort<AssistantSelectorItem>(data?.items, t)
+    return Array.from(byName, ([name, color]) => ({ name, color })).sort((a, b) => a.name.localeCompare(b.name, 'zh'))
+  }, [data])
 
   const handleTogglePin = useCallback(
     async (id: string) => {
@@ -123,28 +141,21 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     items,
     tags,
     loading: isLoading || isPinnedLoading,
-    sortOptions,
-    defaultSortId: 'desc',
     pinnedIds,
+    emptyState: { preset: 'no-assistant' as const },
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
-    ...(openTab && {
-      onEditItem: (id: string) => {
-        openTab(buildLibraryRouteUrl(buildLibraryEditSearch('assistant', id)), { forceNew: true })
-      },
-      onCreateNew: () => {
-        openTab(buildLibraryRouteUrl(buildLibraryCreateSearch('assistant')), { forceNew: true })
-      }
-    }),
+    onCreateNew: () => {
+      openLibraryRoute(buildLibraryCreateSearch('assistant'))
+    },
     labels: {
       searchPlaceholder: t('selector.assistant.search_placeholder'),
-      sortLabel: t('selector.common.sort_label'),
-      edit: t('selector.common.edit'),
       pin: t('selector.common.pin'),
       unpin: t('selector.common.unpin'),
       createNew: t('selector.assistant.create_new'),
       emptyText: t('selector.assistant.empty_text'),
-      pinnedTitle: t('selector.common.pinned_title')
+      pinnedTitle: t('selector.common.pinned_title'),
+      tagFilter: t('models.filter.by_tag')
     }
   }
 

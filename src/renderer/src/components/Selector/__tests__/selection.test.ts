@@ -10,7 +10,7 @@
 import type { UniqueModelId } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { computeCollapsedSelection, computeToggledSelection } from '../selection'
+import { computeCollapsedSelection, computeToggledSelection } from '../model/selection'
 
 const ID_A = 'openai::gpt-4' as UniqueModelId
 const ID_B = 'anthropic::claude-3' as UniqueModelId
