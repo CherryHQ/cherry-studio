@@ -94,8 +94,22 @@
  * needing a live value call `getMetadata(id)`.
  *
  * Dangling state is tracked by the file_module's `DanglingCache` singleton,
- * not by FileManager itself. FileManager ops update the cache as a side effect
- * of successful/failed stats.
+ * not by FileManager itself. FileManager ops mutate the cache asymmetrically:
+ *
+ * - **Failed stat (ENOENT) on external** — commits `'missing'` through the
+ *   `observeExternalAccess` chokepoint (`internal/observe.ts`). Covers read,
+ *   getContentHash, getMetadata, getVersion; `createReadStream` mirrors the
+ *   same transition through a `'error'` listener on the stream.
+ * - **Successful create / ensureExternal / rename** — explicitly pushes
+ *   `'present'` (via `addEntry` + `onFsEvent(..., 'present', 'ops')`) so the
+ *   cache learns presence from the producer side.
+ * - **Successful read / hash / stat** — does NOT touch the cache. The cache
+ *   learns `'present'` from the watcher or from explicit ops-side writes,
+ *   never from passive reads (see `observe.ts` semantics).
+ *
+ * Reading "ops update the cache on every stat" would suggest a symmetric
+ * fresh-stat-flip-to-present rule, which would defeat the watcher-led
+ * design. The asymmetry above is the actual contract.
  */
 
 import { createReadStream as nodeCreateReadStream } from 'node:fs'
