@@ -7,6 +7,10 @@ import { FileEntryIdSchema, FileEntrySchema, SafeNameSchema } from '../file'
 const VALID_UUID_V7 = '019606a0-0000-7000-8000-000000000001'
 const TS = 1700000000000
 
+// After the BO/DB split, each variant's schema declares only its own fields
+// (strictObject — extra keys are rejected). Internal has no `externalPath` and
+// `trashedAt` is optional; external has no `size` and no `trashedAt`. Factories
+// match that shape so callers only set fields that belong on the arm.
 function makeInternal(overrides: Record<string, unknown> = {}) {
   return {
     id: VALID_UUID_V7,
@@ -14,8 +18,6 @@ function makeInternal(overrides: Record<string, unknown> = {}) {
     name: 'readme',
     ext: 'md',
     size: 1024,
-    externalPath: null,
-    trashedAt: null,
     createdAt: TS,
     updatedAt: TS,
     ...overrides
@@ -28,9 +30,7 @@ function makeExternal(overrides: Record<string, unknown> = {}) {
     origin: 'external',
     name: 'report',
     ext: 'pdf',
-    size: null,
     externalPath: '/Users/me/documents/report.pdf',
-    trashedAt: null,
     createdAt: TS,
     updatedAt: TS,
     ...overrides
@@ -144,9 +144,18 @@ describe('FileEntrySchema origin invariants', () => {
       expect(FileEntrySchema.safeParse(makeExternal({ ext: null })).success).toBe(true)
     })
 
-    it('rejects external with null externalPath', () => {
+    it('rejects external with null externalPath (schema requires non-null string)', () => {
       const result = FileEntrySchema.safeParse(makeExternal({ externalPath: null }))
       expect(result.success).toBe(false)
+    })
+
+    it('rejects external with absent externalPath (schema requires the field)', () => {
+      // strictObject parses external without externalPath as a missing field;
+      // discriminator routing still picks the external arm via `origin`.
+      const base = makeExternal()
+      // biome-ignore lint/performance/noDelete: we want the absent-field semantics
+      delete (base as { externalPath?: string }).externalPath
+      expect(FileEntrySchema.safeParse(base).success).toBe(false)
     })
 
     it('rejects external with relative externalPath', () => {
@@ -171,20 +180,24 @@ describe('FileEntrySchema origin invariants', () => {
 // ─── Trash ───
 
 describe('FileEntrySchema trash (trashedAt)', () => {
-  it('accepts active entry (trashedAt = null)', () => {
-    expect(FileEntrySchema.safeParse(makeInternal({ trashedAt: null })).success).toBe(true)
+  // After I19 the internal arm types `trashedAt` as `optional number` — present
+  // when trashed, absent (undefined) when live. The external arm drops the
+  // field entirely (the DB CHECK fe_external_no_trash already forbids it).
+
+  it('accepts active internal entry (trashedAt absent)', () => {
+    expect(FileEntrySchema.safeParse(makeInternal()).success).toBe(true)
   })
 
   it('accepts trashed internal entry', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ trashedAt: TS })).success).toBe(true)
   })
 
-  it('rejects trashed external entry (external cannot be trashed)', () => {
+  it('rejects trashed external entry (strictObject — external has no trashedAt field)', () => {
     expect(FileEntrySchema.safeParse(makeExternal({ trashedAt: TS })).success).toBe(false)
   })
 
-  it('accepts external entry with trashedAt = null', () => {
-    expect(FileEntrySchema.safeParse(makeExternal({ trashedAt: null })).success).toBe(true)
+  it('accepts external entry (no trashedAt field by construction)', () => {
+    expect(FileEntrySchema.safeParse(makeExternal()).success).toBe(true)
   })
 })
 
@@ -204,6 +217,13 @@ describe('FileEntrySchema size/ext boundaries', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ size: null })).success).toBe(false)
   })
 
+  it('rejects internal with absent size (internal size is mandatory)', () => {
+    const base = makeInternal()
+    // biome-ignore lint/performance/noDelete: we want the absent-field semantics
+    delete (base as { size?: number }).size
+    expect(FileEntrySchema.safeParse(base).success).toBe(false)
+  })
+
   it('accepts internal size=0 (empty file)', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ size: 0 })).success).toBe(true)
   })
@@ -212,13 +232,13 @@ describe('FileEntrySchema size/ext boundaries', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ size: Number.MAX_SAFE_INTEGER })).success).toBe(true)
   })
 
-  // External: size must always be null — no DB snapshot exists, live value
-  // comes from File IPC `getMetadata`.
-  it('accepts external with null size', () => {
-    expect(FileEntrySchema.safeParse(makeExternal({ size: null })).success).toBe(true)
+  // External BO has no `size` field at all — strict mode rejects any value for
+  // it, including `null`. Live size comes from File IPC `getMetadata`.
+  it('rejects external with null size (strictObject — no size field on external arm)', () => {
+    expect(FileEntrySchema.safeParse(makeExternal({ size: null })).success).toBe(false)
   })
 
-  it('rejects external with numeric size (external has no stored size)', () => {
+  it('rejects external with numeric size (strictObject — no size field on external arm)', () => {
     expect(FileEntrySchema.safeParse(makeExternal({ size: 0 })).success).toBe(false)
     expect(FileEntrySchema.safeParse(makeExternal({ size: 12345 })).success).toBe(false)
   })
