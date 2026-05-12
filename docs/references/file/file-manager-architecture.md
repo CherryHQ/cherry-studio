@@ -1107,6 +1107,15 @@ export const danglingCache = new DanglingCache()
 
 ### 11.2 State Model
 
+> **Phase 1 vs deferred surface.** `forceRecheck()` (and the related
+> `'forceRecheck'` value of `CachedState['source']`) belongs to the §7.2
+> dangling-external auto-cleanup pass, which is itself deferred. Phase 1
+> ships `CachedState['source']` with only three values (`'watcher' | 'ops'
+> | 'stat'`) and exposes no `forceRecheck()` method on `DanglingCache`.
+> The signature is preserved below for design continuity — when §7.2
+> lands, both the source value and the method come back together as a
+> single change.
+
 ```typescript
 type DanglingState = 'present' | 'missing' | 'unknown'
 
@@ -1114,8 +1123,10 @@ interface CachedState {
   state: 'present' | 'missing'
   /** ms epoch of last observation — drives TTL expiry in `check` */
   observedAt: number
-  /** Where this observation came from (for diagnostics / log context) */
-  source: 'watcher' | 'ops' | 'stat' | 'forceRecheck'
+  /** Where this observation came from (for diagnostics / log context).
+   *  Phase 1: `'watcher' | 'ops' | 'stat'`. `'forceRecheck'` is added
+   *  alongside the §7.2 auto-cleanup pass (deferred). */
+  source: 'watcher' | 'ops' | 'stat' | 'forceRecheck' // deferred: forceRecheck
 }
 
 class DanglingCache {
@@ -1133,9 +1144,12 @@ class DanglingCache {
   async check(entry: FileEntry): Promise<DanglingState>
 
   /**
-   * Always re-stat, regardless of cache freshness. Used by callers with
-   * stricter freshness requirements than a plain query — notably the F-2
-   * scanner's pre-delete verification step (see §7.2).
+   * **Deferred (lands with §7.2)**: always re-stat, regardless of cache
+   * freshness. Used by callers with stricter freshness requirements than
+   * a plain query — notably the F-2 scanner's pre-delete verification
+   * step (see §7.2). Not implemented in Phase 1 because no production
+   * call site exists yet — the entry-delete path that needs it is
+   * itself deferred.
    */
   async forceRecheck(entry: FileEntry): Promise<DanglingState>
 
@@ -1167,6 +1181,7 @@ async check(entry: FileEntry): Promise<DanglingState> {
   return this.doStatAndUpdate(entry, 'stat')
 }
 
+// Deferred: lands with §7.2. Not implemented in Phase 1.
 async forceRecheck(entry: FileEntry): Promise<DanglingState> {
   if (entry.origin === 'internal') return 'present'
   return this.doStatAndUpdate(entry, 'forceRecheck')
@@ -1191,7 +1206,7 @@ private async doStatAndUpdate(
 - **Lazy expiration only, no periodic background sweep**. FS IO cost scales with query frequency, not total entry count — heavy-user populations (10k+ external entries) consume zero IO when no UI is querying.
 - **Watcher events / ops observations reset `observedAt`** to `Date.now()` — a path with active watcher coverage stays fresh indefinitely and never triggers TTL-driven re-stat.
 - **TTL = 30 min**: external file path moves are rare in practice (files accumulate, rarely move); a 30-minute worst-case staleness window is acceptable for background UI state, while keeping TTL ≫ React Query's renderer-side `staleTime ≤ 5min` means most renderer refetches hit cache (desired: the cache adds value).
-- **`forceRecheck` is the explicit escape hatch** for callers that need guaranteed freshness — currently the F-2 scanner (§7.2) is the only production caller.
+- **`forceRecheck` is the explicit escape hatch** for callers that need guaranteed freshness — the F-2 scanner (§7.2) is its only intended production caller. Both `forceRecheck()` and §7.2 are deferred; nothing in Phase 1 calls this path.
 
 ### 11.3 Watcher Auto-Wiring
 
