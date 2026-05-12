@@ -5,7 +5,7 @@ import type { TFunction } from 'i18next'
 import { SettingHelpLink } from '../../../settings'
 import type { AihubmixPaintingData as PaintingData } from '../../model/types/paintingData'
 import type { PaintingProviderRuntime } from '../../model/types/paintingProviderRuntime'
-import { createMultiModeProvider, type PaintingProviderDefinition } from '../types'
+import type { PaintingProvider } from '../types'
 import { createDefaultAihubmixPainting } from './config'
 import { aihubmixFields, getStaticModelsForAihubmixMode } from './fields'
 import { generateWithAihubmix } from './generate'
@@ -21,7 +21,7 @@ export function AihubmixHeaderActions({ provider, t }: { provider: PaintingProvi
   )
 }
 
-export const aihubmixProvider: PaintingProviderDefinition = createMultiModeProvider<PaintingData>({
+export const aihubmixProvider = {
   id: 'aihubmix',
   mode: {
     tabs: [
@@ -30,7 +30,7 @@ export const aihubmixProvider: PaintingProviderDefinition = createMultiModeProvi
       { value: 'upscale', labelKey: 'paintings.mode.upscale' }
     ],
     defaultTab: 'generate',
-    tabToDbMode: (tab: string) => tab as any,
+    tabToDbMode: (tab: string) => tab,
     getModels: (tab: string) => ({
       type: 'static' as const,
       options: getStaticModelsForAihubmixMode(tab as 'generate' | 'remix' | 'upscale')
@@ -55,4 +55,4 @@ export const aihubmixProvider: PaintingProviderDefinition = createMultiModeProvi
     placeholder: aihubmixImagePlaceholder
   },
   generate: (input) => generateWithAihubmix(input)
-})
+} satisfies PaintingProvider<PaintingData>

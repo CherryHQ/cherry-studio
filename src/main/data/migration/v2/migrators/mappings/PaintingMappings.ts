@@ -1,5 +1,8 @@
 import type { NewPainting } from '@data/db/schemas/painting'
+import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { PaintingMediaType, PaintingMode, PaintingParams } from '@shared/data/types/painting'
+
+import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
 export const LEGACY_PAINTING_NAMESPACES = [
   'siliconflow_paintings',
@@ -90,17 +93,64 @@ function getFileIds(value: unknown): string[] {
   })
 }
 
-function getLegacyModelId(value: unknown): string | undefined {
-  const stringValue = getNonEmptyString(value)
-  if (stringValue) {
-    return stringValue
+function isLegacyModelRef(value: unknown): value is LegacyModelRef {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function createScopedModelId(providerId: string, rawModelId: string, warnings: string[]): string | null {
+  try {
+    return createUniqueModelId(providerId, rawModelId)
+  } catch (error) {
+    warnings.push(`Dropped invalid legacy model id '${rawModelId}': ${error instanceof Error ? error.message : error}`)
+    return null
+  }
+}
+
+function normalizeLegacyModelId(value: unknown, providerId: string, warnings: string[]): string | null {
+  if (isLegacyModelRef(value)) {
+    const normalized = legacyModelToUniqueId(value)
+    if (normalized) {
+      return normalized
+    }
+
+    const rawModelId = getNonEmptyString(value.id)
+    if (!rawModelId) {
+      return null
+    }
+
+    if (isUniqueModelId(rawModelId)) {
+      return rawModelId
+    }
+
+    return createScopedModelId(providerId, rawModelId, warnings)
   }
 
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return undefined
+  const rawModelId = getNonEmptyString(value)
+  if (!rawModelId) {
+    return null
   }
 
-  return getNonEmptyString((value as Record<string, unknown>).id)
+  if (isUniqueModelId(rawModelId)) {
+    return rawModelId
+  }
+
+  return createScopedModelId(providerId, rawModelId, warnings)
+}
+
+function resolveLegacyPaintingModelId(
+  record: LegacyPaintingRecord,
+  scope: PaintingFilter,
+  warnings: string[]
+): string | null {
+  return (
+    normalizeLegacyModelId(record.modelId, scope.providerId, warnings) ??
+    normalizeLegacyModelId(record.model, scope.providerId, warnings) ??
+    null
+  )
+}
+
+function isOpenAiCompatibleNamespace(namespace: LegacyPaintingNamespace): boolean {
+  return namespace === 'openai_image_generate' || namespace === 'openai_image_edit'
 }
 
 function omitUndefinedValues(input: Record<string, unknown>): Record<string, unknown> {
@@ -262,6 +312,10 @@ export function transformLegacyPaintingRecord(
   const prompt = getString(record.prompt) ?? ''
   const hasTaskId = typeof params.taskId === 'string' && params.taskId.trim().length > 0
 
+  if (isOpenAiCompatibleNamespace(namespace) && !getNonEmptyString(record.providerId)) {
+    warnings.push('Defaulted missing OpenAI-compatible providerId to new-api')
+  }
+
   if (!prompt.trim() && outputFileIds.length === 0 && inputFileIds.length === 0 && !hasTaskId) {
     return {
       ok: false,
@@ -275,7 +329,7 @@ export function transformLegacyPaintingRecord(
     value: {
       id,
       providerId: scope.providerId,
-      modelId: getLegacyModelId(record.modelId) ?? getLegacyModelId(record.model) ?? null,
+      modelId: resolveLegacyPaintingModelId(record, scope, warnings),
       mode: scope.mode,
       mediaType: 'image',
       prompt,

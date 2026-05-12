@@ -3190,9 +3190,9 @@
         }
       },
       "indexes": {
-        "painting_provider_mode_order_key_idx": {
-          "name": "painting_provider_mode_order_key_idx",
-          "columns": ["provider_id", "mode", "order_key"],
+        "painting_order_key_idx": {
+          "name": "painting_order_key_idx",
+          "columns": ["order_key"],
           "isUnique": false
         },
         "painting_provider_mode_created_idx": {

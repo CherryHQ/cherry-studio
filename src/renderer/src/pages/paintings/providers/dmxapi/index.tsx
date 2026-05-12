@@ -7,7 +7,7 @@ import { SettingHelpLink } from '../../../settings'
 import type { DmxapiPaintingData as DmxapiPainting } from '../../model/types/paintingData'
 import { generationModeType } from '../../model/types/paintingData'
 import type { ModelOption } from '../../model/types/paintingModel'
-import { createMultiModeProvider, type PaintingProviderDefinition } from '../types'
+import type { PaintingProvider } from '../types'
 import { COURSE_URL, DEFAULT_PAINTING, GetModelGroup, MODEOPTIONS, TOP_UP_URL } from './config'
 import { buildDmxapiConfigFields } from './fields'
 import { generateWithDmxapi } from './generate'
@@ -37,7 +37,7 @@ export function DmxapiHeaderActions({ t }: { t: TFunction }) {
   )
 }
 
-export const dmxapiProvider: PaintingProviderDefinition = createMultiModeProvider<DmxapiPainting>({
+export const dmxapiProvider = {
   id: 'dmxapi',
   mode: {
     tabs: MODEOPTIONS.map((mode) => ({ value: mode.value, labelKey: mode.labelKey })),
@@ -130,6 +130,6 @@ export const dmxapiProvider: PaintingProviderDefinition = createMultiModeProvide
     }
   },
   generate: (input) => generateWithDmxapi(input)
-})
+} satisfies PaintingProvider<DmxapiPainting>
 
 export { DmxapiSetting } from './components'

@@ -45,10 +45,27 @@ describe('PaintingMappings', () => {
       ok: true,
       value: {
         providerId: 'my-custom-new-api',
-        modelId: 'gpt-image-1',
+        modelId: 'my-custom-new-api::gpt-image-1',
         mode: 'generate',
         mediaType: 'image'
       }
+    })
+  })
+
+  it('warns when openai-compatible records need the legacy new-api fallback', () => {
+    const result = transformLegacyPaintingRecord('openai_image_generate', {
+      id: 'painting-1',
+      model: 'gpt-image-1',
+      prompt: 'hello'
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        providerId: 'new-api',
+        modelId: 'new-api::gpt-image-1'
+      },
+      warnings: ['Defaulted missing OpenAI-compatible providerId to new-api']
     })
   })
 

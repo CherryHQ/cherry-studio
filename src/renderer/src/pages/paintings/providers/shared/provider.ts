@@ -92,8 +92,4 @@ export function createSingleModeProvider<T extends PaintingData = PaintingData>(
   }
 }
 
-export function createMultiModeProvider<T extends PaintingData = PaintingData>(provider: PaintingProvider<T>) {
-  return provider
-}
-
 export type PaintingProviderDefinition = PaintingProvider<any>

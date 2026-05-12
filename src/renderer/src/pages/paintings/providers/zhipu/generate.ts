@@ -18,7 +18,9 @@ export async function generateWithZhipu(input: GenerateInput<ZhipuPaintingData>)
   }
 
   const modelId = painting.model
-  if (!modelId) return []
+  if (!modelId) {
+    throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
+  }
 
   return runPainting(async () => {
     const model =

@@ -1,6 +1,7 @@
 import { AiProvider } from '@renderer/aiCore'
 import type { Model } from '@renderer/types'
 
+import { createPaintingGenerateError } from '../../model/paintingGenerateError'
 import { runPainting } from '../../model/paintingGenerationService'
 import type { SiliconPaintingData } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
@@ -15,7 +16,13 @@ export async function generateWithSilicon(input: GenerateInput<SiliconPaintingDa
   const prompt = painting.prompt || ''
   const modelId = painting.model
 
-  if (!modelId) return []
+  if (!modelId) {
+    throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
+  }
+
+  if (!prompt.trim()) {
+    throw createPaintingGenerateError('PROMPT_REQUIRED')
+  }
 
   return runPainting(async () => {
     const model =

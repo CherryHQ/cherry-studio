@@ -3,7 +3,7 @@ import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 
 import { downloadImages } from '../utils/downloadImages'
-import { normalizePaintingGenerateError } from './paintingGenerateError'
+import { createPaintingGenerateError, normalizePaintingGenerateError } from './paintingGenerateError'
 
 const logger = loggerService.withContext('paintings/generation')
 
@@ -23,10 +23,11 @@ export async function resolvePaintingFiles(result: GenerationResult): Promise<Fi
     files = await downloadImages(result.urls, result.downloadOptions)
   }
 
-  if (files.length > 0) {
-    await FileManager.addFiles(files)
+  if (files.length === 0) {
+    throw createPaintingGenerateError('GENERATE_FAILED')
   }
 
+  await FileManager.addFiles(files)
   return files
 }
 
@@ -36,9 +37,12 @@ export async function runPainting(
   try {
     const result = await generate()
     if (!result) {
-      return []
+      throw createPaintingGenerateError('GENERATE_FAILED')
     }
     if (Array.isArray(result)) {
+      if (result.length === 0) {
+        throw createPaintingGenerateError('GENERATE_FAILED')
+      }
       await FileManager.addFiles(result)
       return result
     }

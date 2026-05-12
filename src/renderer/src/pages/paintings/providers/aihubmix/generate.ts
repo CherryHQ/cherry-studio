@@ -20,6 +20,21 @@ const MODE_TO_CONFIG: Record<AihubmixPaintingMode, string> = {
   upscale: 'aihubmix_image_upscale'
 }
 
+async function readErrorMessage(response: Response, fallbackKey = 'paintings.generate_failed'): Promise<string> {
+  const fallback = i18next.t(fallbackKey)
+  const text = await response.text().catch(() => '')
+  if (!text) {
+    return fallback
+  }
+
+  try {
+    const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string }
+    return parsed.error?.message || parsed.message || fallback
+  } catch {
+    return text.slice(0, 300) || fallback
+  }
+}
+
 export async function generateWithAihubmix(input: GenerateInput) {
   const { painting: rawPainting, provider, tab, abortController } = input
   const painting = rawPainting as PaintingData
@@ -28,7 +43,13 @@ export async function generateWithAihubmix(input: GenerateInput) {
 
   const prompt = painting.prompt || ''
 
-  if (!painting.model || !painting.prompt) return []
+  if (!painting.model) {
+    throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
+  }
+
+  if (!prompt.trim()) {
+    throw createPaintingGenerateError('PROMPT_REQUIRED')
+  }
   const modelId = painting.model
 
   return runPainting(async () => {
@@ -101,10 +122,10 @@ export async function generateWithAihubmix(input: GenerateInput) {
         })
 
         if (!response.ok) {
-          const errorData = await response.json()
-          logger.error('Gemini API Error:', errorData)
+          const message = await readErrorMessage(response)
+          logger.error('Gemini API Error:', { message })
           throw createPaintingGenerateError('REMOTE_ERROR', {
-            message: errorData.error?.message || i18next.t('paintings.generate_failed')
+            message
           })
         }
 
@@ -162,10 +183,10 @@ export async function generateWithAihubmix(input: GenerateInput) {
         })
 
         if (!response.ok) {
-          const errorData = await response.json()
-          logger.error('V3 API error:', errorData)
+          const message = await readErrorMessage(response)
+          logger.error('V3 API error:', { message })
           throw createPaintingGenerateError('REMOTE_ERROR', {
-            message: errorData.error?.message || i18next.t('paintings.generate_failed')
+            message
           })
         }
 
@@ -262,10 +283,10 @@ export async function generateWithAihubmix(input: GenerateInput) {
         })
 
         if (!response.ok) {
-          const errorData = await response.json()
-          logger.error('V3 Remix API error:', errorData)
+          const message = await readErrorMessage(response, 'paintings.image_mix_failed')
+          logger.error('V3 Remix API error:', { message })
           throw createPaintingGenerateError('REMOTE_ERROR', {
-            message: errorData.error?.message || i18next.t('paintings.image_mix_failed')
+            message
           })
         }
 
@@ -320,10 +341,10 @@ export async function generateWithAihubmix(input: GenerateInput) {
       const response = await fetch(url, { method: 'POST', headers, body, signal: abortController.signal })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        logger.error('API error:', errorData)
+        const message = await readErrorMessage(response)
+        logger.error('API error:', { message })
         throw createPaintingGenerateError('REMOTE_ERROR', {
-          message: errorData.error?.message || i18next.t('paintings.generate_failed')
+          message
         })
       }
 

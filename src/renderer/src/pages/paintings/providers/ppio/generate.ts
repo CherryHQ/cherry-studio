@@ -62,6 +62,9 @@ export async function generateWithPpio(input: GenerateInput<PpioPainting>) {
       )
 
       const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
+      if (validFiles.length === 0) {
+        throw createPaintingGenerateError('REMOTE_ERROR')
+      }
       return { files: validFiles }
     }
 

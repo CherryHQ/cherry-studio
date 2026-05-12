@@ -6,7 +6,13 @@ import type { GenerateInput } from '../types'
 export async function generateWithOvms(input: GenerateInput<OvmsPaintingData>) {
   const { painting, provider, abortController } = input
 
-  if (!painting.model || !painting.prompt) return []
+  if (!painting.model) {
+    throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
+  }
+
+  if (!painting.prompt?.trim()) {
+    throw createPaintingGenerateError('PROMPT_REQUIRED')
+  }
 
   return runPainting(async () => {
     const requestBody = {

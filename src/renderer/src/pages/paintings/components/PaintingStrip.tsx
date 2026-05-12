@@ -6,12 +6,15 @@ import type { FC, UIEventHandler } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type PaintingStripEntry, usePaintingHistory } from '../hooks/usePaintingHistory'
+import type { PaintingStripEntry } from '../hooks/usePaintingHistory'
 import type { PaintingData } from '../model/types/paintingData'
 import { paintingClasses } from '../PaintingPrimitives'
 
 interface PaintingStripProps {
   selectedPaintingId?: string
+  items: PaintingStripEntry[]
+  hasMore: boolean
+  loadMore: () => void
   onDeletePainting: (painting: PaintingData) => void
   onSelectPainting: (painting: PaintingData) => void
   onAddPainting: () => void
@@ -77,12 +80,14 @@ const PaintingStripItem: FC<{
 
 const PaintingStrip: FC<PaintingStripProps> = ({
   selectedPaintingId,
+  items,
+  hasMore,
+  loadMore,
   onDeletePainting,
   onSelectPainting,
   onAddPainting
 }) => {
   const { t } = useTranslation()
-  const { items, hasMore, loadMore } = usePaintingHistory()
   const [pendingDelete, setPendingDelete] = useState<PaintingStripEntry | null>(null)
   const stripRef = useRef<HTMLDivElement>(null)
   const handleScroll: UIEventHandler<HTMLDivElement> = (event) => {

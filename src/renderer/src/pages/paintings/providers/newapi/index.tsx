@@ -8,7 +8,7 @@ import { SettingHelpLink } from '../../../settings'
 import type { OpenApiCompatiblePaintingData as PaintingData } from '../../model/types/paintingData'
 import type { PaintingProviderRuntime } from '../../model/types/paintingProviderRuntime'
 import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions'
-import { createMultiModeProvider, type PaintingProviderDefinition } from '../types'
+import type { PaintingProvider, PaintingProviderDefinition } from '../types'
 import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from './config'
 import { newApiFields } from './fields'
 import { generateWithNewApi } from './generate'
@@ -48,7 +48,7 @@ function getModelDefaults(modelId: string) {
 }
 
 export function createNewApiProvider(providerId: string): PaintingProviderDefinition {
-  return createMultiModeProvider<PaintingData>({
+  const provider = {
     id: providerId,
     mode: {
       tabs: [
@@ -56,7 +56,7 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
         { value: 'edit', labelKey: 'paintings.mode.edit' }
       ],
       defaultTab: 'generate',
-      tabToDbMode: (tab: string) => tab as any,
+      tabToDbMode: (tab: string) => tab,
       getModels: () => ({
         type: 'async',
         loader: async () =>
@@ -84,7 +84,9 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
       }
     },
     generate: (input) => generateWithNewApi(input)
-  })
+  } satisfies PaintingProvider<PaintingData>
+
+  return provider
 }
 
 export { NewApiSetting } from './sidebar'

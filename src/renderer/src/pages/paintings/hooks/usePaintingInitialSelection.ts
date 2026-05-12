@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react'
 
 import type { PaintingData } from '../model/types/paintingData'
-import { usePaintingHistory } from './usePaintingHistory'
 
 interface UsePaintingInitialSelectionInput {
   currentPainting: PaintingData
+  historyItems: PaintingData[]
   setCurrentPainting: (painting: PaintingData) => void
 }
 
@@ -17,13 +17,16 @@ interface UsePaintingInitialSelectionInput {
  * path (`patchPainting`, `setCurrentPainting`) replaces the reference, so
  * once the user touches anything the guard will never pass again.
  */
-export function usePaintingInitialSelection({ currentPainting, setCurrentPainting }: UsePaintingInitialSelectionInput) {
-  const { items } = usePaintingHistory()
+export function usePaintingInitialSelection({
+  currentPainting,
+  historyItems,
+  setCurrentPainting
+}: UsePaintingInitialSelectionInput) {
   const initialDraftRef = useRef(currentPainting)
 
   useEffect(() => {
-    if (items.length === 0) return
+    if (historyItems.length === 0) return
     if (currentPainting !== initialDraftRef.current) return
-    setCurrentPainting(items[0])
-  }, [currentPainting, items, setCurrentPainting])
+    setCurrentPainting(historyItems[0])
+  }, [currentPainting, historyItems, setCurrentPainting])
 }

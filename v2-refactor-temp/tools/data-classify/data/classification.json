@@ -539,104 +539,96 @@
           "originalKey": "siliconflow_paintings",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         },
         {
           "originalKey": "dmxapi_paintings",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         },
         {
           "originalKey": "tokenflux_paintings",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         },
         {
           "originalKey": "zhipu_paintings",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         },
         {
           "originalKey": "aihubmix_image_generate",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         },
         {
           "originalKey": "aihubmix_image_remix",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         },
         {
           "originalKey": "aihubmix_image_edit",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         },
         {
           "originalKey": "aihubmix_image_upscale",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         },
         {
           "originalKey": "openai_image_generate",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         },
         {
           "originalKey": "openai_image_edit",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         },
         {
           "originalKey": "ovms_paintings",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         },
         {
           "originalKey": "ppio_draw",
           "type": "array",
           "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
-          "targetKey": null
-        },
-        {
-          "originalKey": "ppio_edit",
-          "type": "array",
-          "defaultValue": [],
-          "status": "classified",
-          "category": "user_data",
+          "status": "pending",
+          "category": null,
           "targetKey": null
         }
       ],

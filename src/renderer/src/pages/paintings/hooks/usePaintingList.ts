@@ -17,6 +17,7 @@ interface UsePaintingListInput {
   setCurrentPainting: (painting: PaintingData) => void
   currentProviderDefinition: PaintingProviderDefinition
   modelOptions: ModelOption[]
+  historyItems: PaintingData[]
   cancelGeneration: (paintingId: string) => void
 }
 
@@ -37,12 +38,15 @@ export function usePaintingList({
   setCurrentPainting,
   currentProviderDefinition,
   modelOptions,
+  historyItems,
   cancelGeneration
 }: UsePaintingListInput) {
   const { createPainting, updatePainting, deletePainting, refresh } = usePaintings()
   const modelOptionsRef = useRef<ModelOption[]>([])
+  const historyItemsRef = useRef<PaintingData[]>([])
   const paintingRef = useRef(painting)
   modelOptionsRef.current = modelOptions
+  historyItemsRef.current = historyItems
   paintingRef.current = painting
 
   const saveCurrent = useCallback(async () => {
@@ -93,10 +97,17 @@ export function usePaintingList({
 
   const selectNextAfterDelete = useCallback(
     async (deletedId: string) => {
-      const response = (await refresh()) as { items?: Parameters<typeof recordToPaintingData>[0][] } | undefined
-      const nextRecord = response?.items?.find((item) => item.id !== deletedId)
-      if (nextRecord) {
-        setCurrentPainting(await recordToPaintingData(nextRecord))
+      const currentItems = historyItemsRef.current
+      const deletedIndex = currentItems.findIndex((item) => item.id === deletedId)
+      const nextPainting =
+        deletedIndex >= 0
+          ? (currentItems[deletedIndex + 1] ?? currentItems[deletedIndex - 1])
+          : currentItems.find((item) => item.id !== deletedId)
+
+      await refresh()
+
+      if (nextPainting) {
+        setCurrentPainting(nextPainting)
         return
       }
       await add()

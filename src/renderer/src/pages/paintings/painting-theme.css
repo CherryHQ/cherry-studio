@@ -13,9 +13,9 @@
   --painting-control-bg-hover: hsl(var(--muted) / 0.5);
   --painting-choice-bg: hsl(var(--muted) / 0.25);
   --painting-choice-bg-hover: hsl(var(--muted) / 0.4);
-  --painting-choice-active-bg: #6b728014;
-  --painting-choice-active-fg: #4b5563;
-  --painting-choice-active-ring: #6b728080;
+  --painting-choice-active-bg: hsl(var(--muted) / 0.45);
+  --painting-choice-active-fg: hsl(var(--foreground) / 0.78);
+  --painting-choice-active-ring: hsl(var(--border) / 0.9);
   --painting-surface-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
   --painting-floating-shadow: 0 24px 60px -20px rgba(15, 23, 42, 0.18);
 }

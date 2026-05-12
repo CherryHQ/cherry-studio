@@ -12,6 +12,21 @@ type ImageResponseItem = {
   b64_json?: string
 }
 
+async function readErrorMessage(response: Response): Promise<string> {
+  const fallback = `HTTP ${response.status}`
+  const text = await response.text().catch(() => '')
+  if (!text) {
+    return fallback
+  }
+
+  try {
+    const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string }
+    return parsed.error?.message || parsed.message || fallback
+  } catch {
+    return text.slice(0, 300) || fallback
+  }
+}
+
 function buildRequestUrls(provider: GenerateInput['provider']) {
   const baseUrl = provider.apiHost.replace(/\/v1$/, '')
 
@@ -77,7 +92,13 @@ export async function generateWithNewApi(input: GenerateInput) {
     throw createPaintingGenerateError('NO_API_KEY')
   }
 
-  if (!painting.model || !painting.prompt) return []
+  if (!painting.model) {
+    throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
+  }
+
+  if (!prompt.trim()) {
+    throw createPaintingGenerateError('PROMPT_REQUIRED')
+  }
 
   const modelId = painting.model
 
@@ -115,9 +136,8 @@ export async function generateWithNewApi(input: GenerateInput) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
       throw createPaintingGenerateError('REMOTE_ERROR', {
-        message: errorData.error?.message || i18next.t('paintings.generate_failed')
+        message: (await readErrorMessage(response)) || i18next.t('paintings.generate_failed')
       })
     }
 

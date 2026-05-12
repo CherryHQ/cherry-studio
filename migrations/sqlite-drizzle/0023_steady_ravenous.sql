@@ -13,5 +13,5 @@ CREATE TABLE `painting` (
 	CONSTRAINT "painting_media_type_check" CHECK("painting"."media_type" IN ('image', 'video'))
 );
 --> statement-breakpoint
-CREATE INDEX `painting_provider_mode_order_key_idx` ON `painting` (`provider_id`,`mode`,`order_key`);--> statement-breakpoint
+CREATE INDEX `painting_order_key_idx` ON `painting` (`order_key`);--> statement-breakpoint
 CREATE INDEX `painting_provider_mode_created_idx` ON `painting` (`provider_id`,`mode`,`created_at`);

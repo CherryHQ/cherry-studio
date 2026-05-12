@@ -10,6 +10,7 @@ import { PaintingArtboard, PaintingProviderHeaderActions } from './components/Pa
 import PaintingSettings from './components/PaintingSettings'
 import PaintingStrip from './components/PaintingStrip'
 import { usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
+import { usePaintingHistory } from './hooks/usePaintingHistory'
 import { usePaintingInitialProvider } from './hooks/usePaintingInitialProvider'
 import { usePaintingInitialSelection } from './hooks/usePaintingInitialSelection'
 import { usePaintingList } from './hooks/usePaintingList'
@@ -32,7 +33,9 @@ const PaintingPage: FC = () => {
     setCurrentPainting((current) => ({ ...current, ...updates }) as PaintingData)
   }, [])
 
-  usePaintingInitialSelection({ currentPainting, setCurrentPainting })
+  const history = usePaintingHistory()
+
+  usePaintingInitialSelection({ currentPainting, historyItems: history.items, setCurrentPainting })
 
   const currentProviderId = currentPainting.providerId || initialProviderId
   const currentProviderDefinition = useMemo(
@@ -69,6 +72,7 @@ const PaintingPage: FC = () => {
     setCurrentPainting,
     currentProviderDefinition,
     modelOptions: modelCatalog.currentModelOptions,
+    historyItems: history.items,
     cancelGeneration
   })
 
@@ -85,7 +89,7 @@ const PaintingPage: FC = () => {
   return (
     <div className={paintingClasses.page}>
       <div id="content-container" className={paintingClasses.content}>
-        <div className="flex h-full flex-1 flex-col bg-white dark:bg-background">
+        <div className="flex h-full flex-1 flex-col">
           <div className={paintingClasses.frame}>
             <div className={paintingClasses.surface}>
               <div className={paintingClasses.panel}>
@@ -123,6 +127,9 @@ const PaintingPage: FC = () => {
 
               <PaintingStrip
                 selectedPaintingId={currentPainting.id}
+                items={history.items}
+                hasMore={history.hasMore}
+                loadMore={history.loadMore}
                 onDeletePainting={list.remove}
                 onSelectPainting={list.select}
                 onAddPainting={list.add}

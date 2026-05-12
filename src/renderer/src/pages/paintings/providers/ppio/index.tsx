@@ -1,12 +1,12 @@
 import type { PpioPaintingData as PaintingData } from '../../model/types/paintingData'
-import { createMultiModeProvider, type PaintingProviderDefinition } from '../types'
+import type { PaintingProvider } from '../types'
 import { getModelsByMode, type PpioMode } from './config'
 import { createDefaultPpioPainting } from './config'
 import { ppioFields } from './fields'
 import { generateWithPpio } from './generate'
 import { getPpioPreviewSrc, handlePpioImageUpload, ppioImagePlaceholder } from './imageUpload'
 
-export const ppioProvider: PaintingProviderDefinition = createMultiModeProvider<PaintingData>({
+export const ppioProvider = {
   id: 'ppio',
   mode: {
     tabs: [
@@ -34,4 +34,4 @@ export const ppioProvider: PaintingProviderDefinition = createMultiModeProvider<
     placeholder: ppioImagePlaceholder
   },
   generate: generateWithPpio
-})
+} satisfies PaintingProvider<PaintingData>
