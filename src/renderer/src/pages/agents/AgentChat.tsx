@@ -16,9 +16,10 @@ import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
 import type { PropsWithChildren, ReactNode } from 'react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import SettingsPanel from '../chat-settings/SettingsPanel'
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
 import ChatNavigation from '../home/Messages/ChatNavigation'
 import ExecutionStreamCollector from '../home/Messages/ExecutionStreamCollector'
@@ -132,6 +133,7 @@ const AgentChatInner = ({
   messageStyle,
   isMultiSelectMode
 }: InnerProps) => {
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const { messages: uiMessages, isLoading, hasOlder, loadOlder, refresh } = useAgentSessionParts(agentId, sessionId)
   const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
@@ -197,7 +199,11 @@ const AgentChatInner = ({
       topBar={
         activeAgent && (
           <div className="flex h-fit w-full min-w-0">
-            <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} />
+            <AgentChatNavbar
+              className="min-w-0"
+              activeAgent={activeAgent}
+              onOpenSettings={() => setSettingsOpen(true)}
+            />
           </div>
         )
       }
@@ -243,6 +249,7 @@ const AgentChatInner = ({
           isStreaming={isPending}
         />
       }
+      sidePanel={<SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} mode="agent" />}
     />
   )
 }
@@ -254,6 +261,8 @@ interface AgentChatFrameProps {
   topBar?: ReactNode
   main: ReactNode
   bottomComposer?: ReactNode
+  sidePanel?: ReactNode
+  overlay?: ReactNode
   className?: string
 }
 
@@ -264,6 +273,8 @@ const AgentChatFrame = ({
   topBar,
   main,
   bottomComposer,
+  sidePanel,
+  overlay,
   className
 }: AgentChatFrameProps) => (
   <Container className={className}>
@@ -275,6 +286,8 @@ const AgentChatFrame = ({
         topBar={topBar}
         main={main}
         bottomComposer={bottomComposer}
+        sidePanel={sidePanel}
+        overlay={overlay}
       />
     </QuickPanelProvider>
   </Container>

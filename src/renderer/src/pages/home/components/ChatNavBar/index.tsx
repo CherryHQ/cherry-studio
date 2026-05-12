@@ -15,9 +15,10 @@ interface Props {
   /** `undefined` when the topic has no associated assistant. */
   assistantId: string | undefined
   topicId: string
+  onOpenSettings: () => void
 }
 
-const HeaderNavbar: FC<Props> = ({ assistantId, topicId }) => {
+const HeaderNavbar: FC<Props> = ({ assistantId, topicId, onOpenSettings }) => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { isTopNavbar } = useNavbarPosition()
@@ -43,7 +44,7 @@ const HeaderNavbar: FC<Props> = ({ assistantId, topicId }) => {
             </NavbarIcon>
           </Tooltip>
         )}
-        <ChatNavbarContent assistantId={assistantId} topicId={topicId} />
+        <ChatNavbarContent assistantId={assistantId} topicId={topicId} onOpenSettings={onOpenSettings} />
       </div>
     </NavbarHeader>
   )
