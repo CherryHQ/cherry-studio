@@ -6692,7 +6692,8 @@
         "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
         "default_provider": "Default Provider",
         "errors": {
-          "save_failed": "Save failed"
+          "save_failed": "Save failed",
+          "zhipu_sync_failed": "Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
         },
         "fetch_urls_provider": "Default URL fetch provider",
         "free": "Free",

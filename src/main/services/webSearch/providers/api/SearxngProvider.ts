@@ -149,6 +149,13 @@ export class SearxngProvider extends BaseWebSearchProvider {
     searchPayload: z.infer<typeof SearxngSearchResponseSchema>
   ) {
     const validItems = searchPayload.results.filter((item) => isValidUrl(item.url || '')).slice(0, context.maxResults)
+    if (validItems.length === 0 && searchPayload.results.length > 0) {
+      logger.warn('All Searxng search URLs failed validation', {
+        query: context.query,
+        total: searchPayload.results.length
+      })
+    }
+
     const settledResults = await Promise.allSettled(
       validItems.map((item) => fetchWebSearchContent(item.url || '', { signal: context.signal }))
     )

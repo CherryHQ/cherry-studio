@@ -97,6 +97,12 @@ describe('webSearch config utils', () => {
     })
   })
 
+  it('throws a clear error for unknown provider ids', async () => {
+    await expect(getProviderById('unknown' as any, mockPreferenceReader)).rejects.toThrow(
+      'Unknown web search provider: unknown'
+    )
+  })
+
   it('trims basic auth password whitespace when resolving providers', async () => {
     const provider = await getProviderById('searxng', {
       async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
@@ -187,6 +193,12 @@ describe('webSearch config utils', () => {
   it('throws when an explicit provider does not support the requested capability', async () => {
     await expect(getProviderForCapability('fetch', 'searchKeywords', mockPreferenceReader)).rejects.toThrow(
       'Web search provider fetch does not support capability searchKeywords'
+    )
+  })
+
+  it('throws a clear error when an explicit provider id is unknown', async () => {
+    await expect(getProviderForCapability('unknown' as any, 'searchKeywords', mockPreferenceReader)).rejects.toThrow(
+      'Unknown web search provider: unknown'
     )
   })
 })

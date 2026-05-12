@@ -140,8 +140,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
 
   const providerCheck = useWebSearchProviderCheck({
     provider,
-    capability,
-    commitForm: async () => undefined
+    capability
   })
   const apiKeyWebsite = getWebSearchProviderApiKeyWebsite(provider.id)
   const officialWebsite = getWebSearchProviderOfficialWebsite(provider.id)

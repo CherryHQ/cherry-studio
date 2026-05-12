@@ -38,6 +38,10 @@ export async function getProviderOverrides(
 }
 
 function getWebSearchProviderPresetById(providerId: WebSearchProvider['id']): WebSearchProviderPreset {
+  if (!Object.hasOwn(WEB_SEARCH_PROVIDER_PRESET_MAP, providerId)) {
+    throw new Error(`Unknown web search provider: ${providerId}`)
+  }
+
   return {
     id: providerId,
     ...WEB_SEARCH_PROVIDER_PRESET_MAP[providerId]

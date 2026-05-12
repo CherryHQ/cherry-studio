@@ -1,5 +1,4 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
-import type { ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import { Tooltip } from 'antd'
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
@@ -8,7 +7,6 @@ import { useTranslation } from 'react-i18next'
 import { useWebSearchPanelController, WebSearchProviderIcon } from './WebSearchQuickPanelManager'
 
 interface Props {
-  quickPanelController: ToolQuickPanelController
   assistantId: string
 }
 

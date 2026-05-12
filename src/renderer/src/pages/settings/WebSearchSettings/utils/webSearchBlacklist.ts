@@ -5,7 +5,6 @@ const logger = loggerService.withContext('WebSearchBlacklist')
 
 export type WebSearchBlacklistParseResult = {
   validDomains: string[]
-  hasError: boolean
   invalidEntries: string[]
 }
 
@@ -39,5 +38,5 @@ export function parseWebSearchBlacklistInput(input: string): WebSearchBlacklistP
     validDomains.push(trimmedEntry)
   }
 
-  return { validDomains, hasError: invalidEntries.length > 0, invalidEntries }
+  return { validDomains, invalidEntries }
 }

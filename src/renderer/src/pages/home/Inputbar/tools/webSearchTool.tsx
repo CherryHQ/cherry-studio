@@ -16,9 +16,9 @@ const webSearchTool = defineTool({
   visibleInScopes: [TopicType.Chat],
 
   render: function WebSearchToolRender(context) {
-    const { assistant, quickPanelController } = context
+    const { assistant } = context
 
-    return <WebSearchButton quickPanelController={quickPanelController} assistantId={assistant.id} />
+    return <WebSearchButton assistantId={assistant.id} />
   },
   quickPanelManager: WebSearchQuickPanelManager
 })

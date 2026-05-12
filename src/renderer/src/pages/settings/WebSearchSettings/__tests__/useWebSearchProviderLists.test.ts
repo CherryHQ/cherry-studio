@@ -18,7 +18,6 @@ describe('useWebSearchProviderLists', () => {
 
     expect(result.current.keywordProviders.some((provider) => provider.id === 'tavily')).toBe(true)
     expect(result.current.fetchUrlsProviders.some((provider) => provider.id === 'fetch')).toBe(true)
-    expect(result.current.providerIds).toContain('tavily')
     expect(result.current.featureSections.find((section) => section.capability === 'searchKeywords')?.entries).toEqual(
       expect.arrayContaining([expect.objectContaining({ key: 'searchKeywords:jina' })])
     )

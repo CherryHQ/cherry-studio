@@ -4,14 +4,17 @@ import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchExecutionConfig } from '@shared/data/types/webSearch'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const fetchMock = vi.hoisted(() => vi.fn())
+const mocks = vi.hoisted(() => ({
+  fetch: vi.fn(),
+  loggerWarn: vi.fn()
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
       debug: vi.fn(),
       info: vi.fn(),
-      warn: vi.fn(),
+      warn: mocks.loggerWarn,
       error: vi.fn()
     })
   }
@@ -19,7 +22,7 @@ vi.mock('@logger', () => ({
 
 vi.mock('electron', () => ({
   net: {
-    fetch: fetchMock
+    fetch: mocks.fetch
   }
 }))
 
@@ -35,6 +38,7 @@ import { ZhipuProvider } from '../api/ZhipuProvider'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
 
 const { readFileSync } = await vi.importActual<typeof NodeFs>('node:fs')
+const fetchMock = mocks.fetch
 
 const runtimeConfig: WebSearchExecutionConfig = {
   maxResults: 4,
@@ -147,6 +151,7 @@ describe('main web search API providers', () => {
 
   beforeEach(() => {
     fetchMock.mockReset()
+    mocks.loggerWarn.mockReset()
   })
 
   it('matches Exa request and normalized response snapshots from fixtures', async () => {
@@ -545,6 +550,38 @@ describe('main web search API providers', () => {
       capability: 'searchKeywords',
       inputs: ['hello'],
       results: []
+    })
+  })
+
+  it('warns when every Searxng result URL fails validation', async () => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        query: 'hello',
+        results: [
+          {
+            title: 'Invalid result',
+            url: 'not a url'
+          }
+        ]
+      })
+    )
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(result.results).toEqual([])
+    expect(mocks.loggerWarn).toHaveBeenCalledWith('All Searxng search URLs failed validation', {
+      query: 'hello',
+      total: 1
     })
   })
 

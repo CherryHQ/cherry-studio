@@ -10,14 +10,14 @@ export const BUILTIN_FETCH_URLS_TOOL_NAME = 'builtin_fetch_urls'
 const MAX_BUILTIN_WEB_SEARCH_QUERIES = 3
 const MAX_BUILTIN_FETCH_URLS = 20
 
-function normalizeInputs(inputs: string[], limit: number): string[] {
+function normalizeInputs(inputs: string[], limit: number, getDeduplicationKey: (input: string) => string): string[] {
   const seen = new Set<string>()
 
   return inputs
     .map((input) => input.trim())
     .filter(Boolean)
     .filter((input) => {
-      const key = input.toLocaleLowerCase()
+      const key = getDeduplicationKey(input)
       if (seen.has(key)) {
         return false
       }
@@ -25,6 +25,14 @@ function normalizeInputs(inputs: string[], limit: number): string[] {
       return true
     })
     .slice(0, limit)
+}
+
+function normalizeSearchQueries(inputs: string[], limit: number): string[] {
+  return normalizeInputs(inputs, limit, (input) => input.toLocaleLowerCase())
+}
+
+function normalizeFetchUrls(inputs: string[], limit: number): string[] {
+  return normalizeInputs(inputs, limit, (input) => input)
 }
 
 function toWebSearchModelOutput(results: WebSearchResponse, action: 'search' | 'fetch') {
@@ -77,7 +85,7 @@ export const webSearchTool = () =>
       additionalContext: z.string().optional().describe('Fallback single query when the model omits the queries array.')
     }),
     execute: async ({ queries, additionalContext }) => {
-      const keywords = normalizeInputs(
+      const keywords = normalizeSearchQueries(
         queries?.length ? queries : [additionalContext ?? ''],
         MAX_BUILTIN_WEB_SEARCH_QUERIES
       )
@@ -100,7 +108,7 @@ export const fetchUrlsTool = () =>
       urls: z.array(z.string()).min(1).describe('Absolute URLs to fetch.')
     }),
     execute: async ({ urls }) => {
-      const normalizedUrls = normalizeInputs(urls, MAX_BUILTIN_FETCH_URLS)
+      const normalizedUrls = normalizeFetchUrls(urls, MAX_BUILTIN_FETCH_URLS)
       if (normalizedUrls.length === 0) {
         throw new Error('Provide at least one URL in `urls` (string array).')
       }

@@ -6692,7 +6692,8 @@
         "content_limit_tooltip": "限制搜尋結果的內容長度；超過限制的內容將被截斷。",
         "default_provider": "預設搜尋供應商",
         "errors": {
-          "save_failed": "儲存失敗"
+          "save_failed": "儲存失敗",
+          "zhipu_sync_failed": "智譜 API 金鑰同步到 Web Search 失敗，請重新儲存金鑰或檢查 Web Search 設定。"
         },
         "fetch_urls_provider": "預設 URL 擷取供應商",
         "free": "免費",

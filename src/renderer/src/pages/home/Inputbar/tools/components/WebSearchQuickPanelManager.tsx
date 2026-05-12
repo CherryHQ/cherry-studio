@@ -105,5 +105,6 @@ export const useWebSearchPanelController = (assistantId: string) => {
 }
 
 export default function WebSearchQuickPanelManager() {
+  // Inputbar tools require a quickPanelManager export even when this tool has no panel UI.
   return null
 }

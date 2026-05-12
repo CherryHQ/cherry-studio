@@ -14,15 +14,19 @@ const BlacklistSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
   const [invalidEntries, setInvalidEntries] = useState<string[]>([])
-  const [blacklistInput, setBlacklistInput] = useState('')
   const { excludeDomains, setExcludeDomains } = useWebSearchSettings()
+  const savedBlacklistInput = excludeDomains.join('\n')
+  const [blacklistInput, setBlacklistInput] = useState(savedBlacklistInput)
+  const [blacklistBaseline, setBlacklistBaseline] = useState(savedBlacklistInput)
+  const blacklistDirty = blacklistInput !== blacklistBaseline
   const persist = useWebSearchPersist()
 
   useEffect(() => {
-    if (excludeDomains) {
-      setBlacklistInput(excludeDomains.join('\n'))
+    if (!blacklistDirty) {
+      setBlacklistInput(savedBlacklistInput)
     }
-  }, [excludeDomains])
+    setBlacklistBaseline(savedBlacklistInput)
+  }, [blacklistDirty, savedBlacklistInput])
 
   async function updateManualBlacklist(blacklist: string) {
     const { validDomains, invalidEntries: parsedInvalidEntries } = parseWebSearchBlacklistInput(blacklist)
@@ -32,6 +36,10 @@ const BlacklistSettings: FC = () => {
 
     const saved = await persist(() => setExcludeDomains(validDomains), 'Failed to save web search blacklist')
     if (saved.ok) {
+      const nextBlacklistInput = validDomains.join('\n')
+
+      setBlacklistInput(nextBlacklistInput)
+      setBlacklistBaseline(nextBlacklistInput)
       window.toast.info({
         title: t('message.save.success.title'),
         timeout: 4000,

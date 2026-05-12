@@ -13,6 +13,7 @@ const searchKeywordsMock = vi.fn()
 const fetchUrlsMock = vi.fn()
 const toastSuccessMock = vi.fn()
 const toastErrorMock = vi.fn()
+const toastInfoMock = vi.fn()
 const mocks = vi.hoisted(() => ({
   useWebSearchApiKeyList: vi.fn()
 }))
@@ -98,7 +99,22 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
     </button>
   ),
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
-  Slider: ({ value }: { value?: number[] }) => <div data-testid="slider">{value?.[0]}</div>,
+  Slider: ({
+    value,
+    onValueChange,
+    onValueCommit
+  }: {
+    value?: number[]
+    onValueChange?: (value: number[]) => void
+    onValueCommit?: (value: number[]) => void
+  }) => (
+    <div>
+      <div data-testid="slider">{value?.[0]}</div>
+      <button type="button" aria-label="slider-change-10" onClick={() => onValueChange?.([10])} />
+      <button type="button" aria-label="slider-change-20" onClick={() => onValueChange?.([20])} />
+      <button type="button" aria-label="slider-commit-10" onClick={() => onValueCommit?.([10])} />
+    </div>
+  ),
   Textarea: {
     Input: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />
   },
@@ -129,7 +145,8 @@ describe('WebSearchSettings', () => {
       toast: {
         ...window.toast,
         success: toastSuccessMock,
-        error: toastErrorMock
+        error: toastErrorMock,
+        info: toastInfoMock
       }
     })
     searchKeywordsMock.mockResolvedValue({ results: [] })
@@ -162,6 +179,144 @@ describe('WebSearchSettings', () => {
     expect(screen.getAllByText('settings.tool.websearch.default_provider').length).toBeGreaterThan(0)
     expect(screen.getAllByText('settings.tool.websearch.fetch_urls_provider').length).toBeGreaterThan(0)
     expect(screen.getByText('settings.tool.websearch.search_max_result.label')).toBeInTheDocument()
+  })
+
+  it('syncs clean max-result drafts from external preference changes', () => {
+    const { rerender } = render(<WebSearchSettings />)
+
+    expect(screen.getByTestId('slider')).toHaveTextContent('5')
+
+    MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.max_results', 20)
+    rerender(<WebSearchSettings />)
+
+    expect(screen.getByTestId('slider')).toHaveTextContent('20')
+  })
+
+  it('keeps dirty max-result drafts when maxResults changes externally', () => {
+    const { rerender } = render(<WebSearchSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'slider-change-10' }))
+    expect(screen.getByTestId('slider')).toHaveTextContent('10')
+
+    MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.max_results', 20)
+    rerender(<WebSearchSettings />)
+
+    expect(screen.getByTestId('slider')).toHaveTextContent('10')
+  })
+
+  it('marks max-result drafts clean after a successful commit', async () => {
+    const { rerender } = render(<WebSearchSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'slider-change-10' }))
+    fireEvent.click(screen.getByRole('button', { name: 'slider-commit-10' }))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(10)
+    })
+
+    MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.max_results', 20)
+    rerender(<WebSearchSettings />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('slider')).toHaveTextContent('20')
+    })
+  })
+
+  it('syncs clean blacklist drafts from external preference changes', () => {
+    const { rerender } = render(<WebSearchSettings />)
+
+    const textarea = screen.getByPlaceholderText('settings.tool.websearch.blacklist_tooltip')
+    expect(textarea).toHaveValue('')
+
+    MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.exclude_domains', [
+      'https://example.com/*'
+    ])
+    rerender(<WebSearchSettings />)
+
+    expect(screen.getByPlaceholderText('settings.tool.websearch.blacklist_tooltip')).toHaveValue(
+      'https://example.com/*'
+    )
+  })
+
+  it('keeps dirty blacklist drafts when excludeDomains changes externally', () => {
+    const { rerender } = render(<WebSearchSettings />)
+
+    fireEvent.change(screen.getByPlaceholderText('settings.tool.websearch.blacklist_tooltip'), {
+      target: { value: 'https://draft.example/*' }
+    })
+
+    MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.exclude_domains', [
+      'https://external.example/*'
+    ])
+    rerender(<WebSearchSettings />)
+
+    expect(screen.getByPlaceholderText('settings.tool.websearch.blacklist_tooltip')).toHaveValue(
+      'https://draft.example/*'
+    )
+  })
+
+  it('marks blacklist drafts clean after a successful save', async () => {
+    const { rerender } = render(<WebSearchSettings />)
+
+    fireEvent.change(screen.getByPlaceholderText('settings.tool.websearch.blacklist_tooltip'), {
+      target: { value: 'https://saved.example/*' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.exclude_domains')).toEqual([
+        'https://saved.example/*'
+      ])
+    })
+
+    MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.exclude_domains', [
+      'https://external.example/*'
+    ])
+    rerender(<WebSearchSettings />)
+
+    expect(screen.getByPlaceholderText('settings.tool.websearch.blacklist_tooltip')).toHaveValue(
+      'https://external.example/*'
+    )
+  })
+
+  it('saves default cutoff limit when cutoff input is cleared', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.method', 'cutoff')
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_limit', 5000)
+    render(<WebSearchSettings />)
+
+    fireEvent.change(screen.getByPlaceholderText('settings.tool.websearch.compression.cutoff.limit.placeholder'), {
+      target: { value: '' }
+    })
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBe(2000)
+    })
+  })
+
+  it('saves positive cutoff limit input values', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.method', 'cutoff')
+    render(<WebSearchSettings />)
+
+    fireEvent.change(screen.getByPlaceholderText('settings.tool.websearch.compression.cutoff.limit.placeholder'), {
+      target: { value: '3500' }
+    })
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBe(3500)
+    })
+  })
+
+  it('ignores invalid cutoff limit input values', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.method', 'cutoff')
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.compression.cutoff_limit', 5000)
+    render(<WebSearchSettings />)
+
+    const input = screen.getByPlaceholderText('settings.tool.websearch.compression.cutoff.limit.placeholder')
+    fireEvent.change(input, { target: { value: 'abc' } })
+    fireEvent.change(input, { target: { value: '0' } })
+    fireEvent.change(input, { target: { value: '-1' } })
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.compression.cutoff_limit')).toBe(5000)
   })
 
   it('switches provider panels using local page state', () => {

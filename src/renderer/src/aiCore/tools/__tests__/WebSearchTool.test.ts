@@ -110,6 +110,45 @@ describe('fetchUrlsTool', () => {
     expect(modelText).toContain('"title": "Example"')
   })
 
+  it('preserves case-sensitive URL paths when deduplicating fetch URLs', async () => {
+    const response: WebSearchResponse = {
+      query: 'https://example.com/Repo | https://example.com/repo',
+      providerId: 'fetch',
+      capability: 'fetchUrls',
+      inputs: ['https://example.com/Repo', 'https://example.com/repo'],
+      results: []
+    }
+    mocks.fetchUrls.mockResolvedValue(response)
+
+    const fetchTool = fetchUrlsTool() as any
+    await fetchTool.execute({
+      urls: [' https://example.com/Repo ', 'https://example.com/repo', 'https://example.com/Repo']
+    })
+
+    expect(mocks.fetchUrls).toHaveBeenCalledWith({
+      urls: ['https://example.com/Repo', 'https://example.com/repo']
+    })
+  })
+
+  it('limits fetch URLs to 20 entries after trimming and exact deduplication', async () => {
+    const response: WebSearchResponse = {
+      query: 'many urls',
+      providerId: 'fetch',
+      capability: 'fetchUrls',
+      inputs: [],
+      results: []
+    }
+    mocks.fetchUrls.mockResolvedValue(response)
+
+    const urls = Array.from({ length: 25 }, (_, index) => ` https://example.com/${index} `)
+    const fetchTool = fetchUrlsTool() as any
+    await fetchTool.execute({ urls })
+
+    expect(mocks.fetchUrls).toHaveBeenCalledWith({
+      urls: Array.from({ length: 20 }, (_, index) => `https://example.com/${index}`)
+    })
+  })
+
   it('rejects empty URL inputs before calling main fetch URLs IPC', async () => {
     const fetchTool = fetchUrlsTool() as any
 

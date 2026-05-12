@@ -9,7 +9,6 @@ export function useWebSearchProviderLists(): ReturnType<typeof useWebSearchProvi
   keywordProviders: WebSearchProvider[]
   fetchUrlsProviders: WebSearchProvider[]
   featureSections: WebSearchProviderFeatureSection[]
-  providerIds: string[]
 } {
   const webSearchProviders = useWebSearchProviders()
   const { providers } = webSearchProviders
@@ -33,12 +32,9 @@ export function useWebSearchProviderLists(): ReturnType<typeof useWebSearchProvi
 
   const featureSections = useMemo(() => getWebSearchFeatureSections(providers), [providers])
 
-  const providerIds = useMemo(() => providers.map((provider) => provider.id), [providers])
-
   return {
     ...webSearchProviders,
     ...providersByCapability,
-    featureSections,
-    providerIds
+    featureSections
   }
 }

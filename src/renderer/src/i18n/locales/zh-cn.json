@@ -6692,7 +6692,8 @@
         "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断",
         "default_provider": "默认搜索服务商",
         "errors": {
-          "save_failed": "保存失败"
+          "save_failed": "保存失败",
+          "zhipu_sync_failed": "智谱 API 密钥同步到 Web Search 失败，请重新保存密钥或检查 Web Search 设置。"
         },
         "fetch_urls_provider": "默认 URL 获取服务商",
         "free": "免费",

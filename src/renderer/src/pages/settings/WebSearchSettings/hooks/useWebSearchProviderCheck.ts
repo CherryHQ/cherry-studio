@@ -11,10 +11,9 @@ const WEB_SEARCH_CHECK_URL = 'https://example.com'
 type UseWebSearchProviderCheckOptions = {
   provider: WebSearchProvider
   capability: WebSearchCapability
-  commitForm: () => Promise<void>
 }
 
-export function useWebSearchProviderCheck({ provider, capability, commitForm }: UseWebSearchProviderCheckOptions) {
+export function useWebSearchProviderCheck({ provider, capability }: UseWebSearchProviderCheckOptions) {
   const { t } = useTranslation()
   const [checking, setChecking] = useState(false)
   const canCheck = provider.id !== 'fetch'
@@ -27,8 +26,6 @@ export function useWebSearchProviderCheck({ provider, capability, commitForm }: 
     setChecking(true)
 
     const runCheck = async () => {
-      await commitForm()
-
       if (capability === 'fetchUrls') {
         await window.api.webSearch.fetchUrls({ providerId: provider.id, urls: [WEB_SEARCH_CHECK_URL] })
       } else {
@@ -48,7 +45,7 @@ export function useWebSearchProviderCheck({ provider, capability, commitForm }: 
         window.toast.error(`${t('settings.tool.websearch.check_failed')}: ${errorMessage}`)
       }
     )
-  }, [canCheck, capability, checking, commitForm, provider.id, t])
+  }, [canCheck, capability, checking, provider.id, t])
 
   return {
     checking,

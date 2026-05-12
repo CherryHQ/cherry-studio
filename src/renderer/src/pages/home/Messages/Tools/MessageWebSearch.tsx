@@ -33,22 +33,6 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
   )
 }
 
-// export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: MCPToolResponse }) => {
-//   const toolOutput = toolResponse.response as WebSearchToolOutput
-
-//   return toolResponse.status === 'done'
-//     ? toolOutput?.results?.map((result, index) => (
-//         <MessageWebSearchToolBodyUlWrapper key={result?.query ?? '' + index}>
-//           {result.results.map((item, index) => (
-//             <li key={item.url + index}>
-//               <Link href={item.url}>{item.title}</Link>
-//             </li>
-//           ))}
-//         </MessageWebSearchToolBodyUlWrapper>
-//       ))
-//     : null
-// }
-
 const PrepareToolWrapper = styled.span`
   display: flex;
   align-items: center;
@@ -64,10 +48,3 @@ const MessageWebSearchToolTitleTextWrapper = styled(Text)`
   gap: 4px;
   padding: 5px;
 `
-
-// const MessageWebSearchToolBodyUlWrapper = styled.ul`
-//   display: flex;
-//   flex-direction: column;
-//   gap: 4px;
-//   padding: 0;
-// `

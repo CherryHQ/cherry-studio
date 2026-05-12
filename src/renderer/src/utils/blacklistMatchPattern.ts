@@ -1,8 +1,3 @@
-import { loggerService } from '@logger'
-import type { WebSearchProviderResponse, WebSearchState } from '@renderer/types'
-
-const logger = loggerService.withContext('BlacklistMatchPattern')
-
 /*
  * MIT License
  *
@@ -210,69 +205,4 @@ export function mapRegexToPatterns(patterns: string[]): string[] {
   })
 
   return Array.from(patternSet)
-}
-
-export async function filterResultWithBlacklist(
-  response: WebSearchProviderResponse,
-  websearch: Pick<WebSearchState, 'excludeDomains'>
-): Promise<WebSearchProviderResponse> {
-  logger.debug('[filterResultWithBlacklist]', response)
-
-  // 没有结果或者没有黑名单规则时，直接返回原始结果
-  if (!(response.results as any[])?.length || !websearch?.excludeDomains?.length) {
-    return response
-  }
-
-  // 创建匹配模式映射实例
-  const patternMap = new MatchPatternMap<string>()
-
-  // 正则表达式规则集合
-  const regexPatterns: RegExp[] = []
-
-  // 分类处理黑名单规则
-  websearch.excludeDomains.forEach((pattern) => {
-    if (pattern.startsWith('/') && pattern.endsWith('/')) {
-      // 处理正则表达式格式
-      try {
-        const regexPattern = pattern.slice(1, -1)
-        regexPatterns.push(new RegExp(regexPattern, 'i'))
-      } catch (error) {
-        logger.error(`Invalid regex pattern: ${pattern}`, error as Error)
-      }
-    } else {
-      // 处理匹配模式格式
-      try {
-        patternMap.set(pattern, pattern)
-      } catch (error) {
-        logger.error(`Invalid match pattern: ${pattern}`, error as Error)
-      }
-    }
-  })
-
-  // 过滤搜索结果
-  const filteredResults = (response.results as any[]).filter((result) => {
-    try {
-      const url = new URL(result.url)
-
-      // 检查URL是否匹配任何正则表达式规则
-      const matchesRegex = regexPatterns.some((regex) => regex.test(url.hostname))
-      if (matchesRegex) {
-        return false
-      }
-
-      // 检查URL是否匹配任何匹配模式规则
-      const matchesPattern = patternMap.get(result.url).length > 0
-      return !matchesPattern
-    } catch (error) {
-      logger.error(`Error processing URL: ${result.url}`, error as Error)
-      return true // 如果URL解析失败，保留该结果
-    }
-  })
-
-  logger.debug('filterResultWithBlacklist filtered results:', filteredResults)
-
-  return {
-    ...response,
-    results: filteredResults
-  }
 }

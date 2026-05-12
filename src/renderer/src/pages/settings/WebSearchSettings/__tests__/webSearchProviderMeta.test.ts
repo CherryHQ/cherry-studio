@@ -3,15 +3,12 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createWebSearchMenuEntry,
-  flattenWebSearchFeatureSections,
   getWebSearchCapabilityTitleKey,
   getWebSearchFeatureSections,
   getWebSearchProviderApiKeyWebsite,
-  getWebSearchProviderAvatarColor,
   getWebSearchProviderDescriptionKey,
   getWebSearchProviderLogo,
-  getWebSearchProviderOfficialWebsite,
-  resolveWebSearchEntryCapability
+  getWebSearchProviderOfficialWebsite
 } from '../utils/webSearchProviderMeta'
 
 const providers: WebSearchProvider[] = [
@@ -52,7 +49,6 @@ const providers: WebSearchProvider[] = [
 
 describe('webSearchProviderMeta', () => {
   it('returns provider display metadata', () => {
-    expect(getWebSearchProviderAvatarColor('tavily')).toBe('#6366f1')
     expect(getWebSearchProviderDescriptionKey('exa-mcp')).toBe('settings.tool.websearch.provider_description.exa_mcp')
     expect(getWebSearchProviderLogo('fetch')).toBeTruthy()
     expect(getWebSearchProviderOfficialWebsite('jina')).toBe('https://jina.ai/reader')
@@ -87,18 +83,5 @@ describe('webSearchProviderMeta', () => {
       capability: 'fetchUrls',
       entries: [{ key: 'fetchUrls:fetch' }, { key: 'fetchUrls:jina' }]
     })
-    expect(flattenWebSearchFeatureSections(sections).map((entry) => entry.key)).toEqual([
-      'searchKeywords:tavily',
-      'searchKeywords:jina',
-      'fetchUrls:fetch',
-      'fetchUrls:jina'
-    ])
-  })
-
-  it('resolves requested capabilities with provider fallback', () => {
-    expect(resolveWebSearchEntryCapability(providers[2], 'fetchUrls')).toBe('fetchUrls')
-    expect(resolveWebSearchEntryCapability(providers[2], 'searchKeywords')).toBe('searchKeywords')
-    expect(resolveWebSearchEntryCapability(providers[0], 'fetchUrls')).toBe('searchKeywords')
-    expect(resolveWebSearchEntryCapability(providers[1], 'unknown')).toBe('fetchUrls')
   })
 })

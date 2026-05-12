@@ -25,11 +25,16 @@ const BasicSettings: FC = () => {
   } = useWebSearchProviderLists()
   const { maxResults, compressionConfig, setMaxResults } = useWebSearchSettings()
   const [draftMaxResults, setDraftMaxResults] = useState(maxResults)
+  const [maxResultsBaseline, setMaxResultsBaseline] = useState(maxResults)
+  const maxResultsDirty = draftMaxResults !== maxResultsBaseline
   const persist = useWebSearchPersist()
 
   useEffect(() => {
-    setDraftMaxResults(maxResults)
-  }, [maxResults])
+    if (!maxResultsDirty) {
+      setDraftMaxResults(maxResults)
+    }
+    setMaxResultsBaseline(maxResults)
+  }, [maxResults, maxResultsDirty])
 
   const updateSelectedWebSearchProvider = (
     providerId: string,
@@ -115,9 +120,18 @@ const BasicSettings: FC = () => {
                 { value: 100, label: '100' }
               ]}
               onValueChange={(value) => setDraftMaxResults(value[0])}
-              onValueCommit={(value) =>
-                void persist(() => setMaxResults(value[0]), 'Failed to save web search max results')
-              }
+              onValueCommit={(value) => {
+                const nextMaxResults = value[0]
+
+                void persist(() => setMaxResults(nextMaxResults), 'Failed to save web search max results').then(
+                  (result) => {
+                    if (result.ok) {
+                      setDraftMaxResults(nextMaxResults)
+                      setMaxResultsBaseline(nextMaxResults)
+                    }
+                  }
+                )
+              }}
             />
           </div>
         </SettingRow>

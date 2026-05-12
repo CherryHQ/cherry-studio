@@ -63,39 +63,22 @@ describe('useWebSearchProviderCheck', () => {
   })
 
   it('checks keyword providers through the existing web search IPC', async () => {
-    const commitForm = vi.fn().mockResolvedValue(undefined)
     const { result } = renderHook(() =>
-      useWebSearchProviderCheck({ provider: tavilyProvider, capability: 'searchKeywords', commitForm })
+      useWebSearchProviderCheck({ provider: tavilyProvider, capability: 'searchKeywords' })
     )
 
     await act(async () => {
       await result.current.checkProvider()
     })
 
-    expect(commitForm).toHaveBeenCalledOnce()
     expect(searchKeywordsMock).toHaveBeenCalledWith({ providerId: 'tavily', keywords: ['Cherry Studio'] })
     expect(toastSuccessMock).toHaveBeenCalledWith('settings.tool.websearch.check_success')
   })
 
-  it('does not call IPC when saving current form values fails', async () => {
-    const commitForm = vi.fn().mockRejectedValue(new Error('save failed'))
-    const { result } = renderHook(() =>
-      useWebSearchProviderCheck({ provider: tavilyProvider, capability: 'searchKeywords', commitForm })
-    )
-
-    await act(async () => {
-      await result.current.checkProvider()
-    })
-
-    expect(searchKeywordsMock).not.toHaveBeenCalled()
-    expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.check_failed: save failed')
-  })
-
   it('includes provider check failure details in the toast', async () => {
     searchKeywordsMock.mockRejectedValueOnce(new Error('missing API key'))
-    const commitForm = vi.fn().mockResolvedValue(undefined)
     const { result } = renderHook(() =>
-      useWebSearchProviderCheck({ provider: tavilyProvider, capability: 'searchKeywords', commitForm })
+      useWebSearchProviderCheck({ provider: tavilyProvider, capability: 'searchKeywords' })
     )
 
     await act(async () => {
@@ -106,10 +89,7 @@ describe('useWebSearchProviderCheck', () => {
   })
 
   it('disables checks for zero-config fetch provider panels', () => {
-    const commitForm = vi.fn().mockResolvedValue(undefined)
-    const { result } = renderHook(() =>
-      useWebSearchProviderCheck({ provider: fetchProvider, capability: 'fetchUrls', commitForm })
-    )
+    const { result } = renderHook(() => useWebSearchProviderCheck({ provider: fetchProvider, capability: 'fetchUrls' }))
 
     expect(result.current.canCheck).toBe(false)
 
@@ -117,7 +97,6 @@ describe('useWebSearchProviderCheck', () => {
       void result.current.checkProvider()
     })
 
-    expect(commitForm).not.toHaveBeenCalled()
     expect(fetchUrlsMock).not.toHaveBeenCalled()
   })
 })

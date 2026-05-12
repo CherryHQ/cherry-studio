@@ -201,8 +201,8 @@ export const useSyncZhipuWebSearchApiKeys = () => {
       }
 
       void setApiKeys('zhipu', splitApiKeyString(apiKey)).catch((error) => {
-        logger.error('Failed to sync Zhipu web search API keys', { error })
-        window.toast.error(t('error.diagnosis.unknown'))
+        logger.error('Failed to sync Zhipu web search API keys', error as Error)
+        window.toast.error(t('settings.tool.websearch.errors.zhipu_sync_failed'))
       })
     },
     [setApiKeys, t]

@@ -2,8 +2,8 @@ import { loggerService } from '@logger'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import SelectProviderModelPopup from '@renderer/pages/settings/ProviderSettings/SelectProviderModelPopup'
 import { checkApi } from '@renderer/services/ApiService'
-import type { Model, PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
-import { isPreprocessProviderId, isWebSearchProviderId } from '@renderer/types'
+import type { Model, PreprocessProvider, Provider } from '@renderer/types'
+import { isPreprocessProviderId } from '@renderer/types'
 import type { ApiKeyConnectivity, ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
@@ -278,10 +278,6 @@ export function useApiKeys({ provider, updateProvider }: UseApiKeysProps) {
 
 export function isLlmProvider(provider: ApiProvider): provider is Provider {
   return 'models' in provider
-}
-
-export function isWebSearchProvider(provider: ApiProvider): provider is WebSearchProvider {
-  return isWebSearchProviderId(provider.id)
 }
 
 export function isPreprocessProvider(provider: ApiProvider): provider is PreprocessProvider {

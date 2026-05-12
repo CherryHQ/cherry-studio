@@ -1,12 +1,31 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import type * as ReactI18next from 'react-i18next'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useWebSearchProviders, useWebSearchSettings } from '../useWebSearch'
+import { useSyncZhipuWebSearchApiKeys, useWebSearchProviders, useWebSearchSettings } from '../useWebSearch'
+
+vi.mock('react-i18next', async (importOriginal) => {
+  const actual = await importOriginal<typeof ReactI18next>()
+
+  return {
+    ...actual,
+    useTranslation: () => ({ t: (key: string) => key })
+  }
+})
 
 describe('useWebSearch', () => {
+  const toastErrorMock = vi.fn()
+
   beforeEach(() => {
+    vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
+    Object.assign(window, {
+      toast: {
+        ...window.toast,
+        error: toastErrorMock
+      }
+    })
   })
 
   it('updates one provider API keys while preserving other provider overrides', async () => {
@@ -90,6 +109,20 @@ describe('useWebSearch', () => {
 
     expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.default_search_keywords_provider')).toBe('tavily')
     expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.default_fetch_urls_provider')).toBe('fetch')
+  })
+
+  it('shows a Zhipu web search sync failure toast when syncing LLM API keys fails', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
+    MockUsePreferenceUtils.mockPreferenceError('chat.web_search.provider_overrides', new Error('persist failed'))
+    const { result } = renderHook(() => useSyncZhipuWebSearchApiKeys())
+
+    act(() => {
+      result.current('zhipu', 'zhipu-key')
+    })
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.errors.zhipu_sync_failed')
+    })
   })
 
   it('updates web search blacklist domains through settings', async () => {

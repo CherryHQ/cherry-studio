@@ -277,6 +277,31 @@ describe('PreferenceTransformers', () => {
       })
     })
 
+    it('should omit basic auth password when username is empty', () => {
+      const result = migrateWebSearchProviders({
+        providers: [
+          {
+            id: 'searxng',
+            name: 'Searxng',
+            apiHost: 'https://searx.example.com',
+            basicAuthUsername: ' ',
+            basicAuthPassword: ' pass '
+          }
+        ]
+      })
+
+      const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
+      expect(overrides).toEqual({
+        searxng: {
+          capabilities: {
+            searchKeywords: {
+              apiHost: 'https://searx.example.com'
+            }
+          }
+        }
+      })
+    })
+
     it('should omit apiHost when it matches preset default host', () => {
       const result = migrateWebSearchProviders({
         providers: [{ id: 'exa-mcp', name: 'ExaMCP', apiHost: 'https://mcp.exa.ai/mcp' }]
