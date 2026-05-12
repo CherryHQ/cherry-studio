@@ -582,6 +582,24 @@ export class FileManager extends BaseService {
         })
         .catch((err) => {
           fileManagerLogger.error('DB orphan sweep failed', err)
+          // Surface the outer-catch path through `lastDbSweepReport` so
+          // `getOrphanReport()` can distinguish "sweep collapsed" from
+          // "no sweep yet". Without this assignment a synchronous wiring
+          // throw (e.g. registry property access racing with shutdown)
+          // would leave the report null forever, and the renderer-side
+          // cleanup UI would see `outcome: 'unknown'` indistinguishable
+          // from the pre-first-sweep state. Counts stay zero because
+          // nothing was actually scanned.
+          this.lastDbSweepReport = {
+            outcome: 'failed',
+            errorMessage: err instanceof Error ? err.message : String(err),
+            orphanRefsByType: {},
+            orphanRefsTotal: 0,
+            orphanEntriesByOrigin: {},
+            orphanEntriesTotal: 0,
+            scanDurationMs: 0
+          }
+          this.lastDbSweepRanAt = Date.now()
         })
     ])
   }

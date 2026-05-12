@@ -428,6 +428,32 @@ describe('FileManager (integration)', () => {
     expect(second).toBe(first)
   })
 
+  it('INT-14a: a runDbSweep collapse propagates through to getOrphanReport.outcome="failed"', async () => {
+    // Regression: previously, if runDbSweep ended up in a `'failed'` outcome
+    // (or its outer Promise rejected for a future wiring-time reason), the
+    // FileManager-side wrapping in `runStartupSweeps` only logged the error
+    // and left `lastDbSweepReport` null, so `getOrphanReport()` surfaced
+    // `outcome: 'unknown'` — indistinguishable from "haven't scanned yet".
+    //
+    // Drive `runDbSweep` into its inner `'failed'` branch by spying on
+    // `scanOrphanEntries`'s downstream `findUnreferenced` call to throw.
+    // Verifies the end-to-end propagation: runDbSweep → `'failed'` report
+    // → `lastDbSweepReport` set → `getOrphanReport` returns the variant.
+    const spy = vi
+      .spyOn(fm['deps'].fileEntryService, 'findUnreferenced')
+      .mockRejectedValueOnce(new Error('db conn lost mid-sweep'))
+
+    await fm.runStartupSweeps()
+
+    const report = fm.getOrphanReport()
+    expect(report.outcome).toBe('failed')
+    if (report.outcome === 'failed') {
+      expect(report.errorMessage).toMatch(/db conn lost mid-sweep/)
+    }
+    expect(report.lastRunAt).not.toBeNull()
+    spy.mockRestore()
+  })
+
   it('INT-15a: batchCreateInternalEntries reports succeeded with sourceRef + per-item failed', async () => {
     // Two valid items + one that fails (invalid base64 data URI). Verify
     // succeeded carries `{ id, sourceRef }` correlation back to input indices
