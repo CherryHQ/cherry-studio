@@ -173,11 +173,12 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // a later strict-equality check like `path.basename(canonical) === entry.name`
   // would silently diverge. Same risk for trailing-separator / `..`
   // noise in the raw input.
-  // `CanonicalExternalPath` brand satisfies the absolute-path shape, so it
-  // can flow into `FilePath`-typed APIs at the service boundary (per the
-  // brand JSDoc's "service-boundary upcast" exception). S5 (a follow-up
-  // commit in this PR series) will replace this cast with the round-trip
-  // intersection brand once the schema-side `refine` lands.
+  // `canonical` is `CanonicalExternalPath`; the schema-side S5 refine now
+  // makes the BO's `externalPath` `FilePath & CanonicalExternalPath`, but
+  // here we only hold the factory-side `CanonicalExternalPath`. The cast
+  // to `FilePath` is the sanctioned service-boundary upcast — the
+  // canonicalize pipeline already enforces the absolute-shape gate that
+  // `FilePath` represents at the type level.
   await fsStat(canonical as unknown as FilePath)
   // Peer detection is a `SELECT` against the same DB connection that the
   // upcoming `create()` writes through. If this query fails (transient lock,

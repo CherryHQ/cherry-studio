@@ -18,7 +18,7 @@
 import { loggerService } from '@logger'
 import { remove as fsRemove } from '@main/utils/file/fs'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
-import type { BatchMutationResult, FilePath } from '@shared/file/types'
+import type { BatchMutationResult } from '@shared/file/types'
 
 import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
@@ -43,7 +43,7 @@ export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): P
   await deps.fileEntryService.delete(id)
   deps.versionCache.invalidate(id)
   if (entry.origin === 'external') {
-    deps.danglingCache.removeEntry(id, entry.externalPath as FilePath)
+    deps.danglingCache.removeEntry(id, entry.externalPath)
   }
   if (physical !== undefined) {
     try {

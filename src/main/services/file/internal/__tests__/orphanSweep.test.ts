@@ -355,8 +355,7 @@ describe('runDbSweep (umbrella + observability)', () => {
       fileEntryId: tempEntryId,
       sourceType: 'temp_session',
       sourceId: 'orphan-session-id',
-      role: 'pending',
-      meta: null
+      role: 'pending'
     })
 
     const report = await runDbSweep({

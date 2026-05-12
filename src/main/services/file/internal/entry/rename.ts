@@ -42,7 +42,7 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   // trailing-separator, and `.`/`..` noise — `entry.externalPath` is already
   // canonical (written through `ensureExternalEntry`), so string equality
   // here is a reliable "same logical path" test.
-  const oldPath = entry.externalPath as FilePath
+  const oldPath = entry.externalPath
   const target = canonicalizeExternalPath(path.join(dir, `${newName}${ext}`))
   // Defense in depth: `SafeNameSchema.parse(newName)` above already rejects
   // path separators and `..`, but a future regression in the schema (or any

@@ -188,7 +188,7 @@ class DanglingCacheImpl implements DanglingCache {
     // remaining branch without an `as` cast (the BO type no longer
     // declares `externalPath` on the internal variant).
     if (entry.origin !== 'external') return 'present'
-    const path = entry.externalPath as FilePath
+    const path = entry.externalPath
     const state = await this.statProbe(path)
     if (state === 'unknown') return 'unknown'
     this.commit(entry.id, state, 'stat')
@@ -240,7 +240,7 @@ class DanglingCacheImpl implements DanglingCache {
     const rows = await this.fileEntryService.findMany({ origin: 'external' })
     for (const row of rows) {
       if (row.origin !== 'external') continue
-      this.addEntry(row.id, row.externalPath as FilePath)
+      this.addEntry(row.id, row.externalPath)
     }
   }
 

@@ -98,6 +98,8 @@
  *   unmanaged `@main/utils/file/fs.remove(path)` separately.
  */
 
+import { canonicalizeAbsolutePath } from '@shared/file/canonicalize'
+import type { FilePath } from '@shared/file/types/common'
 import * as z from 'zod'
 
 import { SafeExtSchema, SafeNameSchema, TimestampSchema } from './essential'
@@ -177,6 +179,24 @@ export const AbsolutePathSchema = z
  */
 declare const canonicalExternalPathBrand: unique symbol
 export type CanonicalExternalPath = string & { readonly [canonicalExternalPathBrand]: 'CanonicalExternalPath' }
+
+/**
+ * Intersection brand carried by the `externalPath` field on the FileEntry
+ * BO: a string that is both **canonical** (provenance: passed through
+ * `canonicalizeAbsolutePath` / `canonicalizeExternalPath`) and **satisfies
+ * the `FilePath` template-literal shape** (so it can flow into any
+ * `@main/utils/file/*` API without a cast).
+ *
+ * Round 2 S5: the schema's `externalPath` field used to be plain
+ * `AbsolutePathSchema` (inferred as `string`), forcing five production
+ * sites to `as FilePath`-cast at every read. The schema now `refine`s
+ * against `canonicalizeAbsolutePath` (real runtime check; rejects any
+ * non-canonical input at parse time) and then `transform`s the result
+ * into this intersection — so consumers reading `entry.externalPath`
+ * get a value typed exactly as they need it, with the canonical
+ * provenance proven at the schema boundary.
+ */
+export type CanonicalFilePath = FilePath & CanonicalExternalPath
 
 // ─── FileEntry Schema (discriminated union on origin, branded) ───
 //
@@ -263,8 +283,19 @@ export const InternalEntrySchema = z.strictObject({
 export const ExternalEntrySchema = z.strictObject({
   ...CommonEntryFields,
   origin: z.literal('external'),
-  /** Absolute filesystem path to the user-provided file. */
-  externalPath: AbsolutePathSchema
+  /**
+   * Absolute filesystem path to the user-provided file. The schema runs a
+   * **real** `canonicalize` equivalence check (not just a shape match): the
+   * input must equal `canonicalizeAbsolutePath(input)`, otherwise parse
+   * rejects. Combined with the `.transform` below, this means any value the
+   * BO ever exposes is provably canonical AND carries the `FilePath` shape,
+   * eliminating the five `as FilePath` casts that used to sit at every read
+   * site (rename.ts, lifecycle.ts, danglingCache.ts, …).
+   */
+  externalPath: AbsolutePathSchema.refine(
+    (s) => s === canonicalizeAbsolutePath(s),
+    'externalPath must be canonicalized via canonicalizeExternalPath() before persistence'
+  ).transform((s): CanonicalFilePath => s as CanonicalFilePath)
 })
 
 /**

@@ -3,6 +3,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CanonicalExternalPath } from '@shared/data/types/file'
+import { canonicalizeAbsolutePath } from '@shared/file/canonicalize'
 import type { FilePath } from '@shared/file/types'
 
 const logger = loggerService.withContext('pathResolver')
@@ -145,13 +146,9 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): FilePath {
  * @throws if `raw` contains null bytes
  */
 export function canonicalizeExternalPath(raw: string): CanonicalExternalPath {
-  if (raw.includes('\0')) {
-    throw new Error('canonicalizeExternalPath: input contains null byte')
-  }
-  let normalized = path.resolve(raw)
-  normalized = normalized.normalize('NFC')
-  if (normalized.length > 1 && (normalized.endsWith(path.sep) || normalized.endsWith('/'))) {
-    normalized = normalized.slice(0, -1)
-  }
-  return normalized as CanonicalExternalPath
+  // Delegate to the shared pure-JS implementation so the FileEntry schema
+  // can `refine` against the exact same rule on parse (S5). The brand cast
+  // here is the sanctioned production-side factory site documented in the
+  // `CanonicalExternalPath` JSDoc.
+  return canonicalizeAbsolutePath(raw) as CanonicalExternalPath
 }

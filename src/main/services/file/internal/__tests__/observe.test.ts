@@ -16,6 +16,11 @@ import type { DanglingCache } from '../../danglingCache'
 import type { FileManagerDeps } from '../deps'
 import { observeExternalAccess } from '../observe'
 
+// `as unknown as FileEntry` because `externalPath` is now branded as
+// `CanonicalFilePath` (FilePath & CanonicalExternalPath) — a string literal
+// can't satisfy the brand directly. The actual canonicalization invariant
+// is irrelevant for these tests (we never feed the entry back into the
+// schema); they only need the discriminator + a stable physical path.
 const externalEntry: FileEntry = {
   id: '019606a0-0000-7000-8000-0000000000ee' as FileEntryId,
   origin: 'external',
@@ -24,7 +29,7 @@ const externalEntry: FileEntry = {
   externalPath: '/abs/file.txt',
   createdAt: 0,
   updatedAt: 0
-} as FileEntry
+} as unknown as FileEntry
 
 const internalEntry: FileEntry = {
   id: '019606a0-0000-7000-8000-0000000000ff' as FileEntryId,
