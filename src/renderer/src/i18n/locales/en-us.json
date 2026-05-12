@@ -5948,6 +5948,10 @@
       "add": {
         "add_model": "Add Model",
         "batch_add_models": "Batch Add Models",
+        "context_window": {
+          "label": "Context window",
+          "placeholder": "e.g. 128000"
+        },
         "endpoint_type": {
           "label": "Endpoint Type",
           "placeholder": "Select endpoint type",
@@ -5961,11 +5965,11 @@
           "tooltip": "Optional e.g. ChatGPT"
         },
         "max_input_tokens": {
-          "label": "Context window (max input)",
+          "label": "Max input tokens",
           "placeholder": "e.g. 128000"
         },
         "max_output_tokens": {
-          "label": "Context window (max output)",
+          "label": "Max output tokens",
           "placeholder": "e.g. 4096"
         },
         "model_id": {
@@ -6054,6 +6058,7 @@
         "filter_add_all": "Add all in view",
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
+        "large_group_hidden": "Show {{count}} more models",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Pull models again",
         "reload_catalog": "Refresh list",

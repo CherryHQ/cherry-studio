@@ -95,6 +95,7 @@ export default function AddModelFormPanel({
         name: values.name ? values.name : modelId.toUpperCase(),
         group: values.group || getDefaultGroupName(modelId),
         endpointTypes: mode === 'new-api' && values.endpointTypes?.length ? [...values.endpointTypes] : undefined,
+        ...(values.contextWindow ? { contextWindow: Number(values.contextWindow) } : {}),
         ...(values.maxInputTokens ? { maxInputTokens: Number(values.maxInputTokens) } : {}),
         ...(values.maxOutputTokens ? { maxOutputTokens: Number(values.maxOutputTokens) } : {})
       })
@@ -126,6 +127,7 @@ export default function AddModelFormPanel({
             modelId: singleId,
             name: singleId,
             group: '',
+            contextWindow: '',
             maxInputTokens: '',
             maxOutputTokens: '',
             endpointTypes: formState.endpointTypes
@@ -241,8 +243,10 @@ export default function AddModelFormPanel({
         <ProviderSection className={drawerClasses.section}>
           <div className={drawerClasses.fieldList}>
             <ModelContextWindowFields
+              contextWindow={formState.contextWindow}
               maxInputTokens={formState.maxInputTokens}
               maxOutputTokens={formState.maxOutputTokens}
+              onContextWindowChange={(value) => setFormState((current) => ({ ...current, contextWindow: value }))}
               onMaxInputTokensChange={(value) => setFormState((current) => ({ ...current, maxInputTokens: value }))}
               onMaxOutputTokensChange={(value) => setFormState((current) => ({ ...current, maxOutputTokens: value }))}
             />

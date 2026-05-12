@@ -1,7 +1,7 @@
 import { cn } from '@renderer/utils'
 import type { Model } from '@shared/data/types/model'
 import { ChevronRight } from 'lucide-react'
-import React, { memo, useCallback, useState } from 'react'
+import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -30,7 +30,10 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
 }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(defaultOpen)
+  const [showAll, setShowAll] = useState(false)
   const groupLabel = getModelGroupLabel(groupName, t)
+  const visibleItems = useMemo(() => (items.length > 80 && !showAll ? items.slice(0, 80) : items), [items, showAll])
+  const hiddenItemCount = items.length - visibleItems.length
 
   const toggleOpen = useCallback(() => {
     setOpen((prev) => !prev)
@@ -44,7 +47,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
       </button>
       {open && (
         <div className={modelListClasses.groupBody}>
-          {items.map(({ model }) => (
+          {visibleItems.map(({ model }) => (
             <ModelListItem
               key={model.id}
               model={model}
@@ -53,6 +56,11 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               disabled={disabled || pendingModelIds.has(model.id)}
             />
           ))}
+          {hiddenItemCount > 0 && (
+            <button type="button" className={modelListClasses.groupOverflowHint} onClick={() => setShowAll(true)}>
+              {t('settings.models.manage.large_group_hidden', { count: hiddenItemCount })}
+            </button>
+          )}
         </div>
       )}
     </div>

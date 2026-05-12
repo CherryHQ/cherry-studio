@@ -29,7 +29,17 @@ const endpointOptions = [
   { id: ENDPOINT_TYPE.OPENAI_RESPONSES, label: 'OpenAI Responses' },
   { id: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, label: 'Anthropic' },
   { id: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, label: 'Gemini' },
-  { id: ENDPOINT_TYPE.OLLAMA_CHAT, label: 'Ollama' }
+  { id: ENDPOINT_TYPE.OLLAMA_CHAT, label: 'Ollama Chat' },
+  { id: ENDPOINT_TYPE.OLLAMA_GENERATE, label: 'Ollama Generate' },
+  { id: ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS, label: 'OpenAI Text Completions' },
+  { id: ENDPOINT_TYPE.OPENAI_EMBEDDINGS, label: 'OpenAI Embeddings' },
+  { id: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, label: 'OpenAI Image Generation' },
+  { id: ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, label: 'OpenAI Image Edit' },
+  { id: ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION, label: 'OpenAI Audio Transcription' },
+  { id: ENDPOINT_TYPE.OPENAI_AUDIO_TRANSLATION, label: 'OpenAI Audio Translation' },
+  { id: ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH, label: 'OpenAI Text to Speech' },
+  { id: ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION, label: 'OpenAI Video Generation' },
+  { id: ENDPOINT_TYPE.JINA_RERANK, label: 'Jina Rerank' }
 ] as const
 
 export default function ProviderEditorDrawer({
@@ -218,6 +228,9 @@ export default function ProviderEditorDrawer({
             onSelect={(value) => setSelectedEndpoint(value as EndpointType)}
             renderSelected={(item) => <span className="truncate">{item.label}</span>}
             renderItem={(item) => <span className="truncate">{item.label}</span>}
+            virtualize
+            itemHeight={32}
+            maxHeight={280}
           />
         </div>
       </div>

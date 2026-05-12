@@ -101,15 +101,19 @@ export function ModelBasicFields({
 }
 
 interface ModelContextWindowFieldsProps {
+  contextWindow: string
   maxInputTokens: string
   maxOutputTokens: string
+  onContextWindowChange: (value: string) => void
   onMaxInputTokensChange: (value: string) => void
   onMaxOutputTokensChange: (value: string) => void
 }
 
 export function ModelContextWindowFields({
+  contextWindow,
   maxInputTokens,
   maxOutputTokens,
+  onContextWindowChange,
   onMaxInputTokensChange,
   onMaxOutputTokensChange
 }: ModelContextWindowFieldsProps) {
@@ -117,6 +121,20 @@ export function ModelContextWindowFields({
 
   return (
     <>
+      <ProviderField title={t('settings.models.add.context_window.label')} titleClassName={drawerFieldTitleClassName}>
+        <input
+          type="number"
+          min={1}
+          step={1}
+          inputMode="numeric"
+          aria-label={t('settings.models.add.context_window.label')}
+          value={contextWindow}
+          placeholder={t('settings.models.add.context_window.placeholder')}
+          className={drawerClasses.input}
+          onChange={(event) => onContextWindowChange(event.target.value.replace(/[^\d]/g, ''))}
+        />
+      </ProviderField>
+
       <ProviderField title={t('settings.models.add.max_input_tokens.label')} titleClassName={drawerFieldTitleClassName}>
         <input
           type="number"

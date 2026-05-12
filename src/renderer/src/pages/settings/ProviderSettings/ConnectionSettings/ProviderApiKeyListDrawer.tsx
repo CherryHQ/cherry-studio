@@ -1,4 +1,5 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProviders'
 import { maskApiKey } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
@@ -184,7 +185,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
       }>
       <div className={apiKeyListClasses.shell}>
         <div className={apiKeyListClasses.listWrap}>
-          <div className={apiKeyListClasses.listScroller}>
+          <Scrollbar className={apiKeyListClasses.listScroller}>
             {apiKeys.length === 0 && !draft ? (
               <div className="px-4 py-6 text-center text-[length:var(--font-size-body-md)] text-muted-foreground/70">
                 {t('error.no_api_key')}
@@ -222,7 +223,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
                 />
               </div>
             ) : null}
-          </div>
+          </Scrollbar>
         </div>
 
         <div className={apiKeyListClasses.actionRow}>

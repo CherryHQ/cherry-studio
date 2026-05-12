@@ -285,12 +285,14 @@
  * Inline model row — one footprint for capability glyphs.
  * ReasoningTag uses `i.iconfont`, not SVG; CustomTag wraps icons with inline `font-size`, so iconfont needs explicit override.
  */
+.provider-settings-default-scope .ps-compact-cap-strip svg,
 .provider-settings-default-scope .ps-model-list-cap-strip svg {
   flex-shrink: 0;
   width: var(--icon-size-model-list-cap);
   height: var(--icon-size-model-list-cap);
 }
 
+.provider-settings-default-scope .ps-compact-cap-strip i.iconfont,
 .provider-settings-default-scope .ps-model-list-cap-strip i.iconfont {
   flex-shrink: 0;
   font-size: var(--icon-size-model-list-cap) !important;

@@ -113,7 +113,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
           onCancel()
         }
       }}>
-      <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-[color:var(--color-border-fg-muted)] bg-(--color-background) p-5 sm:max-w-md">
+      <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-[color:var(--color-border-fg-muted)] bg-popover p-5 sm:max-w-md">
         <DialogHeader className="gap-1.5 pr-6">
           <DialogTitle className="text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
             {title}

@@ -1,3 +1,4 @@
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProviders'
 
@@ -39,12 +40,12 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
           <div className={providerDetailColumnClasses.headerPad}>
             <ProviderHeader providerId={providerId} />
           </div>
-          <div className={providerDetailColumnClasses.scrollStrip}>
+          <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
             <div className={providerDetailColumnClasses.sectionStack}>
               <AuthenticationSection providerId={providerId} />
               <ModelList providerId={providerId} />
             </div>
-          </div>
+          </Scrollbar>
         </div>
       </div>
     </ProviderSettingsContainer>

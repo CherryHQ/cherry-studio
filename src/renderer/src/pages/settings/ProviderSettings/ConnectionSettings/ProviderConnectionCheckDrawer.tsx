@@ -67,13 +67,20 @@ export default function ProviderConnectionCheckDrawer({
         <div className={drawerClasses.fieldList}>
           <div className="space-y-2">
             <label className="font-medium text-[13px] text-foreground/85">{t('settings.models.list_title')}</label>
-            <SelectDropdown
-              items={sortedModels.map((item) => ({ id: item.id, label: item.name }))}
-              selectedId={selectedModel?.id}
-              onSelect={(value) => setSelectedModelId(value)}
-              renderSelected={(item) => <span className="truncate">{item.label}</span>}
-              renderItem={(item) => <span className="truncate">{item.label}</span>}
-            />
+            {sortedModels.length > 0 ? (
+              <SelectDropdown
+                items={sortedModels.map((item) => ({ id: item.id, label: item.name }))}
+                selectedId={selectedModel?.id}
+                onSelect={(value) => setSelectedModelId(value)}
+                renderSelected={(item) => <span className="truncate">{item.label}</span>}
+                renderItem={(item) => <span className="truncate">{item.label}</span>}
+                virtualize
+                itemHeight={32}
+                maxHeight={280}
+              />
+            ) : (
+              <div className={drawerClasses.emptyInline}>{t('settings.provider.no_models_for_check')}</div>
+            )}
           </div>
 
           {hasMultipleKeys ? (

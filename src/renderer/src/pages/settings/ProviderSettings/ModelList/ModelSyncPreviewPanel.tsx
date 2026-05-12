@@ -1,4 +1,5 @@
 import { Button, Checkbox } from '@cherrystudio/ui'
+import Scrollbar from '@renderer/components/Scrollbar'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { AlertTriangle, CheckCircle2, Plus, Trash2 } from 'lucide-react'
@@ -60,7 +61,7 @@ export default function ModelSyncPreviewPanel({ preview, isApplying, onApply, on
 
   return (
     <div className={modelSyncClasses.fetchRoot}>
-      <div className={modelSyncClasses.fetchScroll}>
+      <Scrollbar className={modelSyncClasses.fetchScroll}>
         {!hasChanges ? (
           <div className={modelSyncClasses.fetchEmpty}>
             <div className={modelSyncClasses.fetchEmptyIconWrap}>
@@ -217,7 +218,7 @@ export default function ModelSyncPreviewPanel({ preview, isApplying, onApply, on
             </div>
           </div>
         ) : null}
-      </div>
+      </Scrollbar>
 
       {hasChanges ? (
         <div className={modelSyncClasses.fetchFooter}>

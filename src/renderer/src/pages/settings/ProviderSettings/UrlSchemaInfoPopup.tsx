@@ -131,7 +131,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
           handleCancel()
         }
       }}>
-      <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-[color:var(--color-border-fg-muted)] bg-(--color-background) p-5 sm:max-w-md">
+      <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-[color:var(--color-border-fg-muted)] bg-popover p-5 sm:max-w-md">
         <DialogHeader className="gap-1.5 pr-6">
           <DialogTitle className="text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
             {t('settings.models.provider_key_confirm_title', { provider: displayName })}
@@ -141,7 +141,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-xl border border-[color:var(--color-border-fg-muted)] bg-background">
+          <div className="overflow-hidden rounded-xl border border-[color:var(--color-border-fg-muted)] bg-transparent">
             {rows.map((row) => (
               <div
                 key={row.label}

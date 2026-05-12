@@ -20,7 +20,11 @@ import { useProviderEndpoints } from './useProviderEndpoints'
 /** Runs provider connection checks against the current editable credentials and endpoint. */
 export function useProviderConnectionCheck(providerId: string) {
   const { provider } = useProvider(providerId)
-  const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
+  const [connectionCheckOpen, setConnectionCheckOpen] = useState(false)
+  const { models } = useModels(
+    { providerId },
+    { fetchEnabled: connectionCheckOpen, swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS }
+  )
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
   const { inputApiKey } = useAuthenticationApiKey()
@@ -30,7 +34,6 @@ export function useProviderConnectionCheck(providerId: string) {
     status: HealthStatus.NOT_CHECKED,
     checking: false
   })
-  const [connectionCheckOpen, setConnectionCheckOpen] = useState(false)
 
   const checkableModels = useMemo(() => models.filter((model) => !isRerankModel(model)), [models])
   const checkableApiKeys = useMemo(() => splitApiKeyString(formatApiKeys(inputApiKey)).filter(Boolean), [inputApiKey])
@@ -53,16 +56,8 @@ export function useProviderConnectionCheck(providerId: string) {
       return
     }
 
-    if (isEmpty(checkableModels)) {
-      window.toast.error({
-        timeout: 5000,
-        title: t('settings.provider.no_models_for_check')
-      })
-      return
-    }
-
     setConnectionCheckOpen(true)
-  }, [checkableApiKeys, checkableModels, i18n, provider, t])
+  }, [checkableApiKeys, i18n, provider])
 
   const resolveApiHostForModel = useCallback(
     (selectedModel: Model) => {

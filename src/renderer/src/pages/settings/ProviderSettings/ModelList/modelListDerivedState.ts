@@ -166,19 +166,29 @@ export const calculateModelListDerivedState = ({
   modelStatuses
 }: CalculateModelListDerivedStateInput): ModelListDerivedState => {
   const filteredModels = applyModelFilters(models, searchText, selectedCapabilityFilter)
-  const enabledModelCount = filteredModels.filter((model) => model.isEnabled).length
+  const enabledModels: Model[] = []
+  const disabledModels: Model[] = []
+
+  for (const model of filteredModels) {
+    if (model.isEnabled) {
+      enabledModels.push(model)
+      continue
+    }
+
+    disabledModels.push(model)
+  }
 
   return {
     filteredModels,
     sections: {
-      enabled: groupModels(filteredModels.filter((model) => model.isEnabled)),
-      disabled: groupModels(filteredModels.filter((model) => !model.isEnabled))
+      enabled: groupModels(enabledModels),
+      disabled: groupModels(disabledModels)
     },
     capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
     capabilityModelCounts: getCapabilityModelCounts(models),
     duplicateModelNames: getDuplicateProviderSettingModelNames(models),
-    enabledModelCount,
-    disabledModelCount: filteredModels.length - enabledModelCount,
+    enabledModelCount: enabledModels.length,
+    disabledModelCount: disabledModels.length,
     modelCount: filteredModels.length,
     hasVisibleModels: filteredModels.length > 0,
     hasNoModels: models.length === 0,

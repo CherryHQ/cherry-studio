@@ -29,7 +29,7 @@ export default function ApiKey({
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const meta = useProviderMeta(providerId)
-  const { inputApiKey, setInputApiKey, serverApiKey } = useAuthenticationApiKey()
+  const { inputApiKey, setInputApiKey } = useAuthenticationApiKey()
   const [showApiKey, setShowApiKey] = useState(false)
   const [keyListOpen, setKeyListOpen] = useState(false)
 
@@ -53,7 +53,6 @@ export default function ApiKey({
                 value={inputApiKey}
                 placeholder={t('settings.provider.api_key.placeholder')}
                 onChange={(event) => setInputApiKey(event.target.value)}
-                autoFocus={provider.isEnabled && !serverApiKey}
                 disabled={provider.id === 'copilot'}
               />
               {provider.id !== 'copilot' && (

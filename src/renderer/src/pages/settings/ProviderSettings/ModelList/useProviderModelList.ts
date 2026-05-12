@@ -5,7 +5,6 @@ import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, use
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 import {
-  applyModelFilters,
   calculateModelListDerivedState,
   countModelsInGroups,
   groupModels,
@@ -96,39 +95,6 @@ const getDisplayedPlacement = (
   return placementByModelId[model.id] ?? (model.isEnabled ? 'enabled' : 'disabled')
 }
 
-const buildDisplayedSectionState = (
-  models: Model[],
-  placementByModelId: Record<string, SessionPlacement>,
-  searchText: string,
-  selectedCapabilityFilter: ModelListCapabilityFilter
-): DisplayedSectionState => {
-  const filteredModels = applyModelFilters(models, searchText, selectedCapabilityFilter)
-  const enabledModels: Model[] = []
-  const disabledModels: Model[] = []
-
-  for (const model of filteredModels) {
-    const placement = getDisplayedPlacement(model, placementByModelId)
-
-    if (placement === 'enabled') {
-      enabledModels.push(model)
-      continue
-    }
-
-    disabledModels.push(model)
-  }
-
-  const sections = {
-    enabled: groupModels(enabledModels),
-    disabled: groupModels(disabledModels)
-  }
-
-  return {
-    sections,
-    displayEnabledModelCount: countModelsInGroups(sections.enabled),
-    displayDisabledModelCount: countModelsInGroups(sections.disabled)
-  }
-}
-
 export function useProviderModelList({ providerId, disabled = false }: UseProviderModelListArgs) {
   const { models, isLoading: isModelsLoading } = useModels(
     { providerId },
@@ -207,10 +173,30 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     })
   }, [modelById, models, pendingModelIdMap])
 
-  const displayState = useMemo(
-    () => buildDisplayedSectionState(optimisticModels, sessionPlacementByModelId, searchText, selectedCapabilityFilter),
-    [optimisticModels, searchText, selectedCapabilityFilter, sessionPlacementByModelId]
-  )
+  const displayState = useMemo<DisplayedSectionState>(() => {
+    const enabledModels: Model[] = []
+    const disabledModels: Model[] = []
+
+    for (const model of derivedState.filteredModels) {
+      if (getDisplayedPlacement(model, sessionPlacementByModelId) === 'enabled') {
+        enabledModels.push(model)
+        continue
+      }
+
+      disabledModels.push(model)
+    }
+
+    const sections: ModelSections = {
+      enabled: groupModels(enabledModels),
+      disabled: groupModels(disabledModels)
+    }
+
+    return {
+      sections,
+      displayEnabledModelCount: countModelsInGroups(sections.enabled),
+      displayDisabledModelCount: countModelsInGroups(sections.disabled)
+    }
+  }, [derivedState.filteredModels, sessionPlacementByModelId])
 
   const openEditModelDrawer = useCallback((model: Model) => {
     setEditingModel(model)

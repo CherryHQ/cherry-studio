@@ -1,4 +1,5 @@
 import { ReorderableList } from '@cherrystudio/ui'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
@@ -49,7 +50,7 @@ export default function ProviderListContent({
   )
 
   return (
-    <div ref={scrollerRef} className={providerListClasses.scroller}>
+    <Scrollbar ref={scrollerRef} className={providerListClasses.scroller}>
       {hasResults ? (
         <div className={providerListClasses.sectionStack}>
           {enabledProviders.length > 0 && (
@@ -80,6 +81,6 @@ export default function ProviderListContent({
       ) : (
         <div className={providerListClasses.emptyState}>{t('common.no_results')}</div>
       )}
-    </div>
+    </Scrollbar>
   )
 }

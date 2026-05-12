@@ -5948,6 +5948,10 @@
       "add": {
         "add_model": "新增模型",
         "batch_add_models": "批次新增模型",
+        "context_window": {
+          "label": "上下文視窗",
+          "placeholder": "例如 128000"
+        },
         "endpoint_type": {
           "label": "端點類型",
           "placeholder": "選擇端點類型",
@@ -5961,11 +5965,11 @@
           "tooltip": "選填，例如 ChatGPT"
         },
         "max_input_tokens": {
-          "label": "上下文視窗（最大輸入）",
+          "label": "最大輸入 Token",
           "placeholder": "例如 128000"
         },
         "max_output_tokens": {
-          "label": "上下文視窗（最大輸出）",
+          "label": "最大輸出 Token",
           "placeholder": "例如 4096"
         },
         "model_id": {
@@ -6054,6 +6058,7 @@
         "filter_add_all": "全部新增",
         "filter_remove_all": "全部移除",
         "footer_done": "完成",
+        "large_group_hidden": "顯示剩餘 {{count}} 個模型",
         "operation_failed": "模型操作失敗。",
         "refetch_list": "重新取得模型列表",
         "reload_catalog": "重新整理列表",

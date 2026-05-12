@@ -37,10 +37,9 @@ interface BuildPatchOverrides {
   caps?: Set<ModelCapabilityToggle>
   supportsStreaming?: boolean
   currencySymbol?: ModelDrawerCurrencySymbol
-  customCurrencySymbol?: string
-  isCustomCurrency?: boolean
   inputPrice?: string
   outputPrice?: string
+  contextWindow?: string
   maxInputTokens?: string
   maxOutputTokens?: string
 }
@@ -83,10 +82,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [hasUserModified, setHasUserModified] = useState(false)
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
   const [currencySymbol, setCurrencySymbol] = useState<ModelDrawerCurrencySymbol>('$')
-  const [customCurrencySymbol, setCustomCurrencySymbol] = useState('')
-  const [isCustomCurrency, setIsCustomCurrency] = useState(false)
   const [inputPrice, setInputPrice] = useState('0')
   const [outputPrice, setOutputPrice] = useState('0')
+  const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
@@ -105,7 +103,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
     const nextCurrency = readCurrency(model)
     const nextCurrencySymbol = currencyToSymbol(nextCurrency)
-    const nextIsCustomCurrency = !nextCurrencySymbol
 
     setName(model.name)
     setGroup(model.group ?? '')
@@ -115,10 +112,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setHasUserModified(false)
     setSupportsStreaming(model.supportsStreaming)
     setCurrencySymbol(nextCurrencySymbol ?? '$')
-    setCustomCurrencySymbol(nextIsCustomCurrency ? nextCurrency : '')
-    setIsCustomCurrency(nextIsCustomCurrency)
     setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
     setOutputPrice(String(model.pricing?.output?.perMillionTokens ?? 0))
+    setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
     setEndpointTypeTouched(false)
@@ -137,6 +133,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         capabilities: patch.capabilities,
         supportsStreaming: patch.supportsStreaming,
         endpointTypes: patch.endpointTypes,
+        contextWindow: patch.contextWindow,
         maxInputTokens: patch.maxInputTokens,
         maxOutputTokens: patch.maxOutputTokens,
         pricing: patch.pricing
@@ -151,13 +148,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         return {}
       }
 
-      const nextIsCustomCurrency = overrides?.isCustomCurrency ?? isCustomCurrency
       const nextCurrencySymbol = overrides?.currencySymbol ?? currencySymbol
-      const nextCustomCurrencySymbol = overrides?.customCurrencySymbol ?? customCurrencySymbol
       const finalCurrency: ModelDrawerCurrency =
-        symbolToCurrency(nextIsCustomCurrency ? nextCustomCurrencySymbol : nextCurrencySymbol) ??
-        symbolToCurrency(readCurrency(model)) ??
-        CURRENCY.USD
+        symbolToCurrency(nextCurrencySymbol) ?? symbolToCurrency(readCurrency(model)) ?? CURRENCY.USD
 
       return {
         name: name || model.name,
@@ -168,6 +161,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           overrides?.caps ?? selectedCaps
         ) as Model['capabilities'],
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
+        contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
         maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
         maxOutputTokens: Number(overrides?.maxOutputTokens ?? maxOutputTokens) || undefined,
         pricing: {
@@ -184,11 +178,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     },
     [
       currencySymbol,
-      customCurrencySymbol,
       endpointTypes,
       group,
+      contextWindow,
       inputPrice,
-      isCustomCurrency,
       maxInputTokens,
       maxOutputTokens,
       mode,
@@ -235,15 +228,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       return
     }
 
-    if (isCustomCurrency && !symbolToCurrency(customCurrencySymbol)) {
-      window.toast.error(t('common.invalid_value'))
-      return
-    }
-
     await handleUpdateModel(buildPatch())
     setShowMoreSettings(false)
     onClose()
-  }, [buildPatch, customCurrencySymbol, endpointTypes.length, handleUpdateModel, isCustomCurrency, mode, onClose, t])
+  }, [buildPatch, endpointTypes.length, handleUpdateModel, mode, onClose])
 
   const handleFormSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -299,9 +287,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     </ProviderActions>
   )
 
-  const currentCurrency = isCustomCurrency ? customCurrencySymbol || currencySymbol || '$' : currencySymbol || '$'
-  const customCurrencyInvalid =
-    isCustomCurrency && customCurrencySymbol.length > 0 && !symbolToCurrency(customCurrencySymbol)
+  const currentCurrency = currencySymbol || '$'
 
   return (
     <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} footer={footer}>
@@ -317,6 +303,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 modelId: apiModelId,
                 name,
                 group,
+                contextWindow,
                 maxInputTokens,
                 maxOutputTokens,
                 endpointTypes
@@ -374,8 +361,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               <div className={drawerClasses.divider} />
 
               <ModelContextWindowFields
+                contextWindow={contextWindow}
                 maxInputTokens={maxInputTokens}
                 maxOutputTokens={maxOutputTokens}
+                onContextWindowChange={setContextWindow}
                 onMaxInputTokensChange={setMaxInputTokens}
                 onMaxOutputTokensChange={setMaxOutputTokens}
               />
@@ -402,26 +391,26 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
               <div className={drawerClasses.divider} />
 
-              <ProviderField title={t('models.price.currency')} titleClassName={drawerFieldTitleClassName}>
+              <ProviderField
+                title={t('models.price.currency')}
+                titleClassName={drawerFieldTitleClassName}
+                help={
+                  <div className={drawerClasses.helpText}>
+                    {t('models.price.custom_currency_supported', {
+                      symbols: MODEL_DRAWER_CURRENCY_SYMBOLS.join(', ')
+                    })}
+                  </div>
+                }>
                 <div className={drawerClasses.inlineRow}>
                   <Select
-                    value={isCustomCurrency ? 'custom' : currencySymbol}
+                    value={currencySymbol}
                     onValueChange={(nextValue) => {
-                      if (nextValue === 'custom') {
-                        setIsCustomCurrency(true)
-                        if (symbolToCurrency(customCurrencySymbol)) {
-                          autoSave({ isCustomCurrency: true, customCurrencySymbol })
-                        }
-                        return
-                      }
-
                       if (!isModelDrawerCurrencySymbol(nextValue)) {
                         return
                       }
 
-                      setIsCustomCurrency(false)
                       setCurrencySymbol(nextValue)
-                      autoSave({ isCustomCurrency: false, currencySymbol: nextValue })
+                      autoSave({ currencySymbol: nextValue })
                     }}>
                     <SelectTrigger aria-label={t('models.price.currency')} className={drawerClasses.selectTrigger}>
                       <SelectValue />
@@ -432,37 +421,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                           {symbol}
                         </SelectItem>
                       ))}
-                      <SelectItem value="custom">{t('models.price.custom')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </ProviderField>
-
-              {isCustomCurrency && (
-                <ProviderField title={t('models.price.custom_currency')} titleClassName={drawerFieldTitleClassName}>
-                  <input
-                    maxLength={5}
-                    aria-label={t('models.price.custom_currency')}
-                    value={customCurrencySymbol}
-                    placeholder={t('models.price.custom_currency_placeholder')}
-                    className={drawerClasses.input}
-                    onChange={(event) => {
-                      const nextValue = event.target.value
-                      setCustomCurrencySymbol(nextValue)
-                      if (symbolToCurrency(nextValue)) {
-                        autoSave({ isCustomCurrency: true, customCurrencySymbol: nextValue })
-                      }
-                    }}
-                  />
-                  {customCurrencyInvalid ? (
-                    <p className="mt-1 text-destructive text-xs">
-                      {t('models.price.custom_currency_supported', {
-                        symbols: MODEL_DRAWER_CURRENCY_SYMBOLS.join(', ')
-                      })}
-                    </p>
-                  ) : null}
-                </ProviderField>
-              )}
 
               <ProviderField title={t('models.price.input')} titleClassName={drawerFieldTitleClassName}>
                 <div className={drawerClasses.valueRow}>

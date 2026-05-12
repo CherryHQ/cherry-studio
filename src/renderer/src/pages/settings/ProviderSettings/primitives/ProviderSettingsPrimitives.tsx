@@ -1,3 +1,4 @@
+import Scrollbar from '@renderer/components/Scrollbar'
 import { cn } from '@renderer/utils'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { ReactNode } from 'react'
@@ -15,13 +16,10 @@ export function ProviderSettingsContainer({
   children: ReactNode
 }) {
   return (
-    <div
-      className={cn(
-        'flex min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-        className
-      )}>
+    <Scrollbar
+      className={cn('flex min-w-0 flex-1 flex-col [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}>
       {children}
-    </div>
+    </Scrollbar>
   )
 }
 

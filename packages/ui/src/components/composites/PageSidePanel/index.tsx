@@ -13,6 +13,8 @@ import { XIcon } from 'lucide-react'
 import * as React from 'react'
 import { useCallback, useEffect, useId, useRef } from 'react'
 
+import Scrollbar from '../Scrollbar'
+
 type PageSidePanelPlacement = 'left' | 'right'
 
 interface PageSidePanelProps {
@@ -150,11 +152,9 @@ function PageSidePanel({
               </div>
             )}
 
-            <div
-              data-slot="page-side-panel-body"
-              className={cn('flex-1 space-y-4 overflow-y-auto px-4 py-4 [&::-webkit-scrollbar]:hidden', bodyClassName)}>
+            <Scrollbar data-slot="page-side-panel-body" className={cn('flex-1 space-y-4 px-4 py-4', bodyClassName)}>
               {children}
-            </div>
+            </Scrollbar>
 
             {footer && (
               <div
