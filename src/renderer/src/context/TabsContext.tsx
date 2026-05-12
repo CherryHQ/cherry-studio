@@ -1,12 +1,12 @@
 import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { TabLRUManager } from '@renderer/services/TabLRUManager'
-import { uuid } from '@renderer/utils'
 import { getDefaultRouteTitle, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState, TabType } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { v4 as uuid } from 'uuid'
 
 const logger = loggerService.withContext('TabsContext')
 

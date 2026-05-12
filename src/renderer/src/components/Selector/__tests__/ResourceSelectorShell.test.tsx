@@ -1,10 +1,10 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 // Global renderer setup stubs @cherrystudio/ui with only a handful of components; the selector
-// needs the real EntitySelector/Checkbox/Separator, so we restore the actual module here.
+// needs the real Checkbox/Popover primitives, so we restore the actual module here.
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
   return actual
@@ -13,9 +13,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 import {
   ResourceSelectorShell,
   type ResourceSelectorShellItem,
-  type ResourceSelectorShellLabels,
-  type ResourceSelectorShellSortOption
-} from '../ResourceSelectorShell'
+  type ResourceSelectorShellLabels
+} from '../resource/ResourceSelectorShell'
 
 type Item = ResourceSelectorShellItem
 
@@ -29,8 +28,6 @@ const ITEMS: Item[] = [
 
 const LABELS: ResourceSelectorShellLabels = {
   searchPlaceholder: 'Search',
-  sortLabel: 'Sort',
-  edit: 'Edit',
   pin: 'Pin',
   unpin: 'Unpin',
   createNew: 'Create new',
@@ -60,6 +57,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  vi.restoreAllMocks()
 })
 
 function openPopover() {
@@ -70,17 +68,119 @@ function getRow(name: string) {
   return screen.getByRole('option', { name: new RegExp(name) })
 }
 
-/**
- * Click the item row. EntitySelector wraps each row in an outer role="option" div, and our
- * renderItem returns an inner div with the onClick handler. Clicking the outer wrapper does not
- * bubble into React's synthetic handler on the inner div, so we click the name span (which is a
- * descendant of the inner div) to trigger the real row-select path end-to-end.
- */
 function clickRowByName(name: string) {
   fireEvent.click(screen.getByText(name))
 }
 
+function mockSelectorAvailableHeight(availableHeight: number, chromeHeight: number) {
+  const originalGetComputedStyle = window.getComputedStyle.bind(window)
+
+  vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+    const style = originalGetComputedStyle(element)
+    const isContent = element instanceof HTMLElement && element.getAttribute('data-selector-shell-content') === 'true'
+    const isPopperWrapper = element instanceof HTMLElement && element.hasAttribute('data-radix-popper-content-wrapper')
+
+    if (!isContent && !isPopperWrapper) {
+      return style
+    }
+
+    Object.defineProperties(style, {
+      maxHeight: { configurable: true, value: `${availableHeight}px` },
+      paddingTop: { configurable: true, value: '0px' },
+      paddingBottom: { configurable: true, value: '0px' }
+    })
+    vi.spyOn(style, 'getPropertyValue').mockImplementation((property: string) =>
+      property === '--radix-popover-content-available-height' || property === '--radix-popper-available-height'
+        ? `${availableHeight}px`
+        : CSSStyleDeclaration.prototype.getPropertyValue.call(style, property)
+    )
+
+    return style
+  })
+
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const isChrome = this.hasAttribute('data-selector-shell-chrome')
+    return {
+      x: 0,
+      y: 0,
+      width: 320,
+      height: isChrome ? chromeHeight : 0,
+      top: 0,
+      right: 320,
+      bottom: isChrome ? chromeHeight : 0,
+      left: 0,
+      toJSON: () => {}
+    }
+  })
+}
+
 describe('ResourceSelectorShell', () => {
+  describe('layout', () => {
+    it('clamps the list max height to the available popover space', async () => {
+      mockSelectorAvailableHeight(160, 52)
+
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          onCreateNew={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      await waitFor(() =>
+        expect(screen.getByRole('listbox')).toHaveStyle({
+          maxHeight: '56px',
+          minHeight: '56px'
+        })
+      )
+    })
+
+    it('uses a smaller default minimum height when there is enough popover space', () => {
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          onCreateNew={vi.fn()}
+          labels={LABELS}
+          loading
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      expect(screen.getByRole('listbox')).toHaveStyle({ minHeight: '144px' })
+    })
+
+    it('renders empty results with the shared empty state', () => {
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={[]}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          onCreateNew={vi.fn()}
+          emptyState={{ preset: 'no-agent' }}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      expect(screen.getByText('Nothing')).toBeInTheDocument()
+      expect(screen.getByRole('listbox').querySelector('.lucide-package')).toBeInTheDocument()
+    })
+  })
+
   describe('value adapter', () => {
     it('single + id: onChange fires the plain id on row click', () => {
       const onChange = vi.fn()
@@ -90,7 +190,6 @@ describe('ResourceSelectorShell', () => {
           items={ITEMS}
           pinnedIds={[]}
           onTogglePin={vi.fn()}
-          onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
           value={null}
@@ -110,7 +209,6 @@ describe('ResourceSelectorShell', () => {
           items={ITEMS}
           pinnedIds={[]}
           onTogglePin={vi.fn()}
-          onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
           selectionType="item"
@@ -131,7 +229,6 @@ describe('ResourceSelectorShell', () => {
           items={ITEMS}
           pinnedIds={[]}
           onTogglePin={vi.fn()}
-          onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
           multi
@@ -153,7 +250,6 @@ describe('ResourceSelectorShell', () => {
           items={ITEMS}
           pinnedIds={[]}
           onTogglePin={vi.fn()}
-          onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
           multi
@@ -185,7 +281,6 @@ describe('ResourceSelectorShell', () => {
               items={ITEMS}
               pinnedIds={[]}
               onTogglePin={vi.fn()}
-              onEditItem={vi.fn()}
               onCreateNew={vi.fn()}
               labels={LABELS}
               multi
@@ -225,7 +320,6 @@ describe('ResourceSelectorShell', () => {
               items={ITEMS}
               pinnedIds={[]}
               onTogglePin={vi.fn()}
-              onEditItem={vi.fn()}
               onCreateNew={vi.fn()}
               labels={LABELS}
               multi
@@ -258,6 +352,39 @@ describe('ResourceSelectorShell', () => {
   })
 
   describe('pinned section', () => {
+    it('runs onOpen only once while the popover remains open across rerenders', () => {
+      const onOpen = vi.fn()
+      const { rerender } = render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          onOpen={onOpen}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+
+      openPopover()
+      expect(onOpen).toHaveBeenCalledTimes(1)
+
+      rerender(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={['1']}
+          onTogglePin={vi.fn()}
+          onOpen={onOpen}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      expect(onOpen).toHaveBeenCalledTimes(1)
+    })
+
     it('renders pinned header and orders pinned items by pinnedIds', () => {
       render(
         <ResourceSelectorShell
@@ -265,7 +392,6 @@ describe('ResourceSelectorShell', () => {
           items={ITEMS}
           pinnedIds={['3', '1']}
           onTogglePin={vi.fn()}
-          onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
           value={null}
@@ -289,7 +415,6 @@ describe('ResourceSelectorShell', () => {
           items={ITEMS}
           pinnedIds={['1']}
           onTogglePin={onTogglePin}
-          onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
           value={null}
@@ -302,46 +427,14 @@ describe('ResourceSelectorShell', () => {
       expect(onTogglePin).toHaveBeenCalledWith('1')
       expect(onChange).not.toHaveBeenCalled()
     })
-  })
 
-  describe('edit button', () => {
-    it('fires onEditItem with the row id and does not trigger row select', async () => {
-      const onEditItem = vi.fn()
-      const onChange = vi.fn()
+    it('uses the theme color from the model selector row action when pinned', () => {
       render(
         <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={ITEMS}
-          pinnedIds={[]}
+          pinnedIds={['1']}
           onTogglePin={vi.fn()}
-          onEditItem={onEditItem}
-          onCreateNew={vi.fn()}
-          labels={LABELS}
-          value={null}
-          onChange={onChange}
-        />
-      )
-      openPopover()
-      const editButtons = screen.getAllByRole('button', { name: 'Edit' })
-      // One edit button per non-pinned row; click the first.
-      fireEvent.click(editButtons[0])
-      await waitFor(() => expect(onEditItem).toHaveBeenCalledTimes(1))
-      expect(onChange).not.toHaveBeenCalled()
-      expect(screen.queryByPlaceholderText('Search')).not.toBeInTheDocument()
-    })
-
-    it('closes the popover before running the edit action callback', async () => {
-      let popoverAtCallback: HTMLElement | null = null
-      const onEditItem = vi.fn(() => {
-        popoverAtCallback = screen.queryByPlaceholderText('Search')
-      })
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={ITEMS}
-          pinnedIds={[]}
-          onTogglePin={vi.fn()}
-          onEditItem={onEditItem}
           onCreateNew={vi.fn()}
           labels={LABELS}
           value={null}
@@ -350,10 +443,131 @@ describe('ResourceSelectorShell', () => {
       )
       openPopover()
 
-      fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveAttribute('data-slot', 'button')
+      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveClass('text-primary!')
+    })
 
-      await waitFor(() => expect(onEditItem).toHaveBeenCalledWith('1'))
-      expect(popoverAtCallback).toBeNull()
+    it('uses the theme color on the unpin action when the pinned resource row is selected', () => {
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={['1']}
+          onTogglePin={vi.fn()}
+          onCreateNew={vi.fn()}
+          labels={LABELS}
+          value="1"
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveClass('text-primary!')
+    })
+
+    it('uses the theme color on the pin action when the resource row is selected', () => {
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          onCreateNew={vi.fn()}
+          labels={LABELS}
+          value="1"
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      expect(screen.getAllByRole('button', { name: 'Pin' })[0]).toHaveClass('text-primary!')
+    })
+
+    it('pin action is available on unpinned rows and does not select the row', () => {
+      const onTogglePin = vi.fn()
+      const onChange = vi.fn()
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={onTogglePin}
+          onCreateNew={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={onChange}
+        />
+      )
+      openPopover()
+      fireEvent.click(screen.getAllByRole('button', { name: 'Pin' })[0])
+      expect(onTogglePin).toHaveBeenCalledWith('1')
+      expect(onChange).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('edit button', () => {
+    it('keeps row action buttons outside the option subtree', () => {
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          onCreateNew={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      const alphaOption = getRow('Alpha')
+      expect(within(alphaOption).queryByRole('button')).not.toBeInTheDocument()
+    })
+
+    it('uses the model selector row styling', () => {
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          onCreateNew={vi.fn()}
+          labels={LABELS}
+          value="1"
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      const alphaOption = getRow('Alpha')
+      const row = alphaOption.closest('[data-model-selector-row]')
+      expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'py-1.5', 'bg-primary/10')
+    })
+
+    it('does not select the active row when pressing Enter on a row action', async () => {
+      const onTogglePin = vi.fn()
+      const onChange = vi.fn()
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={onTogglePin}
+          onCreateNew={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={onChange}
+        />
+      )
+      openPopover()
+
+      const pinButton = screen.getAllByRole('button', { name: 'Pin' })[0]
+      pinButton.focus()
+      fireEvent.keyDown(pinButton, { key: 'Enter' })
+
+      await waitFor(() => expect(onChange).not.toHaveBeenCalled())
+      expect(onTogglePin).not.toHaveBeenCalled()
     })
 
     it('closes the popover before running the create action callback', async () => {
@@ -367,7 +581,6 @@ describe('ResourceSelectorShell', () => {
           items={ITEMS}
           pinnedIds={[]}
           onTogglePin={vi.fn()}
-          onEditItem={vi.fn()}
           onCreateNew={onCreateNew}
           labels={LABELS}
           value={null}
@@ -382,42 +595,27 @@ describe('ResourceSelectorShell', () => {
       expect(popoverAtCallback).toBeNull()
     })
 
-    it('renders a custom item action slot without triggering row select', async () => {
-      const onEditItem = vi.fn()
-      const onChange = vi.fn()
+    it('renders the create action without a trailing icon', () => {
       render(
         <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
           onTogglePin={vi.fn()}
-          onEditItem={onEditItem}
           onCreateNew={vi.fn()}
           labels={LABELS}
           value={null}
-          onChange={onChange}
-          renderItemAction={({ item, buttonProps }) => (
-            <button {...buttonProps} type="button" data-testid={`action-${item.id}`}>
-              Configure {item.name}
-            </button>
-          )}
+          onChange={vi.fn()}
         />
       )
       openPopover()
 
-      const customAction = screen.getByTestId('action-1')
-      expect(customAction).toHaveTextContent('Configure Alpha')
-
-      fireEvent.click(customAction)
-
-      await waitFor(() => expect(onEditItem).toHaveBeenCalledTimes(1))
-      expect(onEditItem).toHaveBeenCalledWith('1')
-      expect(onChange).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: 'Create new' }).querySelector('.lucide-chevron-right')).toBeNull()
     })
   })
 
   describe('disabled rows', () => {
-    it('ignores click and right-click on aria-disabled rows', () => {
+    it('ignores click on aria-disabled rows', () => {
       const onChange = vi.fn()
       render(
         <ResourceSelectorShell
@@ -425,7 +623,6 @@ describe('ResourceSelectorShell', () => {
           items={ITEMS}
           pinnedIds={[]}
           onTogglePin={vi.fn()}
-          onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
           value={null}
@@ -440,31 +637,48 @@ describe('ResourceSelectorShell', () => {
     })
   })
 
-  describe('sort + search', () => {
-    it('applies a sort comparator when selected', () => {
-      const sortOptions: ResourceSelectorShellSortOption<Item>[] = [
-        { id: 'asc', label: 'Asc', comparator: (a, b) => a.name.localeCompare(b.name) },
-        { id: 'desc', label: 'Desc', comparator: (a, b) => b.name.localeCompare(a.name) }
-      ]
+  describe('search', () => {
+    it('exposes active descendant state from the focused search input', () => {
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          onCreateNew={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      const searchInput = screen.getByPlaceholderText('Search')
+      const listbox = screen.getByRole('listbox')
+      const alphaOption = getRow('Alpha')
+
+      expect(searchInput).toHaveAttribute('aria-controls', listbox.id)
+      expect(searchInput).toHaveAttribute('aria-activedescendant', alphaOption.id)
+      expect(listbox).not.toHaveAttribute('aria-activedescendant')
+    })
+
+    it('keeps caller item order instead of applying client-side sort', () => {
       render(
         <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={[ITEMS[1], ITEMS[0], ITEMS[2]]} // Beta, Alpha, Gamma
           pinnedIds={[]}
           onTogglePin={vi.fn()}
-          onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
-          sortOptions={sortOptions}
-          defaultSortId="asc"
           value={null}
           onChange={vi.fn()}
         />
       )
       openPopover()
       const options = screen.getAllByRole('option')
-      expect(options[0]).toHaveTextContent('Alpha')
-      expect(options[1]).toHaveTextContent('Beta')
+      expect(options[0]).toHaveTextContent('Beta')
+      expect(options[1]).toHaveTextContent('Alpha')
       expect(options[2]).toHaveTextContent('Gamma')
     })
 
@@ -475,7 +689,6 @@ describe('ResourceSelectorShell', () => {
           items={ITEMS}
           pinnedIds={[]}
           onTogglePin={vi.fn()}
-          onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
           value={null}

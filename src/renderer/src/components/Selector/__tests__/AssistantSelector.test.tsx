@@ -3,14 +3,16 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { openTabMock, refetchPinsMock, tabsContextMock, togglePinMock, usePinsMock, useQueryMock } = vi.hoisted(() => ({
-  openTabMock: vi.fn(),
-  refetchPinsMock: vi.fn(),
-  tabsContextMock: vi.fn(),
-  togglePinMock: vi.fn(),
-  usePinsMock: vi.fn(),
-  useQueryMock: vi.fn()
-}))
+const { navigateMock, openTabMock, refetchPinsMock, tabsContextMock, togglePinMock, usePinsMock, useQueryMock } =
+  vi.hoisted(() => ({
+    navigateMock: vi.fn(),
+    openTabMock: vi.fn(),
+    refetchPinsMock: vi.fn(),
+    tabsContextMock: vi.fn(),
+    togglePinMock: vi.fn(),
+    usePinsMock: vi.fn(),
+    useQueryMock: vi.fn()
+  }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
@@ -41,19 +43,15 @@ vi.mock('react-i18next', async (importOriginal) => {
           'selector.assistant.multi_hint': 'Select multiple assistants',
           'selector.assistant.multi_label': 'Multiple',
           'selector.assistant.search_placeholder': 'Search assistants',
-          'selector.common.edit': 'Edit',
           'selector.common.pin': 'Pin',
           'selector.common.pinned_title': 'Pinned',
-          'selector.common.sort.asc': 'Oldest',
-          'selector.common.sort.desc': 'Newest',
-          'selector.common.sort_label': 'Sort',
           'selector.common.unpin': 'Unpin'
         })[key] ?? key
     })
   }
 })
 
-import { AssistantSelector } from '../AssistantSelector'
+import { AssistantSelector } from '../resource/AssistantSelector'
 
 const ALPHA_ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 const BETA_ASSISTANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -119,6 +117,7 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  window.navigate = navigateMock as typeof window.navigate
   tabsContextMock.mockReturnValue({
     openTab: openTabMock
   })
@@ -155,39 +154,42 @@ function openPopover() {
 }
 
 describe('AssistantSelector library navigation', () => {
+  it('renders rows in DataApi order and shows tag filters without sort controls', () => {
+    renderSelector()
+    openPopover()
+
+    const options = screen.getAllByRole('option')
+    expect(options[0]).toHaveTextContent('Alpha Assistant')
+    expect(options[1]).toHaveTextContent('Beta Assistant')
+    expect(screen.getByRole('button', { name: 'work' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Newest' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Oldest' })).not.toBeInTheDocument()
+  })
+
   it('renders assistant tag chips and filters rows by selected tag', () => {
     renderSelector()
     openPopover()
 
-    fireEvent.click(screen.getByRole('button', { pressed: false }))
     fireEvent.click(screen.getByRole('button', { name: 'work' }))
 
     expect(screen.getByRole('option', { name: /Alpha Assistant/ })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Beta Assistant/ })).not.toBeInTheDocument()
   })
 
-  it('renders without tab context and hides library navigation actions', () => {
+  it('renders without tab context and opens the assistant create flow through global navigation', async () => {
     tabsContextMock.mockReturnValue(null)
 
     renderSelector()
     openPopover()
 
     expect(screen.getByRole('option', { name: /Alpha Assistant/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Create assistant' })).not.toBeInTheDocument()
-  })
-
-  it('navigates to the resource library assistant editor from the row edit action', async () => {
-    renderSelector()
-    openPopover()
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Create assistant' }))
 
     await waitFor(() =>
-      expect(openTabMock).toHaveBeenCalledWith(
-        `/app/library?resourceType=assistant&action=edit&id=${BETA_ASSISTANT_ID}`,
-        { forceNew: true }
-      )
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/app/library',
+        search: { resourceType: 'assistant', action: 'create' }
+      })
     )
   })
 

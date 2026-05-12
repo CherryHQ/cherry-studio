@@ -2,17 +2,12 @@ import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
-import {
-  buildLibraryCreateSearch,
-  buildLibraryEditSearch,
-  buildLibraryRouteUrl
-} from '@renderer/pages/library/routeSearch'
+import { buildLibraryCreateSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { Bot } from 'lucide-react'
 import { type ReactElement, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
-import { useCreatedAtSort } from './useCreatedAtSort'
 
 const logger = loggerService.withContext('AgentSelector')
 const AGENT_FALLBACK_ICON = <Bot className="size-4 text-muted-foreground/70" />
@@ -55,6 +50,19 @@ export function AgentSelector(props: AgentSelectorProps) {
   } = usePins('agent')
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
+  const openLibraryRoute = useCallback(
+    (search: ReturnType<typeof buildLibraryCreateSearch>) => {
+      const url = buildLibraryRouteUrl(search)
+      if (openTab) {
+        openTab(url, { forceNew: true })
+        return
+      }
+
+      void window.navigate({ to: '/app/library', search })
+    },
+    [openTab]
+  )
+
   const items: AgentSelectorItem[] = useMemo(
     () =>
       (data?.items ?? []).map((agent) => ({
@@ -65,8 +73,6 @@ export function AgentSelector(props: AgentSelectorProps) {
       })),
     [data]
   )
-
-  const sortOptions = useCreatedAtSort<AgentSelectorItem>(data?.items, t)
 
   const handleTogglePin = useCallback(
     async (id: string) => {
@@ -90,24 +96,16 @@ export function AgentSelector(props: AgentSelectorProps) {
     onOpen: refetchPins,
     items,
     fallbackIcon: AGENT_FALLBACK_ICON,
-    sortOptions,
-    defaultSortId: 'desc',
     pinnedIds,
+    emptyState: { preset: 'no-agent' as const },
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
-    ...(openTab && {
-      onEditItem: (id: string) => {
-        openTab(buildLibraryRouteUrl(buildLibraryEditSearch('agent', id)), { forceNew: true })
-      },
-      onCreateNew: () => {
-        openTab(buildLibraryRouteUrl(buildLibraryCreateSearch('agent')), { forceNew: true })
-      }
-    }),
+    onCreateNew: () => {
+      openLibraryRoute(buildLibraryCreateSearch('agent'))
+    },
     loading: isLoading || isPinnedLoading,
     labels: {
       searchPlaceholder: t('selector.agent.search_placeholder'),
-      sortLabel: t('selector.common.sort_label'),
-      edit: t('selector.common.edit'),
       pin: t('selector.common.pin'),
       unpin: t('selector.common.unpin'),
       createNew: t('selector.agent.create_new'),

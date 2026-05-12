@@ -3,8 +3,8 @@ import type { Provider } from '@shared/data/types/provider'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ModelSelectorModelItem } from '../types'
-import { useModelSelectorData } from '../useModelSelectorData'
+import type { ModelSelectorModelItem } from '../model/types'
+import { useModelSelectorData } from '../model/useModelSelectorData'
 
 // ─── Mock hook deps ───────────────────────────────────────────────────
 const mockUseModelsFn = vi.fn()
