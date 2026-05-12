@@ -122,19 +122,25 @@ export type EnsureExternalEntryIpcParams = {
 /**
  * Aggregate result of a batch operation.
  *
- * `failed` carries the input identifier that failed plus the error message:
- * - **id**: present when the input was an existing FileEntryId (e.g. batchTrash,
- *   batchRestore, batchPermanentDelete). Absent for create-side batches where
- *   no entry was ever materialized.
- * - **sourceRef**: present for create-side batches (batchCreateInternalEntries
- *   carries an opaque caller-provided index/label; batchEnsureExternalEntries
- *   carries the input externalPath). Absent for id-bearing batches.
+ * `failed` is a discriminated union: exactly one of `id` / `sourceRef` is
+ * present per entry, enforced by the type system so a handler returning a
+ * malformed entry (`{ error }` alone, or `{ id, sourceRef, error }`) stops
+ * compiling instead of leaking into renderer consumers.
  *
- * Exactly one of `id` / `sourceRef` is present in any well-formed entry.
+ * - **id-bearing**: the input was an existing FileEntryId (batchTrash,
+ *   batchRestore, batchPermanentDelete).
+ * - **sourceRef-bearing**: create-side batches that never materialized an
+ *   entry — batchCreateInternalEntries carries an opaque caller-provided
+ *   index/label; batchEnsureExternalEntries carries the input externalPath.
+ *
+ * Consumer narrowing (`if (item.id) … else if (item.sourceRef) …`) keeps
+ * working — TypeScript narrows the union on the truthy branch.
  */
 export interface BatchOperationResult {
   succeeded: FileEntryId[]
-  failed: Array<{ id?: FileEntryId; sourceRef?: string; error: string }>
+  failed: Array<
+    { id: FileEntryId; sourceRef?: never; error: string } | { id?: never; sourceRef: string; error: string }
+  >
 }
 
 // ─── File IPC API ───
