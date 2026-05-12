@@ -124,7 +124,7 @@ describe('ActionMenu', () => {
     expect(screen.getByText('Delete session?')).toBeInTheDocument()
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('dialog').querySelectorAll('button')[1])
+      fireEvent.click(screen.getByRole('dialog').querySelectorAll('button')[1]!)
     })
     expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'delete' }))
   })
