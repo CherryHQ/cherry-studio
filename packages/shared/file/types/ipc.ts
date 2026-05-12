@@ -111,14 +111,43 @@ export type CreateInternalEntryIpcParams =
  * `getMetadata`. External entries cannot be trashed, so no "restore" branch
  * is possible.
  *
- * **Main handler MUST call `canonicalizeExternalPath()` on `externalPath`
- * before any DB lookup.** The renderer cannot produce a
- * `CanonicalExternalPath` brand, so this IPC boundary stays raw `FilePath`
- * by necessity — canonicalization is a main-process responsibility that
- * has to happen at every consumer site (see `FileManager.ensureExternalEntry`,
- * `FileManager.rename`, `internal/entry/rename.ts`, `internal/entry/create.ts`).
- * Skipping it silently misses entries on case-insensitive filesystems and
- * after symlink resolution.
+ * ## Canonicalization stays on the main side (by design)
+ *
+ * `externalPath` is intentionally typed as raw `FilePath` rather than
+ * `CanonicalExternalPath`. The asymmetry is deliberate:
+ *
+ * - **Renderer has no canonicalize use case.** It never compares paths
+ *   for dedup (the DB-level `UNIQUE(externalPath)` index does that
+ *   after `ensureExternalEntry`), never derives a canonical projection,
+ *   and never uses paths as join keys. Every path the renderer holds
+ *   either flows back to main (for an IPC call) or feeds a system API
+ *   that itself accepts arbitrary user paths.
+ * - **Canonicalization implementation is main-only.**
+ *   `canonicalizeExternalPath` (`src/main/services/file/utils/pathResolver.ts`)
+ *   depends on main-only modules (realpath / NFC / case-fold). Asking the
+ *   renderer to canonicalize would either duplicate that logic or
+ *   require an extra IPC hop per call — no upside for either choice.
+ * - **The brand is already protected by a project rule, not by JSDoc.**
+ *   `fileEntry.ts` makes the construction discipline explicit: only the
+ *   `canonicalizeExternalPath` factory may produce `CanonicalExternalPath`;
+ *   production code MUST NEVER `as`-cast into the brand. Code that
+ *   bypasses the gate violates the rule, not just an inline comment —
+ *   PR review catches it the same way it catches any other rule break.
+ *
+ * **Why not extend the brand to the IPC boundary** (e.g. a `RawExternalPath`
+ * brand on the param): the renderer would have to `as`-cast `string →
+ * RawExternalPath` at the call site, which is itself a violation of the
+ * same "no production `as`-cast into brands" rule. The proposal therefore
+ * trades one boundary's discipline for another's, without adding actual
+ * enforcement; meanwhile dev / test ergonomics get worse at every call
+ * site. The four current main consumers (FileManager.ensureExternalEntry,
+ * FileManager.rename, `internal/entry/rename.ts`, `internal/entry/create.ts`)
+ * already canonicalize before any DB lookup, and Phase 2 consumers join
+ * that pattern via code review at the same sites.
+ *
+ * Skipping canonicalization silently misses entries on case-insensitive
+ * filesystems and after symlink resolution — which is why the gate exists
+ * at all.
  */
 export type EnsureExternalEntryIpcParams = {
   externalPath: FilePath
