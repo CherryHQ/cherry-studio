@@ -56,7 +56,51 @@
  * discriminated union — do not extend FileInfo.
  */
 
-import type { FilePath, FileType } from './common'
+import * as z from 'zod'
+
+import type { FilePath } from './common'
+import { FileTypeSchema } from './common'
+
+/**
+ * Zod schema for `FileInfo`. Branded so consumers cannot construct a raw
+ * object literal that satisfies the structure but skipped validation —
+ * matches the discipline `FileEntry` / `FileRef` / `DanglingState` already
+ * follow. Parse it at every IPC boundary that returns `FileInfo`
+ * (`getMetadata` and friends).
+ *
+ * The schema mirrors the `FileInfo` interface 1:1; the inferred type is the
+ * source of truth and `FileInfo` re-exports it below.
+ */
+export const FileInfoSchema = z
+  .strictObject({
+    /**
+     * Absolute filesystem path. The TypeScript template-literal `FilePath`
+     * brand is enforced only at the type level; the runtime check here is
+     * the same shape gate (`/`-prefixed POSIX or `X:\` Windows drive)
+     * plus a null-byte rejection — anything that survives is safe to feed
+     * to `fs` APIs.
+     */
+    path: z
+      .string()
+      .min(1)
+      .refine((s) => !s.includes('\0'), 'path must not contain null bytes')
+      .refine((s) => s.startsWith('/') || /^[A-Za-z]:\\/.test(s), 'path must be an absolute filesystem path'),
+    /** Basename without extension. */
+    name: z.string(),
+    /** Extension without leading dot, or `null` for extensionless files. */
+    ext: z.string().nullable(),
+    /** Size in bytes (live from `fs.stat`). */
+    size: z.int().nonnegative(),
+    /** MIME type (derived from `ext`). */
+    mime: z.string(),
+    /** Coarse content classification (derived from `ext`). */
+    type: FileTypeSchema,
+    /** Creation timestamp (ms epoch). */
+    createdAt: z.int().nonnegative(),
+    /** Last-modified timestamp (ms epoch, from `fs.stat` mtime). */
+    modifiedAt: z.int().nonnegative()
+  })
+  .brand<'FileInfo'>()
 
 /**
  * Descriptor for a file on disk. Flat, cheap to construct, no identity.
@@ -64,42 +108,11 @@ import type { FilePath, FileType } from './common'
  * @see {@link FileEntry} for the entry-system counterpart.
  * @see {@link PhysicalFileMetadata} for per-kind rich stat (dimensions,
  *      pageCount, etc.).
+ *
+ * Inferred from `FileInfoSchema`; the schema is the source of truth.
+ * The runtime `path` shape check is intentionally weaker than the TS
+ * `FilePath` template literal (template literals can't be expressed in
+ * Zod) — the field is still typed as `FilePath` here for ergonomics
+ * everywhere it crosses an IPC boundary.
  */
-export interface FileInfo {
-  /**
-   * Absolute filesystem path. Must pass `FilePath` runtime validation.
-   * This is the identity of a FileInfo — two `FileInfo`s with the same
-   * `path` describe the same file.
-   */
-  readonly path: FilePath
-
-  /**
-   * Basename without extension (e.g. `"report"` for `"/x/report.pdf"`).
-   * Matches `FileEntry.name` semantics so projection preserves the field.
-   */
-  readonly name: string
-
-  /**
-   * Extension without leading dot (e.g. `"pdf"`). `null` for extensionless
-   * files (e.g. `Dockerfile`). Matches `FileEntry.ext` semantics.
-   */
-  readonly ext: string | null
-
-  /** Size in bytes (live from `fs.stat`). */
-  readonly size: number
-
-  /** MIME type (derived from `ext`; `"application/octet-stream"` when unknown). */
-  readonly mime: string
-
-  /** Coarse content classification (derived from `ext`). */
-  readonly type: FileType
-
-  /**
-   * Creation timestamp (ms epoch). On filesystems without a reliable birth
-   * time, producers fall back to `modifiedAt`.
-   */
-  readonly createdAt: number
-
-  /** Last-modified timestamp (ms epoch, from `fs.stat` mtime). */
-  readonly modifiedAt: number
-}
+export type FileInfo = Omit<z.infer<typeof FileInfoSchema>, 'path'> & { readonly path: FilePath }
