@@ -15,7 +15,9 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
+import type { AgentType } from '@shared/data/types/agent'
+import type { Model } from '@shared/data/types/model'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,24 +29,13 @@ import type { AgentFormState } from '../descriptor'
 interface Props {
   form: AgentFormState
   onChange: (patch: Partial<AgentFormState>) => void
+  agentType?: AgentType
   nameError?: string
   modelError?: string
 }
 
 // Avatar quick-pick presets shown next to the emoji picker button.
 const AVATAR_PRESETS = ['🤖', '🧠', '⚡', '🚀', '🛠️', '🎯', '📊', '🔬'] as const
-const DISALLOWED_AGENT_CAPABILITIES = new Set<string>([
-  MODEL_CAPABILITY.EMBEDDING,
-  MODEL_CAPABILITY.RERANK,
-  MODEL_CAPABILITY.IMAGE_GENERATION
-])
-
-function isSelectableAgentModel(model: Model): boolean {
-  return (
-    model.endpointTypes?.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES) === true &&
-    !model.capabilities.some((capability) => DISALLOWED_AGENT_CAPABILITIES.has(capability))
-  )
-}
 
 /**
  * Mirrors the legacy AgentSettings **Essential** tab: the section where
@@ -62,9 +53,10 @@ function isSelectableAgentModel(model: Model): boolean {
  * Each sub-field stays in one flat list to match the "one tall Essential
  * tab" feel of the legacy popup.
  */
-const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
+const BasicSection: FC<Props> = ({ form, onChange, agentType = 'claude-code', nameError, modelError }) => {
   const { t } = useTranslation()
   const [emojiOpen, setEmojiOpen] = useState(false)
+  const modelFilter = useAgentModelFilter(agentType)
 
   return (
     <div className="flex flex-col gap-5">
@@ -141,6 +133,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
           hint={t('library.config.agent.field.model.hint')}
           value={form.model}
           errorMessage={modelError}
+          filter={modelFilter}
           onSelect={(modelId) => onChange({ model: modelId ?? '' })}
         />
         <ModelField
@@ -148,6 +141,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
           hint={t('library.config.agent.field.plan_model.hint')}
           value={form.planModel}
           allowClear
+          filter={modelFilter}
           onSelect={(modelId) => onChange({ planModel: modelId ?? '' })}
         />
         <ModelField
@@ -155,6 +149,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
           hint={t('library.config.agent.field.small_model.hint')}
           value={form.smallModel}
           allowClear
+          filter={modelFilter}
           onSelect={(modelId) => onChange({ smallModel: modelId ?? '' })}
         />
       </ModelSubsection>
@@ -231,6 +226,7 @@ function ModelField({
   value,
   allowClear = false,
   errorMessage,
+  filter,
   onSelect
 }: {
   label: string
@@ -238,6 +234,7 @@ function ModelField({
   value: string
   allowClear?: boolean
   errorMessage?: string
+  filter?: (model: Model) => boolean
   onSelect: (modelId: string | null) => void
 }) {
   return (
@@ -247,7 +244,7 @@ function ModelField({
       value={value}
       allowClear={allowClear}
       errorMessage={errorMessage}
-      filter={isSelectableAgentModel}
+      filter={filter}
       onSelect={onSelect}
     />
   )

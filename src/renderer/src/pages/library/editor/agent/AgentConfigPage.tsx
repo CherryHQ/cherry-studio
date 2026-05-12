@@ -147,6 +147,7 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
         <BasicSection
           form={form}
           onChange={onChange}
+          agentType={editAgent?.type ?? 'claude-code'}
           nameError={createValidation?.nameMissing ? requiredFieldMessage : undefined}
           modelError={createValidation?.modelMissing ? requiredFieldMessage : undefined}
         />

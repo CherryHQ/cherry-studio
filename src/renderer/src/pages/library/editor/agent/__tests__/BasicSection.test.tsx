@@ -2,10 +2,15 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentFormState } from '../descriptor'
 import BasicSection from '../sections/BasicSection'
+
+const { modelFilterMock, useAgentModelFilterMock } = vi.hoisted(() => ({
+  modelFilterMock: vi.fn(() => true),
+  useAgentModelFilterMock: vi.fn()
+}))
 
 const models = [
   { id: 'anthropic::claude-sonnet-4-5', name: 'Claude Sonnet 4.5' },
@@ -75,10 +80,23 @@ vi.mock('@renderer/hooks/useModels', () => ({
   useModels: () => ({ models, isLoading: false })
 }))
 
+vi.mock('@renderer/hooks/agents/useAgentModelFilter', () => ({
+  useAgentModelFilter: useAgentModelFilterMock
+}))
+
 vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ trigger, onSelect }: { trigger: ReactNode; onSelect: (modelId: string | undefined) => void }) => (
+  ModelSelector: ({
+    trigger,
+    filter,
+    onSelect
+  }: {
+    trigger: ReactNode
+    filter?: unknown
+    onSelect: (modelId: string | undefined) => void
+  }) => (
     <div>
       <div data-testid="model-selector-trigger">{trigger}</div>
+      <span data-testid="model-selector-filter">{filter === modelFilterMock ? 'agent-filter' : 'other-filter'}</span>
       <button type="button" onClick={() => onSelect('anthropic::claude-sonnet-4-5')}>
         select main
       </button>
@@ -125,6 +143,23 @@ function createForm(overrides: Partial<AgentFormState> = {}): AgentFormState {
 }
 
 describe('BasicSection agent model selectors', () => {
+  beforeEach(() => {
+    modelFilterMock.mockClear()
+    useAgentModelFilterMock.mockReset()
+    useAgentModelFilterMock.mockReturnValue(modelFilterMock)
+  })
+
+  it('uses the shared agent model filter for all model fields', () => {
+    render(<BasicSection form={createForm()} onChange={vi.fn()} />)
+
+    expect(useAgentModelFilterMock).toHaveBeenCalledWith('claude-code')
+    expect(screen.getAllByTestId('model-selector-filter').map((node) => node.textContent)).toEqual([
+      'agent-filter',
+      'agent-filter',
+      'agent-filter'
+    ])
+  })
+
   it('writes selected UniqueModelIds directly into each agent model field', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
