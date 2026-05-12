@@ -36,6 +36,25 @@ describe('isPathInside', () => {
   it('handles path traversal attempts ("../") correctly', () => {
     expect(isPathInside('/foo/bar/../baz', '/foo/bar')).toBe(false)
   })
+
+  it.runIf(process.platform === 'darwin' || process.platform === 'win32')(
+    'matches case-insensitively on darwin / win32 (filesystem default)',
+    () => {
+      // Regression guard: previously `path.relative` compared bytes
+      // exactly, letting `/users/me/data/files/x` slip past a check
+      // against `/Users/me/Data/Files` on a default macOS install.
+      // `isUnderInternalStorage` derives from this and was bypassable
+      // for any future Phase 2 caller using it as a permission gate.
+      expect(isPathInside('/Users/me/Data/Files/x.txt', '/users/me/data/files')).toBe(true)
+      expect(isPathInside('/USERS/ME/DATA/FILES/x.txt', '/users/me/data/files')).toBe(true)
+    }
+  )
+
+  it.runIf(process.platform === 'linux')('stays case-sensitive on linux (filesystem default)', () => {
+    // On case-sensitive POSIX filesystems `/Users` and `/users` are
+    // genuinely different paths; the function MUST NOT collapse them.
+    expect(isPathInside('/Users/me/Data/Files/x.txt', '/users/me/data/files')).toBe(false)
+  })
 })
 
 describe('isUnderInternalStorage', () => {

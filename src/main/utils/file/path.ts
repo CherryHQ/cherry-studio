@@ -24,12 +24,29 @@ export function resolvePath(_base: string, _relative: string): string {
  *
  * Equality returns false (a directory is not "inside" itself).
  * Both paths are resolved before comparison so `..` segments behave correctly.
+ *
+ * Case-sensitivity tracks the host filesystem semantics: case-sensitive on
+ * linux (and most server-class FS), case-insensitive on darwin (APFS
+ * default) and win32 (NTFS default). Without this, `isUnderInternalStorage`
+ * would let `/users/me/data/files` slip past a check against
+ * `/Users/me/Data/Files` on a default macOS install — a latent bypass for
+ * any future Phase 2 caller that uses `isUnderInternalStorage` as a
+ * permission gate.
+ *
+ * Limitation: detection is platform-based, not per-mount. Edge cases like
+ * a case-sensitive APFS volume mounted on macOS or a SMB share with
+ * non-default case-folding still fall through to the platform default. A
+ * `realpath`-based check would be the correct fix for those, but blocks on
+ * the file existing — deferred until a consumer actually needs it.
  */
 export function isPathInside(child: string, parent: string): boolean {
   const childResolved = path.resolve(child)
   const parentResolved = path.resolve(parent)
-  if (childResolved === parentResolved) return false
-  const rel = path.relative(parentResolved, childResolved)
+  const caseInsensitive = process.platform === 'darwin' || process.platform === 'win32'
+  const a = caseInsensitive ? childResolved.toLowerCase() : childResolved
+  const b = caseInsensitive ? parentResolved.toLowerCase() : parentResolved
+  if (a === b) return false
+  const rel = path.relative(b, a)
   return rel.length > 0 && !rel.startsWith('..') && !path.isAbsolute(rel)
 }
 
