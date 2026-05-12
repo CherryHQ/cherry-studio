@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { fileEntryTable } from '@data/db/schemas/file'
 import type { FilePath } from '@shared/file/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -93,5 +94,23 @@ describe('internal/entry/copy', () => {
     expect(dst.origin).toBe('internal')
     const dstPhysical = path.join(filesDir, `${dst.id}.txt`)
     expect(await readFile(dstPhysical, 'utf-8')).toBe('external-content')
+  })
+
+  it('rolls back the new entry when the post-create rename fails (all-or-nothing contract)', async () => {
+    // Regression: previously a failing rename left the freshly-created `dst`
+    // entry + its physical blob behind, half-renamed. With B1+B2's
+    // SafeNameSchema gate in place, an unsafe newName fails at rename and
+    // the create must be rolled back so the caller sees a clean "either the
+    // renamed entry, or nothing" surface.
+    const src = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'orig', ext: 'txt' })
+
+    const beforeRows = await dbh.db.select().from(fileEntryTable)
+    const dstCountBefore = beforeRows.length
+
+    await expect(copy(deps, { id: src.id, newName: '../escape-attempt' })).rejects.toThrow()
+
+    // No leaked entry: row count unchanged from the post-src state.
+    const afterRows = await dbh.db.select().from(fileEntryTable)
+    expect(afterRows.length).toBe(dstCountBefore)
   })
 })
