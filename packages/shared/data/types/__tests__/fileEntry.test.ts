@@ -269,12 +269,15 @@ describe('FileEntrySchema brand', () => {
 // ─── FileEntryId ───
 
 describe('FileEntryIdSchema', () => {
-  it('accepts UUID v7', () => {
+  it('accepts UUID v7 (entries created in v2)', () => {
     expect(FileEntryIdSchema.safeParse('019606a0-0000-7000-8000-000000000001').success).toBe(true)
   })
 
-  it('rejects UUID v4', () => {
-    expect(FileEntryIdSchema.safeParse('550e8400-e29b-41d4-a716-446655440000').success).toBe(false)
+  it('accepts UUID v4 (legacy ids preserved by migration)', () => {
+    // The schema accepts any UUID version so cross-table references keep
+    // their original ids when data is migrated from legacy stores; new
+    // entries created in v2 still come out as v7.
+    expect(FileEntryIdSchema.safeParse('550e8400-e29b-41d4-a716-446655440000').success).toBe(true)
   })
 
   it('rejects random strings', () => {

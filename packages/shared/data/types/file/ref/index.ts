@@ -69,6 +69,13 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
 export const allSourceTypes = [tempSessionSourceType, knowledgeItemSourceType] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
+/**
+ * Runtime validator for `FileRefSourceType` — used by DataApi handlers to
+ * guard `sourceType` query parameters before reaching the service. Stays in
+ * lockstep with `allSourceTypes` because it derives from the same tuple.
+ */
+export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
+
 // ─── Discriminated Union ───
 
 /**

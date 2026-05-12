@@ -98,6 +98,16 @@ describe('fileHandlers (DataApi)', () => {
         details: { resource: 'FileEntry', id: missing }
       })
     })
+
+    it('rejects a non-UUIDv7 id with ZodError before reaching the service', async () => {
+      // FileEntryId is a brand alias for `string` — without the handler-level
+      // parse, a malformed id reaches the DB layer and surfaces as either an
+      // opaque NOT_FOUND or an internal error. `fileEntry.ts:99-104` requires
+      // handlers to validate at the boundary; this test pins that contract.
+      await expect(
+        fileHandlers['/files/entries/:id'].GET({ params: { id: 'not-a-uuid' } } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+    })
   })
 
   describe('GET /files/entries/ref-counts', () => {
@@ -133,6 +143,14 @@ describe('fileHandlers (DataApi)', () => {
       } as never)) as Array<{ entryId: string; refCount: number }>
       expect(result.find((r) => r.entryId === idA)?.refCount).toBe(2)
       expect(result.find((r) => r.entryId === idB)?.refCount).toBe(0)
+    })
+
+    it('rejects entryIds containing non-UUIDv7 strings with ZodError', async () => {
+      await expect(
+        fileHandlers['/files/entries/ref-counts'].GET({
+          query: { entryIds: ['not-a-uuid'] }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
     })
   })
 
@@ -176,6 +194,25 @@ describe('fileHandlers (DataApi)', () => {
         query: { sourceType: 'temp_session', sourceId: 'session-Z' }
       } as never)) as unknown[]
       expect(refs.length).toBe(1)
+    })
+
+    it('rejects an unregistered sourceType with ZodError', async () => {
+      // sourceType must be one of the registered variants in `allSourceTypes`;
+      // a stray literal here would otherwise be silently coerced through to
+      // an empty SELECT and return [] instead of failing loudly.
+      await expect(
+        fileHandlers['/files/refs/by-source'].GET({
+          query: { sourceType: 'unknown_source', sourceId: 'x' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+    })
+
+    it('rejects an empty sourceId with ZodError', async () => {
+      await expect(
+        fileHandlers['/files/refs/by-source'].GET({
+          query: { sourceType: 'temp_session', sourceId: '' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
     })
   })
 })
