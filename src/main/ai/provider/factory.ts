@@ -16,12 +16,6 @@ for (const extension of extensions) {
   }
 }
 
-/**
- * Get AI SDK Provider ID from a v2 Provider.
- *
- * Uses provider.id for direct lookup, provider.presetProviderId as fallback
- * (replaces old provider.type), and endpoint baseUrl for OpenAI domain detection.
- */
 export function getAiSdkProviderId(provider: Provider): AppProviderId {
   // 1. Azure responses endpoint detection
   if (isAzureOpenAIProvider(provider)) {
@@ -49,10 +43,12 @@ export function getAiSdkProviderId(provider: Provider): AppProviderId {
     return appProviderIds['openai-chat']
   }
 
-  logger.warn('Provider ID not found in registered extensions, using as-is', {
+  // 5. Final fallback — must mirror `providerToAiSdkConfig` so feature gates
+  // that key on the returned id (`reasoningExtraction.applies`, etc.) see
+  // the same provider the SDK adapter does.
+  logger.debug('Provider id not in registered extensions; falling back to openai-compatible', {
     providerId: provider.id,
-    presetProviderId: provider.presetProviderId,
-    registeredIds: Object.keys(appProviderIds)
+    presetProviderId: provider.presetProviderId
   })
-  return provider.id
+  return appProviderIds['openai-compatible']
 }
