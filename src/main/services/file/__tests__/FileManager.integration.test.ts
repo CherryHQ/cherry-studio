@@ -186,6 +186,35 @@ describe('FileManager (integration)', () => {
     expect(await fm.getDanglingState({ id })).toBe('missing')
   })
 
+  it('INT-3e: createReadStream on missing external file flips DanglingCache to "missing"', async () => {
+    // createReadStream surfaces ENOENT asynchronously through the stream's
+    // 'error' event rather than via the returned promise, so the
+    // observeExternalAccess wrapper used by the other read paths doesn't
+    // apply directly — the FileManager must attach a stream-level error
+    // listener that mirrors the same "external + ENOENT → 'missing'"
+    // semantics. Without that listener subsequent UI queries on the entry
+    // stay at 'unknown' / 'present' until something else triggers a re-stat.
+    //
+    // Pre-commit 'present' to the cache so a missing stream-error listener
+    // is observable: cache.check would otherwise fall back to a fresh stat
+    // and return 'missing' on its own (masking the regression). With cache
+    // pinned to 'present', only the listener path can flip it to 'missing'.
+    const id = '019606a0-0000-7000-8000-00000000ff35' as FileEntryId
+    const file = await seedMissingExternal(id, 'flip-stream.txt')
+    danglingCache.onFsEvent(file as never, 'present', 'ops')
+    expect(await fm.getDanglingState({ id })).toBe('present')
+
+    const stream = await fm.createReadStream(id)
+    await expect(
+      new Promise((resolve, reject) => {
+        stream.once('error', reject)
+        stream.once('end', resolve)
+        stream.resume()
+      })
+    ).rejects.toThrow(/ENOENT/)
+    expect(await fm.getDanglingState({ id })).toBe('missing')
+  })
+
   it('INT-4: write path round-trip — create internal, write, read, trash, restore, permanentDelete', async () => {
     const created = await fm.createInternalEntry({
       source: 'bytes',

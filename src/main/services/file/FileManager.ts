@@ -687,7 +687,23 @@ export class FileManager extends BaseService {
 
   async createReadStream(id: FileEntryId): Promise<Readable> {
     const entry = await this.deps.fileEntryService.getById(id)
-    return nodeCreateReadStream(resolvePhysicalPath(entry))
+    const physicalPath = resolvePhysicalPath(entry)
+    const stream = nodeCreateReadStream(physicalPath)
+    if (entry.origin === 'external') {
+      // observeExternalAccess covers the awaitable read paths (read / hash /
+      // getMetadata / getVersion). createReadStream surfaces ENOENT lazily
+      // through the stream's 'error' event instead, so we mirror the same
+      // "external + ENOENT → 'missing'" cache commit at the stream layer.
+      // Listener stays passive (no throw, no other side effect) and respects
+      // the cache's existing emission rules — only a real transition fires
+      // subscribers.
+      stream.once('error', (err) => {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+          this.deps.danglingCache.onFsEvent(physicalPath, 'missing')
+        }
+      })
+    }
+    return stream
   }
 
   async write(id: FileEntryId, data: string | Uint8Array): Promise<FileVersion> {
