@@ -341,7 +341,16 @@ FilesPage and similar user-facing **list surfaces** SHOULD hide external entries
 | `buildProviderReference(entryId)`   | Build SharedV4ProviderReference  |
 | `invalidate(entryId)`               | Clear cache (on content change)  |
 
-### 3.6 Mutation Propagation to Renderer
+### 3.6 Mutation Propagation to Renderer (deferred — lands in Phase 2)
+
+> **Status**: design only. Nothing in Phase 1 implements this surface — the
+> three typed events, the `useFileManagerEventsBinding()` hook, the
+> `WindowManager` broadcast wiring, and the queryKey-prefix dispatch table
+> are all Phase 2 deliverables. Sibling `file-manager-architecture.md §1.6.8`
+> tags the matching emission slot `(deferred)` consistently. Renderers
+> requiring freshness in Phase 1 rely on React Query's natural `staleTime`
+> refresh — the same fallback the section opening describes as "brittle"
+> below.
 
 Every main-side mutation that changes an entry's DB row, a file's physical content, or the dangling state of an external path invalidates zero or more renderer-side React Query caches. Manual per-caller invalidation is brittle — if any business caller forgets to invalidate after `rename`/`write`/`permanentDelete`, the UI shows stale data for up to the `staleTime` window.
 
