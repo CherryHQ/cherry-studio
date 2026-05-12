@@ -84,6 +84,7 @@ describe('SettingsPanel', () => {
   it('applies slide panel aligned classes', () => {
     render(<SettingsPanel open={true} onClose={vi.fn()} mode="agent" />)
 
+    expect(screen.getByText('settings.parameter_settings')).toBeInTheDocument()
     expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain('w-[340px]')
     expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain(
       'top-[calc(var(--navbar-height)+0.5rem)]'

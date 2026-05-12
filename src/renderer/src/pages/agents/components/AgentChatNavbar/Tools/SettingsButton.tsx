@@ -9,7 +9,7 @@ interface Props {
 
 const SettingsButton = ({ onOpenSettings }: Props) => {
   return (
-    <Tooltip content={t('settings.title')} delay={800}>
+    <Tooltip content={t('settings.parameter_settings')} delay={800}>
       <NavbarIcon onClick={onOpenSettings}>
         <Settings2 size={18} />
       </NavbarIcon>

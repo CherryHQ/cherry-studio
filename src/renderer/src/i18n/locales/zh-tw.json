@@ -6128,6 +6128,7 @@
         "title": "詳細程度"
       }
     },
+    "parameter_settings": "參數設定",
     "plugins": {
       "bunDescription": "用於 MCP 服務和相關工具鏈的 JavaScript 執行階段。",
       "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",

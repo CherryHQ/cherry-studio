@@ -21,7 +21,7 @@ const SettingsPanel: FC<Props> = ({ open, onClose, mode, assistantId }) => {
   const header = (
     <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-foreground">
       <Settings2 size={13} className="shrink-0 text-muted-foreground" />
-      <span className="truncate">{t('settings.title')}</span>
+      <span className="truncate">{t('settings.parameter_settings')}</span>
     </span>
   )
 
