@@ -23,6 +23,8 @@ export {
   getResourceTimeBucket,
   sortByResourceGroupRank
 } from './resourceListGrouping'
+export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'
+export { useResourceListPinnedState } from './useResourceListPinnedState'
 export {
   AgentResourceList,
   type AssistantListActionContext,
