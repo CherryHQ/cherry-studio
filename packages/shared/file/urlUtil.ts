@@ -7,6 +7,20 @@
  * IPC `getPhysicalPath` / `batchGetPhysicalPaths`) — this module only handles the
  * **formatting / policy layer** on top of an already-resolved path string:
  *
+ * ## Phase 1 migration status
+ *
+ * **Already shipped here**: the implementation, the test suite, and the
+ * `architecture.md §3.3 / §3.6 / §5` contract that names this module as the
+ * replacement for the removed IPCs.
+ *
+ * **Pending**: renderer-side call-site migration. Existing `<img src>` /
+ * `<video src>` consumers still go through the legacy `getSafeUrl` path; they
+ * flip to `getPhysicalPath(id) → toSafeFileUrl(path, ext)` as the v1 → v2
+ * FileEntry consumer migration progresses (Phase 1b / Phase 2 PR series). The
+ * absence of `src/` callers today is the migration not-yet-landed state, not
+ * a speculative forward-looking surface — the contract is binding and the
+ * code is the final form.
+ *
  * 1. `isDangerExt(ext)` — which extensions count as "dangerous" for
  *    HTML-rendering contexts (should surface the containing directory
  *    instead of the file URL).

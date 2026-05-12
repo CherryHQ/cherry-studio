@@ -495,10 +495,18 @@ describe('FileEntryService', () => {
       expect(updated.updatedAt).toBeGreaterThanOrEqual(original.updatedAt)
     })
 
-    it('throws when entry does not exist', async () => {
-      await expect(
-        fileEntryService.update('019606a0-0000-7000-8000-000000000bff' as FileEntryId, { name: 'x' })
-      ).rejects.toThrow(/not found/i)
+    it('throws a typed DataApiError(NOT_FOUND) when entry does not exist', async () => {
+      // Mirror of the getById typed-contract pin (line 51). A regression that
+      // swapped to a generic Error with a similar message would slip past a
+      // `/not found/i` regex check but break renderer-side `error.code ===
+      // ErrorCode.NOT_FOUND` branches.
+      const missing = '019606a0-0000-7000-8000-000000000bff' as FileEntryId
+      const promise = fileEntryService.update(missing, { name: 'x' })
+      await expect(promise).rejects.toBeInstanceOf(DataApiError)
+      await expect(promise).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'FileEntry', id: missing }
+      })
     })
 
     it('updates trashedAt for soft delete', async () => {
@@ -604,14 +612,19 @@ describe('FileEntryService', () => {
       expect(refetched.name).toBe('new-doc')
     })
 
-    it('throws when the entry does not exist', async () => {
-      await expect(
-        fileEntryService.setExternalPathAndName(
-          '019606a0-0000-7000-8000-000000000dff' as FileEntryId,
-          '/Users/me/ghost.pdf' as CanonicalExternalPath,
-          'ghost'
-        )
-      ).rejects.toThrow(/not found/i)
+    it('throws a typed DataApiError(NOT_FOUND) when the entry does not exist', async () => {
+      // Mirror of the getById typed-contract pin (line 51).
+      const missing = '019606a0-0000-7000-8000-000000000dff' as FileEntryId
+      const promise = fileEntryService.setExternalPathAndName(
+        missing,
+        '/Users/me/ghost.pdf' as CanonicalExternalPath,
+        'ghost'
+      )
+      await expect(promise).rejects.toBeInstanceOf(DataApiError)
+      await expect(promise).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'FileEntry', id: missing }
+      })
     })
 
     it('throws on fe_external_path_unique_idx conflict (race against a concurrent rename to the same path)', async () => {
