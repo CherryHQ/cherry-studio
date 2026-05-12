@@ -237,4 +237,62 @@ describe('internal/entry/rename', () => {
     expect(dbRow.externalPath).toBe(original)
     expect(dbRow.name).toBe(entry.name)
   })
+
+  it('rejects newName with `..` path segment before any FS or DB side effect (external)', async () => {
+    // Path-traversal guard: `path.join(dir, '../evil.txt')` resolves outside
+    // `dir`. SafeNameSchema's path-separator refine catches `/` and `\`, but
+    // a name like `..` alone also produces a traversal — both must be
+    // rejected before `fsMove` or the SQL UPDATE runs.
+    const original = path.join(tmp, 'safe.txt')
+    await writeFile(original, 'payload')
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+
+    await expect(rename(deps, entry.id, '../evil')).rejects.toThrow()
+
+    // FS untouched: file still at original, no leak outside `tmp`.
+    const { existsSync } = await import('node:fs')
+    expect(existsSync(original)).toBe(true)
+    expect(existsSync(path.join(path.dirname(tmp), 'evil.txt'))).toBe(false)
+    // DB row untouched.
+    const dbRow = await fileEntryService.findById(entry.id)
+    if (dbRow?.origin !== 'external') throw new Error('expected external entry')
+    expect(dbRow.externalPath).toBe(original)
+    expect(dbRow.name).toBe(entry.name)
+  })
+
+  it('rejects newName with a path separator before any FS or DB side effect (external)', async () => {
+    const original = path.join(tmp, 'safe2.txt')
+    await writeFile(original, 'payload')
+    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+
+    await expect(rename(deps, entry.id, 'sub/path')).rejects.toThrow()
+
+    const { existsSync } = await import('node:fs')
+    expect(existsSync(original)).toBe(true)
+    expect(existsSync(path.join(tmp, 'sub/path.txt'))).toBe(false)
+    const dbRow = await fileEntryService.findById(entry.id)
+    if (dbRow?.origin !== 'external') throw new Error('expected external entry')
+    expect(dbRow.externalPath).toBe(original)
+    expect(dbRow.name).toBe(entry.name)
+  })
+
+  it('rejects newName with null byte before delegating to FileEntryService.update (internal)', async () => {
+    // Internal rename short-circuits to `fileEntryService.update({ name })`.
+    // The `SafeNameSchema.parse(newName)` guard at the top of `rename()`
+    // catches the bad name before the SQL UPDATE; otherwise the row would
+    // commit and only fail at the `rowToFileEntry` parse on re-read.
+    const created = await createInternal(deps, {
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'safe',
+      ext: 'txt'
+    })
+
+    await expect(rename(deps, created.id, 'has\0null')).rejects.toThrow()
+
+    // DB row name unchanged — proves the early-bail short-circuited the
+    // service update before the SQL commit.
+    const refetched = await fileEntryService.findById(created.id)
+    expect(refetched?.name).toBe('safe')
+  })
 })

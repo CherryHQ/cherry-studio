@@ -137,9 +137,10 @@ export type FileEntryOrigin = z.infer<typeof FileEntryOriginSchema>
  * the full contract, including deliberately deferred normalization steps
  * (case-insensitive FS dedupe, symlink target resolution).
  */
-const AbsolutePathSchema = z
+export const AbsolutePathSchema = z
   .string()
   .min(1)
+  .refine((s) => !s.includes('\0'), 'externalPath must not contain null bytes')
   .refine((s) => s.startsWith('/') || /^[A-Za-z]:\\/.test(s), 'externalPath must be an absolute filesystem path')
 
 // ─── Canonical External Path (TS phantom brand) ───

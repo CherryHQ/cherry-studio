@@ -22,7 +22,7 @@ import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
-import { FileEntrySchema } from '@shared/data/types/file'
+import { AbsolutePathSchema, FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
 import { and, asc, count, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -363,6 +363,12 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   async update(id: FileEntryId, values: UpdateFileEntryRow): Promise<FileEntry> {
+    // Validate user-controlled string columns BEFORE the SQL UPDATE so a
+    // rejected value never persists. Without this, a name failing
+    // `SafeNameSchema` (path separators, `..`, null bytes, > 255 chars)
+    // commits to SQLite first and only fails at `rowToFileEntry`'s
+    // schema parse — leaving the row permanently un-parseable.
+    if (values.name !== undefined) SafeNameSchema.parse(values.name)
     const updates: Partial<typeof fileEntryTable.$inferInsert> = {
       updatedAt: Date.now()
     }
@@ -383,6 +389,14 @@ class FileEntryServiceImpl implements FileEntryService {
    * flow so the (path, name) pair stays consistent under failure.
    */
   async setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): Promise<FileEntry> {
+    // Same pre-SQL validation rationale as `update` above; an unsafe value
+    // for either column would corrupt the row past `rowToFileEntry` parse.
+    // The `CanonicalExternalPath` brand is TS-only — defense-in-depth at the
+    // runtime layer rejects path strings the brand failed to flag (e.g. a
+    // caller that `as`-cast a raw user string instead of going through
+    // `canonicalizeExternalPath`).
+    SafeNameSchema.parse(name)
+    AbsolutePathSchema.parse(externalPath)
     const rows = await this.getDb()
       .update(fileEntryTable)
       .set({ externalPath, name, updatedAt: Date.now() })

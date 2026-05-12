@@ -3,6 +3,7 @@ import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
@@ -530,6 +531,22 @@ describe('FileEntryService', () => {
       })
       await expect(fileEntryService.update(id, { trashedAt: Date.now() })).rejects.toThrow()
     })
+
+    it('rejects unsafe name BEFORE the SQL UPDATE commits', async () => {
+      // Regression: without the pre-SQL SafeNameSchema.parse, an unsafe
+      // name (null byte, path separators, `..`, > 255 chars) hits SQLite
+      // unchanged and only fails at the `rowToFileEntry` parse — leaving
+      // the row permanently un-parseable. Pin the contract by reading the
+      // row back with a raw SELECT after the rejection and asserting the
+      // `name` column is unchanged.
+      const id = '019606a0-0000-7000-8000-000000000b04' as FileEntryId
+      await fileEntryService.create({ id, origin: 'internal', name: 'safe', ext: 'txt', size: 1, externalPath: null })
+
+      await expect(fileEntryService.update(id, { name: 'has\0null' })).rejects.toThrow()
+
+      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
+      expect(raw?.name).toBe('safe')
+    })
   })
 
   describe('listAllIds', () => {
@@ -625,6 +642,53 @@ describe('FileEntryService', () => {
         code: ErrorCode.NOT_FOUND,
         details: { resource: 'FileEntry', id: missing }
       })
+    })
+
+    it('rejects unsafe name BEFORE the SQL UPDATE commits', async () => {
+      // Same regression class as the `update` typed-name guard: an unsafe
+      // name must not reach SQLite, otherwise the row gets stuck past
+      // `rowToFileEntry` parse. Raw SELECT proves the row stayed unchanged.
+      const id = '019606a0-0000-7000-8000-000000000d20' as FileEntryId
+      await fileEntryService.create({
+        id,
+        origin: 'external',
+        name: 'safe',
+        ext: 'txt',
+        size: null,
+        externalPath: '/Users/me/safe.txt'
+      })
+
+      await expect(
+        fileEntryService.setExternalPathAndName(id, '/Users/me/legit.txt' as CanonicalExternalPath, '../evil')
+      ).rejects.toThrow()
+
+      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
+      expect(raw?.name).toBe('safe')
+      expect(raw?.externalPath).toBe('/Users/me/safe.txt')
+    })
+
+    it('rejects unsafe externalPath BEFORE the SQL UPDATE commits', async () => {
+      // The `CanonicalExternalPath` brand is TS-only and offers no runtime
+      // guarantee. The service-side `AbsolutePathSchema.parse(externalPath)`
+      // catches null bytes / non-absolute paths regardless of whether the
+      // caller went through `canonicalizeExternalPath` or `as`-cast.
+      const id = '019606a0-0000-7000-8000-000000000d21' as FileEntryId
+      await fileEntryService.create({
+        id,
+        origin: 'external',
+        name: 'safe',
+        ext: 'txt',
+        size: null,
+        externalPath: '/Users/me/safe.txt'
+      })
+
+      await expect(
+        fileEntryService.setExternalPathAndName(id, '/Users/me/null\0byte.txt' as CanonicalExternalPath, 'fine')
+      ).rejects.toThrow()
+
+      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
+      expect(raw?.name).toBe('safe')
+      expect(raw?.externalPath).toBe('/Users/me/safe.txt')
     })
 
     it('throws on fe_external_path_unique_idx conflict (race against a concurrent rename to the same path)', async () => {

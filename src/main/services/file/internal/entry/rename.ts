@@ -13,6 +13,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { exists, isSameFile, move as fsMove } from '@main/utils/file/fs'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
+import { SafeNameSchema } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 
 import { canonicalizeExternalPath } from '../../utils/pathResolver'
@@ -21,6 +22,12 @@ import type { FileManagerDeps } from '../deps'
 const logger = loggerService.withContext('internal/entry/rename')
 
 export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: string): Promise<FileEntry> {
+  // Up-front name validation rejects path separators, `..`, null bytes, and
+  // over-length input before any FS or DB side effect. Pairs with the
+  // service-level guard in FileEntryService.update / setExternalPathAndName;
+  // catching here also short-circuits the external-rename FS work for inputs
+  // the service would reject anyway.
+  SafeNameSchema.parse(newName)
   const entry = await deps.fileEntryService.getById(id)
   if (entry.origin === 'internal') {
     return deps.fileEntryService.update(id, { name: newName })
@@ -37,6 +44,13 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   // here is a reliable "same logical path" test.
   const oldPath = entry.externalPath as FilePath
   const target = canonicalizeExternalPath(path.join(dir, `${newName}${ext}`))
+  // Defense in depth: `SafeNameSchema.parse(newName)` above already rejects
+  // path separators and `..`, but a future regression in the schema (or any
+  // canonicalization behaviour change) must not be able to relocate the
+  // user's file outside `dir`.
+  if (path.dirname(target) !== dir) {
+    throw new Error(`rename: target escapes original directory: ${target}`)
+  }
   if (target === entry.externalPath) {
     return entry
   }
