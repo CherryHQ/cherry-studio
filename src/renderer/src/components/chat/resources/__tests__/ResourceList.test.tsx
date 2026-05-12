@@ -275,7 +275,7 @@ describe('ResourceList', () => {
     expect(onReorder).toHaveBeenCalledWith({ activeId: 'beta', overId: 'alpha', position: 'after' })
   })
 
-  it('renders grouped virtual rows with group counts', () => {
+  it('renders grouped virtual rows without visible group counts', () => {
     const Provider = ResourceList.Provider<TestItem>
 
     render(
@@ -298,8 +298,8 @@ describe('ResourceList', () => {
 
     expect(screen.getByText('Pinned')).toBeInTheDocument()
     expect(screen.getByText('Regular')).toBeInTheDocument()
-    expect(screen.getByText('2')).toBeInTheDocument()
-    expect(screen.getByText('1')).toBeInTheDocument()
+    expect(screen.queryByText('2')).not.toBeInTheDocument()
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(
       expect.objectContaining({
         count: ITEMS.length + 2
@@ -395,7 +395,7 @@ describe('ResourceList', () => {
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
   })
 
-  it('collapses grouped rows without losing group counts', () => {
+  it('collapses grouped rows without showing group counts', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 6 }, (_, index) => ({
       id: `topic-${index + 1}`,
@@ -420,7 +420,7 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Topics' }))
 
-    expect(screen.getByText('6')).toBeInTheDocument()
+    expect(screen.queryByText('6')).not.toBeInTheDocument()
     expect(screen.queryByText('Topic 1')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 1 }))
@@ -462,6 +462,40 @@ describe('ResourceList', () => {
     expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
     expect(screen.getByTestId('alpha-icon')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Action Alpha' })).toBeInTheDocument()
+  })
+
+  it('does not reveal item actions just because a row is selected', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={ITEMS} selectedId="alpha">
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <ResourceList.ItemLeadingAction
+                  aria-label={`Pin ${item.name}`}
+                  data-active={item.pinned || undefined}
+                />
+                <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
+                <ResourceList.ItemAction aria-label={`Delete ${item.name}`} />
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveAttribute('data-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Pin Alpha' })).toHaveClass('opacity-0', 'group-hover:opacity-100')
+    expect(screen.getByRole('button', { name: 'Pin Alpha' }).className).not.toContain(
+      'group-data-[selected=true]:opacity-100'
+    )
+    expect(screen.getByRole('button', { name: 'Delete Alpha' })).toHaveClass('opacity-0', 'group-hover:opacity-100')
+    expect(screen.getByRole('button', { name: 'Delete Alpha' }).className).not.toContain(
+      'group-data-[selected=true]:opacity-100'
+    )
+    expect(screen.getByRole('button', { name: 'Pin Beta' })).toHaveAttribute('data-active', 'true')
   })
 
   it('keeps sidebar header and search chrome visually quiet', () => {

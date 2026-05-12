@@ -76,6 +76,11 @@ const topicDataMocks = vi.hoisted(() => ({
   updateTopic: vi.fn().mockResolvedValue(undefined)
 }))
 
+const pinMutationMocks = vi.hoisted(() => ({
+  createPin: vi.fn(),
+  deletePin: vi.fn()
+}))
+
 vi.mock('@renderer/hooks/useTopicDataApi', async () => {
   const actual = await vi.importActual<typeof TopicDataApiModule>('@renderer/hooks/useTopicDataApi')
   return {
@@ -198,9 +203,14 @@ vi.mock('react-i18next', () => ({
 import { dataApiService } from '@data/DataApiService'
 import type * as TopicDataApiModule from '@renderer/hooks/useTopicDataApi'
 import type { Topic } from '@renderer/types'
+import type { Pin } from '@shared/data/types/pin'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 
-import { mockUseInfiniteQuery, mockUseQuery } from '../../../../../../../../tests/__mocks__/renderer/useDataApi'
+import {
+  mockUseInfiniteQuery,
+  mockUseMutation,
+  mockUseQuery
+} from '../../../../../../../../tests/__mocks__/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '../../../../../../../../tests/__mocks__/renderer/usePreference'
 import { TopicListV2 } from '../TopicListV2'
 
@@ -244,6 +254,18 @@ function createTopicPageItems(count: number): ApiTopic[] {
   )
 }
 
+function createTopicPin(overrides: Partial<Pin> = {}): Pin {
+  return {
+    id: 'pin-topic-a',
+    entityId: 'topic-a',
+    entityType: 'topic',
+    orderKey: 'a',
+    createdAt: '2026-01-03T12:00:00.000Z',
+    updatedAt: '2026-01-03T12:00:00.000Z',
+    ...overrides
+  }
+}
+
 function renderTopicList() {
   const setActiveTopic = vi.fn()
   const view = render(
@@ -273,6 +295,17 @@ describe('TopicListV2', () => {
       'data.export.menus.plain_text': true,
       'data.export.menus.siyuan': true,
       'data.export.menus.yuque': true
+    })
+    pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
+    pinMutationMocks.deletePin.mockResolvedValue(undefined)
+    mockUseMutation.mockImplementation((method, path) => {
+      if (method === 'POST' && path === '/pins') {
+        return { trigger: pinMutationMocks.createPin, isLoading: false, error: undefined }
+      }
+      if (method === 'DELETE' && path === '/pins/:id') {
+        return { trigger: pinMutationMocks.deletePin, isLoading: false, error: undefined }
+      }
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
@@ -378,9 +411,7 @@ describe('TopicListV2', () => {
     expect(screen.getByText('Gamma topic')).toBeInTheDocument()
   })
 
-  it('toggles pin from the leading row button without selecting the topic', () => {
-    const postSpy = vi.spyOn(dataApiService, 'post').mockResolvedValue(undefined as never)
-    const deleteSpy = vi.spyOn(dataApiService, 'delete').mockResolvedValue({ deleted: true } as never)
+  it('pins from the leading row button without selecting the topic', async () => {
     const { getByText, setActiveTopic } = renderTopicList()
 
     const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-v2-row"]')
@@ -389,8 +420,16 @@ describe('TopicListV2', () => {
 
     fireEvent.click(pinButton as Element)
 
-    expect(postSpy).toHaveBeenCalledWith('/pins', { body: { entityType: 'topic', entityId: 'topic-a' } })
+    await vi.waitFor(() =>
+      expect(pinMutationMocks.createPin).toHaveBeenCalledWith({
+        body: { entityType: 'topic', entityId: 'topic-a' }
+      })
+    )
     expect(setActiveTopic).not.toHaveBeenCalled()
+  })
+
+  it('unpins from the leading row button', async () => {
+    const { getByText } = renderTopicList()
 
     const betaRow = getByText('Beta pinned').closest('[data-testid="topic-list-v2-row"]')
     const unpinButton = betaRow?.querySelector('[aria-label="Unpin Topic"]')
@@ -398,7 +437,25 @@ describe('TopicListV2', () => {
 
     fireEvent.click(unpinButton as Element)
 
-    expect(deleteSpy).toHaveBeenCalledWith('/pins/pin-topic-b')
+    await vi.waitFor(() => expect(pinMutationMocks.deletePin).toHaveBeenCalledWith({ params: { id: 'pin-topic-b' } }))
+  })
+
+  it('moves a topic into the pinned group immediately after pinning without refreshing topics', async () => {
+    pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
+
+    const { getByText } = renderTopicList()
+    fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
+    expect(screen.queryByText('Alpha topic')).toBeInTheDocument()
+
+    const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-v2-row"]')
+    fireEvent.click(alphaRow?.querySelector('[aria-label="Pin Topic"]') as Element)
+    await vi.waitFor(() => expect(pinMutationMocks.createPin).toHaveBeenCalled())
+
+    expect(topicDataMocks.refreshTopics).not.toHaveBeenCalled()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
+    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
   })
 
   it('keeps pin actions in the topic context menu and removes topic position actions', () => {

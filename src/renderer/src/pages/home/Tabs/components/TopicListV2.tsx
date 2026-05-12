@@ -11,14 +11,14 @@ import {
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
-import { useQuery } from '@data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   ResourceList,
   type ResourceListReorderPayload,
   TopicResourceList,
-  useResourceList
+  useResourceList,
+  useResourceListPinnedState
 } from '@renderer/components/chat/resources'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -26,6 +26,7 @@ import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePop
 import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { mapApiTopicToRendererTopic, useAllTopics, useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -176,8 +177,18 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
     yuque: 'data.export.menus.yuque'
   })
 
-  const { data: pinList } = useQuery('/pins', { query: { entityType: 'topic' } })
-  const pinByTopicId = useMemo(() => new Map((pinList ?? []).map((p) => [p.entityId, p.id] as const)), [pinList])
+  const {
+    isMutating: isPinsMutating,
+    isRefreshing: isPinsRefreshing,
+    pinnedIds: topicPinnedIds,
+    togglePin: toggleTopicPin
+  } = usePins('topic')
+  const topicPinState = useResourceListPinnedState({
+    disabled: isPinsRefreshing || isPinsMutating,
+    pinnedIds: topicPinnedIds,
+    onTogglePin: toggleTopicPin
+  })
+  const { isPinned: isTopicPinned, togglePinned: toggleTopicPinned } = topicPinState
   const { topics: apiTopics, isLoading, error } = useAllTopics({ loadAll: true })
   const visibleTopicsRef = useRef<readonly Topic[]>([])
   const listRef = useRef<HTMLDivElement>(null)
@@ -188,9 +199,9 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
     () =>
       apiTopics.map((apiTopic) => {
         const topic = mapApiTopicToRendererTopic(apiTopic)
-        return { ...topic, pinned: pinByTopicId.has(apiTopic.id) }
+        return { ...topic, pinned: isTopicPinned(apiTopic.id) }
       }),
-    [apiTopics, pinByTopicId]
+    [apiTopics, isTopicPinned]
   )
 
   const manageState = useTopicManageMode()
@@ -299,24 +310,18 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
 
   const handlePinTopic = useCallback(
     async (topic: Topic) => {
+      const nextPinned = !topic.pinned
+      if (nextPinned) {
+        setTimeout(() => listRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' }), 50)
+      }
+
       try {
-        if (topic.pinned) {
-          const pinId = pinByTopicId.get(topic.id)
-          if (pinId) {
-            await dataApiService.delete(`/pins/${pinId}`)
-          }
-        } else {
-          await dataApiService.post('/pins', { body: { entityType: 'topic', entityId: topic.id } })
-        }
-        await refreshTopics()
-        if (!topic.pinned) {
-          setTimeout(() => listRef.current?.scrollTo({ top: 0, behavior: 'smooth' }), 50)
-        }
+        await toggleTopicPinned(topic.id)
       } catch (err) {
         logger.error('Failed to toggle topic pin', { topicId: topic.id, err })
       }
     },
-    [pinByTopicId, refreshTopics]
+    [toggleTopicPinned]
   )
 
   const handleDeleteTopicFromMenu = useCallback(

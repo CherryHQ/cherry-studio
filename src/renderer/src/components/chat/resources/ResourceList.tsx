@@ -609,7 +609,6 @@ function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
         </span>
         <span className="truncate">{group.label}</span>
       </button>
-      {typeof group.count === 'number' && <span className="ml-auto shrink-0 tabular-nums">{group.count}</span>}
     </div>
   )
 }
@@ -775,7 +774,7 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       className={cn(
         'flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-0 transition-colors transition-opacity',
         'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-        'group-hover:opacity-100 group-data-[selected=true]:opacity-100 data-[deleting=true]:opacity-100',
+        'group-hover:opacity-100 data-[deleting=true]:opacity-100',
         className
       )}
       {...props}
@@ -793,7 +792,7 @@ function ItemLeadingAction({ className, ref, type = 'button', ...props }: ItemLe
       className={cn(
         'flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-0 transition-colors transition-opacity',
         'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-        'group-hover:opacity-100 group-data-[selected=true]:opacity-100 data-[active=true]:opacity-100',
+        'group-hover:opacity-100 data-[active=true]:opacity-100',
         className
       )}
       {...props}
