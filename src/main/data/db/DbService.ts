@@ -166,6 +166,14 @@ export class DbService extends BaseService {
   }
 
   /**
+   * Flush the WAL file into the main database file.
+   * Must be called before copying the SQLite file to ensure a consistent snapshot.
+   */
+  async checkpoint(): Promise<void> {
+    await this.client.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+  }
+
+  /**
    * Ensure database file integrity before opening connection.
    * Handles two scenarios that cause SQLITE_IOERR_SHORT_READ:
    * 1. Main .db file is 0 bytes (corrupt) — remove so libsql recreates it

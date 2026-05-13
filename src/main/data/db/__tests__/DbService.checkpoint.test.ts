@@ -1,111 +1,30 @@
 import { describe, expect, it, vi } from 'vitest'
 
 /**
- * Task 5.1: DbService.checkpoint() — RED
+ * Task 5.1: DbService.checkpoint() — unit test
  *
  * Asserts that DbService.checkpoint() executes PRAGMA wal_checkpoint(TRUNCATE)
- * on the underlying client.
+ * on the underlying libsql client.
+ *
+ * Strategy: vi.importActual() bypasses the global mock to get the real DbService
+ * class, then invokes checkpoint() on a minimal stub that only exposes the
+ * private `client` field — avoiding full constructor/lifecycle wiring.
  */
 
-// Hoisted mocks
-const { mockClientExecute, mockGetPath } = vi.hoisted(() => ({
-  mockClientExecute: vi.fn().mockResolvedValue({ rows: [] }),
-  mockGetPath: vi.fn((key: string) => `/mock/${key}`)
-}))
-
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn(),
-    getPath: mockGetPath,
-    relaunch: vi.fn()
-  }
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn()
-    })
-  }
-}))
-
-vi.mock('fs', () => ({
-  default: {
-    existsSync: vi.fn(() => false),
-    statSync: vi.fn(),
-    unlinkSync: vi.fn()
-  },
-  existsSync: vi.fn(() => false),
-  statSync: vi.fn(),
-  unlinkSync: vi.fn()
-}))
-
-vi.mock('drizzle-orm/libsql', () => ({
-  drizzle: vi.fn(() => ({
-    run: vi.fn()
-  }))
-}))
-
-vi.mock('drizzle-orm/libsql/migrator', () => ({
-  migrate: vi.fn().mockResolvedValue(undefined)
-}))
-
-vi.mock('@libsql/client', () => ({
-  createClient: vi.fn(() => ({
-    execute: mockClientExecute,
-    setPragma: vi.fn()
-  }))
-}))
-
-vi.mock('url', () => ({
-  pathToFileURL: vi.fn((p: string) => ({ href: `file://${p}` }))
-}))
-
-vi.mock('../customSqls', () => ({
-  CUSTOM_SQL_STATEMENTS: []
-}))
-
-vi.mock('../seeding', () => ({
-  seeders: []
-}))
-
-vi.mock('../seeding/SeedRunner', () => ({
-  SeedRunner: vi.fn().mockImplementation(() => ({
-    runAll: vi.fn().mockResolvedValue(undefined)
-  }))
-}))
-
-vi.mock('@main/core/lifecycle', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>()
-  class MockBaseService {
-    protected isReady = true
-    protected _disposables: Array<{ dispose: () => void } | (() => void)> = []
-    protected registerDisposable<T extends { dispose: () => void } | (() => void)>(d: T): T {
-      this._disposables.push(d)
-      return d
-    }
-  }
-  return {
-    ...actual,
-    BaseService: MockBaseService,
-    Injectable: () => () => {},
-    ServicePhase: () => () => {},
-    Priority: () => () => {},
-    ErrorHandling: () => () => {}
-  }
-})
-
-import { DbService } from '../DbService'
+// The global test setup mocks @main/data/db/DbService wholesale.
+// vi.importActual() bypasses that mock to load the real implementation.
+const { DbService } = await vi.importActual<typeof import('../DbService')>('../DbService')
 
 describe('DbService.checkpoint()', () => {
   it('executes PRAGMA wal_checkpoint(TRUNCATE) on the underlying client', async () => {
-    const service = new DbService()
+    const mockExecute = vi.fn().mockResolvedValue({ rows: [] })
 
-    await (service as any).checkpoint()
+    // Skip the constructor — create a stub with just the dependency checkpoint() needs.
+    const stub = Object.create(DbService.prototype) as InstanceType<typeof DbService>
+    ;(stub as any).client = { execute: mockExecute }
 
-    expect(mockClientExecute).toHaveBeenCalledWith('PRAGMA wal_checkpoint(TRUNCATE)')
+    await stub.checkpoint()
+
+    expect(mockExecute).toHaveBeenCalledWith('PRAGMA wal_checkpoint(TRUNCATE)')
   })
 })
