@@ -23,7 +23,7 @@ export function ToolGrid<T extends { value: string; label: string; icon: IconCom
 
   return (
     <div className="mb-5">
-      {title && <p className="mb-3 px-1 text-[10px] text-muted-foreground/30">{title}</p>}
+      {title && <p className="mb-3 px-1 text-[10px] text-muted-foreground/70">{title}</p>}
       <div className="grid grid-cols-4 gap-x-2 gap-y-4 sm:grid-cols-6 md:grid-cols-8">
         {tools.map((tool) => {
           const meta = toMeta(tool)
