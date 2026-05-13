@@ -1407,6 +1407,7 @@
             "save_failed": "Failed to save topic, please check knowledge base configuration"
           },
           "loading": "Analyzing topic content...",
+          "menu_title": "Save to Knowledge Base",
           "select": {
             "content": {
               "label": "Select content types to save",
@@ -1493,6 +1494,12 @@
       "delete": {
         "shortcut": "Hold {{key}} to delete directly"
       },
+      "display": {
+        "assistant": "Assistant",
+        "tag": "Tag",
+        "time": "Time",
+        "title": "Display mode"
+      },
       "edit": {
         "placeholder": "Enter new name",
         "title": "Edit Name",
@@ -1547,6 +1554,15 @@
         "wait_for_title_naming": "Generating title...",
         "word": "Export as Word",
         "yuque": "Export to Yuque"
+      },
+      "group": {
+        "collapse": "Collapse topics",
+        "earlier": "Earlier",
+        "show_more": "Show more topics",
+        "this_week": "This week",
+        "today": "Today",
+        "unknown_assistant": "Unknown Assistant",
+        "yesterday": "Yesterday"
       },
       "list": "Topic List",
       "manage": {

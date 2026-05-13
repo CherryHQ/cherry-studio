@@ -159,7 +159,7 @@ Moves apply **sequentially in one transaction**; each anchor resolves against th
 - **Index**: required. Use `orderKeyIndex(tableName)(t)` for whole-table or `scopedOrderKeyIndex(tableName, scopeColumn)(t)` for partitioned tables.
 - **Known partition dimensions** in the codebase:
   - Live (active consumers): `group.entityType`, `pin.entityType`, `user_model.providerId`, `miniapp.status`.
-  - Planned / hypothetical: `topic.groupId` (adopted when `topic` migrates to the spec).
+  - Planned / hypothetical: none currently.
 - **No secondary order axes**. Each sortable table exposes exactly one `order_key`. Orthogonal user intents — e.g. "in a group" vs "pinned" — are modelled as separate tables, not as overloaded scope values on a shared column. Resource-specific design (polymorphic shape, purge contracts, concurrency semantics) lives in each schema / service's JSDoc, not here — this guide scopes to the ordering mechanism only.
 
 ---
@@ -188,12 +188,6 @@ Binding semantics:
 Scoped usage:
 
 ```typescript
-// Topic: groupId is nullable, both NULL and non-NULL are real partitions
-await insertWithOrderKey(tx, topicTable, values, {
-  pkColumn: topicTable.id,
-  scope: values.groupId ? eq(topicTable.groupId, values.groupId) : isNull(topicTable.groupId),
-})
-
 // user_model: scope by providerId
 await applyMoves(tx, userModelTable, moves, {
   pkColumn: userModelTable.id,
@@ -358,8 +352,7 @@ Complete in one PR:
    - `pin`: `eq(pinTable.entityType, entityType)` — live (`PinService.reorder` / `reorderBatch` via `applyScopedMoves`).
    - `user_model`: `eq(userModelTable.providerId, providerId)`.
    - `miniapp`: `eq(miniappTable.status, status)`.
-   - `topic`: `topic.groupId ? eq(topicTable.groupId, groupId) : isNull(topicTable.groupId)` — hypothetical, pending `topic` migration.
-   - `user_provider` / `mcp_server`: whole-table (`scope: undefined`).
+   - `topic` / `user_provider` / `mcp_server`: whole-table (`scope: undefined`), except topic service may narrow to non-deleted rows.
 
    New scoped consumers should prefer `applyScopedMoves` (which handles scope lookup and rejects cross-scope batches) over composing `applyMoves` with a manually assembled `eq(...)` scope.
 4. **Migrator**: replace legacy `sortOrder = index` with `assignOrderKeysByScope` (or `assignOrderKeysInSequence` for whole-table). Drop `index` / `sortOrder` parameters from `transform*` functions.

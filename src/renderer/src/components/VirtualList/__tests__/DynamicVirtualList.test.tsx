@@ -69,6 +69,18 @@ describe('DynamicVirtualList', () => {
     return <DynamicVirtualList ref={ref} {...defaultProps} {...listProps} />
   }
 
+  const TestComponentWithScrollElementRef: React.FC<{
+    onScrollElementReady: (node: HTMLDivElement | null) => void
+  }> = ({ onScrollElementReady }) => {
+    const scrollElementRef = useRef<HTMLDivElement>(null)
+
+    React.useEffect(() => {
+      onScrollElementReady(scrollElementRef.current)
+    }, [onScrollElementReady])
+
+    return <DynamicVirtualList {...defaultProps} role="listbox" scrollElementRef={scrollElementRef} />
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -104,6 +116,15 @@ describe('DynamicVirtualList', () => {
       const firstItem = items[0] as HTMLElement
       expect(firstItem).toHaveStyle('padding: 10px')
       expect(firstItem).toHaveStyle('margin: 5px')
+    })
+
+    it('should expose the scroll element and allow overriding the container role', () => {
+      const onScrollElementReady = vi.fn()
+
+      render(<TestComponentWithScrollElementRef onScrollElementReady={onScrollElementReady} />)
+
+      const scrollContainer = screen.getByRole('listbox')
+      expect(onScrollElementReady).toHaveBeenCalledWith(scrollContainer)
     })
   })
 

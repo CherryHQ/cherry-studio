@@ -476,6 +476,10 @@ export interface PreferenceSchemas {
     'topic.naming_prompt': string
     // redux/settings/topicPosition
     'topic.position': string
+    // target-key-definitions/complex/complex
+    'topic.tab.collapsed_group_ids': string[]
+    // target-key-definitions/complex/complex
+    'topic.tab.display_mode': PreferenceTypes.TopicDisplayMode
     // redux/settings/pinTopicsToTop
     'topic.tab.pin_to_top': boolean
     // redux/settings/showTopics
@@ -753,6 +757,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'topic.naming.model_id': null,
     'topic.naming_prompt': '',
     'topic.position': 'left',
+    'topic.tab.collapsed_group_ids': [],
+    'topic.tab.display_mode': 'time',
     'topic.tab.pin_to_top': false,
     'topic.tab.show': true,
     'topic.tab.show_time': false,
@@ -783,7 +789,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 232
+ * - 总配置项: 234
  * - electronStore项: 1
  * - redux项: 201
  * - localStorage项: 0

@@ -20,7 +20,7 @@ import {
   useInputbarToolsInternalDispatch,
   useInputbarToolsState
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { type AddNewTopicPayload, EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { type FileMetadata, type KnowledgeBase, type Model, type Topic, TopicType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -31,6 +31,7 @@ import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useStat
 import { useTranslation } from 'react-i18next'
 
 import { InputbarCore } from './components/InputbarCore'
+import { resolveNewTopicAssistantId } from './Inputbar.helpers'
 import InputbarTools from './InputbarTools'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
@@ -61,7 +62,7 @@ interface Props {
 
 type ProviderActionHandlers = {
   resizeTextArea: () => void
-  addNewTopic: () => void
+  addNewTopic: (payload?: AddNewTopicPayload) => void
   clearTopic: () => void
   onNewContext: () => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
@@ -274,13 +275,17 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [loading, onPause])
 
-  const addNewTopic = useCallback(async () => {
-    const persisted = await createTopic({ assistantId: topic.assistantId, name: t('chat.default.topic.name') })
-    if (!persisted) return
-    setActiveTopic(mapApiTopicToRendererTopic(persisted))
+  const addNewTopic = useCallback(
+    async (payload?: AddNewTopicPayload) => {
+      const assistantId = resolveNewTopicAssistantId(topic.assistantId, payload)
+      const persisted = await createTopic({ assistantId, name: t('chat.default.topic.name') })
+      if (!persisted) return
+      setActiveTopic(mapApiTopicToRendererTopic(persisted))
 
-    setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  }, [createTopic, topic.assistantId, t, setActiveTopic, setTimeoutTimer])
+      setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
+    },
+    [createTopic, topic.assistantId, t, setActiveTopic, setTimeoutTimer]
+  )
 
   const handleRemoveModel = useCallback(
     (modelToRemove: Model) => {

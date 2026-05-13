@@ -2,6 +2,10 @@ import Emittery from 'emittery'
 
 export const EventEmitter = new Emittery()
 
+export type AddNewTopicPayload = {
+  assistantId?: string | null
+}
+
 export const EVENT_NAMES = {
   SEND_MESSAGE: 'SEND_MESSAGE',
   CLEAR_MESSAGES: 'CLEAR_MESSAGES',
