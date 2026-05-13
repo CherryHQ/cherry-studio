@@ -153,6 +153,16 @@ export type EnsureExternalEntryIpcParams = {
   externalPath: FilePath
 }
 
+/** Params for resolving the absolute filesystem path of a single FileEntry. */
+export type GetPhysicalPathIpcParams = {
+  id: FileEntryId
+}
+
+/** Params for permanently deleting a single FileEntry by id. */
+export type PermanentDeleteEntryIpcParams = {
+  id: FileEntryId
+}
+
 // ─── IPC Result ───
 
 /**
