@@ -21,7 +21,7 @@ interface Props {
   model: Model
   providerId: string
   SettingGroup: FC<{ children: React.ReactNode }>
-  SettingRowTitleSmall: FC<{ children: React.ReactNode }>
+  SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
 const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, SettingRowTitleSmall }) => {
@@ -64,7 +64,6 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
         )}
         {showStreamOptionsSetting && <StreamOptionsSetting SettingRowTitleSmall={SettingRowTitleSmall} />}
       </SettingGroup>
-      <SettingDivider />
     </CollapsibleSettingGroup>
   )
 }

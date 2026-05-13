@@ -1,4 +1,3 @@
-import { HelpTooltip } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import { SettingRow } from '@renderer/pages/settings'
 import type { RootState } from '@renderer/store'
@@ -17,7 +16,7 @@ type IncludeUsageOption = {
 }
 
 interface Props {
-  SettingRowTitleSmall: FC<{ children: React.ReactNode }>
+  SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
 const StreamOptionsSetting: FC<Props> = ({ SettingRowTitleSmall }) => {
@@ -51,12 +50,8 @@ const StreamOptionsSetting: FC<Props> = ({ SettingRowTitleSmall }) => {
 
   return (
     <SettingRow>
-      <SettingRowTitleSmall>
-        {t('settings.openai.stream_options.include_usage.title')}{' '}
-        <HelpTooltip
-          content={t('settings.openai.stream_options.include_usage.tip')}
-          iconProps={{ className: 'ml-1' }}
-        />
+      <SettingRowTitleSmall hint={t('settings.openai.stream_options.include_usage.tip')}>
+        {t('settings.openai.stream_options.include_usage.title')}
       </SettingRowTitleSmall>
       <Selector
         value={toOptionValue(includeUsage)}

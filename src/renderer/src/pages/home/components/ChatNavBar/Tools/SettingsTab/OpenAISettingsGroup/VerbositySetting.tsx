@@ -1,4 +1,3 @@
-import { HelpTooltip } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import { getModelSupportedVerbosity } from '@renderer/config/models'
 import { SettingRow } from '@renderer/pages/settings'
@@ -20,7 +19,7 @@ type VerbosityOption = {
 
 interface Props {
   model: Model
-  SettingRowTitleSmall: FC<{ children: React.ReactNode }>
+  SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
 const VerbositySetting: FC<Props> = ({ model, SettingRowTitleSmall }) => {
@@ -73,9 +72,8 @@ const VerbositySetting: FC<Props> = ({ model, SettingRowTitleSmall }) => {
 
   return (
     <SettingRow>
-      <SettingRowTitleSmall>
-        {t('settings.openai.verbosity.title')}{' '}
-        <HelpTooltip content={t('settings.openai.verbosity.tip')} iconProps={{ className: 'ml-1' }} />
+      <SettingRowTitleSmall hint={t('settings.openai.verbosity.tip')}>
+        {t('settings.openai.verbosity.title')}
       </SettingRowTitleSmall>
       <Selector
         value={toOptionValue(verbosity)}

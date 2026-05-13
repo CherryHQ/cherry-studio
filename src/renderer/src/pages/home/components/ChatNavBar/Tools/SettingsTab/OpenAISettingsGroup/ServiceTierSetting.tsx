@@ -1,4 +1,3 @@
-import { HelpTooltip } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import { isSupportFlexServiceTierModel } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -14,7 +13,7 @@ type OpenAIServiceTierOption = { value: NonNullable<OpenAIServiceTier> | 'null' 
 interface Props {
   model: Model
   providerId: string
-  SettingRowTitleSmall: FC<{ children: React.ReactNode }>
+  SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
 const ServiceTierSetting: FC<Props> = ({ model, providerId, SettingRowTitleSmall }) => {
@@ -67,9 +66,8 @@ const ServiceTierSetting: FC<Props> = ({ model, providerId, SettingRowTitleSmall
 
   return (
     <SettingRow>
-      <SettingRowTitleSmall>
-        {t('settings.openai.service_tier.title')}{' '}
-        <HelpTooltip content={t('settings.openai.service_tier.tip')} iconProps={{ className: 'ml-1' }} />
+      <SettingRowTitleSmall hint={t('settings.openai.service_tier.tip')}>
+        {t('settings.openai.service_tier.title')}
       </SettingRowTitleSmall>
       <Selector
         value={toOptionValue(serviceTierMode)}

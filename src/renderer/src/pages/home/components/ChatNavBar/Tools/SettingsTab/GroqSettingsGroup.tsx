@@ -1,7 +1,6 @@
-import { HelpTooltip } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { SettingDivider, SettingRow } from '@renderer/pages/settings'
+import { SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import type { GroqServiceTier, ServiceTier } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
@@ -14,7 +13,7 @@ type ServiceTierOptions = { value: NonNullable<GroqServiceTier> | 'undefined'; l
 
 interface Props {
   SettingGroup: FC<{ children: React.ReactNode }>
-  SettingRowTitleSmall: FC<{ children: React.ReactNode }>
+  SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
 const GroqSettingsGroup: FC<Props> = ({ SettingGroup, SettingRowTitleSmall }) => {
@@ -55,9 +54,8 @@ const GroqSettingsGroup: FC<Props> = ({ SettingGroup, SettingRowTitleSmall }) =>
     <CollapsibleSettingGroup title={t('settings.groq.title')} defaultExpanded={true}>
       <SettingGroup>
         <SettingRow>
-          <SettingRowTitleSmall>
-            {t('settings.openai.service_tier.title')}{' '}
-            <HelpTooltip content={t('settings.openai.service_tier.tip')} iconProps={{ className: 'ml-1' }} />
+          <SettingRowTitleSmall hint={t('settings.openai.service_tier.tip')}>
+            {t('settings.openai.service_tier.title')}
           </SettingRowTitleSmall>
           <Selector
             value={toOptionValue(serviceTierMode)}
@@ -68,7 +66,6 @@ const GroqSettingsGroup: FC<Props> = ({ SettingGroup, SettingRowTitleSmall }) =>
           />
         </SettingRow>
       </SettingGroup>
-      <SettingDivider />
     </CollapsibleSettingGroup>
   )
 }

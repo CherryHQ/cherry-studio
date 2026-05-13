@@ -1,4 +1,3 @@
-import { HelpTooltip } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import { SettingRow } from '@renderer/pages/settings'
 import type { RootState } from '@renderer/store'
@@ -17,7 +16,7 @@ type SummaryTextOption = {
 }
 
 interface Props {
-  SettingRowTitleSmall: FC<{ children: React.ReactNode }>
+  SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
 const ReasoningSummarySetting: FC<Props> = ({ SettingRowTitleSmall }) => {
@@ -57,9 +56,8 @@ const ReasoningSummarySetting: FC<Props> = ({ SettingRowTitleSmall }) => {
 
   return (
     <SettingRow>
-      <SettingRowTitleSmall>
-        {t('settings.openai.summary_text_mode.title')}{' '}
-        <HelpTooltip content={t('settings.openai.summary_text_mode.tip')} iconProps={{ className: 'ml-1' }} />
+      <SettingRowTitleSmall hint={t('settings.openai.summary_text_mode.tip')}>
+        {t('settings.openai.summary_text_mode.title')}
       </SettingRowTitleSmall>
       <Selector
         value={toOptionValue(summaryText)}
