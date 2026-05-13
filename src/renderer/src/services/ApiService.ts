@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
 import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/types/middlewareConfig'
 import { buildProviderOptions } from '@renderer/aiCore/utils/options'
-import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
+import { isEmbeddingModel, isFunctionCallingModel, isImageGenerationEndpoint } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
@@ -164,9 +164,9 @@ export async function transformMessagesAndFetch(
     // replace prompt variables
     assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
 
-    // 专用图像生成模型直接走 fetchImageGeneration
+    // 专用图像生成模型 or 用户显式标记为图像生成端点的模型，直接走 fetchImageGeneration
     const model = assistant.model || getDefaultModel()
-    if (isDedicatedImageGenerationModel(model)) {
+    if (isImageGenerationEndpoint(model)) {
       await fetchImageGeneration({
         messages: uiMessages,
         assistant,

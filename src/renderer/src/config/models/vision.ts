@@ -182,6 +182,21 @@ export function isDedicatedImageModel(model: Model): boolean {
 // Backward compatible aliases
 export const isDedicatedImageGenerationModel = isDedicatedImageModel
 
+/**
+ * Whether a chat send should be routed to the image generation endpoint
+ * (`/v1/images/generations`) instead of `/v1/chat/completions`.
+ *
+ * Returns true when either:
+ * 1. The model id matches `DEDICATED_IMAGE_MODEL_REGEX`, or
+ * 2. The user explicitly tagged the model with `endpoint_type: 'image-generation'`
+ *    (currently surfaced in the UI for NewAPI / CherryIN providers).
+ */
+export function isImageGenerationEndpoint(model: Model): boolean {
+  if (!model) return false
+  if (isDedicatedImageModel(model)) return true
+  return model.endpoint_type === 'image-generation'
+}
+
 export const isAutoEnableImageGenerationModel = (model: Model): boolean => {
   if (!model) return false
 
