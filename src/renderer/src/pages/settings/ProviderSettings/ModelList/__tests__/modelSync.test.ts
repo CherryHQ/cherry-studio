@@ -18,7 +18,9 @@ vi.mock('@data/DataApiService', () => ({
 describe('fetchResolvedProviderModels', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(dataApiService.get).mockResolvedValue({ apiKey: 'rotated-key' })
+    vi.mocked(dataApiService.get).mockResolvedValue({
+      keys: [{ id: 'k1', key: 'sk-test', isEnabled: true }]
+    })
   })
 
   it('throws when upstream model listing fails instead of returning an empty list', async () => {

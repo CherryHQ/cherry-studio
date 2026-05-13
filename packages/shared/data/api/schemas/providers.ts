@@ -188,17 +188,6 @@ export type ProviderSchemas = {
   }
 
   /**
-   * Get a rotated API key for a provider (round-robin across enabled keys)
-   * @example GET /providers/openai-main/rotated-key
-   */
-  '/providers/:providerId/rotated-key': {
-    GET: {
-      params: { providerId: string }
-      response: { apiKey: string }
-    }
-  }
-
-  /**
    * Get API key values for a provider settings editor.
    * Pass `?enabled=true` to get only enabled keys (e.g. for runtime / rotation
    * consumers); omit it to get all keys (for the management UI that needs to
