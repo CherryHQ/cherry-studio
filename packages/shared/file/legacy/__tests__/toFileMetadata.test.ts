@@ -5,7 +5,7 @@ import { toFileMetadata } from '../toFileMetadata'
 
 const makeInternal = (overrides: object = {}) =>
   FileEntrySchema.parse({
-    id: '018f1234-0000-7000-0000-000000000001',
+    id: '018f1234-5678-7000-8000-000000000001',
     name: 'report',
     ext: 'pdf',
     size: 2048,
@@ -17,7 +17,7 @@ const makeInternal = (overrides: object = {}) =>
 
 const makeExternal = (overrides: object = {}) =>
   FileEntrySchema.parse({
-    id: '018f1234-0000-7000-0000-000000000002',
+    id: '018f1234-5678-7000-8000-000000000002',
     name: 'photo',
     ext: 'jpg',
     origin: 'external',
@@ -114,7 +114,7 @@ describe('toFileMetadata — external entry', () => {
 
   it('handles external entry with null ext', () => {
     const entry = FileEntrySchema.parse({
-      id: '018f1234-0000-7000-0000-000000000003',
+      id: '018f1234-5678-7000-8000-000000000003',
       name: 'Makefile',
       ext: null,
       origin: 'external',
