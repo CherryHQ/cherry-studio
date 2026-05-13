@@ -1,7 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import type { MessageCreateParams, MessageStreamEvent } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
-import { anthropicService } from '@main/services/AnthropicService'
 import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
 import type { Provider } from '@types'
 import type { Response } from 'express'
@@ -97,11 +96,6 @@ export class MessagesService {
   }
 
   async getClient(provider: Provider, extraHeaders?: Record<string, string | string[]>): Promise<Anthropic> {
-    // Create Anthropic client for the provider
-    if (provider.authType === 'oauth') {
-      const oauthToken = await anthropicService.getValidAccessToken()
-      return getSdkClient(provider, oauthToken, extraHeaders)
-    }
     return getSdkClient(provider, null, extraHeaders)
   }
 
