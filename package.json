@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.9.4",
+  "version": "1.9.5",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -84,7 +84,7 @@
     "ci": "pnpm ci:basic-check && pnpm ci:test-check"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.81",
+    "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@expo/sudo-prompt": "^9.3.2",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@libsql/client": "0.14.0",
@@ -500,7 +500,8 @@
       "@ai-sdk/openai@3.0.53": "patches/@ai-sdk__openai@3.0.53.patch",
       "@ai-sdk/google@3.0.64": "patches/@ai-sdk__google@3.0.64.patch",
       "@ai-sdk/anthropic": "patches/@ai-sdk__anthropic.patch",
-      "@ai-sdk/deepseek@2.0.30": "patches/@ai-sdk__deepseek@2.0.30.patch"
+      "@ai-sdk/deepseek@2.0.30": "patches/@ai-sdk__deepseek@2.0.30.patch",
+      "@cherrystudio/embedjs-loader-web@0.1.31": "patches/@cherrystudio__embedjs-loader-web@0.1.31.patch"
     },
     "onlyBuiltDependencies": [
       "@j178/prek",
