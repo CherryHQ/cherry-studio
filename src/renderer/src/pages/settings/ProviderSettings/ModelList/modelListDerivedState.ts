@@ -37,7 +37,6 @@ export type ModelListCapabilityCounts = Record<ModelListCapabilityFilter, number
 
 export type ModelListDerivedState = {
   filteredModels: Model[]
-  sections: ModelSections
   capabilityOptions: readonly ModelListCapabilityFilter[]
   capabilityModelCounts: ModelListCapabilityCounts
   duplicateModelNames: Set<string>
@@ -180,10 +179,6 @@ export const calculateModelListDerivedState = ({
 
   return {
     filteredModels,
-    sections: {
-      enabled: groupModels(enabledModels),
-      disabled: groupModels(disabledModels)
-    },
     capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
     capabilityModelCounts: getCapabilityModelCounts(models),
     duplicateModelNames: getDuplicateProviderSettingModelNames(models),

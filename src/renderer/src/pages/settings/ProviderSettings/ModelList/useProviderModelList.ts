@@ -177,6 +177,9 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     const enabledModels: Model[] = []
     const disabledModels: Model[] = []
 
+    // Final grouping happens only once here because the displayed section can
+    // diverge from persisted `isEnabled` while local optimistic/session
+    // placement is active.
     for (const model of derivedState.filteredModels) {
       if (getDisplayedPlacement(model, sessionPlacementByModelId) === 'enabled') {
         enabledModels.push(model)

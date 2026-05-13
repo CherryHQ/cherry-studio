@@ -33,7 +33,6 @@ interface PresetModel {
   modelName: string
   modelSource: string
   task: string
-  label: string
 }
 
 const PRESET_MODELS: PresetModel[] = [
@@ -41,50 +40,43 @@ const PRESET_MODELS: PresetModel[] = [
     modelId: 'OpenVINO/Qwen3-4B-int4-ov',
     modelName: 'Qwen3-4B-int4-ov',
     modelSource: 'https://www.modelscope.cn/models',
-    task: 'text_generation',
-    label: 'Qwen3-4B-int4-ov (Text Generation)'
+    task: 'text_generation'
   },
   {
     modelId: 'OpenVINO/Qwen3-8B-int4-ov',
     modelName: 'Qwen3-8B-int4-ov',
     modelSource: 'https://www.modelscope.cn/models',
-    task: 'text_generation',
-    label: 'Qwen3-8B-int4-ov (Text Generation)'
+    task: 'text_generation'
   },
   {
     modelId: 'OpenVINO/bge-base-en-v1.5-fp16-ov',
     modelName: 'bge-base-en-v1.5-fp16-ov',
     modelSource: 'https://www.modelscope.cn/models',
-    task: 'embeddings',
-    label: 'bge-base-en-v1.5-fp16-ov (Embeddings)'
+    task: 'embeddings'
   },
   {
     modelId: 'OpenVINO/bge-reranker-base-fp16-ov',
     modelName: 'bge-reranker-base-fp16-ov',
     modelSource: 'https://www.modelscope.cn/models',
-    task: 'rerank',
-    label: 'bge-reranker-base-fp16-ov (Rerank)'
+    task: 'rerank'
   },
   {
     modelId: 'OpenVINO/DeepSeek-R1-Distill-Qwen-7B-int4-ov',
     modelName: 'DeepSeek-R1-Distill-Qwen-7B-int4-ov',
     modelSource: 'https://www.modelscope.cn/models',
-    task: 'text_generation',
-    label: 'DeepSeek-R1-Distill-Qwen-7B-int4-ov (Text Generation)'
+    task: 'text_generation'
   },
   {
     modelId: 'OpenVINO/stable-diffusion-v1-5-int8-ov',
     modelName: 'stable-diffusion-v1-5-int8-ov',
     modelSource: 'https://www.modelscope.cn/models',
-    task: 'image_generation',
-    label: 'stable-diffusion-v1-5-int8-ov (Image Generation)'
+    task: 'image_generation'
   },
   {
     modelId: 'OpenVINO/FLUX.1-schnell-int4-ov',
     modelName: 'FLUX.1-schnell-int4-ov',
     modelSource: 'https://www.modelscope.cn/models',
-    task: 'image_generation',
-    label: 'FLUX.1-schnell-int4-ov (Image Generation)'
+    task: 'image_generation'
   }
 ]
 
@@ -102,6 +94,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const [error, setError] = useState<string | null>(null)
   const { t } = useTranslation()
   const { setIntervalTimer, clearIntervalTimer, setTimeoutTimer } = useTimer()
+
+  const getPresetTooltipLabel = (model: PresetModel) => `${model.modelName} (${t(`ovms.download.task.${model.task}`)})`
 
   const updateField = <K extends keyof FieldType>(field: K, value: FieldType[K]) => {
     setFormValues((current) => ({ ...current, [field]: value }))
@@ -268,7 +262,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           />
           <div className="flex flex-wrap gap-1.5">
             {PRESET_MODELS.map((model) => (
-              <Tooltip key={model.modelId} content={model.label}>
+              <Tooltip key={model.modelId} content={getPresetTooltipLabel(model)}>
                 <Button
                   type="button"
                   variant="outline"

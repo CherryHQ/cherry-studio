@@ -1,3 +1,4 @@
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import ModelSelector from '@renderer/components/ModelSelectorLegacy'
 import { TopView } from '@renderer/components/TopView'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -5,7 +6,6 @@ import i18n from '@renderer/i18n'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model, Provider } from '@renderer/types'
 import { isRerankModel } from '@shared/utils/model'
-import { Modal } from 'antd'
 import { first } from 'lodash'
 import { useCallback, useMemo, useState } from 'react'
 
@@ -54,27 +54,36 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
   SelectProviderModelPopup.hide = onCancel
 
   return (
-    <Modal
-      title={i18n.t('message.api.check.model.title', { model: model })}
+    <Dialog
       open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      transitionName="animation-move-down"
-      width={400}
-      centered>
-      <ModelSelector
-        providers={[provider]}
-        predicate={modelPredicate}
-        grouped={false}
-        defaultValue={defaultModelValue}
-        placeholder={i18n.t('settings.models.empty')}
-        style={{ width: '100%' }}
-        onChange={(value) => {
-          setModel(models.find((m) => value === getModelUniqId(m)))
-        }}
-      />
-    </Modal>
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          onCancel()
+        }
+      }}>
+      <DialogContent className="sm:max-w-[400px]" onCloseAutoFocus={onClose}>
+        <DialogHeader>
+          <DialogTitle>{i18n.t('message.api.check.model.title', { model: model })}</DialogTitle>
+        </DialogHeader>
+        <ModelSelector
+          providers={[provider]}
+          predicate={modelPredicate}
+          grouped={false}
+          defaultValue={defaultModelValue}
+          placeholder={i18n.t('settings.models.empty')}
+          style={{ width: '100%' }}
+          onChange={(value) => {
+            setModel(models.find((m) => value === getModelUniqId(m)))
+          }}
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            {i18n.t('common.cancel')}
+          </Button>
+          <Button onClick={onOk}>{i18n.t('common.confirm')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
