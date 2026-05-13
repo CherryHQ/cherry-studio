@@ -489,7 +489,10 @@ describe('FileEntryService', () => {
         const seen = [...page1.items, ...page2.items].map((e) => e.id)
         expect(seen).toHaveLength(4)
         expect(new Set(seen).size).toBe(4)
-        expect(seen.sort()).toEqual([...ids].sort())
+        // Spread before sort — Array.sort is in-place; without the copy the
+        // strict-order assertion below would see the sorted array, not the
+        // original page-merge result.
+        expect([...seen].sort()).toEqual([...ids].sort())
         // With sortOrder default (asc), the id tie-breaker is asc → ascending id order.
         expect(seen).toEqual(ids)
       })
@@ -522,7 +525,10 @@ describe('FileEntryService', () => {
         const seen = [...page1.items, ...page2.items].map((e) => e.id)
         expect(seen).toHaveLength(4)
         expect(new Set(seen).size).toBe(4)
-        expect(seen.sort()).toEqual([...ids].sort())
+        // Spread before sort — Array.sort is in-place; without the copy the
+        // strict-order assertion below would see the sorted array, not the
+        // original page-merge result.
+        expect([...seen].sort()).toEqual([...ids].sort())
         // With sortOrder=desc, the id tie-breaker is desc → reversed id order.
         expect(seen).toEqual([...ids].reverse())
       })

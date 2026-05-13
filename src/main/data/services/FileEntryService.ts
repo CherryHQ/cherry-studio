@@ -23,7 +23,7 @@ import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
-import { and, asc, count, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
 /** Columns a caller may provide on insert (id defaults to a fresh UUID v7 when omitted). */
@@ -322,22 +322,16 @@ class FileEntryServiceImpl implements FileEntryService {
     // user-selected sort value (same createdAt, same name, etc.) have a
     // deterministic relative order across pages. Without this, limit/offset
     // pagination over ties may surface a row on page 1 and again (or not
-    // at all) on page 2 depending on SQLite's internal row order. The
-    // direction word lives inside the `sql` template literal so it reaches
-    // SQLite as part of the static SQL text rather than a value parameter
-    // (the variadic `orderBy(orderA, orderB)` and `${sqlDirFragment}` forms
-    // were both observed at runtime to lose the secondary direction).
-    const orderClause =
-      query.sortOrder === 'desc'
-        ? sql`${sortColumn} desc, ${fileEntryTable.id} desc`
-        : sql`${sortColumn} asc, ${fileEntryTable.id} asc`
+    // at all) on page 2 depending on SQLite's internal row order.
+    const tieBreaker = query.sortOrder === 'desc' ? desc(fileEntryTable.id) : asc(fileEntryTable.id)
+    const order = query.sortOrder === 'desc' ? desc(sortColumn) : asc(sortColumn)
 
     const page = query.page ?? 1
     const pageSize = query.limit ?? 50
     const offset = (page - 1) * pageSize
 
     const [rows, totalRow] = await Promise.all([
-      this.getDb().select().from(fileEntryTable).where(where).orderBy(orderClause).limit(pageSize).offset(offset),
+      this.getDb().select().from(fileEntryTable).where(where).orderBy(order, tieBreaker).limit(pageSize).offset(offset),
       this.getDb().select({ value: count() }).from(fileEntryTable).where(where)
     ])
 
