@@ -219,6 +219,16 @@ class BackupManager {
       await fs.writeJson(path.join(this.tempDir, 'metadata.json'), metadata, { spaces: 2 })
       onProgress({ stage: 'copying_database', progress: 52, total: 100 })
 
+      // Step 3b: Include SQLite database in backup (v2)
+      // Flush WAL to main file first so the copy is a consistent snapshot.
+      await application.get('DbService').checkpoint()
+      const dbFilePath = application.getPath('app.database.file')
+      const dbFileName = path.basename(dbFilePath)
+      const sqliteDestDir = path.join(this.tempDir, 'sqlite')
+      await fs.ensureDir(sqliteDestDir)
+      await fs.copy(dbFilePath, path.join(sqliteDestDir, dbFileName))
+      logger.debug('[backupDirect] SQLite database included in backup')
+
       // Step 4: Copy Data directory (if not skipped)
       if (!skipBackupFile) {
         const sourcePath = path.join(userDataPath, 'Data')
