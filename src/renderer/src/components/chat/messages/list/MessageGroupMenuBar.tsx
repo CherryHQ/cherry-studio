@@ -94,7 +94,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 
   return (
     <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
-      <RowFlex className="flex-1 items-center overflow-hidden">
+      <RowFlex className="min-w-0 flex-1 items-center gap-1 overflow-hidden">
         <LayoutContainer>
           {(['fold', 'vertical', 'horizontal', 'grid'] as const).map((layout) => (
             <Tooltip
@@ -128,18 +128,20 @@ const MessageGroupMenuBar: FC<Props> = ({
         )}
         {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
       </RowFlex>
-      {hasFailedMessages && (
-        <Tooltip content={t('message.group.retry_failed')} delay={600}>
-          <Button variant="ghost" size="sm" onClick={handleRetryAll} className="mr-1">
-            <RotateCcw size={14} />
+      <ActionContainer>
+        {hasFailedMessages && (
+          <Tooltip content={t('message.group.retry_failed')} delay={600}>
+            <Button variant="ghost" size="sm" onClick={handleRetryAll} className="size-7 min-w-7 p-0">
+              <RotateCcw size={14} />
+            </Button>
+          </Tooltip>
+        )}
+        {actions.deleteMessageGroup && (
+          <Button variant="ghost" size="sm" onClick={handleDeleteGroup} className="size-7 min-w-7 p-0">
+            <Trash2 size={14} color="var(--color-error-base)" />
           </Button>
-        </Tooltip>
-      )}
-      {actions.deleteMessageGroup && (
-        <Button variant="ghost" size="sm" onClick={handleDeleteGroup}>
-          <Trash2 size={14} color="var(--color-error-base)" />
-        </Button>
-      )}
+        )}
+      </ActionContainer>
     </GroupMenuBar>
   )
 }
@@ -153,7 +155,7 @@ const GroupMenuBar = ({
   return (
     <div
       className={[
-        'group-menu-bar mx-2.5 mt-2 mb-4 flex h-10 flex-row items-center justify-between gap-2.5 overflow-hidden rounded-[10px] border-[0.5px] border-border p-2',
+        'group-menu-bar mx-2.5 mt-2 mb-4 flex h-10 flex-row items-center justify-between gap-1.5 overflow-hidden rounded-[10px] border-[0.5px] border-border px-2 py-1.5',
         className
       ]
         .filter(Boolean)
@@ -164,7 +166,7 @@ const GroupMenuBar = ({
 }
 
 const LayoutContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={['flex flex-row gap-1', className].filter(Boolean).join(' ')} {...props} />
+  <div className={['flex shrink-0 flex-row items-center gap-0.5', className].filter(Boolean).join(' ')} {...props} />
 )
 
 const LayoutOption = ({
@@ -173,11 +175,19 @@ const LayoutOption = ({
   ...props
 }: React.ComponentPropsWithoutRef<'div'> & { $active: boolean }) => (
   <div
-    className={['cursor-pointer rounded px-1.5 py-0.5 hover:bg-accent', $active && 'bg-muted hover:bg-muted', className]
+    className={[
+      'flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground',
+      $active && 'bg-muted text-foreground hover:bg-muted',
+      className
+    ]
       .filter(Boolean)
       .join(' ')}
     {...props}
   />
+)
+
+const ActionContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex shrink-0 items-center gap-1', className].filter(Boolean).join(' ')} {...props} />
 )
 
 export default memo(MessageGroupMenuBar)

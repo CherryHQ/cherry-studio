@@ -65,9 +65,25 @@ function bucketAssistantSiblingsByModel(members: SharedMessage[]): Map<string, S
 function pickLatest(bucket: SharedMessage[]): SharedMessage {
   let latest = bucket[0]
   for (let i = 1; i < bucket.length; i++) {
-    if (bucket[i].createdAt.localeCompare(latest.createdAt) > 0) latest = bucket[i]
+    if (compareMessageOrder(bucket[i], latest) > 0) latest = bucket[i]
   }
   return latest
+}
+
+function compareMessageOrder(a: SharedMessage, b: SharedMessage): number {
+  return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
+}
+
+function getBucketFirstMessage(bucket: SharedMessage[]): SharedMessage {
+  let first = bucket[0]
+  for (let i = 1; i < bucket.length; i++) {
+    if (compareMessageOrder(bucket[i], first) < 0) first = bucket[i]
+  }
+  return first
+}
+
+function pickDisplayMember(bucket: SharedMessage[], activeMessageId: string): SharedMessage {
+  return bucket.find((m) => m.id === activeMessageId) ?? pickLatest(bucket)
 }
 
 /**
@@ -77,10 +93,10 @@ function pickLatest(bucket: SharedMessage[]): SharedMessage {
  * - User siblings: alternate branches — only the active one is on the path;
  *   off-path branches go through the sibling navigator.
  * - Assistant siblings: bucket by `modelId`. One bubble per distinct model.
- *   - The bucket containing `item.message` (the on-path / active member)
- *     is already represented by that push.
- *   - Every other bucket contributes its most-recent sibling as an
- *     additional bubble (same askId → same `MessageGroup` tab bar).
+ *   - Buckets are sorted by their first-created member, so switching active
+ *     branch does not reshuffle the multi-model tab order.
+ *   - The active bucket displays the active member. Off-path buckets display
+ *     their most-recent sibling.
  *
  * This handles the three shapes uniformly: pure regenerate (1 bucket of N →
  * 1 bubble), pure multi-model (N buckets of 1 → N bubbles), mixed (N buckets
@@ -90,14 +106,17 @@ function pickLatest(bucket: SharedMessage[]): SharedMessage {
 function flattenBranchMessages(items: BranchMessage[]): SharedMessage[] {
   const result: SharedMessage[] = []
   for (const item of items) {
-    result.push(item.message)
-    if (!item.siblingsGroup || item.siblingsGroup.length === 0) continue
-    if (item.message.role === 'user') continue
+    if (!item.siblingsGroup || item.siblingsGroup.length === 0 || item.message.role === 'user') {
+      result.push(item.message)
+      continue
+    }
 
     const buckets = bucketAssistantSiblingsByModel([item.message, ...item.siblingsGroup])
-    for (const bucket of buckets.values()) {
-      if (bucket.some((m) => m.id === item.message.id)) continue
-      result.push(pickLatest(bucket))
+    const sortedBuckets = Array.from(buckets.values()).sort((a, b) =>
+      compareMessageOrder(getBucketFirstMessage(a), getBucketFirstMessage(b))
+    )
+    for (const bucket of sortedBuckets) {
+      result.push(pickDisplayMember(bucket, item.message.id))
     }
   }
   return result

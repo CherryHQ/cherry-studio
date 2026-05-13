@@ -17,7 +17,6 @@ import { useTranslation } from 'react-i18next'
 
 import { resolvePartFromParts, usePartsMap } from '../blocks'
 import type { MessageListProviderValue } from '../types'
-import HomePrompt from './HomePrompt'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
 
@@ -39,7 +38,6 @@ export function useHomeMessageListProviderValue({
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
   const { assistant } = useAssistant(topic.assistantId)
-  const [showPrompt] = usePreference('chat.message.show_prompt')
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const partsMap = usePartsMap()
@@ -140,17 +138,11 @@ export function useHomeMessageListProviderValue({
     }
   })
 
-  const beforeList = useMemo(
-    () => (showPrompt ? <HomePrompt key={assistant?.prompt ?? ''} topic={topic} /> : undefined),
-    [assistant?.prompt, showPrompt, topic]
-  )
-
   return useMemo(
     () => ({
       state: {
         topic,
         messages,
-        beforeList,
         hasOlder,
         messageNavigation,
         estimateSize: 600,
@@ -170,6 +162,6 @@ export function useHomeMessageListProviderValue({
         imageExportFileName: topic.name
       }
     }),
-    [assistant?.id, beforeList, hasOlder, loadOlder, messageNavigation, messages, topic, v2Chat]
+    [assistant?.id, hasOlder, loadOlder, messageNavigation, messages, topic, v2Chat]
   )
 }
