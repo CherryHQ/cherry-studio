@@ -86,7 +86,7 @@ import { ResourceList, useResourceList } from '../ResourceList'
 import type { ResourceListItemBase } from '../ResourceListContext'
 import {
   AgentResourceList,
-  AssistantListV2,
+  AssistantList,
   AssistantResourceList,
   createAssistantListActionRegistry,
   HistoryResourceList,
@@ -835,7 +835,7 @@ describe('ResourceList', () => {
     expect(handlers.onTogglePin).toHaveBeenCalledWith(item)
   })
 
-  it('renders AssistantListV2 with search, pinned groups, sort, virtualization, and menu callbacks', () => {
+  it('renders AssistantList with search, pinned groups, sort, virtualization, and menu callbacks', () => {
     const handlers = {
       onSelect: vi.fn(),
       onTogglePin: vi.fn(),
@@ -849,7 +849,7 @@ describe('ResourceList', () => {
     ]
 
     render(
-      <AssistantListV2
+      <AssistantList
         items={assistants}
         selectedId="assistant-a"
         handlers={handlers}

@@ -30,11 +30,11 @@ export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResul
 export { useResourceListPinnedState } from './useResourceListPinnedState'
 export {
   AgentResourceList,
+  AssistantList,
   type AssistantListActionContext,
   type AssistantListActionHandlers,
-  AssistantListV2,
-  type AssistantListV2Labels,
-  type AssistantListV2Props,
+  type AssistantListLabels,
+  type AssistantListProps,
   AssistantResourceList,
   createAssistantListActionRegistry,
   HistoryResourceList,
