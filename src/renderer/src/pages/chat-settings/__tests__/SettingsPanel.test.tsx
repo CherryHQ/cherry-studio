@@ -92,10 +92,15 @@ describe('SettingsPanel', () => {
     expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain('right-2')
     expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain('bottom-2')
     expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain('rounded-2xl')
+    expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain(
+      '[border:0.5px_solid_var(--color-border)]'
+    )
     expect(screen.getByTestId('settings-panel').getAttribute('class')).toContain('bg-popover')
     expect(screen.getByTestId('settings-panel-backdrop').getAttribute('class')).toContain('hidden')
     expect(screen.getByTestId('settings-panel-header').getAttribute('class')).toContain('h-[38px]')
-    expect(screen.getByTestId('settings-panel-header').getAttribute('class')).toContain('border-border/30')
+    expect(screen.getByTestId('settings-panel-header').getAttribute('class')).toContain(
+      '[border-bottom:0.5px_solid_var(--color-border)]'
+    )
     expect(screen.getByTestId('settings-panel-body').getAttribute('class')).toContain('text-xs')
   })
 

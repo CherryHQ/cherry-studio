@@ -32,8 +32,8 @@ const SettingsPanel: FC<Props> = ({ open, onClose, mode, assistantId }) => {
       header={header}
       closeLabel={t('common.close')}
       backdropClassName="hidden"
-      contentClassName="top-[calc(var(--navbar-height)+0.5rem)] right-2 bottom-2 w-[340px] max-w-[calc(100%-1rem)] rounded-2xl border-border/30 bg-popover"
-      headerClassName="h-[38px] border-border/30 px-3"
+      contentClassName="top-[calc(var(--navbar-height)+0.5rem)] right-2 bottom-2 w-[340px] max-w-[calc(100%-1rem)] rounded-2xl [border:0.5px_solid_var(--color-border)] bg-popover"
+      headerClassName="h-[38px] [border-bottom:0.5px_solid_var(--color-border)] px-3"
       bodyClassName="space-y-0 p-0 text-xs"
       closeButtonClassName="h-6 w-6 rounded-md p-0">
       {mode === 'assistant' ? <AssistantSettingsPanelBody assistantId={assistantId} /> : <ChatPreferencesTab />}
