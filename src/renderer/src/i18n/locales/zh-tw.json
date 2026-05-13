@@ -1615,19 +1615,10 @@
     "custom_path_required": "此終端機需要設定自訂路徑",
     "custom_path_set": "自訂終端機路徑設定成功",
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
-    "empty": {
-      "no_match": {
-        "description": "嘗試調整搜尋關鍵字",
-        "title": "未找到符合的工具"
-      },
-      "no_tool": {
-        "description": "新增 CLI 工具或程式碼助理以開始使用",
-        "title": "尚無程式碼工具"
-      }
-    },
     "env_vars_help": "輸入自訂環境變數（每行一個，格式：KEY=value）",
     "environment_variables": "環境變數",
     "folder_placeholder": "選擇工作目錄",
+    "hero_tagline": "選一個 CLI 工具開始設定",
     "install_bun": "安裝 Bun",
     "installing_bun": "安裝中...",
     "launch": {
@@ -1643,9 +1634,6 @@
     "model_hint": "為 CLI 工具選擇要使用的 AI 模型",
     "model_placeholder": "選擇要使用的模型",
     "model_required": "請選擇模型",
-    "official_tag": "官方",
-    "official_tools": "官方工具",
-    "search_placeholder": "搜尋 CLI 工具…",
     "select_folder": "選擇資料夾",
     "set_custom_path": "設定自訂終端機路徑",
     "supported_providers": "支援的供應商",
@@ -1653,6 +1641,16 @@
     "terminal_hint": "選擇執行命令的終端機應用程式",
     "terminal_placeholder": "選擇終端機應用程式",
     "title": "程式碼工具",
+    "tool_description": {
+      "claude_code": "Anthropic 官方 CLI 程式助理",
+      "gemini_cli": "Google Gemini 命令列助理",
+      "github_copilot_cli": "GitHub Copilot 命令列版本",
+      "iflow_cli": "iFlow 推出的多模型 CLI 助理",
+      "kimi_cli": "Moonshot Kimi 命令列助理",
+      "openai_codex": "OpenAI 官方程式碼產生 CLI",
+      "opencode": "開源社群的多模型程式碼 Agent",
+      "qwen_code": "阿里通義出品的開源 CLI 程式設計工具"
+    },
     "update_options": "更新選項",
     "working_directory": "工作目錄",
     "working_directory_hint": "CLI 工具啟動時的工作目錄"
