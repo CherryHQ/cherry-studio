@@ -37,7 +37,7 @@ const mocks = vi.hoisted(() => ({
   MessageEditor: vi.fn(() => <div>editor</div>),
   MessageErrorBoundary: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
   MessageHeader: vi.fn(() => <div className="message-header">header</div>),
-  MessageMenubar: vi.fn(() => <div className="message-menubar">menubar</div>),
+  MessageMenuBar: vi.fn(() => <div className="message-menubar">menubar</div>),
   MessageOutline: vi.fn(() => null)
 }))
 
@@ -166,35 +166,35 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('../MessageContent', () => ({
+vi.mock('../frame/MessageContent', () => ({
   default: mocks.MessageContent
 }))
 
-vi.mock('../MessageEditor', () => ({
+vi.mock('../frame/MessageEditor', () => ({
   default: mocks.MessageEditor
 }))
 
-vi.mock('../MessageErrorBoundary', () => ({
+vi.mock('../frame/MessageErrorBoundary', () => ({
   default: mocks.MessageErrorBoundary
 }))
 
-vi.mock('../MessageGroupMenuBar', () => ({
+vi.mock('../list/MessageGroupMenuBar', () => ({
   default: mocks.MessageGroupMenuBar
 }))
 
-vi.mock('../MessageHeader', () => ({
+vi.mock('../frame/MessageHeader', () => ({
   default: mocks.MessageHeader
 }))
 
-vi.mock('../MessageMenubar', () => ({
-  default: mocks.MessageMenubar
+vi.mock('../frame/MessageMenuBar', () => ({
+  default: mocks.MessageMenuBar
 }))
 
-vi.mock('../MessageOutline', () => ({
+vi.mock('../frame/MessageOutline', () => ({
   default: mocks.MessageOutline
 }))
 
-const { default: MessageGroup } = await import('../MessageGroup')
+const { default: MessageGroup } = await import('../list/MessageGroup')
 
 const createMessage = (id: string, index: number, multiModelMessageStyle: Message['multiModelMessageStyle']) =>
   ({

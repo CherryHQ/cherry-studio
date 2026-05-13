@@ -1,7 +1,7 @@
 import { useChat } from '@ai-sdk/react'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import ExecutionStreamCollector from '@renderer/components/chat/messages/ExecutionStreamCollector'
+import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { isMac } from '@renderer/config/constant'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useTheme } from '@renderer/context/ThemeProvider'

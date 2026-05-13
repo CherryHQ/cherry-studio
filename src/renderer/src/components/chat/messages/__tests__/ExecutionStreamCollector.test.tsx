@@ -22,7 +22,7 @@ vi.mock('@logger', () => ({
 
 import { ExecutionTransport } from '@renderer/transport/IpcChatTransport'
 
-import ExecutionStreamCollector from '../ExecutionStreamCollector'
+import ExecutionStreamCollector from '../stream/ExecutionStreamCollector'
 
 const TOPIC_ID = 'topic-1'
 const EXEC_A = 'openai::gpt-4o' as UniqueModelId

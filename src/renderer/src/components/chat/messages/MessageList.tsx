@@ -12,13 +12,13 @@ import {
 } from '@renderer/utils'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import MessageAnchorLine from './MessageAnchorLine'
-import MessageGroup from './MessageGroup'
+import NarrowLayout from './layout/NarrowLayout'
+import { MessagesContainer } from './layout/shared'
+import MessageAnchorLine from './list/MessageAnchorLine'
+import MessageGroup from './list/MessageGroup'
+import { MessageVirtualList, type MessageVirtualListHandle } from './list/MessageVirtualList'
+import SelectionBox from './list/SelectionBox'
 import { useMessageList } from './MessageListProvider'
-import { MessageVirtualList, type MessageVirtualListHandle } from './MessageVirtualList'
-import NarrowLayout from './NarrowLayout'
-import SelectionBox from './SelectionBox'
-import { MessagesContainer } from './shared'
 
 const MessageList = () => {
   const { state, actions, meta } = useMessageList()
@@ -127,6 +127,7 @@ const MessageList = () => {
                   key={key}
                   messages={groupMessages}
                   topic={topic}
+                  showGroupMenuBar={meta.groupMenuBar ?? true}
                   registerMessageElement={registerMessageElement}
                 />
               )}

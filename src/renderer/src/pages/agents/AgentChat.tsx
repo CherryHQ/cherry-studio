@@ -1,7 +1,6 @@
 import { ChatAppShell, type ChatPanePosition, LoadingState } from '@renderer/components/chat'
-import ChatNavigation from '@renderer/components/chat/messages/ChatNavigation'
-import ExecutionStreamCollector from '@renderer/components/chat/messages/ExecutionStreamCollector'
-import NarrowLayout from '@renderer/components/chat/messages/NarrowLayout'
+import NarrowLayout from '@renderer/components/chat/messages/layout/NarrowLayout'
+import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgentDataApi'
@@ -13,6 +12,7 @@ import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import ChatNavigation from '@renderer/pages/agents/components/ChatNavigation'
 import type { GetAgentResponse } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { cn } from '@renderer/utils'
@@ -221,6 +221,7 @@ const AgentChatInner = ({
             agentId={agentId}
             sessionId={sessionId}
             adaptedMessages={projectedMessages}
+            activeAgent={activeAgent}
             partsMap={mergedPartsMap}
             isLoading={isLoading}
             hasOlder={hasOlder}

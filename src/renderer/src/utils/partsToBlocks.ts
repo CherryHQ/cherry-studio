@@ -8,7 +8,7 @@
  * (`partToBlock` / `mapMessageStatusToBlockStatus`) that fed the legacy
  * `messageBlocks` Redux slice. That slice and its writers are gone — only
  * the citation-reference projections remain, which are still needed by
- * `PartsRenderer` to render inline citations from text-part metadata.
+ * `MessagePartsRenderer` to render inline citations from text-part metadata.
  */
 
 import { loggerService } from '@logger'
@@ -150,7 +150,7 @@ function normalizeWebResults(results: unknown): Citation[] {
 
 /**
  * Convert ContentReference[] (new format) to renderer Citation[].
- * Used by V2 PartsRenderer to preserve inline citation tagging.
+ * Used by MessagePartsRenderer to preserve inline citation tagging.
  */
 export function convertReferencesToCitations(references: ContentReference[]): Citation[] {
   const all: Citation[] = []

@@ -1,4 +1,4 @@
-import { ClickableFilePath } from '@renderer/components/chat/messages/Tools/MessageAgentTools/ClickableFilePath'
+import { ClickableFilePath } from '@renderer/components/chat/messages/tools/agent/ClickableFilePath'
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
 import { isWin } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'

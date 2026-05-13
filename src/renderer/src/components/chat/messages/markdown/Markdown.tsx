@@ -86,7 +86,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
 
   // `block.status === 'streaming'` is set by callers when (and only when)
   // the topic-level ActiveStream is live for this message — see
-  // `PartsRenderer`, which derives the streaming flag from
+  // `MessagePartsRenderer`, which derives the streaming flag from
   // `useTopicStreamStatus` and threads it down through MainTextBlock /
   // ThinkingBlock.
   const isStreaming = block.status === 'streaming'

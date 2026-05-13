@@ -1,6 +1,6 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { default as MessageItem } from '@renderer/components/chat/messages/Message'
+import { default as MessageItem } from '@renderer/components/chat/messages/frame/MessageFrame'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { locateToMessage } from '@renderer/services/MessagesService'

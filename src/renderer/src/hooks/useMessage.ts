@@ -1,6 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import { usePartsMap } from '@renderer/components/chat/messages/Blocks/V2Contexts'
+import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { type Topic, type TranslateLangCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
@@ -15,7 +15,7 @@ const logger = loggerService.withContext('useMessage')
  * Per-message bound operations.
  *
  * Consumers that already hold a stable `message.id` for the whole render
- * (MessageMenubar, Message, etc.) should reach for this hook; topic-level
+ * (MessageMenuBar, Message, etc.) should reach for this hook; topic-level
  * and dynamic-id callers (multi-select delete, group iteration) read
  * `useV2Chat()` directly.
  *
@@ -29,7 +29,7 @@ export function useMessage(messageId: string, topic: Topic) {
 
   // `V2ChatContent.handleDeleteMessage` handles span-cache cleanup
   // internally; callers that have `traceId` / `modelName` on hand (e.g.
-  // `MessageMenubar` reading them off the assistant message) forward
+  // `MessageMenuBar` reading them off the assistant message) forward
   // them via the optional second argument.
   const remove = useCallback(
     async (traceId?: string, modelName?: string) => {

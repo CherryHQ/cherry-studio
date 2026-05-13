@@ -1,5 +1,5 @@
 import { LoadingOutlined } from '@ant-design/icons'
-import { PartsProvider } from '@renderer/components/chat/messages/Blocks'
+import { PartsProvider } from '@renderer/components/chat/messages/blocks'
 import Scrollbar from '@renderer/components/Scrollbar'
 import type { Assistant } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'

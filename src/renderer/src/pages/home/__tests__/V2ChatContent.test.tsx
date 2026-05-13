@@ -60,7 +60,7 @@ vi.mock('../Inputbar/Inputbar', () => ({
   )
 }))
 
-vi.mock('@renderer/components/chat/messages/Blocks', () => ({
+vi.mock('@renderer/components/chat/messages/blocks', () => ({
   PartsProvider: ({ children }: { children: ReactNode }) => children,
   RefreshProvider: ({ children }: { children: ReactNode }) => children
 }))
@@ -69,7 +69,10 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   MessageListProvider: ({ value, children }: { value: unknown; children: ReactNode }) => {
     mockMessageListValue.current = value
     return children
-  },
+  }
+}))
+
+vi.mock('@renderer/components/chat/messages/adapters/homeMessageListAdapter', () => ({
   useHomeMessageListProviderValue: (params: { messages: Message[] }) => ({
     state: { messages: params.messages },
     actions: {},
@@ -85,7 +88,7 @@ vi.mock('@renderer/components/chat/messages/MessageList', () => ({
   )
 }))
 
-vi.mock('@renderer/components/chat/messages/ExecutionStreamCollector', () => ({
+vi.mock('@renderer/components/chat/messages/stream/ExecutionStreamCollector', () => ({
   default: function ExecutionStreamCollectorMock({
     executionId,
     onMessagesChange

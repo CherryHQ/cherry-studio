@@ -1,6 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import NarrowLayout from '@renderer/components/chat/messages/NarrowLayout'
+import NarrowLayout from '@renderer/components/chat/messages/layout/NarrowLayout'
 import { classNames, scrollElementIntoView } from '@renderer/utils'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'

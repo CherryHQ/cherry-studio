@@ -19,13 +19,11 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('V2ChatContent')
 
-import { PartsProvider, RefreshProvider } from '@renderer/components/chat/messages/Blocks'
-import ExecutionStreamCollector from '@renderer/components/chat/messages/ExecutionStreamCollector'
+import { useHomeMessageListProviderValue } from '@renderer/components/chat/messages/adapters/homeMessageListAdapter'
+import { PartsProvider, RefreshProvider } from '@renderer/components/chat/messages/blocks'
 import MessageList from '@renderer/components/chat/messages/MessageList'
-import {
-  MessageListProvider,
-  useHomeMessageListProviderValue
-} from '@renderer/components/chat/messages/MessageListProvider'
+import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import { useV2ChatOverrides } from './hooks/useV2ChatOverrides'

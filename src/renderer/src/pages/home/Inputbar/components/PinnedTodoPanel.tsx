@@ -7,7 +7,7 @@
  * all todos complete and collapses on header click otherwise.
  */
 
-import type { TodoItem, TodoWriteToolInput } from '@renderer/components/chat/messages/Tools/MessageAgentTools/types'
+import type { TodoItem, TodoWriteToolInput } from '@renderer/components/chat/messages/tools/agent/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { Typography } from 'antd'

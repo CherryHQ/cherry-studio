@@ -67,13 +67,13 @@ vi.mock('../Markdown', () => ({
   useMarkdownBlockContext: vi.fn(() => null)
 }))
 
-// Mock V2 contexts — returns null (V1 mode) by default
-vi.mock('@renderer/components/chat/messages/Blocks', () => ({
+// Mock message parts context — returns null by default
+vi.mock('@renderer/components/chat/messages/blocks', () => ({
   useResolveBlock: vi.fn(() => null)
 }))
 
 // Mock ClickableFilePath
-vi.mock('@renderer/components/chat/messages/Tools/MessageAgentTools/ClickableFilePath', () => ({
+vi.mock('@renderer/components/chat/messages/tools/agent/ClickableFilePath', () => ({
   ClickableFilePath: ({ path }: { path: string }) => <span data-testid="clickable-file-path">{path}</span>
 }))
 

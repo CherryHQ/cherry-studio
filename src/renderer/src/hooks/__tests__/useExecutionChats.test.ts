@@ -26,7 +26,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import ExecutionStreamCollector from '@renderer/components/chat/messages/ExecutionStreamCollector'
+import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 
 import { type ExecutionFinishEvent, pickSeed, useExecutionChats } from '../useExecutionChats'
 

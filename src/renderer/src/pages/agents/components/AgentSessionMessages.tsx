@@ -1,14 +1,12 @@
 import { loggerService } from '@logger'
-import { PartsProvider } from '@renderer/components/chat/messages/Blocks'
+import { useAgentMessageListProviderValue } from '@renderer/components/chat/messages/adapters/agentMessageListAdapter'
+import { PartsProvider } from '@renderer/components/chat/messages/blocks'
 import MessageList from '@renderer/components/chat/messages/MessageList'
-import {
-  MessageListProvider,
-  useAgentMessageListProviderValue
-} from '@renderer/components/chat/messages/MessageListProvider'
+import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { useSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useSettings } from '@renderer/hooks/useSettings'
-import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
+import type { GetAgentResponse, Topic, TopicType as TopicTypeEnum } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -22,6 +20,7 @@ type Props = {
   agentId: string
   sessionId: string
   adaptedMessages: Message[]
+  activeAgent?: GetAgentResponse
   partsMap: Record<string, CherryMessagePart[]>
   isLoading: boolean
   /** Whether more older messages remain on the server (cursor pagination). */
@@ -34,6 +33,7 @@ const AgentSessionMessages = ({
   agentId,
   sessionId,
   adaptedMessages,
+  activeAgent,
   partsMap,
   isLoading,
   hasOlder = false,
@@ -64,6 +64,12 @@ const AgentSessionMessages = ({
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
     messages: adaptedMessages,
+    assistantProfile: activeAgent
+      ? {
+          name: activeAgent.name,
+          avatar: activeAgent.configuration?.avatar
+        }
+      : undefined,
     isLoading,
     hasOlder,
     loadOlder,

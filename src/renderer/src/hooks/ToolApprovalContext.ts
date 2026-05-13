@@ -1,4 +1,4 @@
-import type { ToolApprovalMatch } from '@renderer/components/chat/messages/Tools/toolResponse'
+import type { ToolApprovalMatch } from '@renderer/components/chat/messages/tools/toolResponse'
 import { createContext, use } from 'react'
 
 /**
