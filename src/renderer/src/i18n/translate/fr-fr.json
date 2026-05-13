@@ -6385,6 +6385,10 @@
         }
       },
       "balance": "Équilibre",
+      "base_url": {
+        "label": "[to be translated]:Base URL",
+        "placeholder": "[to be translated]:https://api.example.com"
+      },
       "basic_auth": {
         "label": "Authentification HTTP",
         "password": {
@@ -6453,6 +6457,9 @@
         "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
         "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
+      "create_custom": {
+        "title": "[to be translated]:Add Custom Provider"
+      },
       "delete": {
         "content": "Êtes-vous sûr de vouloir supprimer ce fournisseur de modèles ?",
         "title": "Supprimer le fournisseur"
@@ -6465,13 +6472,31 @@
       },
       "docs_check": "Voir",
       "docs_more_details": "Obtenir plus de détails",
+      "duplicate": {
+        "add_another": "[to be translated]:Add {{name}} instance",
+        "aria_label": "[to be translated]:Add {{name}} instance",
+        "drawer_title": "[to be translated]:Add {{name}} instance",
+        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
+        "menu_label": "[to be translated]:Add instance",
+        "tooltip": "[to be translated]:Add a {{name}} instance (e.g. a Coding Plan, a different deployment or account)"
+      },
       "filter": {
         "agent": "Prise en charge par un agent",
-        "all": "Tous les fournisseurs"
+        "all": "Tous les fournisseurs",
+        "disabled": "[to be translated]:Disabled Only",
+        "enabled": "[to be translated]:Enabled Only"
       },
       "filter_agent": "Fournisseurs pris en charge par l'agent de filtrage",
       "get_api_key": "Cliquez ici pour obtenir une clé",
       "misc": "autre",
+      "more_endpoints": {
+        "add": "[to be translated]:Add Endpoint",
+        "anthropic": "[to be translated]:Anthropic Messages",
+        "gemini": "[to be translated]:Google Gemini",
+        "openai_chat": "[to be translated]:OpenAI Chat Completions",
+        "openai_responses": "[to be translated]:OpenAI Responses",
+        "toggle": "[to be translated]:More Endpoints"
+      },
       "no_models_for_check": "Aucun modèle détectable (par exemple, modèle de chat)",
       "not_checked": "Non vérifié",
       "notes": {

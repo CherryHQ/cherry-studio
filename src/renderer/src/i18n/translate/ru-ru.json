@@ -6385,6 +6385,10 @@
         }
       },
       "balance": "Баланс",
+      "base_url": {
+        "label": "[to be translated]:Base URL",
+        "placeholder": "[to be translated]:https://api.example.com"
+      },
       "basic_auth": {
         "label": "HTTP аутентификация",
         "password": {
@@ -6453,6 +6457,9 @@
         "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
         "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
+      "create_custom": {
+        "title": "[to be translated]:Add Custom Provider"
+      },
       "delete": {
         "content": "Вы уверены, что хотите удалить этот провайдер?",
         "title": "Удалить провайдер"
@@ -6465,13 +6472,31 @@
       },
       "docs_check": "Проверить",
       "docs_more_details": "для получения дополнительной информации",
+      "duplicate": {
+        "add_another": "[to be translated]:Add {{name}} instance",
+        "aria_label": "[to be translated]:Add {{name}} instance",
+        "drawer_title": "[to be translated]:Add {{name}} instance",
+        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
+        "menu_label": "[to be translated]:Add instance",
+        "tooltip": "[to be translated]:Add a {{name}} instance (e.g. a Coding Plan, a different deployment or account)"
+      },
       "filter": {
         "agent": "Поддержка агента",
-        "all": "Все поставщики"
+        "all": "Все поставщики",
+        "disabled": "[to be translated]:Disabled Only",
+        "enabled": "[to be translated]:Enabled Only"
       },
       "filter_agent": "Поддерживаемые поставщики агента фильтрации",
       "get_api_key": "Получить ключ API",
       "misc": "другие",
+      "more_endpoints": {
+        "add": "[to be translated]:Add Endpoint",
+        "anthropic": "[to be translated]:Anthropic Messages",
+        "gemini": "[to be translated]:Google Gemini",
+        "openai_chat": "[to be translated]:OpenAI Chat Completions",
+        "openai_responses": "[to be translated]:OpenAI Responses",
+        "toggle": "[to be translated]:More Endpoints"
+      },
       "no_models_for_check": "Нет моделей для проверки (например, диалоговые модели)",
       "not_checked": "Не проверено",
       "notes": {

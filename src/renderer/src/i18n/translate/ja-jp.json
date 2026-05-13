@@ -6385,6 +6385,10 @@
         }
       },
       "balance": "バランス",
+      "base_url": {
+        "label": "[to be translated]:Base URL",
+        "placeholder": "[to be translated]:https://api.example.com"
+      },
       "basic_auth": {
         "label": "HTTP 認証",
         "password": {
@@ -6453,6 +6457,9 @@
         "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
         "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
+      "create_custom": {
+        "title": "[to be translated]:Add Custom Provider"
+      },
       "delete": {
         "content": "このプロバイダーを削除してもよろしいですか？",
         "title": "プロバイダーを削除"
@@ -6465,13 +6472,31 @@
       },
       "docs_check": "チェック",
       "docs_more_details": "詳細を確認",
+      "duplicate": {
+        "add_another": "[to be translated]:Add {{name}} instance",
+        "aria_label": "[to be translated]:Add {{name}} instance",
+        "drawer_title": "[to be translated]:Add {{name}} instance",
+        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
+        "menu_label": "[to be translated]:Add instance",
+        "tooltip": "[to be translated]:Add a {{name}} instance (e.g. a Coding Plan, a different deployment or account)"
+      },
       "filter": {
         "agent": "エージェントサポート",
-        "all": "すべてのプロバイダー"
+        "all": "すべてのプロバイダー",
+        "disabled": "[to be translated]:Disabled Only",
+        "enabled": "[to be translated]:Enabled Only"
       },
       "filter_agent": "フィルターエージェント対応プロバイダー",
       "get_api_key": "APIキーを取得",
       "misc": "その他",
+      "more_endpoints": {
+        "add": "[to be translated]:Add Endpoint",
+        "anthropic": "[to be translated]:Anthropic Messages",
+        "gemini": "[to be translated]:Google Gemini",
+        "openai_chat": "[to be translated]:OpenAI Chat Completions",
+        "openai_responses": "[to be translated]:OpenAI Responses",
+        "toggle": "[to be translated]:More Endpoints"
+      },
       "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",
       "not_checked": "未チェック",
       "notes": {

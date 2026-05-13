@@ -6385,6 +6385,10 @@
         }
       },
       "balance": "Υπόλοιπο",
+      "base_url": {
+        "label": "[to be translated]:Base URL",
+        "placeholder": "[to be translated]:https://api.example.com"
+      },
       "basic_auth": {
         "label": "Πιστοποίηση HTTP",
         "password": {
@@ -6453,6 +6457,9 @@
         "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
         "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
+      "create_custom": {
+        "title": "[to be translated]:Add Custom Provider"
+      },
       "delete": {
         "content": "Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον παροχό;",
         "title": "Διαγραφή παρόχου"
@@ -6465,13 +6472,31 @@
       },
       "docs_check": "Άνοιγμα",
       "docs_more_details": "Λάβετε περισσότερες λεπτομέρειες",
+      "duplicate": {
+        "add_another": "[to be translated]:Add {{name}} instance",
+        "aria_label": "[to be translated]:Add {{name}} instance",
+        "drawer_title": "[to be translated]:Add {{name}} instance",
+        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
+        "menu_label": "[to be translated]:Add instance",
+        "tooltip": "[to be translated]:Add a {{name}} instance (e.g. a Coding Plan, a different deployment or account)"
+      },
       "filter": {
         "agent": "Υποστηριζόμενος από πράκτορα",
-        "all": "Όλοι οι Πάροχοι"
+        "all": "Όλοι οι Πάροχοι",
+        "disabled": "[to be translated]:Disabled Only",
+        "enabled": "[to be translated]:Enabled Only"
       },
       "filter_agent": "Υποστηριζόμενοι Πάροχοι του Φίλτρου Πράκτορα",
       "get_api_key": "Κάντε κλικ εδώ για να πάρετε κλειδί",
       "misc": "Άλλο",
+      "more_endpoints": {
+        "add": "[to be translated]:Add Endpoint",
+        "anthropic": "[to be translated]:Anthropic Messages",
+        "gemini": "[to be translated]:Google Gemini",
+        "openai_chat": "[to be translated]:OpenAI Chat Completions",
+        "openai_responses": "[to be translated]:OpenAI Responses",
+        "toggle": "[to be translated]:More Endpoints"
+      },
       "no_models_for_check": "Δεν υπάρχουν μοντέλα για έλεγχο (π.χ. μοντέλα συνομιλίας)",
       "not_checked": "Δεν ελέγχεται",
       "notes": {

@@ -6385,6 +6385,10 @@
         }
       },
       "balance": "Cân bằng",
+      "base_url": {
+        "label": "[to be translated]:Base URL",
+        "placeholder": "[to be translated]:https://api.example.com"
+      },
       "basic_auth": {
         "label": "Xác thực HTTP",
         "password": {
@@ -6453,6 +6457,9 @@
         "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
         "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
+      "create_custom": {
+        "title": "[to be translated]:Add Custom Provider"
+      },
       "delete": {
         "content": "Bạn có chắc chắn muốn xóa nhà cung cấp này không?",
         "title": "Xóa Nhà Cung Cấp"
@@ -6465,13 +6472,31 @@
       },
       "docs_check": "Kiểm tra",
       "docs_more_details": "để biết thêm chi tiết",
+      "duplicate": {
+        "add_another": "[to be translated]:Add {{name}} instance",
+        "aria_label": "[to be translated]:Add {{name}} instance",
+        "drawer_title": "[to be translated]:Add {{name}} instance",
+        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
+        "menu_label": "[to be translated]:Add instance",
+        "tooltip": "[to be translated]:Add a {{name}} instance (e.g. a Coding Plan, a different deployment or account)"
+      },
       "filter": {
         "agent": "Được hỗ trợ bởi đại lý",
-        "all": "Tất cả nhà cung cấp"
+        "all": "Tất cả nhà cung cấp",
+        "disabled": "[to be translated]:Disabled Only",
+        "enabled": "[to be translated]:Enabled Only"
       },
       "filter_agent": "Các nhà cung cấp được Hỗ trợ bởi Agent Lọc",
       "get_api_key": "Lấy Khóa API",
       "misc": "Khác",
+      "more_endpoints": {
+        "add": "[to be translated]:Add Endpoint",
+        "anthropic": "[to be translated]:Anthropic Messages",
+        "gemini": "[to be translated]:Google Gemini",
+        "openai_chat": "[to be translated]:OpenAI Chat Completions",
+        "openai_responses": "[to be translated]:OpenAI Responses",
+        "toggle": "[to be translated]:More Endpoints"
+      },
       "no_models_for_check": "Không có mô hình nào khả dụng để kiểm tra (ví dụ: mô hình chat)",
       "not_checked": "Chưa kiểm tra",
       "notes": {
