@@ -85,6 +85,10 @@ export function useProviderConnectionCheck(providerId: string) {
       try {
         setApiKeyConnectivity({ kind: 'checking', checking: true, status: HealthStatus.NOT_CHECKED, model })
 
+        // Transitional bridge: connection checking still calls the legacy
+        // ApiService `checkApi` path, which expects v1 provider/model shapes.
+        // Remove this conversion once that check path consumes runtime
+        // Data API entities directly.
         const v1Provider = toV1ProviderShim(provider, {
           models,
           apiKey,

@@ -7,7 +7,7 @@ import type {
   ModelDrawerEndpointType
 } from './types'
 
-const TOGGLE_TO_V2: Record<ModelCapabilityToggle, string> = {
+const TOGGLE_TO_CAPABILITY: Record<ModelCapabilityToggle, string> = {
   [MODEL_CAPABILITY.IMAGE_RECOGNITION]: MODEL_CAPABILITY.IMAGE_RECOGNITION,
   [MODEL_CAPABILITY.REASONING]: MODEL_CAPABILITY.REASONING,
   [MODEL_CAPABILITY.FUNCTION_CALL]: MODEL_CAPABILITY.FUNCTION_CALL,
@@ -16,8 +16,8 @@ const TOGGLE_TO_V2: Record<ModelCapabilityToggle, string> = {
   [MODEL_CAPABILITY.RERANK]: MODEL_CAPABILITY.RERANK
 }
 
-const V2_TO_TOGGLE: Record<string, ModelCapabilityToggle> = Object.fromEntries(
-  Object.entries(TOGGLE_TO_V2).map(([key, value]) => [value, key as ModelCapabilityToggle])
+const CAPABILITY_TO_TOGGLE: Record<string, ModelCapabilityToggle> = Object.fromEntries(
+  Object.entries(TOGGLE_TO_CAPABILITY).map(([key, value]) => [value, key as ModelCapabilityToggle])
 ) as Record<string, ModelCapabilityToggle>
 
 export const MODEL_DRAWER_CURRENCY_SYMBOLS = ['$', '¥'] as const
@@ -81,7 +81,7 @@ export function capsToToggleSet(capabilities: string[]): Set<ModelCapabilityTogg
   const selected = new Set<ModelCapabilityToggle>()
 
   for (const capability of capabilities) {
-    const toggle = V2_TO_TOGGLE[capability]
+    const toggle = CAPABILITY_TO_TOGGLE[capability]
     if (toggle) {
       selected.add(toggle)
     }
@@ -91,11 +91,11 @@ export function capsToToggleSet(capabilities: string[]): Set<ModelCapabilityTogg
 }
 
 export function toggleSetToCaps(original: string[], selected: Set<ModelCapabilityToggle>): string[] {
-  const toggleCapabilities = new Set(Object.values(TOGGLE_TO_V2))
+  const toggleCapabilities = new Set(Object.values(TOGGLE_TO_CAPABILITY))
   const next = original.filter((capability) => !toggleCapabilities.has(capability))
 
   for (const toggle of selected) {
-    next.push(TOGGLE_TO_V2[toggle])
+    next.push(TOGGLE_TO_CAPABILITY[toggle])
   }
 
   return next

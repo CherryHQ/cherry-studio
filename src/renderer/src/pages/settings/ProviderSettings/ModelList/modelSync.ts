@@ -21,7 +21,7 @@ type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}
 type ProviderRotatedKeyPath = Extract<ConcreteApiPaths, `/providers/${string}/rotated-key`>
 type ProviderRotatedKeyResponse = { apiKey: string }
 
-const LEGACY_ENDPOINT_TO_V2: Record<string, RuntimeEndpointType> = {
+const LEGACY_ENDPOINT_TO_RUNTIME: Record<string, RuntimeEndpointType> = {
   openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
   anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
@@ -31,6 +31,11 @@ const LEGACY_ENDPOINT_TO_V2: Record<string, RuntimeEndpointType> = {
 }
 
 async function fetchModelsStrict(provider: LegacyProvider): Promise<LegacyModel[]> {
+  // Transitional path: model sync still goes through the existing AiProvider
+  // list-models flow, which currently expects the legacy renderer Provider
+  // shape. When aiCore accepts the runtime/Data API provider contract end to
+  // end, this LegacyProvider boundary and the v1 shim at the call site below
+  // should be removed together.
   const ai = new AiProvider(provider)
 
   return await ai.models({ throwOnError: true })
@@ -55,10 +60,10 @@ export function toCreateModelDto(
 function normalizeFetchedModel(providerId: string, model: LegacyModel): Model {
   const endpointTypes = [
     ...(model.supported_endpoint_types
-      ?.map((endpointType) => LEGACY_ENDPOINT_TO_V2[endpointType])
+      ?.map((endpointType) => LEGACY_ENDPOINT_TO_RUNTIME[endpointType])
       .filter((endpointType): endpointType is RuntimeEndpointType => endpointType !== undefined) ?? []),
-    ...(model.endpoint_type && LEGACY_ENDPOINT_TO_V2[model.endpoint_type]
-      ? [LEGACY_ENDPOINT_TO_V2[model.endpoint_type]]
+    ...(model.endpoint_type && LEGACY_ENDPOINT_TO_RUNTIME[model.endpoint_type]
+      ? [LEGACY_ENDPOINT_TO_RUNTIME[model.endpoint_type]]
       : [])
   ]
 
@@ -69,7 +74,7 @@ function normalizeFetchedModel(providerId: string, model: LegacyModel): Model {
     name: model.name,
     description: model.description,
     group: model.group,
-    // Capabilities are owned by v2 registry/DB enrichment. Do not consume
+    // Capabilities are owned by runtime registry/DB enrichment. Do not consume
     // legacy AiProvider.models() capability hints in renderer sync preview.
     capabilities: [],
     endpointTypes: endpointTypes.length > 0 ? endpointTypes : undefined,
@@ -167,6 +172,10 @@ export async function fetchResolvedProviderModels(providerId: string, provider: 
     logger.info('Fetching raw provider models from upstream provider SDK', {
       providerId
     })
+    // Transitional bridge: ProviderSettings owns a runtime/Data API `Provider`,
+    // but upstream model discovery still enters aiCore through the old
+    // `AiProvider.models()` contract. Convert once at the boundary, then remove
+    // this shim after aiCore migrates to the runtime provider shape.
     const fetched = await fetchModelsStrict(toV1ProviderShim(provider, { apiKey }))
     logger.info('Fetched raw provider models from upstream provider SDK', {
       providerId,

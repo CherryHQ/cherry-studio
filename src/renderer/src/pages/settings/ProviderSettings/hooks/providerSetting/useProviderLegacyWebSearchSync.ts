@@ -4,7 +4,11 @@ import { useEffect } from 'react'
 
 import { applyProviderApiKeySideEffects } from '../../utils/providerSettingsSideEffects'
 
-/** Mirrors provider API keys into legacy websearch state while that bridge still exists. */
+/**
+ * Transitional bridge: mirrors provider API keys into the legacy websearch
+ * store while that consumer still reads old state instead of Data API provider
+ * data. Remove after websearch stops depending on the legacy store adapter.
+ */
 export function useProviderLegacyWebSearchSync(providerId: string) {
   const { provider } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)

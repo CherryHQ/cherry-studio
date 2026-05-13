@@ -21,6 +21,9 @@ export async function checkModelWithMultipleKeys(
   const checkPromises = apiKeys.map(async (key) => {
     signal?.throwIfAborted()
     const startTime = Date.now()
+    // Transitional bridge: `checkModel` still runs through the legacy
+    // ApiService/aiCore health-check path, so ProviderSettings converts the
+    // runtime provider/model shapes at the edge until that stack is migrated.
     const v1Provider: V1Provider = toV1ProviderShim(provider, {
       apiKey: key,
       models: modelsForShim

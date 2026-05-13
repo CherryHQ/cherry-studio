@@ -1,5 +1,9 @@
 // TODO(v2-cleanup): Delete this file after Phase 5 migration is complete.
-// Bridges v2 DataApi Provider shape to v1 Provider shape for downstream code not yet migrated.
+// Temporary bridge: ProviderSettings already reads/writes the Data API runtime
+// provider/model shape, but several downstream renderer entrypoints still call
+// legacy aiCore / ApiService helpers that expect the old v1 provider/model
+// contracts from `@renderer/types`. Once those callers migrate to the runtime
+// aiCore/data-api shape, remove this shim and its call sites together.
 
 import type { Model as V1Model, Provider as V1Provider, ProviderType } from '@renderer/types'
 import type { Model as V2Model } from '@shared/data/types/model'
@@ -75,7 +79,8 @@ function apiFeaturesToApiOptions(v2: V2Provider): V1Provider['apiOptions'] {
 }
 
 /**
- * Bridge v2 DataApi Model shape to v1 Model shape for code that still depends on `model.provider`.
+ * Bridge runtime/Data API Model shape to the legacy renderer `Model` shape for
+ * downstream code that still depends on `model.provider`.
  */
 export function toV1ModelShim(v2: V2Model): V1Model {
   const apiId = v2.apiModelId?.trim() || (isUniqueModelId(v2.id) ? parseUniqueModelId(v2.id).modelId : v2.id)
@@ -106,7 +111,8 @@ export function toV1ModelForCheckApi(model: unknown): V1Model {
 }
 
 /**
- * Bridge v2 Provider shape to v1 Provider shape as a temporary compatibility layer.
+ * Bridge runtime/Data API Provider shape to the legacy renderer `Provider`
+ * shape as a temporary compatibility layer for old aiCore / ApiService flows.
  */
 export function toV1ProviderShim(v2Provider: V2Provider, options: V1ShimOptions = {}): V1Provider {
   const cache = v2Provider.settings?.cacheControl

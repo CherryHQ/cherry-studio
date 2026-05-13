@@ -50,7 +50,7 @@ interface UseProviderEndpointActionsParams {
   syncProviderModels: SyncProviderModels
 }
 
-/** Persists endpoint drafts through the v2 provider data API. */
+/** Persists endpoint drafts through the provider data API. */
 export function useProviderEndpointActions({
   provider,
   primaryEndpoint,

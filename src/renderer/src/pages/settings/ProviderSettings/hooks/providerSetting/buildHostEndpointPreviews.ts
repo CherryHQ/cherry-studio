@@ -38,6 +38,9 @@ export function buildHostEndpointPreviews(params: {
   } else if (primaryEndpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
     formattedHost = formatApiHost(apiHost, appendVersion, 'v1beta')
   } else if (isVertexProvider(provider)) {
+    // Transitional bridge: Vertex host formatting still reuses a legacy helper
+    // that accepts the old provider shape. Drop the shim when that formatter is
+    // updated to read the runtime/Data API provider contract directly.
     formattedHost = formatVertexApiHost(toV1ProviderShim(provider, { apiHost }) as never)
   } else {
     formattedHost = formatApiHost(apiHost, appendVersion)
