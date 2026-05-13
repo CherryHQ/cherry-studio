@@ -22,6 +22,20 @@ export interface MessageListRuntime {
   exportTopicImage: () => Promise<void>
 }
 
+export interface MessageRuntime {
+  locateMessage: (highlight?: boolean) => void
+  startEditing: () => void
+}
+
+export interface MessageGroupRuntime {
+  locateMessage: (messageId: string) => void
+}
+
+export interface MessageSiblingInfo {
+  group: Array<{ id: string }>
+  activeIndex: number
+}
+
 export interface MessageListState {
   topic: Topic
   messages: Message[]
@@ -37,11 +51,17 @@ export interface MessageListState {
   readonly?: boolean
   selection?: MessageListSelectionState
   getMessageUiState?: (messageId: string) => MessageUiState
+  getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
 }
 
 export interface MessageListActions {
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)
+  bindMessageRuntime?: (messageId: string, runtime: MessageRuntime) => void | (() => void)
+  bindMessageGroupRuntime?: (messageIds: string[], runtime: MessageGroupRuntime) => void | (() => void)
+  locateMessage?: (messageId: string, highlight?: boolean) => void
+  startNewContext?: () => void
+  saveCodeBlock?: (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => void | Promise<void>
   selectMessage?: (messageId: string, selected: boolean) => void
   toggleMultiSelectMode?: (enabled: boolean) => void
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void

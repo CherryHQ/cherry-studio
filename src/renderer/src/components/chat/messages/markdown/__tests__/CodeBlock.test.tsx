@@ -4,37 +4,37 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CodeBlock from '../CodeBlock'
 
 // Hoisted mocks
-const mocks = vi.hoisted(() => ({
-  EventEmitter: {
-    emit: vi.fn(),
-    on: vi.fn()
-  },
-  getCodeBlockId: vi.fn(),
-  isOpenFenceBlock: vi.fn(),
-  usePreference: vi.fn().mockReturnValue([true]),
-  isWin: false,
-  CodeBlockView: vi.fn(({ onSave, children }) => (
-    <div>
-      <code>{children}</code>
-      <button type="button" onClick={() => onSave('new code content')}>
-        Save
-      </button>
-    </div>
-  )),
-  HtmlArtifactsCard: vi.fn(({ onSave, html }) => (
-    <div>
-      <div>{html}</div>
-      <button type="button" onClick={() => onSave('new html content')}>
-        Save HTML
-      </button>
-    </div>
-  ))
-}))
+const mocks = vi.hoisted(() => {
+  const saveCodeBlock = vi.fn()
 
-// Mock modules
-vi.mock('@renderer/services/EventService', () => ({
-  EVENT_NAMES: { EDIT_CODE_BLOCK: 'EDIT_CODE_BLOCK' },
-  EventEmitter: mocks.EventEmitter
+  return {
+    saveCodeBlock,
+    messageListValue: { actions: { saveCodeBlock } } as any,
+    getCodeBlockId: vi.fn(),
+    isOpenFenceBlock: vi.fn(),
+    usePreference: vi.fn().mockReturnValue([true]),
+    isWin: false,
+    CodeBlockView: vi.fn(({ onSave, children }) => (
+      <div>
+        <code>{children}</code>
+        <button type="button" onClick={() => onSave('new code content')}>
+          Save
+        </button>
+      </div>
+    )),
+    HtmlArtifactsCard: vi.fn(({ onSave, html }) => (
+      <div>
+        <div>{html}</div>
+        <button type="button" onClick={() => onSave('new html content')}>
+          Save HTML
+        </button>
+      </div>
+    ))
+  }
+})
+
+vi.mock('../../MessageListProvider', () => ({
+  useOptionalMessageList: () => mocks.messageListValue
 }))
 
 vi.mock('@renderer/config/constant', () => ({
@@ -88,6 +88,7 @@ describe('CodeBlock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.isWin = false
+    mocks.messageListValue = { actions: { saveCodeBlock: mocks.saveCodeBlock } }
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
     mocks.isOpenFenceBlock.mockReturnValue(false)
@@ -110,6 +111,14 @@ describe('CodeBlock', () => {
       const codeElement = screen.getByText('inline code')
       expect(codeElement.tagName).toBe('CODE')
       expect(mocks.CodeBlockView).not.toHaveBeenCalled()
+    })
+
+    it('should render without a message list provider', () => {
+      mocks.messageListValue = null
+
+      expect(() => render(<CodeBlock {...defaultProps} />)).not.toThrow()
+      fireEvent.click(screen.getByText('Save'))
+      expect(mocks.saveCodeBlock).not.toHaveBeenCalled()
     })
 
     it('should render ClickableFilePath for absolute file paths', () => {
@@ -151,7 +160,7 @@ describe('CodeBlock', () => {
   })
 
   describe('save', () => {
-    it('should call EventEmitter with correct payload when saving a standard code block', () => {
+    it('should call saveCodeBlock with correct payload when saving a standard code block', () => {
       render(<CodeBlock {...defaultProps} />)
 
       // Simulate clicking the save button inside the mocked CodeBlockView
@@ -161,16 +170,15 @@ describe('CodeBlock', () => {
       // Verify getCodeBlockId was called
       expect(mocks.getCodeBlockId).toHaveBeenCalledWith(defaultProps.node.position.start)
 
-      // Verify EventEmitter.emit was called
-      expect(mocks.EventEmitter.emit).toHaveBeenCalledOnce()
-      expect(mocks.EventEmitter.emit).toHaveBeenCalledWith('EDIT_CODE_BLOCK', {
+      expect(mocks.saveCodeBlock).toHaveBeenCalledOnce()
+      expect(mocks.saveCodeBlock).toHaveBeenCalledWith({
         msgBlockId: 'test-msg-block-id',
         codeBlockId: 'test-code-block-id',
         newContent: 'new code content'
       })
     })
 
-    it('should call EventEmitter with correct payload when saving an HTML block', () => {
+    it('should call saveCodeBlock with correct payload when saving an HTML block', () => {
       const htmlProps = {
         ...defaultProps,
         className: 'language-html',
@@ -185,9 +193,8 @@ describe('CodeBlock', () => {
       // Verify getCodeBlockId was called
       expect(mocks.getCodeBlockId).toHaveBeenCalledWith(htmlProps.node.position.start)
 
-      // Verify EventEmitter.emit was called
-      expect(mocks.EventEmitter.emit).toHaveBeenCalledOnce()
-      expect(mocks.EventEmitter.emit).toHaveBeenCalledWith('EDIT_CODE_BLOCK', {
+      expect(mocks.saveCodeBlock).toHaveBeenCalledOnce()
+      expect(mocks.saveCodeBlock).toHaveBeenCalledWith({
         msgBlockId: 'test-msg-block-id',
         codeBlockId: 'test-code-block-id',
         newContent: 'new html content'

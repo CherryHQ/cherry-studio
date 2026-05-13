@@ -1,8 +1,9 @@
 // import { useRuntime } from '@renderer/hooks/useRuntime'
 import { Tooltip } from '@cherrystudio/ui'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Message } from '@renderer/types/newMessage'
 import { t } from 'i18next'
+
+import { useMessageList } from '../MessageListProvider'
 
 interface MessageTokensProps {
   message: Message
@@ -11,8 +12,9 @@ interface MessageTokensProps {
 
 const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   // const { generating } = useRuntime()
+  const { actions } = useMessageList()
   const locateMessage = () => {
-    void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id, false)
+    actions.locateMessage?.(message.id, false)
   }
 
   const getPrice = () => {

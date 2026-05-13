@@ -2,11 +2,11 @@ import { usePreference } from '@data/hooks/usePreference'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/agent/ClickableFilePath'
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
 import { isWin } from '@renderer/config/constant'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getCodeBlockId, isOpenFenceBlock } from '@renderer/utils/markdown'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
 
+import { useOptionalMessageList } from '../MessageListProvider'
 import { useMarkdownBlockContext } from './Markdown'
 
 interface Props {
@@ -35,18 +35,19 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
 
   const mdCtx = useMarkdownBlockContext()
   const isStreaming = mdCtx?.isStreaming ?? false
+  const actions = useOptionalMessageList()?.actions
 
   const handleSave = useCallback(
     (newContent: string) => {
-      if (id !== undefined) {
-        void EventEmitter.emit(EVENT_NAMES.EDIT_CODE_BLOCK, {
+      if (id != null) {
+        void actions?.saveCodeBlock?.({
           msgBlockId: blockId,
           codeBlockId: id,
           newContent
         })
       }
     },
-    [blockId, id]
+    [actions, blockId, id]
   )
 
   if (language !== null) {

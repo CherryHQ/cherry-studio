@@ -2,6 +2,7 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -14,11 +15,17 @@ import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { last } from 'lodash'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { resolvePartFromParts, usePartsMap } from '../blocks'
-import type { MessageListProviderValue, MessageListRuntime, MessageUiState } from '../types'
+import type {
+  MessageGroupRuntime,
+  MessageListProviderValue,
+  MessageListRuntime,
+  MessageRuntime,
+  MessageUiState
+} from '../types'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
 
@@ -44,6 +51,7 @@ export function useHomeMessageListProviderValue({
   const { t } = useTranslation()
   const partsMap = usePartsMap()
   const v2Chat = useV2Chat()
+  const siblingsContext = use(SiblingsContext)
   const { isMultiSelectMode, selectedMessageIds, handleSelectMessage, toggleMultiSelectMode } = useChatContext(topic)
 
   const messagesRef = useRef<Message[]>(messages)
@@ -77,39 +85,7 @@ export function useHomeMessageListProviderValue({
       }),
       EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, () => {
         logger.info('[NEW_CONTEXT] Not yet implemented.')
-      }),
-      EventEmitter.on(
-        EVENT_NAMES.EDIT_CODE_BLOCK,
-        async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
-          const { msgBlockId, codeBlockId, newContent } = data
-
-          try {
-            const resolved = partsMapRef.current && resolvePartFromParts(partsMapRef.current, msgBlockId)
-            if (resolved && resolved.part.type === 'text') {
-              const textPart = resolved.part as { text?: string }
-              const updatedText = updateCodeBlock(textPart.text || '', codeBlockId, newContent)
-              const allParts = [...(partsMapRef.current![resolved.messageId] || [])]
-              allParts[resolved.index] = { ...resolved.part, text: updatedText } as CherryMessagePart
-              await dataApiService.patch(`/messages/${resolved.messageId}`, {
-                body: { data: { parts: allParts } }
-              })
-              window.toast.success(t('code_block.edit.save.success'))
-              return
-            }
-
-            logger.error(
-              `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: unable to resolve part`
-            )
-            window.toast.error(t('code_block.edit.save.failed.label'))
-          } catch (error) {
-            logger.error(
-              `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`,
-              error as Error
-            )
-            window.toast.error(t('code_block.edit.save.failed.label'))
-          }
-        }
-      )
+      })
     ]
 
     return () => unsubscribes.forEach((unsub) => unsub())
@@ -150,6 +126,65 @@ export function useHomeMessageListProviderValue({
 
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [])
+
+  const bindMessageRuntime = useCallback((messageId: string, runtime: MessageRuntime) => {
+    const unsubscribes = [
+      EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, runtime.locateMessage),
+      EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, (targetId: string) => {
+        if (targetId === messageId) {
+          runtime.startEditing()
+        }
+      })
+    ]
+
+    return () => unsubscribes.forEach((unsub) => unsub())
+  }, [])
+
+  const bindMessageGroupRuntime = useCallback((messageIds: string[], runtime: MessageGroupRuntime) => {
+    const unsubscribes = messageIds.map((messageId) =>
+      EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, () => runtime.locateMessage(messageId))
+    )
+
+    return () => unsubscribes.forEach((unsub) => unsub())
+  }, [])
+
+  const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
+    void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+  }, [])
+
+  const startNewContext = useCallback(() => {
+    logger.info('[NEW_CONTEXT] Not yet implemented.')
+  }, [])
+
+  const saveCodeBlock = useCallback(
+    async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
+      const { msgBlockId, codeBlockId, newContent } = data
+
+      try {
+        const resolved = partsMapRef.current && resolvePartFromParts(partsMapRef.current, msgBlockId)
+        if (resolved && resolved.part.type === 'text') {
+          const textPart = resolved.part as { text?: string }
+          const updatedText = updateCodeBlock(textPart.text || '', codeBlockId, newContent)
+          const allParts = [...(partsMapRef.current![resolved.messageId] || [])]
+          allParts[resolved.index] = { ...resolved.part, text: updatedText } as CherryMessagePart
+          await dataApiService.patch(`/messages/${resolved.messageId}`, {
+            body: { data: { parts: allParts } }
+          })
+          window.toast.success(t('code_block.edit.save.success'))
+          return
+        }
+
+        logger.error(
+          `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: unable to resolve part`
+        )
+        window.toast.error(t('code_block.edit.save.failed.label'))
+      } catch (error) {
+        logger.error(`Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`, error as Error)
+        window.toast.error(t('code_block.edit.save.failed.label'))
+      }
+    },
+    [t]
+  )
 
   const getMessageUiState = useCallback(
     (messageId: string) => (cacheService.get(`message.ui.${messageId}` as const) || {}) as MessageUiState,
@@ -199,6 +234,17 @@ export function useHomeMessageListProviderValue({
     [topic.id, v2Chat]
   )
 
+  const getMessageSiblings = useCallback(
+    (messageId: string) => {
+      const group = siblingsContext?.siblingsMap[messageId]
+      if (!group || group.length < 2) return null
+
+      const activeIndex = group.findIndex((message) => message.id === messageId)
+      return { group, activeIndex: activeIndex >= 0 ? activeIndex : 0 }
+    },
+    [siblingsContext]
+  )
+
   return useMemo(
     () => ({
       state: {
@@ -217,11 +263,17 @@ export function useHomeMessageListProviderValue({
           isMultiSelectMode,
           selectedMessageIds
         },
-        getMessageUiState
+        getMessageUiState,
+        getMessageSiblings
       },
       actions: {
         loadOlder,
         bindRuntime,
+        bindMessageRuntime,
+        bindMessageGroupRuntime,
+        locateMessage,
+        startNewContext,
+        saveCodeBlock,
         selectMessage: handleSelectMessage,
         toggleMultiSelectMode,
         updateMessageUiState,
@@ -243,16 +295,22 @@ export function useHomeMessageListProviderValue({
     }),
     [
       assistant?.id,
+      bindMessageGroupRuntime,
+      bindMessageRuntime,
       bindRuntime,
+      getMessageSiblings,
       getMessageUiState,
       getTranslationUpdater,
       handleSelectMessage,
       hasOlder,
       isMultiSelectMode,
       loadOlder,
+      locateMessage,
       messageNavigation,
       messages,
+      saveCodeBlock,
       selectedMessageIds,
+      startNewContext,
       toggleMultiSelectMode,
       topic,
       updateMessageUiState,

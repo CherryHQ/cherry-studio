@@ -6,11 +6,11 @@
  */
 
 import { loggerService } from '@logger'
-import { useMessageSiblings } from '@renderer/hooks/SiblingsContext'
-import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { type FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useMessageList } from '../MessageListProvider'
 
 const logger = loggerService.withContext('SiblingNavigator')
 
@@ -20,22 +20,22 @@ interface Props {
 
 const SiblingNavigator: FC<Props> = ({ messageId }) => {
   const { t } = useTranslation()
-  const siblings = useMessageSiblings(messageId)
-  const v2 = useV2Chat()
+  const { state, actions } = useMessageList()
+  const siblings = state.getMessageSiblings?.(messageId)
 
   const handleSwitch = useCallback(
     async (direction: -1 | 1) => {
-      if (!siblings || !v2) return
+      if (!siblings || !actions.setActiveBranch) return
       const { group, activeIndex } = siblings
       const nextIndex = (activeIndex + direction + group.length) % group.length
       const target = group[nextIndex]
       try {
-        await v2.setActiveBranch(target.id)
+        await actions.setActiveBranch(target.id)
       } catch (error) {
         logger.error('Failed to switch sibling branch', error as Error)
       }
     },
-    [siblings, v2]
+    [actions, siblings]
   )
 
   if (!siblings) return null

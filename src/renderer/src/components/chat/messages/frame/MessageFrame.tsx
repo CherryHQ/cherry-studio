@@ -10,7 +10,6 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames, cn, isEmoji } from '@renderer/utils'
@@ -171,31 +170,26 @@ const MessageItem: FC<Props> = ({
   )
 
   useEffect(() => {
-    const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id, messageHighlightHandler)]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [message.id, messageHighlightHandler])
-
-  // Listen for external edit requests and activate editor for this message if it matches
-  useEffect(() => {
-    const handleEditRequest = (targetId: string) => {
-      if (canEditMessage && targetId === message.id) {
-        startEditing(message.id)
+    return actions.bindMessageRuntime?.(message.id, {
+      locateMessage: messageHighlightHandler,
+      startEditing: () => {
+        if (canEditMessage) {
+          startEditing(message.id)
+        }
       }
-    }
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, handleEditRequest)
-    return () => {
-      unsubscribe()
-    }
-  }, [canEditMessage, message.id, startEditing])
+    })
+  }, [actions, canEditMessage, message.id, messageHighlightHandler, startEditing])
+
+  const handleStartNewContext = useCallback(() => {
+    if (isMultiSelectMode) return
+    actions.startNewContext?.()
+  }, [actions, isMultiSelectMode])
 
   if (message.type === 'clear') {
     return (
       <div
         className={cn('clear-context-divider flex-1 cursor-pointer', isMultiSelectMode && 'cursor-default')}
-        onClick={() => {
-          if (isMultiSelectMode) return
-          void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
-        }}>
+        onClick={handleStartNewContext}>
         <div className="mx-5 my-0 flex items-center gap-2 text-foreground-muted text-sm">
           <hr className="flex-1 border-border border-dashed" />
           <span>{t('chat.message.new.context')}</span>

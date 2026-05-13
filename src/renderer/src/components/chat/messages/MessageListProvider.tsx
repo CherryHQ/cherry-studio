@@ -9,6 +9,10 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
   <MessageListContext value={value}>{children}</MessageListContext>
 )
 
+export const useOptionalMessageList = (): MessageListProviderValue | null => {
+  return use(MessageListContext)
+}
+
 export const useMessageList = (): MessageListProviderValue => {
   const value = use(MessageListContext)
   if (!value) {
