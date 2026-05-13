@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { copyApiKeyToClipboard } from '../copyApiKeyToClipboard'
 
-const loggerWarnMock = vi.fn()
+const { loggerWarnMock } = vi.hoisted(() => ({
+  loggerWarnMock: vi.fn()
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {

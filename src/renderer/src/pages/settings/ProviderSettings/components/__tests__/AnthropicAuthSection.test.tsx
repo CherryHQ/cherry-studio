@@ -6,7 +6,9 @@ import AnthropicAuthSection from '../../ConnectionSettings/AnthropicAuthSection'
 const useProviderMock = vi.fn()
 const useProviderMutationsMock = vi.fn()
 const updateAuthConfigMock = vi.fn()
-const loggerErrorMock = vi.fn()
+const { loggerErrorMock } = vi.hoisted(() => ({
+  loggerErrorMock: vi.fn()
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

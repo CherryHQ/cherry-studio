@@ -11,7 +11,9 @@ const useAuthenticationApiKeyMock = vi.fn()
 const useProviderEndpointsMock = vi.fn()
 const checkApiMock = vi.fn()
 const showErrorDetailPopupMock = vi.fn()
-const loggerErrorMock = vi.fn()
+const { loggerErrorMock } = vi.hoisted(() => ({
+  loggerErrorMock: vi.fn()
+}))
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
