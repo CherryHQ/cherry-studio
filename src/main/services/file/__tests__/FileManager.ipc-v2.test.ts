@@ -1,12 +1,13 @@
 /**
  * IPC handler registration tests for Phase 2 File channels.
  *
- * Verifies that `createInternalEntry`, `ensureExternalEntry`, and
- * `getPhysicalPath` channels are registered on `ipcMain.handle` and
- * that each dispatches to the corresponding FileManager method.
+ * Verifies that `createInternalEntry`, `ensureExternalEntry`,
+ * `getPhysicalPath`, and `permanentDeleteEntry` channels are registered on
+ * `ipcMain.handle` and that each dispatches to the corresponding FileManager
+ * method.
  */
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -125,5 +126,51 @@ describe('FileManager v2 IPC handler registration', () => {
     const physicalPath = await getPathHandler!({} as never, { id: entry.id })
     expect(physicalPath).toContain(entry.id)
     expect(physicalPath).toContain('bin')
+  })
+
+  it('registers File:permanentDeleteEntry IPC channel', () => {
+    const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
+    expect(registeredChannels).toContain(IpcChannel.File_PermanentDeleteEntry)
+  })
+
+  it('permanentDeleteEntry handler removes an internal entry row and physical file', async () => {
+    // Create an internal entry so we have a known id + physical path
+    const createHandler = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.find(([ch]) => ch === IpcChannel.File_CreateInternalEntry)?.[1]
+    const entry = await createHandler!({} as never, {
+      source: 'bytes' as const,
+      data: new Uint8Array([72, 101, 108, 108, 111]),
+      name: 'todelete',
+      ext: 'txt'
+    })
+
+    // Resolve the physical path before deletion so we can check it afterward
+    const getPathHandler = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.find(([ch]) => ch === IpcChannel.File_GetPhysicalPath)?.[1]
+    const physicalPath = await getPathHandler!({} as never, { id: entry.id })
+
+    const deleteHandler = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.find(([ch]) => ch === IpcChannel.File_PermanentDeleteEntry)?.[1]
+    expect(deleteHandler).toBeDefined()
+
+    // Should resolve without throwing
+    await expect(deleteHandler!({} as never, { id: entry.id })).resolves.toBeUndefined()
+
+    // Physical file must be gone
+    await expect(access(physicalPath)).rejects.toThrow()
+  })
+
+  it('permanentDeleteEntry handler throws when the id does not exist', async () => {
+    const deleteHandler = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.find(([ch]) => ch === IpcChannel.File_PermanentDeleteEntry)?.[1]
+    expect(deleteHandler).toBeDefined()
+
+    // Use a valid UUID that was never inserted — DB lookup will reject it
+    const nonExistentId = '123e4567-e89b-4d3c-a456-426614174000' as never
+    await expect(deleteHandler!({} as never, { id: nonExistentId })).rejects.toThrow()
   })
 })
