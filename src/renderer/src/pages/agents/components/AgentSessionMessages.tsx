@@ -3,9 +3,9 @@ import { useAgentMessageListProviderValue } from '@renderer/components/chat/mess
 import { PartsProvider } from '@renderer/components/chat/messages/blocks'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
-import { useSettings } from '@renderer/hooks/useSettings'
 import type { GetAgentResponse, Topic, TopicType as TopicTypeEnum } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -41,7 +41,7 @@ const AgentSessionMessages = ({
 }: Props) => {
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  const { messageNavigation } = useSettings()
+  const [messageNavigation] = usePreference('chat.message.navigation_mode')
 
   const sessionAssistantId = session?.agentId ?? agentId
   const sessionName = session?.name ?? sessionId

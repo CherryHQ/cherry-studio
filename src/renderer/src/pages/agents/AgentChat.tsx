@@ -3,6 +3,7 @@ import NarrowLayout from '@renderer/components/chat/messages/layout/NarrowLayout
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useActiveSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
@@ -37,7 +38,8 @@ interface AgentChatProps {
 
 const AgentChat = ({ pane, paneOpen, panePosition }: AgentChatProps) => {
   const { t } = useTranslation()
-  const { messageNavigation, messageStyle } = useSettings()
+  const { messageStyle } = useSettings()
+  const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
 
   const { session: activeSession, isLoading: isSessionLoading } = useActiveSession()
