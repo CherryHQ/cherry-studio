@@ -24,7 +24,6 @@ export function useProviderMeta(providerId: string) {
   return useMemo(() => {
     const hideApiInput = provider ? isAwsBedrockProvider(provider) : false
     const hideApiKeyInput = provider ? matchesPreset(provider, 'copilot') || isVertexProvider(provider) : false
-    const isAnthropicOAuth = provider ? matchesPreset(provider, 'anthropic') && provider.authType === 'oauth' : false
     const isDmxapi = provider ? matchesPreset(provider, 'dmxapi') : false
 
     return {
@@ -37,10 +36,9 @@ export function useProviderMeta(providerId: string) {
       isCherryIN: provider ? matchesPreset(provider, 'cherryin') : false,
       isDmxapi,
       isChineseUser: i18n.language.startsWith('zh'),
-      isAnthropicOAuth,
       showApiOptionsButton: provider ? !isSystemProvider(provider) || isAnthropicSupportedProvider(provider) : false,
-      isApiKeyFieldVisible: !hideApiInput && !isAnthropicOAuth && !hideApiKeyInput,
-      isConnectionFieldVisible: !hideApiInput && !isAnthropicOAuth && !isDmxapi
+      isApiKeyFieldVisible: !hideApiInput && !hideApiKeyInput,
+      isConnectionFieldVisible: !hideApiInput && !isDmxapi
     }
   }, [i18n.language, provider])
 }

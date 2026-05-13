@@ -41,10 +41,6 @@ vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/OVMSSettings
   default: () => <div>ovms-settings</div>
 }))
 
-vi.mock('../../ConnectionSettings/AnthropicAuthSection', () => ({
-  default: ({ providerId }: any) => <div>{`anthropic-auth-${providerId}`}</div>
-}))
-
 vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/LMStudioSettings', () => ({
   default: ({ providerId }: any) => <div>{`lmstudio-settings-${providerId}`}</div>
 }))
@@ -101,12 +97,6 @@ describe('ProviderSpecificSettings', () => {
       placement: 'beforeAuth' as const,
       meta: { isCherryIN: false, isDmxapi: true },
       expectedText: 'dmxapi-settings-dmxapi'
-    },
-    {
-      providerId: 'anthropic',
-      placement: 'beforeAuth' as const,
-      meta: { isCherryIN: false, isDmxapi: false },
-      expectedText: 'anthropic-auth-anthropic'
     },
     {
       providerId: 'ovms',

@@ -7,7 +7,6 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ReactNode } from 'react'
 
 import OpenAIAlert from '../components/OpenAIAlert'
-import AnthropicAuthSection from '../ConnectionSettings/AnthropicAuthSection'
 import type { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import AwsBedrockSettings from './AwsBedrockSettings'
 import CherryINOAuth from './CherryINOAuth'
@@ -63,11 +62,6 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
       key: 'dmxapi-settings',
       when: ({ meta }) => meta.isDmxapi,
       render: (providerId) => <DMXAPISettings providerId={providerId} />
-    },
-    {
-      key: 'anthropic-auth',
-      when: ({ provider }) => matchesPreset(provider, 'anthropic'),
-      render: (providerId) => <AnthropicAuthSection providerId={providerId} />
     }
   ],
   afterAuth: [
