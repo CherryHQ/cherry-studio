@@ -1,6 +1,7 @@
 import { ChatAppShell, type ChatPanePosition, LoadingState } from '@renderer/components/chat'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useActiveSession } from '@renderer/hooks/agents/useSessionDataApi'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
@@ -14,9 +15,11 @@ import type { GetAgentResponse } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
+import { motion } from 'motion/react'
 import type { PropsWithChildren, ReactNode } from 'react'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SettingsPanel from '../chat-settings/SettingsPanel'
@@ -40,9 +43,39 @@ const AgentChat = ({ pane, paneOpen, panePosition }: AgentChatProps) => {
   const { messageNavigation, messageStyle } = useSettings()
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
 
-  const { session: activeSession, isLoading: isSessionLoading } = useActiveSession()
+  const { session: activeSession, isLoading: isSessionLoading, setActiveSessionId } = useActiveSession()
   const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(activeSession?.agentId ?? null)
   const { isLoading: isAgentsLoading, agents } = useAgents()
+  const { trigger: createSession, isLoading: isCreatingSession } = useMutation('POST', '/sessions', {
+    refresh: ['/sessions']
+  })
+
+  const handleDraftAgentChange = useCallback(
+    async (agentId: string | null) => {
+      if (!agentId || isCreatingSession) return
+
+      const selectedAgent = agents?.find((agent) => agent.id === agentId)
+      if (!selectedAgent) return
+
+      if (!selectedAgent.model) {
+        window.toast.error(t('error.model.not_exists'))
+        return
+      }
+
+      try {
+        const created = await createSession({
+          body: {
+            agentId,
+            name: t('common.unnamed')
+          }
+        })
+        setActiveSessionId(created.id)
+      } catch (err) {
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+      }
+    },
+    [agents, createSession, isCreatingSession, setActiveSessionId, t]
+  )
 
   const isInitializing = isAgentsLoading || isSessionLoading || (activeSession && isAgentLoading) || !agents
 
@@ -67,11 +100,18 @@ const AgentChat = ({ pane, paneOpen, panePosition }: AgentChatProps) => {
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
-        main={
-          <div className="flex h-full w-full items-center justify-center">
-            <WarningAlert message={t('chat.alerts.create_session')} />
+        topBar={
+          <div className="flex h-fit w-full min-w-0">
+            <AgentChatNavbar
+              className="min-w-0"
+              activeAgent={null}
+              onOpenSettings={() => undefined}
+              onDraftAgentChange={handleDraftAgentChange}
+              creatingSession={isCreatingSession}
+            />
           </div>
         }
+        main={<AnimatedAgentSelectHint message={t('chat.alerts.select_agent')} />}
       />
     )
   }
@@ -316,6 +356,32 @@ const WarningAlert = ({ message }: { message: string }) => (
     className="mx-4 my-1 rounded-md border border-(--color-warning) bg-(--color-warning)/10 px-3 py-2 text-sm">
     {message}
   </div>
+)
+
+const AnimatedAgentSelectHint = ({ message }: { message: string }) => (
+  <motion.div
+    className="flex h-full w-full items-center justify-center text-base text-muted-foreground"
+    initial={{ opacity: 0, y: '50%' }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+    aria-label={message}>
+    <span className="inline-flex gap-1 overflow-hidden" aria-hidden="true">
+      {Array.from(message).map((char, index) => (
+        <motion.span
+          key={`${char}-${index}`}
+          className={cn('inline-block', char === ' ' && 'w-1.5')}
+          initial={{ opacity: 0, y: '100%' }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            delay: 0.08 + index * 0.045,
+            duration: 0.24,
+            ease: [0.22, 1, 0.36, 1]
+          }}>
+          {char === ' ' ? '\u00A0' : char}
+        </motion.span>
+      ))}
+    </span>
+  </motion.div>
 )
 
 export default AgentChat

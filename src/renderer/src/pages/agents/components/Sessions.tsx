@@ -11,7 +11,6 @@ import {
   useResourceList
 } from '@renderer/components/chat/resources'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { AgentSelector } from '@renderer/components/ResourceSelector'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -299,12 +298,15 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
     [agentById, creatingSession, reload, setActiveSessionId, t]
   )
 
-  const handleHeaderCreateAgentChange = useCallback(
-    (agentId: string | null) => {
-      if (!agentId) return
-      void createSessionForGroup(agentId)
+  const handleHeaderCreateSession = useCallback(() => {
+    setActiveSessionId(null)
+  }, [setActiveSessionId])
+
+  const handleSelectSession = useCallback(
+    (id: string | null) => {
+      setActiveSessionId(id)
     },
-    [createSessionForGroup]
+    [setActiveSessionId]
   )
 
   const canDragSessionItem = useCallback(
@@ -411,12 +413,6 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
     [agentById, createSessionForGroup, creatingSession, displayMode, fallbackAgentId, t]
   )
 
-  useEffect(() => {
-    if (!isLoading && sessionItems.length > 0 && !activeSessionId) {
-      setActiveSessionId(sessionItems[0].id)
-    }
-  }, [isLoading, sessionItems, activeSessionId, setActiveSessionId])
-
   const listError = error || (displayMode === 'agent' ? agentsError : undefined)
   const listLoading = isLoading || (displayMode === 'agent' && isAgentsLoading)
   const listStatus = listError ? 'error' : listLoading ? 'loading' : groupedSessions.length === 0 ? 'empty' : 'idle'
@@ -468,19 +464,14 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
         actions={
           <>
             <SessionDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setSessionDisplayMode(nextMode)} />
-            <AgentSelector
-              value={null}
-              onChange={handleHeaderCreateAgentChange}
-              trigger={
-                <ResourceList.HeaderActionButton
-                  type="button"
-                  aria-label={t('agent.session.add.title')}
-                  title={t('agent.session.add.title')}
-                  disabled={creatingSession || isAgentsLoading || agents.length === 0}>
-                  <Plus size={12} className="block" />
-                </ResourceList.HeaderActionButton>
-              }
-            />
+            <ResourceList.HeaderActionButton
+              type="button"
+              aria-label={t('agent.session.add.title')}
+              title={t('agent.session.add.title')}
+              disabled={creatingSession}
+              onClick={handleHeaderCreateSession}>
+              <Plus size={12} className="block" />
+            </ResourceList.HeaderActionButton>
             <ResourceList.HeaderActionButton
               type="button"
               aria-label={t('shortcut.general.toggle_sidebar')}
@@ -499,7 +490,7 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
         onDeleteSession={handleDeleteSession}
         onSelectItem={onSelectItem}
         onTogglePin={togglePin}
-        setActiveSessionId={setActiveSessionId}
+        setActiveSessionId={handleSelectSession}
       />
       {(isLoadingMore || hasMore) && (
         <div className="shrink-0 px-3 py-2 text-center text-[11px] text-muted-foreground/55">{t('common.loading')}</div>
