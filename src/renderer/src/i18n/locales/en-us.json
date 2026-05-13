@@ -6156,9 +6156,10 @@
         "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
       },
       "toolbar": {
+        "custom_add": "Custom",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Pull"
+        "pull_short": "Add"
       },
       "topic_naming": {
         "auto": "Topic Auto Naming",

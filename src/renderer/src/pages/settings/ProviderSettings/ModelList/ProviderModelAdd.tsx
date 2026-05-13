@@ -36,7 +36,7 @@ const ProviderModelAdd: React.FC<ProviderModelAddProps> = ({ providerId, disable
         aria-label={t('settings.models.add.add_model')}
         onClick={openDrawer}>
         <Plus className={modelListClasses.toolbarDesignIcon} />
-        <span>{t('common.add')}</span>
+        <span>{t('settings.models.toolbar.custom_add')}</span>
       </Button>
       <AddModelDrawer providerId={providerId} open={drawerOpen} prefill={null} onClose={closeDrawer} />
     </>

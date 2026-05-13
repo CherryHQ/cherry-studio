@@ -6156,9 +6156,10 @@
         "tooltip": "軽量モデルの選択を推奨し、思考モデルの選択は推奨しません"
       },
       "toolbar": {
+        "custom_add": "カスタム",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Pull"
+        "pull_short": "追加"
       },
       "topic_naming": {
         "auto": "トピックの自動命名",

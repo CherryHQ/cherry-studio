@@ -6156,9 +6156,10 @@
         "tooltip": "Рекомендуется выбирать легковесную модель, не рекомендуется выбирать модель с функцией размышления"
       },
       "toolbar": {
+        "custom_add": "Пользовательский",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Pull"
+        "pull_short": "Добавить"
       },
       "topic_naming": {
         "auto": "Автоматическое переименование топика",

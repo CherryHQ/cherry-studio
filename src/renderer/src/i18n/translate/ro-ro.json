@@ -6156,9 +6156,10 @@
         "tooltip": "Se recomandă alegerea unui model ușor, nu a unui model de raționament complex."
       },
       "toolbar": {
+        "custom_add": "Personalizat",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Pull"
+        "pull_short": "Adăugare"
       },
       "topic_naming": {
         "auto": "Numire automată subiect",

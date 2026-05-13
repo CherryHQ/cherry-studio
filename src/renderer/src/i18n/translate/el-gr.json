@@ -6156,9 +6156,10 @@
         "tooltip": "Προτείνεται να επιλέξετε ένα ελαφρύ μοντέλο και δεν συνιστάται να επιλέξετε ένα μοντέλο σκέψης"
       },
       "toolbar": {
+        "custom_add": "Προσαρμοσμένο",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Pull"
+        "pull_short": "Προσθήκη"
       },
       "topic_naming": {
         "auto": "Αυτόματη αναδόμηση θεμάτων",

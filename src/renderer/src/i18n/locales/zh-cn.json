@@ -6156,9 +6156,10 @@
         "tooltip": "建议选择轻量模型，不建议选择思考模型"
       },
       "toolbar": {
+        "custom_add": "自定义",
         "filter_close": "关闭筛选",
         "filter_open": "按能力筛选",
-        "pull_short": "拉取"
+        "pull_short": "添加"
       },
       "topic_naming": {
         "auto": "话题自动重命名",
