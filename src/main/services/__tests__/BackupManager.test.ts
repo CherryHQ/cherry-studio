@@ -516,6 +516,23 @@ const V1_METADATA = {
   arch: process.arch
 }
 
+// -------------------------------------------------------------------------
+// B4: Skip-once after restore (implicit via Task 4 marker comparison)
+//
+// The full end-to-end integration test (BackupManager.restore →
+// FileManager.runStartupSweeps) would require Electron APIs (BrowserWindow,
+// app.relaunch), zip extraction, and cross-service wiring that is not
+// feasible in Vitest without significant Electron runtime mocking.
+//
+// Instead, we verify the building block: B2 correctly places the backup's
+// `app_state` (containing `migration_v2_status.completedAt`) into the target
+// SQLite path. The skip-once logic in FileManager reads that value on next
+// startup and compares it against the BootConfig marker (preserved outside the
+// backup product). This is exercised in detail by FileManager.migrationMarker.test.ts
+// SKIP-4: "after v2 backup restore (marker=1800000000000, completedAt rewound to
+// 1700000000000) — DB sweep skipped, marker updated".
+// -------------------------------------------------------------------------
+
 describe('BackupManager — B2/B3: SQLite atomic restore', () => {
   let backupManager: BackupManager
   // tempDir for BackupManager is /tmp/cherry-studio/backup/temp
