@@ -1,23 +1,17 @@
-import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { usePullReconcileSubmit } from '../usePullReconcileSubmit'
 
-const { createModelsMock, deleteModelMock, refetchModelsMock } = vi.hoisted(() => ({
-  createModelsMock: vi.fn(),
-  deleteModelMock: vi.fn(),
-  refetchModelsMock: vi.fn()
+const { reconcileTriggerMock } = vi.hoisted(() => ({
+  reconcileTriggerMock: vi.fn()
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
-  useModels: () => ({ refetch: refetchModelsMock }),
-  useModelMutations: () => ({
-    createModels: createModelsMock,
-    deleteModel: deleteModelMock,
-    isCreating: false,
-    isDeleting: false
+vi.mock('@data/hooks/useDataApi', () => ({
+  useMutation: () => ({
+    trigger: reconcileTriggerMock,
+    isLoading: false
   })
 }))
 
@@ -39,23 +33,19 @@ vi.mock('react-i18next', () => ({
 
 describe('usePullReconcileSubmit', () => {
   beforeEach(() => {
-    createModelsMock.mockReset()
-    deleteModelMock.mockReset()
-    refetchModelsMock.mockReset()
-    createModelsMock.mockResolvedValue([])
-    deleteModelMock.mockResolvedValue(undefined)
-    refetchModelsMock.mockResolvedValue(undefined)
+    reconcileTriggerMock.mockReset()
+    reconcileTriggerMock.mockResolvedValue([])
     window.toast = {
       success: vi.fn(),
       error: vi.fn()
     } as unknown as typeof window.toast
   })
 
-  it('applies pull reconcile through deleteModel plus chunked createModels calls', async () => {
+  it('applies pull reconcile through a single reconcile call with the full diff', async () => {
     const onApplyCommitted = vi.fn()
     const { result } = renderHook(() => usePullReconcileSubmit({ providerId: 'cherryin', onApplyCommitted }))
     const toAdd = Array.from(
-      { length: MODELS_BATCH_MAX_ITEMS + 45 },
+      { length: 3 },
       (_, index): Model =>
         ({
           id: `cherryin::model-${index}`,
@@ -74,23 +64,25 @@ describe('usePullReconcileSubmit', () => {
       })
     })
 
-    expect(deleteModelMock).toHaveBeenCalledTimes(1)
-    expect(deleteModelMock).toHaveBeenCalledWith('cherryin', 'old-model')
-    expect(createModelsMock).toHaveBeenCalledTimes(2)
-    expect(createModelsMock.mock.calls[0][0]).toHaveLength(MODELS_BATCH_MAX_ITEMS)
-    expect(createModelsMock.mock.calls[0][0][0]).toEqual(
-      expect.objectContaining({ providerId: 'cherryin', modelId: 'model-0' })
-    )
-    expect(createModelsMock.mock.calls[1][0]).toHaveLength(45)
-    expect(createModelsMock.mock.calls[1][0][44]).toEqual(
-      expect.objectContaining({ providerId: 'cherryin', modelId: `model-${MODELS_BATCH_MAX_ITEMS + 44}` })
-    )
+    expect(reconcileTriggerMock).toHaveBeenCalledTimes(1)
+    expect(reconcileTriggerMock).toHaveBeenCalledWith({
+      params: { providerId: 'cherryin' },
+      body: {
+        toAdd: [
+          { providerId: 'cherryin', modelId: 'model-0', name: 'Model 0', group: undefined },
+          { providerId: 'cherryin', modelId: 'model-1', name: 'Model 1', group: undefined },
+          { providerId: 'cherryin', modelId: 'model-2', name: 'Model 2', group: undefined }
+        ],
+        toRemove: ['cherryin::old-model']
+      }
+    })
     expect(onApplyCommitted).toHaveBeenCalled()
+    expect(window.toast.success).toHaveBeenCalled()
     expect(window.toast.error).not.toHaveBeenCalled()
   })
 
-  it('surfaces mutation failures without committing the drawer', async () => {
-    deleteModelMock.mockRejectedValueOnce(new Error('delete failed'))
+  it('surfaces reconcile failure without committing the drawer', async () => {
+    reconcileTriggerMock.mockRejectedValueOnce(new Error('reconcile failed'))
     const onApplyCommitted = vi.fn()
     const { result } = renderHook(() => usePullReconcileSubmit({ providerId: 'cherryin', onApplyCommitted }))
 
@@ -101,28 +93,8 @@ describe('usePullReconcileSubmit', () => {
       })
     })
 
-    expect(deleteModelMock).toHaveBeenCalledWith('cherryin', 'old-model')
-    expect(createModelsMock).not.toHaveBeenCalled()
+    expect(reconcileTriggerMock).toHaveBeenCalled()
     expect(onApplyCommitted).not.toHaveBeenCalled()
     expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
-  })
-
-  it('logs refetch failures without turning a committed apply into an error state', async () => {
-    refetchModelsMock.mockRejectedValueOnce(new Error('refetch failed'))
-    const onApplyCommitted = vi.fn()
-    const { result } = renderHook(() => usePullReconcileSubmit({ providerId: 'cherryin', onApplyCommitted }))
-
-    await act(async () => {
-      await result.current.confirmApply({
-        toAdd: [],
-        toRemove: []
-      })
-    })
-
-    await Promise.resolve()
-
-    expect(onApplyCommitted).toHaveBeenCalled()
-    expect(window.toast.success).toHaveBeenCalled()
-    expect(window.toast.error).not.toHaveBeenCalled()
   })
 })

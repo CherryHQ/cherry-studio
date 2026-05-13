@@ -1,9 +1,5 @@
+import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { useModelMutations, useModels } from '@renderer/hooks/useModels'
-import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/constants'
-import { chunkArray } from '@renderer/pages/settings/ProviderSettings/utils/chunkArray'
-import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
-import { parseUniqueModelId } from '@shared/data/types/model'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,32 +15,28 @@ type UsePullReconcileSubmitOptions = {
 }
 
 /**
- * Applies pull-reconcile selection: batch create + sequential delete for selected rows.
+ * Applies pull-reconcile selection as one atomic reconcile call so partial
+ * failure cannot leave the user with half-applied deletes + adds after they
+ * confirmed the diff in the preview drawer.
  */
 export function usePullReconcileSubmit({ providerId, onApplyCommitted }: UsePullReconcileSubmitOptions) {
   const { t } = useTranslation()
-  const { refetch: refetchModels } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
-  const { createModels, deleteModel, isCreating, isDeleting } = useModelMutations()
+  const { trigger: reconcileTrigger, isLoading: applyBusy } = useMutation(
+    'POST',
+    '/providers/:providerId/models:reconcile',
+    { refresh: ['/models'] }
+  )
 
   const confirmApply = useCallback(
     async (payload: ModelPullApplyPayload) => {
       try {
         const { toAdd, toRemove } = payload
-
-        for (const uniqueModelId of toRemove) {
-          const { modelId } = parseUniqueModelId(uniqueModelId)
-          await deleteModel(providerId, modelId)
-        }
-
-        if (toAdd.length > 0) {
-          const dtos = toAdd.map((model) => toCreateModelDto(providerId, model))
-          for (const chunk of chunkArray(dtos, MODELS_BATCH_MAX_ITEMS)) {
-            await createModels(chunk)
+        await reconcileTrigger({
+          params: { providerId },
+          body: {
+            toAdd: toAdd.map((model) => toCreateModelDto(providerId, model)),
+            toRemove
           }
-        }
-
-        void refetchModels().catch((error) => {
-          logger.error('Failed to refetch provider models after pull reconcile apply', { providerId, error })
         })
         window.toast.success(
           t('settings.models.manage.sync_apply_result', {
@@ -59,11 +51,11 @@ export function usePullReconcileSubmit({ providerId, onApplyCommitted }: UsePull
         window.toast.error(t('settings.models.manage.sync_pull_failed'))
       }
     },
-    [createModels, deleteModel, onApplyCommitted, providerId, refetchModels, t]
+    [onApplyCommitted, providerId, reconcileTrigger, t]
   )
 
   return {
     confirmApply,
-    applyBusy: isCreating || isDeleting
+    applyBusy
   }
 }

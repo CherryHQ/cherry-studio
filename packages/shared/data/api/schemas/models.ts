@@ -121,6 +121,21 @@ export const BulkUpdateModelsSchema = z.array(BulkUpdateModelItemSchema).min(1).
 export type BulkUpdateModelsDto = z.infer<typeof BulkUpdateModelsSchema>
 
 /**
+ * `POST /providers/:providerId/models:reconcile` body.
+ *
+ * Pull-reconcile produces a (toAdd, toRemove) diff from the upstream provider
+ * model list relative to the local snapshot; both sides must be applied as
+ * one atomic step so the user never observes a half-applied diff. Limits
+ * mirror `MODELS_BATCH_MAX_ITEMS` so a single reconcile cannot exceed the
+ * existing bulk-create / bulk-delete ceiling.
+ */
+export const ReconcileProviderModelsSchema = z.strictObject({
+  toAdd: z.array(CreateModelSchema).max(MODELS_BATCH_MAX_ITEMS),
+  toRemove: z.array(UniqueModelIdSchema).max(MODELS_BATCH_MAX_ITEMS)
+})
+export type ReconcileProviderModelsDto = z.infer<typeof ReconcileProviderModelsSchema>
+
+/**
  * Model API Schema definitions
  */
 export type ModelSchemas = {
@@ -181,6 +196,21 @@ export type ModelSchemas = {
     DELETE: {
       params: { uniqueModelId: UniqueModelId }
       response: void
+    }
+  }
+
+  /**
+   * Apply a provider's pull-reconcile diff atomically: removals + additions in
+   * one transaction, response is the resulting full model list for the
+   * provider. Returns 200 OK (not 201) because the response represents the
+   * resulting collection state, not a newly-created single resource.
+   * @example POST /providers/openai/models:reconcile { toAdd: [...], toRemove: ["openai::gpt-3.5-turbo"] }
+   */
+  '/providers/:providerId/models:reconcile': {
+    POST: {
+      params: { providerId: string }
+      body: ReconcileProviderModelsDto
+      response: Model[]
     }
   }
 }

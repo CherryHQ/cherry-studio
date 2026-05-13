@@ -11,12 +11,14 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { SuccessStatus } from '@shared/data/api/apiTypes'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
   BulkUpdateModelsSchema,
   CreateModelsSchema,
   ListModelsQuerySchema,
   type ModelSchemas,
+  ReconcileProviderModelsSchema,
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
@@ -124,6 +126,39 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
       await modelService.delete(providerId, modelId)
       return undefined
+    }
+  },
+
+  '/providers/:providerId/models:reconcile': {
+    POST: async ({ params, body }) => {
+      const parsed = ReconcileProviderModelsSchema.parse(body)
+
+      for (const dto of parsed.toAdd) {
+        if (dto.providerId !== params.providerId) {
+          throw DataApiErrorFactory.validation({
+            providerId: [
+              `toAdd item providerId '${dto.providerId}' does not match URL providerId '${params.providerId}'`
+            ]
+          })
+        }
+      }
+      for (const uniqueModelId of parsed.toRemove) {
+        const { providerId } = parseOrValidationError(uniqueModelId)
+        if (providerId !== params.providerId) {
+          throw DataApiErrorFactory.validation({
+            toRemove: [`'${uniqueModelId}' providerId does not match URL providerId '${params.providerId}'`]
+          })
+        }
+      }
+
+      const items = await enrichCreateItems(parsed.toAdd)
+      const models = await modelService.reconcileForProvider(params.providerId, {
+        toAdd: items,
+        toRemove: parsed.toRemove
+      })
+      // Override the default POST → 201: the response is the resulting
+      // collection state for the provider, not a newly-created single resource.
+      return { data: models, status: SuccessStatus.OK }
     }
   }
 }

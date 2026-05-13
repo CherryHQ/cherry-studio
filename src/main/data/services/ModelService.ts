@@ -573,6 +573,69 @@ class ModelService {
   }
 
   /**
+   * Apply a pull-reconcile diff atomically: remove the listed rows and insert
+   * the new ones inside one transaction, then return the full model list for
+   * the provider so the caller revalidates with the post-reconcile state.
+   *
+   * Removals are scoped by `providerId` so a caller cannot delete rows owned
+   * by a different provider even if it passes a `UniqueModelId` that mentions
+   * one. Pins for removed models are purged in the same transaction.
+   */
+  async reconcileForProvider(
+    providerId: string,
+    payload: { toAdd: CreateModelInput[]; toRemove: string[] }
+  ): Promise<Model[]> {
+    if (payload.toAdd.length === 0 && payload.toRemove.length === 0) {
+      return this.list({ providerId })
+    }
+
+    const db = application.get('DbService').getDb()
+    const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
+
+    const rows = await withSqliteErrors(
+      () =>
+        db.transaction(async (tx) => {
+          if (payload.toRemove.length > 0) {
+            const deletedRows = await tx
+              .delete(userModelTable)
+              .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, payload.toRemove)))
+              .returning({ id: userModelTable.id })
+
+            if (deletedRows.length > 0) {
+              await pinService.purgeForEntitiesTx(
+                tx,
+                'model',
+                deletedRows.map((row) => row.id)
+              )
+            }
+          }
+
+          if (values.length > 0) {
+            await insertManyWithOrderKey(tx, userModelTable, values, {
+              pkColumn: userModelTable.id,
+              scope: eq(userModelTable.providerId, providerId)
+            })
+          }
+
+          return (await tx
+            .select()
+            .from(userModelTable)
+            .where(eq(userModelTable.providerId, providerId))
+            .orderBy(asc(userModelTable.orderKey))) as UserModel[]
+        }),
+      createModelsSqliteHandlers(values)
+    )
+
+    logger.info('Reconciled provider models', {
+      providerId,
+      added: values.length,
+      removed: payload.toRemove.length
+    })
+
+    return rows.map(rowToRuntimeModel)
+  }
+
+  /**
    * Delete a model
    */
   async delete(providerId: string, modelId: string): Promise<void> {
