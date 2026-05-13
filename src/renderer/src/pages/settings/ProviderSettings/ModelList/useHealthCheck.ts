@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModels'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProviders'
 import i18n from '@renderer/i18n'
@@ -10,6 +11,8 @@ import { isEmpty } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
+
+const logger = loggerService.withContext('ProviderSettings:ModelHealthCheck')
 
 export const useHealthCheck = (providerId: string) => {
   const { provider } = useProvider(providerId)
@@ -121,12 +124,13 @@ export const useHealthCheck = (providerId: string) => {
             })
           }
         )
-      } catch {
+      } catch (error) {
         if (abortController.signal.aborted) {
           return
         }
 
         if (runIdRef.current === runId) {
+          logger.error('Model health check run failed', { providerId: provider.id, runId, error })
           window.toast.error(i18n.t('settings.models.check.failed_to_start'))
         }
       } finally {

@@ -7,6 +7,7 @@ import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +16,7 @@ describe('ProviderService API keys', () => {
 
   beforeEach(() => {
     providerRegistryService.clearCache()
+    MockMainCacheServiceUtils.resetMocks()
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
       if (key === 'feature.provider_registry.data' && filename) {
         return resolve('packages/provider-registry/data', filename)
@@ -214,5 +216,67 @@ describe('ProviderService API keys', () => {
       { id: 'key-b', key: 'sk-b', label: 'B', isEnabled: true },
       { id: 'key-c', key: 'sk-c', label: 'C', isEnabled: false }
     ])
+  })
+
+  it('returns authConfig for an existing provider, null when absent, and NOT_FOUND when missing', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'azure',
+      name: 'Azure OpenAI',
+      orderKey: generateOrderKeyBetween(null, null),
+      authConfig: { type: 'iam-azure', apiVersion: '2024-02-01' }
+    })
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'custom-no-auth',
+      name: 'Custom',
+      orderKey: generateOrderKeyBetween(null, null),
+      authConfig: null
+    })
+
+    await expect(providerService.getAuthConfig('azure')).resolves.toEqual({
+      type: 'iam-azure',
+      apiVersion: '2024-02-01'
+    })
+    await expect(providerService.getAuthConfig('custom-no-auth')).resolves.toBeNull()
+    await expect(providerService.getAuthConfig('missing-provider')).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+  })
+
+  it('rotates enabled API keys and tolerates missing cached lastUsedKeyId', async () => {
+    await seedProvider()
+
+    await expect(providerService.getRotatedApiKey('openai')).resolves.toBe('sk-a')
+    expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-a')
+
+    await expect(providerService.getRotatedApiKey('openai')).resolves.toBe('sk-b')
+    expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-b')
+
+    MockMainCacheServiceUtils.setCacheValue('settings.provider.openai.last_used_key_id', 'deleted-key')
+    await expect(providerService.getRotatedApiKey('openai')).resolves.toBe('sk-a')
+    expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-a')
+  })
+
+  it('returns the only enabled key or an empty string when rotation has no usable keys', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'single-enabled',
+      name: 'Single Enabled',
+      orderKey: generateOrderKeyBetween(null, null),
+      apiKeys: [
+        { id: 'disabled-key', key: 'sk-disabled', isEnabled: false },
+        { id: 'only-key', key: 'sk-only', isEnabled: true }
+      ]
+    })
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'all-disabled',
+      name: 'All Disabled',
+      orderKey: generateOrderKeyBetween(null, null),
+      apiKeys: [
+        { id: 'key-a', key: 'sk-a', isEnabled: false },
+        { id: 'key-b', key: 'sk-b', isEnabled: false }
+      ]
+    })
+
+    await expect(providerService.getRotatedApiKey('single-enabled')).resolves.toBe('sk-only')
+    await expect(providerService.getRotatedApiKey('all-disabled')).resolves.toBe('')
   })
 })

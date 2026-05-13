@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { useModels } from '@renderer/hooks/useModels'
 import { useProvider } from '@renderer/hooks/useProviders'
@@ -18,6 +19,8 @@ import { useAuthenticationApiKey } from './useAuthenticationApiKey'
 import { useProviderEndpoints } from './useProviderEndpoints'
 
 /** Runs provider connection checks against the current editable credentials and endpoint. */
+const logger = loggerService.withContext('ProviderSettings:ConnectionCheck')
+
 export function useProviderConnectionCheck(providerId: string) {
   const { provider } = useProvider(providerId)
   const [connectionCheckOpen, setConnectionCheckOpen] = useState(false)
@@ -110,6 +113,7 @@ export function useProviderConnectionCheck(providerId: string) {
           3000
         )
       } catch (error) {
+        logger.error('Provider connection check failed', { providerId: provider.id, modelId: model.id, error })
         window.toast.error({
           timeout: 8000,
           title: i18n.t('message.api.connection.failed')

@@ -2,6 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { copyApiKeyToClipboard } from '../copyApiKeyToClipboard'
 
+const loggerWarnMock = vi.fn()
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      warn: loggerWarnMock
+    })
+  }
+}))
+
 describe('copyApiKeyToClipboard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -28,6 +38,7 @@ describe('copyApiKeyToClipboard', () => {
 
     await copyApiKeyToClipboard('sk-test', (key) => key)
 
+    expect(loggerWarnMock).toHaveBeenCalledWith('Failed to copy API key to clipboard', expect.any(Error))
     expect(window.toast.error).toHaveBeenCalledWith('common.copy_failed')
   })
 })

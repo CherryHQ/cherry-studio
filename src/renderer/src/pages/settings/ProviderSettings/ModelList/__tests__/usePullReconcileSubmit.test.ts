@@ -106,4 +106,23 @@ describe('usePullReconcileSubmit', () => {
     expect(onApplyCommitted).not.toHaveBeenCalled()
     expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
   })
+
+  it('logs refetch failures without turning a committed apply into an error state', async () => {
+    refetchModelsMock.mockRejectedValueOnce(new Error('refetch failed'))
+    const onApplyCommitted = vi.fn()
+    const { result } = renderHook(() => usePullReconcileSubmit({ providerId: 'cherryin', onApplyCommitted }))
+
+    await act(async () => {
+      await result.current.confirmApply({
+        toAdd: [],
+        toRemove: []
+      })
+    })
+
+    await Promise.resolve()
+
+    expect(onApplyCommitted).toHaveBeenCalled()
+    expect(window.toast.success).toHaveBeenCalled()
+    expect(window.toast.error).not.toHaveBeenCalled()
+  })
 })

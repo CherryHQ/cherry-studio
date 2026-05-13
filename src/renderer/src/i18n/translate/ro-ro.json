@@ -3303,8 +3303,6 @@
       "cost": "Cost",
       "currency": "Monedă",
       "custom": "Personalizat",
-      "custom_currency": "Monedă personalizată",
-      "custom_currency_placeholder": "Introdu moneda personalizată",
       "input": "Preț intrare",
       "million_tokens": "M Tokeni",
       "output": "Preț ieșire",

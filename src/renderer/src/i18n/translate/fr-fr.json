@@ -3303,8 +3303,6 @@
       "cost": "Coût",
       "currency": "Devise",
       "custom": "Personnalisé",
-      "custom_currency": "Devise personnalisée",
-      "custom_currency_placeholder": "Veuillez saisir une devise personnalisée",
       "input": "Prix d'entrée",
       "million_tokens": "Un million de jetons",
       "output": "Prix de sortie",

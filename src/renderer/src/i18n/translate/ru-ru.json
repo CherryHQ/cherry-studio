@@ -3303,8 +3303,6 @@
       "cost": "Стоимость",
       "currency": "Валюта",
       "custom": "Пользовательский",
-      "custom_currency": "Пользовательская валюта",
-      "custom_currency_placeholder": "Введите пользовательскую валюту",
       "input": "Цена ввода",
       "million_tokens": "M Tokens",
       "output": "Цена вывода",

@@ -51,7 +51,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
   )
 
   return (
-    <div ref={ref} className={cn(modelListClasses.row, !model.isEnabled && 'opacity-60')} onClick={handleEdit}>
+    <div ref={ref} className={cn(modelListClasses.row, !model.isEnabled && 'opacity-60')}>
       <RowFlex className={modelListClasses.rowMain}>
         {(() => {
           const Icon = getModelLogo(model)
@@ -65,9 +65,15 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
         })()}
         <div className={modelListClasses.rowBody}>
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
+            <button
+              type="button"
+              className={cn(
+                'block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap text-left font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]',
+                modelListClasses.rowNameCopyable
+              )}
+              onClick={handleEdit}>
               {model.name}
-            </span>
+            </button>
             <Tooltip content={t('settings.models.copy_model_id_tooltip', { id: copyId })} placement="top">
               <Button
                 type="button"

@@ -3303,8 +3303,6 @@
       "cost": "Kosten",
       "currency": "Währung",
       "custom": "Benutzerdefiniert",
-      "custom_currency": "Benutzerdefinierte Währung",
-      "custom_currency_placeholder": "Bitte benutzerdefinierte Währung eingeben",
       "input": "Eingabepreis",
       "million_tokens": "Million Token",
       "output": "Ausgabepreis",

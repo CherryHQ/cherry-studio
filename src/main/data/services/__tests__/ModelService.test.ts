@@ -657,6 +657,49 @@ describe('ModelService.findByIdTx', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ModelService.batchUpsert — registry sync overwrite protection
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService.batchUpsert', () => {
+  const dbh = setupTestDatabase()
+
+  it('skips enrichable user-overridden fields while still updating presetModelId', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        presetModelId: 'gpt-4o-legacy',
+        name: 'My Custom Name',
+        capabilities: ['function-call'],
+        contextWindow: 32_000,
+        userOverrides: ['name', 'contextWindow']
+      })
+    )
+
+    await modelService.batchUpsert([
+      modelRow('openai', 'gpt-4o', {
+        presetModelId: 'gpt-4o',
+        name: 'Registry Name',
+        capabilities: ['reasoning'],
+        contextWindow: 128_000,
+        maxOutputTokens: 8192
+      })
+    ])
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+
+    expect(row.presetModelId).toBe('gpt-4o')
+    expect(row.name).toBe('My Custom Name')
+    expect(row.contextWindow).toBe(32_000)
+    expect(row.capabilities).toEqual(['reasoning'])
+    expect(row.maxOutputTokens).toBe(8192)
+    expect(row.userOverrides).toEqual(['name', 'contextWindow'])
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ModelService.getNamesByUniqueIdsTx — tx-aware batch name resolution for embeds
 // ─────────────────────────────────────────────────────────────────────────────
 

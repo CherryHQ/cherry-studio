@@ -3303,8 +3303,6 @@
       "cost": "Costo",
       "currency": "Moneda",
       "custom": "Personalizado",
-      "custom_currency": "Moneda personalizada",
-      "custom_currency_placeholder": "Por favor ingrese una moneda personalizada",
       "input": "Precio de entrada",
       "million_tokens": "Millón de tokens",
       "output": "Precio de salida",

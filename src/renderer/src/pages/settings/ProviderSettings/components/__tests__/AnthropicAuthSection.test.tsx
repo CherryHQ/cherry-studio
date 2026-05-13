@@ -6,6 +6,7 @@ import AnthropicAuthSection from '../../ConnectionSettings/AnthropicAuthSection'
 const useProviderMock = vi.fn()
 const useProviderMutationsMock = vi.fn()
 const updateAuthConfigMock = vi.fn()
+const loggerErrorMock = vi.fn()
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -16,6 +17,14 @@ vi.mock('react-i18next', () => ({
 vi.mock('@renderer/hooks/useProviders', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args),
   useProviderMutations: (...args: any[]) => useProviderMutationsMock(...args)
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      error: loggerErrorMock
+    })
+  }
 }))
 
 vi.mock('../../ProviderSpecific/AnthropicSettings', () => ({
@@ -46,6 +55,9 @@ vi.mock('../../primitives/ProviderSection', () => ({
 describe('AnthropicAuthSection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ;(window as any).toast = {
+      error: vi.fn()
+    }
     useProviderMutationsMock.mockReturnValue({
       updateAuthConfig: updateAuthConfigMock
     })
@@ -110,5 +122,27 @@ describe('AnthropicAuthSection', () => {
     const { container } = render(<AnthropicAuthSection providerId="anthropic" />)
 
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('logs and toasts when auth config update fails', async () => {
+    updateAuthConfigMock.mockRejectedValueOnce(new Error('network failed'))
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'anthropic',
+        authType: 'api-key'
+      }
+    })
+
+    render(<AnthropicAuthSection providerId="anthropic" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'oauth' }))
+
+    await Promise.resolve()
+
+    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to update Anthropic auth config', {
+      providerId: 'anthropic',
+      error: expect.any(Error)
+    })
+    expect(window.toast.error).toHaveBeenCalledWith('settings.provider.save_failed')
   })
 })

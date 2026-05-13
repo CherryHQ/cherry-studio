@@ -11,6 +11,7 @@ const useAuthenticationApiKeyMock = vi.fn()
 const useProviderEndpointsMock = vi.fn()
 const checkApiMock = vi.fn()
 const showErrorDetailPopupMock = vi.fn()
+const loggerErrorMock = vi.fn()
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
@@ -55,6 +56,14 @@ vi.mock('@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim', () => 
 
 vi.mock('@renderer/components/ErrorDetailModal', () => ({
   showErrorDetailPopup: (...args: any[]) => showErrorDetailPopupMock(...args)
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      error: loggerErrorMock
+    })
+  }
 }))
 
 describe('useProviderConnectionCheck', () => {
@@ -134,5 +143,24 @@ describe('useProviderConnectionCheck', () => {
     )
     expect(result.current.connectionCheckOpen).toBe(false)
     expect(setTimeoutTimer).toHaveBeenCalled()
+  })
+
+  it('logs provider/model context when the connection check fails', async () => {
+    checkApiMock.mockRejectedValueOnce(new Error('timeout'))
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
+
+    await act(async () => {
+      await result.current.startConnectionCheck({
+        model: result.current.checkableModels[0],
+        apiKey: 'sk-a'
+      })
+    })
+
+    expect(loggerErrorMock).toHaveBeenCalledWith('Provider connection check failed', {
+      providerId: 'cherryin',
+      modelId: 'cherryin::claude-4-sonnet',
+      error: expect.any(Error)
+    })
+    expect(window.toast.error).toHaveBeenCalled()
   })
 })

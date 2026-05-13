@@ -3303,8 +3303,6 @@
       "cost": "コスト",
       "currency": "通貨",
       "custom": "カスタム",
-      "custom_currency": "カスタム通貨",
-      "custom_currency_placeholder": "カスタム通貨を入力してください",
       "input": "入力価格",
       "million_tokens": "百万トークン",
       "output": "出力価格",

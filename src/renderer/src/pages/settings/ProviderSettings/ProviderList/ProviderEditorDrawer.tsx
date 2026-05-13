@@ -306,16 +306,22 @@ export default function ProviderEditorDrawer({
 
         <div className="space-y-2">
           <label className="font-medium text-[13px] text-foreground/85">{t('settings.provider.add.type')}</label>
-          <SelectDropdown
-            items={templateOptions.map((option) => ({ id: option.id, label: option.label }))}
-            selectedId={selectedTemplate.id}
-            onSelect={(value) => setSelectedTemplateId(value as ProviderEditorTemplateId)}
-            renderSelected={(item) => <span className="truncate">{item.label}</span>}
-            renderItem={(item) => <span className="truncate">{item.label}</span>}
-            virtualize
-            itemHeight={32}
-            maxHeight={280}
-          />
+          {isEditing ? (
+            <div className="flex w-full items-center justify-between rounded-md border border-border/40 bg-muted/20 px-2.5 py-1.5 text-xs text-foreground/70">
+              <span className="truncate">{selectedTemplate.label}</span>
+            </div>
+          ) : (
+            <SelectDropdown
+              items={templateOptions.map((option) => ({ id: option.id, label: option.label }))}
+              selectedId={selectedTemplate.id}
+              onSelect={(value) => setSelectedTemplateId(value as ProviderEditorTemplateId)}
+              renderSelected={(item) => <span className="truncate">{item.label}</span>}
+              renderItem={(item) => <span className="truncate">{item.label}</span>}
+              virtualize
+              itemHeight={32}
+              maxHeight={280}
+            />
+          )}
         </div>
       </div>
     </ProviderSettingsDrawer>

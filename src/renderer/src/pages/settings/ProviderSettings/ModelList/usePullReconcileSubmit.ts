@@ -43,7 +43,9 @@ export function usePullReconcileSubmit({ providerId, onApplyCommitted }: UsePull
           }
         }
 
-        void refetchModels()
+        void refetchModels().catch((error) => {
+          logger.error('Failed to refetch provider models after pull reconcile apply', { providerId, error })
+        })
         window.toast.success(
           t('settings.models.manage.sync_apply_result', {
             added: toAdd.length,

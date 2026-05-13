@@ -1,7 +1,8 @@
 import { cn } from '@renderer/utils'
 import type { Model } from '@shared/data/types/model'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronRight } from 'lucide-react'
-import React, { memo, useCallback, useMemo, useState } from 'react'
+import React, { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -30,10 +31,17 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
 }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(defaultOpen)
-  const [showAll, setShowAll] = useState(false)
+  const scrollerRef = useRef<HTMLDivElement>(null)
   const groupLabel = getModelGroupLabel(groupName, t)
-  const visibleItems = useMemo(() => (items.length > 80 && !showAll ? items.slice(0, 80) : items), [items, showAll])
-  const hiddenItemCount = items.length - visibleItems.length
+  const shouldVirtualize = items.length > 80
+  const previewItems = useMemo(() => items.slice(0, 80), [items])
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scrollerRef.current,
+    estimateSize: () => 48,
+    overscan: 12,
+    enabled: open && shouldVirtualize
+  })
 
   const toggleOpen = useCallback(() => {
     setOpen((prev) => !prev)
@@ -47,19 +55,47 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
       </button>
       {open && (
         <div className={modelListClasses.groupBody}>
-          {visibleItems.map(({ model }) => (
-            <ModelListItem
-              key={model.id}
-              model={model}
-              onEdit={onEditModel}
-              onToggleEnabled={onToggleModel}
-              disabled={disabled || pendingModelIds.has(model.id)}
-            />
-          ))}
-          {hiddenItemCount > 0 && (
-            <button type="button" className={modelListClasses.groupOverflowHint} onClick={() => setShowAll(true)}>
-              {t('settings.models.manage.large_group_hidden', { count: hiddenItemCount })}
-            </button>
+          {shouldVirtualize ? (
+            <div ref={scrollerRef} className="overflow-y-auto" style={{ maxHeight: 520 }}>
+              <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+                {virtualizer.getVirtualItems().map((virtualItem) => {
+                  const entry = items[virtualItem.index]
+                  if (!entry) {
+                    return null
+                  }
+
+                  const { model } = entry
+                  return (
+                    <div
+                      key={model.id}
+                      ref={(element) => {
+                        if (element) {
+                          virtualizer.measureElement(element)
+                        }
+                      }}
+                      className="absolute top-0 left-0 w-full"
+                      style={{ transform: `translateY(${virtualItem.start}px)` }}>
+                      <ModelListItem
+                        model={model}
+                        onEdit={onEditModel}
+                        onToggleEnabled={onToggleModel}
+                        disabled={disabled || pendingModelIds.has(model.id)}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            previewItems.map(({ model }) => (
+              <ModelListItem
+                key={model.id}
+                model={model}
+                onEdit={onEditModel}
+                onToggleEnabled={onToggleModel}
+                disabled={disabled || pendingModelIds.has(model.id)}
+              />
+            ))
           )}
         </div>
       )}

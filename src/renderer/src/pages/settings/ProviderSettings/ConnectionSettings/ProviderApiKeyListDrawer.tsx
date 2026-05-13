@@ -1,4 +1,5 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProviders'
 import { maskApiKey } from '@renderer/utils/api'
@@ -33,6 +34,8 @@ const createEmptyDraft = (): DraftState => ({
   isEnabled: true,
   isNew: true
 })
+
+const logger = loggerService.withContext('ProviderApiKeyListDrawer')
 
 function normalizeApiKeyValue(value: string) {
   return value.trim()
@@ -87,7 +90,8 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
       try {
         await updateApiKeys(nextKeys)
         return true
-      } catch {
+      } catch (error) {
+        logger.error('Failed to persist provider API keys', { providerId, error })
         window.toast.error(t('settings.provider.api_key.save_failed'))
         return false
       } finally {
@@ -95,7 +99,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
         setSaving(false)
       }
     },
-    [t, updateApiKeys]
+    [providerId, t, updateApiKeys]
   )
 
   const validateDraft = useCallback(

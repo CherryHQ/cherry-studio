@@ -3303,8 +3303,6 @@
       "cost": "Κόστος",
       "currency": "Νόμισμα",
       "custom": "Προσαρμογή",
-      "custom_currency": "Προσαρμοσμένο νόμισμα",
-      "custom_currency_placeholder": "Παρακαλώ εισάγετε προσαρμοσμένο νόμισμα",
       "input": "Τιμή εισόδου",
       "million_tokens": "Ένα εκατομμύριο Token",
       "output": "Τιμή εξόδου",

@@ -48,6 +48,8 @@ type ModelDrawerCurrencySymbol = (typeof MODEL_DRAWER_CURRENCY_SYMBOLS)[number]
 type ModelDrawerCurrency = Currency
 const isModelDrawerCurrencySymbol = (value: string): value is ModelDrawerCurrencySymbol =>
   MODEL_DRAWER_CURRENCY_SYMBOLS.includes(value as ModelDrawerCurrencySymbol)
+// Pricing persists the shared Currency enum, so this drawer intentionally offers
+// only the symbols that round-trip through that enum today.
 const CURRENCY_SYMBOL_TO_CODE = {
   $: CURRENCY.USD,
   '¥': CURRENCY.CNY
@@ -391,16 +393,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
               <div className={drawerClasses.divider} />
 
-              <ProviderField
-                title={t('models.price.currency')}
-                titleClassName={drawerFieldTitleClassName}
-                help={
-                  <div className={drawerClasses.helpText}>
-                    {t('models.price.custom_currency_supported', {
-                      symbols: MODEL_DRAWER_CURRENCY_SYMBOLS.join(', ')
-                    })}
-                  </div>
-                }>
+              <ProviderField title={t('models.price.currency')} titleClassName={drawerFieldTitleClassName}>
                 <div className={drawerClasses.inlineRow}>
                   <Select
                     value={currencySymbol}
