@@ -13,6 +13,7 @@ import { agentTaskRunLogTable, agentTaskTable } from '@data/db/schemas/agentTask
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
@@ -45,10 +46,6 @@ import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
 import { MigrationDbService } from './MigrationDbService'
 import type { MigrationPaths } from './MigrationPaths'
-
-// TODO: Import these tables when they are created in user data schema
-// import { assistantTable } from '../../db/schemas/assistant'
-// import { fileTable } from '../../db/schemas/file'
 
 const logger = loggerService.withContext('MigrationEngine')
 
@@ -326,8 +323,10 @@ export class MigrationEngine {
       { table: agentSkillTable, name: 'agent_skill' },
       { table: agentSessionTable, name: 'agent_session' },
       { table: agentGlobalSkillTable, name: 'agent_global_skill' },
-      { table: agentTable, name: 'agent' }
-      // TODO: Add fileTable when created
+      { table: agentTable, name: 'agent' },
+      // File-domain tables — child before parent (file_ref.fileEntryId CASCADEs from file_entry)
+      { table: fileRefTable, name: 'file_ref' },
+      { table: fileEntryTable, name: 'file_entry' }
     ]
 
     // Check if tables have data (safety check)

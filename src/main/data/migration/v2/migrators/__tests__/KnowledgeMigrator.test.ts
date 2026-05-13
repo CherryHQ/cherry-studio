@@ -1319,10 +1319,9 @@ describe('KnowledgeMigrator file_ref creation', () => {
 
     const insertedOutsideTx: unknown[] = []
     const outerInsert = vi.fn((/* _table */) => ({
-      values: vi.fn((rows: unknown) => {
+      values: vi.fn(async (rows: unknown) => {
         const arr = Array.isArray(rows) ? rows : [rows]
         insertedOutsideTx.push(...arr)
-        return { onConflictDoNothing: vi.fn(() => Promise.resolve()) }
       })
     }))
 
@@ -1434,49 +1433,5 @@ describe('KnowledgeMigrator file_ref creation', () => {
     expect(refSourceIds).toEqual(['item-a', 'item-b'])
     const refFileEntryIds = insertedOutsideTx.map((r) => (r as any).fileEntryId).sort()
     expect(refFileEntryIds).toEqual(['legacy-a', 'legacy-b'])
-  })
-
-  it('file_ref insert is retry-safe: second execute() with same data does not throw UNIQUE constraint error', async () => {
-    // Simulate the retry scenario:
-    // - First execute() succeeds and inserts file_ref rows.
-    // - Second execute() (retry after KnowledgeMigrator failure) attempts to insert
-    //   the same rows again. onConflictDoNothing() must absorb the conflict.
-    const legacyFileId = 'legacy-retry-file'
-
-    const onConflictDoNothingMock = vi.fn(() => Promise.resolve())
-    const outerInsert = vi.fn((_table: unknown) => ({
-      values: vi.fn((_rows: unknown) => ({
-        onConflictDoNothing: onConflictDoNothingMock
-      }))
-    }))
-
-    const txInsert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) })
-    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert: txInsert })
-    })
-    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
-    const db = { transaction, insert: outerInsert }
-    const sharedData = new Map<string, unknown>()
-
-    const migrator = new KnowledgeMigrator() as any
-    migrator.preparedBases = [{ id: 'kb-retry', name: 'KB retry', dimensions: 512, embeddingModelId: 'openai::emb' }]
-    migrator.preparedItems = [
-      {
-        id: 'item-retry-file',
-        baseId: 'kb-retry',
-        groupId: null,
-        type: 'file',
-        data: { source: '/tmp/retry.pdf', file: { id: legacyFileId, name: 'retry.pdf' } },
-        status: 'idle'
-      }
-    ]
-
-    const firstResult = await migrator.execute({ db, sharedData, logger } as any)
-    expect(firstResult.success).toBe(true)
-    expect(onConflictDoNothingMock).toHaveBeenCalledTimes(1)
-
-    const secondResult = await migrator.execute({ db, sharedData, logger } as any)
-    expect(secondResult.success).toBe(true)
-    expect(onConflictDoNothingMock).toHaveBeenCalledTimes(2)
   })
 })
