@@ -675,15 +675,17 @@ class BackupManager {
         logger.debug('[restoreDirect] No Data directory to restore')
       }
 
-      // B2/B3: Restore SQLite database atomically (v2 backups only)
+      // B2/B3: Restore SQLite database (v2 backups only)
       const sqliteStagingDir = path.join(this.tempDir, 'sqlite')
       if (await fs.pathExists(sqliteStagingDir)) {
-        // v2 backup: atomically replace the target DB file before DbService starts
+        // v2 backup: copy + remove to replace the target DB file before DbService starts.
+        // Copy + remove (cross-filesystem safe; not atomic, but process relaunches immediately after restore)
         const dbFilePath = application.getPath('app.database.file')
         const dbFileName = path.basename(dbFilePath)
         const stagedDbFile = path.join(sqliteStagingDir, dbFileName)
-        fs.renameSync(stagedDbFile, dbFilePath)
-        logger.debug('[restoreDirect] SQLite database restored atomically')
+        await fs.copy(stagedDbFile, dbFilePath, { overwrite: true })
+        await fs.remove(stagedDbFile)
+        logger.debug('[restoreDirect] SQLite database restored')
       } else {
         // v1 backup: no SQLite file — FileMigrator will populate on next startup
         logger.debug('[restoreDirect] No sqlite/ dir in backup — v1 format, skipping SQLite restore')
