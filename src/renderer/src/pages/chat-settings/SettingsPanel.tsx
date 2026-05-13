@@ -63,7 +63,7 @@ const AssistantSettingsPanelBody: FC<{ assistantId?: string }> = ({ assistantId 
     )
   }
 
-  return <AssistantSettingsTab assistant={defaultAssistant} />
+  return null
 }
 
 export default SettingsPanel

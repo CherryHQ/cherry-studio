@@ -108,6 +108,15 @@ describe('SettingsPanel', () => {
     expect(screen.getByTestId('assistant-settings-tab')).toHaveTextContent('default')
   })
 
+  it('does not show default assistant settings when the requested assistant is missing', () => {
+    mocks.useAssistant.mockReturnValue({ assistant: undefined, isLoading: false })
+
+    render(<SettingsPanel open={true} onClose={vi.fn()} mode="assistant" assistantId="missing-assistant" />)
+
+    expect(mocks.useAssistant).toHaveBeenCalledWith('missing-assistant')
+    expect(screen.queryByTestId('assistant-settings-tab')).toBeNull()
+  })
+
   it('renders the chat preferences body in agent mode', () => {
     render(<SettingsPanel open={true} onClose={vi.fn()} mode="agent" />)
 

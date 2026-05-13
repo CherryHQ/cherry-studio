@@ -10,7 +10,7 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -21,7 +21,7 @@ import {
   SettingSwitch
 } from './settingsPanelPrimitives'
 
-type SelectorItem<T extends string = string> = {
+type SelectOption<T extends string = string> = {
   value: T
   label: string
 }
@@ -95,7 +95,11 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
   const { languages, getLabel } = useLanguages()
   const { t } = useTranslation()
 
-  const messageStyleItems = useMemo<SelectorItem<'plain' | 'bubble'>[]>(
+  useEffect(() => {
+    setFontSizeValue(fontSize)
+  }, [fontSize])
+
+  const messageStyleItems = useMemo<SelectOption<'plain' | 'bubble'>[]>(
     () => [
       { value: 'plain', label: t('message.message.style.plain') },
       { value: 'bubble', label: t('message.message.style.bubble') }
@@ -103,7 +107,7 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
     [t]
   )
 
-  const messageNavigationItems = useMemo<SelectorItem<'none' | 'buttons' | 'anchor'>[]>(
+  const messageNavigationItems = useMemo<SelectOption<'none' | 'buttons' | 'anchor'>[]>(
     () => [
       { value: 'none', label: t('settings.messages.navigation.none') },
       { value: 'buttons', label: t('settings.messages.navigation.buttons') },
@@ -112,7 +116,7 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
     [t]
   )
 
-  const mathEngineItems = useMemo<SelectorItem<MathEngine>[]>(
+  const mathEngineItems = useMemo<SelectOption<MathEngine>[]>(
     () => [
       { value: 'KaTeX', label: 'KaTeX' },
       { value: 'MathJax', label: 'MathJax' },
@@ -121,17 +125,17 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
     [t]
   )
 
-  const codeStyleItems = useMemo<SelectorItem<CodeStyleVarious>[]>(
+  const codeStyleItems = useMemo<SelectOption<CodeStyleVarious>[]>(
     () => themeNames.map((themeName) => ({ value: themeName, label: themeName })),
     [themeNames]
   )
 
-  const targetLanguageItems = useMemo<SelectorItem<string>[]>(
+  const targetLanguageItems = useMemo<SelectOption<string>[]>(
     () => languages?.map((item) => ({ value: item.langCode, label: getLabel(item) ?? '' })) ?? [],
     [languages, getLabel]
   )
 
-  const sendMessageShortcutItems = useMemo<SelectorItem<SendMessageShortcut>[]>(
+  const sendMessageShortcutItems = useMemo<SelectOption<SendMessageShortcut>[]>(
     () => [
       { value: 'Enter', label: getSendMessageShortcutLabel('Enter') },
       { value: 'Ctrl+Enter', label: getSendMessageShortcutLabel('Ctrl+Enter') },
@@ -216,12 +220,12 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
             <Select value={messageStyle} onValueChange={setMessageStyle}>
-              <SelectTrigger size="sm" className="w-45">
+              <SelectTrigger size="sm" className="w-45 text-xs">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="text-xs">
                 {messageStyleItems.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
+                  <SelectItem className="text-xs" key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>
                 ))}
@@ -234,20 +238,20 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
               <SettingRow>
                 <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
                 <Select value={multiModelMessageStyle} onValueChange={setMultiModelMessageStyle}>
-                  <SelectTrigger size="sm" className="w-45">
+                  <SelectTrigger size="sm" className="w-45 text-xs">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem key="fold" value="fold">
+                  <SelectContent className="text-xs">
+                    <SelectItem className="text-xs" key="fold" value="fold">
                       {t('message.message.multi_model_style.fold.label')}
                     </SelectItem>
-                    <SelectItem key="vertical" value="vertical">
+                    <SelectItem className="text-xs" key="vertical" value="vertical">
                       {t('message.message.multi_model_style.vertical')}
                     </SelectItem>
-                    <SelectItem key="horizontal" value="horizontal">
+                    <SelectItem className="text-xs" key="horizontal" value="horizontal">
                       {t('message.message.multi_model_style.horizontal')}
                     </SelectItem>
-                    <SelectItem key="grid" value="grid">
+                    <SelectItem className="text-xs" key="grid" value="grid">
                       {t('message.message.multi_model_style.grid')}
                     </SelectItem>
                   </SelectContent>
@@ -259,12 +263,12 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
             <Select value={messageNavigation} onValueChange={setMessageNavigation}>
-              <SelectTrigger size="sm" className="w-45">
+              <SelectTrigger size="sm" className="w-45 text-xs">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="text-xs">
                 {messageNavigationItems.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
+                  <SelectItem className="text-xs" key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>
                 ))}
@@ -284,9 +288,9 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
               max={22}
               step={1}
               marks={[
-                { value: 12, label: <span style={{ fontSize: '12px' }}>A</span> },
-                { value: 14, label: <span style={{ fontSize: '14px' }}>{t('common.default')}</span> },
-                { value: 22, label: <span style={{ fontSize: '18px' }}>A</span> }
+                { value: 12, label: <span className="text-xs">A</span> },
+                { value: 14, label: <span className="text-xs">{t('common.default')}</span> },
+                { value: 22, label: <span className="text-xs">A</span> }
               ]}
             />
           </div>
@@ -298,12 +302,12 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall>
             <Select value={mathEngine} onValueChange={setMathEngine}>
-              <SelectTrigger size="sm" className="w-45">
+              <SelectTrigger size="sm" className="w-45 text-xs">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="text-xs">
                 {mathEngineItems.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
+                  <SelectItem className="text-xs" key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>
                 ))}
@@ -327,12 +331,12 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
             <Select value={codeStyle} onValueChange={onCodeStyleChange}>
-              <SelectTrigger size="sm" className="w-45">
+              <SelectTrigger size="sm" className="w-45 text-xs">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="text-xs">
                 {codeStyleItems.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
+                  <SelectItem className="text-xs" key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>
                 ))}
@@ -366,6 +370,7 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
                 </SettingRowTitleSmall>
                 <EditableNumber
                   size="small"
+                  className="text-xs"
                   min={1}
                   max={60}
                   step={1}
@@ -484,6 +489,7 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
                 <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_threshold')}</SettingRowTitleSmall>
                 <EditableNumber
                   size="small"
+                  className="text-xs"
                   min={500}
                   max={10000}
                   step={100}
@@ -550,12 +556,12 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
             <Select value={targetLanguage} onValueChange={setTargetLanguage}>
-              <SelectTrigger size="sm" className="w-45">
+              <SelectTrigger size="sm" className="w-45 text-xs">
                 <SelectValue placeholder={getLabel(null)} />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="text-xs">
                 {targetLanguageItems.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
+                  <SelectItem className="text-xs" key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>
                 ))}
@@ -566,12 +572,12 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
             <Select value={sendMessageShortcut} onValueChange={setSendMessageShortcut}>
-              <SelectTrigger size="sm" className="w-45">
+              <SelectTrigger size="sm" className="w-45 text-xs">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="text-xs">
                 {sendMessageShortcutItems.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
+                  <SelectItem className="text-xs" key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>
                 ))}

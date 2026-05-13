@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatPreferenceSections from '../ChatPreferenceSections'
 
@@ -90,7 +90,7 @@ vi.mock('@cherrystudio/ui', () => ({
   SelectItem: ({ children, value }: PropsWithChildren<{ value: string }>) => <div data-value={value}>{children}</div>,
   SelectTrigger: ({ children }: PropsWithChildren) => <button type="button">{children}</button>,
   SelectValue: ({ placeholder }: { placeholder?: ReactNode }) => <span>{placeholder}</span>,
-  Slider: () => <div data-testid="slider" />,
+  Slider: ({ value }: { value: number[] }) => <div data-testid="slider" data-value={value.join(',')} />,
   Switch: ({ 'aria-label': ariaLabel }: { 'aria-label'?: string }) => <button type="button" aria-label={ariaLabel} />,
   Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
 }))
@@ -101,6 +101,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('ChatPreferenceSections', () => {
+  beforeEach(() => {
+    mocks.preferenceValues['chat.message.font_size'] = 14
+  })
+
   it('renders shared chat preferences without assistant-only controls by default', () => {
     render(<ChatPreferenceSections />)
 
@@ -129,5 +133,18 @@ describe('ChatPreferenceSections', () => {
     expect(screen.getByText('settings.messages.show_message_outline')).toBeInTheDocument()
     expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()
+  })
+
+  it('syncs the font-size slider draft when the preference changes externally', async () => {
+    const { rerender } = render(<ChatPreferenceSections />)
+
+    expect(screen.getByTestId('slider')).toHaveAttribute('data-value', '14')
+
+    mocks.preferenceValues['chat.message.font_size'] = 18
+    rerender(<ChatPreferenceSections />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('slider')).toHaveAttribute('data-value', '18')
+    })
   })
 })

@@ -38,7 +38,7 @@ export const SettingRow = ({ className, ...rest }: ComponentPropsWithoutRef<type
 )
 
 export const SettingGroup = ({ className, ...rest }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-1.5 flex w-full flex-col gap-0.5 px-1', className)} {...rest} />
+  <div className={cn('mb-1.5 flex w-full flex-col gap-0.5 px-1 py-1', className)} {...rest} />
 )
 
 export { SettingDivider }
