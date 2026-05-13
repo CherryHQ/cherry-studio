@@ -270,7 +270,8 @@ export async function ensureExternalEntry(
   deps: FileManagerDeps,
   params: EnsureExternalEntryParams
 ): Promise<FileEntry> {
-  // Upsert by externalPath: one of reuse / restore / insert
+  // Upsert by externalPath: reuse the existing row or insert a new one
+  // (external entries cannot be trashed, so there is no restore branch)
 }
 ```
 
@@ -686,7 +687,7 @@ Query: `WHERE trashedAt < now() - retentionMs` → batch permanentDelete.
 | unlink fails on permanentDelete internal (file already missing, permission issue) | Log warn; the DB row is already gone, so the failure surfaces only as an orphan blob that the startup file sweep will reclaim |
 | permanentDelete on external | DB-only by design; the user's file at `externalPath` is never touched — Cherry owns only the reference |
 | `ensureExternalEntry(path)` when an entry for the same path already exists | Entry point first calls `canonicalizeExternalPath(raw)`; upsert returns the existing row. External entries cannot be trashed, so there is no "restore" branch. |
-| **Two entries for the same file due to case / NFC differences** (macOS APFS, Windows NTFS, or NFD ↔ NFC input) | The `canonicalizeExternalPath` step closes the NFC window; case-insensitive FS dedup not implemented (see §1.2 "Normalization scope")—will add `fs.realpath` + one-off migration when there is concrete user feedback |
+| **Two entries for the same file due to case / NFC differences** (macOS APFS, Windows NTFS, or NFD ↔ NFC input) | NFC closed by `canonicalizeExternalPath`; case-collision rejected at INSERT by the DB functional unique index plus the `fs.realpath`-based reuse-or-throw decision in `ensureExternalEntry` (see §1.2 "Duplicate-entry detection on insert"). |
 | External file at original path externally replaced with a different file | Cherry does not check content consistency (best-effort). `name` / `ext` on the row are derived from `externalPath` and do not change; `size` is always served live by `getMetadata`. DanglingCache flips to `'present'` on the next stat, so the UI just renders the new file under the existing reference. |
 | A trashed entry is permanently externally deleted and then restored | Appears dangling (DanglingCache returns missing on next check), UI shows failed style |
 | External write with permission error / disk full on target path | Throw without polluting DB; caller decides retry or user notification |
@@ -1274,30 +1275,13 @@ private async doStatAndUpdate(
 
 ### 11.3 Watcher Auto-Wiring
 
-Business modules **need not be directly aware of DanglingCache**. All watchers must be created via the `createDirectoryWatcher()` factory, which hooks things up internally:
+Business modules **need not be directly aware of DanglingCache**. All watchers must be created via the `createDirectoryWatcher()` factory; the factory subscribes to its own event stream and mirrors presence transitions into `DanglingCache` before re-emitting the raw event to external subscribers:
 
-```typescript
-// src/main/services/file/watcher/index.ts
-export function createDirectoryWatcher(
-  root: FilePath,
-  opts?: CreateDirectoryWatcherOptions
-): DirectoryWatcher {
-  const watcher = new DirectoryWatcher(root, opts)
-  watcher.onEvent((event) => {
-    // WatcherEvent is a discriminated union; see §8.2 for the shipped shape.
-    switch (event.type) {
-      case 'add':
-      case 'change':
-        danglingCache.onFsEvent(event.path, 'present')
-        break
-      case 'unlink':
-        danglingCache.onFsEvent(event.path, 'missing')
-        break
-    }
-  })
-  return watcher
-}
-```
+- `add` → cache marks `present`
+- `unlink` → cache marks `missing`
+- `change` → cache untouched (file is still present; mtime drift is not tracked here)
+
+The cache feed is keyed by canonical (NFC) form so it lines up with the reverse index populated by `ensureExternalEntry`; the path forwarded to subscribers is the raw OS form chokidar saw, so a subscriber that opens the file with that string stays coherent with what the FS actually has.
 
 **Note**: watcher rename events **do not auto-update an external entry's externalPath**—Cherry does not track external rename. After a rename, the original entry goes dangling; the user must re-@ to establish a new reference.
 

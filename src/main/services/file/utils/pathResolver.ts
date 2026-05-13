@@ -118,28 +118,31 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): FilePath {
  * (Electron `showOpenDialog` and drag-drop, both of which return OS-canonical
  * paths with correct case already).
  *
- * ## Deliberately NOT handled
+ * ## Deliberately NOT handled here
+ *
+ * The following are handled elsewhere, NOT by this function — `canonicalizeExternalPath`
+ * stays sync / FS-IO-free so it can run from Zod refines and read paths without
+ * paying `fs.*` cost on every call.
  *
  * - **Case-insensitive FS de-duplication** (macOS APFS / Windows NTFS):
- *   `/Users/me/FILE.pdf` vs `/Users/me/file.pdf` can still produce two
- *   entries. Requires `fs.realpath()` (async, FS-IO-backed, requires file
- *   existence) — deferred until real user reports materialize.
- *   Mitigation: `ensureExternalEntry` logs a `warn` on insert
- *   when a case-insensitive match against an existing row is found (see
- *   `file-manager-architecture.md §1.2 Duplicate-entry detection on
- *   insert`), giving operational visibility without blocking the insert.
- * - **Symlink resolution** (`realpath` target collapse): two symlinks to
- *   the same file remain distinct entries. Same rationale as above.
+ *   `/Users/me/FILE.pdf` vs `/Users/me/file.pdf` are byte-distinct after
+ *   canonicalize and would still produce two rows under this function alone.
+ *   Enforced at two layers downstream: (1) DB functional unique index
+ *   `UNIQUE(lower(externalPath))` rejects the second row at INSERT, and
+ *   (2) `ensureExternalEntry` runs `fs.realpath` on the colliding pair
+ *   before INSERT and either reuses the existing row (same on-disk entity,
+ *   case-insensitive FS) or throws `case-collision` (distinct files,
+ *   case-sensitive FS). See `file-manager-architecture.md §1.2 Duplicate-entry
+ *   detection on insert`.
+ * - **Symlink resolution** (`realpath` target collapse): two symlinks to the
+ *   same file remain distinct entries. Not enforced anywhere — symlink
+ *   collapse would require unconditional `fs.realpath` on every canonicalize,
+ *   trading the sync/cheap contract this function commits to.
  * - **Windows short-name (8.3) resolution**: `LONGNA~1` vs `longname` —
  *   requires WinAPI; low-priority edge case.
  * - **SMB / NFS mounts with FS-level case-sensitivity diverging from host**:
  *   out of scope; document as known limitation.
  *
- * ## Upgrade path
- *
- * If user reports of "same file, two entries" materialize, extend this
- * function with `fs.realpath` (making the signature `Promise<CanonicalExternalPath>`)
- * and ship a one-off migration per the RULE-EVOLUTION DISCIPLINE above.
  *
  * @param raw user-provided absolute (or resolvable) path
  * @returns canonical form stored in `file_entry.externalPath`
