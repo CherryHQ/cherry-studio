@@ -170,6 +170,7 @@ export class DbService extends BaseService {
    * Must be called before copying the SQLite file to ensure a consistent snapshot.
    */
   async checkpoint(): Promise<void> {
+    if (!this.isReady) return // Not initialized yet; no-op (consistent with getDb() contract)
     await this.client.execute('PRAGMA wal_checkpoint(TRUNCATE)')
   }
 
