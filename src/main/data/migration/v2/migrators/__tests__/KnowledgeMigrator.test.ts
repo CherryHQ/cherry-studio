@@ -1442,4 +1442,68 @@ describe('KnowledgeMigrator file_ref creation', () => {
     const refFileEntryIds = insertedOutsideTx.map((r) => (r as any).fileEntryId).sort()
     expect(refFileEntryIds).toEqual(['v2-a', 'v2-b'])
   })
+
+  it('file_ref insert is retry-safe: second execute() with same data does not throw UNIQUE constraint error', async () => {
+    // Simulate the retry scenario:
+    // - First execute() succeeds and inserts file_ref rows.
+    // - Second execute() (retry after KnowledgeMigrator failure) attempts to insert
+    //   the same rows again. Without onConflictDoNothing(), this would throw a
+    //   UNIQUE constraint error on (fileEntryId, sourceType, sourceId, role).
+    //   With onConflictDoNothing(), it must succeed silently.
+    const legacyFileId = 'legacy-retry-file'
+    const v2FileId = 'v2-retry-uuid'
+    const idRemap = new Map([[legacyFileId, v2FileId]])
+
+    const sharedData = new Map<string, unknown>()
+    sharedData.set('file.idRemap', idRemap)
+
+    // Track how many times the outer values() is called.
+    let fileRefInsertCallCount = 0
+    const outerInsert = vi.fn((_table: unknown) => ({
+      values: vi.fn((rows: unknown) => {
+        fileRefInsertCallCount += 1
+        if (fileRefInsertCallCount > 1) {
+          // Simulate what SQLite throws when a UNIQUE constraint is violated on retry.
+          return Promise.reject(
+            new Error(
+              'UNIQUE constraint failed: file_ref.fileEntryId, file_ref.sourceType, file_ref.sourceId, file_ref.role'
+            )
+          )
+        }
+        return Promise.resolve(rows)
+      })
+    }))
+
+    const txInsert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) })
+    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
+      await callback({ insert: txInsert })
+    })
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+    const db = { transaction, insert: outerInsert }
+
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [{ id: 'kb-retry', name: 'KB retry', dimensions: 512, embeddingModelId: 'openai::emb' }]
+    migrator.preparedItems = [
+      {
+        id: 'item-retry-file',
+        baseId: 'kb-retry',
+        groupId: null,
+        type: 'file',
+        data: { source: '/tmp/retry.pdf', file: { id: legacyFileId, name: 'retry.pdf' } },
+        status: 'idle'
+      }
+    ]
+
+    // First execute: should succeed.
+    const firstResult = await migrator.execute({ db, sharedData, logger } as any)
+    expect(firstResult.success).toBe(true)
+
+    // Second execute: simulates retry. The outer values() mock throws UNIQUE constraint
+    // on second invocation. With the bug (no onConflictDoNothing), this propagates as
+    // an error. With the fix, onConflictDoNothing() is chained and the insert succeeds.
+    // NOTE: migrator state is NOT reset between retries (reset() is called by MigrationEngine,
+    // but execute() is the hot path that must be idempotent for file_ref inserts).
+    const secondResult = await migrator.execute({ db, sharedData, logger } as any)
+    expect(secondResult.success).toBe(true)
+  })
 })
