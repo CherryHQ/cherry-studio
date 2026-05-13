@@ -577,7 +577,6 @@ const MessageMenuBar: FC<Props> = (props) => {
 
   return (
     <>
-      {showMessageTokens && <MessageTokens message={message} />}
       <div
         className={classNames(
           'menubar flex flex-row items-center justify-end gap-2',
@@ -598,6 +597,7 @@ const MessageMenuBar: FC<Props> = (props) => {
           return <Fragment key={buttonId}>{element}</Fragment>
         })}
       </div>
+      {showMessageTokens && <MessageTokens message={message} />}
     </>
   )
 }

@@ -77,7 +77,6 @@ const MessageItem: FC<Props> = ({
 
   const [messageFont] = usePreference('chat.message.font')
   const [fontSize] = usePreference('chat.message.font_size')
-  const [messageStyle] = usePreference('chat.message.style')
   const [showMessageOutline] = usePreference('chat.message.show_outline')
 
   const { editParts, forkAndResend } = useMessage(message.id, topic)
@@ -242,10 +241,7 @@ const MessageItem: FC<Props> = ({
               <div className="MessageFooter mt-0.75 ml-11.5 flex items-center justify-between gap-2.5">
                 <HorizontalScrollContainer
                   classNames={{
-                    content: cn(
-                      'flex-1 items-center justify-between',
-                      isLastMessage && messageStyle === 'plain' ? 'flex-row-reverse' : 'flex-row'
-                    )
+                    content: cn('flex-1 flex-row items-center justify-between')
                   }}>
                   <MessageMenuBar
                     message={message}
