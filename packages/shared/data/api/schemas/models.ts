@@ -72,6 +72,7 @@ export type CreateModelDto = z.infer<typeof CreateModelSchema>
 
 export const MODELS_BATCH_MAX_ITEMS = 500
 export const MODELS_BULK_UPDATE_MAX_ITEMS = 1000
+export const MODELS_RECONCILE_MAX_ITEMS = 5000
 
 /**
  * `POST /models` intentionally accepts arrays only.
@@ -125,13 +126,14 @@ export type BulkUpdateModelsDto = z.infer<typeof BulkUpdateModelsSchema>
  *
  * Pull-reconcile produces a (toAdd, toRemove) diff from the upstream provider
  * model list relative to the local snapshot; both sides must be applied as
- * one atomic step so the user never observes a half-applied diff. Limits
- * mirror `MODELS_BATCH_MAX_ITEMS` so a single reconcile cannot exceed the
- * existing bulk-create / bulk-delete ceiling.
+ * one atomic step so the user never observes a half-applied diff. The cap is
+ * `MODELS_RECONCILE_MAX_ITEMS` — the service
+ * chunks per-INSERT inside the transaction to stay under SQLite's
+ * compound-statement parameter limit.
  */
 export const ReconcileProviderModelsSchema = z.strictObject({
-  toAdd: z.array(CreateModelSchema).max(MODELS_BATCH_MAX_ITEMS),
-  toRemove: z.array(UniqueModelIdSchema).max(MODELS_BATCH_MAX_ITEMS)
+  toAdd: z.array(CreateModelSchema).max(MODELS_RECONCILE_MAX_ITEMS),
+  toRemove: z.array(UniqueModelIdSchema).max(MODELS_RECONCILE_MAX_ITEMS)
 })
 export type ReconcileProviderModelsDto = z.infer<typeof ReconcileProviderModelsSchema>
 

@@ -611,10 +611,14 @@ class ModelService {
           }
 
           if (values.length > 0) {
-            await insertManyWithOrderKey(tx, userModelTable, values, {
-              pkColumn: userModelTable.id,
-              scope: eq(userModelTable.providerId, providerId)
-            })
+            // Chunk per-INSERT to stay under SQLite's compound-statement parameter limit.
+            const INSERT_CHUNK_SIZE = 500
+            for (let offset = 0; offset < values.length; offset += INSERT_CHUNK_SIZE) {
+              await insertManyWithOrderKey(tx, userModelTable, values.slice(offset, offset + INSERT_CHUNK_SIZE), {
+                pkColumn: userModelTable.id,
+                scope: eq(userModelTable.providerId, providerId)
+              })
+            }
           }
 
           return (await tx
