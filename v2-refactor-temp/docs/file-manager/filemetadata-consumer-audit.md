@@ -72,10 +72,10 @@ v2 把消费者分为三桶，对应不同的迁移目标：
 
 | 阶段                 | 目标                                                                                                                                | 风险                                                 |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| **Phase 1 (进行中)** | 新 FileEntry/FileManager/FileRef/IPC 架构落地（`src/main/file/**`、`packages/shared/file/types/**`）；旧 FileStorage 不动           | 低，当前 branch 已完成                               |
-| **Phase 2**          | Dexie `files` 表 + 旧 `FileStorage` 双读双写 shim；renderer 侧 `services/FileManager.ts` 改为同时操作两侧                           | 中，双写期需测试一致性                               |
-| **Phase 3**          | 按域切换：**Messages 优先**（影响最大但数据结构最规整），其次 Knowledge（已有 migrator），然后 Painting，最后 Translate/Paste/Video | 高，业务域的 `FileMetadata` 字段内嵌需要全域 UI 改造 |
-| **Phase 4**          | 删除 Dexie `files` 表、`FileStorage.ts`、`services/FileManager.ts`；清理 `FileMetadata` 类型；OCR/remotefile 域独立迁移             | 中，清理期需全回归                                   |
+| **Phase 1**          | 新 FileEntry/FileManager/FileRef/IPC 架构落地（`src/main/file/**`、`packages/shared/file/types/**`）；旧 FileStorage 不动           | 低（已完成于 PR #13451）                             |
+| **Batch 0**          | Dexie `files` 表 + 旧 `FileStorage` 双读双写 shim；renderer 侧 `services/FileManager.ts` 改为同时操作两侧                           | 中，双写期需测试一致性                               |
+| **Batch A-E**        | 按域切换：**Messages 优先**（影响最大但数据结构最规整），其次 Knowledge（已有 migrator），然后 Painting，最后 Translate/Paste/Video | 高，业务域的 `FileMetadata` 字段内嵌需要全域 UI 改造 |
+| **Cleanup Batch**    | 删除 Dexie `files` 表、`FileStorage.ts`、`services/FileManager.ts`；清理 `FileMetadata` 类型；OCR/remotefile 域独立迁移             | 中，清理期需全回归                                   |
 
 ---
 
@@ -613,7 +613,7 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 - 被 SQLite `knowledge_item.data` 当 JSON 存
 - 是 KnowledgeMigrator 的终点 shape
 
-建议的方案：**迁移完成后把 `KnowledgeItemData.file` 改为 `FileEntryId`**，然后在 query handler 里 JOIN fileEntry 返回 file 对象给 renderer。这是 Phase 3 的工作。
+建议的方案：**迁移完成后把 `KnowledgeItemData.file` 改为 `FileEntryId`**，然后在 query handler 里 JOIN fileEntry 返回 file 对象给 renderer。这是 Batch A-E 的工作。
 
 ---
 
