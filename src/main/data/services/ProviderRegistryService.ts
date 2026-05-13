@@ -378,16 +378,18 @@ class ProviderRegistryService {
       .find((provider) => provider.id === providerId)
   }
 
-  getProviderDisplayMetadata(providerId: string): ProviderDisplayMetadata {
+  getProviderDisplayMetadata(providerId: string, presetProviderId?: string): ProviderDisplayMetadata {
     try {
-      const provider = this.findRegistryProvider(providerId)
+      const provider =
+        this.findRegistryProvider(providerId) ??
+        (presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined)
 
       return {
         description: provider?.description,
         websites: provider?.metadata?.website
       }
     } catch (error) {
-      logger.warn('Failed to load provider display metadata', { providerId, error })
+      logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })
       return {}
     }
   }

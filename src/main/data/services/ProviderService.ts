@@ -70,7 +70,10 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
  * Convert database row to Provider entity
  */
 function rowToRuntimeProvider(row: UserProvider): Provider {
-  const presetMetadata = providerRegistryService.getProviderDisplayMetadata(row.presetProviderId ?? row.providerId)
+  const presetMetadata = providerRegistryService.getProviderDisplayMetadata(
+    row.providerId,
+    row.presetProviderId ?? undefined
+  )
 
   // Process API keys (strip actual key values for security)
   // oxlint-disable-next-line no-unused-vars

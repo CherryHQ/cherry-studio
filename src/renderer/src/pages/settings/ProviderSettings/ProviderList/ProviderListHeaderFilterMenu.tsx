@@ -29,8 +29,8 @@ export default function ProviderListHeaderFilterMenu({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" disabled={disabled} className={providerListClasses.filterTrigger}>
-          <Filter size={9} className={cn(filterMode !== 'all' && 'text-(--color-primary)')} />
+        <button type="button" disabled={disabled} className={providerListClasses.searchRowFilterTrigger}>
+          <Filter size={12} className={cn(filterMode !== 'all' && 'text-(--color-primary)')} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className={cn(providerListClasses.itemMenuContent, 'w-40')}>

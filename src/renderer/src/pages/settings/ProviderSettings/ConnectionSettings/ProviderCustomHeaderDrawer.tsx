@@ -308,7 +308,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
         {visibleEndpointTypes.map((type, index) => {
           const isPrimary = index === 0
           const labelKey = ENDPOINT_TYPE_LABEL_KEYS[type]
-          const label = isPrimary ? `${t('settings.provider.api_host')} (Endpoint URL)` : labelKey ? t(labelKey) : type
+          const label = isPrimary ? t('settings.provider.api_host') : labelKey ? t(labelKey) : type
           const inputId = `provider-request-config-endpoint-${type}`
           return (
             <div key={type} className="space-y-1.5">

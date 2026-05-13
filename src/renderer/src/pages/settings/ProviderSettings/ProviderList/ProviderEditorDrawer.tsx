@@ -543,7 +543,7 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
         />
         <button
           type="button"
-          aria-label={t(visible ? 'settings.provider.api_key.hide' : 'settings.provider.api_key.show')}
+          aria-label={t(visible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key')}
           onClick={() => setVisible((v) => !v)}
           className="-translate-y-1/2 absolute top-1/2 right-2 rounded-md p-1 text-muted-foreground/70 transition-colors hover:bg-(--color-surface-fg-subtle) hover:text-foreground">
           {visible ? <EyeOff size={14} /> : <Eye size={14} />}

@@ -7,6 +7,7 @@ import ProviderList from '../ProviderList'
 const reorderSpy = vi.fn()
 const useProvidersMock = vi.fn()
 const useProviderActionsMock = vi.fn()
+const useModelsMock = vi.fn()
 const useReorderMock = vi.fn()
 const useOvmsSupportMock = vi.fn()
 const deleteProviderMock = vi.fn()
@@ -36,6 +37,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 vi.mock('@renderer/hooks/useProviders', () => ({
   useProviders: (...args: any[]) => useProvidersMock(...args),
   useProviderActions: (...args: any[]) => useProviderActionsMock(...args)
+}))
+
+vi.mock('@renderer/hooks/useModels', () => ({
+  useModels: (...args: any[]) => useModelsMock(...args)
 }))
 
 vi.mock('@data/hooks/useReorder', () => ({
@@ -109,6 +114,7 @@ describe('ProviderList', () => {
       applyReorderedList: reorderSpy
     })
     useOvmsSupportMock.mockReturnValue({ isSupported: true })
+    useModelsMock.mockReturnValue({ models: [] })
     deleteProviderMock.mockResolvedValue(undefined)
     ;(window as any).api = {
       ...(window as any).api,

@@ -85,6 +85,11 @@ export const providerListClasses = {
     'min-w-0 flex-1 truncate text-sm leading-[1.3] font-[weight:var(--font-weight-semibold)] text-foreground',
   filterTrigger:
     'flex size-5 items-center justify-center rounded-md text-foreground/40 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/70 disabled:pointer-events-none disabled:opacity-30',
+  searchRowFilterTrigger:
+    'flex size-7 shrink-0 items-center justify-center rounded-lg border border-[color:var(--section-border)] bg-transparent text-foreground/45 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
+  addIconButton:
+    'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
+  searchRow: 'flex items-center gap-1.5 px-3 pb-1.5',
   searchWrap:
     'flex items-center gap-1.5 rounded-lg border border-[color:var(--section-border)] bg-muted/50 px-2 py-[4px]',
   searchIcon: 'size-[9px] shrink-0 text-muted-foreground/60',

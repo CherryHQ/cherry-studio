@@ -191,7 +191,9 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   gateway: 'vercel',
   zhinao: 'xirang',
   aionly: 'aiOnly',
-  dashscope: 'bailian'
+  dashscope: 'bailian',
+  zai: 'zAi',
+  'minimax-global': 'minimax'
 }
 
 /** Resolve a dedicated model icon by matching modelId against MODEL_ICON_PATTERNS */
