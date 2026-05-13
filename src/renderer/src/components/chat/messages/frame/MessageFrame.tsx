@@ -262,7 +262,7 @@ const MessageItem: FC<Props> = ({
             {showAssistantFooterActions && (
               <div
                 className={cn(
-                  'MessageFooter mt-0.25 ml-10 flex min-h-5.5 items-center justify-between gap-1.5 text-xs leading-none'
+                  'MessageFooter mt-1 ml-10 flex min-h-6.5 items-center justify-between gap-1.5 text-xs leading-none'
                 )}>
                 <HorizontalScrollContainer
                   classNames={{

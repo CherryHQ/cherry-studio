@@ -1,11 +1,13 @@
 import {
   ConfirmDialog,
-  MenuDivider,
-  MenuItem,
-  MenuList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
   Tooltip
 } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
@@ -69,7 +71,6 @@ import {
   AtSign,
   Bug,
   Check,
-  ChevronRight,
   CirclePause,
   FilePenLine,
   Languages,
@@ -82,7 +83,7 @@ import {
   Upload
 } from 'lucide-react'
 import type { ComponentProps, Dispatch, FC, ReactNode, SetStateAction } from 'react'
-import { Fragment, memo, useCallback, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '../blocks'
@@ -679,104 +680,50 @@ const MessageMenuPopover = ({
   align?: 'start' | 'center' | 'end'
   contentClassName?: string
 }) => (
-  <Popover>
-    <PopoverTrigger asChild>{children}</PopoverTrigger>
-    <PopoverContent className={classNames('w-60 p-1', contentClassName)} align={align} side="top">
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+    <DropdownMenuContent className={classNames('min-w-36', contentClassName)} align={align} side="top">
       <MessageMenuItems items={items} />
-    </PopoverContent>
-  </Popover>
+    </DropdownMenuContent>
+  </DropdownMenu>
 )
-
-const MessageSubmenuItem = ({ item }: { item: Extract<MessageMenuItem, { children?: MessageMenuItem[] }> }) => {
-  const [open, setOpen] = useState(false)
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const clearCloseTimer = () => {
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current)
-      closeTimerRef.current = null
-    }
-  }
-
-  const openSubmenu = () => {
-    clearCloseTimer()
-    setOpen(true)
-  }
-
-  const scheduleCloseSubmenu = () => {
-    clearCloseTimer()
-    closeTimerRef.current = setTimeout(() => {
-      setOpen(false)
-      closeTimerRef.current = null
-    }, 120)
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <MenuItem
-          label={item.label}
-          icon={item.icon}
-          disabled={item.disabled}
-          active={open}
-          suffix={<ChevronRight size={14} />}
-          onMouseEnter={openSubmenu}
-          onMouseLeave={scheduleCloseSubmenu}
-          onFocus={openSubmenu}
-          onClick={(event) => {
-            event.stopPropagation()
-            setOpen((value) => !value)
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              openSubmenu()
-            }
-          }}
-        />
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-auto min-w-64 max-w-[360px] p-1"
-        side="right"
-        align="start"
-        sideOffset={4}
-        collisionPadding={8}
-        onMouseEnter={openSubmenu}
-        onMouseLeave={scheduleCloseSubmenu}
-        onOpenAutoFocus={(event) => event.preventDefault()}
-        onClick={(event) => event.stopPropagation()}>
-        <MessageMenuItems items={item.children ?? []} />
-      </PopoverContent>
-    </Popover>
-  )
-}
 
 const MessageMenuItems = ({ items }: { items: MessageMenuItem[] }) => {
   return (
-    <MenuList>
+    <>
       {items.map((item) => {
         if (isMessageMenuDivider(item)) {
-          return <MenuDivider key={item.key} />
+          return <DropdownMenuSeparator key={item.key} />
         }
 
         if (item.children?.length) {
-          return <MessageSubmenuItem key={item.key} item={item} />
+          return (
+            <DropdownMenuSub key={item.key}>
+              <DropdownMenuSubTrigger disabled={item.disabled}>
+                {item.icon}
+                <span>{item.label}</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="min-w-56 max-w-80">
+                <MessageMenuItems items={item.children} />
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )
         }
 
         return (
-          <MenuItem
+          <DropdownMenuItem
             key={item.key}
-            label={item.label}
-            icon={item.icon}
             disabled={item.disabled}
-            onClick={(event) => {
+            onSelect={(event) => {
               event.stopPropagation()
               void item.onClick?.()
-            }}
-          />
+            }}>
+            {item.icon}
+            <span>{item.label}</span>
+          </DropdownMenuItem>
         )
       })}
-    </MenuList>
+    </>
   )
 }
 
