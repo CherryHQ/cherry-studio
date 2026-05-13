@@ -47,7 +47,7 @@ export function useDefaultAssistant(): { assistant: Assistant } {
  * `assistantId: undefined`, not a sentinel.
  */
 export function useAssistant(id: string | null | undefined) {
-  const { assistant } = useAssistantApiById(id ?? undefined)
+  const { assistant, isLoading, error } = useAssistantApiById(id ?? undefined)
   const { updateAssistant: patchAssistant } = useAssistantMutations()
   const { defaultModel } = useDefaultModel()
 
@@ -64,6 +64,8 @@ export function useAssistant(id: string | null | undefined) {
 
   return {
     assistant,
+    isLoading,
+    error,
     model,
     setModel: (next: Model, extraSettings?: Partial<AssistantSettings>) => {
       if (!id || !assistant) return

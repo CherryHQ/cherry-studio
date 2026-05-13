@@ -1,3 +1,4 @@
+import { HelpTooltip } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import { SettingRow } from '@renderer/pages/settings'
 import type { RootState } from '@renderer/store'
@@ -5,8 +6,6 @@ import { useAppDispatch } from '@renderer/store'
 import { setOpenAIStreamOptionsIncludeUsage } from '@renderer/store/settings'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { OpenAICompletionsStreamOptions } from '@shared/types/aiSdk'
-import { Tooltip } from 'antd'
-import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -54,9 +53,10 @@ const StreamOptionsSetting: FC<Props> = ({ SettingRowTitleSmall }) => {
     <SettingRow>
       <SettingRowTitleSmall>
         {t('settings.openai.stream_options.include_usage.title')}{' '}
-        <Tooltip title={t('settings.openai.stream_options.include_usage.tip')}>
-          <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-        </Tooltip>
+        <HelpTooltip
+          content={t('settings.openai.stream_options.include_usage.tip')}
+          iconProps={{ className: 'ml-1' }}
+        />
       </SettingRowTitleSmall>
       <Selector
         value={toOptionValue(includeUsage)}

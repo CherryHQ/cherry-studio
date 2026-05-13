@@ -6067,6 +6067,7 @@
         "title": "Detailgrad"
       }
     },
+    "parameter_settings": "Parametereinstellungen",
     "plugins": {
       "bunDescription": "JavaScript-Laufzeitumgebung, die von MCP-Diensten und zugehörigen Toolchains verwendet wird.",
       "description": "Verwalten Sie binäre Tools und Laufzeitabhängigkeiten, die von der App benötigt werden.",

@@ -6,6 +6,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Slider,
   Switch
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -32,8 +33,8 @@ import {
 } from '@renderer/utils/provider'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Col, Row, Slider } from 'antd'
-import type { ComponentPropsWithoutRef, FC } from 'react'
+import type { ComponentPropsWithoutRef } from 'react'
+import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -204,7 +205,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
       (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)))
 
   return (
-    <Container className="settings-tab">
+    <Scrollbar className="settings-tab mt-[3px] flex flex-1 flex-col pt-0.5 pr-0 pb-2.5 pl-2">
       {showOpenAiSettings && provider && model && (
         <OpenAISettingsGroup
           model={model}
@@ -310,23 +311,21 @@ const AssistantSettingsTab: FC<Props> = (props) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.font_size.title')}</SettingRowTitleSmall>
           </SettingRow>
-          <Row align="middle" gutter={10}>
-            <Col span={24}>
-              <Slider
-                value={fontSizeValue}
-                onChange={(value) => setFontSizeValue(value)}
-                onChangeComplete={(value) => setFontSize(value)}
-                min={12}
-                max={22}
-                step={1}
-                marks={{
-                  12: <span style={{ fontSize: '12px' }}>A</span>,
-                  14: <span style={{ fontSize: '14px' }}>{t('common.default')}</span>,
-                  22: <span style={{ fontSize: '18px' }}>A</span>
-                }}
-              />
-            </Col>
-          </Row>
+          <div className="w-full px-2 pb-4">
+            <Slider
+              value={[fontSizeValue]}
+              onValueChange={(values) => setFontSizeValue(values[0])}
+              onValueCommit={(values) => setFontSize(values[0])}
+              min={12}
+              max={22}
+              step={1}
+              marks={[
+                { value: 12, label: <span style={{ fontSize: '12px' }}>A</span> },
+                { value: 14, label: <span style={{ fontSize: '14px' }}>{t('common.default')}</span> },
+                { value: 22, label: <span style={{ fontSize: '18px' }}>A</span> }
+              ]}
+            />
+          </div>
           <SettingDivider />
         </SettingGroup>
       </CollapsibleSettingGroup>
@@ -611,21 +610,16 @@ const AssistantSettingsTab: FC<Props> = (props) => {
           </SettingRow>
         </SettingGroup>
       </CollapsibleSettingGroup>
-    </Container>
+    </Scrollbar>
   )
 }
 
-const Container = ({ className, ...props }: ComponentPropsWithoutRef<typeof Scrollbar>) => (
-  <Scrollbar className={cn('mt-[3px] flex flex-1 flex-col px-2 pt-0.5 pr-0 pb-2.5', className)} {...props} />
+const SettingRowTitleSmall = ({ className, ...rest }: ComponentPropsWithoutRef<typeof SettingRowTitle>) => (
+  <SettingRowTitle className={cn('gap-1 text-[13px]', className)} {...rest} />
 )
 
-const SettingRowTitleSmall = ({ className, ...props }: ComponentPropsWithoutRef<typeof SettingRowTitle>) => (
-  <SettingRowTitle className={cn('gap-1 text-[13px]', className)} {...props} />
+const SettingGroup = ({ className, ...rest }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-2.5 w-full rounded-lg px-[5px]', className)} {...rest} />
 )
-
-const SettingGroup = ({ className, theme, ...props }: ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode }) => {
-  void theme
-  return <div className={cn('mt-0 mb-2.5 w-full rounded-lg px-[5px]', className)} {...props} />
-}
 
 export default AssistantSettingsTab

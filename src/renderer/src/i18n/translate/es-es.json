@@ -6067,6 +6067,7 @@
         "title": "nivel de detalle"
       }
     },
+    "parameter_settings": "Configuración de parámetros",
     "plugins": {
       "bunDescription": "Entorno de ejecución de JavaScript utilizado por los servicios MCP y las cadenas de herramientas relacionadas.",
       "description": "Administrar herramientas binarias y dependencias de tiempo de ejecución requeridas por la aplicación.",

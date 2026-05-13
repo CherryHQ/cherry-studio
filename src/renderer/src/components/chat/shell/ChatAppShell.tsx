@@ -15,6 +15,7 @@ export interface ChatAppShellProps {
   panePosition?: ChatPanePosition
   main: ReactNode
   bottomComposer?: ReactNode
+  sidePanel?: ReactNode
   overlay?: ReactNode
   rootId?: string
   rootClassName?: string
@@ -31,6 +32,7 @@ export function ChatAppShell({
   panePosition = 'left',
   main,
   bottomComposer,
+  sidePanel,
   overlay,
   rootId,
   rootClassName,
@@ -49,8 +51,9 @@ export function ChatAppShell({
           id={centerId}
           layout
           transition={CHAT_SHELL_TRANSITION}
-          className={cn('flex min-w-0 flex-1 flex-col overflow-hidden', centerClassName)}>
+          className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', centerClassName)}>
           {topBar && <ErrorBoundary>{topBar}</ErrorBoundary>}
+          {sidePanel && <ErrorBoundary>{sidePanel}</ErrorBoundary>}
           <ErrorBoundary>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
           </ErrorBoundary>

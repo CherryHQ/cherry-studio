@@ -83,4 +83,54 @@ describe('PreferenceSeeder', () => {
 
     expect(rows).toHaveLength(0)
   })
+
+  it('should add agents to an existing visible sidebar icon preference', async () => {
+    await dbh.db.insert(preferenceTable).values([
+      {
+        scope: 'default',
+        key: 'ui.sidebar.icons.visible',
+        value: ['assistants', 'store', 'translate']
+      },
+      {
+        scope: 'default',
+        key: 'ui.sidebar.icons.invisible',
+        value: []
+      }
+    ])
+
+    const seed = new PreferenceSeeder()
+    await seed.run(dbh.db)
+
+    const [visible] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'ui.sidebar.icons.visible')))
+
+    expect(visible.value).toEqual(['assistants', 'agents', 'store', 'translate'])
+  })
+
+  it('should not add agents to visible sidebar icons when agents is hidden', async () => {
+    await dbh.db.insert(preferenceTable).values([
+      {
+        scope: 'default',
+        key: 'ui.sidebar.icons.visible',
+        value: ['assistants', 'store', 'translate']
+      },
+      {
+        scope: 'default',
+        key: 'ui.sidebar.icons.invisible',
+        value: ['agents']
+      }
+    ])
+
+    const seed = new PreferenceSeeder()
+    await seed.run(dbh.db)
+
+    const [visible] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'ui.sidebar.icons.visible')))
+
+    expect(visible.value).toEqual(['assistants', 'store', 'translate'])
+  })
 })

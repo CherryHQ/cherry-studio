@@ -1,13 +1,17 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { Tooltip } from 'antd'
 import { PanelLeftClose, PanelRightClose } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import SettingsButton from './SettingsButton'
 
-const Tools = () => {
+interface Props {
+  onOpenSettings: () => void
+}
+
+const Tools = ({ onOpenSettings }: Props) => {
   const { t } = useTranslation()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
@@ -21,9 +25,9 @@ const Tools = () => {
 
   return (
     <div className="flex items-center gap-2">
-      <SettingsButton />
+      <SettingsButton onOpenSettings={onOpenSettings} />
       {isTopNavbar && (
-        <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
+        <Tooltip content={t('navbar.expand')} delay={800}>
           <NavbarIcon className="max-[1000px]:hidden" onClick={handleNarrowModeToggle}>
             <i className="iconfont icon-icon-adaptive-width"></i>
           </NavbarIcon>
@@ -31,7 +35,7 @@ const Tools = () => {
       )}
       {/* TODO: Add search button back when global search supports agent messages */}
       {isTopNavbar && topicPosition === 'right' && (
-        <Tooltip title={showSidebar ? t('navbar.hide_sidebar') : t('navbar.show_sidebar')} mouseEnterDelay={2}>
+        <Tooltip content={showSidebar ? t('navbar.hide_sidebar') : t('navbar.show_sidebar')} delay={2000}>
           <NavbarIcon onClick={toggleShowSidebar}>
             {showSidebar ? <PanelRightClose size={18} /> : <PanelLeftClose size={18} />}
           </NavbarIcon>

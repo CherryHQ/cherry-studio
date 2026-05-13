@@ -1,3 +1,4 @@
+import { HelpTooltip } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import { SettingRow } from '@renderer/pages/settings'
 import type { RootState } from '@renderer/store'
@@ -5,8 +6,6 @@ import { useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText } from '@renderer/store/settings'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { OpenAIReasoningSummary } from '@shared/types/aiSdk'
-import { Tooltip } from 'antd'
-import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -60,9 +59,7 @@ const ReasoningSummarySetting: FC<Props> = ({ SettingRowTitleSmall }) => {
     <SettingRow>
       <SettingRowTitleSmall>
         {t('settings.openai.summary_text_mode.title')}{' '}
-        <Tooltip title={t('settings.openai.summary_text_mode.tip')}>
-          <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-        </Tooltip>
+        <HelpTooltip content={t('settings.openai.summary_text_mode.tip')} iconProps={{ className: 'ml-1' }} />
       </SettingRowTitleSmall>
       <Selector
         value={toOptionValue(summaryText)}

@@ -9,11 +9,10 @@ import { useTranslation } from 'react-i18next'
 import SettingsButton from './SettingsButton'
 
 interface ToolsProps {
-  /** `undefined` when the topic has no associated assistant. */
-  assistantId: string | undefined
+  onOpenSettings: () => void
 }
 
-const Tools = ({ assistantId }: ToolsProps) => {
+const Tools = ({ onOpenSettings }: ToolsProps) => {
   const { t } = useTranslation()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
@@ -27,7 +26,7 @@ const Tools = ({ assistantId }: ToolsProps) => {
 
   return (
     <div className="flex items-center gap-2">
-      <SettingsButton assistantId={assistantId} />
+      <SettingsButton onOpenSettings={onOpenSettings} />
       {isTopNavbar && (
         <Tooltip content={t('navbar.expand')} delay={800}>
           <NavbarIcon className="max-[1000px]:hidden" onClick={handleNarrowModeToggle}>
