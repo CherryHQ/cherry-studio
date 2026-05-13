@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, AvatarImage, Checkbox, EmojiAvatar, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarImage, Checkbox, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { getModelLogo } from '@renderer/config/models'
@@ -63,7 +63,6 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   }, [assistantProfile?.name, message, model, t, userName])
 
   const isAssistantMessage = message.role === 'assistant'
-  const isUserMessage = message.role === 'user'
 
   const avatarName = useMemo(
     () => firstLetter(assistantProfile?.name ?? assistant?.name ?? '').toUpperCase(),
@@ -77,14 +76,8 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model?.provider, showMiniAppIcon])
 
-  const userNameJustifyContent = useMemo(() => {
-    if (!isBubbleStyle) return 'flex-start'
-    if (isUserMessage && !isMultiSelectMode) return 'flex-end'
-    return 'flex-start'
-  }, [isBubbleStyle, isUserMessage, isMultiSelectMode])
-
   return (
-    <div className="message-header relative mb-2.5 flex items-center gap-2.5">
+    <div className="message-header group/header relative mb-2 flex items-center gap-2.5">
       {isAssistantMessage ? (
         assistantProfile?.avatar ? (
           isEmoji(assistantProfile.avatar) ? (
@@ -130,23 +123,21 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           )}
         </>
       )}
-      <div className="flex flex-1 flex-col justify-between">
-        <RowFlex className="items-center" style={{ justifyContent: userNameJustifyContent }}>
-          <span
-            className="font-semibold text-sm"
-            style={{
-              color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--color-foreground)'
-            }}>
-            {username}
-          </span>
-          {isGroupContextMessage && (
-            <Tooltip content={t('chat.message.useful.tip')}>
-              <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
-            </Tooltip>
-          )}
-        </RowFlex>
-        <div className="message-header-info-wrap flex items-center gap-1 text-[10px] text-foreground-muted">
-          <div>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</div>
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        <span
+          className="truncate font-semibold text-sm leading-5"
+          style={{
+            color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--color-foreground)'
+          }}>
+          {username}
+        </span>
+        {isGroupContextMessage && (
+          <Tooltip content={t('chat.message.useful.tip')}>
+            <Sparkle className="shrink-0" fill="var(--color-primary)" strokeWidth={0} size={16} />
+          </Tooltip>
+        )}
+        <div className="message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-muted leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/header:opacity-100">
+          <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
           {isBubbleStyle && message.usage !== undefined && (
             <>
               |

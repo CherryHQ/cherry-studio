@@ -69,6 +69,7 @@ import {
   AtSign,
   Bug,
   Check,
+  ChevronRight,
   CirclePause,
   FilePenLine,
   Languages,
@@ -81,7 +82,7 @@ import {
   Upload
 } from 'lucide-react'
 import type { ComponentProps, Dispatch, FC, ReactNode, SetStateAction } from 'react'
-import { Fragment, memo, useCallback, useMemo, useState } from 'react'
+import { Fragment, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '../blocks'
@@ -684,42 +685,98 @@ const MessageMenuPopover = ({
   </Popover>
 )
 
-const MessageMenuItems = ({ items, depth = 0 }: { items: MessageMenuItem[]; depth?: number }) => (
-  <MenuList>
-    {items.map((item) => {
-      if (isMessageMenuDivider(item)) {
-        return <MenuDivider key={item.key} />
-      }
+const MessageSubmenuItem = ({ item }: { item: Extract<MessageMenuItem, { children?: MessageMenuItem[] }> }) => {
+  const [open, setOpen] = useState(false)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-      if (item.children?.length) {
-        return (
-          <div key={item.key}>
-            <div className="flex items-center gap-2 px-2.5 py-1 font-medium text-[11px] text-foreground-secondary">
-              {item.icon}
-              <span>{item.label}</span>
-            </div>
-            <div className={classNames(depth === 0 && 'pl-3')}>
-              <MessageMenuItems items={item.children} depth={depth + 1} />
-            </div>
-          </div>
-        )
-      }
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+  }
 
-      return (
+  const openSubmenu = () => {
+    clearCloseTimer()
+    setOpen(true)
+  }
+
+  const scheduleCloseSubmenu = () => {
+    clearCloseTimer()
+    closeTimerRef.current = setTimeout(() => {
+      setOpen(false)
+      closeTimerRef.current = null
+    }, 120)
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <MenuItem
-          key={item.key}
           label={item.label}
           icon={item.icon}
           disabled={item.disabled}
+          active={open}
+          suffix={<ChevronRight size={14} />}
+          onMouseEnter={openSubmenu}
+          onMouseLeave={scheduleCloseSubmenu}
+          onFocus={openSubmenu}
           onClick={(event) => {
             event.stopPropagation()
-            void item.onClick?.()
+            setOpen((value) => !value)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              openSubmenu()
+            }
           }}
         />
-      )
-    })}
-  </MenuList>
-)
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-auto min-w-64 max-w-[360px] p-1"
+        side="right"
+        align="start"
+        sideOffset={4}
+        collisionPadding={8}
+        onMouseEnter={openSubmenu}
+        onMouseLeave={scheduleCloseSubmenu}
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onClick={(event) => event.stopPropagation()}>
+        <MessageMenuItems items={item.children ?? []} />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+const MessageMenuItems = ({ items }: { items: MessageMenuItem[] }) => {
+  return (
+    <MenuList>
+      {items.map((item) => {
+        if (isMessageMenuDivider(item)) {
+          return <MenuDivider key={item.key} />
+        }
+
+        if (item.children?.length) {
+          return <MessageSubmenuItem key={item.key} item={item} />
+        }
+
+        return (
+          <MenuItem
+            key={item.key}
+            label={item.label}
+            icon={item.icon}
+            disabled={item.disabled}
+            onClick={(event) => {
+              event.stopPropagation()
+              void item.onClick?.()
+            }}
+          />
+        )
+      })}
+    </MenuList>
+  )
+}
 
 const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRenderer> = {
   'user-edit': ({ message, onEdit, softHoverBg, supportsWrites, t }, disabled) => {

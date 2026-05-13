@@ -200,7 +200,7 @@ const MessageItem: FC<Props> = ({
       <div
         key={message.id}
         className={classNames({
-          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] p-[10px] pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
+          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] p-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage
         })}
@@ -227,7 +227,7 @@ const MessageItem: FC<Props> = ({
               <MessageOutline message={message} />
             )}
             <Scrollbar
-              className="message-content-container mt-0 max-w-full overflow-y-auto pl-11.5"
+              className="message-content-container mt-0 max-w-full overflow-y-auto pl-10"
               style={{
                 fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
                 fontSize,
@@ -240,7 +240,7 @@ const MessageItem: FC<Props> = ({
             {showMenuBar && (
               <div
                 className={cn(
-                  'MessageFooter mt-0.25 ml-11.5 flex min-h-5.5 items-center justify-between gap-1.5 text-xs leading-none',
+                  'MessageFooter mt-0.25 ml-10 flex min-h-5.5 items-center justify-between gap-1.5 text-xs leading-none',
                   !isAssistantMessage &&
                     'pointer-events-none opacity-0 transition-opacity duration-200 focus-within:pointer-events-auto focus-within:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100'
                 )}>

@@ -29,6 +29,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react'
 
 const AT_BOTTOM_THRESHOLD_PX = 8
+const DEFAULT_TOP_PADDING_PX = 10
 const DEFAULT_BOTTOM_PADDING_PX = 18
 
 export interface MessageVirtualListHandle {
@@ -70,6 +71,8 @@ export interface MessageVirtualListProps<T> {
   className?: string
   /** style applied to the outer scroll container. */
   style?: React.CSSProperties
+  /** Extra empty space before the oldest message. */
+  topPadding?: number
   /** Extra empty space after the newest message. */
   bottomPadding?: number
 }
@@ -85,6 +88,7 @@ export function MessageVirtualList<T>({
   handleRef,
   className,
   style,
+  topPadding = DEFAULT_TOP_PADDING_PX,
   bottomPadding = DEFAULT_BOTTOM_PADDING_PX
 }: MessageVirtualListProps<T>): React.ReactElement {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
@@ -102,7 +106,7 @@ export function MessageVirtualList<T>({
   })
 
   const totalSize = virtualizer.getTotalSize()
-  const scrollHeight = totalSize + bottomPadding
+  const scrollHeight = topPadding + totalSize + bottomPadding
 
   // ── atBottom tracking ────────────────────────────────────────
   // Updated on every scroll event; read in the data-change effect to
@@ -325,7 +329,7 @@ export function MessageVirtualList<T>({
               top: 0,
               left: 0,
               width: '100%',
-              transform: `translateY(${vi.start}px)`
+              transform: `translateY(${topPadding + vi.start}px)`
             }}>
             {renderItem(items[vi.index], vi.index)}
           </div>

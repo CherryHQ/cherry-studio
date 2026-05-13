@@ -100,7 +100,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
   return (
     <div
       ref={messageOutlineContainerRef}
-      className="pointer-events-none absolute inset-[63px_0_36px_10px] z-999 [&~.MessageFooter]:ml-11.5! [&~.message-content-container]:pl-11.5!">
+      className="pointer-events-none absolute inset-[63px_0_36px_10px] z-999 [&~.MessageFooter]:ml-10! [&~.message-content-container]:pl-11.5!">
       <Scrollbar
         className="group pointer-events-auto sticky bottom-0 inline-flex max-h-[min(100%,70vh)] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] px-0 pt-2.5 pr-0 pb-2.5 pl-2.5 hover:overflow-y-auto hover:bg-background hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]"
         style={{
