@@ -133,6 +133,8 @@ const MessageItem: FC<Props> = ({
   const isStreamTarget = activeExecutions.some((e) => e.anchorMessageId === message.id)
   const isApprovalAnchor = isMessageAwaitingApproval(message)
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
+  const showUserHeaderActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode
+  const showAssistantFooterActions = showMenuBar && isAssistantMessage
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -212,6 +214,26 @@ const MessageItem: FC<Props> = ({
           key={model ? createUniqueModelId(model.provider, model.id) : ''}
           topic={topic}
           isGroupContextMessage={isGroupContextMessage}
+          actionsSlot={
+            showUserHeaderActions ? (
+              <>
+                <MessageMenuBar
+                  message={message}
+                  model={model}
+                  topic={topic}
+                  isLastMessage={isLastMessage}
+                  isAssistantMessage={isAssistantMessage}
+                  isGrouped={isGrouped}
+                  isProcessing={isProcessing}
+                  messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+                  setModel={setModel}
+                  onUpdateUseful={onUpdateUseful}
+                  variant="header"
+                />
+                <SiblingNavigator messageId={message.id} />
+              </>
+            ) : undefined
+          }
         />
         {isEditing && (
           <MessageEditor
@@ -237,12 +259,10 @@ const MessageItem: FC<Props> = ({
                 <MessageContent message={message} />
               </MessageErrorBoundary>
             </Scrollbar>
-            {showMenuBar && (
+            {showAssistantFooterActions && (
               <div
                 className={cn(
-                  'MessageFooter mt-0.25 ml-10 flex min-h-5.5 items-center justify-between gap-1.5 text-xs leading-none',
-                  !isAssistantMessage &&
-                    'pointer-events-none opacity-0 transition-opacity duration-200 focus-within:pointer-events-auto focus-within:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100'
+                  'MessageFooter mt-0.25 ml-10 flex min-h-5.5 items-center justify-between gap-1.5 text-xs leading-none'
                 )}>
                 <HorizontalScrollContainer
                   classNames={{

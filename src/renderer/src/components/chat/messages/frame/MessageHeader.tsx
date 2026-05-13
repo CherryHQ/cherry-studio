@@ -14,7 +14,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -31,9 +31,10 @@ interface Props {
   model?: Model
   topic: Topic
   isGroupContextMessage?: boolean
+  actionsSlot?: ReactNode
 }
 
-const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage }) => {
+const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage, actionsSlot }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const [userName] = usePreference('app.user.name')
@@ -63,6 +64,12 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   }, [assistantProfile?.name, message, model, t, userName])
 
   const isAssistantMessage = message.role === 'assistant'
+  const hiddenContentHoverClass = isAssistantMessage
+    ? 'group-hover/header:opacity-100'
+    : 'group-hover/message:opacity-100'
+  const hiddenActionsHoverClass = isAssistantMessage
+    ? 'group-hover/header:pointer-events-auto group-hover/header:opacity-100'
+    : 'group-hover/message:pointer-events-auto group-hover/message:opacity-100'
 
   const avatarName = useMemo(
     () => firstLetter(assistantProfile?.name ?? assistant?.name ?? '').toUpperCase(),
@@ -136,7 +143,8 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
             <Sparkle className="shrink-0" fill="var(--color-primary)" strokeWidth={0} size={16} />
           </Tooltip>
         )}
-        <div className="message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-muted leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/header:opacity-100">
+        <div
+          className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-muted leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 ${hiddenContentHoverClass}`}>
           <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
           {isBubbleStyle && message.usage !== undefined && (
             <>
@@ -145,6 +153,12 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
             </>
           )}
         </div>
+        {actionsSlot && (
+          <div
+            className={`message-header-actions pointer-events-none ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 ${hiddenActionsHoverClass}`}>
+            {actionsSlot}
+          </div>
+        )}
       </div>
       {isMultiSelectMode && (
         <Checkbox

@@ -105,6 +105,7 @@ interface Props {
   messageContainerRef: React.RefObject<HTMLDivElement>
   setModel: (model: Model) => void
   onUpdateUseful?: (msgId: string) => void
+  variant?: 'footer' | 'header'
 }
 
 const logger = loggerService.withContext('MessageMenuBar')
@@ -178,7 +179,8 @@ const MessageMenuBar: FC<Props> = (props) => {
     model,
     topic,
     messageContainerRef,
-    onUpdateUseful
+    onUpdateUseful,
+    variant = 'footer'
   } = props
   const { t } = useTranslation()
   const currentMentionModelId = model ? createUniqueModelId(model.provider, model.id) : undefined
@@ -538,8 +540,8 @@ const MessageMenuBar: FC<Props> = (props) => {
   const hasTranslationBlocks = useMemo(() => hasTranslationParts(messageParts), [messageParts])
 
   const softHoverBg = isBubbleStyle && !isLastMessage
-  const showMessageTokens = !isBubbleStyle
-  const isUserBubbleStyleMessage = isBubbleStyle && isUserMessage
+  const showMessageTokens = variant === 'footer' && !isBubbleStyle
+  const isUserBubbleStyleMessage = variant === 'footer' && isBubbleStyle && isUserMessage
 
   const buttonContext: MessageMenuBarButtonContext = {
     messageParts,
