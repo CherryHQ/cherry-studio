@@ -216,4 +216,19 @@ describe('SessionList helpers', () => {
       }).map((session) => session.id)
     ).toEqual(['pinned', 'newer', 'older'])
   })
+
+  it('sorts fractional order keys by raw lexicographic order', () => {
+    const sessions = [
+      createSession({ id: 'first-created', orderKey: 'a0' }),
+      createSession({ id: 'inserted-before-first', orderKey: 'Zz' }),
+      createSession({ id: 'inserted-before-that', orderKey: 'Zy' })
+    ]
+
+    expect(
+      sortSessionsForDisplayGroups(sessions, {
+        agentRankById: new Map([['agent-1', 0]]),
+        mode: 'agent'
+      }).map((session) => session.id)
+    ).toEqual(['inserted-before-that', 'inserted-before-first', 'first-created'])
+  })
 })

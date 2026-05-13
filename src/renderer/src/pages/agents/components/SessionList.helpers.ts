@@ -205,8 +205,8 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
 
 function compareOrderKey(a?: string, b?: string) {
   if (a && b) {
-    const delta = a.localeCompare(b)
-    if (delta !== 0) return delta
+    if (a < b) return -1
+    if (a > b) return 1
   }
 
   return 0
