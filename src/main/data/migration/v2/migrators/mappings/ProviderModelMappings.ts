@@ -156,6 +156,21 @@ const SYSTEM_PROVIDER_IDS = new Set([
   'zai'
 ])
 
+const TYPE_TO_PRESET_PROVIDER_ID: Partial<Record<LegacyProvider['type'], string>> = {
+  'azure-openai': 'azure-openai',
+  'aws-bedrock': 'aws-bedrock',
+  vertexai: 'vertexai',
+  'vertex-anthropic': 'vertexai',
+  ollama: 'ollama'
+}
+
+function resolvePresetProviderId(legacy: LegacyProvider): string | null {
+  if (SYSTEM_PROVIDER_IDS.has(legacy.id)) {
+    return legacy.id
+  }
+  return TYPE_TO_PRESET_PROVIDER_ID[legacy.type] ?? null
+}
+
 type NewUserProviderInput = Omit<NewUserProvider, 'orderKey'>
 
 export function transformProvider(legacy: LegacyProvider, settings: OldLlmSettings): NewUserProviderInput {
@@ -166,7 +181,7 @@ export function transformProvider(legacy: LegacyProvider, settings: OldLlmSettin
 
   return {
     providerId: legacy.id,
-    presetProviderId: SYSTEM_PROVIDER_IDS.has(legacy.id) ? legacy.id : null,
+    presetProviderId: resolvePresetProviderId(legacy),
     name: legacy.name,
     endpointConfigs: buildEndpointConfigs(legacy, endpointType),
     defaultChatEndpoint: endpointType ?? null,
@@ -218,8 +233,16 @@ function buildApiKeys(apiKey: string): ApiKeyEntry[] {
     }))
 }
 
+function isAwsBedrockProvider(legacy: LegacyProvider): boolean {
+  return legacy.id === 'aws-bedrock' || legacy.type === 'aws-bedrock'
+}
+
+function isAzureOpenAIProvider(legacy: LegacyProvider): boolean {
+  return legacy.id === 'azure-openai' || legacy.type === 'azure-openai'
+}
+
 function buildProviderApiKeys(legacy: LegacyProvider, settings: OldLlmSettings): ApiKeyEntry[] {
-  if (legacy.id === 'aws-bedrock' && settings.awsBedrock?.authType === 'apiKey') {
+  if (isAwsBedrockProvider(legacy) && settings.awsBedrock?.authType === 'apiKey') {
     return buildApiKeys(settings.awsBedrock.apiKey ?? '')
   }
 
@@ -242,7 +265,7 @@ function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): Auth
     }
   }
 
-  if (legacy.id === 'aws-bedrock') {
+  if (isAwsBedrockProvider(legacy)) {
     const aws = settings.awsBedrock
     if (aws?.authType === 'apiKey') {
       return { type: 'api-key' }
@@ -256,7 +279,7 @@ function buildAuthConfig(legacy: LegacyProvider, settings: OldLlmSettings): Auth
     }
   }
 
-  if (legacy.id === 'azure-openai') {
+  if (isAzureOpenAIProvider(legacy)) {
     return {
       type: 'iam-azure',
       apiVersion: legacy.apiVersion ?? ''
