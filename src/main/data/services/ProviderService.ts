@@ -144,8 +144,8 @@ class ProviderService {
   async update(providerId: string, dto: UpdateProviderDto): Promise<Provider> {
     const db = application.get('DbService').getDb()
 
-    // Verify provider exists
-    await this.getByProviderId(providerId)
+    // Verify provider exists and keep its merged settings for patch-style updates.
+    const currentProvider = await this.getByProviderId(providerId)
 
     // Build update object
     const updates: Partial<NewUserProvider> = {}
@@ -156,7 +156,12 @@ class ProviderService {
     if (dto.apiKeys !== undefined) updates.apiKeys = dto.apiKeys
     if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
     if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
-    if (dto.providerSettings !== undefined) updates.providerSettings = dto.providerSettings
+    if (dto.providerSettings !== undefined) {
+      updates.providerSettings = {
+        ...currentProvider.settings,
+        ...dto.providerSettings
+      }
+    }
     if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
     if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
 
