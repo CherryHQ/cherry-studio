@@ -125,14 +125,14 @@ export type FileSchemas = {
    * in the renderer after calling `getMetadata`.
    *
    * Trash + origin caveat: the combination `inTrash=true & origin='external'`
-   * is permitted by the schema but always returns `{ items: [], total: 0 }`,
+   * is rejected by the schema (`ListFilesQuerySchema` `.refine` rule),
    * because external rows are constrained by the DB CHECK
-   * `fe_external_no_trash` to always have `trashedAt = NULL`. A caller hitting
-   * this combo will see an empty result with no error signal — typical
-   * symptom is "why are my external files missing?". Modelling the query as
-   * a discriminated union (`{ origin: 'external'; inTrash?: false } |
+   * `fe_external_no_trash` to always have `trashedAt = NULL` and would
+   * otherwise return an empty result with no error signal. Modelling the
+   * query as a discriminated union (`{ origin: 'external'; inTrash?: false } |
    * { origin?: 'internal'; inTrash?: boolean }`) is a follow-up worth doing
-   * the next time this surface is touched; left as JSDoc for Phase 1.
+   * the next time this surface is touched; the runtime refine is the
+   * Phase 1 stand-in.
    *
    * @example GET /files/entries?origin=internal&inTrash=false
    */

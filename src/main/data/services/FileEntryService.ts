@@ -318,6 +318,12 @@ class FileEntryServiceImpl implements FileEntryService {
           return fileEntryTable.createdAt
       }
     })()
+    // Stable ORDER BY: append `id` as a tie-breaker so rows that share the
+    // user-selected sort value (same createdAt, same name, etc.) have a
+    // deterministic relative order across pages. Without this, limit/offset
+    // pagination over ties may surface a row on page 1 and again (or not
+    // at all) on page 2 depending on SQLite's internal row order.
+    const tieBreaker = query.sortOrder === 'desc' ? desc(fileEntryTable.id) : asc(fileEntryTable.id)
     const order = query.sortOrder === 'desc' ? desc(sortColumn) : asc(sortColumn)
 
     const page = query.page ?? 1
@@ -325,7 +331,7 @@ class FileEntryServiceImpl implements FileEntryService {
     const offset = (page - 1) * pageSize
 
     const [rows, totalRow] = await Promise.all([
-      this.getDb().select().from(fileEntryTable).where(where).orderBy(order).limit(pageSize).offset(offset),
+      this.getDb().select().from(fileEntryTable).where(where).orderBy(order, tieBreaker).limit(pageSize).offset(offset),
       this.getDb().select({ value: count() }).from(fileEntryTable).where(where)
     ])
 

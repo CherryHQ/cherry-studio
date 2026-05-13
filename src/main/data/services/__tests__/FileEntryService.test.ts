@@ -447,6 +447,86 @@ describe('FileEntryService', () => {
       expect(result.total).toBe(0)
       expect(result.page).toBe(1)
     })
+
+    /**
+     * Tie-breaker coverage: without a secondary `ORDER BY id`, SQLite's row
+     * order for equal sort values is unspecified, so `limit/offset`
+     * pagination over ties can surface the same row twice across pages or
+     * drop a row entirely. These tests pin the deterministic-across-pages
+     * contract — page1 ∪ page2 must equal the full row set, no duplicates,
+     * no misses — for both sort directions.
+     */
+    describe('stable pagination over tied sort values', () => {
+      async function seedSameCreatedAt(): Promise<string[]> {
+        const sharedTs = 1700000000000
+        const ids = [
+          '019606a0-0000-7000-8000-0000000000e0',
+          '019606a0-0000-7000-8000-0000000000e1',
+          '019606a0-0000-7000-8000-0000000000e2',
+          '019606a0-0000-7000-8000-0000000000e3'
+        ]
+        await dbh.db.insert(fileEntryTable).values(
+          ids.map((id, i) => ({
+            id,
+            origin: 'internal' as const,
+            name: `tie${i}`,
+            ext: 'txt',
+            size: 1,
+            externalPath: null,
+            trashedAt: null,
+            createdAt: sharedTs,
+            updatedAt: sharedTs
+          }))
+        )
+        return ids
+      }
+
+      it('asc: pages over rows with identical createdAt have no overlap and miss nothing', async () => {
+        const ids = await seedSameCreatedAt()
+        const page1 = await fileEntryService.listPaged({ page: 1, limit: 2 })
+        const page2 = await fileEntryService.listPaged({ page: 2, limit: 2 })
+
+        const seen = [...page1.items, ...page2.items].map((e) => e.id)
+        expect(seen).toHaveLength(4)
+        expect(new Set(seen).size).toBe(4)
+        expect(seen.sort()).toEqual([...ids].sort())
+        // With sortOrder default (asc), the id tie-breaker is asc → ascending id order.
+        expect(seen).toEqual(ids)
+      })
+
+      it('desc: pages over rows with identical name have no overlap and miss nothing', async () => {
+        const sharedTs = 1700000000000
+        const ids = [
+          '019606a0-0000-7000-8000-0000000000f0',
+          '019606a0-0000-7000-8000-0000000000f1',
+          '019606a0-0000-7000-8000-0000000000f2',
+          '019606a0-0000-7000-8000-0000000000f3'
+        ]
+        await dbh.db.insert(fileEntryTable).values(
+          ids.map((id) => ({
+            id,
+            origin: 'internal' as const,
+            name: 'duplicate',
+            ext: 'txt',
+            size: 1,
+            externalPath: null,
+            trashedAt: null,
+            createdAt: sharedTs,
+            updatedAt: sharedTs
+          }))
+        )
+
+        const page1 = await fileEntryService.listPaged({ sortBy: 'name', sortOrder: 'desc', page: 1, limit: 2 })
+        const page2 = await fileEntryService.listPaged({ sortBy: 'name', sortOrder: 'desc', page: 2, limit: 2 })
+
+        const seen = [...page1.items, ...page2.items].map((e) => e.id)
+        expect(seen).toHaveLength(4)
+        expect(new Set(seen).size).toBe(4)
+        expect(seen.sort()).toEqual([...ids].sort())
+        // With sortOrder=desc, the id tie-breaker is desc → reversed id order.
+        expect(seen).toEqual([...ids].reverse())
+      })
+    })
   })
 
   describe('create', () => {
