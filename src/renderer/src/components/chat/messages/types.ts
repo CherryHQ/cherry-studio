@@ -18,11 +18,13 @@ export interface MessageListState {
 
 export interface MessageListActions {
   loadOlder?: () => void
+  setActiveBranch?: (messageId: string) => void | Promise<void>
+  deleteMessageGroup?: (askId: string) => void | Promise<void>
+  regenerateMessage?: (messageId: string) => void | Promise<void>
 }
 
 export interface MessageListMeta {
   selectionLayer: boolean
-  groupMenuBar?: boolean
   assistantProfile?: {
     name?: string
     avatar?: string

@@ -45,7 +45,6 @@ export function useAgentMessageListProviderValue({
       },
       meta: {
         selectionLayer: false,
-        groupMenuBar: false,
         assistantProfile
       }
     }),

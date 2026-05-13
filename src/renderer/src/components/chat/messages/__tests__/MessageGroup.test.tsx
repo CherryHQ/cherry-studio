@@ -182,6 +182,18 @@ vi.mock('../list/MessageGroupMenuBar', () => ({
   default: mocks.MessageGroupMenuBar
 }))
 
+vi.mock('../MessageListProvider', () => ({
+  useMessageList: () => ({
+    state: {},
+    actions: {
+      setActiveBranch: vi.fn(),
+      deleteMessageGroup: vi.fn(),
+      regenerateMessage: vi.fn()
+    },
+    meta: {}
+  })
+}))
+
 vi.mock('../frame/MessageHeader', () => ({
   default: mocks.MessageHeader
 }))

@@ -8,7 +8,6 @@ import {
 } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -19,6 +18,7 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '../blocks'
+import { useMessageList } from '../MessageListProvider'
 import MessageGroupModelList from './MessageGroupModelList'
 import MessageGroupSettings from './MessageGroupSettings'
 
@@ -39,12 +39,11 @@ const MessageGroupMenuBar: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const partsMap = usePartsMap()
-
-  const v2Chat = useV2Chat()
+  const { actions } = useMessageList()
 
   const handleDeleteGroup = async () => {
     const askId = messages[0]?.askId
-    if (!askId) return
+    if (!askId || !actions.deleteMessageGroup) return
 
     window.modal.confirm({
       title: t('message.group.delete.title'),
@@ -54,7 +53,7 @@ const MessageGroupMenuBar: FC<Props> = ({
         danger: true
       },
       okText: t('common.delete'),
-      onOk: () => v2Chat?.deleteMessageGroup(askId)
+      onOk: () => actions.deleteMessageGroup?.(askId)
     })
   }
 
@@ -78,14 +77,15 @@ const MessageGroupMenuBar: FC<Props> = ({
     )
   }
 
-  const hasFailedMessages = messages.some((m) => isFailedMessage(m) && !isTransmittingMessage(m))
+  const hasFailedMessages =
+    !!actions.regenerateMessage && messages.some((m) => isFailedMessage(m) && !isTransmittingMessage(m))
 
   const handleRetryAll = async () => {
     const candidates = messages.filter((m) => isFailedMessage(m) && !isTransmittingMessage(m))
 
     for (const msg of candidates) {
       try {
-        await v2Chat?.regenerate(msg.id)
+        await actions.regenerateMessage?.(msg.id)
       } catch (e) {
         // swallow per-item errors to continue others
       }
@@ -142,9 +142,11 @@ const MessageGroupMenuBar: FC<Props> = ({
           </Button>
         </Tooltip>
       )}
-      <Button variant="ghost" size="sm" onClick={handleDeleteGroup}>
-        <DeleteOutlined style={{ color: 'var(--color-error)' }} />
-      </Button>
+      {actions.deleteMessageGroup && (
+        <Button variant="ghost" size="sm" onClick={handleDeleteGroup}>
+          <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+        </Button>
+      )}
     </GroupMenuBar>
   )
 }

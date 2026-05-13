@@ -127,7 +127,6 @@ const MessageList = () => {
                   key={key}
                   messages={groupMessages}
                   topic={topic}
-                  showGroupMenuBar={meta.groupMenuBar ?? true}
                   registerMessageElement={registerMessageElement}
                 />
               )}

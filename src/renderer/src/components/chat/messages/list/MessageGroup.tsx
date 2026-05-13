@@ -6,7 +6,6 @@ import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { updateMessageUiState } from '@renderer/hooks/useMessage'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -18,13 +17,13 @@ import type { ComponentProps, WheelEvent as ReactWheelEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 
 import MessageItem from '../frame/MessageFrame'
+import { useMessageList } from '../MessageListProvider'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
 const logger = loggerService.withContext('MessageGroup')
 interface Props {
   messages: Message[]
   topic: Topic
-  showGroupMenuBar?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
 }
 
@@ -38,18 +37,19 @@ const getMessageUiFromCache = (messageId: string) =>
     useful?: boolean
   }
 
-const MessageGroup = ({ messages, topic, showGroupMenuBar = true, registerMessageElement }: Props) => {
+const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const messageLength = messages.length
 
   // Hooks
+  const { actions } = useMessageList()
   const [multiModelMessageStyleSetting] = usePreference('chat.message.multi_model.style')
   const [gridColumns] = usePreference('chat.message.multi_model.grid_columns')
   const [gridPopoverTrigger] = usePreference('chat.message.multi_model.grid_popover_trigger')
   const { isMultiSelectMode } = useChatContext(topic)
   const { setTimeoutTimer } = useTimer()
-  const v2Chat = useV2Chat()
 
   const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
+  const hasGroupActions = !!(actions.setActiveBranch || actions.deleteMessageGroup || actions.regenerateMessage)
 
   // States — initialize from Cache, then tracked in React state
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
@@ -104,7 +104,7 @@ const MessageGroup = ({ messages, topic, showGroupMenuBar = true, registerMessag
       setSelectedMessageIdState(message.id)
 
       if (message.role === 'assistant' && message.id !== selectedMessageId) {
-        void v2Chat?.setActiveBranch(message.id)
+        void actions.setActiveBranch?.(message.id)
       }
 
       setTimeoutTimer(
@@ -118,7 +118,7 @@ const MessageGroup = ({ messages, topic, showGroupMenuBar = true, registerMessag
         200
       )
     },
-    [selectedMessageId, setTimeoutTimer, v2Chat]
+    [actions, selectedMessageId, setTimeoutTimer]
   )
   // 添加对流程图节点点击事件的监听
   useEffect(() => {
@@ -340,7 +340,7 @@ const MessageGroup = ({ messages, topic, showGroupMenuBar = true, registerMessag
           onWheelCapture={multiModelMessageStyle === 'horizontal' ? handleHorizontalGroupWheel : undefined}>
           {messages.map(renderMessage)}
         </GridContainer>
-        {isGrouped && showGroupMenuBar && (
+        {isGrouped && hasGroupActions && (
           <MessageGroupMenuBar
             multiModelMessageStyle={multiModelMessageStyle}
             setMultiModelMessageStyle={(style) => {

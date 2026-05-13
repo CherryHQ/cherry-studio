@@ -160,14 +160,16 @@ export function useHomeMessageListProviderValue({
         listKey: assistant?.id ?? topic.assistantId
       },
       actions: {
-        loadOlder
+        loadOlder,
+        setActiveBranch: (messageId: string) => v2Chat?.setActiveBranch(messageId),
+        deleteMessageGroup: (askId: string) => v2Chat?.deleteMessageGroup(askId),
+        regenerateMessage: (messageId: string) => v2Chat?.regenerate(messageId)
       },
       meta: {
         selectionLayer: true,
-        groupMenuBar: true,
         imageExportFileName: topic.name
       }
     }),
-    [assistant?.id, beforeList, hasOlder, loadOlder, messageNavigation, messages, topic]
+    [assistant?.id, beforeList, hasOlder, loadOlder, messageNavigation, messages, topic, v2Chat]
   )
 }
