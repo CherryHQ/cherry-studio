@@ -12,14 +12,14 @@ import {
   type Model,
   parseUniqueModelId
 } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { isEmpty } from 'lodash'
 
 const logger = loggerService.withContext('ProviderModelSync')
 
 type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/models:resolve`>
-type ProviderRotatedKeyPath = Extract<ConcreteApiPaths, `/providers/${string}/rotated-key`>
-type ProviderRotatedKeyResponse = { apiKey: string }
+type ProviderApiKeysPath = Extract<ConcreteApiPaths, `/providers/${string}/api-keys`>
+type ProviderApiKeysResponse = { keys: ApiKeyEntry[] }
 
 const LEGACY_ENDPOINT_TO_RUNTIME: Record<string, RuntimeEndpointType> = {
   openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -154,15 +154,21 @@ export async function fetchResolvedProviderModels(providerId: string, provider: 
   try {
     let apiKey = ''
     try {
-      const rotatedKeyPath: ProviderRotatedKeyPath = `/providers/${providerId}/rotated-key`
-      const keyData = (await dataApiService.get(rotatedKeyPath)) as ProviderRotatedKeyResponse
-      apiKey = keyData.apiKey
-      logger.info('Fetched rotated provider API key for model sync', {
+      // Model sync is a manual one-shot admin action — load-balancing rotation
+      // adds no value here, and the runtime `Provider` strips raw `key` strings
+      // (see `RuntimeApiKeySchema`). Read full ApiKeyEntry[] via the api-keys
+      // endpoint and take the first enabled one.
+      const apiKeysPath: ProviderApiKeysPath = `/providers/${providerId}/api-keys`
+      const keysResp = (await dataApiService.get(apiKeysPath, {
+        query: { enabled: true }
+      })) as ProviderApiKeysResponse
+      apiKey = keysResp.keys[0]?.key ?? ''
+      logger.info('Fetched first enabled provider API key for model sync', {
         providerId,
         hasApiKey: apiKey.length > 0
       })
     } catch (error) {
-      logger.error('Failed to fetch rotated provider API key for model sync', {
+      logger.error('Failed to fetch provider API key for model sync', {
         providerId,
         error
       })

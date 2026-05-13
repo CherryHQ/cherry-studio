@@ -51,13 +51,6 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
     }
   },
 
-  '/providers/:providerId/rotated-key': {
-    GET: async ({ params }) => {
-      const apiKey = await providerService.getRotatedApiKey(params.providerId)
-      return { apiKey }
-    }
-  },
-
   '/providers/:providerId/api-keys': {
     GET: async ({ params, query }) => {
       const parsed = ListProviderApiKeysQuerySchema.parse(query ?? {})

@@ -6,7 +6,6 @@ const {
   getByProviderIdMock,
   updateMock,
   deleteMock,
-  getRotatedApiKeyMock,
   getApiKeysMock,
   addApiKeyMock,
   replaceApiKeysMock,
@@ -22,7 +21,6 @@ const {
   getByProviderIdMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
-  getRotatedApiKeyMock: vi.fn(),
   getApiKeysMock: vi.fn(),
   addApiKeyMock: vi.fn(),
   replaceApiKeysMock: vi.fn(),
@@ -41,7 +39,6 @@ vi.mock('@data/services/ProviderService', () => ({
     getByProviderId: getByProviderIdMock,
     update: updateMock,
     delete: deleteMock,
-    getRotatedApiKey: getRotatedApiKeyMock,
     getApiKeys: getApiKeysMock,
     addApiKey: addApiKeyMock,
     replaceApiKeys: replaceApiKeysMock,
@@ -143,19 +140,6 @@ describe('providerHandlers', () => {
 
       expect(deleteMock).toHaveBeenCalledWith('openai')
       expect(result).toBeUndefined()
-    })
-  })
-
-  describe('/providers/:providerId/rotated-key', () => {
-    it('returns the rotated API key from the service', async () => {
-      getRotatedApiKeyMock.mockResolvedValueOnce('sk-live')
-
-      const result = await providerHandlers['/providers/:providerId/rotated-key'].GET({
-        params: { providerId: 'openai' }
-      } as never)
-
-      expect(getRotatedApiKeyMock).toHaveBeenCalledWith('openai')
-      expect(result).toEqual({ apiKey: 'sk-live' })
     })
   })
 
