@@ -430,6 +430,14 @@ export class CherryINOAuthService extends BaseService implements Activatable {
   }
 
   /**
+   * Reset CherryIN provider authConfig back to api-key mode so hasToken() returns
+   * false and the UI stops treating the session as live after refresh fails.
+   */
+  private clearOAuthSession = async (): Promise<void> => {
+    await providerService.update(CHERRYIN_PROVIDER_ID, { authConfig: { type: 'api-key' } })
+  }
+
+  /**
    * Internal method to save OAuth tokens to the v2 provider auth config.
    */
   private saveTokenInternal = async (accessToken: string, refreshToken?: string): Promise<void> => {
@@ -659,9 +667,14 @@ export class CherryINOAuthService extends BaseService implements Activatable {
       const refreshResult = await this.refreshAccessToken(apiHost)
       if (refreshResult.accessToken) {
         response = await makeRequest(refreshResult.accessToken)
-      } else if (refreshResult.attempted) {
+      } else {
+        // No usable access token after refresh — clear the OAuth session so the
+        // UI stops reporting "logged in" and surface a typed error for the caller.
+        await this.clearOAuthSession()
         throw new CherryINOAuthServiceError(
-          'OAuth session expired: failed to refresh access token',
+          refreshResult.attempted
+            ? 'OAuth session expired: failed to refresh access token'
+            : 'OAuth session expired: no refresh token available',
           undefined,
           'OAuthSessionExpired'
         )
