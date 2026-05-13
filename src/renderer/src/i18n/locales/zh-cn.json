@@ -5158,7 +5158,9 @@
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",
         "remove_whole_group": "移除整个分组",
-        "select_all": "全选"
+        "select_all": "全选",
+        "select_all_group": "全选分组 {{groupName}} 中的模型",
+        "select_model": "选择模型 {{modelName}}"
       },
       "provider_id": "服务商 ID",
       "provider_key_add_confirm": "是否要为 {{provider}} 添加 API 密钥？",

@@ -7,8 +7,7 @@ import FileItem from '@renderer/pages/files/FileItem'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import type { Model, Provider } from '@renderer/types'
 import { isNewApiProvider } from '@renderer/utils/provider'
-import { Button, Checkbox, Flex, Tooltip } from 'antd'
-import { Avatar } from 'antd'
+import { Avatar, Button, Checkbox, Flex, Tooltip } from 'antd'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,9 +49,28 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
   const [collapsedGroups, setCollapsedGroups] = useState(new Set<string>())
   const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set())
 
+  // 使用稳定的键来检测 modelGroups 内容变化，避免引用变化导致意外清空选中状态
+  const modelGroupsKey = useMemo(() => Object.keys(modelGroups).sort().join(','), [modelGroups])
+
   useEffect(() => {
     setSelectedModels(new Set())
-  }, [modelGroups])
+  }, [modelGroupsKey])
+
+  // 当 provider.models 变化时，清理已不在未添加列表中的选中项
+  useEffect(() => {
+    setSelectedModels((prev) => {
+      const newSelected = new Set(prev)
+      let changed = false
+      for (const modelId of prev) {
+        // 如果模型已经被添加到 provider，从选中状态中移除
+        if (isModelInProvider(provider, modelId)) {
+          newSelected.delete(modelId)
+          changed = true
+        }
+      }
+      return changed ? newSelected : prev
+    })
+  }, [provider])
 
   const handleGroupToggle = useCallback((groupName: string) => {
     setCollapsedGroups((prev) => {
@@ -79,20 +97,24 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
   }, [])
 
   const addModelsWithValidation = useCallback(
-    (modelsToAdd: Model[]) => {
-      if (modelsToAdd.length === 0) return
+    async (modelsToAdd: Model[]): Promise<boolean> => {
+      if (modelsToAdd.length === 0) return false
       if (isNewApiProvider(provider)) {
         if (modelsToAdd.every(isValidNewApiModel)) {
           modelsToAdd.forEach(onAddModel)
+          return true
         } else {
-          void NewApiBatchAddModelPopup.show({
+          const result = await NewApiBatchAddModelPopup.show({
             title: t('settings.models.add.batch_add_models'),
             batchModels: modelsToAdd,
             provider
           })
+          // 用户确认添加时 resolve { success: true }，取消时 resolve null
+          return result !== null && result?.success === true
         }
       } else {
         modelsToAdd.forEach(onAddModel)
+        return true
       }
     },
     [provider, onAddModel, t]
@@ -200,11 +222,17 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
                   <Checkbox
                     checked={isGroupAllSelected}
                     indeterminate={isGroupIndeterminate}
+                    aria-label={t('settings.models.manage.select_all_group', { groupName: row.groupName })}
                     onChange={(e) => {
                       e.stopPropagation()
                       setSelectedModels((prev) => {
                         const newSelected = new Set(prev)
-                        if (isGroupAllSelected) {
+                        // 基于 prev 重新计算当前组的选择状态
+                        const currentGroupSelectedCount = modelsNotInProvider.filter((m) => prev.has(m.id)).length
+                        const isCurrentlyAllSelected =
+                          modelsNotInProvider.length > 0 && currentGroupSelectedCount === modelsNotInProvider.length
+
+                        if (isCurrentlyAllSelected) {
                           modelsNotInProvider.forEach((m) => newSelected.delete(m.id))
                         } else {
                           modelsNotInProvider.forEach((m) => newSelected.add(m.id))
@@ -230,15 +258,18 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
                       <Button
                         type="primary"
                         size="small"
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation()
                           const modelsToAdd = modelsNotInProvider.filter((m) => selectedModels.has(m.id))
-                          addModelsWithValidation(modelsToAdd)
-                          setSelectedModels((prev) => {
-                            const newSelected = new Set(prev)
-                            modelsToAdd.forEach((m) => newSelected.delete(m.id))
-                            return newSelected
-                          })
+                          const success = await addModelsWithValidation(modelsToAdd)
+                          // 只有在模型实际被添加后才清除选择状态
+                          if (success) {
+                            setSelectedModels((prev) => {
+                              const newSelected = new Set(prev)
+                              modelsToAdd.forEach((m) => newSelected.delete(m.id))
+                              return newSelected
+                            })
+                          }
                         }}>
                         +{groupSelectedCount}
                       </Button>
@@ -262,6 +293,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
             isSelected={selectedModels.has(row.model.id)}
             onSelectChange={handleSelectModel}
             isAlreadyAdded={isModelInProvider(provider, row.model.id)}
+            selectAriaLabel={t('settings.models.manage.select_model', { modelName: row.model.name })}
           />
         )
       }}
@@ -280,6 +312,7 @@ interface ModelListItemProps {
   isSelected?: boolean
   onSelectChange?: (modelId: string, checked: boolean) => void
   isAlreadyAdded?: boolean
+  selectAriaLabel?: string
 }
 
 const ModelListItem: React.FC<ModelListItemProps> = memo(
@@ -292,7 +325,8 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
     last,
     isSelected,
     onSelectChange,
-    isAlreadyAdded
+    isAlreadyAdded,
+    selectAriaLabel
   }) => {
     const isAdded = isAlreadyAdded ?? isModelInProvider(provider, model.id)
     return (
@@ -310,6 +344,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
                 {!isAdded && onSelectChange && (
                   <Checkbox
                     checked={isSelected}
+                    aria-label={selectAriaLabel}
                     onChange={(e) => {
                       e.stopPropagation()
                       onSelectChange(model.id, e.target.checked)

@@ -5158,7 +5158,9 @@
         "remove_listed": "Remove models from the list",
         "remove_model": "Remove model",
         "remove_whole_group": "Remove the whole group",
-        "select_all": "Select all"
+        "select_all": "Select all",
+        "select_all_group": "Select all models in group {{groupName}}",
+        "select_model": "Select model {{modelName}}"
       },
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",

@@ -40,7 +40,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   }
 
   const onClose = () => {
-    resolve({})
+    resolve(null)
   }
 
   const onAddModel = (values: FieldType) => {
@@ -56,7 +56,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
 
   const onFinish: FormProps<FieldType>['onFinish'] = (values) => {
     if (onAddModel(values)) {
-      resolve({})
+      resolve({ success: true })
     }
   }
 
