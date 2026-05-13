@@ -21,6 +21,10 @@ import { useTranslation } from 'react-i18next'
 import { useMessageList } from '../MessageListProvider'
 import MessageTokens from './MessageTokens'
 
+const MESSAGE_AVATAR_SIZE = 30
+const MESSAGE_EMOJI_AVATAR_FONT_SIZE = 17
+const MESSAGE_AVATAR_CLASS = 'h-[30px] w-[30px] rounded-full'
+
 interface Props {
   message: Message
   assistant?: Assistant
@@ -84,39 +88,43 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
       {isAssistantMessage ? (
         assistantProfile?.avatar ? (
           isEmoji(assistantProfile.avatar) ? (
-            <EmojiAvatar size={35} fontSize={20}>
+            <EmojiAvatar className="rounded-full" size={MESSAGE_AVATAR_SIZE} fontSize={MESSAGE_EMOJI_AVATAR_FONT_SIZE}>
               {assistantProfile.avatar}
             </EmojiAvatar>
           ) : (
-            <Avatar className="h-8.75 w-8.75 rounded-[25%]">
+            <Avatar className={MESSAGE_AVATAR_CLASS}>
               <AvatarImage src={assistantProfile.avatar} />
-              <AvatarFallback className="rounded-[25%]">{avatarName}</AvatarFallback>
+              <AvatarFallback className="rounded-full">{avatarName}</AvatarFallback>
             </Avatar>
           )
         ) : ModelIcon ? (
           <div onClick={showMiniApp} className="cursor-pointer">
-            <ModelIcon.Avatar size={35} className="rounded-[25%]" />
+            <ModelIcon.Avatar size={MESSAGE_AVATAR_SIZE} shape="circle" className="rounded-full" />
           </div>
         ) : (
           <Avatar
-            className="h-8.75 w-8.75 cursor-pointer rounded-[25%]"
+            className={`${MESSAGE_AVATAR_CLASS} cursor-pointer`}
             style={{
               cursor: showMiniAppIcon ? 'pointer' : 'default',
               border: 'none',
               filter: theme === 'dark' ? 'invert(0.05)' : undefined
             }}
             onClick={showMiniApp}>
-            <AvatarFallback className="rounded-[25%]">{avatarName}</AvatarFallback>
+            <AvatarFallback className="rounded-full">{avatarName}</AvatarFallback>
           </Avatar>
         )
       ) : (
         <>
           {isEmoji(avatar) ? (
-            <EmojiAvatar onClick={() => UserPopup.show()} size={35} fontSize={20}>
+            <EmojiAvatar
+              className="rounded-full"
+              onClick={() => UserPopup.show()}
+              size={MESSAGE_AVATAR_SIZE}
+              fontSize={MESSAGE_EMOJI_AVATAR_FONT_SIZE}>
               {avatar}
             </EmojiAvatar>
           ) : (
-            <Avatar className="h-8.75 w-8.75 cursor-pointer rounded-[25%]" onClick={() => UserPopup.show()}>
+            <Avatar className={`${MESSAGE_AVATAR_CLASS} cursor-pointer`} onClick={() => UserPopup.show()}>
               <AvatarImage src={avatar} />
             </Avatar>
           )}
