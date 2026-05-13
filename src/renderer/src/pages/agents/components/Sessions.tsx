@@ -19,9 +19,10 @@ import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
 import { useSessions } from '@renderer/hooks/agents/useSessionDataApi'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { Bot, Check, ChevronsUpDown, Clock3, Folder, ListFilter, Plus, Sparkles } from 'lucide-react'
+import { Bot, Check, ChevronDown, ChevronsUpDown, Clock3, Folder, ListFilter, Plus, Sparkles } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -351,8 +352,11 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
   )
 
   const getGroupHeaderIcon = useCallback(
-    (group: { id: string }) => {
-      if (group.id === SESSION_PINNED_GROUP_ID) return null
+    (group: { id: string }, { collapsed }: { collapsed: boolean }) => {
+      if (group.id === SESSION_PINNED_GROUP_ID || displayMode === 'time') {
+        return <ChevronDown size={14} className={cn('transition-transform', collapsed && '-rotate-90')} />
+      }
+
       if (displayMode === 'agent') {
         if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return <Sparkles size={13} />
 

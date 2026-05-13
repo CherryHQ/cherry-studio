@@ -101,7 +101,6 @@ const SessionItem = ({
       <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
         <ResourceList.ItemLeadingAction
           aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-          data-active={pinned || undefined}
           className={cn(pinned && 'text-muted-foreground/55 hover:text-muted-foreground/75')}
           onClick={(event) => {
             event.stopPropagation()
