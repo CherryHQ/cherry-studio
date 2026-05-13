@@ -48,12 +48,6 @@ vi.mock('@renderer/utils/markdown', () => ({
   isOpenFenceBlock: mocks.isOpenFenceBlock
 }))
 
-vi.mock('@renderer/store', () => ({
-  default: {
-    getState: vi.fn(() => ({})) // Mock store, state doesn't matter here
-  }
-}))
-
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => mocks.usePreference()
 }))

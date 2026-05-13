@@ -19,13 +19,7 @@ vi.mock('@renderer/services/AssistantService', () => ({
 }))
 
 // Mock dependencies
-const mockUseAppSelector = vi.fn()
 const mockUseTranslation = vi.fn()
-
-vi.mock('@renderer/store', () => ({
-  useAppSelector: (selector: any) => mockUseAppSelector(selector),
-  useAppDispatch: () => vi.fn()
-}))
 
 // Parts map drives approval state post-migration. Default: no pending approvals.
 const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null => null))
@@ -124,7 +118,6 @@ describe('AgentToolRenderer', () => {
   }
 
   beforeEach(() => {
-    mockUseAppSelector.mockReturnValue(null) // No pending permission
     mockPartsMap.mockReturnValue(null) // no parts context: no pending approval
     mockUseTranslation.mockReturnValue({
       t: (key: string, options?: string | { count?: number }) => {

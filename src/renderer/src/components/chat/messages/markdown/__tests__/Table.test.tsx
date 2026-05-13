@@ -6,9 +6,6 @@ import Table, { extractTableMarkdown } from '../Table'
 
 const mocks = vi.hoisted(() => {
   return {
-    store: {
-      getState: vi.fn()
-    },
     messageBlocksSelectors: {
       selectById: vi.fn()
     },
@@ -32,11 +29,6 @@ const mocks = vi.hoisted(() => {
 })
 
 // Mock dependencies
-vi.mock('@renderer/store', () => ({
-  __esModule: true,
-  default: mocks.store
-}))
-
 vi.mock('@renderer/components/Icons', () => ({
   CopyIcon: ({ size }: { size: number }) => <div data-testid="copy-icon" style={{ width: size, height: size }} />
 }))
