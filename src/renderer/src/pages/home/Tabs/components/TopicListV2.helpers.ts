@@ -44,11 +44,6 @@ export type TopicDisplaySortOptions = {
   now?: Parameters<typeof getResourceTimeBucket>[1]
 }
 
-export type TopicOrderMove = {
-  id: string
-  anchor: OrderRequest
-}
-
 export type TopicListItem = Topic & {
   name: string
   orderKey?: string
@@ -68,21 +63,6 @@ export const TOPIC_UNKNOWN_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 
 const TOPIC_ASSISTANT_GROUP_ID_PREFIX = 'topic:assistant:'
 const TOPIC_UNKNOWN_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER
-
-export function buildTopicOrderMoves(currentIds: readonly string[], reorderedIds: readonly string[]): TopicOrderMove[] {
-  const moves: TopicOrderMove[] = []
-
-  for (let index = 0; index < reorderedIds.length; index++) {
-    if (currentIds[index] === reorderedIds[index]) continue
-
-    moves.push({
-      id: reorderedIds[index],
-      anchor: index === 0 ? { position: 'first' } : { after: reorderedIds[index - 1] }
-    })
-  }
-
-  return moves
-}
 
 export function moveTopicAfterDrop<T extends { id: string }>(
   topics: readonly T[],

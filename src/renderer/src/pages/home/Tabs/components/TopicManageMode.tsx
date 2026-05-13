@@ -66,7 +66,6 @@ interface TopicManagePanelProps {
   topics: Topic[]
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
-  updateTopics: (topics: Topic[]) => void
   manageState: TopicManageModeState
   filteredTopics: Topic[]
 }
@@ -78,7 +77,6 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
   topics,
   activeTopic,
   setActiveTopic,
-  updateTopics,
   manageState,
   filteredTopics
 }) => {
@@ -142,7 +140,6 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
     )
 
     const actualRemainingTopics = topics.filter((topic) => !successfulIds.has(topic.id))
-    updateTopics(actualRemainingTopics)
 
     // Switch to first remaining topic if current topic was deleted
     if (successfulIds.has(activeTopic.id) && actualRemainingTopics.length > 0) {
@@ -162,7 +159,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
       window.toast.error(t('chat.topics.manage.delete.error'))
     }
     exitManageMode()
-  }, [selectedIds, topics, activeTopic.id, setActiveTopic, t, exitManageMode, updateTopics])
+  }, [selectedIds, topics, activeTopic.id, setActiveTopic, t, exitManageMode, deleteTopic])
 
   // Enter search mode
   const enterSearchMode = useCallback(() => {

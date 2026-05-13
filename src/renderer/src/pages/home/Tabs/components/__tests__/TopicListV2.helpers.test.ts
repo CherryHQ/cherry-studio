@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildTopicDropAnchor,
-  buildTopicOrderMoves,
   createTopicDisplayGroupResolver,
   filterTopicsForManageMode,
   getTopicTimeBucket,
@@ -102,18 +101,6 @@ describe('TopicListV2 helpers', () => {
       targetGroupId: 'topic:assistant:assistant-2'
     }
     expect(normalizeTopicDropPayload(crossGroupPayload)).toBe(crossGroupPayload)
-  })
-
-  it('builds minimal order moves using fractional anchors', () => {
-    expect(buildTopicOrderMoves(['a', 'b', 'c'], ['b', 'a', 'c'])).toEqual([
-      { id: 'b', anchor: { position: 'first' } },
-      { id: 'a', anchor: { after: 'b' } }
-    ])
-
-    expect(buildTopicOrderMoves(['a', 'b', 'c'], ['a', 'c', 'b'])).toEqual([
-      { id: 'c', anchor: { after: 'a' } },
-      { id: 'b', anchor: { after: 'c' } }
-    ])
   })
 
   it('projects ResourceList drag payload into the dropped topic order', () => {

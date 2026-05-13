@@ -733,7 +733,6 @@ export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position 
         topics={topics}
         activeTopic={activeTopic}
         setActiveTopic={setActiveTopic}
-        updateTopics={updateTopics}
         manageState={manageState}
         filteredTopics={filteredTopics}
       />

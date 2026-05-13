@@ -197,6 +197,8 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.group.show_more') return 'Show more topics'
       if (key === 'chat.topics.group.collapse') return 'Collapse topics'
       if (key === 'chat.topics.search.placeholder') return 'Search topics'
+      if (key === 'chat.topics.search.title') return 'Search topics'
+      if (key === 'chat.topics.manage.title') return 'Manage topics'
       if (key === 'chat.topics.pin') return 'Pin Topic'
       if (key === 'chat.topics.unpin') return 'Unpin Topic'
       if (key === 'chat.topics.auto_rename') return 'Generate topic name'
@@ -810,6 +812,41 @@ describe('TopicListV2', () => {
     expect(patchSpy).not.toHaveBeenCalled()
   })
 
+  it('deletes from a filtered manage view without persisting topic order', async () => {
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    const confirm = vi.fn().mockResolvedValue(true)
+    const toast = {
+      error: vi.fn(),
+      success: vi.fn(),
+      warning: vi.fn()
+    }
+    Object.assign(window, { modal: { confirm }, toast })
+
+    renderTopicList()
+
+    fireEvent.click(screen.getByLabelText('Manage topics'))
+    fireEvent.change(screen.getByPlaceholderText('Search topics'), { target: { value: 'gamma' } })
+
+    await vi.waitFor(() => {
+      expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+      expect(screen.getByText('Gamma topic')).toBeInTheDocument()
+    })
+
+    fireEvent.click(getTopicRow('Gamma topic'))
+
+    const deleteTooltip = screen
+      .getAllByTestId('tooltip')
+      .filter((tooltip) => tooltip.getAttribute('data-title') === 'Delete')
+      .at(-1)
+    expect(deleteTooltip).toBeInTheDocument()
+
+    fireEvent.click(within(deleteTooltip as HTMLElement).getByRole('button'))
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-c'))
+    expect(confirm).toHaveBeenCalled()
+    expect(patchSpy).not.toHaveBeenCalled()
+  })
+
   it('renders assistant groups and creates topics with the selected assistant payload', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseQuery.mockImplementation((path) => {
@@ -1096,6 +1133,30 @@ describe('TopicListV2', () => {
     )
     expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { before: 'topic-d' } })
     expect(patchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('refreshes topics after a cross-assistant move partially succeeds before ordering fails', async () => {
+    const patchSpy = vi
+      .spyOn(dataApiService, 'patch')
+      .mockResolvedValueOnce(undefined as never)
+      .mockRejectedValueOnce(new Error('order failed'))
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList()
+
+    dndMocks.onDragEnd?.({
+      active: {
+        data: sortableData('item:topic-a'),
+        id: 'item:topic-a',
+        rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+      },
+      over: { data: sortableData('item:topic-d'), id: 'item:topic-d', rect: { top: 10, height: 20 } }
+    })
+
+    await vi.waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(2))
+    expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: 'assistant-2' } })
+    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { before: 'topic-d' } })
+    await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
   })
 
   it('moves topics into the default assistant group with a null assistantId', async () => {

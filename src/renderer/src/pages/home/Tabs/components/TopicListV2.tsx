@@ -81,7 +81,6 @@ import { useTranslation } from 'react-i18next'
 import {
   applyOptimisticTopicDisplayMove,
   buildTopicDropAnchor,
-  buildTopicOrderMoves,
   createTopicDisplayGroupResolver,
   filterTopicsForManageMode,
   getAssistantIdFromTopicGroupId,
@@ -158,11 +157,7 @@ function TopicDisplayModeMenu({
           <ListFilter size={12} className="block" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        side="bottom"
-        sideOffset={4}
-        className="w-28 rounded-lg border-border/80 p-1 shadow-lg">
+      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-28 rounded-lg border-border p-1 shadow-lg">
         <MenuList className="gap-0.5">
           <div className="px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground/60">
             {t('chat.topics.display.title')}
@@ -231,7 +226,6 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
     isLoading: isAssistantsLoading,
     error: assistantsError
   } = useAssistantsApi({ enabled: isAssistantDisplayMode })
-  const visibleTopicsRef = useRef<readonly Topic[]>([])
   const listRef = useRef<HTMLDivElement>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
@@ -290,31 +284,6 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
   )
 
   const removeTopic = useCallback((topic: Topic) => deleteTopicById(topic.id), [deleteTopicById])
-
-  const applyTopicOrder = useCallback(
-    async (reordered: readonly Topic[]) => {
-      const sourceTopics = visibleTopicsRef.current.length > 0 ? visibleTopicsRef.current : topics
-      const currentIds = sourceTopics.map((topic) => topic.id)
-      const reorderedIds = reordered.map((topic) => topic.id)
-      const moves = buildTopicOrderMoves(currentIds, reorderedIds)
-
-      if (moves.length === 0) return
-
-      try {
-        if (moves.length === 1) {
-          await dataApiService.patch(`/topics/${moves[0].id}/order`, { body: moves[0].anchor })
-        } else {
-          await dataApiService.patch('/topics/order:batch', {
-            body: { moves }
-          })
-        }
-        await refreshTopics()
-      } catch (err) {
-        logger.error('Failed to reorder topics', { err })
-      }
-    },
-    [refreshTopics, topics]
-  )
 
   const handleRenameTopic = useCallback(
     (topicId: string, name: string) => {
@@ -619,6 +588,16 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
       } catch (err) {
         setOptimisticMove(null)
         logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
+        if (targetAssistantId !== currentAssistantId) {
+          try {
+            await refreshTopics()
+          } catch (refreshErr) {
+            logger.error('Failed to refresh topics after partial assistant move', {
+              refreshErr,
+              topicId: payload.activeId
+            })
+          }
+        }
       }
     },
     [assistantById, isAssistantDisplayMode, isManageMode, refreshTopics, topics]
@@ -707,7 +686,6 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
           toggleSelectTopic={toggleSelectTopic}
           topicsLength={topics.length}
           variant={isManageMode ? 'manage' : isAssistantDisplayMode ? 'draggable' : 'plain'}
-          visibleTopicsRef={visibleTopicsRef}
         />
       </TopicResourceList>
 
@@ -715,7 +693,6 @@ export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
         topics={topics}
         activeTopic={activeTopic}
         setActiveTopic={setActiveTopic}
-        updateTopics={applyTopicOrder}
         manageState={manageState}
         filteredTopics={filteredTopics}
       />
@@ -845,20 +822,15 @@ interface TopicListBodyProps {
   toggleSelectTopic: (topicId: string) => void
   topicsLength: number
   variant: TopicListBodyVariant
-  visibleTopicsRef: RefObject<readonly Topic[]>
 }
 
 function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
   const context = useResourceList<Topic>()
-  const { listRef, rowLayout, variant, visibleTopicsRef, ...rowProps } = props
+  const { listRef, rowLayout, variant, ...rowProps } = props
   const visibleItems = context.view.items
   const visibleTopicIds = useMemo(() => visibleItems.map((topic) => topic.id), [visibleItems])
   const streamStatusByTopicId = useTopicListStreamStatuses(visibleTopicIds)
-
-  useEffect(() => {
-    visibleTopicsRef.current = visibleItems
-  }, [visibleItems, visibleTopicsRef])
 
   if (context.state.status === 'loading') {
     return <ResourceList.LoadingState />
@@ -894,7 +866,7 @@ function TopicListBody(props: TopicListBodyProps) {
   return <ResourceList.VirtualItems ref={listRef} className="pb-3" renderItem={renderItem} />
 }
 
-type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'rowLayout' | 'variant' | 'visibleTopicsRef'> & {
+type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'rowLayout' | 'variant'> & {
   layout: TopicRowLayout
   mode: TopicRowMode
 }

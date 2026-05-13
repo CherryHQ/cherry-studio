@@ -41,7 +41,7 @@ const DEFAULT_GROUP_SHOW_MORE_LABEL = 'Show more'
 const DEFAULT_GROUP_COLLAPSE_LABEL = 'Collapse group'
 const SCROLLBAR_AUTO_HIDE_DELAY = 1200
 const SCROLLBAR_FADE_STEP = 140
-const CONTEXT_MENU_CONTENT_CLASS = 'w-[184px] rounded-lg border-border/80 p-1.5 shadow-lg'
+const CONTEXT_MENU_CONTENT_CLASS = 'w-[184px] rounded-lg border-border p-1.5 shadow-lg'
 const CONTEXT_MENU_ITEM_CLASS =
   'h-7 gap-2 rounded-md px-2 text-[12px] font-normal leading-4 text-foreground/80 focus:bg-sidebar-accent focus:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
 const CONTEXT_MENU_SUB_TRIGGER_CLASS =
@@ -1066,7 +1066,7 @@ function ContextMenuSubAction({ children, className, icon, ...props }: ContextMe
 }
 
 function ContextMenuSeparator({ className, ...props }: ComponentProps<typeof UiContextMenuSeparator>) {
-  return <UiContextMenuSeparator className={cn('my-1 bg-border/70', className)} {...props} />
+  return <UiContextMenuSeparator className={cn('my-1 bg-border-muted', className)} {...props} />
 }
 
 function ContextMenuSubContent({ className, ...props }: ComponentProps<typeof UiContextMenuSubContent>) {
