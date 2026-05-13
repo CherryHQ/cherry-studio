@@ -202,13 +202,20 @@ export type ProviderSchemas = {
       query: ListProviderApiKeysQuery
       response: { keys: ApiKeyEntry[] }
     }
-    /** Add an API key to a provider */
+    /**
+     * Add an API key to a provider.
+     * Intentional: returns parent Provider so callers refresh the full provider in one round-trip
+     * (api-design-guidelines.md § Handler Status Code Behavior treats POST→created entity as the default).
+     */
     POST: {
       params: { providerId: string }
       body: AddProviderApiKeyDto
       response: Provider
     }
-    /** Replace API key entries for settings edits */
+    /**
+     * Replace API key entries for settings edits.
+     * Intentional: returns parent Provider so callers refresh the full provider in one round-trip.
+     */
     PUT: {
       params: { providerId: string }
       body: ReplaceProviderApiKeysDto
@@ -249,11 +256,20 @@ export type ProviderSchemas = {
    * @example DELETE /providers/openai/api-keys/abc-123
    */
   '/providers/:providerId/api-keys/:keyId': {
+    /**
+     * Patch a specific API key entry.
+     * Intentional: returns parent Provider so callers refresh the full provider in one round-trip.
+     */
     PATCH: {
       params: { providerId: string; keyId: string }
       body: UpdateApiKeyDto
       response: Provider
     }
+    /**
+     * Delete a specific API key entry.
+     * Intentional: returns parent Provider so callers refresh the full provider in one round-trip
+     * (deviates from api-design-guidelines.md § Handler Status Code Behavior, which defaults DELETE→undefined/204).
+     */
     DELETE: {
       params: { providerId: string; keyId: string }
       response: Provider

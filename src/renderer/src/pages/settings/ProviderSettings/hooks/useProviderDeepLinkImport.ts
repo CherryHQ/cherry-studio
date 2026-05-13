@@ -36,11 +36,7 @@ interface ImportedProviderSearchData {
   name?: string
 }
 
-/**
- * Coordination effect: consume one provider deep-link import flow.
- * Reads provider mutations, the add-api-key mutation, and navigation state.
- * Does not own ProviderList UI state or assemble page/domain bags.
- */
+/** Consumes one provider deep-link import payload from the URL into create/update + add-api-key calls. */
 export function useProviderDeepLinkImport(
   searchAddProviderData: string | undefined,
   onSelectProvider: (providerId: string) => void
