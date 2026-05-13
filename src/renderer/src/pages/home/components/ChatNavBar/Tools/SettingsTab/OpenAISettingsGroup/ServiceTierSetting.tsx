@@ -1,9 +1,9 @@
-import Selector from '@renderer/components/Selector'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { isSupportFlexServiceTierModel } from '@renderer/config/models'
-import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingRow } from '@renderer/pages/settings'
-import type { Model, OpenAIServiceTier, ServiceTier } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
+import type { OpenAIServiceTier, ServiceTier } from '@shared/data/types/provider'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,21 +12,27 @@ type OpenAIServiceTierOption = { value: NonNullable<OpenAIServiceTier> | 'null' 
 
 interface Props {
   model: Model
-  providerId: string
+  serviceTierMode: ServiceTier
+  disabled?: boolean
+  onServiceTierChange: (value: ServiceTier) => void
   SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
-const ServiceTierSetting: FC<Props> = ({ model, providerId, SettingRowTitleSmall }) => {
+const ServiceTierSetting: FC<Props> = ({
+  model,
+  serviceTierMode,
+  disabled,
+  onServiceTierChange,
+  SettingRowTitleSmall
+}) => {
   const { t } = useTranslation()
-  const { provider, updateProvider } = useProvider(providerId)
-  const serviceTierMode = provider.serviceTier
   const isSupportFlexServiceTier = isSupportFlexServiceTierModel(model)
 
   const setServiceTierMode = useCallback(
     (value: ServiceTier) => {
-      updateProvider({ serviceTier: value })
+      onServiceTierChange(value)
     },
-    [updateProvider]
+    [onServiceTierChange]
   )
 
   const serviceTierOptions = useMemo(() => {
@@ -69,13 +75,23 @@ const ServiceTierSetting: FC<Props> = ({ model, providerId, SettingRowTitleSmall
       <SettingRowTitleSmall hint={t('settings.openai.service_tier.tip')}>
         {t('settings.openai.service_tier.title')}
       </SettingRowTitleSmall>
-      <Selector
+      <Select
+        disabled={disabled}
         value={toOptionValue(serviceTierMode)}
-        onChange={(value) => {
-          setServiceTierMode(toRealValue(value))
-        }}
-        options={serviceTierOptions}
-      />
+        onValueChange={(value) => {
+          setServiceTierMode(toRealValue(value as OpenAIServiceTierOption['value']))
+        }}>
+        <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="text-xs">
+          {serviceTierOptions.map((option) => (
+            <SelectItem className="text-xs" key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </SettingRow>
   )
 }

@@ -1,16 +1,12 @@
-import Selector from '@renderer/components/Selector'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { getModelSupportedVerbosity } from '@renderer/config/models'
 import { SettingRow } from '@renderer/pages/settings'
-import type { RootState } from '@renderer/store'
-import { useAppDispatch } from '@renderer/store'
-import { setOpenAIVerbosity } from '@renderer/store/settings'
 import type { Model } from '@renderer/types'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { OpenAIVerbosity } from '@shared/types/aiSdk'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 type VerbosityOption = {
   value: NonNullable<OpenAIVerbosity> | 'undefined' | 'null'
@@ -19,19 +15,20 @@ type VerbosityOption = {
 
 interface Props {
   model: Model
+  verbosity: OpenAIVerbosity
+  disabled?: boolean
+  onVerbosityChange: (value: OpenAIVerbosity) => void
   SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
-const VerbositySetting: FC<Props> = ({ model, SettingRowTitleSmall }) => {
+const VerbositySetting: FC<Props> = ({ model, verbosity, disabled, onVerbosityChange, SettingRowTitleSmall }) => {
   const { t } = useTranslation()
-  const verbosity = useSelector((state: RootState) => state.settings.openAI.verbosity)
-  const dispatch = useAppDispatch()
 
   const setVerbosity = useCallback(
     (value: OpenAIVerbosity) => {
-      dispatch(setOpenAIVerbosity(value))
+      onVerbosityChange(value)
     },
-    [dispatch]
+    [onVerbosityChange]
   )
 
   const verbosityOptions = useMemo(() => {
@@ -75,13 +72,23 @@ const VerbositySetting: FC<Props> = ({ model, SettingRowTitleSmall }) => {
       <SettingRowTitleSmall hint={t('settings.openai.verbosity.tip')}>
         {t('settings.openai.verbosity.title')}
       </SettingRowTitleSmall>
-      <Selector
+      <Select
+        disabled={disabled}
         value={toOptionValue(verbosity)}
-        onChange={(value) => {
-          setVerbosity(toRealValue(value))
-        }}
-        options={verbosityOptions}
-      />
+        onValueChange={(value) => {
+          setVerbosity(toRealValue(value as VerbosityOption['value']))
+        }}>
+        <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="text-xs">
+          {verbosityOptions.map((option) => (
+            <SelectItem className="text-xs" key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </SettingRow>
   )
 }

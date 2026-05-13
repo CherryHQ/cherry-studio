@@ -1,7 +1,9 @@
 import type { Assistant } from '@shared/data/types/assistant'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { extractAiSdkStandardParams, mergeCustomProviderParameters } from '../options'
+import { buildCapabilityProviderOptions, extractAiSdkStandardParams, mergeCustomProviderParameters } from '../options'
 
 describe('extractAiSdkStandardParams', () => {
   it('routes AI-SDK standard params to standardParams, others to providerParams', () => {
@@ -136,6 +138,47 @@ describe('customParameters → providerOptions plugin contract', () => {
   })
 })
 
-// `Assistant` is imported only so the file's type-import alignment matches the
-// other helpers' tests; nothing in this suite references the runtime shape.
-export type _UnusedAssistant = Assistant
+describe('buildCapabilityProviderOptions', () => {
+  it('passes provider summaryText settings into OpenAI reasoning options', () => {
+    const assistant = {
+      settings: {
+        reasoning_effort: 'medium'
+      }
+    } as Assistant
+    const model = {
+      id: 'openai::gpt-5',
+      providerId: 'openai',
+      name: 'gpt-5',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        supportedEfforts: ['low', 'medium', 'high']
+      }
+    } as unknown as Model
+    const provider = {
+      id: 'openai',
+      name: 'OpenAI',
+      apiFeatures: {
+        arrayContent: true,
+        streamOptions: true,
+        developerRole: false,
+        serviceTier: false,
+        verbosity: false,
+        enableThinking: true
+      },
+      apiKeys: [],
+      authType: 'api-key',
+      settings: {
+        summaryText: 'detailed'
+      },
+      isEnabled: true
+    } as Provider
+
+    const result = buildCapabilityProviderOptions(assistant, model, provider, {
+      enableReasoning: true,
+      enableWebSearch: false,
+      enableGenerateImage: false
+    })
+
+    expect(result.openai.reasoningSummary).toBe('detailed')
+  })
+})

@@ -1,14 +1,10 @@
-import Selector from '@renderer/components/Selector'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { SettingRow } from '@renderer/pages/settings'
-import type { RootState } from '@renderer/store'
-import { useAppDispatch } from '@renderer/store'
-import { setOpenAISummaryText } from '@renderer/store/settings'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { OpenAIReasoningSummary } from '@shared/types/aiSdk'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 type SummaryTextOption = {
   value: NonNullable<OpenAIReasoningSummary> | 'undefined' | 'null'
@@ -16,19 +12,20 @@ type SummaryTextOption = {
 }
 
 interface Props {
+  summaryText: OpenAIReasoningSummary
+  disabled?: boolean
+  onSummaryTextChange: (value: OpenAIReasoningSummary) => void
   SettingRowTitleSmall: FC<{ children: React.ReactNode; hint?: string }>
 }
 
-const ReasoningSummarySetting: FC<Props> = ({ SettingRowTitleSmall }) => {
+const ReasoningSummarySetting: FC<Props> = ({ summaryText, disabled, onSummaryTextChange, SettingRowTitleSmall }) => {
   const { t } = useTranslation()
-  const summaryText = useSelector((state: RootState) => state.settings.openAI.summaryText)
-  const dispatch = useAppDispatch()
 
   const setSummaryText = useCallback(
     (value: OpenAIReasoningSummary) => {
-      dispatch(setOpenAISummaryText(value))
+      onSummaryTextChange(value)
     },
-    [dispatch]
+    [onSummaryTextChange]
   )
 
   const summaryTextOptions = [
@@ -59,13 +56,23 @@ const ReasoningSummarySetting: FC<Props> = ({ SettingRowTitleSmall }) => {
       <SettingRowTitleSmall hint={t('settings.openai.summary_text_mode.tip')}>
         {t('settings.openai.summary_text_mode.title')}
       </SettingRowTitleSmall>
-      <Selector
+      <Select
+        disabled={disabled}
         value={toOptionValue(summaryText)}
-        onChange={(value) => {
-          setSummaryText(toRealValue(value))
-        }}
-        options={summaryTextOptions}
-      />
+        onValueChange={(value) => {
+          setSummaryText(toRealValue(value as SummaryTextOption['value']))
+        }}>
+        <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="text-xs">
+          {summaryTextOptions.map((option) => (
+            <SelectItem className="text-xs" key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </SettingRow>
   )
 }

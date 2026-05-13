@@ -1,9 +1,8 @@
+import { Alert } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { isOpenAIModel, isSupportedReasoningEffortOpenAIModel, isSupportVerbosityModel } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
-import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useDefaultModel } from '@renderer/hooks/useModels'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useDefaultModel, useModelById } from '@renderer/hooks/useModels'
+import { useProvider } from '@renderer/hooks/useProviders'
 import type { ChatPreferenceSectionsFeatures } from '@renderer/pages/chat-settings/ChatPreferenceSections'
 import ChatPreferenceSections from '@renderer/pages/chat-settings/ChatPreferenceSections'
 import {
@@ -12,18 +11,14 @@ import {
   SettingRowTitleSmall
 } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
 import type { Assistant } from '@renderer/types'
-import { isGroqSystemProvider, SystemProviderIds } from '@renderer/types'
-import {
-  isOpenAICompatibleProvider,
-  isSupportServiceTierProvider,
-  isSupportStreamOptionsProvider,
-  isSupportVerbosityProvider
-} from '@renderer/utils/provider'
+import type { UniqueModelId } from '@shared/data/types/model'
+import type { ProviderSettings } from '@shared/data/types/provider'
 import type { FC } from 'react'
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import GroqSettingsGroup from './GroqSettingsGroup'
-import OpenAISettingsGroup from './OpenAISettingsGroup'
+import OpenAISettingsGroup, { getOpenAISettingsVisibility } from './OpenAISettingsGroup'
 
 interface Props {
   assistant: Assistant
@@ -35,47 +30,62 @@ const assistantPreferenceFeatures: ChatPreferenceSectionsFeatures = {
   showMultiModelStyle: true,
   showInputEstimatedTokens: true
 }
+const GROQ_PROVIDER_ID = 'groq'
 
 const AssistantSettingsTab: FC<Props> = (props) => {
-  const { model: apiModel } = useAssistant(props.assistant.id)
+  const { t } = useTranslation()
+  const { model: apiModel } = useModelById(props.assistant.modelId as UniqueModelId)
   const { defaultModel: apiDefaultModel } = useDefaultModel()
-  const v1Model = useMemo(() => (apiModel ? fromSharedModel(apiModel) : undefined), [apiModel])
-  const v1DefaultModel = useMemo(
-    () => (apiDefaultModel ? fromSharedModel(apiDefaultModel) : undefined),
-    [apiDefaultModel]
+  const selectedApiModel = apiModel ?? (props.assistant.modelId ? undefined : apiDefaultModel)
+  const model = useMemo(() => (selectedApiModel ? fromSharedModel(selectedApiModel) : undefined), [selectedApiModel])
+  const { provider, updateProvider, isUpdating, updateError } = useProvider(model?.provider)
+
+  const updateProviderSettings = useCallback(
+    async (providerSettings: Partial<ProviderSettings>) => {
+      try {
+        await updateProvider({ providerSettings })
+      } catch (error) {
+        window.toast.error(error instanceof Error ? error.message : t('common.error'))
+      }
+    },
+    [t, updateProvider]
   )
-  const { provider } = useProvider(v1Model?.provider ?? '')
 
-  const model = v1Model || v1DefaultModel
-
-  const showOpenAiSettings =
-    !!provider &&
-    !!model &&
-    ((isSupportStreamOptionsProvider(provider) && (isOpenAICompatibleProvider(provider) || isOpenAIModel(model))) ||
-      (isSupportedReasoningEffortOpenAIModel(model) &&
-        !model.id.includes('o1-pro') &&
-        (provider.type === 'openai-response' ||
-          model.endpoint_type === 'openai-response' ||
-          provider.id === 'aihubmix')) ||
-      (isSupportServiceTierProvider(provider) && provider.id !== SystemProviderIds.groq) ||
-      (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)))
+  const showOpenAiSettings = !!provider && !!model && getOpenAISettingsVisibility(model, provider).hasVisibleSettings
 
   return (
     <Scrollbar className="settings-tab flex flex-1 flex-col px-3 py-2 text-xs">
+      {updateError && (
+        <Alert
+          type="error"
+          showIcon
+          message={t('common.error')}
+          description={updateError.message}
+          className="mx-1 mb-2 rounded-xs px-3 py-2 text-xs shadow-none"
+        />
+      )}
       {showOpenAiSettings && provider && model && (
         <>
           <OpenAISettingsGroup
             model={model}
-            providerId={provider.id}
+            provider={provider}
+            disabled={isUpdating}
+            onProviderSettingsChange={updateProviderSettings}
             SettingGroup={SettingGroup}
             SettingRowTitleSmall={SettingRowTitleSmall}
           />
           <SettingDivider className="my-0" />
         </>
       )}
-      {provider && isGroqSystemProvider(provider) && (
+      {provider && provider.id === GROQ_PROVIDER_ID && (
         <>
-          <GroqSettingsGroup SettingGroup={SettingGroup} SettingRowTitleSmall={SettingRowTitleSmall} />
+          <GroqSettingsGroup
+            provider={provider}
+            disabled={isUpdating}
+            onProviderSettingsChange={updateProviderSettings}
+            SettingGroup={SettingGroup}
+            SettingRowTitleSmall={SettingRowTitleSmall}
+          />
           <SettingDivider className="my-0" />
         </>
       )}
