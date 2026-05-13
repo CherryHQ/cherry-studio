@@ -26,6 +26,7 @@ import type {
   MessageRuntime,
   MessageUiState
 } from '../types'
+import { useMessageActivityState } from './useMessageActivityState'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
 
@@ -53,6 +54,7 @@ export function useHomeMessageListProviderValue({
   const v2Chat = useV2Chat()
   const siblingsContext = use(SiblingsContext)
   const { isMultiSelectMode, selectedMessageIds, handleSelectMessage, toggleMultiSelectMode } = useChatContext(topic)
+  const getMessageActivityState = useMessageActivityState(topic.id, partsMap)
 
   const messagesRef = useRef<Message[]>(messages)
   const partsMapRef = useRef(partsMap)
@@ -264,7 +266,8 @@ export function useHomeMessageListProviderValue({
           selectedMessageIds
         },
         getMessageUiState,
-        getMessageSiblings
+        getMessageSiblings,
+        getMessageActivityState
       },
       actions: {
         loadOlder,
@@ -298,6 +301,7 @@ export function useHomeMessageListProviderValue({
       bindMessageGroupRuntime,
       bindMessageRuntime,
       bindRuntime,
+      getMessageActivityState,
       getMessageSiblings,
       getMessageUiState,
       getTranslationUpdater,

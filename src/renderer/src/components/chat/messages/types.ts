@@ -36,6 +36,12 @@ export interface MessageSiblingInfo {
   activeIndex: number
 }
 
+export interface MessageActivityState {
+  isProcessing: boolean
+  isStreamTarget: boolean
+  isApprovalAnchor: boolean
+}
+
 export interface MessageListState {
   topic: Topic
   messages: Message[]
@@ -52,6 +58,7 @@ export interface MessageListState {
   selection?: MessageListSelectionState
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
+  getMessageActivityState?: (message: Message) => MessageActivityState
 }
 
 export interface MessageListActions {

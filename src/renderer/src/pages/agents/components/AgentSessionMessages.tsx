@@ -73,7 +73,8 @@ const AgentSessionMessages = ({
     isLoading,
     hasOlder,
     loadOlder,
-    messageNavigation
+    messageNavigation,
+    partsMap
   })
 
   logger.silly('Rendering agent session messages', {

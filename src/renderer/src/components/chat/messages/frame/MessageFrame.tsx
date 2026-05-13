@@ -8,13 +8,10 @@ import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames, cn, isEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
-import { isMessageAwaitingApproval } from '@renderer/utils/messageUtils/is'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import dayjs from 'dayjs'
@@ -132,12 +129,10 @@ const MessageItem: FC<Props> = ({
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
 
-  const { status: topicStreamStatus, activeExecutions } = useTopicStreamStatus(topic.id)
-  const isTopicStreaming = topicStreamStatus === 'pending' || topicStreamStatus === 'streaming'
-  const isAwaitingApproval = useTopicAwaitingApproval(topic.id)
-  const isProcessing = isTopicStreaming || isAwaitingApproval
-  const isStreamTarget = activeExecutions.some((e) => e.anchorMessageId === message.id)
-  const isApprovalAnchor = isMessageAwaitingApproval(message)
+  const activityState = state.getMessageActivityState?.(message)
+  const isProcessing = activityState?.isProcessing ?? false
+  const isStreamTarget = activityState?.isStreamTarget ?? false
+  const isApprovalAnchor = activityState?.isApprovalAnchor ?? false
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
   const showUserHeaderActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
