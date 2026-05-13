@@ -84,7 +84,7 @@
 - **`file_ref` 表**显式 polymorphic：`(fileEntryId, sourceType, sourceId, role)` + UNIQUE 约束
 - 新增两条反查端点：
   - `/files/entries/:id/refs` — 某文件被谁引用
-  - `/files/refs/by-source` — 某业务对象引用了哪些文件
+  - `/files/refs?sourceType=…&sourceId=…` — 某业务对象引用了哪些文件
 - `sourceType` / `role` 由业务模块在 `SourceTypeChecker` 注册，编译期闭合
 - DataApi 专用端点 `GET /files/entries/ref-counts?entryIds=...` 按需 SQL 聚合计数，不再持久化 `count` 字段（见 `migration-plan.md §2.3`）。注：旧设计曾用 `includeRefCount` opt-in 字段，已废弃——DataApi 边界收紧为纯 SQL + 固定 shape。
 

@@ -17,7 +17,7 @@
  * - `GET /files/entries/:id`        — Single entry lookup (fixed shape)
  * - `GET /files/entries/ref-counts` — Pure-SQL ref-count aggregation for a batch of ids
  * - `GET /files/entries/:id/refs`   — File references for a specific entry
- * - `GET /files/refs/by-source`     — File references by business source
+ * - `GET /files/refs`               — File references filtered by business source
  *
  * ## Where former opt-in derived fields live now
  *
@@ -184,14 +184,19 @@ export type FileSchemas = {
   }
 
   /**
-   * File references by business source (read-only).
+   * File references filtered by business source (read-only).
+   *
+   * Filter dimensions follow the `api-design-guidelines.md` query-param style;
+   * both `sourceType` and `sourceId` are required at the Zod layer
+   * (`z.strictObject` — neither is optional), so the URL always carries the
+   * full source key even though the path stays a plain `/files/refs`.
    *
    * Ref write operations (create / cleanup) are NOT exposed via DataApi.
    * Business services call fileRefService directly; Renderer does not manage refs.
    *
-   * @example GET /files/refs/by-source?sourceType=chat_message&sourceId=msg1
+   * @example GET /files/refs?sourceType=chat_message&sourceId=msg1
    */
-  '/files/refs/by-source': {
+  '/files/refs': {
     GET: {
       query: RefsBySourceQueryParams
       response: FileRef[]

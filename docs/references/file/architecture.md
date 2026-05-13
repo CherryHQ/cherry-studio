@@ -461,7 +461,7 @@ DataApi endpoints (read-only, SQL-only, fixed-shape):
 | `/files/entries/:id`             | GET    | Single entry lookup. Fixed shape.                                       |
 | `/files/entries/ref-counts`      | GET    | Ref-count aggregation for a batch of entry ids (pure SQL JOIN + GROUP BY). |
 | `/files/entries/:id/refs`        | GET    | All references to a file.                                               |
-| `/files/refs/by-source`          | GET    | All files referenced by a business object.                              |
+| `/files/refs`                    | GET    | All files referenced by a business object (`?sourceType=…&sourceId=…`). |
 
 > **DataApi vs File IPC decision criteria (strict boundary)**:
 > - **DataApi** = **pure SQL read queries only**. Handlers MUST NOT touch FS, MUST NOT call main-side resolvers (`resolvePhysicalPath`), MUST NOT consult in-memory caches outside the DB (no `danglingCache.check`, no `versionCache`). The response shape is **fixed per endpoint**. SQL aggregations (JOIN / GROUP BY / COUNT) are the only allowed "derivation" because they remain DB-layer.

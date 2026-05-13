@@ -54,7 +54,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
     }
   },
 
-  '/files/refs/by-source': {
+  '/files/refs': {
     GET: async ({ query }) => {
       const validated = RefsBySourceQuerySchema.parse(query)
       return fileRefService.findBySource(validated)

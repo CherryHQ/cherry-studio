@@ -206,8 +206,8 @@ describe('fileHandlers (DataApi)', () => {
     })
   })
 
-  describe('GET /files/refs/by-source', () => {
-    it('returns refs by source key', async () => {
+  describe('GET /files/refs', () => {
+    it('returns refs filtered by source key', async () => {
       const id = '019606a0-0000-7000-8000-000000000e01' as FileEntryId
       await seedEntry(id)
       const now = Date.now()
@@ -220,7 +220,7 @@ describe('fileHandlers (DataApi)', () => {
         createdAt: now,
         updatedAt: now
       })
-      const refs = (await fileHandlers['/files/refs/by-source'].GET({
+      const refs = (await fileHandlers['/files/refs'].GET({
         query: { sourceType: 'temp_session', sourceId: 'session-Z' }
       } as never)) as unknown[]
       expect(refs.length).toBe(1)
@@ -231,7 +231,7 @@ describe('fileHandlers (DataApi)', () => {
       // a stray literal here would otherwise be silently coerced through to
       // an empty SELECT and return [] instead of failing loudly.
       await expect(
-        fileHandlers['/files/refs/by-source'].GET({
+        fileHandlers['/files/refs'].GET({
           query: { sourceType: 'unknown_source', sourceId: 'x' }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
@@ -239,7 +239,7 @@ describe('fileHandlers (DataApi)', () => {
 
     it('rejects an empty sourceId with ZodError', async () => {
       await expect(
-        fileHandlers['/files/refs/by-source'].GET({
+        fileHandlers['/files/refs'].GET({
           query: { sourceType: 'temp_session', sourceId: '' }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')

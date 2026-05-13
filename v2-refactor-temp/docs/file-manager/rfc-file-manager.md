@@ -662,7 +662,8 @@ export interface FileSchemas {
     GET: { params: { id: FileEntryId }; response: FileRef[] };
   };
 
-  "/files/refs/by-source": {
+  "/files/refs": {
+    // 按业务源过滤 —— query 走 z.strictObject，sourceType / sourceId 均必填
     GET: {
       query: { sourceType: string; sourceId: string };
       response: FileRef[];
