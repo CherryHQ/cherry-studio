@@ -1,3 +1,4 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
@@ -5,13 +6,16 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
+import HistoryPageV2 from '@renderer/pages/history/HistoryPageV2'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { useLocation, useNavigate } from '@tanstack/react-router'
+import { History } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import Chat from './Chat'
@@ -38,8 +42,10 @@ function buildPendingTemporaryTopic(id: string): Topic {
 }
 
 const HomePage: FC = () => {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { isLeftNavbar } = useNavbarPosition()
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const location = useLocation()
   const state = location.state as { topic?: Topic } | undefined
@@ -137,8 +143,27 @@ const HomePage: FC = () => {
     }
   }, [showSidebar])
 
+  const historyEntry = (
+    <>
+      <div className="absolute top-14 right-4 z-20">
+        <Tooltip title={t('history.v2.testOpenAssistant', '测试历史记录')} delay={800}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-8 gap-1.5 rounded-md border border-border-muted bg-popover/95 px-2.5 text-xs shadow-sm backdrop-blur hover:bg-accent"
+            onClick={() => setHistoryOpen(true)}>
+            <History size={14} />
+            {t('history.v2.testButton', '历史')}
+          </Button>
+        </Tooltip>
+      </div>
+      <HistoryPageV2 mode="assistant" open={historyOpen} onClose={() => setHistoryOpen(false)} />
+    </>
+  )
+
   if (!activeTopic) {
-    return <Container id="home-page" />
+    return <Container id="home-page">{historyEntry}</Container>
   }
 
   const panePosition = topicPosition === 'right' ? 'right' : 'left'
@@ -162,6 +187,7 @@ const HomePage: FC = () => {
           }
         />
       </ContentContainer>
+      {historyEntry}
     </Container>
   )
 }
@@ -170,6 +196,8 @@ const Container = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
+  position: relative;
+  overflow: hidden;
   [navbar-position='left'] & {
     max-width: calc(100vw - var(--sidebar-width));
   }
