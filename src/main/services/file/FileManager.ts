@@ -131,6 +131,7 @@ import { fileRefService } from '@data/services/FileRefService'
 import { orphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { bootConfigService } from '@main/data/bootConfig'
 import { stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { FileEntryIdSchema } from '@shared/data/types/file'
@@ -655,10 +656,29 @@ export class FileManager extends BaseService implements IFileManager {
    * access racing with service shutdown).
    */
   async runStartupSweeps(): Promise<void> {
+    // FS sweep is independent of migration state — always run it.
+    const fsSweepPromise = runStartupFileSweep({ fileEntryService: this.deps.fileEntryService }).catch((err) => {
+      fileManagerLogger.error('Startup file sweep failed', err)
+    })
+
+    // Skip DB sweep once when migration marker mismatches current completedAt.
+    // This provides a grace window after first-boot post-migration and after a
+    // v2 backup restore (see file-manager-architecture §migration-skip-once).
+    const completedAt = await this.getMigrationCompletedAt()
+    const marker = bootConfigService.get('file.lastProcessedMigrationCompletedAt')
+
+    if (completedAt !== null && completedAt !== marker) {
+      bootConfigService.set('file.lastProcessedMigrationCompletedAt', completedAt)
+      fileManagerLogger.info('runStartupSweeps: skipping DB sweep once (post-migration grace window)', {
+        previousMarker: marker,
+        currentCompletedAt: completedAt
+      })
+      await fsSweepPromise
+      return
+    }
+
     await Promise.all([
-      runStartupFileSweep({ fileEntryService: this.deps.fileEntryService }).catch((err) => {
-        fileManagerLogger.error('Startup file sweep failed', err)
-      }),
+      fsSweepPromise,
       runDbSweep({
         fileEntryService: this.deps.fileEntryService,
         fileRefService: this.deps.fileRefService,
