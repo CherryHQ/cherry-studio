@@ -1,0 +1,161 @@
+import { loggerService } from '@logger'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { DependsOn } from '@main/core/lifecycle/decorators'
+import type { BackupOptions, RestoreOptions } from '@shared/backup'
+import { IpcChannel } from '@shared/IpcChannel'
+import { BrowserWindow } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
+import { BackupCancelledError, CancellationToken } from './CancellationToken'
+import { BackupValidatorImpl } from './orchestrator/BackupValidator'
+import { ExportOrchestrator } from './orchestrator/ExportOrchestrator'
+import { ImportOrchestrator } from './orchestrator/ImportOrchestrator'
+import { BackupProgressTracker } from './progress/BackupProgressTracker'
+
+const logger = loggerService.withContext('BackupService')
+
+const COMPLETED_OP_RETENTION_MS = 5_000
+
+type OperationType = 'backup' | 'restore'
+
+interface ActiveOperation {
+  type: OperationType
+  tracker: BackupProgressTracker
+  token: CancellationToken
+}
+
+@Injectable('BackupService')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['DbService', 'WindowService'])
+export class BackupService extends BaseService {
+  private readonly activeOps = new Map<string, ActiveOperation>()
+  private readonly cleanupTimers = new Set<ReturnType<typeof setTimeout>>()
+
+  protected async onInit(): Promise<void> {
+    this.registerIpcHandlers()
+    this.startProgressBroadcast()
+  }
+
+  protected async onStop(): Promise<void> {
+    for (const [, op] of this.activeOps) op.token.cancel()
+    for (const timer of this.cleanupTimers) clearTimeout(timer)
+    this.cleanupTimers.clear()
+    this.activeOps.clear()
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(
+      IpcChannel.BackupV2_StartBackup,
+      async (_e, payload: { outputPath: string; options: BackupOptions }) => {
+        const opId = uuidv4()
+        const tracker = new BackupProgressTracker()
+        const token = new CancellationToken()
+        this.activeOps.set(opId, { type: 'backup', tracker, token })
+
+        const orchestrator = new ExportOrchestrator(tracker, token)
+        orchestrator
+          .execute(payload.outputPath, payload.options)
+          .then((stats) => {
+            logger.info('Backup completed', { backupId: opId, duration: stats.duration })
+          })
+          .catch((err) => {
+            if (!(err instanceof BackupCancelledError)) {
+              logger.error('Backup failed', err as Error)
+              tracker.reportError(err as Error)
+            }
+          })
+          .finally(() => this.finalizeOperation(opId))
+
+        return { backupId: opId }
+      }
+    )
+
+    this.ipcHandle(IpcChannel.BackupV2_CancelBackup, async (_e, payload: { operationId: string }) => {
+      const op = this.activeOps.get(payload.operationId)
+      if (op) {
+        op.token.cancel()
+        return { cancelled: true }
+      }
+      return { cancelled: false }
+    })
+
+    this.ipcHandle(
+      IpcChannel.BackupV2_StartRestore,
+      async (_e, payload: { zipPath: string; options: RestoreOptions }) => {
+        const opId = uuidv4()
+        const tracker = new BackupProgressTracker()
+        const token = new CancellationToken()
+        this.activeOps.set(opId, { type: 'restore', tracker, token })
+
+        const orchestrator = new ImportOrchestrator(tracker, token)
+        orchestrator
+          .execute(payload.zipPath, payload.options)
+          .then((stats) => {
+            logger.info('Restore completed', { restoreId: opId, duration: stats.duration })
+          })
+          .catch((err) => {
+            if (!(err instanceof BackupCancelledError)) {
+              logger.error('Restore failed', err as Error)
+              tracker.reportError(err as Error)
+            }
+          })
+          .finally(() => this.finalizeOperation(opId))
+
+        return { restoreId: opId }
+      }
+    )
+
+    this.ipcHandle(IpcChannel.BackupV2_CancelRestore, async (_e, payload: { operationId: string }) => {
+      const op = this.activeOps.get(payload.operationId)
+      if (op) {
+        op.token.cancel()
+        return { cancelled: true }
+      }
+      return { cancelled: false }
+    })
+
+    this.ipcHandle(IpcChannel.BackupV2_ValidateBackup, async (_e, payload: { zipPath: string }) => {
+      const validator = new BackupValidatorImpl()
+      return validator.validate(payload.zipPath)
+    })
+
+    this.ipcHandle(IpcChannel.BackupV2_GetBackupProgress, async (_e, payload: { operationId: string }) => {
+      const op = this.activeOps.get(payload.operationId)
+      return op ? op.tracker.getBackupProgress() : null
+    })
+
+    this.ipcHandle(IpcChannel.BackupV2_GetRestoreProgress, async (_e, payload: { operationId: string }) => {
+      const op = this.activeOps.get(payload.operationId)
+      return op ? op.tracker.getRestoreProgress() : null
+    })
+  }
+
+  private finalizeOperation(opId: string): void {
+    this.broadcastProgress(opId)
+    const timer = setTimeout(() => {
+      this.activeOps.delete(opId)
+      this.cleanupTimers.delete(timer)
+    }, COMPLETED_OP_RETENTION_MS)
+    this.cleanupTimers.add(timer)
+  }
+
+  private broadcastProgress(opId: string): void {
+    const op = this.activeOps.get(opId)
+    if (!op) return
+    const progress = op.type === 'restore' ? op.tracker.getRestoreProgress() : op.tracker.getBackupProgress()
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send(IpcChannel.BackupV2_Progress, { operationId: opId, ...progress })
+      }
+    })
+  }
+
+  private startProgressBroadcast(): void {
+    const interval = setInterval(() => {
+      for (const [id] of this.activeOps) {
+        this.broadcastProgress(id)
+      }
+    }, 200)
+    this.registerDisposable(() => clearInterval(interval))
+  }
+}
