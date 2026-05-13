@@ -512,7 +512,7 @@ const MessageTitleLabel = ({ className, ...props }: ComponentPropsWithoutRef<'di
 
 const TitleContent = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['flex min-w-0 flex-1 flex-row items-center gap-1.5', className].filter(Boolean).join(' ')}
+    className={['flex min-w-0 flex-1 flex-row items-center gap-1.5 leading-5', className].filter(Boolean).join(' ')}
     {...props}
   />
 )
@@ -520,7 +520,7 @@ const TitleContent = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
 const StatusIconColumn = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
     className={[
-      'items-left justify-left flex h-6 w-4 shrink-0 items-center text-foreground-muted transition-colors duration-150 group-hover/tool:text-foreground-secondary',
+      'items-left justify-left flex h-5 w-4 shrink-0 items-center text-foreground-muted transition-colors duration-150 group-hover/tool:text-foreground-secondary',
       className
     ]
       .filter(Boolean)

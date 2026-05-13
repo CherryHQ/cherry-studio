@@ -80,9 +80,9 @@ const GroupHeaderContent = React.memo(({ items, allCompleted }: GroupHeaderConte
 
   if (allCompleted) {
     return (
-      <div className="flex min-w-0 items-center gap-2 text-[13px]">
-        <div className="flex h-6 w-4 shrink-0 items-center justify-start text-foreground-muted transition-colors duration-150 group-hover/tool-group:text-foreground-secondary">
-          <Wrench size={15} />
+      <div className="flex min-w-0 items-center gap-1.5 text-[13px]">
+        <div className="flex h-5 w-4 shrink-0 items-center justify-start text-foreground-muted transition-colors duration-150 group-hover/tool-group:text-foreground-secondary">
+          <Wrench size={14} />
         </div>
         <span className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group:text-foreground">
           {t('message.tools.groupHeader', { count: items.length })}
@@ -138,9 +138,9 @@ const GroupHeaderContent = React.memo(({ items, allCompleted }: GroupHeaderConte
 
   // Fallback
   return (
-    <div className="flex min-w-0 items-center gap-2 text-[13px]">
-      <div className="flex h-6 w-9 shrink-0 items-center justify-start text-foreground-muted transition-colors duration-150 group-hover/tool-group:text-foreground-secondary">
-        <Wrench size={15} />
+    <div className="flex min-w-0 items-center gap-1.5 text-[13px]">
+      <div className="flex h-5 w-8 shrink-0 items-center justify-start text-foreground-muted transition-colors duration-150 group-hover/tool-group:text-foreground-secondary">
+        <Wrench size={14} />
       </div>
       <span className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group:text-foreground">
         {t('message.tools.groupHeader', { count: items.length })}
@@ -207,10 +207,10 @@ const ToolBlockGroup: React.FC<Props> = ({ items }) => {
     <div className="group/tool-group w-fit max-w-full">
       <Accordion type="single" collapsible value={activeKey} onValueChange={handleChange}>
         <AccordionItem value="tool-group" className="border-0 first:border-t-0">
-          <AccordionTrigger className="justify-start gap-2 py-0.5 hover:no-underline [&>svg]:text-foreground-muted [&>svg]:opacity-0 [&>svg]:transition-opacity [&>svg]:duration-150 group-hover/tool-group:[&>svg]:opacity-100">
+          <AccordionTrigger className="justify-start gap-1.5 py-0 hover:no-underline [&>svg]:text-foreground-muted [&>svg]:opacity-0 [&>svg]:transition-opacity [&>svg]:duration-150 group-hover/tool-group:[&>svg]:opacity-100">
             <GroupHeaderContent items={items} allCompleted={allCompleted} />
           </AccordionTrigger>
-          <AccordionContent className="ml-2 border-border border-l pt-1 pr-0 pb-0 pl-6.5">
+          <AccordionContent className="ml-2 border-border border-l pt-0.5 pr-0 pb-0 pl-6.5">
             <ToolListContent items={items} scrollRef={scrollRef} />
           </AccordionContent>
         </AccordionItem>

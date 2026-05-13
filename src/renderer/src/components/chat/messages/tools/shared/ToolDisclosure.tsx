@@ -59,7 +59,7 @@ export function ToolDisclosure({
           <AccordionTrigger
             className={cn(
               isLight
-                ? 'w-full justify-start gap-2 py-0.5 hover:no-underline [&>svg]:order-last [&>svg]:ml-auto [&>svg]:text-foreground-muted [&>svg]:opacity-0 [&>svg]:transition-opacity [&>svg]:duration-150 group-hover/tool:[&>svg]:opacity-100'
+                ? 'w-full justify-start gap-1.5 py-0 hover:no-underline [&>svg]:order-last [&>svg]:ml-auto [&>svg]:text-foreground-muted [&>svg]:opacity-0 [&>svg]:transition-opacity [&>svg]:duration-150 group-hover/tool:[&>svg]:opacity-100'
                 : 'items-center px-2.5 py-2 hover:no-underline [&>svg]:text-foreground-muted',
               triggerClassName,
               item.classNames?.header
@@ -69,7 +69,7 @@ export function ToolDisclosure({
           <AccordionContent
             data-testid={`collapse-content-${item.key}`}
             className={cn(
-              isLight ? 'ml-[8px] border-border border-l pt-1 pr-0 pb-2 pl-[26px]' : 'p-2.5',
+              isLight ? 'ml-[8px] border-border border-l pt-0.5 pr-0 pb-1 pl-[26px]' : 'p-2.5',
               bodyClassName,
               item.classNames?.body
             )}>

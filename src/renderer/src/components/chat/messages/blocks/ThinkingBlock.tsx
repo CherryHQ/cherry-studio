@@ -77,7 +77,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
       collapsible
       value={activeKey}
       onValueChange={(value) => withScrollAnchor(() => setActiveKey(value))}
-      className="message-thought-container group/thought mb-1.5">
+      className="message-thought-container group/thought mb-0.5">
       <AccordionItem value="thought" className="border-0 first:border-t-0">
         <AccordionTrigger className="p-0 hover:no-underline [&>svg]:hidden">
           <ThinkingEffect
@@ -102,7 +102,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
             }
           />
         </AccordionTrigger>
-        <AccordionContent className="ml-2 border-border border-l pt-1 pr-0 pb-2 pl-6.5">
+        <AccordionContent className="ml-2 border-border border-l pt-0.5 pr-0 pb-1 pl-6.5">
           {/* FIXME: 临时兼容 */}
           <div
             className="relative [&_.markdown>p:only-child]:mb-0!"

@@ -336,7 +336,7 @@ function stringifyResponse(value: unknown): string {
 }
 
 const Container = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['my-2.5', className].filter(Boolean).join(' ')} {...props} />
+  <div className={['my-1', className].filter(Boolean).join(' ')} {...props} />
 )
 
 const CollapseShell = ({ className, ...props }: ComponentPropsWithoutRef<typeof ToolDisclosure>) => (
