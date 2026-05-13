@@ -163,9 +163,14 @@ const TYPE_TO_PRESET_PROVIDER_ID: Partial<Record<LegacyProvider['type'], string>
   ollama: 'ollama'
 }
 
+const PRESET_PROVIDER_ID_ALIASES: Record<string, string> = {
+  zai: 'zhipu',
+  'minimax-global': 'minimax'
+}
+
 function resolvePresetProviderId(legacy: LegacyProvider): string | null {
   if (SYSTEM_PROVIDER_IDS.has(legacy.id)) {
-    return legacy.id
+    return PRESET_PROVIDER_ID_ALIASES[legacy.id] ?? legacy.id
   }
   return TYPE_TO_PRESET_PROVIDER_ID[legacy.type] ?? null
 }

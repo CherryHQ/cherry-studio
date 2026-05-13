@@ -6465,9 +6465,16 @@
       },
       "docs_check": "檢查",
       "docs_more_details": "檢視更多細節",
+      "duplicate": {
+        "add_another": "再新增一個 {{name}}",
+        "aria_label": "再新增一個 {{name}}",
+        "menu_label": "再新增一個"
+      },
       "filter": {
         "agent": "支援 Agent",
-        "all": "全部服務商"
+        "all": "全部服務商",
+        "disabled": "僅已停用",
+        "enabled": "僅已啟用"
       },
       "filter_agent": "篩選支援 Agent 的服務商",
       "get_api_key": "點選這裡取得金鑰",

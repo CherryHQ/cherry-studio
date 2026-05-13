@@ -34,16 +34,23 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const { applyReorderedList } = useReorder('/providers')
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
-  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
+  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'enabled')
   const [searchText, setSearchText] = useState('')
   const [dragging, setDragging] = useState(false)
   const [contextProviderId, setContextProviderId] = useState<string | null>(null)
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+
+  const handleToggleGroup = useCallback((presetProviderId: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [presetProviderId]: !prev[presetProviderId] }))
+  }, [])
 
   const {
     isOpen: editorOpen,
     editingProvider,
+    addTemplate,
     initialLogo,
     startAdd,
+    startAddFrom,
     startEdit,
     cancel: cancelEditor,
     submit: submitEditor
@@ -62,12 +69,26 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
     setFilterMode(filterModeHint)
   }, [filterModeHint])
 
+  useEffect(() => {
+    if (!selectedProviderId) return
+    const selected = providers.find((p) => p.id === selectedProviderId)
+    const preset = selected?.presetProviderId
+    if (!preset) return
+    setExpandedGroups((prev) => (prev[preset] ? prev : { ...prev, [preset]: true }))
+  }, [providers, selectedProviderId])
+
   const filteredProviders = useMemo(() => {
     return providers.filter((provider) => {
       if (!isProviderSettingsListVisibleProvider(provider)) {
         return false
       }
       if (provider.id === 'ovms' && !isOvmsSupported) {
+        return false
+      }
+      if (filterMode === 'enabled' && !provider.isEnabled) {
+        return false
+      }
+      if (filterMode === 'disabled' && provider.isEnabled) {
         return false
       }
       if (filterMode === 'agent' && !isAnthropicSupportedProvider(provider)) {
@@ -77,16 +98,6 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       return matchKeywordsInProvider(keywords, provider)
     })
   }, [filterMode, isOvmsSupported, providers, searchText])
-
-  const enabledProviders = useMemo(
-    () => filteredProviders.filter((provider) => provider.isEnabled),
-    [filteredProviders]
-  )
-
-  const disabledProviders = useMemo(
-    () => filteredProviders.filter((provider) => !provider.isEnabled),
-    [filteredProviders]
-  )
 
   const providerCounts = useMemo(
     () =>
@@ -199,6 +210,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         onSelect={() => onSelectProvider(provider.id)}
         onEdit={() => startEdit(provider)}
         onDelete={() => handleDeleteProvider(provider.id)}
+        onDuplicate={provider.presetProviderId ? () => startAddFrom(provider) : undefined}
         showManagementActions={showManagementActions}
         listState={state}
         onSetListItemRef={setProviderItemRef}
@@ -206,14 +218,20 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
     )
   }
 
+  const handleAddAnother = useCallback((template: Provider) => startAddFrom(template), [startAddFrom])
+
   return (
     <aside className={`provider-settings-default-scope ${providerListClasses.shell}`}>
       <ProviderListHeaderBar filterMode={filterMode} disabled={dragging} onFilterChange={setFilterMode} />
       <ProviderListSearchField value={searchText} disabled={dragging} onValueChange={setSearchText} />
       <ProviderListContent
         providers={providers}
-        enabledProviders={enabledProviders}
-        disabledProviders={disabledProviders}
+        visibleProviders={filteredProviders}
+        selectedProviderId={selectedProviderId}
+        searchActive={Boolean(searchText)}
+        expandedGroups={expandedGroups}
+        onToggleGroup={handleToggleGroup}
+        onAddAnotherInGroup={handleAddAnother}
         scrollerRef={setScrollerRef}
         onDragStateChange={handleDragStateChange}
         onReorder={applyReorderedList}
@@ -224,6 +242,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       <ProviderEditorDrawer
         open={editorOpen}
         provider={editingProvider}
+        addTemplate={addTemplate}
         initialLogo={initialLogo}
         onClose={cancelEditor}
         onSubmit={handleSubmitEditor}

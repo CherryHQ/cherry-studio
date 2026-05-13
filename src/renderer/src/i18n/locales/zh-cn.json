@@ -6465,9 +6465,16 @@
       },
       "docs_check": "查看",
       "docs_more_details": "获取更多详情",
+      "duplicate": {
+        "add_another": "再添加一个 {{name}}",
+        "aria_label": "再添加一个 {{name}}",
+        "menu_label": "再添加一个"
+      },
       "filter": {
         "agent": "支持 Agent",
-        "all": "全部服务商"
+        "all": "全部服务商",
+        "disabled": "仅已禁用",
+        "enabled": "仅已启用"
       },
       "filter_agent": "筛选支持 Agent 的服务商",
       "get_api_key": "点击这里获取密钥",

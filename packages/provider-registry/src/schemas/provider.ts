@@ -204,6 +204,7 @@ export const ProviderConfigSchema = z
   .object({
     /** Unique provider identifier */
     id: ProviderIdSchema,
+    presetProviderId: ProviderIdSchema.optional(),
     /** Display name */
     name: z.string(),
     /** Provider description */

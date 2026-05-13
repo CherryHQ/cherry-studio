@@ -2,10 +2,21 @@ import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProviders'
 import { uuid } from '@renderer/utils'
 import type { EndpointType } from '@shared/data/types/model'
-import type { AuthConfig, Provider } from '@shared/data/types/provider'
+import type { AuthConfig, AuthType, Provider } from '@shared/data/types/provider'
 import { useCallback, useRef, useState } from 'react'
 
 import { clearProviderLogo, saveProviderLogo, useProviderLogo } from '../hooks/useProviderLogo'
+
+/**
+ * Minimal hint the drawer needs to pre-select a template when the user clicks
+ * the "+" affordance on an existing row / group. Only carries the shape of the
+ * source provider, never an id (the new row is always a fresh provider).
+ */
+export interface ProviderEditorAddTemplate {
+  presetProviderId?: string
+  defaultChatEndpoint?: EndpointType
+  authType?: AuthType
+}
 
 const logger = loggerService.withContext('useProviderEditor')
 
@@ -32,6 +43,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   const { updateProviderById } = useProviderActions()
   const [addingProvider, setAddingProvider] = useState(false)
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
+  const [addTemplate, setAddTemplate] = useState<ProviderEditorAddTemplate | null>(null)
   const editingProviderRef = useRef<Provider | null>(null)
   const submitTokenRef = useRef(0)
   const { logo: initialLogo } = useProviderLogo(editingProvider?.id)
@@ -40,6 +52,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
     submitTokenRef.current += 1
     setAddingProvider(false)
     setEditingProvider(null)
+    setAddTemplate(null)
     editingProviderRef.current = null
   }, [])
 
@@ -47,6 +60,19 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
     submitTokenRef.current += 1
     setAddingProvider(true)
     setEditingProvider(null)
+    setAddTemplate(null)
+    editingProviderRef.current = null
+  }, [])
+
+  const startAddFrom = useCallback((provider: Provider) => {
+    submitTokenRef.current += 1
+    setAddingProvider(true)
+    setEditingProvider(null)
+    setAddTemplate({
+      presetProviderId: provider.presetProviderId,
+      defaultChatEndpoint: provider.defaultChatEndpoint,
+      authType: provider.authType
+    })
     editingProviderRef.current = null
   }, [])
 
@@ -54,6 +80,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
     submitTokenRef.current += 1
     setAddingProvider(false)
     setEditingProvider(provider)
+    setAddTemplate(null)
     editingProviderRef.current = provider
   }, [])
 
@@ -130,8 +157,10 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   return {
     isOpen: addingProvider || editingProvider != null,
     editingProvider,
+    addTemplate,
     initialLogo,
     startAdd,
+    startAddFrom,
     startEdit,
     cancel,
     submit

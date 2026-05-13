@@ -4,7 +4,7 @@ import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/p
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
-import { Edit, Trash2, UserPen } from 'lucide-react'
+import { CopyPlus, Edit, Trash2, UserPen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderListItem from '../components/ProviderListItem'
@@ -19,6 +19,7 @@ interface ProviderListItemWithContextMenuProps {
   onSelect: () => void
   onEdit: () => void
   onDelete: () => void
+  onDuplicate?: () => void
   showManagementActions: boolean
   listState: ListDragState
   onSetListItemRef: (providerId: string, element: HTMLDivElement | null) => void
@@ -32,6 +33,7 @@ export default function ProviderListItemWithContextMenu({
   onSelect,
   onEdit,
   onDelete,
+  onDuplicate,
   showManagementActions,
   listState,
   onSetListItemRef
@@ -53,6 +55,7 @@ export default function ProviderListItemWithContextMenu({
             selected={selected}
             dragging={listState.dragging}
             onClick={onSelect}
+            onDuplicate={onDuplicate}
           />
         </div>
       </PopoverAnchor>
@@ -64,6 +67,14 @@ export default function ProviderListItemWithContextMenu({
               className={providerListClasses.itemMenuEntry}
               icon={<Edit size={14} />}
               onClick={onEdit}
+            />
+          )}
+          {onDuplicate && (
+            <MenuItem
+              label={t('settings.provider.duplicate.menu_label')}
+              className={providerListClasses.itemMenuEntry}
+              icon={<CopyPlus size={14} />}
+              onClick={onDuplicate}
             />
           )}
           <MenuItem

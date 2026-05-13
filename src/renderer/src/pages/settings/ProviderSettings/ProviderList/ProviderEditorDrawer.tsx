@@ -3,7 +3,7 @@ import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { compressImage, convertToBase64, generateColorFromChar, getForegroundColor } from '@renderer/utils'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import type { AuthConfig, Provider } from '@shared/data/types/provider'
+import type { AuthConfig, AuthType, Provider } from '@shared/data/types/provider'
 import { ImagePlus, RotateCcw } from 'lucide-react'
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,9 +28,20 @@ type ProviderEditorSubmit = {
   logo?: string | null
 }
 
+/**
+ * Hint used by the "Duplicate" / "+ another deployment" flows: the drawer
+ * opens in add mode but pre-selects a template that matches the source row.
+ */
+export interface ProviderEditorAddTemplateHint {
+  presetProviderId?: string
+  defaultChatEndpoint?: EndpointType
+  authType?: AuthType
+}
+
 interface ProviderEditorDrawerProps {
   open: boolean
   provider?: Provider | null
+  addTemplate?: ProviderEditorAddTemplateHint | null
   initialLogo?: string
   onClose: () => void
   onSubmit: (providerInput: ProviderEditorSubmit) => Promise<void>
@@ -95,7 +106,11 @@ const templateOptions: ProviderEditorTemplateOption[] = [
   }
 ] as const
 
-function resolveTemplateId(provider: Provider | null | undefined): ProviderEditorTemplateId {
+type ProviderTemplateSource =
+  | Provider
+  | (Partial<Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'authType'>> & object)
+
+function resolveTemplateId(provider: ProviderTemplateSource | null | undefined): ProviderEditorTemplateId {
   if (provider?.authType === 'iam-azure') {
     return 'azure-openai'
   }
@@ -123,6 +138,7 @@ function resolveTemplateId(provider: Provider | null | undefined): ProviderEdito
 export default function ProviderEditorDrawer({
   open,
   provider,
+  addTemplate,
   initialLogo,
   onClose,
   onSubmit
@@ -152,10 +168,12 @@ export default function ProviderEditorDrawer({
     }
 
     setName(provider?.name ?? '')
-    setSelectedTemplateId(resolveTemplateId(provider))
+    // Edit mode: derive from the row being edited. Add mode: derive from the
+    // optional template hint (null/undefined falls back to 'openai').
+    setSelectedTemplateId(resolveTemplateId(provider ?? addTemplate))
     setLogoDirty(false)
     setLogoPickerOpen(false)
-  }, [open, provider])
+  }, [open, provider, addTemplate])
 
   useEffect(() => {
     if (!open || logoDirty) {

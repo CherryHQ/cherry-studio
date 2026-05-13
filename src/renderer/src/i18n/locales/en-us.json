@@ -6465,9 +6465,16 @@
       },
       "docs_check": "Check",
       "docs_more_details": "for more details",
+      "duplicate": {
+        "add_another": "Add another {{name}}",
+        "aria_label": "Add another {{name}}",
+        "menu_label": "Add another"
+      },
       "filter": {
         "agent": "Agent Supported",
-        "all": "All Providers"
+        "all": "All Providers",
+        "disabled": "Disabled Only",
+        "enabled": "Enabled Only"
       },
       "filter_agent": "Filter Agent Supported Providers",
       "get_api_key": "Get API Key",

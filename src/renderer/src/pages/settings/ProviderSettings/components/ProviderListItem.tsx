@@ -2,24 +2,48 @@ import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/compon
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
-import { ChevronRight } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import type { MouseEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface ProviderListItemProps {
   provider: Provider
   selected: boolean
   dragging: boolean
   onClick: () => void
+  onDuplicate?: () => void
 }
 
-export default function ProviderListItem({ provider, selected, dragging, onClick }: ProviderListItemProps) {
+export default function ProviderListItem({
+  provider,
+  selected,
+  dragging,
+  onClick,
+  onDuplicate
+}: ProviderListItemProps) {
+  const { t } = useTranslation()
+
+  const handleDuplicate = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    onDuplicate?.()
+  }
+
   return (
-    <button
-      type="button"
+    <div
       data-testid={`provider-list-item-${provider.id}`}
       data-selected={selected ? 'true' : 'false'}
       data-dragging={dragging ? 'true' : 'false'}
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onClick()
+        }
+      }}
       className={cn(
+        'group/row cursor-pointer',
         providerListClasses.item,
         selected ? providerListClasses.itemSelected : providerListClasses.itemIdle,
         dragging && 'opacity-65'
@@ -31,9 +55,16 @@ export default function ProviderListItem({ provider, selected, dragging, onClick
           {provider.name}
         </span>
       </div>
-      <div className={cn('shrink-0', selected ? 'text-muted-foreground/60' : 'text-muted-foreground/40')}>
-        <ChevronRight size={10} />
-      </div>
-    </button>
+      {onDuplicate && (
+        <button
+          type="button"
+          data-testid={`provider-list-duplicate-${provider.id}`}
+          aria-label={t('settings.provider.duplicate.aria_label', { name: provider.name })}
+          onClick={handleDuplicate}
+          className={providerListClasses.itemDuplicate}>
+          <Plus size={12} />
+        </button>
+      )}
+    </div>
   )
 }
