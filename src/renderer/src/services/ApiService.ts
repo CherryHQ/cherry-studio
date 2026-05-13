@@ -49,7 +49,6 @@ import type { StreamProcessorCallbacks } from './StreamProcessingService'
 //   filterUsefulMessages,
 //   filterUserRoleStartMessages
 // } from './MessagesService'
-// import WebSearchService from './WebSearchService'
 
 // FIXME: 这里太多重复逻辑，需要重构
 
@@ -266,7 +265,6 @@ export async function fetchChatCompletion({
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     allowedTools,
-    webSearchProviderId: assistant.webSearchProviderId,
     requestOptions
   })
 
@@ -283,6 +281,7 @@ export async function fetchChatCompletion({
     isSupportedToolUse: isSupportedToolUse(assistant),
     webSearchPluginConfig: webSearchPluginConfig,
     enableWebSearch: capabilities.enableWebSearch,
+    enableWebSearchTools: !!assistant.enableWebSearch && !capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
     enableUrlContext: capabilities.enableUrlContext,
     mcpMode,

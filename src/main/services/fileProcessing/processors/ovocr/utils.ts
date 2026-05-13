@@ -26,7 +26,7 @@ export function prepareContext(
     throw new Error('OV OCR only supports image files')
   }
 
-  if (!isAvailable()) {
+  if (!isOvOcrAvailable()) {
     throw new Error('OV OCR is not available on this device')
   }
 
@@ -81,7 +81,7 @@ export async function executeExtraction(context: PreparedOvOcrContext): Promise<
   }
 }
 
-function isAvailable(): boolean {
+export function isOvOcrAvailable(): boolean {
   return (
     isWin &&
     os.cpus()[0]?.model.toLowerCase().includes('intel') &&

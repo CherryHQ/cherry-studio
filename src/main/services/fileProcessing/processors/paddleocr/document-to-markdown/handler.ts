@@ -65,10 +65,6 @@ function prepareStartContext(
 
   const model = capability.modelId?.trim() || undefined
 
-  if (model === 'PP-OCRv5') {
-    throw new Error('PaddleOCR model PP-OCRv5 is not supported yet')
-  }
-
   return {
     apiHost: getRequiredApiHost(capability),
     apiKey: getRequiredApiKey(config, 'paddleocr'),

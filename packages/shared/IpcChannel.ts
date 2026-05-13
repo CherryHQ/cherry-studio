@@ -205,6 +205,7 @@ export enum IpcChannel {
   FileProcessing_StartTask = 'file-processing:start-task',
   FileProcessing_GetTask = 'file-processing:get-task',
   FileProcessing_CancelTask = 'file-processing:cancel-task',
+  FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
 
   //file
   File_Open = 'file:open',
@@ -492,7 +493,8 @@ export enum IpcChannel {
 
   // Agent operations
   Agent_RunTask = 'agent:run-task',
-  Agent_GetModels = 'agent:get-models'
+  Agent_GetModels = 'agent:get-models',
+  Agent_ListTools = 'agent:list-tools'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

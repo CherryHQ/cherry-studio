@@ -7,11 +7,11 @@ import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { useTimer } from '@renderer/hooks/useTimer'
-import useTranslate from '@renderer/hooks/useTranslate'
 import PasteService from '@renderer/services/PasteService'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { formatQuotedText } from '@renderer/utils/formats'
 import { isSendMessageKeyPressed } from '@renderer/utils/input'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -127,7 +127,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const { setFiles, setIsExpanded, toolsRegistry, triggers } = useInputbarToolsDispatch()
   const { setExtensions } = useInputbarToolsInternalDispatch()
   const isEmpty = text.trim().length === 0
-  const [targetLanguage] = usePreference('feature.translate.chat.target_language')
+  const [targetLanguage] = usePreference('chat.input.translate.target_language')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
@@ -140,7 +140,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
-  const { getLanguageByLangcode } = useTranslate()
 
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const spaceClickTimer = useRef<NodeJS.Timeout | null>(null)
@@ -206,15 +205,20 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
     try {
       setIsTranslating(true)
-      const translatedText = await translateText(text, getLanguageByLangcode(targetLanguage))
+      const translatedText = await translateText(text, targetLanguage)
       translatedText && setText(translatedText)
       setTimeoutTimer('translate', () => resizeTextArea(), 0)
     } catch (error) {
-      logger.warn('Translation failed:', error as Error)
+      // Mirrors TranslatePage's error flow: suppress user-initiated aborts,
+      // log + toast anything else so the space-key auto-translate never fails silently.
+      if (!isAbortError(error)) {
+        logger.error('Auto-translate (space) failed', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
+      }
     } finally {
       setIsTranslating(false)
     }
-  }, [getLanguageByLangcode, isTranslating, resizeTextArea, setText, setTimeoutTimer, targetLanguage, text])
+  }, [isTranslating, resizeTextArea, setText, setTimeoutTimer, t, targetLanguage, text])
 
   const rootTriggerHandlerRef = useRef<((payload?: unknown) => void) | undefined>(undefined)
 
@@ -441,10 +445,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   )
 
   const appendTxtContentToInput = useCallback(
-    async (file: FileMetadata, event: React.MouseEvent<HTMLDivElement>) => {
-      event.preventDefault()
-      event.stopPropagation()
-
+    async (file: FileMetadata) => {
       try {
         const targetPath = file.path
         const content = await window.api.file.readExternal(targetPath, true)
@@ -630,7 +631,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
             <HolderOutlined style={{ fontSize: 12 }} />
           </DragHandle>
           {files.length > 0 && (
-            <AttachmentPreview files={files} setFiles={setFiles} onAttachmentContextMenu={appendTxtContentToInput} />
+            <AttachmentPreview files={files} setFiles={setFiles} onPasteAsText={appendTxtContentToInput} />
           )}
           {topContent}
 

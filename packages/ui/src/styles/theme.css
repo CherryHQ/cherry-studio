@@ -292,8 +292,10 @@
   --color-destructive-hover: var(--cs-destructive-hover);
   --color-success: var(--cs-success);
   --color-warning: var(--cs-warning);
+  --color-info: var(--cs-info);
   --color-background: var(--cs-background);
   --color-background-subtle: var(--cs-background-subtle);
+  --color-menu-item-hover: var(--cs-menu-item-hover);
   --color-foreground: var(--cs-foreground);
   --color-foreground-secondary: var(--cs-foreground-secondary);
   --color-foreground-muted: var(--cs-foreground-muted);
@@ -332,6 +334,11 @@
   --color-warning-bg: var(--cs-warning-bg);
   --color-warning-bg-hover: var(--cs-warning-bg-hover);
   --color-warning-active: var(--cs-warning-active);
+  --color-info-base: var(--cs-info-base);
+  --color-info-text-hover: var(--cs-info-text-hover);
+  --color-info-bg: var(--cs-info-bg);
+  --color-info-bg-hover: var(--cs-info-bg-hover);
+  --color-info-active: var(--cs-info-active);
 
   /* ==================== */
   /* Spacing */

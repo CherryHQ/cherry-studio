@@ -12,8 +12,8 @@ import { createUpdateTimestamps, orderKeyColumns, scopedOrderKeyIndex, uuidPrima
  *
  * Design notes:
  * - Polymorphic (no FK): mirrors the `entity_tag` table. Consumers MUST call
- *   `PinService.purgeForEntity(tx, entityType, entityId)` in their delete paths
- *   (cf. `tagService.purgeForEntity`) — the infra layer has zero knowledge
+ *   `PinService.purgeForEntityTx(tx, entityType, entityId)` in their delete paths
+ *   (cf. `tagService.purgeForEntityTx`) — the infra layer has zero knowledge
  *   of consumer schemas by design.
  * - Hard delete on unpin: pinning is a non-destructive marker with no business
  *   audit value. Keeping a `deletedAt` column would let dead rows accumulate

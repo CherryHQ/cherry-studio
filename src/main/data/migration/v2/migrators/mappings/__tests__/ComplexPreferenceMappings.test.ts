@@ -77,7 +77,7 @@ describe('ComplexPreferenceMappings', () => {
       const websearchMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_compression_flatten')
       expect(websearchMapping).toBeDefined()
       expect(websearchMapping?.targetKeys).toContain('chat.web_search.compression.method')
-      expect(websearchMapping?.targetKeys.length).toBe(3)
+      expect(websearchMapping?.targetKeys.length).toBe(2)
     })
 
     it('should contain websearch providers migrate mapping', () => {
@@ -117,10 +117,14 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('topic.naming.model_id')
       expect(keys).toContain('feature.quick_assistant.model_id')
       expect(keys).toContain('feature.translate.model_id')
+      expect(keys).toContain('feature.openclaw.gateway_port')
+      expect(keys).toContain('feature.openclaw.selected_model_id')
       expect(keys).toContain('shortcut.general.zoom_in')
       expect(keys).toContain('ui.sidebar.icons.visible')
       expect(keys).toContain('ui.sidebar.icons.invisible')
-      expect(keys.length).toBe(33) // 3 websearch compression + 1 provider overrides + 1 default provider + 1 code_cli + 20 shortcuts + 2 sidebar icons + 1 file processing + 4 llm model ids
+      expect(keys).toContain('feature.translate.action.preferred_lang')
+      expect(keys).toContain('feature.translate.action.alter_lang')
+      expect(keys).toContain('feature.translate.mini_window.target_lang')
     })
 
     it('should flatten target keys from all mappings', () => {
@@ -213,6 +217,49 @@ describe('ComplexPreferenceMappings', () => {
         'ui.sidebar.icons.visible': undefined,
         'ui.sidebar.icons.invisible': undefined
       })
+    })
+  })
+
+  describe('openclaw_preferences', () => {
+    it('should map gateway port and convert selected model JSON', () => {
+      const mapping = getComplexMappingById('openclaw_preferences')!
+
+      expect(
+        mapping.transform({
+          gatewayPort: 18790,
+          selectedModelUniqId: '{"id":"gpt-4o","provider":"openai"}'
+        })
+      ).toEqual({
+        'feature.openclaw.gateway_port': 18790,
+        'feature.openclaw.selected_model_id': 'openai::gpt-4o'
+      })
+    })
+
+    it.each([
+      ['', null],
+      ['null', null],
+      ['"some-string"', null],
+      ['[{"id":"x","provider":"y"}]', null],
+      ['{"id":"openai::gpt-4","provider":"openai"}', 'openai::gpt-4'],
+      ['openai::gpt-4', null]
+    ])('should handle legacy selected model value %s', (selectedModelUniqId, expected) => {
+      const mapping = getComplexMappingById('openclaw_preferences')!
+
+      expect(
+        mapping.transform({
+          gatewayPort: 18790,
+          selectedModelUniqId
+        })['feature.openclaw.selected_model_id']
+      ).toBe(expected)
+    })
+
+    it('should skip invalid gateway ports so schema default applies', () => {
+      const mapping = getComplexMappingById('openclaw_preferences')!
+
+      expect(mapping.transform({ gatewayPort: undefined })['feature.openclaw.gateway_port']).toBeUndefined()
+      expect(mapping.transform({ gatewayPort: null })['feature.openclaw.gateway_port']).toBeUndefined()
+      expect(mapping.transform({ gatewayPort: '18790' })['feature.openclaw.gateway_port']).toBeUndefined()
+      expect(mapping.transform({ gatewayPort: Number.NaN })['feature.openclaw.gateway_port']).toBeUndefined()
     })
   })
 

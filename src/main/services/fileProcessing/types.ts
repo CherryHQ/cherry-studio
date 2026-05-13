@@ -2,7 +2,8 @@ import type { FileProcessorFeature, FileProcessorId } from '@shared/data/prefere
 export type {
   FileProcessingArtifact,
   FileProcessingTaskResult,
-  FileProcessingTaskStartResult
+  FileProcessingTaskStartResult,
+  ListAvailableFileProcessorsResult
 } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 

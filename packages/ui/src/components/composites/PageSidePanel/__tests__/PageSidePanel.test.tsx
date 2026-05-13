@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { PageSidePanel } from '../index'
@@ -38,12 +39,39 @@ describe('PageSidePanel', () => {
       expect(onClose).toHaveBeenCalledTimes(1)
     })
 
+    it('uses a stronger dark-mode backdrop', () => {
+      const { container } = render(<PageSidePanel open={true} onClose={vi.fn()} />)
+      const backdrop = container.querySelector('[data-slot="page-side-panel-backdrop"]')!
+      expect(backdrop).toHaveClass('bg-black/20', 'dark:bg-black/60')
+    })
+
     it('calls onClose when close button is clicked', () => {
       const onClose = vi.fn()
       render(<PageSidePanel open={true} onClose={onClose} />)
       const closeBtn = screen.getByLabelText('Close')
       fireEvent.click(closeBtn)
       expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('calls onClose on close button pointer down to avoid click-through during exit', () => {
+      const onClose = vi.fn()
+      render(<PageSidePanel open={true} onClose={onClose} />)
+      fireEvent.pointerDown(screen.getByLabelText('Close'))
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not call onClose twice for one pointerdown+click sequence', () => {
+      const onClose = vi.fn()
+      render(<PageSidePanel open={true} onClose={onClose} />)
+      const closeBtn = screen.getByLabelText('Close')
+      fireEvent.pointerDown(closeBtn)
+      fireEvent.click(closeBtn)
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('renders the close button as a non-submit button', () => {
+      render(<PageSidePanel open={true} onClose={vi.fn()} />)
+      expect(screen.getByLabelText('Close')).toHaveAttribute('type', 'button')
     })
   })
 
@@ -52,6 +80,34 @@ describe('PageSidePanel', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} />)
       const dialog = screen.getByRole('dialog')
       expect(dialog).toHaveAttribute('aria-modal', 'true')
+    })
+
+    it('uses the header as the dialog accessible name', () => {
+      render(<PageSidePanel open={true} onClose={vi.fn()} header={<span>Panel title</span>} />)
+      expect(screen.getByRole('dialog', { name: 'Panel title' })).toBeInTheDocument()
+    })
+
+    it('restores focus to the trigger when closed', () => {
+      function TestPanel() {
+        const [open, setOpen] = React.useState(false)
+        return (
+          <>
+            <button type="button" onClick={() => setOpen(true)}>
+              Open panel
+            </button>
+            <PageSidePanel open={open} onClose={() => setOpen(false)} header={<span>Panel title</span>} />
+          </>
+        )
+      }
+
+      render(<TestPanel />)
+      const trigger = screen.getByRole('button', { name: 'Open panel' })
+      trigger.focus()
+      fireEvent.click(trigger)
+
+      fireEvent.click(screen.getByLabelText('Close'))
+
+      expect(trigger).toHaveFocus()
     })
 
     it('calls onClose on Escape key', () => {

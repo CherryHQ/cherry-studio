@@ -31,7 +31,7 @@ export const ImageToTextCapabilitySchema = z
     feature: z.literal('image_to_text'),
     inputs: z.array(z.literal('image')).min(1),
     output: z.literal('text'),
-    apiHost: z.url().optional(),
+    apiHost: z.string().optional(),
     modelId: z.string().min(1).optional()
   })
   .strict()
@@ -42,7 +42,7 @@ export const DocumentToMarkdownCapabilitySchema = z
     feature: z.literal('document_to_markdown'),
     inputs: z.array(z.literal('document')).min(1),
     output: z.literal('markdown'),
-    apiHost: z.url().optional(),
+    apiHost: z.string().optional(),
     modelId: z.string().min(1).optional()
   })
   .strict()
@@ -106,19 +106,14 @@ export interface FileProcessorPreset extends FileProcessorPresetConfig {
 }
 
 /**
- * Processor-specific configuration
- *
- * Uses a generic Record type without predefined structure.
- * Each processor's configuration is interpreted by UI components based on processor.id.
- *
- * Known options fields:
- * - Tesseract: { langs: string[] }  // Array of enabled language codes
- *
- * Examples:
- * - { langs: ['chi_sim', 'eng'] }        // Tesseract language config
- * - { quality: 'high', timeout: 30000 }  // Other processor config
+ * Processor-specific user override options.
+ * Currently used by system OCR and Tesseract for enabled language codes.
  */
-export const FileProcessorOptionsSchema: z.ZodType<FileProcessorOptions> = z.record(z.string(), z.unknown())
+export const FileProcessorOptionsSchema: z.ZodType<FileProcessorOptions> = z
+  .object({
+    langs: z.array(z.string()).optional()
+  })
+  .strict()
 
 /**
  * Capability override (user customization for a specific feature)
@@ -127,7 +122,7 @@ export const FileProcessorOptionsSchema: z.ZodType<FileProcessorOptions> = z.rec
  */
 export const FileProcessorCapabilityOverrideSchema: z.ZodType<FileProcessorCapabilityOverride> = z
   .object({
-    apiHost: z.url().optional(),
+    apiHost: z.string().optional(),
     modelId: z.string().min(1).optional()
   })
   .strict()

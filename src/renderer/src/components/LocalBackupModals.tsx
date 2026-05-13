@@ -1,7 +1,6 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { backupToLocal } from '@renderer/services/BackupService'
-import { Input, Modal } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,26 +27,26 @@ export function LocalBackupModal({
   const { t } = useTranslation()
 
   return (
-    <Modal
-      title={t('settings.data.local.backup.modal.title')}
-      open={isModalVisible}
-      onOk={handleBackup}
-      onCancel={handleCancel}
-      classNames={{ footer: 'flex justify-end gap-1' }}
-      footer={[
-        <Button key="back" onClick={handleCancel}>
-          {t('common.cancel')}
-        </Button>,
-        <Button key="submit" disabled={backuping} onClick={handleBackup}>
-          {t('common.confirm')}
-        </Button>
-      ]}>
-      <Input
-        value={customFileName}
-        onChange={(e) => setCustomFileName(e.target.value)}
-        placeholder={t('settings.data.local.backup.modal.filename.placeholder')}
-      />
-    </Modal>
+    <Dialog open={isModalVisible} onOpenChange={(nextOpen) => !nextOpen && handleCancel()}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>{t('settings.data.local.backup.modal.title')}</DialogTitle>
+        </DialogHeader>
+        <Input
+          value={customFileName}
+          onChange={(e) => setCustomFileName(e.target.value)}
+          placeholder={t('settings.data.local.backup.modal.filename.placeholder')}
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={handleCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button disabled={backuping} onClick={handleBackup}>
+            {t('common.confirm')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

@@ -27,6 +27,7 @@ vi.mock('@main/data/bootConfig', () => ({
 vi.mock('@main/core/lifecycle', () => ({
   BaseService: class {
     ipcHandle = vi.fn()
+    registerInterval = vi.fn(() => ({ dispose: () => {} }))
     get isReady() {
       return true
     }

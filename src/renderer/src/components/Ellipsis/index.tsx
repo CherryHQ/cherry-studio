@@ -1,35 +1,33 @@
-import type { HTMLAttributes } from 'react'
-import styled, { css } from 'styled-components'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import type { CSSProperties, HTMLAttributes } from 'react'
 
 type Props = {
   maxLine?: number
 } & HTMLAttributes<HTMLDivElement>
 
 const Ellipsis = (props: Props) => {
-  const { maxLine = 1, children, ...rest } = props
+  const { maxLine = 1, children, className, style, ...rest } = props
+  const ellipsisStyle: CSSProperties =
+    maxLine > 1
+      ? {
+          display: '-webkit-box',
+          WebkitBoxOrient: 'vertical',
+          WebkitLineClamp: maxLine,
+          overflowWrap: 'break-word',
+          ...style
+        }
+      : {
+          ...style
+        }
+
   return (
-    <EllipsisContainer $maxLine={maxLine} {...rest}>
+    <div
+      className={cn('overflow-hidden text-ellipsis', maxLine > 1 ? undefined : 'block whitespace-nowrap', className)}
+      style={ellipsisStyle}
+      {...rest}>
       {children}
-    </EllipsisContainer>
+    </div>
   )
 }
-
-const multiLineEllipsis = css<{ $maxLine: number }>`
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: ${({ $maxLine }) => $maxLine};
-  overflow-wrap: break-word;
-`
-
-const singleLineEllipsis = css`
-  display: block;
-  white-space: nowrap;
-`
-
-const EllipsisContainer = styled.div<{ $maxLine: number }>`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  ${({ $maxLine }) => ($maxLine > 1 ? multiLineEllipsis : singleLineEllipsis)}
-`
 
 export default Ellipsis

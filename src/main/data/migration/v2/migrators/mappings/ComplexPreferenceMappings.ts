@@ -18,6 +18,9 @@
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
 
+import { loggerService } from '@logger'
+
+import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {
   flattenCompressionConfig,
   migrateWebSearchProviders,
@@ -27,6 +30,13 @@ import { transformCodeCli } from './CodeCliTransforms'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 import { transformLlmModelIds } from './LlmModelTransforms'
 import { SHORTCUT_TARGET_KEYS, transformShortcuts } from './ShortcutMappings'
+import {
+  copyTargetLanguageForMiniWindow,
+  copyTranslatePageLanguages,
+  splitBidirectionalPairForAction
+} from './TranslateTransforms'
+
+const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
 
 // ============================================================================
 // Type Definitions
@@ -117,11 +127,7 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     sources: {
       compressionConfig: { source: 'redux', category: 'websearch', key: 'compressionConfig' }
     },
-    targetKeys: [
-      'chat.web_search.compression.method',
-      'chat.web_search.compression.cutoff_limit',
-      'chat.web_search.compression.cutoff_unit'
-    ],
+    targetKeys: ['chat.web_search.compression.method', 'chat.web_search.compression.cutoff_limit'],
     transform: flattenCompressionConfig
   },
 
@@ -200,6 +206,82 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       'feature.translate.model_id'
     ],
     transform: transformLlmModelIds
+  },
+
+  // OpenClaw preferences migration (legacy port + JSON model string → v2 preferences)
+  {
+    id: 'openclaw_preferences',
+    description:
+      'Convert legacy OpenClaw port and selected model JSON string into v2 preferences; invalid ports fall through to schema defaults',
+    sources: {
+      gatewayPort: { source: 'redux', category: 'openclaw', key: 'gatewayPort' },
+      selectedModelUniqId: { source: 'redux', category: 'openclaw', key: 'selectedModelUniqId' }
+    },
+    targetKeys: ['feature.openclaw.gateway_port', 'feature.openclaw.selected_model_id'],
+    transform: (sources) => {
+      let modelRef: LegacyModelRef | null = null
+      const raw = sources.selectedModelUniqId
+
+      if (typeof raw === 'string' && raw.length > 0) {
+        try {
+          const parsed = JSON.parse(raw) as unknown
+          if (parsed != null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            modelRef = parsed as LegacyModelRef
+          }
+        } catch (error) {
+          logger.warn('Legacy openclaw selectedModelUniqId not valid JSON, dropping', {
+            raw,
+            error
+          })
+        }
+      }
+
+      return {
+        'feature.openclaw.gateway_port':
+          typeof sources.gatewayPort === 'number' && Number.isFinite(sources.gatewayPort) && sources.gatewayPort > 0
+            ? sources.gatewayPort
+            : undefined,
+        'feature.openclaw.selected_model_id': legacyModelToUniqueId(modelRef)
+      }
+    }
+  },
+
+  // Translate: split bidirectional pair for action translate
+  {
+    id: 'translate_action_pair_split',
+    description: 'Split legacy translate:bidirectional:pair into action translate preferred/alter language',
+    sources: {
+      bidirectionalPair: { source: 'dexie-settings', key: 'translate:bidirectional:pair' }
+    },
+    targetKeys: ['feature.translate.action.preferred_lang', 'feature.translate.action.alter_lang'],
+    transform: splitBidirectionalPairForAction
+  },
+
+  // Translate: copy target language for mini window
+  {
+    id: 'translate_mini_window_target',
+    description: 'Copy legacy translate:target:language to mini window target language',
+    sources: {
+      targetLanguage: { source: 'dexie-settings', key: 'translate:target:language' }
+    },
+    targetKeys: ['feature.translate.mini_window.target_lang'],
+    transform: copyTargetLanguageForMiniWindow
+  },
+
+  {
+    id: 'translate_page_languages',
+    description: 'Copy legacy translate page languages with canonicalized lang codes',
+    sources: {
+      bidirectionalPair: { source: 'dexie-settings', key: 'translate:bidirectional:pair' },
+      sourceLanguage: { source: 'dexie-settings', key: 'translate:source:language' },
+      targetLanguage: { source: 'dexie-settings', key: 'translate:target:language' }
+    },
+    targetKeys: [
+      'feature.translate.page.bidirectional_pair',
+      'feature.translate.page.source_language',
+      'feature.translate.page.target_language'
+    ],
+    transform: copyTranslatePageLanguages
   }
 ]
 

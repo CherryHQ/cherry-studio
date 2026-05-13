@@ -1,4 +1,5 @@
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import * as z from 'zod'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
 
@@ -118,11 +119,42 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 
 export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
 
-// 为了支持自定义语言，设置为string别名
-/** zh-cn, en-us, etc. */
-export type TranslateLanguageCode = string
-export type TranslateSourceLanguage = TranslateLanguageCode | 'auto'
-export type TranslateBidirectionalPair = [TranslateLanguageCode, TranslateLanguageCode]
+/**
+ * Strict language code pattern — only real codes such as "en-us" / "zh-cn" / "ja".
+ *
+ * Prefer this in persistence paths (API DTOs, DB entities). {@link TranslateLangCodeSchema}
+ * below widens it with the `'unknown'` UI sentinel, which must not leak into the DB:
+ * there is no matching row in the `translate_language` table, and the history FK
+ * would silently break.
+ *
+ * Pattern: 2–3 lowercase letters, optionally followed by `-` and 2–4 lowercase letters.
+ */
+export const PersistedLangCodeSchema = z
+  .string()
+  .regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+  .brand<'PersistedLangCode'>()
+export type PersistedLangCode = z.infer<typeof PersistedLangCodeSchema>
+export const parsePersistedLangCode = (value: string): PersistedLangCode => PersistedLangCodeSchema.parse(value)
+
+const TranslateLangCodePatternSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+
+/**
+ * Permissive language code — persisted-code shape plus the `'unknown'` UI sentinel.
+ *
+ * Use in preference/UI state and detection paths where "unknown" is meaningful.
+ * Persistence paths should parse with {@link PersistedLangCodeSchema} instead.
+ */
+export const TranslateLangCodeSchema = z.union([z.literal('unknown'), TranslateLangCodePatternSchema])
+export type TranslateLangCode = z.infer<typeof TranslateLangCodeSchema>
+export const parseTranslateLangCode = (value: string): TranslateLangCode => TranslateLangCodeSchema.parse(value)
+export const isTranslateLangCode = (value: unknown): value is TranslateLangCode =>
+  TranslateLangCodeSchema.safeParse(value).success
+export type TranslateSourceLanguage = TranslateLangCode | 'auto'
+export type TranslateBidirectionalPair = [TranslateLangCode, TranslateLangCode]
+export const parseTranslateBidirectionalPair = (value: readonly [string, string]): TranslateBidirectionalPair => [
+  parseTranslateLangCode(value[0]),
+  parseTranslateLangCode(value[1])
+]
 
 // ============================================================================
 // WebSearch Types
@@ -167,13 +199,6 @@ export type WebSearchProviderOverride = {
 }
 
 export type WebSearchProviderOverrides = Partial<Record<WebSearchProviderId, WebSearchProviderOverride>>
-
-export type WebSearchSubscribeSource = {
-  key: number
-  url: string
-  name: string
-  blacklist?: string[]
-}
 
 /**
  * Full WebSearch Provider configuration
@@ -243,12 +268,6 @@ export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>
  */
 export type WebSearchCompressionMethod = 'none' | 'cutoff'
 
-/**
- * Cutoff unit type
- * Stored in chat.web_search.compression.cutoff_unit
- */
-export type WebSearchCompressionCutoffUnit = 'char' | 'token'
-
 // ============================================================================
 // File Processor Types
 // ============================================================================
@@ -274,7 +293,9 @@ export const FILE_PROCESSOR_IDS = [
 
 export type FileProcessorId = (typeof FILE_PROCESSOR_IDS)[number]
 
-export type FileProcessorOptions = Record<string, unknown>
+export type FileProcessorOptions = {
+  langs?: string[]
+}
 
 export type FileProcessorCapabilityOverride = {
   apiHost?: string
