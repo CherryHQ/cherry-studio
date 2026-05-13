@@ -78,6 +78,7 @@ import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 import {
   applyOptimisticTopicDisplayMove,
   buildTopicDropAnchor,
@@ -91,10 +92,9 @@ import {
   TOPIC_TODAY_GROUP_ID,
   TOPIC_UNKNOWN_ASSISTANT_GROUP_ID,
   type TopicDisplayMode
-} from './TopicListV2.helpers'
-import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
+} from './Topics.helpers'
 
-const logger = loggerService.withContext('TopicListV2')
+const logger = loggerService.withContext('Topics')
 
 interface Props {
   activeTopic: Topic
@@ -181,7 +181,7 @@ function TopicDisplayModeMenu({
   )
 }
 
-export function TopicListV2({ activeTopic, setActiveTopic, position }: Props) {
+export function Topics({ activeTopic, setActiveTopic, position }: Props) {
   const { t } = useTranslation()
   const [groupNow] = useState(() => dayjs())
   const { notesPath } = useNotesSettings()
@@ -920,7 +920,7 @@ function TopicRow({
   const row = (
     <ResourceList.Item
       item={topic}
-      data-testid="topic-list-v2-row"
+      data-testid="topic-list-row"
       className={cn(
         'relative',
         isManageMode && isSelected && 'bg-sidebar-accent shadow-[inset_0_0_0_1px_var(--color-sidebar-active-border)]',

@@ -13,7 +13,7 @@ import {
   sortTopicsForDisplayGroups,
   TOPIC_DEFAULT_ASSISTANT_GROUP_ID,
   TOPIC_UNKNOWN_ASSISTANT_GROUP_ID
-} from '../TopicListV2.helpers'
+} from '../Topics.helpers'
 
 const TOPIC_GROUP_LABELS = {
   pinned: 'Pinned',
@@ -46,7 +46,7 @@ function createTopic(overrides: Partial<Topic> = {}): Topic {
   }
 }
 
-describe('TopicListV2 helpers', () => {
+describe('Topics helpers', () => {
   it('translates descending assistant visual drops into persisted order anchors', () => {
     const basePayload: ResourceListItemReorderPayload = {
       type: 'item',

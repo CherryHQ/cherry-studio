@@ -246,8 +246,8 @@ import {
   mockUseQuery
 } from '../../../../../../../../tests/__mocks__/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '../../../../../../../../tests/__mocks__/renderer/usePreference'
-import { TopicListV2 } from '../TopicListV2'
-import { applyOptimisticTopicDisplayMove } from '../TopicListV2.helpers'
+import { Topics } from '../Topics'
+import { applyOptimisticTopicDisplayMove } from '../Topics.helpers'
 
 function createApiTopic(overrides: Partial<ApiTopic> = {}) {
   return {
@@ -304,14 +304,14 @@ function createTopicPin(overrides: Partial<Pin> = {}): Pin {
 function renderTopicList() {
   const setActiveTopic = vi.fn()
   const renderNode = () => (
-    <TopicListV2 activeTopic={createRendererTopic()} setActiveTopic={setActiveTopic} position="left" />
+    <Topics activeTopic={createRendererTopic()} setActiveTopic={setActiveTopic} position="left" />
   )
   const view = render(renderNode())
   return { ...view, rerenderTopicList: () => view.rerender(renderNode()), setActiveTopic }
 }
 
 function getTopicRow(topicName: string) {
-  const row = screen.getByText(topicName).closest('[data-testid="topic-list-v2-row"]')
+  const row = screen.getByText(topicName).closest('[data-testid="topic-list-row"]')
   expect(row).toBeInTheDocument()
   return row as HTMLElement
 }
@@ -339,7 +339,7 @@ function clearTopicStreamCache(...topicIds: string[]) {
   }
 }
 
-describe('TopicListV2', () => {
+describe('Topics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     topicStreamStatusMocks.statuses.clear()
@@ -498,7 +498,7 @@ describe('TopicListV2', () => {
     expect(screen.getByText('This week')).toBeInTheDocument()
     expect(screen.getByText('Earlier')).toBeInTheDocument()
     expect(screen.getByText('Beta pinned')).toBeInTheDocument()
-    const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-v2-row"]')
+    const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
     expect(pinnedRow?.querySelector('[aria-label="Unpin Topic"]') ?? null).toBeInTheDocument()
     expect(pinnedRow?.querySelector('[aria-label="Delete"]') ?? null).not.toBeInTheDocument()
 
@@ -514,7 +514,7 @@ describe('TopicListV2', () => {
   it('pins from the leading row button without selecting the topic', async () => {
     const { getByText, setActiveTopic } = renderTopicList()
 
-    const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-v2-row"]')
+    const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-row"]')
     const pinButton = alphaRow?.querySelector('[aria-label="Pin Topic"]')
     expect(pinButton ?? null).toBeInTheDocument()
 
@@ -531,7 +531,7 @@ describe('TopicListV2', () => {
   it('unpins from the leading row button', async () => {
     const { getByText } = renderTopicList()
 
-    const betaRow = getByText('Beta pinned').closest('[data-testid="topic-list-v2-row"]')
+    const betaRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
     const unpinButton = betaRow?.querySelector('[aria-label="Unpin Topic"]')
     expect(unpinButton ?? null).toBeInTheDocument()
 
@@ -547,7 +547,7 @@ describe('TopicListV2', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     expect(screen.queryByText('Alpha topic')).toBeInTheDocument()
 
-    const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-v2-row"]')
+    const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-row"]')
     fireEvent.click(alphaRow?.querySelector('[aria-label="Pin Topic"]') as Element)
     await vi.waitFor(() => expect(pinMutationMocks.createPin).toHaveBeenCalled())
 
@@ -1043,7 +1043,7 @@ describe('TopicListV2', () => {
     })
 
     await vi.waitFor(() => {
-      const rowTexts = screen.getAllByTestId('topic-list-v2-row').map((row) => row.textContent ?? '')
+      const rowTexts = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
       expect(rowTexts.findIndex((text) => text.includes('Gamma topic'))).toBeLessThan(
         rowTexts.findIndex((text) => text.includes('Delta archive'))
       )
@@ -1090,7 +1090,7 @@ describe('TopicListV2', () => {
     })
 
     await vi.waitFor(() => {
-      const rowTexts = screen.getAllByTestId('topic-list-v2-row').map((row) => row.textContent ?? '')
+      const rowTexts = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
       expect(rowTexts.findIndex((text) => text.includes('Alpha topic'))).toBeLessThan(
         rowTexts.findIndex((text) => text.includes('Gamma topic'))
       )
@@ -1120,7 +1120,7 @@ describe('TopicListV2', () => {
     })
 
     await vi.waitFor(() => {
-      const rowTexts = screen.getAllByTestId('topic-list-v2-row').map((row) => row.textContent ?? '')
+      const rowTexts = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
       expect(rowTexts.findIndex((text) => text.includes('Alpha topic'))).toBeGreaterThan(
         rowTexts.findIndex((text) => text.includes('Delta archive'))
       )
