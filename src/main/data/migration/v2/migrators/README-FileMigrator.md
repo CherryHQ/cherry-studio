@@ -44,7 +44,11 @@ The table is streamed in batches (BATCH_SIZE = 500) via `createStreamReader('fil
 ### Timestamp Conversion
 
 - `created_at` (ISO 8601 string) is parsed to ms epoch integer
-- Parse failures (NaN) fall back to `Date.now()`
+- Missing / empty `created_at` → `Date.now()` silently (valid v1 case)
+- Non-empty but unparseable → `Date.now()` plus a warning recorded against the
+  row id (surfaced through `PrepareResult.warnings`). Falling back to "now"
+  (not `0`) keeps migrated rows sortable next to v2-native rows; the warning
+  is the diagnostic trail for users whose v1 data carried corrupted dates.
 - Both `createdAt` and `updatedAt` are set to the same parsed value
 
 ### Name Derivation

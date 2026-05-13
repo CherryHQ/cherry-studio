@@ -347,6 +347,34 @@ describe('FileMigrator created_at conversion', () => {
     expect(firstRow.createdAt).toBeGreaterThanOrEqual(before)
     expect(firstRow.createdAt).toBeLessThanOrEqual(after + 5000)
   })
+
+  it('invalid date string records a warning carrying the row id and raw value', async () => {
+    const row = makeInternalRow({
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      created_at: 'not-a-date'
+    })
+    const { ctx } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+
+    expect(result.success).toBe(true)
+    expect(result.warnings).toBeDefined()
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('Invalid created_at')
+    expect(joined).toContain(row.id)
+    expect(joined).toContain('not-a-date')
+  })
+
+  it('missing created_at is silent (no warning, falls back to Date.now())', async () => {
+    const row = makeInternalRow({ created_at: undefined as unknown as string })
+    const { ctx } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+
+    expect(result.success).toBe(true)
+    const invalidWarnings = (result.warnings ?? []).filter((w) => w.includes('Invalid created_at'))
+    expect(invalidWarnings).toHaveLength(0)
+  })
 })
 
 // ─── Batched insert + rollback (Task 2.7) ────────────────────────────────────

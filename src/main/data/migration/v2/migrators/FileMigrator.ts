@@ -29,12 +29,25 @@ function normalizeExt(ext: string | undefined | null): string | null {
 
 /**
  * Parse an ISO date string to ms epoch.
- * Falls back to Date.now() on parse failure (NaN).
+ *
+ * - Missing / empty input → `Date.now()` silently (v1 rows without `created_at`
+ *   are valid, just timestamp-less).
+ * - Non-empty but unparseable input → `Date.now()` plus an `onInvalid` callback
+ *   so the migrator can record a warning. This keeps `parseTimestamp` pure and
+ *   pushes the warning channel out to the caller (which knows the row id).
+ *
+ * Fallback to `Date.now()` (not `0`) keeps migrated rows sortable next to v2
+ * rows; the warning is the diagnostic trail for users whose v1 data carried
+ * corrupted dates.
  */
-function parseTimestamp(dateStr: string | undefined | null): number {
+function parseTimestamp(dateStr: string | undefined | null, onInvalid?: (raw: string) => void): number {
   if (!dateStr) return Date.now()
   const ms = Date.parse(dateStr)
-  return Number.isNaN(ms) ? Date.now() : ms
+  if (Number.isNaN(ms)) {
+    onInvalid?.(dateStr)
+    return Date.now()
+  }
+  return ms
 }
 
 interface PreparedFileEntry {
@@ -58,13 +71,19 @@ interface PreparedFileEntry {
  * translation, and `FileEntryIdSchema = z.uuid()` already accepts the v4 ids
  * that v1 emits.
  */
-function toFileEntry(row: FileMetadata, userData: string): PreparedFileEntry | null {
+function toFileEntry(
+  row: FileMetadata,
+  userData: string,
+  onWarning: (message: string) => void
+): PreparedFileEntry | null {
   if (!row.id || typeof row.id !== 'string' || row.id.trim() === '') return null
   if (!row.path || typeof row.path !== 'string' || row.path.trim() === '') return null
   if (!row.name || typeof row.name !== 'string' || row.name.trim() === '') return null
 
   const ext = normalizeExt(row.ext)
-  const createdAt = parseTimestamp(row.created_at)
+  const createdAt = parseTimestamp(row.created_at, (raw) => {
+    onWarning(`Invalid created_at for file id=${row.id}; falling back to migration time. raw=${JSON.stringify(raw)}`)
+  })
 
   // Origin discrimination: internal files live under userData/Data/Files/
   const internalPrefix = path.join(userData, 'Data', 'Files')
@@ -138,7 +157,7 @@ export class FileMigrator extends BaseMigrator {
         for (const row of rows) {
           this.sourceCount += 1
 
-          const entry = toFileEntry(row, ctx.paths.userData)
+          const entry = toFileEntry(row, ctx.paths.userData, (msg) => this.recordWarning(msg))
           if (!entry) {
             this.skippedCount += 1
             const label = row?.id ?? '(unknown)'
