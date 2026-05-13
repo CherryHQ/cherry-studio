@@ -118,7 +118,7 @@ export type ResolveProviderModelsQuery = z.infer<typeof ResolveProviderModelsQue
 
 /** POST /providers/:providerId/api-keys body */
 export const AddProviderApiKeySchema = z.strictObject({
-  key: z.string().min(1),
+  key: z.string().trim().min(1),
   label: z.string().optional()
 })
 export type AddProviderApiKeyDto = z.infer<typeof AddProviderApiKeySchema>
@@ -131,7 +131,7 @@ export type ReplaceProviderApiKeysDto = z.infer<typeof ReplaceProviderApiKeysSch
 
 /** PATCH /providers/:providerId/api-keys/:keyId body */
 export const UpdateApiKeySchema = z.strictObject({
-  key: z.string().min(1).optional(),
+  key: z.string().trim().min(1).optional(),
   label: z.string().optional(),
   isEnabled: z.boolean().optional()
 })

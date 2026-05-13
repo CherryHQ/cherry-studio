@@ -70,9 +70,9 @@ export function isServiceTier(tier: string | null | undefined): tier is ServiceT
 
 export const ApiKeyEntrySchema = z.object({
   /** UUID for referencing this key */
-  id: z.string(),
-  /** Actual key value (encrypted in storage) */
-  key: z.string(),
+  id: z.string().min(1),
+  /** Actual key value (trimmed; empty values are rejected) */
+  key: z.string().trim().min(1),
   /** User-friendly label */
   label: z.string().optional(),
   /** Whether this key is enabled */

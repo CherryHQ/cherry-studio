@@ -51,12 +51,17 @@ function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
 
 function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
   const seenKeys = new Set<string>()
+  const seenIds = new Set<string>()
   return apiKeys.map((entry) => {
     const normalized = normalizeApiKeyEntry(entry)
     if (seenKeys.has(normalized.key)) {
       throw DataApiErrorFactory.conflict('API key already exists', 'API key')
     }
+    if (seenIds.has(normalized.id)) {
+      throw DataApiErrorFactory.conflict('API key id already exists', 'API key')
+    }
     seenKeys.add(normalized.key)
+    seenIds.add(normalized.id)
     return normalized
   })
 }
