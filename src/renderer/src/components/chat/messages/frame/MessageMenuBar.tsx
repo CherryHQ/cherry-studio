@@ -579,7 +579,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     <>
       <div
         className={classNames(
-          'menubar flex flex-row items-center justify-end gap-2',
+          'menubar flex flex-row items-center justify-end gap-1.5',
           isUserBubbleStyleMessage && 'user-bubble-style mt-[5px]',
           isLastMessage && 'show'
         )}>
@@ -612,10 +612,10 @@ const ActionButton = ({
     <button
       type={type ?? 'button'}
       className={classNames(
-        'flex h-[26px] w-[26px] items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--color-icon) transition-all duration-200 ease-out',
-        '[&_.anticon]:text-sm [&_.icon-at]:text-base [&_.iconfont]:text-sm',
+        'flex size-5.5 items-center justify-center rounded-md border-0 bg-transparent p-0 text-(--color-icon) transition-all duration-150 ease-out',
+        '[&_.icon-at]:text-sm [&_.iconfont]:text-[13px] [&_svg]:size-3.5',
         'enabled:cursor-pointer enabled:hover:text-foreground',
-        'enabled:[&_.anticon]:cursor-pointer enabled:[&_.iconfont]:cursor-pointer',
+        'enabled:[&_.iconfont]:cursor-pointer enabled:[&_svg]:cursor-pointer',
         $softHoverBg ? 'enabled:hover:bg-muted' : 'enabled:hover:bg-accent',
         'disabled:cursor-not-allowed disabled:opacity-40',
         className

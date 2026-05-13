@@ -240,7 +240,7 @@ const MessageItem: FC<Props> = ({
             {showMenuBar && (
               <div
                 className={cn(
-                  'MessageFooter mt-0.75 ml-11.5 flex items-center justify-between gap-2.5',
+                  'MessageFooter mt-0.25 ml-11.5 flex min-h-5.5 items-center justify-between gap-1.5 text-xs leading-none',
                   !isAssistantMessage &&
                     'pointer-events-none opacity-0 transition-opacity duration-200 focus-within:pointer-events-auto focus-within:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100'
                 )}>
