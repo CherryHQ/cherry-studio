@@ -57,7 +57,7 @@ export async function createSelectiveBackupDb(
 
   try {
     // Step 2: Copy domain tables from live database
-    await copyDomainTables(backupClient, backupDbPath, selectedDomains, token)
+    await copyDomainTables(backupClient, selectedDomains, token)
 
     // Step 3: Handle cross-domain FK references
     token.throwIfCancelled()
@@ -118,7 +118,6 @@ async function initializeSchema(backupDbPath: string): Promise<{ client: Client;
  */
 async function copyDomainTables(
   backupClient: Client,
-  _backupDbPath: string,
   selectedDomains: BackupDomain[],
   token: CancellationToken
 ): Promise<void> {
@@ -176,7 +175,8 @@ async function tryAttachAndCopy(
   token: CancellationToken
 ): Promise<boolean> {
   try {
-    await backupClient.execute(`ATTACH DATABASE '${liveDbPath}' AS source`)
+    const escaped = liveDbPath.replaceAll("'", "''")
+    await backupClient.execute(`ATTACH DATABASE '${escaped}' AS source`)
   } catch (error) {
     logger.warn('ATTACH DATABASE failed, will use fallback', error as Error)
     return false
@@ -185,6 +185,9 @@ async function tryAttachAndCopy(
   try {
     for (const table of tables) {
       token.throwIfCancelled()
+      // Column-order consistency: both databases share identical schema from the same
+      // Drizzle migrations, so SELECT * column order matches INSERT target order.
+      // This assumption breaks if migrations ever diverge between live and backup.
       await backupClient.execute(`INSERT INTO "${table}" SELECT * FROM source."${table}"`)
     }
     logger.info('Tables copied via ATTACH', { count: tables.length })
@@ -232,29 +235,30 @@ async function copyTableDualClient(
   const placeholders = columns.map(() => '?').join(', ')
   const insertSql = `INSERT INTO "${table}" (${columnList}) VALUES (${placeholders})`
 
-  let offset = 0
+  // Cursor-based pagination via rowid — safe under concurrent WAL writes
+  let lastRowid = 0
   let copied = 0
 
-  while (offset < totalRows) {
+  while (copied < totalRows) {
     token.throwIfCancelled()
 
     const batch = await liveClient.execute({
-      sql: `SELECT * FROM "${table}" LIMIT ? OFFSET ?`,
-      args: [FALLBACK_BATCH_SIZE, offset]
+      sql: `SELECT rowid AS _rowid_, * FROM "${table}" WHERE rowid > ? ORDER BY rowid LIMIT ?`,
+      args: [lastRowid, FALLBACK_BATCH_SIZE]
     })
 
     if (batch.rows.length === 0) break
 
-    for (const row of batch.rows) {
-      const values = columns.map((col) => (row as Record<string, unknown>)[col])
-      await backupClient.execute({
-        sql: insertSql,
-        args: values as InValue[]
-      })
-    }
+    // Batch INSERT: send all rows in a single transaction round-trip
+    const stmts = batch.rows.map((row) => ({
+      sql: insertSql,
+      args: columns.map((col) => (row as Record<string, unknown>)[col]) as InValue[]
+    }))
+    await backupClient.batch(stmts)
 
+    // Advance cursor to the last rowid in this batch
+    lastRowid = Number((batch.rows[batch.rows.length - 1] as Record<string, unknown>)._rowid_)
     copied += batch.rows.length
-    offset += FALLBACK_BATCH_SIZE
   }
 
   logger.debug('Table copied via dual-client', { table, rows: copied })
