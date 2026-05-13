@@ -20,16 +20,8 @@ export default function ApiHost({ providerId }: ApiHostProps) {
   const { updateProvider } = useProviderMutations(providerId)
   const [customHeaderOpen, setCustomHeaderOpen] = useState(false)
   const meta = useProviderMeta(providerId)
-  const {
-    primaryEndpoint,
-    apiHost,
-    setApiHost,
-    anthropicApiHost,
-    setAnthropicApiHost,
-    apiVersion,
-    setApiVersion,
-    isVertexProvider
-  } = useProviderEndpoints(provider)
+  const { primaryEndpoint, apiHost, setApiHost, anthropicApiHost, setAnthropicApiHost, apiVersion, setApiVersion } =
+    useProviderEndpoints(provider)
   const { syncProviderModels } = useProviderModelSync(providerId)
   const topology = getProviderHostTopology(provider)
   const isAnthropicPrimaryEndpoint = primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
@@ -101,12 +93,6 @@ export default function ApiHost({ providerId }: ApiHostProps) {
         providerId={providerId}
         open={customHeaderOpen}
         onClose={() => setCustomHeaderOpen(false)}
-        hostEditMode={isAnthropicPrimaryEndpoint ? 'anthropic' : 'primary'}
-        apiHost={apiHost}
-        anthropicApiHost={anthropicApiHost}
-        commitApiHost={endpointActions.commitApiHost}
-        commitAnthropicApiHost={endpointActions.commitAnthropicApiHost}
-        isVertexProvider={isVertexProvider}
       />
     </>
   )

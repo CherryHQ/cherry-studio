@@ -531,12 +531,7 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
 
   return (
     <div className="space-y-2">
-      <label className="flex items-center justify-between font-medium text-[13px] text-foreground/85">
-        <span>{t('settings.provider.api_key.label')}</span>
-        <span className="text-(length:--font-size-body-xs) font-normal text-muted-foreground/65">
-          {t('settings.provider.api_key.optional_hint')}
-        </span>
-      </label>
+      <label className="font-medium text-[13px] text-foreground/85">{t('settings.provider.api_key.label')}</label>
       <div className="relative">
         <Input
           type={visible ? 'text' : 'password'}

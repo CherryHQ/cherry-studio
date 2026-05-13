@@ -6473,12 +6473,12 @@
       "docs_check": "查看",
       "docs_more_details": "获取更多详情",
       "duplicate": {
-        "add_another": "再添加一个 {{name}}",
-        "aria_label": "再添加一个 {{name}}",
-        "drawer_title": "添加新的 {{name}}",
+        "add_another": "添加 {{name}} 实例",
+        "aria_label": "添加 {{name}} 实例",
+        "drawer_title": "添加 {{name}} 实例",
         "fill_after_create": "创建后请在详情页填写认证字段",
-        "menu_label": "再添加一个",
-        "tooltip": "再添加一个 {{name}} 实例（如 Coding Plan、其它部署或账号）"
+        "menu_label": "添加实例",
+        "tooltip": "添加 {{name}} 实例（如 Coding Plan、其它部署或账号）"
       },
       "filter": {
         "agent": "支持 Agent",
@@ -6490,6 +6490,7 @@
       "get_api_key": "点击这里获取密钥",
       "misc": "其他",
       "more_endpoints": {
+        "add": "添加端点",
         "anthropic": "Anthropic Messages",
         "gemini": "Google Gemini",
         "openai_chat": "OpenAI Chat Completions",
