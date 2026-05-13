@@ -10,6 +10,15 @@ export type {
   ResolvedAction
 } from './actions/actionTypes'
 export * from './adapters'
+export { default as MessageList } from './messages/MessageList'
+export {
+  MessageListProvider,
+  type MessageListProviderValue,
+  useAgentMessageListProviderValue,
+  useHomeMessageListProviderValue,
+  useMessageList
+} from './messages/MessageListProvider'
+export { MessageVirtualList, type MessageVirtualListHandle } from './messages/MessageVirtualList'
 export * from './primitives'
 export { ChatAppShell, type ChatAppShellProps } from './shell/ChatAppShell'
 export { OverlayHost, type OverlayHostProps } from './shell/OverlayHost'

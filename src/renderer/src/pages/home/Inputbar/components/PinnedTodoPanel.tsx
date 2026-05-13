@@ -7,6 +7,7 @@
  * all todos complete and collapses on header click otherwise.
  */
 
+import type { TodoItem, TodoWriteToolInput } from '@renderer/components/chat/messages/Tools/MessageAgentTools/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { Typography } from 'antd'
@@ -14,8 +15,6 @@ import { CheckCircle, ChevronDown, ChevronUp, Circle, Loader2 } from 'lucide-rea
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import type { TodoItem, TodoWriteToolInput } from '../../Messages/Tools/MessageAgentTools/types'
 
 const { Text } = Typography
 

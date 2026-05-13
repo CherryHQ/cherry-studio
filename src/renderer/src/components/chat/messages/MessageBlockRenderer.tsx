@@ -1,1 +1,1 @@
-export {}
+export { default } from './Blocks/PartsRenderer'

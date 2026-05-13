@@ -1,6 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import { usePartsMap } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
+import { usePartsMap } from '@renderer/components/chat/messages/Blocks/V2Contexts'
 import { type Topic, type TranslateLangCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'

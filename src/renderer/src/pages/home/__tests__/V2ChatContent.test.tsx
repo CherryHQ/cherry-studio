@@ -8,6 +8,7 @@ import V2ChatContent from '../V2ChatContent'
 
 const mockUseChatWithHistory = vi.fn()
 const mockUseTopicMessagesV2 = vi.fn()
+const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
 let capturedOnSend: ((text: string) => Promise<void> | void) | undefined
 
 vi.mock('@renderer/hooks/useChatContext', () => ({
@@ -59,18 +60,32 @@ vi.mock('../Inputbar/Inputbar', () => ({
   )
 }))
 
-vi.mock('../Messages/Blocks', () => ({
+vi.mock('@renderer/components/chat/messages/Blocks', () => ({
   PartsProvider: ({ children }: { children: ReactNode }) => children,
   RefreshProvider: ({ children }: { children: ReactNode }) => children
 }))
 
-vi.mock('../Messages/Messages', () => ({
-  default: ({ messages }: { messages: Message[] }) => (
-    <div data-testid="messages">{messages.map((message) => message.id).join(',')}</div>
+vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
+  MessageListProvider: ({ value, children }: { value: unknown; children: ReactNode }) => {
+    mockMessageListValue.current = value
+    return children
+  },
+  useHomeMessageListProviderValue: (params: { messages: Message[] }) => ({
+    state: { messages: params.messages },
+    actions: {},
+    meta: {}
+  })
+}))
+
+vi.mock('@renderer/components/chat/messages/MessageList', () => ({
+  default: () => (
+    <div data-testid="messages">
+      {mockMessageListValue.current?.state.messages.map((message: Message) => message.id).join(',')}
+    </div>
   )
 }))
 
-vi.mock('../Messages/ExecutionStreamCollector', () => ({
+vi.mock('@renderer/components/chat/messages/ExecutionStreamCollector', () => ({
   default: function ExecutionStreamCollectorMock({
     executionId,
     onMessagesChange
@@ -154,6 +169,7 @@ describe('V2ChatContent', () => {
     ;(window as any).api = originalApi
     vi.clearAllMocks()
     capturedOnSend = undefined
+    mockMessageListValue.current = null
   })
 
   it('sends the active branch node as parentAnchorId', async () => {

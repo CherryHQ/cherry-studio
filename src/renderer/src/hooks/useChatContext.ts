@@ -1,7 +1,7 @@
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
+import { usePartsMap } from '@renderer/components/chat/messages/Blocks'
 import { useV2Chat } from '@renderer/hooks/V2ChatContext'
-import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'

@@ -57,7 +57,7 @@ export function useAgentSessionParts(_agentId: string, sessionId: string) {
   })
 
   // Server returns each page newest-first (DESC) and the cursor walks older.
-  // ChatVirtualList expects chronological-asc (oldest first), so reverse both
+  // MessageVirtualList expects chronological-asc (oldest first), so reverse both
   // axes: oldest page first, and within each page reverse to ASC.
   const rows = useInfiniteFlatItems(pages, { reversePages: true, reverseItems: true })
 

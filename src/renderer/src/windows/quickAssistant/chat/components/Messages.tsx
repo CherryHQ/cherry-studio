@@ -1,6 +1,6 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { PartsProvider } from '@renderer/components/chat/messages/Blocks'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
 import type { Assistant } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'

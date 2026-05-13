@@ -10,6 +10,7 @@ import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { V2ChatOverridesProvider } from '@renderer/hooks/V2ChatContext'
 import type { FileMetadata, Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
@@ -18,13 +19,18 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('V2ChatContent')
 
+import { PartsProvider, RefreshProvider } from '@renderer/components/chat/messages/Blocks'
+import ExecutionStreamCollector from '@renderer/components/chat/messages/ExecutionStreamCollector'
+import MessageList from '@renderer/components/chat/messages/MessageList'
+import {
+  MessageListProvider,
+  useHomeMessageListProviderValue
+} from '@renderer/components/chat/messages/MessageListProvider'
+
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import { useV2ChatOverrides } from './hooks/useV2ChatOverrides'
 import { useV2RenderingPipeline } from './hooks/useV2RenderingPipeline'
 import Inputbar from './Inputbar/Inputbar'
-import { PartsProvider, RefreshProvider } from './Messages/Blocks'
-import ExecutionStreamCollector from './Messages/ExecutionStreamCollector'
-import Messages from './Messages/Messages'
 
 export interface V2ChatContentFrameSlots {
   main: ReactNode
@@ -320,7 +326,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
                         })
                       })()}
 
-                      <Messages
+                      <HomeMessageList
                         key={topic.id}
                         topic={topic}
                         messages={projectedMessages}
@@ -373,3 +379,17 @@ const ChatContextBridge: FC<{ topic: Topic; children: (overlay: ReactNode) => Re
 }
 
 export default V2ChatContent
+
+const HomeMessageList: FC<{
+  topic: Topic
+  messages: Message[]
+  loadOlder: () => void
+  hasOlder: boolean
+}> = ({ topic, messages, loadOlder, hasOlder }) => {
+  const value = useHomeMessageListProviderValue({ topic, messages, loadOlder, hasOlder })
+  return (
+    <MessageListProvider value={value}>
+      <MessageList />
+    </MessageListProvider>
+  )
+}

@@ -1,4 +1,4 @@
-import Markdown from '@renderer/pages/home/Markdown/Markdown'
+import Markdown from '@renderer/components/chat/messages/markdown/Markdown'
 import type { MainTextMessageBlock } from '@renderer/types/newMessage'
 import React from 'react'
 

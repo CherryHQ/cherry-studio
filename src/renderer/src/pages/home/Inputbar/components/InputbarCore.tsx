@@ -4,6 +4,7 @@ import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
+import NarrowLayout from '@renderer/components/chat/messages/NarrowLayout'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
@@ -24,7 +25,6 @@ import type { CSSProperties, FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import NarrowLayout from '../../Messages/NarrowLayout'
 import AttachmentPreview from '../AttachmentPreview'
 import {
   useInputbarToolsDispatch,
