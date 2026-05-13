@@ -1,11 +1,8 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
-import { useChatContext } from '@renderer/hooks/useChatContext'
-import { updateMessageUiState } from '@renderer/hooks/useMessage'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
@@ -18,6 +15,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 
 import MessageItem from '../frame/MessageFrame'
 import { useMessageList } from '../MessageListProvider'
+import type { MessageUiState } from '../types'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
 
 const logger = loggerService.withContext('MessageGroup')
@@ -27,26 +25,23 @@ interface Props {
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
 }
 
-/**
- * Read initial message UI state from cache (one-time, used for useState initializer).
- */
-const getMessageUiFromCache = (messageId: string) =>
-  (cacheService.get(`message.ui.${messageId}` as const) || {}) as {
-    foldSelected?: boolean
-    multiModelMessageStyle?: string
-    useful?: boolean
-  }
-
 const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const messageLength = messages.length
 
   // Hooks
-  const { actions } = useMessageList()
+  const { state, actions } = useMessageList()
   const [multiModelMessageStyleSetting] = usePreference('chat.message.multi_model.style')
   const [gridColumns] = usePreference('chat.message.multi_model.grid_columns')
   const [gridPopoverTrigger] = usePreference('chat.message.multi_model.grid_popover_trigger')
-  const { isMultiSelectMode } = useChatContext(topic)
   const { setTimeoutTimer } = useTimer()
+  const isMultiSelectMode = state.selection?.isMultiSelectMode ?? false
+  const getMessageUiState = useCallback((messageId: string) => state.getMessageUiState?.(messageId) ?? {}, [state])
+  const updateMessageUiState = useCallback(
+    (messageId: string, updates: MessageUiState) => {
+      actions.updateMessageUiState?.(messageId, updates)
+    },
+    [actions]
+  )
 
   const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
   const hasGroupActions = !!(actions.setActiveBranch || actions.deleteMessageGroup || actions.regenerateMessage)
@@ -54,7 +49,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   // States — initialize from Cache, then tracked in React state
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
     () =>
-      (getMessageUiFromCache(messages[0]?.id).multiModelMessageStyle as MultiModelMessageStyle) ||
+      (getMessageUiState(messages[0]?.id).multiModelMessageStyle as MultiModelMessageStyle) ||
       multiModelMessageStyleSetting
   )
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
@@ -69,12 +64,12 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   // Track selected and useful message IDs in React state
   const [selectedMessageId, setSelectedMessageIdState] = useState<string>(() => {
     if (messages.length === 1) return messages[0]?.id
-    const selected = messages.find((m) => getMessageUiFromCache(m.id).foldSelected)
+    const selected = messages.find((m) => getMessageUiState(m.id).foldSelected)
     return selected?.id ?? messages[0]?.id
   })
 
   const [usefulMessageId, setUsefulMessageIdState] = useState<string | null>(() => {
-    const useful = messages.find((m) => getMessageUiFromCache(m.id).useful)
+    const useful = messages.find((m) => getMessageUiState(m.id).useful)
     return useful?.id ?? null
   })
 
@@ -87,13 +82,13 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   useEffect(() => {
     const hasSelected = messages.some((m) => m.id === selectedMessageId)
     if (!hasSelected) {
-      const next = messages.find((m) => getMessageUiFromCache(m.id).foldSelected)?.id ?? messages[0]?.id
+      const next = messages.find((m) => getMessageUiState(m.id).foldSelected)?.id ?? messages[0]?.id
       if (next) setSelectedMessageIdState(next)
     }
     if (usefulMessageId && !messages.some((m) => m.id === usefulMessageId)) {
       setUsefulMessageIdState(null)
     }
-  }, [messages, selectedMessageId, usefulMessageId])
+  }, [getMessageUiState, messages, selectedMessageId, usefulMessageId])
 
   const setSelectedMessage = useCallback(
     (message: Message) => {
@@ -118,7 +113,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         200
       )
     },
-    [actions, selectedMessageId, setTimeoutTimer]
+    [actions, selectedMessageId, setTimeoutTimer, updateMessageUiState]
   )
   // 添加对流程图节点点击事件的监听
   useEffect(() => {
@@ -216,7 +211,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         setUsefulMessageIdState(msgId)
       }
     },
-    [messages, usefulMessageId]
+    [messages, updateMessageUiState, usefulMessageId]
   )
 
   const groupContextMessageId = useMemo(() => {

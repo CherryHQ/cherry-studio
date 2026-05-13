@@ -38,7 +38,13 @@ export function useAgentMessageListProviderValue({
         overscan: 6,
         loadOlderDelayMs: 0,
         loadingResetDelayMs: 600,
-        listKey: topic.id
+        listKey: topic.id,
+        readonly: true,
+        selection: {
+          enabled: false,
+          isMultiSelectMode: false,
+          selectedMessageIds: []
+        }
       },
       actions: {
         loadOlder

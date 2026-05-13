@@ -1,8 +1,6 @@
 import { LoadingIcon } from '@renderer/components/Icons'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
-import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
 import type { Message } from '@renderer/types/newMessage'
 import {
@@ -23,9 +21,9 @@ import { useMessageList } from './MessageListProvider'
 const MessageList = () => {
   const { state, actions, meta } = useMessageList()
   const { topic, messages, beforeList, hasOlder = false, messageNavigation } = state
-  const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
+  const isMultiSelectMode = state.selection?.isMultiSelectMode ?? false
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -74,31 +72,24 @@ const MessageList = () => {
   }, [groupedMessages])
 
   useEffect(() => {
-    const unsubscribes = [EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, scrollToBottom)]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [scrollToBottom])
-
-  useEffect(() => {
-    if (!meta.imageExportFileName) return
-
-    const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, async () => {
+    return actions.bindRuntime?.({
+      scrollToBottom,
+      copyTopicImage: async () => {
         await captureScrollableAsBlob(scrollContainerRef, async (blob) => {
           if (blob) {
             await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
           }
         })
-      }),
-      EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, async () => {
+      },
+      exportTopicImage: async () => {
+        if (!meta.imageExportFileName) return
         const imageData = await captureScrollableAsDataURL(scrollContainerRef)
         if (imageData) {
-          void window.api.file.saveImage(removeSpecialCharactersForFileName(meta.imageExportFileName!), imageData)
+          void window.api.file.saveImage(removeSpecialCharactersForFileName(meta.imageExportFileName), imageData)
         }
-      })
-    ]
-
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [meta.imageExportFileName])
+      }
+    })
+  }, [actions, meta.imageExportFileName, scrollToBottom])
 
   if (state.isInitialLoading) {
     return (
@@ -154,7 +145,7 @@ const MessageList = () => {
           isMultiSelectMode={isMultiSelectMode}
           scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
           messageElements={messageElements.current}
-          handleSelectMessage={handleSelectMessage}
+          handleSelectMessage={(messageId, selected) => actions.selectMessage?.(messageId, selected)}
         />
       )}
     </MessagesContainer>

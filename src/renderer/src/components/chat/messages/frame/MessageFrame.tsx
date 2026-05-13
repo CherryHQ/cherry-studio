@@ -7,8 +7,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMessage } from '@renderer/hooks/useMessage'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -26,6 +24,7 @@ import React, { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SiblingNavigator from '../list/SiblingNavigator'
+import { useMessageList } from '../MessageListProvider'
 import MessageContent from './MessageContent'
 import MessageEditor from './MessageEditor'
 import MessageErrorBoundary from './MessageErrorBoundary'
@@ -74,7 +73,8 @@ const MessageItem: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
-  const { isMultiSelectMode } = useChatContext(topic)
+  const { state, actions } = useMessageList()
+  const isMultiSelectMode = state.selection?.isMultiSelectMode ?? false
   // Use the message-embedded snapshot rather than re-resolving the live model
   // config: the snapshot is what the message was actually generated with.
   const model = message.model
@@ -84,11 +84,11 @@ const MessageItem: FC<Props> = ({
   const [showMessageOutline] = usePreference('chat.message.show_outline')
   const [messageStyle] = usePreference('chat.message.style')
 
-  const { editParts, forkAndResend } = useMessage(message.id, topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, startEditing, stopEditing } = useMessageEditing()
   const { setTimeoutTimer } = useTimer()
-  const isEditing = editingMessageId === message.id
+  const canEditMessage = !!actions.editMessage
+  const isEditing = canEditMessage && editingMessageId === message.id
 
   useEffect(() => {
     if (isEditing && messageContainerRef.current) {
@@ -102,26 +102,28 @@ const MessageItem: FC<Props> = ({
 
   const handleEditSave = useCallback(
     async (parts: CherryMessagePart[]) => {
+      if (!actions.editMessage) return
       try {
-        await editParts(parts)
+        await actions.editMessage(message.id, parts)
         stopEditing()
       } catch (error) {
         logger.error('Failed to save message parts:', error as Error)
       }
     },
-    [editParts, stopEditing]
+    [actions, message.id, stopEditing]
   )
 
   const handleEditResend = useCallback(
     async (parts: CherryMessagePart[]) => {
+      if (!actions.forkAndResendMessage) return
       try {
         stopEditing()
-        await forkAndResend(parts)
+        await actions.forkAndResendMessage(message.id, parts)
       } catch (error) {
         logger.error('Failed to resend message with parts:', error as Error)
       }
     },
-    [forkAndResend, stopEditing]
+    [actions, message.id, stopEditing]
   )
 
   const handleEditCancel = useCallback(() => {
@@ -176,7 +178,7 @@ const MessageItem: FC<Props> = ({
   // Listen for external edit requests and activate editor for this message if it matches
   useEffect(() => {
     const handleEditRequest = (targetId: string) => {
-      if (targetId === message.id) {
+      if (canEditMessage && targetId === message.id) {
         startEditing(message.id)
       }
     }
@@ -184,7 +186,7 @@ const MessageItem: FC<Props> = ({
     return () => {
       unsubscribe()
     }
-  }, [message.id, startEditing])
+  }, [canEditMessage, message.id, startEditing])
 
   if (message.type === 'clear') {
     return (
@@ -219,7 +221,6 @@ const MessageItem: FC<Props> = ({
             assistant={assistant}
             model={model}
             key={model ? createUniqueModelId(model.provider, model.id) : ''}
-            topic={topic}
             isGroupContextMessage={isGroupContextMessage}
             actionsSlot={
               showUserHeaderActions ? (

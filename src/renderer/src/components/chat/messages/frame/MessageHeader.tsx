@@ -4,11 +4,10 @@ import UserPopup from '@renderer/components/Popups/UserPopup'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getMessageModelId } from '@renderer/services/MessagesService'
-import type { Assistant, Model, Topic } from '@renderer/types'
+import type { Assistant, Model } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import dayjs from 'dayjs'
@@ -28,24 +27,24 @@ interface Props {
   message: Message
   assistant?: Assistant
   model?: Model
-  topic: Topic
   isGroupContextMessage?: boolean
   actionsSlot?: ReactNode
 }
 
-const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage, actionsSlot }) => {
+const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupContextMessage, actionsSlot }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const [userName] = usePreference('app.user.name')
   const showMiniAppIcon = useSidebarIconShow('mini_app')
-  const { meta } = useMessageList()
+  const { state, actions, meta } = useMessageList()
   const assistantProfile = meta.assistantProfile
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
   const isBubbleStyle = messageStyle === 'bubble'
   const { openMiniAppById } = useMiniAppPopup()
 
-  const { isMultiSelectMode, selectedMessageIds, handleSelectMessage } = useChatContext(topic)
+  const isMultiSelectMode = state.selection?.isMultiSelectMode ?? false
+  const selectedMessageIds = state.selection?.selectedMessageIds
 
   const isSelected = selectedMessageIds?.includes(message.id)
 
@@ -163,7 +162,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
       {isMultiSelectMode && (
         <Checkbox
           checked={isSelected}
-          onCheckedChange={(checked) => handleSelectMessage(message.id, checked === true)}
+          onCheckedChange={(checked) => actions.selectMessage?.(message.id, checked === true)}
           className="absolute top-0 right-0"
         />
       )}

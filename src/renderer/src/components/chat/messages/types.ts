@@ -1,6 +1,26 @@
-import type { Topic } from '@renderer/types'
+import type { Topic, TranslateLangCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
+import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReactNode } from 'react'
+
+export interface MessageUiState {
+  foldSelected?: boolean
+  multiModelMessageStyle?: string
+  useful?: boolean
+}
+
+export interface MessageListSelectionState {
+  enabled: boolean
+  isMultiSelectMode: boolean
+  selectedMessageIds?: readonly string[]
+}
+
+export interface MessageListRuntime {
+  scrollToBottom: () => void
+  copyTopicImage: () => Promise<void>
+  exportTopicImage: () => Promise<void>
+}
 
 export interface MessageListState {
   topic: Topic
@@ -14,13 +34,34 @@ export interface MessageListState {
   loadOlderDelayMs: number
   loadingResetDelayMs: number
   listKey?: string
+  readonly?: boolean
+  selection?: MessageListSelectionState
+  getMessageUiState?: (messageId: string) => MessageUiState
 }
 
 export interface MessageListActions {
   loadOlder?: () => void
+  bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)
+  selectMessage?: (messageId: string, selected: boolean) => void
+  toggleMultiSelectMode?: (enabled: boolean) => void
+  updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
+  editMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
+  forkAndResendMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
+  deleteMessage?: (messageId: string, traceOptions?: { traceId?: string; modelName?: string }) => void | Promise<void>
+  startMessageBranch?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
   deleteMessageGroup?: (askId: string) => void | Promise<void>
   regenerateMessage?: (messageId: string) => void | Promise<void>
+  regenerateMessageWithModel?: (
+    messageId: string,
+    modelId: UniqueModelId,
+    modelSnapshot?: ModelSnapshot
+  ) => void | Promise<void>
+  getTranslationUpdater?: (
+    messageId: string,
+    targetLanguage: TranslateLangCode,
+    sourceLanguage?: TranslateLangCode
+  ) => Promise<((accumulatedText: string, isComplete?: boolean) => void) | null>
 }
 
 export interface MessageListMeta {

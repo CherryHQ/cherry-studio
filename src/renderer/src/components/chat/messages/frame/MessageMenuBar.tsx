@@ -10,7 +10,6 @@ import {
   DropdownMenuTrigger,
   Tooltip
 } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -27,8 +26,6 @@ import {
 } from '@renderer/config/registry/messageMenuBar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useLanguages } from '@renderer/hooks/translate'
-import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMessage } from '@renderer/hooks/useMessage'
 import { useModelById } from '@renderer/hooks/useModels'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
@@ -87,6 +84,7 @@ import { Fragment, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '../blocks'
+import { useMessageList } from '../MessageListProvider'
 import MessageTokens from './MessageTokens'
 
 const createTranslationAbortKey = (messageId: string) => `translation-abort-key:${messageId}`
@@ -116,7 +114,6 @@ type MessageMenuBarButtonContext = {
   confirmDeleteMessage: boolean
   confirmRegenerateMessage: boolean
   copied: boolean
-  /** Bound by `useMessage(message.id, topic)` — signature drops the leading id. */
   deleteMessage: (traceId?: string, modelName?: string) => Promise<void>
   menuItems: MessageMenuItem[]
   enableDeveloperMode: boolean
@@ -129,6 +126,7 @@ type MessageMenuBarButtonContext = {
   isLastMessage: boolean
   isTranslating: boolean
   isUserMessage: boolean
+  isUseful: boolean
   message: Message
   notesPath: string
   onCopy: (e: React.MouseEvent) => void
@@ -145,7 +143,11 @@ type MessageMenuBarButtonContext = {
   showDeleteTooltip: boolean
   softHoverBg: boolean
 
-  supportsWrites: boolean
+  canDeleteMessage: boolean
+  canEditMessage: boolean
+  canRegenerateMessage: boolean
+  canRegenerateWithModel: boolean
+  canTranslateMessage: boolean
   t: TFunction
   translateLanguages: TranslateLanguage[]
   getLanguageLabel: ReturnType<typeof useLanguages>['getLabel']
@@ -184,22 +186,15 @@ const MessageMenuBar: FC<Props> = (props) => {
     variant = 'footer'
   } = props
   const { t } = useTranslation()
+  const { state, actions } = useMessageList()
   const currentMentionModelId = model ? createUniqueModelId(model.provider, model.id) : undefined
   const { model: currentMentionModel } = useModelById(currentMentionModelId ?? ('' as UniqueModelId))
   const { notesPath } = useNotesSettings()
-  const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const translationAbortKey = createTranslationAbortKey(message.id)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const { languages, getLabel: getLanguageLabel } = useLanguages()
-  const translateLanguages = languages ?? []
-  const {
-    remove: deleteMessage,
-    regenerate: regenerateAssistantMessage,
-    regenerateWithModel,
-    startBranch,
-    getTranslationUpdater
-  } = useMessage(message.id, topic)
+  const translateLanguages = useMemo(() => languages ?? [], [languages])
 
   const [messageStyle] = usePreference('chat.message.style')
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
@@ -241,9 +236,9 @@ const MessageMenuBar: FC<Props> = (props) => {
   )
 
   const onNewBranch = useCallback(async () => {
-    await startBranch()
+    await actions.startMessageBranch?.(message.id)
     window.toast.success(t('chat.message.new.branch.created'))
-  }, [startBranch, t])
+  }, [actions, message.id, t])
 
   /**
    * Mention a specific model to regenerate this assistant turn — produces a
@@ -266,14 +261,14 @@ const MessageMenuBar: FC<Props> = (props) => {
     async (selected: SharedModel | undefined) => {
       if (!selected) return
       const { providerId, modelId } = parseUniqueModelId(selected.id)
-      await regenerateWithModel(selected.id, {
+      await actions.regenerateMessageWithModel?.(message.id, selected.id, {
         id: modelId,
         name: selected.name,
         provider: providerId,
         ...(selected.group && { group: selected.group })
       })
     },
-    [regenerateWithModel]
+    [actions, message.id]
   )
 
   const { startEditing } = useMessageEditing()
@@ -296,7 +291,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     async (language: TranslateLanguage) => {
       if (isTranslating) return
 
-      const translationUpdater = await getTranslationUpdater(language.langCode)
+      const translationUpdater = await actions.getTranslationUpdater?.(message.id, language.langCode)
       if (!translationUpdater) return
 
       try {
@@ -308,7 +303,7 @@ const MessageMenuBar: FC<Props> = (props) => {
         }
       }
     },
-    [isTranslating, getTranslationUpdater, mainTextContent, translationAbortKey, t]
+    [actions, isTranslating, mainTextContent, message.id, translationAbortKey, t]
   )
 
   const handleTraceUserMessage = useCallback(async () => {
@@ -326,11 +321,16 @@ const MessageMenuBar: FC<Props> = (props) => {
   const { buttonIds, dropdownRootAllowKeys } = getMessageMenuBarConfig(menubarScope)
 
   const isEditable = useMemo(() => hasTextParts(messageParts), [messageParts])
-  // All messages in the rendered topic are owned by it; there's no shared-
-  // ancestor read-only mode today. The `supportsWrites` flag stays wired
-  // through the button-renderer context so future scopes (e.g. an
-  // agent-session read-only view) can opt out by setting it to `false`.
-  const supportsWrites = true
+  // Shared UI only exposes write affordances when the active adapter provides
+  // the corresponding capability.
+  const supportsWrites = !state.readonly
+  const canEditMessage = supportsWrites && !!actions.editMessage
+  const canDeleteMessage = supportsWrites && !!actions.deleteMessage
+  const canRegenerateMessage = supportsWrites && !!actions.regenerateMessage
+  const canRegenerateWithModel = supportsWrites && !!actions.regenerateMessageWithModel
+  const canStartBranch = supportsWrites && !!actions.startMessageBranch
+  const canToggleMultiSelect = state.selection?.enabled && !!actions.toggleMultiSelectMode
+  const canTranslateMessage = supportsWrites && !!actions.getTranslationUpdater
 
   const menuItems = useMemo(() => {
     // Assistant edit is intentionally hidden from the UI — editing an LLM
@@ -338,7 +338,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     // context window. Power users can still get the effect via edit-and-
     // resend on their own prompt. `user-edit` primary button already role-
     // gates; mirror that here for the overflow dropdown.
-    const canEditHere = isEditable && supportsWrites && isUserMessage
+    const canEditHere = isEditable && canEditMessage && isUserMessage
     const items: MessageMenuItem[] = [
       ...(canEditHere
         ? [
@@ -350,21 +350,29 @@ const MessageMenuBar: FC<Props> = (props) => {
             }
           ]
         : []),
-      {
-        label: t('chat.message.new.branch.label'),
-        key: 'new-branch',
-        icon: <Split size={15} />,
-        onClick: onNewBranch
-      },
-      {
-        label: t('chat.multiple.select.label'),
-        key: 'multi-select',
-        icon: <ListChecks size={15} />,
-        disabled: isProcessing,
-        onClick: () => {
-          toggleMultiSelectMode(true)
-        }
-      },
+      ...(canStartBranch
+        ? [
+            {
+              label: t('chat.message.new.branch.label'),
+              key: 'new-branch',
+              icon: <Split size={15} />,
+              onClick: onNewBranch
+            }
+          ]
+        : []),
+      ...(canToggleMultiSelect
+        ? [
+            {
+              label: t('chat.multiple.select.label'),
+              key: 'multi-select',
+              icon: <ListChecks size={15} />,
+              disabled: isProcessing,
+              onClick: () => {
+                actions.toggleMultiSelectMode?.(true)
+              }
+            }
+          ]
+        : []),
       {
         label: t('chat.save.label'),
         key: 'save',
@@ -512,23 +520,36 @@ const MessageMenuBar: FC<Props> = (props) => {
     exportMenuOptions.plain_text,
     exportMenuOptions.siyuan,
     exportMenuOptions.yuque,
+    canEditMessage,
+    canStartBranch,
+    canToggleMultiSelect,
     isEditable,
     isProcessing,
+    isUserMessage,
     mainTextContent,
     message,
     messageContainerRef,
     onEdit,
     onNewBranch,
-    supportsWrites,
+    actions,
     t,
-    toggleMultiSelectMode,
     topic.name
   ])
 
-  const onRegenerate = async (e: React.MouseEvent | undefined) => {
-    e?.stopPropagation?.()
-    void regenerateAssistantMessage()
-  }
+  const onRegenerate = useCallback(
+    async (e: React.MouseEvent | undefined) => {
+      e?.stopPropagation?.()
+      void actions.regenerateMessage?.(message.id)
+    },
+    [actions, message.id]
+  )
+
+  const deleteMessage = useCallback(
+    async (traceId?: string, modelName?: string) => {
+      await actions.deleteMessage?.(message.id, { traceId, modelName })
+    },
+    [actions, message.id]
+  )
 
   const onUseful = useCallback(
     (e: React.MouseEvent) => {
@@ -539,6 +560,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   )
 
   const hasTranslationBlocks = useMemo(() => hasTranslationParts(messageParts), [messageParts])
+  const isUseful = !!state.getMessageUiState?.(message.id).useful
 
   const softHoverBg = isBubbleStyle && !isLastMessage
   const showMessageTokens = variant === 'footer' && !isBubbleStyle
@@ -561,6 +583,7 @@ const MessageMenuBar: FC<Props> = (props) => {
     isLastMessage,
     isTranslating,
     isUserMessage,
+    isUseful,
     message,
     notesPath,
     onCopy,
@@ -573,7 +596,11 @@ const MessageMenuBar: FC<Props> = (props) => {
     setShowDeleteTooltip,
     showDeleteTooltip,
     softHoverBg,
-    supportsWrites,
+    canDeleteMessage,
+    canEditMessage,
+    canRegenerateMessage,
+    canRegenerateWithModel,
+    canTranslateMessage,
     t,
     translateLanguages,
     getLanguageLabel
@@ -728,8 +755,8 @@ const MessageMenuItems = ({ items }: { items: MessageMenuItem[] }) => {
 }
 
 const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRenderer> = {
-  'user-edit': ({ message, onEdit, softHoverBg, supportsWrites, t }, disabled) => {
-    if (message.role !== 'user' || !supportsWrites) {
+  'user-edit': ({ message, onEdit, softHoverBg, canEditMessage, t }, disabled) => {
+    if (message.role !== 'user' || !canEditMessage) {
       return null
     }
 
@@ -750,10 +777,18 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
     </Tooltip>
   ),
   'assistant-regenerate': (
-    { isAssistantMessage, confirmRegenerateMessage, onRegenerate, setShowDeleteTooltip, softHoverBg, t },
+    {
+      isAssistantMessage,
+      canRegenerateMessage,
+      confirmRegenerateMessage,
+      onRegenerate,
+      setShowDeleteTooltip,
+      softHoverBg,
+      t
+    },
     disabled
   ) => {
-    if (!isAssistantMessage) {
+    if (!isAssistantMessage || !canRegenerateMessage) {
       return null
     }
 
@@ -791,14 +826,14 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
   },
   'assistant-mention-model': ({
     currentMentionModel,
+    canRegenerateWithModel,
     isAssistantMessage,
     mentionModelFilter,
     onSelectMentionModel,
     softHoverBg,
-    supportsWrites,
     t
   }) => {
-    if (!isAssistantMessage || !supportsWrites) {
+    if (!isAssistantMessage || !canRegenerateWithModel) {
       return null
     }
 
@@ -827,11 +862,11 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
     hasTranslationBlocks,
     messageParts,
     softHoverBg,
-    supportsWrites,
+    canTranslateMessage,
     t,
     getLanguageLabel
   }) => {
-    if (isUserMessage || !supportsWrites) {
+    if (isUserMessage || !canTranslateMessage) {
       return null
     }
 
@@ -894,12 +929,10 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
       </Tooltip>
     )
   },
-  useful: ({ isAssistantMessage, isGrouped, onUseful, softHoverBg, message, t }) => {
+  useful: ({ isAssistantMessage, isGrouped, onUseful, softHoverBg, isUseful, t }) => {
     if (!isAssistantMessage || !isGrouped) {
       return null
     }
-
-    const isUseful = (cacheService.get(`message.ui.${message.id}` as const) as { useful?: boolean } | null)?.useful
 
     return (
       <Tooltip content={t('chat.message.useful.label')} delay={800}>
@@ -938,12 +971,12 @@ const buttonRenderers: Record<MessageMenuBarButtonId, MessageMenuBarButtonRender
       setShowDeleteTooltip,
       showDeleteTooltip,
       softHoverBg,
-      supportsWrites,
+      canDeleteMessage,
       t
     },
     disabled
   ) => {
-    if (!supportsWrites) {
+    if (!canDeleteMessage) {
       return null
     }
 

@@ -1,11 +1,13 @@
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types'
+import type { Topic, TranslateLangCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -16,7 +18,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { resolvePartFromParts, usePartsMap } from '../blocks'
-import type { MessageListProviderValue } from '../types'
+import type { MessageListProviderValue, MessageListRuntime, MessageUiState } from '../types'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
 
@@ -42,6 +44,7 @@ export function useHomeMessageListProviderValue({
   const { t } = useTranslation()
   const partsMap = usePartsMap()
   const v2Chat = useV2Chat()
+  const { isMultiSelectMode, selectedMessageIds, handleSelectMessage, toggleMultiSelectMode } = useChatContext(topic)
 
   const messagesRef = useRef<Message[]>(messages)
   const partsMapRef = useRef(partsMap)
@@ -138,6 +141,64 @@ export function useHomeMessageListProviderValue({
     }
   })
 
+  const bindRuntime = useCallback((runtime: MessageListRuntime) => {
+    const unsubscribes = [
+      EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, runtime.scrollToBottom),
+      EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, runtime.copyTopicImage),
+      EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, runtime.exportTopicImage)
+    ]
+
+    return () => unsubscribes.forEach((unsub) => unsub())
+  }, [])
+
+  const getMessageUiState = useCallback(
+    (messageId: string) => (cacheService.get(`message.ui.${messageId}` as const) || {}) as MessageUiState,
+    []
+  )
+
+  const updateMessageUiState = useCallback((messageId: string, updates: MessageUiState) => {
+    const cacheKey = `message.ui.${messageId}` as const
+    const current = cacheService.get(cacheKey) || {}
+    cacheService.set(cacheKey, { ...current, ...updates })
+  }, [])
+
+  const getTranslationUpdater = useCallback(
+    async (
+      messageId: string,
+      targetLanguage: TranslateLangCode,
+      sourceLanguage?: TranslateLangCode
+    ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
+      if (!topic.id || !v2Chat) return null
+
+      const currentParts = partsMapRef.current?.[messageId]
+      if (!currentParts) {
+        logger.error(`[getTranslationUpdater] cannot find parts for message: ${messageId}`)
+        return null
+      }
+
+      const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
+      const loadingPart = {
+        type: 'data-translation' as const,
+        data: { content: '', targetLanguage, ...(sourceLanguage && { sourceLanguage }) }
+      }
+      await v2Chat.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
+
+      return (accumulatedText: string) => {
+        const translationPart = {
+          type: 'data-translation' as const,
+          data: {
+            content: accumulatedText,
+            targetLanguage,
+            ...(sourceLanguage && { sourceLanguage })
+          }
+        }
+
+        void v2Chat.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart])
+      }
+    },
+    [topic.id, v2Chat]
+  )
+
   return useMemo(
     () => ({
       state: {
@@ -149,19 +210,53 @@ export function useHomeMessageListProviderValue({
         overscan: 8,
         loadOlderDelayMs: 300,
         loadingResetDelayMs: 300,
-        listKey: assistant?.id ?? topic.assistantId
+        listKey: assistant?.id ?? topic.assistantId,
+        readonly: false,
+        selection: {
+          enabled: true,
+          isMultiSelectMode,
+          selectedMessageIds
+        },
+        getMessageUiState
       },
       actions: {
         loadOlder,
+        bindRuntime,
+        selectMessage: handleSelectMessage,
+        toggleMultiSelectMode,
+        updateMessageUiState,
+        editMessage: (messageId, parts) => v2Chat?.editMessage(messageId, parts),
+        forkAndResendMessage: (messageId, parts) => v2Chat?.forkAndResend(messageId, parts),
+        deleteMessage: (messageId, traceOptions) => v2Chat?.deleteMessage(messageId, traceOptions),
+        startMessageBranch: (messageId) => v2Chat?.setActiveNode(messageId),
         setActiveBranch: (messageId: string) => v2Chat?.setActiveBranch(messageId),
         deleteMessageGroup: (askId: string) => v2Chat?.deleteMessageGroup(askId),
-        regenerateMessage: (messageId: string) => v2Chat?.regenerate(messageId)
+        regenerateMessage: (messageId: string) => v2Chat?.regenerate(messageId),
+        regenerateMessageWithModel: (messageId, modelId, modelSnapshot) =>
+          v2Chat?.regenerate(messageId, { modelId, modelSnapshot }),
+        getTranslationUpdater
       },
       meta: {
         selectionLayer: true,
         imageExportFileName: topic.name
       }
     }),
-    [assistant?.id, hasOlder, loadOlder, messageNavigation, messages, topic, v2Chat]
+    [
+      assistant?.id,
+      bindRuntime,
+      getMessageUiState,
+      getTranslationUpdater,
+      handleSelectMessage,
+      hasOlder,
+      isMultiSelectMode,
+      loadOlder,
+      messageNavigation,
+      messages,
+      selectedMessageIds,
+      toggleMultiSelectMode,
+      topic,
+      updateMessageUiState,
+      v2Chat
+    ]
   )
 }
