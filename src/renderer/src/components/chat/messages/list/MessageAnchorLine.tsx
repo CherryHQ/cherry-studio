@@ -1,4 +1,4 @@
-import { Avatar, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { getModelLogo } from '@renderer/config/models'
@@ -7,7 +7,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import type { Message } from '@renderer/types/newMessage'
-import { isEmoji, removeLeadingEmoji } from '@renderer/utils'
+import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
@@ -16,6 +16,7 @@ import { type FC, type Ref, useCallback, useEffect, useRef, useState } from 'rea
 import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '../blocks'
+import { useMessageList } from '../MessageListProvider'
 
 interface MessageLineProps {
   messages: Message[]
@@ -34,6 +35,8 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   const avatar = useAvatar()
   const { theme } = useTheme()
   const [userName] = usePreference('app.user.name')
+  const { meta } = useMessageList()
+  const assistantProfile = meta.assistantProfile
   const { setTimeoutTimer } = useTimer()
 
   const messagesListRef = useRef<HTMLDivElement>(null)
@@ -83,6 +86,10 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   const getUserName = useCallback(
     (message: Message) => {
       if (message.role === 'assistant') {
+        if (assistantProfile?.name) {
+          return assistantProfile.name
+        }
+
         if (message.model) {
           return message.model.name || message.model.id || message.modelId || ''
         }
@@ -93,7 +100,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
 
       return userName || t('common.you')
     },
-    [userName, t]
+    [assistantProfile?.name, userName, t]
   )
 
   const setSelectedMessage = useCallback(
@@ -216,8 +223,26 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
               </MessageItemContainer>
 
               {message.role === 'assistant' ? (
-                ModelIcon ? (
-                  <ModelIcon.Avatar size={size} />
+                assistantProfile?.avatar ? (
+                  isEmoji(assistantProfile.avatar) ? (
+                    <EmojiAvatar
+                      className="rounded-full"
+                      size={size}
+                      fontSize={size * 0.6}
+                      style={{
+                        cursor: 'default',
+                        pointerEvents: 'none'
+                      }}>
+                      {assistantProfile.avatar}
+                    </EmojiAvatar>
+                  ) : (
+                    <MessageItemAvatar style={{ width: size, height: size }}>
+                      <AvatarImage src={assistantProfile.avatar} />
+                      <AvatarFallback>{firstLetter(assistantProfile.name ?? '').toUpperCase()}</AvatarFallback>
+                    </MessageItemAvatar>
+                  )
+                ) : ModelIcon ? (
+                  <ModelIcon.Avatar size={size} shape="circle" className="rounded-full" />
                 ) : (
                   <MessageItemAvatar
                     style={{
@@ -231,6 +256,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
                 <>
                   {isEmoji(avatar) ? (
                     <EmojiAvatar
+                      className="rounded-full"
                       size={size}
                       fontSize={size * 0.6}
                       style={{
@@ -284,7 +310,7 @@ const MessageItemContainer = ({ className, ...props }: React.ComponentPropsWitho
 const MessageItemAvatar = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Avatar>) => (
   <Avatar
     className={[
-      'transition-[width,height] duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] [will-change:width,height]',
+      'overflow-hidden rounded-full transition-[width,height] duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] [will-change:width,height]',
       className
     ]
       .filter(Boolean)

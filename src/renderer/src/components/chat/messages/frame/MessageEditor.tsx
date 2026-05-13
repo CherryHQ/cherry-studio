@@ -7,7 +7,6 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isVisionModel } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { FileNameRender, getFileIcon } from '@renderer/pages/home/Inputbar/AttachmentPreview'
 import AttachmentButton from '@renderer/pages/home/Inputbar/tools/components/AttachmentButton'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
@@ -44,8 +43,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const [isFileDragging, setIsFileDragging] = useState(false)
   const { model: v2Model } = useAssistant(message.assistantId)
   const model = useMemo(() => (v2Model ? fromSharedModel(v2Model) : undefined), [v2Model])
-  const { pasteLongTextAsFile } = useSettings()
-
+  const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')

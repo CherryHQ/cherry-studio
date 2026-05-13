@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   scrollIntoView: vi.fn(),
   setTimeoutTimer: vi.fn(),
   useChatContext: vi.fn().mockReturnValue({ isMultiSelectMode: false }),
-  useSettings: vi.fn().mockReturnValue({
+  settings: vi.fn().mockReturnValue({
     multiModelMessageStyle: 'horizontal',
     gridColumns: 2,
     gridPopoverTrigger: 'click',
@@ -59,7 +59,7 @@ vi.mock('@data/CacheService', () => ({
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
-    const settings = mocks.useSettings()
+    const settings = mocks.settings()
     const values: Record<string, unknown> = {
       'chat.message.multi_model.style': settings.multiModelMessageStyle,
       'chat.message.multi_model.grid_columns': settings.gridColumns,
@@ -122,10 +122,6 @@ vi.mock('@renderer/hooks/useMessageOperations', () => ({
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModel: () => null
-}))
-
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => mocks.useSettings()
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
@@ -315,7 +311,7 @@ describe('MessageGroup', () => {
   })
 
   it('preserves visible content overflow for non-horizontal layouts', () => {
-    mocks.useSettings.mockReturnValue({
+    mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'vertical',
       gridColumns: 2,
       gridPopoverTrigger: 'click',

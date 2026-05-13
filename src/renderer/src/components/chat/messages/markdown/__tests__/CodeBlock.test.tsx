@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   },
   getCodeBlockId: vi.fn(),
   isOpenFenceBlock: vi.fn(),
-  useSettings: vi.fn().mockReturnValue({ codeFancyBlock: true }),
+  usePreference: vi.fn().mockReturnValue([true]),
   isWin: false,
   CodeBlockView: vi.fn(({ onSave, children }) => (
     <div>
@@ -54,8 +54,8 @@ vi.mock('@renderer/store', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => mocks.useSettings()
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: () => mocks.usePreference()
 }))
 
 vi.mock('@renderer/components/CodeBlockView', () => ({
