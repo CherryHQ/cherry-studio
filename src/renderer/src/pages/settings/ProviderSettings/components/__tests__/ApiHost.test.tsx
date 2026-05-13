@@ -1,5 +1,5 @@
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ApiHost from '../../ConnectionSettings/ApiHost'
@@ -139,7 +139,7 @@ describe('ApiHost', () => {
     })
   })
 
-  it('copies the api host from the hover action and shows copied feedback', () => {
+  it('copies the api host from the hover action and shows copied feedback', async () => {
     useProviderHostPreviewMock.mockReturnValue({
       hostPreview: 'https://api.example.com/chat/completions',
       anthropicHostPreview: 'https://api.example.com/messages',
@@ -156,8 +156,10 @@ describe('ApiHost', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^复制$|^Copy$/ }))
 
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://api.example.com')
-    expect(window.toast.success).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://api.example.com')
+      expect(window.toast.success).toHaveBeenCalled()
+    })
   })
 
   it('commits host from the request-configuration drawer and resets the primary API host from the connection row', () => {
