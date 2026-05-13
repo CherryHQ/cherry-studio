@@ -1301,3 +1301,145 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     expect(result.errors.some((error) => error.key === 'knowledge_base_count_mismatch')).toBe(true)
   })
 })
+
+describe('KnowledgeMigrator file_ref creation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  /**
+   * Build a minimal ctx mock that captures insert calls made outside the
+   * knowledge-base transaction (i.e. the file_ref inserts).
+   */
+  function makeExecCtx(idRemap?: Map<string, string>) {
+    const sharedData = new Map<string, unknown>()
+    if (idRemap !== undefined) {
+      sharedData.set('file.idRemap', idRemap)
+    }
+
+    const insertedOutsideTx: unknown[] = []
+    const outerInsert = vi.fn((/* _table */) => ({
+      values: vi.fn((rows: unknown) => {
+        const arr = Array.isArray(rows) ? rows : [rows]
+        insertedOutsideTx.push(...arr)
+        return Promise.resolve()
+      })
+    }))
+
+    const txInsert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) })
+    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
+      await callback({ insert: txInsert })
+    })
+
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+
+    return {
+      sharedData,
+      db: { transaction, insert: outerInsert },
+      logger,
+      insertedOutsideTx,
+      outerInsert
+    }
+  }
+
+  it('creates one file_ref row for a knowledge item with a valid v1 fileId', async () => {
+    const legacyFileId = 'legacy-file-001'
+    const v2FileId = 'v2-file-uuid-001'
+    const idRemap = new Map([[legacyFileId, v2FileId]])
+    const { sharedData, db, logger, insertedOutsideTx } = makeExecCtx(idRemap)
+
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
+    migrator.preparedItems = [
+      {
+        id: 'item-file-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'file',
+        data: { source: '/tmp/foo.pdf', file: { id: legacyFileId, name: 'foo.pdf' } },
+        status: 'idle'
+      }
+    ]
+
+    const result = await migrator.execute({ db, sharedData, logger } as any)
+
+    expect(result.success).toBe(true)
+    expect(insertedOutsideTx).toHaveLength(1)
+    expect(insertedOutsideTx[0]).toMatchObject({
+      fileEntryId: v2FileId,
+      sourceType: 'knowledge_item',
+      sourceId: 'item-file-1',
+      role: 'attachment'
+    })
+    expect(typeof (insertedOutsideTx[0] as any).id).toBe('string')
+  })
+
+  it('skips file_ref creation for a knowledge item whose fileId is not in idRemap', async () => {
+    const idRemap = new Map([['other-id', 'v2-other']])
+    const { sharedData, db, logger, insertedOutsideTx } = makeExecCtx(idRemap)
+
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
+    migrator.preparedItems = [
+      {
+        id: 'item-file-missing',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'file',
+        data: { source: '/tmp/bar.pdf', file: { id: 'missing-legacy-id', name: 'bar.pdf' } },
+        status: 'idle'
+      }
+    ]
+
+    const result = await migrator.execute({ db, sharedData, logger } as any)
+
+    expect(result.success).toBe(true)
+    expect(insertedOutsideTx).toHaveLength(0)
+  })
+
+  it('creates correct number of file_ref rows for multiple items referencing different v2 ids', async () => {
+    const idRemap = new Map([
+      ['legacy-a', 'v2-a'],
+      ['legacy-b', 'v2-b']
+    ])
+    const { sharedData, db, logger, insertedOutsideTx } = makeExecCtx(idRemap)
+
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
+    migrator.preparedItems = [
+      {
+        id: 'item-a',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'file',
+        data: { source: '/tmp/a.pdf', file: { id: 'legacy-a', name: 'a.pdf' } },
+        status: 'idle'
+      },
+      {
+        id: 'item-b',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'file',
+        data: { source: '/tmp/b.pdf', file: { id: 'legacy-b', name: 'b.pdf' } },
+        status: 'idle'
+      },
+      {
+        id: 'item-note',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'note',
+        data: { source: 'some note', content: 'some note' },
+        status: 'idle'
+      }
+    ]
+
+    const result = await migrator.execute({ db, sharedData, logger } as any)
+
+    expect(result.success).toBe(true)
+    expect(insertedOutsideTx).toHaveLength(2)
+    const refSourceIds = insertedOutsideTx.map((r) => (r as any).sourceId).sort()
+    expect(refSourceIds).toEqual(['item-a', 'item-b'])
+    const refFileEntryIds = insertedOutsideTx.map((r) => (r as any).fileEntryId).sort()
+    expect(refFileEntryIds).toEqual(['v2-a', 'v2-b'])
+  })
+})
